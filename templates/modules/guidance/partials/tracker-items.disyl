@@ -1,0 +1,44 @@
+{if items}
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div class="divide-y divide-gray-100">
+        {foreach items as item}
+        <div class="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition group">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold">
+                    {item.sort_order + 1}
+                </div>
+                <div>
+                    <div class="font-medium text-gray-800 text-sm">{item.name}</div>
+                    <div class="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+                        {if item.is_required}
+                        <span class="text-red-500"><i class="fas fa-asterisk mr-0.5"></i>Required</span>
+                        {else}
+                        <span>Optional</span>
+                        {/if}
+                        {if item.deadline}
+                        <span><i class="fas fa-clock mr-0.5"></i>Due: {item.deadline}</span>
+                        {/if}
+                        {if item.description}
+                        <span title="{item.description}"><i class="fas fa-info-circle mr-0.5"></i>{item.description}</span>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+            {if user.role == 'admin' or user.role == 'supervisor'}
+            <button hx-delete="/api/trackers/{tracker_id}/items/{item.id}" 
+                    hx-swap="none" hx-confirm="Delete '{item.name}'? This will remove all submission records for this document."
+                    class="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition text-sm">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            {/if}
+        </div>
+        {/foreach}
+    </div>
+</div>
+{else}
+<div class="text-center py-12 bg-white rounded-xl border border-gray-200">
+    <i class="fas fa-list-check text-4xl text-gray-300 mb-3"></i>
+    <p class="text-gray-500 font-medium">No required documents defined</p>
+    <p class="text-gray-400 text-sm mt-1">Add documents that students need to submit</p>
+</div>
+{/if}

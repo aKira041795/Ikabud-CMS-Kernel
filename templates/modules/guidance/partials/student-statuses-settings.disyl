@@ -1,0 +1,115 @@
+{!-- Student Status Settings --}
+
+<div class="space-y-4">
+    <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-5">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900">Add Student Status</h3>
+                <p class="text-xs text-gray-500 mt-1">These statuses appear in case forms and case detail views.</p>
+            </div>
+        </div>
+
+        <form hx-post="/api/student-statuses" hx-swap="none" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+                    <input type="text" name="name" required placeholder="e.g. Referred"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Sort Order</label>
+                    <input type="number" name="sort_order" value="{next_sort_order}" min="1"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="hidden" name="is_default" value="0">
+                    <input type="checkbox" name="is_default" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <span>Set as default status</span>
+                </label>
+
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
+                    <i class="fas fa-plus mr-2"></i> Add Status
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {if student_statuses | count > 0}
+        {foreach student_statuses as status}
+        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <form hx-put="/api/student-statuses/{status.id}" hx-swap="none" class="space-y-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h3 class="text-sm font-semibold text-gray-900">{status.name}</h3>
+                            {if status.is_default}
+                            <span class="px-2 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">Default</span>
+                            {/if}
+                            {if status.in_use_count > 0}
+                            <span class="px-2 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">{status.in_use_count} case{if status.in_use_count != 1}s{/if}</span>
+                            {/if}
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Current sort order: {status.sort_order}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                        <input type="text" name="name" value="{status.name}" required
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Sort Order</label>
+                        <input type="number" name="sort_order" value="{status.sort_order}" min="1"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4 text-sm text-gray-700">
+                    <label class="inline-flex items-center gap-2">
+                        <input type="hidden" name="is_default" value="0">
+                        <input type="checkbox" name="is_default" value="1" {if status.is_default}checked{/if} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span>Default status</span>
+                    </label>
+                </div>
+
+                {if status.in_use_count > 0}
+                <div class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    Renaming this status will update existing case records. Deleting is disabled while it is still in use.
+                </div>
+                {/if}
+
+                <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+                    {if status.in_use_count > 0}
+                    <button type="button" disabled
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed">
+                        <i class="fas fa-lock mr-2"></i> In Use
+                    </button>
+                    {else}
+                    <button type="button"
+                            hx-delete="/api/student-statuses/{status.id}"
+                            hx-swap="none"
+                            hx-confirm="Delete this student status?"
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition">
+                        <i class="fas fa-trash mr-2"></i> Delete
+                    </button>
+                    {/if}
+
+                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition">
+                        <i class="fas fa-save mr-2"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+        {/foreach}
+    {else}
+    <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-500">
+        <i class="fas fa-user-tag text-2xl mb-3"></i>
+        <p class="text-sm">No student statuses configured yet.</p>
+    </div>
+    {/if}
+</div>

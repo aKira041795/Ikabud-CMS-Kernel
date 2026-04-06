@@ -1,0 +1,62 @@
+{!-- CSV Import Step 3: Results --}
+<div class="space-y-4">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-full {if imported > 0}bg-green-100 text-green-600{else}bg-red-100 text-red-600{/if} flex items-center justify-center">
+            <i class="fas {if imported > 0}fa-check-circle{else}fa-exclamation-circle{/if} text-xl"></i>
+        </div>
+        <div>
+            <h4 class="font-semibold text-gray-800">Import Complete</h4>
+            <p class="text-sm text-gray-500">{imported} students imported successfully</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-3">
+        <div class="p-3 bg-green-50 rounded-lg text-center">
+            <p class="text-2xl font-bold text-green-700">{imported}</p>
+            <p class="text-xs text-green-600">Imported</p>
+        </div>
+        <div class="p-3 bg-yellow-50 rounded-lg text-center">
+            <p class="text-2xl font-bold text-yellow-700">{skipped}</p>
+            <p class="text-xs text-yellow-600">Skipped</p>
+        </div>
+        <div class="p-3 bg-red-50 rounded-lg text-center">
+            <p class="text-2xl font-bold text-red-700">{errors | count}</p>
+            <p class="text-xs text-red-600">Errors</p>
+        </div>
+    </div>
+
+    {if new_columns}
+    <div class="p-3 bg-blue-50 rounded-lg">
+        <p class="text-sm font-medium text-blue-700 mb-1"><i class="fas fa-database mr-1"></i> New custom fields created:</p>
+        <div class="flex flex-wrap gap-2">
+            {foreach new_columns as col}
+            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono">{col}</span>
+            {/foreach}
+        </div>
+    </div>
+    {/if}
+
+    {if errors}
+    <div class="p-3 bg-red-50 rounded-lg">
+        <p class="text-sm font-medium text-red-700 mb-1"><i class="fas fa-exclamation-triangle mr-1"></i> Errors:</p>
+        <ul class="text-xs text-red-600 space-y-1 max-h-32 overflow-y-auto">
+            {foreach errors as err}
+            <li>{err}</li>
+            {/foreach}
+        </ul>
+    </div>
+    {/if}
+
+    <div class="flex justify-end gap-3 pt-2">
+        {if imported > 0}
+        <button type="button" onclick="window.location.href='/admin/guidance/trackers/{tracker_id}'"
+                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition">
+            <i class="fas fa-rotate-right mr-1"></i> Reload Tracker
+        </button>
+        {/if}
+        <button type="button" onclick="document.getElementById('import-result-area').innerHTML=''; document.getElementById('import-mapping-area').innerHTML='';" 
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+            <i class="fas fa-check mr-1"></i> Close
+        </button>
+    </div>
+</div>

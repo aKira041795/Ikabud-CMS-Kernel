@@ -1,0 +1,145 @@
+{!-- CSV Import Step 2: Column Mapping --}
+<div class="space-y-5">
+    <div class="flex items-center justify-between">
+        <div>
+            <h4 class="font-semibold text-gray-800">Map CSV Columns</h4>
+            <p class="text-sm text-gray-500 mt-0.5">{total_rows} rows found. Map each CSV column to a database field.</p>
+        </div>
+        <span class="px-3 py-1 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-full">
+            <i class="fas fa-file-csv mr-1"></i> {total_rows} rows
+        </span>
+    </div>
+
+    {!-- Preview Table --}
+    <div class="border rounded-lg overflow-x-auto max-h-40">
+        <table class="min-w-full text-xs">
+            <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                    {foreach headers as h}
+                    <th class="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">{h}</th>
+                    {/foreach}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {foreach preview_rows as row}
+                <tr>
+                    {foreach row as cell}
+                    <td class="px-3 py-1.5 text-gray-500 whitespace-nowrap max-w-[150px] truncate">{cell}</td>
+                    {/foreach}
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+
+    {!-- Mapping Form --}
+    <form id="import-execute-form" class="space-y-3">
+        <input type="hidden" name="temp_file" value="{temp_file}">
+        
+        <div class="grid gap-2">
+            {foreach mapping as m}
+            <div class="flex items-center gap-3 p-3 rounded-lg border {if m.suggested_column}border-green-200 bg-green-50/50{else}border-yellow-200 bg-yellow-50/50{/if}">
+                <div class="w-1/3">
+                    <span class="text-sm font-medium text-gray-700">{m.csv_header}</span>
+                </div>
+                <div class="flex-shrink-0">
+                    <i class="fas fa-arrow-right text-gray-400"></i>
+                </div>
+                <div class="flex-1">
+                    <select name="mapping[{m.csv_index}][db_column]" 
+                            class="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            onchange="this.closest('.flex').querySelector('[name$=\\'[action]\\']').value = this.value === '__skip__' ? 'skip' : (this.value === '__create__' ? 'create_new' : 'map')">
+                        <option value="__skip__">— Skip this column —</option>
+                        <option value="student_id" {if m.suggested_column == 'student_id'}selected{/if}>Student ID</option>
+                        <option value="student_name" {if m.suggested_column == 'student_name'}selected{/if}>Student Name</option>
+                        <option value="college_id" {if m.suggested_column == 'college_id'}selected{/if}>College</option>
+                        <option value="year_level" {if m.suggested_column == 'year_level'}selected{/if}>Year Level</option>
+                        <option value="section" {if m.suggested_column == 'section'}selected{/if}>Section</option>
+                        <option value="email" {if m.suggested_column == 'email'}selected{/if}>Email</option>
+                        <option value="phone" {if m.suggested_column == 'phone'}selected{/if}>Phone</option>
+                        <option value="notes" {if m.suggested_column == 'notes'}selected{/if}>Notes</option>
+                        <option value="__create__" {if m.action == 'create_new' and !m.suggested_column}selected{/if}>➕ Create New Field: "{m.csv_header}"</option>
+                    </select>
+                    <input type="hidden" name="mapping[{m.csv_index}][csv_index]" value="{m.csv_index}">
+                    <input type="hidden" name="mapping[{m.csv_index}][csv_header]" value="{m.csv_header}">
+                    <input type="hidden" name="mapping[{m.csv_index}][action]" value="{m.action}">
+                </div>
+                <div class="flex-shrink-0">
+                    {if m.suggested_column}
+                    <span class="text-xs text-green-600"><i class="fas fa-check-circle"></i> Auto-matched</span>
+                    {else}
+                    <span class="text-xs text-yellow-600"><i class="fas fa-exclamation-circle"></i> New field</span>
+                    {/if}
+                </div>
+            </div>
+            {/foreach}
+        </div>
+
+        <div class="flex items-center justify-between pt-4 border-t">
+            <p class="text-xs text-gray-400">
+                <i class="fas fa-info-circle mr-1"></i>
+                Columns mapped to "Create New Field" will add a custom column to the database.
+            </p>
+            <div class="flex gap-3">
+                <button type="button" onclick="document.getElementById('import-mapping-area').innerHTML=''; document.getElementById('import-result-area').innerHTML='';" 
+                        class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
+                <button type="button" onclick="executeImport()" class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition">
+                    <i class="fas fa-file-import mr-1"></i> Import {total_rows} Rows
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function executeImport() {
+    const form = document.getElementById('import-execute-form');
+    const formData = new FormData(form);
+    
+    // Convert mapping to JSON structure
+    const mappingObj = {};
+    for (const [key, value] of formData.entries()) {
+        const match = key.match(/mapping\[(\d+)\]\[(\w+)\]/);
+        if (match) {
+            const idx = match[1];
+            const field = match[2];
+            if (!mappingObj[idx]) mappingObj[idx] = {};
+            mappingObj[idx][field] = value;
+        }
+    }
+    
+    // Filter out skipped and fix create_new action
+    const mapping = Object.values(mappingObj).map(m => {
+        if (m.db_column === '__skip__') m.action = 'skip';
+        else if (m.db_column === '__create__') { m.action = 'create_new'; m.db_column = ''; }
+        else m.action = 'map';
+        return m;
+    });
+    
+    const body = new FormData();
+    body.append('temp_file', formData.get('temp_file'));
+    body.append('mapping', JSON.stringify(mapping));
+    
+    const btn = form.querySelector('button[type="button"]:last-child');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Importing...';
+    
+    fetch('/admin/guidance/api/trackers/{tracker_id}/import/execute', {
+        method: 'POST',
+        body: body,
+        headers: { 'X-CSRF-Token': APP_CSRF, 'HX-Request': 'true' }
+    })
+    .then(r => r.text())
+    .then(html => {
+        document.getElementById('import-mapping-area').innerHTML = '';
+        document.getElementById('import-result-area').innerHTML = html;
+        htmx.trigger(document.body, 'refreshStudents');
+        htmx.trigger(document.body, 'refreshItems');
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-file-import mr-1"></i> Retry Import';
+        alert('Import failed: ' + err.message);
+    });
+}
+</script>

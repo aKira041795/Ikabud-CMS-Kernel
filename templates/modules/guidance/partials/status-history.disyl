@@ -1,0 +1,26 @@
+{!-- Status History Partial --}
+
+{if history | count > 0}
+<div class="space-y-3">
+    {for item in history}
+    <div class="flex items-start space-x-3">
+        <div class="flex-shrink-0 w-2 h-2 mt-2 rounded-full bg-indigo-500"></div>
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center space-x-2">
+                {ikb_badge variant="{item.previous_status}"}{item.previous_status | title}{/ikb_badge}
+                <i class="fas fa-arrow-right text-gray-400 text-xs"></i>
+                {ikb_badge variant="{item.new_status}"}{item.new_status | title}{/ikb_badge}
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+                {item.changed_by_name | default:'System'} • {item.created_at | date:'M d, g:i A'}
+            </p>
+            {if item.notes}
+            <p class="text-xs text-gray-600 mt-1">{item.notes | esc_html}</p>
+            {/if}
+        </div>
+    </div>
+    {/for}
+</div>
+{else}
+<p class="text-sm text-gray-500 text-center py-4">No status changes recorded</p>
+{/if}

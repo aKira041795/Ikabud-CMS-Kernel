@@ -261,6 +261,34 @@ $syntheticId          = PHP_INT_MAX - 99; // non-existent ID
 $emptyCapData         = cmsEntityCapabilityData($syntheticId, ['id' => $syntheticId]);
 t('no-capability entity returns empty data', $emptyCapData === []);
 
+// Malformed provider handling
+$bus = app()->capabilities();
+$bus->register(
+    'entity.capability.lessons_index.data@1',
+    'test_lessons_malformed_string',
+    function (mixed $payload): mixed { return 'malformed-string-not-an-array'; },
+    100
+);
+$bus->register(
+    'entity.capability.media_gallery.data@1',
+    'test_gallery_malformed_exception',
+    function (mixed $payload): mixed { throw new \RuntimeException('Simulated provider crash'); },
+    100
+);
+
+cmsEntityAttachCapability($testEntityId, 'lessons_index');
+cmsEntityAttachCapability($testEntityId, 'media_gallery');
+cmsEntityCapabilityClearCache($testEntityId);
+
+$capDataMalformed = cmsEntityCapabilityData($testEntityId, $testEntity);
+t('malformed provider returning string gracefully defaults to empty array for lessons_index', ($capDataMalformed['lessons_index'] ?? null) === []);
+t('malformed provider throwing exception gracefully defaults to empty array for media_gallery', ($capDataMalformed['media_gallery'] ?? null) === []);
+
+// Cleanup for subsequent tests
+cmsEntityDetachCapability($testEntityId, 'lessons_index');
+cmsEntityDetachCapability($testEntityId, 'media_gallery');
+cmsEntityCapabilityClearCache($testEntityId);
+
 // ════════════════════════════════════════════════════════════════════
 // 6. DIRECT DATA PROVIDER INVOCATIONS
 // ════════════════════════════════════════════════════════════════════

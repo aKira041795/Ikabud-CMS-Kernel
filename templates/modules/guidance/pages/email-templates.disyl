@@ -1,0 +1,137 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+
+{ikb_section padding="none"}
+    
+    <div class="mb-6">
+        {ikb_text tag="h1" size="2xl" weight="bold"}Email Templates{/ikb_text}
+        {ikb_text color="muted"}Customize the email messages sent to students for appointment bookings{/ikb_text}
+    </div>
+    
+    {if !is_pro}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 p-6">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-crown mt-1 text-amber-600"></i>
+            <div>
+                <h2 class="text-lg font-semibold text-amber-950">Guidance Pro required</h2>
+                <p class="mt-2 text-sm text-amber-900">Email template management is available on Guidance Pro. Upgrade the tenant entitlement to customize booking confirmation, pending, and rejection messages.</p>
+                <a href="{base_url}/settings"
+                   class="mt-4 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+                   hx-get="/pages/settings"
+                   hx-target="#main-content"
+                   hx-push-url="{base_url}/settings">
+                    <i class="fas fa-arrow-up-right-from-square mr-2"></i>Open Guidance Pro settings
+                </a>
+            </div>
+        </div>
+    </div>
+    {else}
+    <form hx-put="/api/email-templates" hx-swap="none" class="space-y-6">
+        
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-sm text-blue-800">
+                <i class="fas fa-info-circle mr-1"></i>
+                <strong>Available placeholders:</strong> 
+                <code class="bg-blue-100 px-1 rounded">&#123;student_name&#125;</code>
+                <code class="bg-blue-100 px-1 rounded">&#123;date&#125;</code>
+                <code class="bg-blue-100 px-1 rounded">&#123;time&#125;</code>
+                <code class="bg-blue-100 px-1 rounded">&#123;location&#125;</code>
+                <code class="bg-blue-100 px-1 rounded">&#123;reason&#125;</code>
+            </p>
+            <p class="text-xs text-blue-600 mt-1">These will be replaced with actual values when the email is sent. Line breaks are preserved.</p>
+        </div>
+        
+        {!-- Booking Received --}
+        {ikb_card variant="elevated"}
+            <div class="flex items-center mb-4">
+                <span class="inline-flex items-center justify-center w-10 h-10 bg-amber-100 rounded-lg mr-3">
+                    <i class="fas fa-clock text-amber-600"></i>
+                </span>
+                <div>
+                    {ikb_text tag="h2" size="lg" weight="semibold"}Booking Request Received{/ikb_text}
+                    <p class="text-sm text-gray-500">Sent when a student submits a new booking request</p>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                    <input type="text" name="email_tpl_booking_received_subject" 
+                           value="{email_templates.booking_received.subject}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
+                    <textarea name="email_tpl_booking_received_body" rows="8"
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm">{email_templates.booking_received.body}</textarea>
+                </div>
+            </div>
+        {/ikb_card}
+        
+        {!-- Booking Confirmed --}
+        {ikb_card variant="elevated"}
+            <div class="flex items-center mb-4">
+                <span class="inline-flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg mr-3">
+                    <i class="fas fa-check-circle text-green-600"></i>
+                </span>
+                <div>
+                    {ikb_text tag="h2" size="lg" weight="semibold"}Appointment Confirmed{/ikb_text}
+                    <p class="text-sm text-gray-500">Sent when a counselor approves the appointment</p>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                    <input type="text" name="email_tpl_booking_confirmed_subject" 
+                           value="{email_templates.booking_confirmed.subject}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
+                    <textarea name="email_tpl_booking_confirmed_body" rows="8"
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm">{email_templates.booking_confirmed.body}</textarea>
+                </div>
+            </div>
+        {/ikb_card}
+        
+        {!-- Booking Rejected --}
+        {ikb_card variant="elevated"}
+            <div class="flex items-center mb-4">
+                <span class="inline-flex items-center justify-center w-10 h-10 bg-red-100 rounded-lg mr-3">
+                    <i class="fas fa-times-circle text-red-600"></i>
+                </span>
+                <div>
+                    {ikb_text tag="h2" size="lg" weight="semibold"}Appointment Rejected{/ikb_text}
+                    <p class="text-sm text-gray-500">Sent when a counselor declines the appointment</p>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                    <input type="text" name="email_tpl_booking_rejected_subject" 
+                           value="{email_templates.booking_rejected.subject}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
+                    <textarea name="email_tpl_booking_rejected_body" rows="8"
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm">{email_templates.booking_rejected.body}</textarea>
+                </div>
+            </div>
+        {/ikb_card}
+        
+        {!-- Save Button --}
+        <div class="flex justify-end">
+            {ikb_button type="submit" variant="primary" size="large"}
+                <i class="fas fa-save mr-2"></i> Save Templates
+            {/ikb_button}
+        </div>
+    </form>
+    {/if}
+    
+{/ikb_section}
+
+{/block}

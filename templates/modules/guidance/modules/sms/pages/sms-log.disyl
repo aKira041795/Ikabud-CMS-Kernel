@@ -1,0 +1,192 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+<div class="p-6 max-w-7xl mx-auto">
+    
+    {!-- Header --}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">SMS Notifications</h2>
+            <p class="text-sm text-gray-500 mt-1">Send and track SMS messages to students and counselors</p>
+        </div>
+        <div class="flex items-center gap-3">
+            {if sms_settings.sms_test_mode}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                <i class="fas fa-flask mr-1"></i> Test Mode
+            </span>
+            {/if}
+            <button hx-get="/pages/sms/compose" 
+                    hx-target="#modal-container" 
+                    hx-swap="innerHTML"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
+                <i class="fas fa-paper-plane mr-2"></i> Compose SMS
+            </button>
+        </div>
+    </div>
+    
+    {!-- Stats Cards --}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="sms-stats">
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-gray-500 uppercase">Today Sent</p>
+                    <p class="text-2xl font-bold text-green-600 mt-1" id="stat-today-sent">—</p>
+                </div>
+                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-check text-green-600"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-gray-500 uppercase">Today Failed</p>
+                    <p class="text-2xl font-bold text-red-600 mt-1" id="stat-today-failed">—</p>
+                </div>
+                <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-times text-red-600"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-gray-500 uppercase">This Month</p>
+                    <p class="text-2xl font-bold text-indigo-600 mt-1" id="stat-month-sent">—</p>
+                </div>
+                <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-calendar text-indigo-600"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-gray-500 uppercase">All Time</p>
+                    <p class="text-2xl font-bold text-gray-700 mt-1" id="stat-total-sent">—</p>
+                </div>
+                <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-sms text-gray-600"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {!-- Tabs --}
+    <div class="bg-white rounded-xl shadow-sm border">
+        <div class="border-b px-4">
+            <nav class="flex gap-4 -mb-px" id="sms-tabs">
+                <button class="sms-tab px-3 py-3 text-sm font-medium border-b-2 border-indigo-600 text-indigo-600" data-tab="log" data-status="">
+                    All Messages
+                </button>
+                <button class="sms-tab px-3 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="log" data-status="sent">
+                    <i class="fas fa-check-circle text-green-500 mr-1"></i> Sent
+                </button>
+                <button class="sms-tab px-3 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="log" data-status="failed">
+                    <i class="fas fa-times-circle text-red-500 mr-1"></i> Failed
+                </button>
+                <button class="sms-tab px-3 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="templates">
+                    <i class="fas fa-file-alt text-gray-400 mr-1"></i> Templates
+                </button>
+            </nav>
+        </div>
+        
+        {!-- Search Bar --}
+        <div class="px-4 py-3 border-b bg-gray-50" id="sms-search-bar">
+            <div class="flex gap-3">
+                <div class="flex-1">
+                    <input type="text" id="sms-search" placeholder="Search by number, name, or message..." 
+                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <button id="sms-search-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+        
+        {!-- Log Table Container --}
+        <div id="sms-log-container" hx-get="/api/modules/sms/log" hx-trigger="load, refreshSmsLog from:body" hx-target="#sms-log-container">
+            <div class="p-8 text-center text-gray-400">
+                <i class="fas fa-spinner fa-spin text-2xl"></i>
+                <p class="mt-2">Loading SMS log...</p>
+            </div>
+        </div>
+        
+        {!-- Templates Container (hidden by default) --}
+        <div id="sms-templates-container" class="hidden">
+        </div>
+    </div>
+</div>
+
+{!-- Modal Container --}
+<div id="modal-container"></div>
+
+<script>
+(function() {
+    // Load stats
+    fetch('/api/modules/sms/stats', {
+        headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            var s = data.data;
+            document.getElementById('stat-today-sent').textContent = s.today_sent || 0;
+            document.getElementById('stat-today-failed').textContent = s.today_failed || 0;
+            document.getElementById('stat-month-sent').textContent = s.month_sent || 0;
+            document.getElementById('stat-total-sent').textContent = s.total_sent || 0;
+        }
+    })
+    .catch(function() {});
+    
+    // Tab switching
+    document.querySelectorAll('.sms-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            // Update active tab style
+            document.querySelectorAll('.sms-tab').forEach(function(t) {
+                t.classList.remove('border-indigo-600', 'text-indigo-600');
+                t.classList.add('border-transparent', 'text-gray-500');
+            });
+            this.classList.remove('border-transparent', 'text-gray-500');
+            this.classList.add('border-indigo-600', 'text-indigo-600');
+            
+            var tabType = this.dataset.tab;
+            var logContainer = document.getElementById('sms-log-container');
+            var tplContainer = document.getElementById('sms-templates-container');
+            var searchBar = document.getElementById('sms-search-bar');
+            
+            if (tabType === 'templates') {
+                logContainer.classList.add('hidden');
+                searchBar.classList.add('hidden');
+                tplContainer.classList.remove('hidden');
+                // Load templates via HTMX
+                htmx.ajax('GET', '/pages/sms/templates', {target: '#sms-templates-container', swap: 'innerHTML'});
+            } else {
+                logContainer.classList.remove('hidden');
+                searchBar.classList.remove('hidden');
+                tplContainer.classList.add('hidden');
+                // Reload log with status filter
+                var status = this.dataset.status || '';
+                var url = '/api/modules/sms/log' + (status ? '?status=' + status : '');
+                htmx.ajax('GET', url, {target: '#sms-log-container', swap: 'innerHTML'});
+            }
+        });
+    });
+    
+    // Search
+    var searchInput = document.getElementById('sms-search');
+    var searchBtn = document.getElementById('sms-search-btn');
+    
+    function doSearch() {
+        var q = searchInput.value.trim();
+        var url = '/api/modules/sms/log' + (q ? '?search=' + encodeURIComponent(q) : '');
+        htmx.ajax('GET', url, {target: '#sms-log-container', swap: 'innerHTML'});
+    }
+    
+    if (searchBtn) searchBtn.addEventListener('click', doSearch);
+    if (searchInput) searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doSearch();
+    });
+})();
+</script>
+{/block}

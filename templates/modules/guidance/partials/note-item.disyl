@@ -1,0 +1,105 @@
+{!-- Counselor Note Item Partial --}
+
+<div class="p-4 border-b last:border-b-0 hover:bg-gray-50">
+    <div class="flex items-start justify-between">
+        <div class="flex items-start space-x-3">
+            <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <i class="fas fa-sticky-note text-indigo-600 text-sm"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center flex-wrap gap-1 mb-1">
+                    {ikb_badge variant="info"}{note.note_type | title}{/ikb_badge}
+                    {if note.session_type}
+                    {ikb_badge variant="default"}{note.session_type | title}{/ikb_badge}
+                    {/if}
+                    {if note.risk_level != 'none'}
+                    {ikb_badge variant="{note.risk_level}"}Risk: {note.risk_level | title}{/ikb_badge}
+                    {/if}
+                    {if note.is_confidential}
+                    {ikb_badge variant="warning"}<i class="fas fa-lock mr-1"></i> Confidential{/ikb_badge}
+                    {/if}
+                </div>
+                
+                {!-- Presenting Problem / Transcription --}
+                <p class="text-sm text-gray-800">{note.note_content | esc_html | nl2br}</p>
+                
+                {if note.intervention_used}
+                <div class="mt-2">
+                    <span class="text-xs font-medium text-gray-500">Intervention:</span>
+                    <span class="text-xs text-gray-600">{note.intervention_used | esc_html}</span>
+                </div>
+                {/if}
+                
+                {if note.student_response}
+                <div class="mt-1">
+                    <span class="text-xs font-medium text-gray-500">Student Response:</span>
+                    <span class="text-xs text-gray-600">{note.student_response | esc_html}</span>
+                </div>
+                {/if}
+                
+                {if note.action_taken}
+                <div class="mt-1">
+                    <span class="text-xs font-medium text-gray-500">Action Taken:</span>
+                    <span class="text-xs text-gray-600">{note.action_taken | esc_html}</span>
+                </div>
+                {/if}
+                
+                {!-- MSE Summary (collapsed into one line if any field is filled) --}
+                {if note.mse_appearance}
+                <div class="mt-2 p-2 bg-purple-50 rounded text-xs">
+                    <span class="font-medium text-purple-700"><i class="fas fa-brain mr-1"></i> MSE:</span>
+                    <span class="text-purple-600">
+                        {if note.mse_appearance}Appearance: {note.mse_appearance | esc_html}; {/if}
+                        {if note.mse_behavior}Behavior: {note.mse_behavior | esc_html}; {/if}
+                        {if note.mse_speech}Speech: {note.mse_speech | esc_html}; {/if}
+                        {if note.mse_emotions}Emotions: {note.mse_emotions | esc_html}; {/if}
+                        {if note.mse_thinking}Thinking: {note.mse_thinking | esc_html}; {/if}
+                        {if note.mse_cognition}Cognition: {note.mse_cognition | esc_html}; {/if}
+                        {if note.mse_judgment}Judgment: {note.mse_judgment | esc_html}; {/if}
+                        {if note.mse_reliability}Reliability: {note.mse_reliability | esc_html}{/if}
+                    </span>
+                </div>
+                {/if}
+                
+                {!-- 4Ps Summary --}
+                {if note.case_predisposition}
+                <div class="mt-2 p-2 bg-amber-50 rounded text-xs">
+                    <span class="font-medium text-amber-700"><i class="fas fa-puzzle-piece mr-1"></i> 4Ps:</span>
+                    <span class="text-amber-600">
+                        {if note.case_predisposition}Predisposition: {note.case_predisposition | esc_html}; {/if}
+                        {if note.case_precipitating}Precipitating: {note.case_precipitating | esc_html}; {/if}
+                        {if note.case_perpetuating}Perpetuating: {note.case_perpetuating | esc_html}; {/if}
+                        {if note.case_protective}Protective: {note.case_protective | esc_html}{/if}
+                    </span>
+                </div>
+                {/if}
+                
+                {!-- Observation & Recommendation --}
+                {if note.observation_recommendation}
+                <div class="mt-2 p-2 bg-green-50 rounded text-xs">
+                    <span class="font-medium text-green-700"><i class="fas fa-lightbulb mr-1"></i> Observation & Recommendation:</span>
+                    <span class="text-green-600">{note.observation_recommendation | esc_html}</span>
+                </div>
+                {/if}
+                
+                {if note.followup_required}
+                <div class="mt-2 text-xs text-yellow-600">
+                    <i class="fas fa-flag mr-1"></i> Follow-up required
+                    {if note.followup_notes}: {note.followup_notes | esc_html}{/if}
+                </div>
+                {/if}
+            </div>
+        </div>
+        
+        <div class="text-right flex-shrink-0 ml-4">
+            <p class="text-xs text-gray-500">{note.session_date | date:'M d, Y'}</p>
+            <p class="text-xs text-gray-400">{note.counselor_name | esc_html}</p>
+            {if note.session_duration_minutes}
+            <p class="text-xs text-gray-400">{note.session_duration_minutes} min session</p>
+            {/if}
+            {if note.mood_assessment}
+            <p class="text-xs text-gray-400">Mood: {note.mood_assessment | esc_html}</p>
+            {/if}
+        </div>
+    </div>
+</div>

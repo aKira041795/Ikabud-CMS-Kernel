@@ -1,0 +1,12 @@
+{
+    "id": "guidance-sms",
+    "name": "Guidance SMS Addon",
+    "version": "1.0.0",
+    "description": "SMS notifications hook for Guidance module.",
+    "commercial_mode": "paid",
+    "depends": ["guidance"],
+    "owns_tables": ["gm_sms_log", "gm_sms_templates"],
+    "settings_fields": [
+        {"key": "sms_gateway", "type": "select", "default": "semaphore"}
+    ]
+}

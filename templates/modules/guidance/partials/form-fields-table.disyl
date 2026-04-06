@@ -1,0 +1,209 @@
+{!-- Form Fields Table Partial --}
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    {!-- Add Field Button --}
+    <div class="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+        <div class="text-sm text-gray-600">
+            <span class="font-medium">{fields | count}</span> fields configured
+        </div>
+        <button onclick="document.getElementById('add-field-form').classList.toggle('hidden')"
+                class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
+            <i class="fas fa-plus mr-1.5"></i> Add Field
+        </button>
+    </div>
+
+    {!-- Add Field Form (hidden by default) --}
+    <div id="add-field-form" class="hidden px-6 py-4 bg-indigo-50 border-b">
+        <form hx-post="/api/form-fields" hx-swap="none" class="space-y-3">
+            <input type="hidden" name="form_type" value="{form_type}">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Field Name *</label>
+                    <input type="text" name="field_name" required placeholder="e.g., emergency_contact"
+                           class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Label *</label>
+                    <input type="text" name="field_label" required placeholder="e.g., Emergency Contact"
+                           class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Type *</label>
+                    <select name="field_type" required class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="text">Text</option>
+                        <option value="textarea">Textarea</option>
+                        <option value="select">Select/Dropdown</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="date">Date</option>
+                        <option value="email">Email</option>
+                        <option value="tel">Phone</option>
+                        <option value="number">Number</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Group</label>
+                    <input type="text" name="field_group" placeholder="e.g., Additional Info"
+                           class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Placeholder</label>
+                    <input type="text" name="placeholder" placeholder="Placeholder text"
+                           class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Options (for select, comma-sep)</label>
+                    <input type="text" name="field_options" placeholder="opt1,opt2,opt3"
+                           class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Width</label>
+                    <select name="grid_column" class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="half">Half Width</option>
+                        <option value="full">Full Width</option>
+                    </select>
+                </div>
+                <div class="flex items-end space-x-3">
+                    <label class="flex items-center text-sm">
+                        <input type="checkbox" name="is_required" value="1" class="rounded border-gray-300 text-indigo-600 mr-1.5">
+                        Required
+                    </label>
+                    <button type="submit" class="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
+                        <i class="fas fa-plus mr-1"></i> Add
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {!-- Fields Table --}
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-8">#</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Field</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Label</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Group</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Required</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Enabled</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Width</th>
+                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {if fields}
+            {foreach fields as field}
+            <tr class="hover:bg-gray-50 {if !field.is_enabled}opacity-50{/if}" id="field-row-{field.id}" data-field-type="{field.field_type}" data-field-options="{field.field_options | default:''}" data-field-is-system="{if field.is_system}1{else}0{/if}">
+                <td class="px-4 py-3 text-sm text-gray-400">{field.sort_order}</td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center">
+                        <code class="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{field.field_name}</code>
+                        {if field.is_system}
+                        <span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200">
+                            <i class="fas fa-lock mr-0.5 text-[8px]"></i>System
+                        </span>
+                        {/if}
+                    </div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-900">{field.field_label}</td>
+                <td class="px-4 py-3">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">{field.field_type}</span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-500">{field.field_group | default:'—'}</td>
+                <td class="px-4 py-3 text-center">
+                    <button hx-put="/api/form-fields/{field.id}" hx-swap="none"
+                            hx-vals='{"is_required": "{if field.is_required}0{else}1{/if}"}'
+                            class="cursor-pointer" title="Toggle required">
+                        {if field.is_required}
+                        <i class="fas fa-check-circle text-green-500"></i>
+                        {else}
+                        <i class="far fa-circle text-gray-300"></i>
+                        {/if}
+                    </button>
+                </td>
+                <td class="px-4 py-3 text-center">
+                    <button hx-put="/api/form-fields/{field.id}" hx-swap="none"
+                            hx-vals='{"is_enabled": "{if field.is_enabled}0{else}1{/if}"}'
+                            class="cursor-pointer" title="Toggle enabled">
+                        {if field.is_enabled}
+                        <i class="fas fa-toggle-on text-green-500 text-lg"></i>
+                        {else}
+                        <i class="fas fa-toggle-off text-gray-300 text-lg"></i>
+                        {/if}
+                    </button>
+                </td>
+                <td class="px-4 py-3 text-center">
+                    <button hx-put="/api/form-fields/{field.id}" hx-swap="none"
+                            hx-vals='{"grid_column": "{if field.grid_column == 'full'}half{else}full{/if}"}'
+                            class="cursor-pointer text-xs" title="Toggle width">
+                        {if field.grid_column == 'full'}
+                        <span class="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">Full</span>
+                        {else}
+                        <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">Half</span>
+                        {/if}
+                    </button>
+                </td>
+                <td class="px-4 py-3 text-right text-sm space-x-1">
+                    <button onclick="editFieldInline({field.id})" class="text-indigo-600 hover:text-indigo-900" title="Edit label/placeholder">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    {if !field.is_system}
+                    <button hx-delete="/api/form-fields/{field.id}" hx-swap="none"
+                            hx-confirm="Delete this field? This cannot be undone."
+                            class="text-red-500 hover:text-red-700" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    {/if}
+                </td>
+            </tr>
+            {/foreach}
+            {else}
+            <tr>
+                <td colspan="9" class="px-6 py-12 text-center text-gray-500">
+                    <i class="fas fa-sliders-h text-4xl text-gray-300 mb-4"></i>
+                    <p>No fields configured for this form</p>
+                </td>
+            </tr>
+            {/if}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function editFieldInline(fieldId) {
+    var row = document.getElementById('field-row-' + fieldId);
+    if (!row) return;
+    var labelCell = row.querySelectorAll('td')[2];
+    var currentLabel = labelCell.textContent.trim();
+    var fieldType = row.getAttribute('data-field-type') || 'text';
+    var currentOptions = row.getAttribute('data-field-options') || '';
+    var isSystemField = row.getAttribute('data-field-is-system') === '1';
+    var newLabel = prompt('Edit field label:', currentLabel);
+    if (!newLabel) return;
+
+    var body = 'field_label=' + encodeURIComponent(newLabel);
+
+    if (fieldType === 'select' && !isSystemField) {
+        var newOptions = prompt('Edit options (comma-separated or JSON array):', currentOptions);
+        if (newOptions === null) return;
+        body += '&field_options=' + encodeURIComponent(newOptions);
+    }
+
+    if (newLabel !== currentLabel || fieldType === 'select') {
+        fetch(APP_BASE + '/api/form-fields/' + fieldId, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'HX-Request': 'true',
+                'X-CSRF-Token': APP_CSRF,
+                'Authorization': 'Bearer ' + (document.cookie.match(new RegExp(APP_COOKIE + '=([^;]+)'))?.[1] || '')
+            },
+            body: body
+        }).then(function() {
+            htmx.trigger(document.body, 'refreshFormFields');
+        });
+    }
+}
+</script>

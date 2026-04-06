@@ -1,0 +1,349 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{!-- Case Detail Page --}
+
+{ikb_section padding="none"}
+    
+    {!-- Deleted Banner --}
+    {if case.deleted_at}
+    <div class="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-3">
+        <i class="fas fa-trash-alt text-red-500"></i>
+        <div>
+            <p class="text-sm font-semibold text-red-700">This case has been deleted</p>
+            <p class="text-xs text-red-500">Deleted on {case.deleted_at}. This record is read-only.</p>
+        </div>
+    </div>
+    {/if}
+    
+    {!-- Header --}
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-4">
+            {ikb_button variant="ghost" href="{base_url}/cases" 
+                       hx-get="/pages/cases" 
+                       hx-target="#main-content" 
+                       hx-push-url="{base_url}/cases"}
+                <i class="fas fa-arrow-left mr-2"></i> Back
+            {/ikb_button}
+            
+            <div>
+                {ikb_text tag="h1" size="2xl" weight="bold"}{case.student_name | esc_html}{/ikb_text}
+                <div class="flex items-center space-x-3 mt-1">
+                    {ikb_badge variant="{case.status}"}{case.status | title}{/ikb_badge}
+                    {ikb_badge variant="{case.severity}"}{case.severity | title}{/ikb_badge}
+                    {ikb_text size="sm" color="muted"}Case #{case.case_number}{/ikb_text}
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex space-x-2">
+            {if case.status != 'closed'}
+            {ikb_button variant="outline" 
+                       hx-post="/api/cases/{case.id}/close" 
+                       hx-confirm="Are you sure you want to close this case?"
+                       hx-target="#main-content"}
+                <i class="fas fa-check mr-2"></i> Close Case
+            {/ikb_button}
+            {else}
+            {ikb_button variant="outline" 
+                       hx-post="/api/cases/{case.id}/reopen" 
+                       hx-target="#main-content"}
+                <i class="fas fa-redo mr-2"></i> Reopen
+            {/ikb_button}
+            {/if}
+            
+            {if case.status != 'closed'}
+            {ikb_button variant="primary" 
+                       hx-get="/pages/cases/{case.id}/edit" 
+                       hx-target="#modal-container"}
+                <i class="fas fa-edit mr-2"></i> Edit
+            {/ikb_button}
+            {/if}
+        </div>
+    </div>
+    
+    {!-- Main Content --}
+    {ikb_grid columns="3" gap="large"}
+        
+        {!-- Left Column - Case Details (2 cols) --}
+        <div class="col-span-2 space-y-6">
+            
+            {!-- Case Information --}
+            {ikb_card variant="elevated"}
+                {ikb_text tag="h2" size="lg" weight="semibold" class="mb-4"}
+                    <i class="fas fa-info-circle mr-2 text-indigo-500"></i> Case Information
+                {/ikb_text}
+                
+                {ikb_grid columns="2" gap="medium"}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Student ID{/ikb_text}
+                        {ikb_text weight="medium"}{case.student_id | esc_html}{/ikb_text}
+                    </div>
+                    <div>
+                        {ikb_text size="sm" color="muted"}College{/ikb_text}
+                        <div class="mt-0.5">
+                            {if case.college_codes}
+                            <div class="flex flex-wrap gap-1">
+                                {foreach case.college_codes as code}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">{code}</span>
+                                {/foreach}
+                            </div>
+                            {else}
+                            {ikb_text weight="medium" color="muted"}Not assigned{/ikb_text}
+                            {/if}
+                        </div>
+                    </div>
+                    <div>
+                        {ikb_text size="sm" color="muted"}Grade / Year Level{/ikb_text}
+                        {ikb_text weight="medium"}{case.student_grade | default:'—' | esc_html}{/ikb_text}
+                    </div>
+                    {if case.student_status}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Student Status{/ikb_text}
+                        {ikb_text weight="medium"}{case.student_status | esc_html}{/ikb_text}
+                    </div>
+                    {/if}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Section{/ikb_text}
+                        {ikb_text weight="medium"}{case.student_section | default:'—' | esc_html}{/ikb_text}
+                    </div>
+                    {if case.date_of_birth}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Date of Birth{/ikb_text}
+                        {ikb_text weight="medium"}{case.date_of_birth | date:'M d, Y'}{/ikb_text}
+                    </div>
+                    {/if}
+                    {if case.gender}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Gender{/ikb_text}
+                        {ikb_text weight="medium"}{case.gender | title}{/ikb_text}
+                    </div>
+                    {/if}
+                    {if case.nationality}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Nationality{/ikb_text}
+                        {ikb_text weight="medium"}{case.nationality | esc_html}{/ikb_text}
+                    </div>
+                    {/if}
+                    {if case.civil_status}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Civil Status{/ikb_text}
+                        {ikb_text weight="medium"}{case.civil_status | title}{/ikb_text}
+                    </div>
+                    {/if}
+                    {if case.student_mobile}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Mobile{/ikb_text}
+                        {ikb_text weight="medium"}{case.student_mobile | esc_html}{/ikb_text}
+                    </div>
+                    {/if}
+                    {if case.student_email}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Email{/ikb_text}
+                        {ikb_text weight="medium"}{case.student_email | esc_html}{/ikb_text}
+                    </div>
+                    {/if}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Category{/ikb_text}
+                        {ikb_text weight="medium"}{case.category | title}{/ikb_text}
+                    </div>
+                    <div>
+                        {ikb_text size="sm" color="muted"}Assigned Counselor{/ikb_text}
+                        {ikb_text weight="medium"}{case.counselor_name | default:'Unassigned' | esc_html}{/ikb_text}
+                    </div>
+                    {if case.referral_source}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Referral Source{/ikb_text}
+                        {ikb_text weight="medium"}{case.referral_source | title}{/ikb_text}
+                    </div>
+                    {/if}
+                    {if case.referred_by}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Referred By{/ikb_text}
+                        {ikb_text weight="medium"}{case.referred_by | esc_html}{/ikb_text}
+                    </div>
+                    {/if}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Created{/ikb_text}
+                        {ikb_text weight="medium"}{case.created_at | date:'M d, Y'}{/ikb_text}
+                    </div>
+                    <div>
+                        {ikb_text size="sm" color="muted"}Last Updated{/ikb_text}
+                        {ikb_text weight="medium"}{case.updated_at | date:'M d, Y'}{/ikb_text}
+                    </div>
+                {/ikb_grid}
+                
+                {if case.address}
+                <div class="mt-4">
+                    {ikb_text size="sm" color="muted"}Address{/ikb_text}
+                    {ikb_text class="mt-1"}{case.address | esc_html}{/ikb_text}
+                </div>
+                {/if}
+                
+                <hr class="my-4">
+                
+                {ikb_text size="sm" color="muted"}Presenting Issue{/ikb_text}
+                {ikb_text class="mt-1"}{case.presenting_issue | esc_html | nl2br}{/ikb_text}
+                
+                {if case.background_info}
+                <div class="mt-4">
+                    {ikb_text size="sm" color="muted"}Background Information{/ikb_text}
+                    {ikb_text class="mt-1"}{case.background_info | esc_html | nl2br}{/ikb_text}
+                </div>
+                {/if}
+            {/ikb_card}
+            
+            {!-- Parent/Guardian & Emergency Contact --}
+            {if case.parent_guardian_name}
+            {ikb_card variant="elevated"}
+                {ikb_text tag="h2" size="lg" weight="semibold" class="mb-4"}
+                    <i class="fas fa-users mr-2 text-indigo-500"></i> Parent/Guardian & Emergency Contact
+                {/ikb_text}
+                
+                {ikb_grid columns="2" gap="medium"}
+                    <div>
+                        {ikb_text size="sm" color="muted"}Name{/ikb_text}
+                        {ikb_text weight="medium"}{case.parent_guardian_name | esc_html}{/ikb_text}
+                    </div>
+                    <div>
+                        {ikb_text size="sm" color="muted"}Contact{/ikb_text}
+                        {ikb_text weight="medium"}{case.parent_guardian_contact | esc_html}{/ikb_text}
+                    </div>
+                {/ikb_grid}
+                {if case.emergency_contact_address}
+                <div class="mt-3">
+                    {ikb_text size="sm" color="muted"}Address{/ikb_text}
+                    {ikb_text class="mt-1"}{case.emergency_contact_address | esc_html}{/ikb_text}
+                </div>
+                {/if}
+            {/ikb_card}
+            {/if}
+            
+            {!-- Counselor Notes --}
+            {ikb_card variant="elevated" padding="none"}
+                <div class="p-4 border-b flex items-center justify-between">
+                    {ikb_text tag="h2" size="lg" weight="semibold"}
+                        <i class="fas fa-sticky-note mr-2 text-indigo-500"></i> Counselor Notes
+                    {/ikb_text}
+                    {ikb_button variant="primary" size="small" 
+                               hx-get="/pages/cases/{case.id}/notes/new" 
+                               hx-target="#modal-container"}
+                        <i class="fas fa-plus mr-1"></i> Add Note
+                    {/ikb_button}
+                </div>
+                
+                <div id="case-notes" 
+                     hx-get="/api/cases/{case.id}/notes" 
+                     hx-trigger="load, refreshNotes from:body" 
+                     hx-swap="innerHTML">
+                    <div class="p-8 text-center text-gray-500">
+                        {ikb_spinner /}
+                    </div>
+                </div>
+            {/ikb_card}
+        </div>
+        
+        {!-- Right Column - Sidebar --}
+        <div class="space-y-6">
+            
+            {!-- Status Timeline --}
+            {ikb_card variant="elevated"}
+                {ikb_text tag="h2" size="lg" weight="semibold" class="mb-4"}
+                    <i class="fas fa-history mr-2 text-indigo-500"></i> Status History
+                {/ikb_text}
+                
+                <div id="status-history" 
+                     hx-get="/api/cases/{case.id}/history" 
+                     hx-trigger="load, refreshCases from:body" 
+                     hx-swap="innerHTML">
+                    {ikb_spinner /}
+                </div>
+            {/ikb_card}
+            
+            {!-- Upcoming Appointments --}
+            {ikb_card variant="elevated"}
+                {ikb_text tag="h2" size="lg" weight="semibold" class="mb-4"}
+                    <i class="fas fa-calendar mr-2 text-indigo-500"></i> Appointments
+                {/ikb_text}
+                
+                <div id="case-appointments" 
+                     hx-get="/api/cases/{case.id}/appointments" 
+                     hx-trigger="load, refreshAppointments from:body" 
+                     hx-swap="innerHTML">
+                    {ikb_spinner /}
+                </div>
+                
+                {ikb_button variant="outline" class="w-full mt-4" 
+                           hx-get="/pages/appointments/new?case_id={case.id}" 
+                           hx-target="#modal-container"}
+                    <i class="fas fa-calendar-plus mr-2"></i> Schedule
+                {/ikb_button}
+            {/ikb_card}
+            
+            {!-- Quick Actions --}
+            {ikb_card variant="elevated"}
+                {ikb_text tag="h2" size="lg" weight="semibold" class="mb-4"}Quick Actions{/ikb_text}
+                
+                <div class="space-y-2">
+                    {if case.status == 'open'}
+                    {ikb_button variant="outline" class="w-full justify-start"
+                               hx-post="/api/cases/{case.id}/status" 
+                               hx-vals='{"status": "in_progress"}'
+                               hx-target="#main-content"}
+                        <i class="fas fa-play mr-2"></i> Start Working
+                    {/ikb_button}
+                    {/if}
+                    
+                    {ikb_button variant="ghost" class="w-full justify-start"
+                               hx-get="/pages/cases/{case.id}/reassign" 
+                               hx-target="#modal-container"}
+                        <i class="fas fa-user-edit mr-2"></i> Reassign
+                    {/ikb_button}
+                    
+                    {ikb_button variant="ghost" class="w-full justify-start text-red-600"
+                               hx-delete="/api/cases/{case.id}" 
+                               hx-confirm="Are you sure you want to delete this case? This action cannot be undone."
+                               hx-target="#main-content"
+                               hx-push-url="{base_url}/cases"}
+                        <i class="fas fa-trash mr-2"></i> Delete Case
+                    {/ikb_button}
+                </div>
+            {/ikb_card}
+            
+            {!-- Generate Report --}
+            {ikb_card variant="elevated"}
+                {ikb_text tag="h2" size="lg" weight="semibold" class="mb-4"}
+                    <i class="fas fa-file-medical-alt mr-2 text-indigo-500"></i> Session Report
+                {/ikb_text}
+                <p class="text-sm text-gray-500 mb-4">Generate a professional counseling session summary report for this case.</p>
+                
+                <div class="space-y-2">
+                    <a href="/api/cases/{case.id}/report" target="_blank"
+                       class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+                        <i class="fas fa-file-alt mr-2"></i> View Report (HTML)
+                    </a>
+                    <a href="/api/cases/{case.id}/report?format=docx"
+                       class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
+                        <i class="fas fa-file-word mr-2"></i> Download DOCX
+                    </a>
+                    {if ai_enabled}
+                    <a href="/api/cases/{case.id}/report?ai=1" target="_blank"
+                       class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors">
+                        <i class="fas fa-robot mr-2"></i> AI Summary (HTML)
+                    </a>
+                    <a href="/api/cases/{case.id}/report?ai=1&format=docx"
+                       class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">
+                        <i class="fas fa-file-word mr-2"></i> AI Summary (DOCX)
+                    </a>
+                    {else}
+                    <p class="text-xs text-gray-400 mt-1"><i class="fas fa-info-circle mr-1"></i> Configure an AI provider in <a href="/settings#ai-provider" class="text-indigo-500 hover:underline">Settings</a> to enable AI-powered summaries.</p>
+                    {/if}
+                </div>
+                <p class="text-xs text-gray-400 mt-3">HTML opens in a new tab (use Print to save as PDF). DOCX downloads directly.</p>
+            {/ikb_card}
+        </div>
+    {/ikb_grid}
+    
+{/ikb_section}
+
+{/block}

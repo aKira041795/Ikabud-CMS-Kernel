@@ -1,0 +1,172 @@
+{!-- Modules List — rendered inside Settings > Modules section --}
+
+{if modules}
+<div class="space-y-4">
+    {foreach modules as mod}
+    <div class="border rounded-xl p-5 {if mod.card_state == "active"}border-green-200 bg-green-50/30{elseif mod.card_state == "blocked"}border-amber-200 bg-amber-50/40{else}border-gray-200 bg-white{/if}" x-data="{ showSettings: false }">
+        
+        {!-- Module Header --}
+        <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center {if mod.is_enabled}bg-green-100 text-green-600{else}bg-gray-100 text-gray-400{/if}">
+                    <i class="{mod.icon | default:'fas fa-puzzle-piece'} text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-800">{mod.name}</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">{mod.description}</p>
+                    <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-400">
+                        <span><i class="fas fa-tag mr-1"></i> v{mod.version}</span>
+                        {if mod.author}
+                        <span><i class="fas fa-user mr-1"></i> {mod.author}</span>
+                        {/if}
+                        <span><i class="fas fa-layer-group mr-1"></i> {mod.commercial_mode_label}</span>
+                        {if mod.is_enabled}
+                        <span class="text-green-600 font-medium"><i class="fas fa-check-circle mr-1"></i> Active</span>
+                        {elseif mod.card_state == "blocked"}
+                        <span class="text-amber-700 font-medium"><i class="fas fa-lock mr-1"></i> {if mod.request_status}{mod.request_label}{else}Access Required{/if}</span>
+                        {else}
+                        <span class="text-gray-400"><i class="fas fa-circle mr-1"></i> Inactive</span>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 flex-shrink-0">
+                {if mod.settings_state == "available"}
+                <button @click="showSettings = !showSettings" 
+                        class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border rounded-lg hover:bg-gray-50 transition">
+                    <i class="fas fa-cog mr-1"></i> Configure
+                </button>
+                {/if}
+                {if mod.action_state == "disable"}
+                <button hx-post="{mod.disable_action}" 
+                        hx-swap="none"
+                        hx-confirm="Deactivate {mod.name} for this tenant? The add-on data will be preserved."
+                        class="px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition">
+                    <i class="fas fa-power-off mr-1"></i> Deactivate
+                </button>
+                {elseif mod.action_state == "enable"}
+                <button hx-post="{mod.enable_action}" 
+                        hx-swap="none"
+                        class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
+                    <i class="fas fa-power-off mr-1"></i> Activate
+                </button>
+                {/if}
+            </div>
+        </div>
+
+        {if mod.access_state == "blocked"}
+        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+            <div class="flex items-start gap-3">
+                <i class="fas fa-key mt-0.5 text-amber-600"></i>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium">{mod.access_blocked_message}</p>
+                    <p class="mt-1 text-amber-800">Commercial mode: {mod.commercial_mode_label}. {if mod.request_status}Current request status: {mod.request_label}.{else}Submit an access request to make this add-on available in Guidance.{/if}</p>
+                    {if mod.license_ref}
+                    <p class="mt-2 text-xs text-amber-700">Saved license reference: {mod.license_ref}</p>
+                    {/if}
+                    {if mod.review_notes}
+                    <div class="mt-3 rounded-lg border border-amber-300 bg-white/80 px-3 py-2 text-xs text-amber-900">
+                        <span class="font-medium">Latest review note:</span> {mod.review_notes}
+                    </div>
+                    {/if}
+                </div>
+            </div>
+
+            {if mod.request_form_state == "available"}
+            <form hx-post="{mod.access_request_action}" hx-swap="none" class="mt-4 space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-amber-900 mb-1">License Key</label>
+                        <input type="text" name="license_key" placeholder="Optional license key" class="w-full px-3 py-2 text-sm border border-amber-200 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-amber-900 mb-1">Saved License Reference</label>
+                        <div class="min-h-[42px] px-3 py-2 text-sm border border-amber-200 rounded-lg bg-white text-amber-900 flex items-center">{if mod.license_ref}{mod.license_ref}{else}No license key on file{/if}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-amber-900 mb-1">Request Note</label>
+                    <textarea name="request_notes" rows="3" class="w-full px-3 py-2 text-sm border border-amber-200 rounded-lg bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400" placeholder="Optional context for the add-on access request.">{mod.request_notes}</textarea>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">
+                        <i class="fas fa-paper-plane mr-2"></i>{if mod.request_status == "pending"}Update Access Request{else}Request Access{/if}
+                    </button>
+                </div>
+            </form>
+            {/if}
+        </div>
+        {/if}
+
+        {if mod.access_state == "self-service"}
+        <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            {mod.access_will_self_activate_message}
+        </div>
+        {/if}
+        
+        {!-- Module Settings (collapsible) --}
+        {if mod.settings_state == "available"}
+        <div x-show="showSettings" x-cloak x-transition class="mt-4 pt-4 border-t border-gray-200">
+            {if !mod.is_enabled}
+            <div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                This add-on is inactive for this tenant. Settings saved here will apply when it is activated.
+            </div>
+            {/if}
+            <form hx-post="/api/modules/{mod.id}/settings" hx-swap="none" class="space-y-4">
+                
+                {foreach mod.settings as field}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                    
+                    {if field.is_select}
+                    <select name="{field.key}" class="w-full max-w-md px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        {foreach field.options as option}
+                        <option value="{option.value}" {if option.selected}selected{/if}>{option.label}</option>
+                        {/foreach}
+                    </select>
+                    {/if}
+                    
+                    {if field.is_input}
+                    <input type="{field.input_type}" name="{field.key}" 
+                           value="{field.current_value}" 
+                           placeholder="{field.default}"
+                           class="w-full max-w-md px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    {/if}
+                    
+                    {if field.is_checkbox}
+                    <label class="flex items-center gap-2">
+                        <input type="hidden" name="{field.key}" value="0">
+                        <input type="checkbox" name="{field.key}" value="1" 
+                               {if field.is_checked}checked{/if}
+                               class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm text-gray-600">Enabled</span>
+                    </label>
+                    {/if}
+                    
+                    {if field.description}
+                    <p class="text-xs text-gray-400 mt-1">{field.description}</p>
+                    {/if}
+                </div>
+                {/foreach}
+                
+                <div class="pt-2">
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition">
+                        <i class="fas fa-save mr-1"></i> Save Add-on Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+        {/if}
+    </div>
+    {/foreach}
+</div>
+{else}
+<div class="text-center py-8">
+    <i class="fas fa-puzzle-piece text-4xl text-gray-300 mb-3"></i>
+    <p class="text-gray-500 font-medium">No modules found</p>
+    <p class="text-gray-400 text-sm mt-1">Place module folders in <code class="bg-gray-100 px-1 rounded">/modules/</code> to get started</p>
+</div>
+{/if}

@@ -1,0 +1,14 @@
+{!-- Notes List Partial --}
+
+{if notes | count > 0}
+<div class="divide-y divide-gray-100">
+    {for note in notes}
+    {include "modules/guidance/partials/note-item.disyl" with {note: note}}
+    {/for}
+</div>
+{else}
+<div class="p-8 text-center text-gray-500">
+    <i class="fas fa-sticky-note text-3xl mb-2 text-gray-300"></i>
+    <p>No notes yet</p>
+</div>
+{/if}

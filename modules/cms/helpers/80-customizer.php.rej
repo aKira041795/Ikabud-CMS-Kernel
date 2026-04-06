@@ -1,0 +1,8 @@
+--- 80-customizer.php
++++ 80-customizer.php
+@@ -884,2 +884,5 @@
+     app()->cache()->clearByTags(cmsCustomizerPersistentCacheInstance($scope), $tags);
++    if (function_exists('cmsCacheInstance')) {
++        app()->cache()->clearByTags(cmsCacheInstance(), $tags);
++    }
+ }

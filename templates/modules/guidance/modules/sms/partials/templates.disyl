@@ -1,0 +1,55 @@
+{!-- SMS Templates Management --}
+<div class="p-6">
+    <div class="mb-4">
+        <h3 class="text-lg font-semibold text-gray-800">Message Templates</h3>
+        <p class="text-sm text-gray-500 mt-1">Customize SMS messages sent for each event. Use placeholders like <code class="bg-gray-100 px-1 rounded">&#123;student_name&#125;</code> for dynamic content.</p>
+    </div>
+    
+    <div class="space-y-4">
+        {foreach templates as tpl}
+        <div class="border rounded-lg p-4 bg-white">
+            <form hx-post="/api/modules/sms/templates" hx-swap="none">
+                <input type="hidden" name="event_key" value="{tpl.event_key}">
+                
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <h4 class="font-medium text-gray-800">{tpl.label}</h4>
+                        <span class="text-xs text-gray-400 font-mono">{tpl.event_key}</span>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" name="is_enabled" value="1" {if tpl.is_enabled}checked{/if}
+                               class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-gray-600">Enabled</span>
+                    </label>
+                </div>
+                
+                <textarea name="template" rows="3" 
+                          class="w-full px-3 py-2 border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">{tpl.template}</textarea>
+                
+                <div class="flex items-center justify-between mt-2">
+                    <div class="text-xs text-gray-400">
+                        {if tpl.event_key == 'case.created'}
+                        Placeholders: &#123;counselor_name&#125;, &#123;case_number&#125;, &#123;student_name&#125;
+                        {/if}
+                        {if tpl.event_key == 'appointment.confirmed'}
+                        Placeholders: &#123;student_name&#125;, &#123;date&#125;, &#123;time&#125;
+                        {/if}
+                        {if tpl.event_key == 'appointment.reminder'}
+                        Placeholders: &#123;student_name&#125;, &#123;date&#125;, &#123;time&#125;
+                        {/if}
+                        {if tpl.event_key == 'appointment.cancelled'}
+                        Placeholders: &#123;student_name&#125;, &#123;date&#125;, &#123;time&#125;
+                        {/if}
+                        {if tpl.event_key == 'manual'}
+                        Placeholders: &#123;message&#125;
+                        {/if}
+                    </div>
+                    <button type="submit" class="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium">
+                        <i class="fas fa-save mr-1"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+        {/foreach}
+    </div>
+</div>

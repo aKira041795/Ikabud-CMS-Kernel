@@ -1,0 +1,17 @@
+--- modules/cms/helpers/80-customizer.php
++++ modules/cms/helpers/80-customizer.php
+@@ -2304,3 +2304,3 @@
+     if (!cmsCustomizerSectionExists($db, 'entity_presentation')) {
+-        cmsCustomizerFragmentCacheSet($fragment, ['html' => ''], ['cms:customizer:entity_presentation']);
++        cmsCustomizerFragmentCacheSet($fragment, ['html' => '']);
+         return '';
+@@ -2313,3 +2313,3 @@
+     if (!cmsShouldRenderCustomizerPresentationCss('entity_presentation', $settings)) {
+-        cmsCustomizerFragmentCacheSet($fragment, ['html' => ''], ['cms:customizer:entity_presentation']);
++        cmsCustomizerFragmentCacheSet($fragment, ['html' => '']);
+         return '';
+@@ -2320,3 +2320,3 @@
+     $html = $fontHtml . '<style id="' . htmlspecialchars($styleId, ENT_QUOTES) . '">' . cmsRenderEntityPresentationCss($settings) . '</style>';
+-    cmsCustomizerFragmentCacheSet($fragment, ['html' => $html], ['cms:customizer:entity_presentation']);
++    cmsCustomizerFragmentCacheSet($fragment, ['html' => $html]);
+     return $html;

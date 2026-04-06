@@ -1,0 +1,17 @@
+{!-- Case Appointments Partial --}
+
+{if appointments | count > 0}
+<div class="space-y-2">
+    {for apt in appointments}
+    <div class="flex items-center justify-between p-2 rounded bg-gray-50">
+        <div>
+            <p class="text-sm font-medium">{apt.scheduled_date | date:'M d, Y'}</p>
+            <p class="text-xs text-gray-500">{apt.scheduled_time | date:'g:i A'} • {apt.duration_minutes} min{if apt.type_name} • {apt.type_name}{/if}</p>
+        </div>
+        {ikb_badge variant="{apt.status}"}{apt.status | title}{/ikb_badge}
+    </div>
+    {/for}
+</div>
+{else}
+<p class="text-sm text-gray-500 text-center py-2">No appointments scheduled</p>
+{/if}

@@ -1,0 +1,202 @@
+{!-- Add Note Modal --}
+
+<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="guidance-modal-shell">
+        <div class="fixed inset-0 guidance-modal-backdrop" onclick="document.getElementById('modal-container').innerHTML=''"></div>
+        
+        <div class="guidance-modal-panel guidance-modal-panel--xl">
+            {!-- Header --}
+            <div class="guidance-modal-header">
+                <h2 class="text-xl font-semibold text-gray-800">
+                    <i class="fas fa-sticky-note mr-2 text-indigo-500"></i> Add Counselor Note
+                </h2>
+                <button onclick="document.getElementById('modal-container').innerHTML=''" 
+                        class="guidance-modal-close">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            {!-- Form --}
+            <form hx-post="/api/cases/{case_id}/notes"
+                  hx-swap="none"
+                  class="p-6 space-y-5">
+                
+                <input type="hidden" name="case_id" value="{case_id}">
+                <input type="hidden" name="note_type" value="session">
+                
+                {!-- Session Info --}
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-info-circle mr-1 text-indigo-400"></i> Session Info
+                    </h3>
+                    {ikb_grid columns="2" gap="medium"}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Session Type</label>
+                            {ikb_select name="session_type"}
+                                <option value="walk-in">Walk-in</option>
+                                <option value="follow-up">Follow-up</option>
+                                <option value="referred">Referred</option>
+                            {/ikb_select}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Session Date</label>
+                            {ikb_input type="date" name="session_date" value="{today}" /}
+                        </div>
+                    {/ikb_grid}
+                    {ikb_grid columns="2" gap="medium" class="mt-3"}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Intervention Used</label>
+                            {ikb_input type="text" name="intervention_used" placeholder="e.g., CBT, Active Listening" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Session Duration (min)</label>
+                            {ikb_input type="number" name="session_duration_minutes" placeholder="30" /}
+                        </div>
+                    {/ikb_grid}
+                </div>
+                
+                {!-- Transcription / Presenting Problem --}
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-file-alt mr-1 text-indigo-400"></i> Transcription (Presenting Problem)
+                    </h3>
+                    {ikb_textarea name="note_content" rows="4" required placeholder="Document the presenting problem and session transcription..."}{/ikb_textarea}
+                </div>
+                
+                {!-- Mental Status Examination --}
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-brain mr-1 text-purple-400"></i> Mental Status Examination
+                        <span class="text-xs font-normal text-gray-400 ml-2">(Verbal and nonverbal observation)</span>
+                    </h3>
+                    {ikb_grid columns="2" gap="medium"}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Appearance</label>
+                            {ikb_input type="text" name="mse_appearance" placeholder="e.g., Well-groomed, Disheveled" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">General Behavior</label>
+                            {ikb_input type="text" name="mse_behavior" placeholder="e.g., Cooperative, Agitated" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Speech</label>
+                            {ikb_input type="text" name="mse_speech" placeholder="e.g., Normal rate, Pressured" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Emotions</label>
+                            {ikb_input type="text" name="mse_emotions" placeholder="e.g., Anxious, Flat affect" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Thinking Process</label>
+                            {ikb_input type="text" name="mse_thinking" placeholder="e.g., Logical, Tangential" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Cognition</label>
+                            {ikb_input type="text" name="mse_cognition" placeholder="e.g., Alert, Oriented x3" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Judgment</label>
+                            {ikb_input type="text" name="mse_judgment" placeholder="e.g., Good, Fair, Poor" /}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reliability</label>
+                            {ikb_input type="text" name="mse_reliability" placeholder="e.g., Reliable, Questionable" /}
+                        </div>
+                    {/ikb_grid}
+                </div>
+                
+                {!-- Case Conceptualization / Initial Assessment (4 Ps) --}
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-puzzle-piece mr-1 text-amber-400"></i> Case Conceptualization
+                        <span class="text-xs font-normal text-gray-400 ml-2">(4 Ps of Case Formulation)</span>
+                    </h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">1. Predisposition Factors</label>
+                            <p class="text-xs text-gray-400 mb-1">Risk of developing a problem (e.g., genetics, life events, temperament)</p>
+                            {ikb_textarea name="case_predisposition" rows="2" placeholder="Describe predisposition factors..."}{/ikb_textarea}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">2. Precipitating Factors</label>
+                            <p class="text-xs text-gray-400 mb-1">Specific events or triggers to the onset of the current problem</p>
+                            {ikb_textarea name="case_precipitating" rows="2" placeholder="Describe precipitating factors..."}{/ikb_textarea}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">3. Perpetuating Factors</label>
+                            <p class="text-xs text-gray-400 mb-1">Causative factors of established or chronic problems</p>
+                            {ikb_textarea name="case_perpetuating" rows="2" placeholder="Describe perpetuating factors..."}{/ikb_textarea}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">4. Protective Factors</label>
+                            <p class="text-xs text-gray-400 mb-1">Strengths that help promote healthy functioning (e.g., coping mechanisms, support system)</p>
+                            {ikb_textarea name="case_protective" rows="2" placeholder="Describe protective factors..."}{/ikb_textarea}
+                        </div>
+                    </div>
+                </div>
+                
+                {!-- Assessment & Response --}
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-clipboard-check mr-1 text-green-400"></i> Assessment & Response
+                    </h3>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Student Response</label>
+                        {ikb_textarea name="student_response" rows="2" placeholder="How did the student respond?"}{/ikb_textarea}
+                    </div>
+                    {ikb_grid columns="2" gap="medium" class="mt-3"}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Risk Level</label>
+                            {ikb_select name="risk_level"}
+                                <option value="none">None</option>
+                                <option value="low">Low</option>
+                                <option value="moderate">Moderate</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            {/ikb_select}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mood Assessment</label>
+                            {ikb_input type="text" name="mood_assessment" placeholder="e.g., Anxious, Calm" /}
+                        </div>
+                    {/ikb_grid}
+                    <div class="mt-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Action Taken</label>
+                        {ikb_textarea name="action_taken" rows="2" placeholder="What actions were taken?"}{/ikb_textarea}
+                    </div>
+                </div>
+                
+                {!-- Observation & Recommendation --}
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-lightbulb mr-1 text-yellow-400"></i> Observation & Recommendation
+                    </h3>
+                    {ikb_textarea name="observation_recommendation" rows="3" placeholder="Counselor's observations and recommendations..."}{/ikb_textarea}
+                </div>
+                
+                {!-- Flags --}
+                <div class="flex items-center space-x-6">
+                    <label class="flex items-center">
+                        <input type="checkbox" name="followup_required" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-2 text-sm text-gray-700">Follow-up Required</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" name="is_confidential" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-2 text-sm text-gray-700">Confidential</span>
+                    </label>
+                </div>
+                
+                {!-- Actions --}
+                <div class="flex items-center justify-end space-x-3 pt-4 border-t">
+                    <button type="button" onclick="document.getElementById('modal-container').innerHTML=''"
+                            class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        Cancel
+                    </button>
+                    {ikb_button type="submit" variant="primary"}
+                        <i class="fas fa-save mr-2"></i> Save Note
+                    {/ikb_button}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1019,8 +1019,6 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
         return [
             'sku' => $config['sku'] ?? null,
             'stock_qty' => $stockQty,
-            'stock_qty' => $stockQty,
-            'track_stock' => $trackStock,
             'track_stock' => $trackStock,
             'in_stock' => $state['in_stock'],
             'out_of_stock' => $state['out_of_stock'],
@@ -1045,8 +1043,6 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
             return [
                 'sku' => $config['sku'] ?? null,
                 'stock_qty' => $stockQty,
-                'stock_qty' => $stockQty,
-                'track_stock' => $trackStock,
                 'track_stock' => $trackStock,
                 'in_stock' => $state['in_stock'],
                 'out_of_stock' => $state['out_of_stock'],
@@ -1075,8 +1071,6 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
     return [
         'sku' => $rows['_sku'] ?? null,
         'stock_qty' => $stockQty,
-        'stock_qty' => $stockQty,
-        'track_inventory' => $trackInventory,
         'track_stock' => $trackInventory,
         'in_stock' => !isset($rows['_stock_qty']) ? true : $state['in_stock'],
         'out_of_stock' => isset($rows['_stock_qty']) ? $state['out_of_stock'] : false,

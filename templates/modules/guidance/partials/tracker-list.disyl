@@ -1,0 +1,50 @@
+{if trackers}
+<div class="grid gap-4">
+    {foreach trackers as t}
+    <a href="{base_url}/trackers/{t.id}" 
+       hx-get="/pages/trackers/{t.id}" hx-target="#main-content" hx-push-url="{base_url}/trackers/{t.id}"
+       class="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-indigo-200 transition group">
+        <div class="flex items-start justify-between">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-semibold text-gray-800 group-hover:text-indigo-600 transition truncate">{t.name}</h3>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 {if t.is_active}bg-green-100 text-green-800{else}bg-gray-100 text-gray-500{/if}">
+                        {if t.is_active}Active{else}Inactive{/if}
+                    </span>
+                </div>
+                {if t.description}
+                <p class="text-sm text-gray-500 mt-1 line-clamp-1">{t.description}</p>
+                {/if}
+                <div class="flex items-center gap-4 mt-3 text-xs text-gray-400">
+                    {if t.academic_year}<span><i class="fas fa-calendar mr-1"></i>{t.academic_year}</span>{/if}
+                    {if t.college_name}<span><i class="fas fa-university mr-1"></i>{t.college_name}</span>{/if}
+                    <span><i class="fas fa-users mr-1"></i>{t.student_count} students</span>
+                    <span><i class="fas fa-list-check mr-1"></i>{t.item_count} documents</span>
+                    {if t.creator_first}<span><i class="fas fa-user mr-1"></i>{t.creator_first} {t.creator_last}</span>{/if}
+                </div>
+            </div>
+            <div class="flex-shrink-0 ml-6 text-center">
+                <div class="relative w-16 h-16">
+                    <svg class="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" 
+                              stroke="{if t.completion.percentage >= 80}#22c55e{elseif t.completion.percentage >= 50}#f59e0b{else}#6366f1{/if}" 
+                              stroke-width="3" stroke-dasharray="{t.completion.percentage}, 100" stroke-linecap="round"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-sm font-bold text-gray-700">{t.completion.percentage}%</span>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Complete</p>
+            </div>
+        </div>
+    </a>
+    {/foreach}
+</div>
+{else}
+<div class="text-center py-16">
+    <i class="fas fa-clipboard-list text-5xl text-gray-300 mb-4"></i>
+    <p class="text-gray-500 font-medium text-lg">No trackers yet</p>
+    <p class="text-gray-400 text-sm mt-1">Create a tracker to start monitoring student document submissions</p>
+</div>
+{/if}

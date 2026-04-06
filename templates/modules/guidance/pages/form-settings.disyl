@@ -1,0 +1,90 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{ikb_section padding="none"}
+    <div class="flex items-center justify-between mb-6">
+        {ikb_text tag="h1" size="2xl" weight="bold"}
+            <i class="fas fa-sliders-h mr-3 text-indigo-500"></i> Form Settings
+        {/ikb_text}
+    </div>
+
+    <div class="mb-6">
+        <p class="text-sm text-gray-500">Configure which fields appear on each form, set required/optional, reorder, and add custom fields.</p>
+    </div>
+
+    {if !is_pro}
+    <div class="rounded-xl border border-amber-200 bg-amber-50 p-6">
+        <div class="flex items-start gap-3">
+            <i class="fas fa-crown mt-1 text-amber-600"></i>
+            <div>
+                <h2 class="text-lg font-semibold text-amber-950">Guidance Pro required</h2>
+                <p class="mt-2 text-sm text-amber-900">Form field customization is part of Guidance Pro. Upgrade the tenant entitlement to enable custom booking, case, and appointment fields.</p>
+                <a href="{base_url}/settings"
+                   class="mt-4 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+                   hx-get="/pages/settings"
+                   hx-target="#main-content"
+                   hx-push-url="{base_url}/settings">
+                    <i class="fas fa-arrow-up-right-from-square mr-2"></i>Open Guidance Pro settings
+                </a>
+            </div>
+        </div>
+    </div>
+    {else}
+    {!-- Form Type Tabs --}
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="flex space-x-4" id="form-tabs" aria-label="Form types">
+            <button data-tab="case" onclick="switchFormTab('case')"
+                    class="form-tab px-4 py-2 text-sm font-medium border-b-2 transition-colors border-indigo-500 text-indigo-600">
+                <i class="fas fa-folder-open mr-1"></i> Case Form
+            </button>
+            <button data-tab="booking" onclick="switchFormTab('booking')"
+                    class="form-tab px-4 py-2 text-sm font-medium border-b-2 transition-colors border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                <i class="fas fa-calendar-plus mr-1"></i> Booking Form
+            </button>
+            <button data-tab="appointment" onclick="switchFormTab('appointment')"
+                    class="form-tab px-4 py-2 text-sm font-medium border-b-2 transition-colors border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                <i class="fas fa-clock mr-1"></i> Appointment Form
+            </button>
+        </nav>
+    </div>
+
+    {!-- Fields List --}
+    <div id="form-fields-list"
+         hx-get="/api/form-fields?form_type=case"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="text-center py-8 text-gray-400">
+            <i class="fas fa-spinner fa-spin text-2xl"></i>
+        </div>
+    </div>
+    {/if}
+
+{/ikb_section}
+
+{if is_pro}
+<script>
+var currentFormTab = 'case';
+
+function switchFormTab(tab) {
+    currentFormTab = tab;
+    var tabs = document.querySelectorAll('.form-tab');
+    tabs.forEach(function(t) {
+        if (t.dataset.tab === tab) {
+            t.className = 'form-tab px-4 py-2 text-sm font-medium border-b-2 transition-colors border-indigo-500 text-indigo-600';
+        } else {
+            t.className = 'form-tab px-4 py-2 text-sm font-medium border-b-2 transition-colors border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+        }
+    });
+    var list = document.getElementById('form-fields-list');
+    htmx.ajax('GET', APP_BASE + '/api/form-fields?form_type=' + tab, {target: list, swap: 'innerHTML'});
+}
+
+document.body.addEventListener('refreshFormFields', function() {
+    var list = document.getElementById('form-fields-list');
+    if (list) {
+        htmx.ajax('GET', APP_BASE + '/api/form-fields?form_type=' + currentFormTab, {target: list, swap: 'innerHTML'});
+    }
+});
+</script>
+{/if}
+{/block}
