@@ -5489,6 +5489,11 @@ function apiGuidanceActivateLicense(): void
         guidanceProAccessResponse('Please enter a license key.', false, 422);
         return;
     }
+    // Reject absurdly large inputs before any crypto work
+    if (strlen($licenseKey) > 8192) {
+        guidanceProAccessResponse('License key is too long.', false, 422);
+        return;
+    }
 
     // Validate the JWT using the bundled RS256 public key.
     $verification = guidanceVerifyLicenseJwt($licenseKey);
@@ -5500,6 +5505,23 @@ function apiGuidanceActivateLicense(): void
     $tier       = (string)$verification['tier'];
     $expiresAt  = (string)$verification['expires_at'];
     $tenantId   = (int)$summary['tenant_id'];
+
+    // Only allow known tiers — prevents "tier":"superadmin" escalation via crafted JWT.
+    $allowedTiers = ['pro', 'basic', 'plus', 'enterprise'];
+    if (!in_array($tier, $allowedTiers, true)) {
+        guidanceProAccessResponse('License key specifies an unrecognised tier.', false, 422);
+        return;
+    }
+
+    // JTI replay check — one JTI may only be bound to one tenant.
+    $jti = (string)($verification['jti'] ?? '');
+    if ($jti !== '') {
+        $existingJtiTenant = guidanceLicenseJtiTenantBound($jti);
+        if ($existingJtiTenant !== null && $existingJtiTenant !== $tenantId) {
+            guidanceProAccessResponse('This license key has already been activated on another account.', false, 422);
+            return;
+        }
+    }
 
     // Grant the entitlement directly — no superadmin approval step needed.
     $granted = grantModuleEntitlementForTenant('guidance', $tenantId, [

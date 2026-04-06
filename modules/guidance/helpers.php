@@ -648,6 +648,39 @@ function guidanceLicensePublicKey(): string
 }
 
 /**
+ * Check whether a JTI has already been bound to a specific tenant.
+ * Returns the tenant_id it is bound to, or null if unseen.
+ *
+ * Looks through all tenants' guidance module settings for a recorded `jti`
+ * in the license_activation_state key. This prevents a single license key
+ * from being used to activate multiple tenants.
+ */
+function guidanceLicenseJtiTenantBound(string $jti): ?int
+{
+    if ($jti === '') {
+        return null;
+    }
+    try {
+        $db = app()->controlDb();
+        $settingsKey = moduleLicenseActivationSettingsKey();
+        $stmt = $db->prepare(
+            'SELECT tenant_id, setting_value FROM ' . moduleTenantSettingsTable()
+            . ' WHERE module_id = :mid AND setting_key = :skey'
+        );
+        $stmt->execute([':mid' => 'guidance', ':skey' => $settingsKey]);
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            $state = json_decode((string)($row['setting_value'] ?? ''), true);
+            if (is_array($state) && ($state['jti'] ?? '') === $jti) {
+                return (int)$row['tenant_id'];
+            }
+        }
+    } catch (\Throwable $e) {
+        // On error, fail open — don't block a legitimate activation due to a DB issue.
+    }
+    return null;
+}
+
+/**
  * Parse and cryptographically verify a Guidance RS256 license JWT.
  *
  * Returns an array with:
