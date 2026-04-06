@@ -60,7 +60,13 @@
         
         {!-- Settings Form --}
         <div class="flex-1 min-w-0">
-            <div id="guidance-pro" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mb-5">
+            <div id="guidance-pro" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mb-5"
+                 hx-get="/pages/settings"
+                 hx-trigger="refreshGuidanceProAccess from:body"
+                 hx-target="closest .settings-section"
+                 hx-select="#guidance-pro"
+                 hx-swap="outerHTML">
+
                 <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <i class="fas fa-crown mr-2 text-amber-500"></i> Guidance Pro
                 </h2>
@@ -75,24 +81,32 @@
                         <p class="mt-2 text-lg font-semibold text-gray-900">{pro_access.entitlement.entitlement_status | default:'unknown' | title}</p>
                     </div>
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Upgrade Request</p>
-                        <p class="mt-2 text-lg font-semibold text-gray-900">{if pro_access.request.status}{pro_access.request.status | title}{else}None{/if}</p>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">License Status</p>
+                        <p class="mt-2 text-lg font-semibold text-gray-900">
+                            {if pro_access.license_state.status}{pro_access.license_state.status | title}{else}None{/if}
+                        </p>
                     </div>
                 </div>
 
                 {if pro_access.license_state.status}
                 <div class="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     <div class="flex flex-wrap items-center gap-3">
-                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">License: {pro_access.license_state.status | title}</span>
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">License: {pro_access.license_state.status | title}</span>
+                        {if pro_access.license_state.tier}
+                        <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">Tier: {pro_access.license_state.tier | title}</span>
+                        {/if}
                         {if pro_access.license_state.license_ref}
-                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">{pro_access.license_state.license_ref}</span>
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200 font-mono">{pro_access.license_state.license_ref}</span>
+                        {/if}
+                        {if pro_access.license_state.expires_at}
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">Expires: {pro_access.license_state.expires_at}</span>
                         {/if}
                         {if pro_access.license_state.provider}
-                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">Provider: {pro_access.license_state.provider}</span>
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">Provider: {pro_access.license_state.provider}</span>
                         {/if}
                     </div>
                     {if pro_access.license_state.activated_at}
-                    <p class="mt-3 text-xs text-slate-500">Last license update: {pro_access.license_state.activated_at}</p>
+                    <p class="mt-3 text-xs text-slate-500">Last activated: {pro_access.license_state.activated_at}</p>
                     {/if}
                 </div>
                 {/if}
@@ -101,59 +115,125 @@
                 <div class="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
                     Guidance Pro licensing is unavailable because this session does not have an active tenant context.
                 </div>
+
                 {elseif pro_access.plan_tier == 'pro'}
-                <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
+                {!-- Already on Pro — show active badge and allow key renewal --}
+                <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900 mb-5">
                     <div class="flex items-start gap-3">
                         <i class="fas fa-badge-check mt-0.5 text-emerald-600"></i>
                         <div>
                             <p class="font-medium">Guidance Pro is active for this tenant.</p>
-                            <p class="mt-1 text-emerald-800">Pro-only features such as notes, tracker, availability, form settings, analytics, and 2FA can now be enabled inside Guidance itself.</p>
-                        </div>
-                    </div>
-                </div>
-                {else}
-                <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 mb-4">
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-key mt-0.5 text-amber-600"></i>
-                        <div>
-                            <p class="font-medium">Upgrade to Guidance Pro from inside Guidance.</p>
-                            <p class="mt-1 text-amber-800">This module manages its own Pro upgrade. Submitting a license key here creates or updates a Guidance Pro request for superadmin review. Approval switches this tenant's Guidance entitlement tier to Pro.</p>
+                            <p class="mt-1 text-emerald-800">All Pro features (notes, tracker, availability, analytics, 2FA, and more) are fully unlocked.</p>
                         </div>
                     </div>
                 </div>
 
-                <form hx-post="/api/pro-access" hx-swap="none" class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">License Key</label>
-                            <input type="text" name="license_key" placeholder="Optional. Enter the Guidance Pro license key if you already have one." class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                            <p class="text-xs text-gray-400 mt-1">Keys are stored securely and are not shown again after submission.</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Saved License Reference</label>
-                            <div class="w-full min-h-[42px] px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-600 flex items-center">
-                                {if pro_access.request.license_ref}{pro_access.request.license_ref}{elseif pro_access.license_state.license_ref}{pro_access.license_state.license_ref}{else}No license key on file{/if}
+                {!-- Re-activate form (for renewals / key updates) --}
+                <details class="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+                    <summary class="cursor-pointer px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 select-none flex items-center gap-2">
+                        <i class="fas fa-key text-gray-400"></i> Re-activate or update your license key
+                    </summary>
+                    <div class="px-5 py-4 border-t border-gray-200 bg-white">
+                        <form hx-post="/api/activate-license" hx-swap="none"
+                              hx-headers='{"X-Csrf-Token": "1"}' class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">License Key (JWT)</label>
+                                <textarea name="license_key" rows="4"
+                                    class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
+                                    placeholder="Paste your Guidance Pro JWT license key here…"></textarea>
+                                <p class="text-xs text-gray-400 mt-1">Your key was emailed to you at purchase. It starts with <code class="bg-gray-100 px-1 rounded">eyJ</code>.</p>
                             </div>
+                            <div class="flex items-center justify-end">
+                                <button type="submit" class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">
+                                    <i class="fas fa-rotate mr-2"></i> Re-activate License
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </details>
+
+                {else}
+                {!-- Not Pro — primary: direct activation; secondary: submit access request --}
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 mb-5">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-crown mt-0.5 text-amber-500"></i>
+                        <div>
+                            <p class="font-medium">Activate Guidance Pro with your license key.</p>
+                            <p class="mt-1">Purchase a license at <a href="{settings.license_store_url | default:'https://cmsnew.test'}" target="_blank" rel="noopener" class="underline font-medium">{settings.license_store_url | default:'cmsnew.test'}</a>. You'll receive a JWT license key by email — paste it below. Activation is immediate, no admin review required.</p>
                         </div>
                     </div>
+                </div>
 
+                {!-- PRIMARY: Direct JWT activation --}
+                <form hx-post="/api/activate-license" hx-swap="none"
+                      hx-headers='{"X-Csrf-Token": "1"}' class="space-y-4 mb-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Request Note</label>
-                        <textarea name="request_notes" rows="4" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Optional. Add context for the Guidance Pro upgrade request.">{pro_access.request.request_notes | default:''}</textarea>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            <i class="fas fa-key mr-1 text-amber-500"></i> License Key <span class="text-rose-500">*</span>
+                        </label>
+                        <textarea name="license_key" rows="5" required
+                            class="w-full px-3 py-2 text-sm font-mono border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
+                            placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9…"></textarea>
+                        <p class="text-xs text-gray-400 mt-1">Your license key was emailed to you after purchase. It starts with <code class="bg-gray-100 px-1 rounded">eyJ</code>.</p>
                     </div>
-
-                    {if pro_access.request.review_notes}
-                    <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                        <span class="font-medium">Latest review note:</span> {pro_access.request.review_notes}
-                    </div>
-                    {/if}
-
-                    <div class="flex items-center justify-end">
-                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">
-                            <i class="fas fa-paper-plane mr-2"></i>{if pro_access.request.status == 'pending'}Update Guidance Pro Request{else}Submit Guidance Pro Request{/if}
+                    <div class="flex items-center justify-between">
+                        <a href="{settings.license_store_url | default:'https://cmsnew.test'}" target="_blank" rel="noopener"
+                           class="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                            <i class="fas fa-external-link-alt text-xs"></i> Get a license key
+                        </a>
+                        <button type="submit" class="inline-flex items-center px-5 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 active:scale-95 transition shadow-sm">
+                            <i class="fas fa-bolt mr-2"></i> Activate License
                         </button>
                     </div>
                 </form>
+
+                {!-- Divider --}
+                <div class="relative my-5">
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                    <div class="relative flex justify-center"><span class="bg-white px-3 text-xs text-gray-400 uppercase tracking-wide">Or submit a request for manual review</span></div>
+                </div>
+
+                {!-- SECONDARY: Access-request flow (requires superadmin approval) --}
+                <details class="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden" {if pro_access.request.status == 'pending'}open{/if}>
+                    <summary class="cursor-pointer px-5 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 select-none flex items-center gap-2">
+                        <i class="fas fa-inbox text-gray-400"></i>
+                        {if pro_access.request.status == 'pending'}
+                            Pending superadmin review request
+                        {else}
+                            Request Pro access from superadmin
+                        {/if}
+                    </summary>
+                    <div class="px-5 py-4 border-t border-gray-200 bg-white">
+                        <p class="text-xs text-gray-500 mb-4">Use this if you don't have a license key yet. A superadmin must approve the request before Pro features are unlocked.</p>
+                        <form hx-post="/api/pro-access" hx-swap="none" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">License Key (optional)</label>
+                                <input type="text" name="license_key"
+                                    placeholder="Paste a license key to attach it to the request"
+                                    class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                                {if pro_access.request.license_ref}
+                                <p class="text-xs text-gray-400 mt-1">Saved reference: <span class="font-mono">{pro_access.request.license_ref}</span></p>
+                                {/if}
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Request Note</label>
+                                <textarea name="request_notes" rows="3"
+                                    class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="Optional context for the superadmin">{pro_access.request.request_notes | default:''}</textarea>
+                            </div>
+                            {if pro_access.request.review_notes}
+                            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                                <span class="font-medium">Latest review note:</span> {pro_access.request.review_notes}
+                            </div>
+                            {/if}
+                            <div class="flex items-center justify-end">
+                                <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition">
+                                    <i class="fas fa-paper-plane mr-2"></i>{if pro_access.request.status == 'pending'}Update Request{else}Submit Request{/if}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </details>
                 {/if}
             </div>
 

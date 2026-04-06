@@ -5475,6 +5475,96 @@ function apiGuidanceRequestProAccess(): void
     ]);
 }
 
+/**
+ * POST /admin/guidance/api/activate-license
+ *
+ * Immediate, self-service license key activation directly from the Guidance
+ * admin settings page. No superadmin review required — the JWT is cryptographically
+ * verified by guidanceVerifyLicenseJwt() using the bundled public key, and the
+ * entitlement is granted on the spot.
+ *
+ * This is the primary upgrade path for the Guidance module. The superadmin
+ * access-request flow (apiGuidanceRequestProAccess) remains available as a
+ * fallback for manual provisioning.
+ */
+function apiGuidanceActivateLicense(): void
+{
+    $user = guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
+
+    $summary = guidanceSettingsEntitlementSummary();
+    if (empty($summary['manageable'])) {
+        guidanceProAccessResponse('License activation requires an active tenant context.', false, 400);
+        return;
+    }
+
+    $input = app()->input();
+    $licenseKey = trim((string)($input['license_key'] ?? ''));
+    if ($licenseKey === '') {
+        guidanceProAccessResponse('Please enter a license key.', false, 422);
+        return;
+    }
+
+    // Validate the JWT using the bundled RS256 public key.
+    $verification = guidanceVerifyLicenseJwt($licenseKey);
+    if (!($verification['ok'] ?? false)) {
+        guidanceProAccessResponse((string)($verification['error'] ?? 'License key is invalid.'), false, 422);
+        return;
+    }
+
+    $tier       = (string)$verification['tier'];
+    $expiresAt  = (string)$verification['expires_at'];
+    $tenantId   = (int)$summary['tenant_id'];
+
+    // Grant the entitlement directly — no superadmin approval step needed.
+    $granted = grantModuleEntitlementForTenant('guidance', $tenantId, [
+        'status'     => 'active',
+        'tier'       => $tier,
+        'expires_at' => $expiresAt !== '' ? $expiresAt : null,
+        'source'     => 'license_jwt',
+        'metadata'   => [
+            'jti'          => $verification['jti'] ?? '',
+            'activated_at' => date('Y-m-d H:i:s'),
+            'activated_by' => (int)($user['id'] ?? 0),
+            'via'          => 'apiGuidanceActivateLicense',
+        ],
+    ]);
+
+    if (!$granted) {
+        guidanceProAccessResponse('License validated but entitlement could not be saved. Please contact support.', false, 500);
+        return;
+    }
+
+    // Also store the license activation state so the settings page reflects it.
+    $licenseRef = substr($licenseKey, 0, 8) . '...' . substr($licenseKey, -6);
+    saveTenantModuleSettings('guidance', [
+        moduleLicenseActivationSettingsKey() => [
+            'ok'           => true,
+            'status'       => 'active',
+            'provider'     => 'guidance',
+            'tier'         => $tier,
+            'expires_at'   => $expiresAt,
+            'license_ref'  => $licenseRef,
+            'activated_at' => date('Y-m-d H:i:s'),
+            'jti'          => $verification['jti'] ?? '',
+        ],
+    ]);
+
+    write_log('guidance.license.activate', 'info', [
+        'tier'      => $tier,
+        'expires_at'=> $expiresAt,
+        'tenant_id' => $tenantId,
+        'user_id'   => (int)($user['id'] ?? 0),
+        'jti'       => $verification['jti'] ?? '',
+    ]);
+
+    $expiryNote = $expiresAt !== '' ? " (expires {$expiresAt})" : ' (perpetual)';
+    guidanceProAccessResponse("Guidance " . ucfirst($tier) . " activated successfully{$expiryNote}.", true, 200, [
+        'tier'       => $tier,
+        'expires_at' => $expiresAt,
+    ]);
+}
+
 function guidanceManagedModules(): array
 {
     $managed = [];
@@ -5931,6 +6021,14 @@ function pageGuidanceSettings(): void
     $user = guidanceRequireStaff(['admin']);
     $settings = guidanceGetAllSettings();
     $proAccess = guidanceSettingsEntitlementSummary();
+
+    // Merge module-level settings (e.g. license_store_url stored in tenant module settings) into $settings.
+    $moduleSettings = function_exists('readTenantModuleSettings') ? readTenantModuleSettings('guidance') : [];
+    $licenseStoreUrl = trim((string)($moduleSettings['license_store_url'] ?? 'https://cmsnew.test'));
+    if (!isset($settings['license_store_url']) || $settings['license_store_url'] === '') {
+        $settings['license_store_url'] = $licenseStoreUrl;
+    }
+
     echo guidanceRender('modules/guidance/pages/settings.disyl', array_merge(
         guidanceBasePageContext($user, 'Settings', 'settings'),
         [

@@ -137,6 +137,7 @@ return [
         '/admin/guidance/api/modules/{id}/settings' => 'guidance:apiGuidanceUpdateModuleSettings',
         '/admin/guidance/api/modules/{id}/access-request' => 'guidance:apiGuidanceRequestModuleAccess',
         '/admin/guidance/api/pro-access' => 'guidance:apiGuidanceRequestProAccess',
+        '/admin/guidance/api/activate-license' => 'guidance:apiGuidanceActivateLicense',
         '/admin/guidance/api/users/{id}/toggle-active' => 'guidance:apiGuidanceToggleUserActive',
         '/admin/guidance/api/users/{id}/colleges' => 'guidance:apiGuidanceSaveUserColleges',
     ],
