@@ -665,7 +665,11 @@ function guidanceLicensePublicKey(): string
  */
 function guidanceVerifyLicenseJwt(string $jwt): array
 {
-    $parts = explode('.', trim($jwt));
+    // Strip all whitespace (newlines, spaces) that may be introduced when
+    // copying a JWT that was word-wrapped in an email or <code> block.
+    $jwt = preg_replace('/\s+/', '', trim($jwt));
+
+    $parts = explode('.', $jwt);
     if (count($parts) !== 3) {
         return ['ok' => false, 'error' => 'Malformed JWT: expected three dot-separated segments.'];
     }
