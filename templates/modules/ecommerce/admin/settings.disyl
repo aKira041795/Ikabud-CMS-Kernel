@@ -1,47 +1,210 @@
 {extends "modules/ecommerce/layouts/admin.disyl"}
 
 {block content}
-<div class="max-w-2xl">
-    <form method="post" action="" class="space-y-5">
+<div class="max-w-4xl">
+
+    {if message}
+    <div class="mb-5 px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    <form method="post" action="" class="space-y-6">
         <input type="hidden" name="_token" value="{csrf_token}">
-        <div class="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
-            <h3 class="font-semibold text-gray-700">Ecommerce Settings</h3>
-            <div class="space-y-4">
-                {foreach settings_fields as field}
+
+        {* ── Section 1: Store & Currency ─────────────────────────────── *}
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Store &amp; Currency</h3>
+            </div>
+            <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+
                 <div>
-                    {if field.is_checkbox}
-                    <div class="flex items-center gap-2">
-                        <input type="checkbox" name="{field.key}" id="field_{field.key}" value="1"
-                               {if field.is_checked}checked{/if} class="rounded">
-                        <label for="field_{field.key}" class="text-sm font-medium text-gray-700">{field.label}</label>
-                    </div>
-                    {elseif field.is_select}
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">{field.label}</label>
-                          <select name="{field.key}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none {field.control_class}">
-                        {foreach field.options as opt}
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.currency.label}</label>
+                    <select name="currency" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">
+                        {foreach settings_map.currency.options as opt}
                         <option value="{opt.value}" {if opt.selected}selected{/if}>{opt.label}</option>
                         {/foreach}
                     </select>
-                    {elseif field.is_textarea}
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">{field.label}</label>
-                    <textarea name="{field.key}" rows="4"
-                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none {field.control_class}">{field.current_value}</textarea>
-                    {else}
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">{field.label}</label>
-                    <input type="{field.input_type}" name="{field.key}" value="{field.current_value}"
-                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none {field.control_class}">
-                    {/if}
-
-                    {if field.description}
-                    <p class="mt-1 text-xs text-gray-500">{field.description}</p>
-                    {/if}
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.currency.description}</p>
                 </div>
-                {/foreach}
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.currency_symbol.label}</label>
+                    <input type="text" name="currency_symbol" value="{settings_map.currency_symbol.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.currency_symbol.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.tax_rate.label}</label>
+                    <input type="number" name="tax_rate" value="{settings_map.tax_rate.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_rate.description}</p>
+                </div>
+
+                <div class="flex flex-col justify-center">
+                    <div class="flex items-center gap-2 pt-1">
+                        <input type="checkbox" name="tax_inclusive" id="field_tax_inclusive" value="1"
+                               {if settings_map.tax_inclusive.is_checked}checked{/if} class="rounded">
+                        <label for="field_tax_inclusive" class="text-sm font-medium text-gray-700">{settings_map.tax_inclusive.label}</label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_inclusive.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.order_number_prefix.label}</label>
+                    <input type="text" name="order_number_prefix" value="{settings_map.order_number_prefix.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.order_number_prefix.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.low_stock_threshold.label}</label>
+                    <input type="number" name="low_stock_threshold" value="{settings_map.low_stock_threshold.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.low_stock_threshold.description}</p>
+                </div>
+
             </div>
         </div>
+
+        {* ── Section 2: Storefront ───────────────────────────────────── *}
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Storefront</h3>
+            </div>
+            <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.shop_page_title.label}</label>
+                    <input type="text" name="shop_page_title" value="{settings_map.shop_page_title.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.shop_page_title.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.products_per_page.label}</label>
+                    <input type="number" name="products_per_page" value="{settings_map.products_per_page.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.products_per_page.description}</p>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="guest_checkout" id="field_guest_checkout" value="1"
+                               {if settings_map.guest_checkout.is_checked}checked{/if} class="rounded">
+                        <label for="field_guest_checkout" class="text-sm font-medium text-gray-700">{settings_map.guest_checkout.label}</label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.guest_checkout.description}</p>
+                </div>
+
+            </div>
+        </div>
+
+        {* ── Section 3: Payment Gateway ─────────────────────────────── *}
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Payment Gateway</h3>
+            </div>
+            <div class="p-5 space-y-5">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.payment_gateway.label}</label>
+                        <select name="payment_gateway" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            {foreach settings_map.payment_gateway.options as opt}
+                            <option value="{opt.value}" {if opt.selected}selected{/if}>{opt.label}</option>
+                            {/foreach}
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">{settings_map.payment_gateway.description}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.payment_gateway_mode.label}</label>
+                        <select name="payment_gateway_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            {foreach settings_map.payment_gateway_mode.options as opt}
+                            <option value="{opt.value}" {if opt.selected}selected{/if}>{opt.label}</option>
+                            {/foreach}
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">{settings_map.payment_gateway_mode.description}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.payment_method_label.label}</label>
+                        <input type="text" name="payment_method_label" value="{settings_map.payment_method_label.current_value}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        <p class="mt-1 text-xs text-gray-500">{settings_map.payment_method_label.description}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paymongo_allowed_methods.label}</label>
+                        <input type="text" name="paymongo_allowed_methods" value="{settings_map.paymongo_allowed_methods.current_value}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">
+                        <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_allowed_methods.description}</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.payment_instructions.label}</label>
+                    <textarea name="payment_instructions" rows="3"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">{settings_map.payment_instructions.current_value}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.payment_instructions.description}</p>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">PayMongo API Keys</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paymongo_public_key.label}</label>
+                            <input type="text" name="paymongo_public_key" value="{settings_map.paymongo_public_key.current_value}"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_public_key.description}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paymongo_secret_key.label}</label>
+                            <input type="text" name="paymongo_secret_key" value="{settings_map.paymongo_secret_key.current_value}"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_secret_key.description}</p>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paymongo_webhook_secret.label}</label>
+                            <input type="text" name="paymongo_webhook_secret" value="{settings_map.paymongo_webhook_secret.current_value}"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_webhook_secret.description}</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        {* ── Section 4: Digital Licenses ────────────────────────────── *}
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Digital Licenses</h3>
+            </div>
+            <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.license_private_key_pem.label}</label>
+                    <textarea name="license_private_key_pem" rows="7"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none resize-y">{settings_map.license_private_key_pem.current_value}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.license_private_key_pem.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.license_public_key_pem.label}</label>
+                    <textarea name="license_public_key_pem" rows="7"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none resize-y">{settings_map.license_public_key_pem.current_value}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.license_public_key_pem.description}</p>
+                </div>
+
+            </div>
+        </div>
+
         <div>
             <button type="submit" class="px-6 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Save Settings</button>
         </div>
+
     </form>
 </div>
 {/block}

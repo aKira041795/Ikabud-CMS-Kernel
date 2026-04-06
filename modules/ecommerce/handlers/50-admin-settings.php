@@ -144,6 +144,13 @@ function ecAdminSettings(): void
     $ctx = ecAdminContext($user, 'settings', [
         'message' => $_SESSION['ec_message'] ?? null,
         'settings_fields' => ecAdminSettingsFields(),
+        'settings_map'    => (function () {
+            $map = [];
+            foreach (ecAdminSettingsFields() as $f) {
+                $map[$f['key']] = $f;
+            }
+            return $map;
+        })(),
     ]);
     unset($_SESSION['ec_message']);
 
