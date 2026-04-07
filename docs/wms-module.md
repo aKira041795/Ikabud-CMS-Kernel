@@ -1077,3 +1077,45 @@ modules/wms/
 ## No `.env` Changes Required
 
 The WMS module uses `app()->db()` — the tenant-resolved database connection — exactly like the CMS module. No new environment variables are needed. The WMS tables are created automatically in each tenant's own database via the kernel's migration runner.
+
+---
+
+## Roadmap & Next Phases (Post-Core Stability)
+
+With the core WMS architecture now hardened (movement-first ledger, tenant isolation, concurrency locking, idempotent execution), the focus shifts from data correctness to **operational intelligence** and **real-world execution**.
+
+### Phase 2 — Operational Intelligence Layer
+Turning the tracking system into an active decision-making engine.
+- **Demand & Stock Intelligence:** Introduce reorder points, safety stock calculations, and supplier lead-time evaluation via a new `wms.replenishment.suggest@1` capability.
+- **Auto-Replenishment (Internal):** Generate automatic transfer tasks from bulk reserve areas to picking bins when stock thresholds are breached.
+- **Explicit Task System (`wms_tasks`):** Shift from implicit operations to an explicit queue. Track, assign, and measure the execution of putaway, picking, transfer, and cycle count tasks.
+- **Live Activity Dashboard:** Shift from historical reporting to live operational monitoring (active picks, pending deliveries, movement rates).
+
+### Phase 3 — Execution Layer (Human + Device Integration)
+Connecting the system to physical warehouse realities.
+- **Barcode / QR Workflows:** Implement scanning for product, location, and action confirmation to reduce errors and UI friction during receiving, picking, and transfers.
+- **Mobile-First Interfaces:** Design optimized, high-contrast UI screens tailored for warehouse workers (e.g., "My Tasks", "Scan to Confirm") on handheld devices.
+- **Offline Mode:** Explore localized task caching to handle poor warehouse connectivity, syncing movements gracefully upon reconnection.
+
+### Phase 4 — Intelligence & Optimization
+Leveraging the data model for physical efficiency.
+- **Slotting Optimization:** Utilize velocity reports to suggest warehouse rearrangement (e.g., moving fast-moving items to accessible zones).
+- **Pick Path Routing:** Optimize pick lists to calculate the shortest path across bins (leveraging location code hierarchy).
+- **Simple Forecasting:** Introduce 7–30 day moving averages to predict demand, feeding directly into internal replenishment suggestions.
+
+### Phase 5 — Production & Assembly Integration (Pending)
+*Note: Pending integration with the Daily Ledger module and specific operational use cases.*
+- **Entity Expansion:** Introduce `wms_recipes` and `wms_production_orders`.
+- **BOM (Bill of Materials) Consumption:** Auto-deduct raw materials/ingredients via `OUT` movements and record finished goods via `IN` movements.
+- **Expiry-Aware Production:** Enforce strict FEFO logic specifically for production consumption (e.g., consuming near-expiry raw materials first).
+
+### Phase 6 — Kernel OS Ecosystem Leverage
+Unlocking the multi-module power of the Kernel OS.
+- **Cross-Module Expositions:** Expand usage of `wms.stock.query@1` and `wms.stock.reserve@1` so modules like POS/Ecommerce can synchronously validate stock before sale.
+- **Event-Driven Automation:** Aggressively wire WMS events to Kernel OS triggers (e.g., `wms.stock.low` triggers a purchase request notification; `wms.order.dispatched` triggers the billing module).
+- **Multi-Context Deployments:** Scale the exact same WMS module implementation across diverse tenant environments (school inventory, food production, enterprise asset tracking) without code changes.
+
+### Immediate Action Items
+1. Establish the `wms_tasks` entity to formalize operational assignments.
+2. Develop a basic mobile-optimized picking workflow.
+3. Integrate simple barcode scanning hooks into the frontend UI.

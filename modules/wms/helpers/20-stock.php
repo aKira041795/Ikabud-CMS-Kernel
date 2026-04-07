@@ -293,8 +293,8 @@ function wmsMovementCreate(array $data): int
 
         $db->execute(
             'INSERT INTO wms_movements
-             (movement_type, reference_type, reference_id, product_id, warehouse_id, location_id, batch_id, qty, qty_before, qty_after, unit_cost, notes, actor_user_id, idempotency_key, meta, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+             (movement_type, reference_type, reference_id, product_id, warehouse_id, location_id, batch_id, qty, qty_before, qty_after, unit_cost, notes, actor_user_id, meta, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [
                 $movementType,
                 ($data['reference_type'] ?? null) !== null ? wmsSanitizeString($data['reference_type'], 50) : null,
@@ -309,7 +309,6 @@ function wmsMovementCreate(array $data): int
                 isset($data['unit_cost']) ? wmsNormalizeDecimal($data['unit_cost']) : null,
                 ($data['notes'] ?? null) !== null ? wmsSanitizeString($data['notes'], 2000) : null,
                 isset($data['actor_user_id']) ? (int)$data['actor_user_id'] : null,
-                $idempotencyKey,
                 isset($data['meta']) ? json_encode($data['meta'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
             ]
         );
