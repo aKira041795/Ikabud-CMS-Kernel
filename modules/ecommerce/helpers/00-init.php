@@ -591,6 +591,7 @@ app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
             ['label' => 'Orders',     'url' => $baseUrl . '/ecommerce/admin/orders',     'icon' => '📋', 'active_key' => 'ec_orders'],
             ['label' => 'Categories', 'url' => $baseUrl . '/ecommerce/admin/categories', 'icon' => '🏷️', 'active_key' => 'ec_categories'],
             ['label' => 'Coupons',    'url' => $baseUrl . '/ecommerce/admin/coupons',    'icon' => '🎟️', 'active_key' => 'ec_coupons'],
+            ['label' => 'Customers', 'url' => $baseUrl . '/ecommerce/admin/customers', 'icon' => '👥', 'active_key' => 'ec_customers'],
             ['label' => 'Reports',    'url' => $baseUrl . '/ecommerce/admin/reports',    'icon' => '📈', 'active_key' => 'ec_reports'],
             ['label' => 'POS',        'url' => $baseUrl . '/ecommerce/pos',              'icon' => '🖥️', 'active_key' => 'ec_pos'],
             ['label' => 'Settings',   'url' => $baseUrl . '/ecommerce/admin/settings',   'icon' => '⚙️', 'active_key' => 'ec_settings'],
