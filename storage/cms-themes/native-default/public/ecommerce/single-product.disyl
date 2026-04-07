@@ -99,7 +99,7 @@
             {/if}
 
             <div class="native-actions">
-                <a href="{base_url}/ecommerce/cart" class="button button-secondary">View Cart ({storefront.cart.count|default:cart_count|default:0})</a>
+                <a href="{base_url}/ecommerce/cart" class="button button-secondary" id="view-cart-card">View Cart (<span id="view-cart-card-count">{storefront.cart.count|default:cart_count|default:0}</span>)</a>
             </div>
         </aside>
     </div>
@@ -108,19 +108,23 @@
 <script>
 function updateCartBadge(count) {
     const badge = document.getElementById('cart-count-badge');
-    if (!badge) {
-        return;
+    const cardCount = document.getElementById('view-cart-card-count');
+    const nextCount = Number(count || 0);
+
+    if (badge) {
+        if (nextCount > 0) {
+            badge.textContent = String(nextCount);
+            badge.classList.remove('hidden');
+            badge.classList.add('inline-flex');
+        } else {
+            badge.textContent = '0';
+            badge.classList.add('hidden');
+            badge.classList.remove('inline-flex');
+        }
     }
 
-    const nextCount = Number(count || 0);
-    if (nextCount > 0) {
-        badge.textContent = String(nextCount);
-        badge.classList.remove('hidden');
-        badge.classList.add('inline-flex');
-    } else {
-        badge.textContent = '0';
-        badge.classList.add('hidden');
-        badge.classList.remove('inline-flex');
+    if (cardCount) {
+        cardCount.textContent = String(nextCount);
     }
 }
 
