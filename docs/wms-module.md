@@ -75,17 +75,19 @@ Physical warehouse definitions. Each warehouse has a unique code and address met
 
 ```sql
 CREATE TABLE IF NOT EXISTS wms_warehouses (
-    id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    code         VARCHAR(50) NOT NULL,
-    name         VARCHAR(255) NOT NULL,
-    address      TEXT NULL DEFAULT NULL,
-    contact_info JSON NULL DEFAULT NULL COMMENT '{phone, email, manager}',
-    is_active    TINYINT(1) NOT NULL DEFAULT 1,
-    deleted_at   DATETIME NULL DEFAULT NULL,
-    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    code                VARCHAR(50) NOT NULL,
+    name                VARCHAR(255) NOT NULL,
+    address             TEXT NULL DEFAULT NULL,
+    quarantine_location_id INT UNSIGNED NULL DEFAULT NULL COMMENT 'Default location for returns inspection',
+    contact_info        JSON NULL DEFAULT NULL COMMENT '{phone, email, manager}',
+    is_active           TINYINT(1) NOT NULL DEFAULT 1,
+    deleted_at          DATETIME NULL DEFAULT NULL,
+    created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uniq_wms_warehouse_code (code),
-    INDEX idx_wms_warehouse_active (is_active)
+    INDEX idx_wms_warehouse_active (is_active),
+    INDEX idx_wms_warehouses_quarantine (quarantine_location_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -213,7 +215,23 @@ CREATE TABLE IF NOT EXISTS wms_movements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 7. `wms_deliveries`
+### 7. `wms_idempotency_keys`
+
+Guarantees strict once-and-only-once execution of stock movements, preventing accidental duplicate shipments during network retries.
+
+```sql
+CREATE TABLE IF NOT EXISTS wms_idempotency_keys (
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    idempotency_key VARCHAR(100) NOT NULL,
+    movement_id     BIGINT UNSIGNED NOT NULL,
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_wms_idempotency_key (idempotency_key),
+    KEY idx_wms_idempotency_movement (movement_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### 8. `wms_deliveries`
 
 Inbound delivery headers. Represents a supplier shipment arriving at a warehouse.
 
@@ -240,7 +258,7 @@ CREATE TABLE IF NOT EXISTS wms_deliveries (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 8. `wms_delivery_items`
+### 9. `wms_delivery_items`
 
 Line items within a delivery. Stores expected vs received quantities and the target put-away location.
 
@@ -268,7 +286,7 @@ CREATE TABLE IF NOT EXISTS wms_delivery_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 9. `wms_orders`
+### 10. `wms_orders`
 
 Outbound order headers. Represents a fulfillment request from a warehouse.
 
@@ -296,7 +314,7 @@ CREATE TABLE IF NOT EXISTS wms_orders (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 10. `wms_order_items`
+### 11. `wms_order_items`
 
 Line items within an order. The `location_id` is assigned by the pick-list generator (FIFO/FEFO selection).
 
@@ -323,7 +341,7 @@ CREATE TABLE IF NOT EXISTS wms_order_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 11. `wms_putaway_rules`
+### 12. `wms_putaway_rules`
 
 Configurable storage strategy rules. Evaluated when `wmsPutAwaySuggest()` is called to recommend a put-away location. Rules are ordered by `priority` descending.
 
@@ -347,7 +365,7 @@ CREATE TABLE IF NOT EXISTS wms_putaway_rules (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 12. `wms_cycle_counts`
+### 13. `wms_cycle_counts`
 
 Periodic audit / inventory count sessions. A count can be scoped to a specific location or cover an entire warehouse.
 
@@ -455,7 +473,7 @@ CREATE TABLE IF NOT EXISTS wms_return_items (
 
 Only items with `condition = 'good'` generate a `wmsMovementCreate()` call on `wmsApiReturnRestock()`. Damaged/expired items are logged but not restocked.
 
-### 13. `wms_cycle_count_items`
+### 17. `wms_cycle_count_items`
 
 Individual line items within a cycle count. Captures system qty at count time vs physically counted qty. Variance is computed. On `wmsCycleCountClose()`, non-zero variances generate `cycle_count_adjustment` movements.
 
