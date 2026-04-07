@@ -302,19 +302,41 @@ function ecRender(string $template, array $context = []): void
     if (!array_key_exists('public_customer_is_logged_in', $context)) {
         $user = is_array($context['user'] ?? null) ? $context['user'] : null;
         $role = strtolower(trim((string)($user['role'] ?? '')));
-        $displayName = trim((string)($user['display_name'] ?? ''));
 
+        // Try all display-name-equivalent fields.
+        // JWT payload uses 'name'; DB rows use 'display_name'; some use first/last.
+        $displayName = trim((string)($user['display_name'] ?? ''));
+        if ($displayName === '') {
+            $displayName = trim((string)($user['name'] ?? ''));
+        }
         if ($displayName === '') {
             $displayName = trim((string)(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
         }
         if ($displayName === '') {
-            $displayName = trim((string)($user['email'] ?? 'Customer')) ?: 'Customer';
+            $displayName = trim((string)($user['username'] ?? ''));
+        }
+        if ($displayName === '') {
+            $displayName = 'Customer';
+        }
+
+        // Email: JWT payload does not carry email; look it up from DB for CMS users.
+        $email = trim((string)($user['email'] ?? ''));
+        if ($email === '' && ($user['source'] ?? '') === 'cms' && !empty($user['id'])) {
+            try {
+                $emailRow = ecDb()->query(
+                    'SELECT email FROM cms_users WHERE id = ? LIMIT 1',
+                    [(int)$user['id']]
+                )->fetch(\PDO::FETCH_ASSOC);
+                $email = trim((string)($emailRow['email'] ?? ''));
+            } catch (\Throwable $e) {
+                // non-fatal
+            }
         }
 
         $isPublicCmsUser = $user !== null && (($user['source'] ?? '') === 'cms' || in_array($role, ['subscriber', 'customer', 'editor', 'administrator'], true));
         $context['public_customer_is_logged_in'] = $isPublicCmsUser;
         $context['public_customer_display_name'] = $displayName;
-        $context['public_customer_email'] = trim((string)($user['email'] ?? ''));
+        $context['public_customer_email'] = $email;
         $context['public_customer_orders_url'] = rtrim((string)$context['base_url'], '/') . '/ecommerce/my-orders';
         $context['public_customer_login_url'] = rtrim((string)$context['base_url'], '/') . '/cms/login?redirect=' . urlencode('/ecommerce/my-orders');
         $context['public_customer_admin_url'] = rtrim((string)$context['base_url'], '/') . '/cms/admin';

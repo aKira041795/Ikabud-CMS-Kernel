@@ -202,6 +202,7 @@ function cms_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId
                 'user' => [
                     'id'        => (int)$row['id'],
                     'username'  => (string)$row['username'],
+                    'email'     => (string)$row['email'],
                     'full_name' => (string)$row['display_name'],
                     'role'      => (string)$row['role'],
                     'sub'       => 'cms:' . $row['id'],

@@ -2384,6 +2384,7 @@ switch ($handler) {
             'id' => $idInt,
             'username' => $authRow['username'],
             'name' => $authRow['full_name'],
+            'email' => $authRow['email'] ?? '',
             'role' => $role,
             'source' => $authSource,
         ];
