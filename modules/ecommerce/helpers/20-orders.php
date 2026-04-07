@@ -74,13 +74,16 @@ function ecOrderCreate(array $data): array
         $orderId = (int)$db->lastInsertId();
 
         // Insert order items
-        foreach ($data['cart_items'] ?? [] as $item) {
-            $unitPrice = (float)($item['price_snapshot'] ?? 0);
-            $qty       = max(1, (int)($item['qty'] ?? 1));
-            $db->execute(
-                "INSERT INTO ec_order_items (order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [
+        if (!empty($data['cart_items'])) {
+            $itemValues = [];
+            $itemParams = [];
+            foreach ($data['cart_items'] as $item) {
+                $unitPrice = (float)($item['price_snapshot'] ?? 0);
+                $qty       = max(1, (int)($item['qty'] ?? 1));
+
+                $itemValues[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                array_push(
+                    $itemParams,
                     $orderId,
                     (int)$item['product_id'],
                     $item['variant_id'] ?? null,
@@ -89,12 +92,17 @@ function ecOrderCreate(array $data): array
                     $unitPrice,
                     $qty,
                     round($unitPrice * $qty, 2),
-                    $item['variant_label'] ?? null,
-                ]
-            );
-
-            // Decrement stock
-            ecProductDecrementStock((int)$item['product_id'], $qty);
+                    $item['variant_label'] ?? null
+                );
+                // Decrement stock
+                ecProductDecrementStock((int)$item['product_id'], $qty);
+            }
+            if ($itemValues) {
+                $db->execute(
+                    "INSERT INTO ec_order_items (order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label) VALUES " . implode(', ', $itemValues),
+                    $itemParams
+                );
+            }
         }
 
         // Insert address meta
@@ -121,13 +129,20 @@ function ecOrderCreate(array $data): array
             $meta['shipping_rate_id'] = $data['shipping_rate_id'];
         }
 
+        $metaValues = [];
+        $metaParams = [];
         foreach ($meta as $key => $value) {
             if ($value === null || $value === '') {
                 continue;
             }
+            $metaValues[] = '(?, ?, ?)';
+            array_push($metaParams, $orderId, $key, (string)$value);
+        }
+        
+        if ($metaValues) {
             $db->execute(
-                "INSERT IGNORE INTO ec_order_meta (order_id, meta_key, meta_value) VALUES (?, ?, ?)",
-                [$orderId, $key, (string)$value]
+                "INSERT IGNORE INTO ec_order_meta (order_id, meta_key, meta_value) VALUES " . implode(', ', $metaValues),
+                $metaParams
             );
         }
 

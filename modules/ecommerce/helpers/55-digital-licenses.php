@@ -65,20 +65,25 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
 
         $db         = ecDb();
         $issuedKeys = [];
+        
+        $productIds = array_values(array_unique(array_filter(array_map(static fn($i) => (int)($i['product_id'] ?? 0), $items))));
+        $allMeta = [];
+        if (!empty($productIds)) {
+            $idsCsv = implode(',', array_fill(0, count($productIds), '?'));
+            $metaStmt = $db->query(
+                "SELECT content_id, meta_key, meta_value FROM cms_content_meta WHERE content_id IN ($idsCsv) AND meta_key IN ('_is_digital', '_license_module', '_license_tier', '_license_duration_days')",
+                $productIds
+            );
+            $metaRows = $metaStmt ? $metaStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+            foreach ($metaRows as $row) {
+                $allMeta[(int)$row['content_id']][$row['meta_key']] = $row['meta_value'];
+            }
+        }
 
         foreach ($items as $item) {
             $prodId = (int)$item['product_id'];
-
-            // Query product metadata to check if it's a digital software license
-            $metaRows = $db->query(
-                "SELECT meta_key, meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key IN ('_is_digital', '_license_module', '_license_tier', '_license_duration_days')",
-                [$prodId]
-            )->fetchAll(\PDO::FETCH_ASSOC);
-
-            $meta = [];
-            foreach ($metaRows as $row) {
-                $meta[$row['meta_key']] = $row['meta_value'];
-            }
+            
+            $meta = $allMeta[$prodId] ?? [];
 
             if (empty($meta['_is_digital']) || $meta['_is_digital'] !== '1' || empty($meta['_license_module'])) {
                 continue; // Not a digital software product

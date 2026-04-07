@@ -93,20 +93,105 @@ function ecProductList(array $filters = []): array
             array_merge($params, [$limit, $offset])
         )->fetchAll(\PDO::FETCH_ASSOC);
 
-        $galleryMap = ecProductGalleryImagesForProducts(array_map(
+        $productIds = array_values(array_filter(array_map(
             static fn(array $row): int => (int)($row['id'] ?? 0),
             is_array($rows) ? $rows : []
-        ));
+        )));
+        
+        $galleryMap = ecProductGalleryImagesForProducts($productIds);
+
+        // Batch load capabilities and digital meta
+        $pricingMap = [];
+        $inventoryMap = [];
+        $digitalMap = [];
+        
+        if (!empty($productIds)) {
+            $idsCsv = implode(',', array_fill(0, count($productIds), '?'));
+            
+            // Pricing cap
+            $pricingRows = $db->query(
+                "SELECT entity_id, config FROM cms_entity_capabilities WHERE capability_id = 'pricing' AND entity_id IN ($idsCsv)",
+                $productIds
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            foreach ($pricingRows as $pr) {
+                $pricingMap[(int)$pr['entity_id']] = (array)json_decode($pr['config'] ?? '{}', true);
+            }
+            
+            // Inventory cap
+            $inventoryRows = $db->query(
+                "SELECT entity_id, config FROM cms_entity_capabilities WHERE capability_id = 'inventory' AND entity_id IN ($idsCsv)",
+                $productIds
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            foreach ($inventoryRows as $ir) {
+                $inventoryMap[(int)$ir['entity_id']] = (array)json_decode($ir['config'] ?? '{}', true);
+            }
+            
+            // Digital meta
+            $digitalRows = $db->query(
+                "SELECT content_id, meta_value FROM cms_content_meta WHERE meta_key = '_is_digital' AND content_id IN ($idsCsv)",
+                $productIds
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            foreach ($digitalRows as $dr) {
+                $digitalMap[(int)$dr['content_id']] = ($dr['meta_value'] ?? '') === '1';
+            }
+        }
+
+        // Read settings once before loop
+        $currencySetting = ecSettings('currency');
+        $currencySymbol = (string)ecSettings('currency_symbol');
+        $lowStockThreshold = (int)ecSettings('low_stock_threshold');
 
         // Attach pricing + inventory capability data to each product
         foreach ($rows as &$row) {
-            $galleryImages = $galleryMap[(int)($row['id'] ?? 0)] ?? [];
+            $id = (int)($row['id'] ?? 0);
+            $galleryImages = $galleryMap[$id] ?? [];
             $row['gallery_images'] = $galleryImages;
             $row['featured_image_url'] = ecProductResolveFeaturedImageUrl((string)($row['featured_image'] ?? ''));
             $row['primary_image_url'] = ecProductPrimaryImageUrl($row['featured_image_url'], $galleryImages);
 
-            $row['pricing']   = ecProductPricing((int)$row['id']);
-            $row['inventory'] = ecProductInventory((int)$row['id']);
+            // Inline pricing parsing
+            $pConfig = $pricingMap[$id] ?? [];
+            if (empty($pConfig)) {
+                $row['pricing'] = ['price' => null, 'currency' => $currencySetting, 'on_sale' => false, 'formatted' => null];
+            } else {
+                $price     = isset($pConfig['price'])      ? (float)$pConfig['price']      : null;
+                $salePrice = isset($pConfig['sale_price']) ? (float)$pConfig['sale_price'] : null;
+                $currency  = $pConfig['currency'] ?? $currencySetting;
+                $onSale    = $price !== null && $salePrice !== null && $salePrice > 0 && $salePrice < $price;
+                $active    = $onSale ? $salePrice : $price;
+                $row['pricing'] = [
+                    'price'        => $price,
+                    'sale_price'   => $salePrice,
+                    'active_price' => $active,
+                    'currency'     => $currency,
+                    'on_sale'      => $onSale,
+                    'formatted'    => $price !== null ? ($currencySymbol . number_format($active, 2)) : null,
+                    'regular_fmt'  => $price !== null ? ($currencySymbol . number_format($price, 2)) : null,
+                ];
+            }
+
+            // Inline inventory parsing
+            $iConfig = $inventoryMap[$id] ?? [];
+            $isDigital = $digitalMap[$id] ?? false;
+            
+            if (empty($iConfig)) {
+                $row['inventory'] = ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
+            } elseif ($isDigital) {
+                $row['inventory'] = ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => $iConfig['sku'] ?? '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
+            } else {
+                $trackStock = (bool)($iConfig['track_stock'] ?? true);
+                $stockQty   = (int)($iConfig['stock_qty']   ?? 0);
+                
+                $row['inventory'] = [
+                    'track_stock' => $trackStock,
+                    'stock_qty'   => $stockQty,
+                    'badge'       => ['label' => ($trackStock && $stockQty <= 0 ? 'Out of stock' : ''), 'tone' => ($trackStock && $stockQty <= 0 ? 'negative' : '')],
+                    'sku'         => $iConfig['sku'] ?? '',
+                    'in_stock'    => !$trackStock || $stockQty > 0,
+                    'out_of_stock' => $trackStock && $stockQty <= 0,
+                    'low_stock'   => $trackStock && $stockQty > 0 && $stockQty <= $lowStockThreshold,
+                ];
+            }
         }
         unset($row);
 

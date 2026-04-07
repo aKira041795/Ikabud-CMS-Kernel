@@ -24,8 +24,8 @@ function ecReportSales(array $params = []): array
     try {
         $base = "FROM ec_orders o
                  WHERE o.status NOT IN ('cancelled', 'refunded')
-                   AND DATE(o.created_at) BETWEEN ? AND ?";
-        $baseParams = [$dateFrom, $dateTo];
+                   AND o.created_at >= ? AND o.created_at <= ?";
+        $baseParams = [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'];
 
         $totalRevenue = (float)$db->query(
             "SELECT COALESCE(SUM(o.total), 0) $base", $baseParams
@@ -44,7 +44,7 @@ function ecReportSales(array $params = []): array
              FROM ec_order_items oi
              INNER JOIN ec_orders o ON o.id = oi.order_id
              WHERE o.status NOT IN ('cancelled', 'refunded')
-               AND DATE(o.created_at) BETWEEN ? AND ?
+               AND o.created_at >= ? AND o.created_at <= ?
              GROUP BY oi.product_id, oi.product_title, oi.sku
              ORDER BY revenue DESC
              LIMIT 10",
