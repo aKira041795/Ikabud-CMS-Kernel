@@ -22,9 +22,12 @@ function wmsLocationExists(int $locationId): bool
 
 function wmsOrderGeneratePickList(int $orderId): array
 {
-    $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$orderId]);
+    $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [$orderId]);
     if ($order === null) {
         throw new RuntimeException('Order not found.');
+    }
+    if ((string)$order['status'] !== 'pending') {
+        throw new RuntimeException('Pick lists can only be generated for pending orders.');
     }
 
     $strategy = strtolower((string)(wmsSettings()['picking_strategy'] ?? 'fefo'));
@@ -64,6 +67,17 @@ function wmsOrderGeneratePickList(int $orderId): array
             'UPDATE wms_order_items SET location_id = ?, batch_id = ? WHERE id = ?',
             [(int)$pick['location_id'], isset($pick['batch_id']) ? (int)$pick['batch_id'] : null, (int)$item['id']]
         );
+
+        wmsReserveStock([
+            'reference_type' => 'order',
+            'reference_id' => (int)$orderId,
+            'product_id' => (int)$item['product_id'],
+            'warehouse_id' => (int)$order['warehouse_id'],
+            'location_id' => (int)$pick['location_id'],
+            'batch_id' => isset($pick['batch_id']) ? (int)$pick['batch_id'] : null,
+            'qty' => $requiredQty,
+            'meta' => ['order_item_id' => (int)$item['id']]
+        ]);
 
         $result[] = array_merge($item, [
             'location_id' => (int)$pick['location_id'],
@@ -198,6 +212,62 @@ function wmsOrderPick(int $orderId, ?int $actorUserId = null): array
         'order_id' => $orderId,
         'movement_ids' => $movementIds,
     ];
+}
+
+function wmsOrderCancel(int $orderId, ?int $actorUserId = null): void
+{
+    $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [$orderId]);
+    if ($order === null) {
+        throw new RuntimeException('Order not found.');
+    }
+
+    $status = (string)$order['status'];
+    if (in_array($status, ['picked', 'dispatched', 'cancelled'], true)) {
+        throw new RuntimeException("Order cannot be cancelled in status: {$status}");
+    }
+
+    $db = wmsDb();
+    $db->beginTransaction();
+
+    try {
+        if ($status === 'picking') {
+            // Find all reservations for this order to release them
+            $reservations = wmsFetchAll(
+                "SELECT * FROM wms_movements 
+                 WHERE reference_type = 'order' AND reference_id = ? AND movement_type = 'reserved'",
+                [$orderId]
+            );
+
+            // Calculate netted reserved qty per stock location (in case of partial pick/unpick complexity)
+            // But wmsReleaseStock natively takes an item array
+            foreach ($reservations as $res) {
+                wmsReleaseStock([
+                    'reference_type' => 'order_cancel',
+                    'reference_id' => $orderId,
+                    'product_id' => (int)$res['product_id'],
+                    'warehouse_id' => (int)$res['warehouse_id'],
+                    'location_id' => (int)$res['location_id'],
+                    'batch_id' => isset($res['batch_id']) ? (int)$res['batch_id'] : null,
+                    'qty' => (float)$res['qty'],
+                    'actor_user_id' => $actorUserId,
+                    'meta' => ['cancelled_reservation_id' => (int)$res['id']]
+                ]);
+            }
+
+            // Clear pick list assignments
+            $db->execute('UPDATE wms_order_items SET location_id = NULL, batch_id = NULL WHERE order_id = ?', [$orderId]);
+        }
+
+        $db->execute('UPDATE wms_orders SET status = ?, updated_at = NOW() WHERE id = ?', ['cancelled', $orderId]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    wmsAudit('wms.order.cancelled', 'wms_orders', (string)$orderId, $order, ['status' => 'cancelled']);
 }
 
 function wmsOrderDispatch(int $orderId, ?int $actorUserId = null): void

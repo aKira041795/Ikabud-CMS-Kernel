@@ -276,9 +276,9 @@ function wmsApiOrderDispatch(array $params = []): void
 function wmsApiOrderCancel(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireStaff(['admin', 'supervisor']);
         $id = (int)($params['id'] ?? 0);
-        wmsDb()->execute('UPDATE wms_orders SET status = ?, updated_at = NOW() WHERE id = ?', ['cancelled', $id]);
+        wmsOrderCancel($id, (int)($user['id'] ?? 0));
         wmsJsonOk(['id' => $id]);
     });
 }

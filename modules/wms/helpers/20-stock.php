@@ -32,11 +32,13 @@ function wmsEnsureStockRow(int $productId, int $warehouseId, int $locationId, ?i
         return $existing;
     }
 
-    wmsDb()->execute(
-        'INSERT INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved)
-         VALUES (?, ?, ?, ?, 0, 0)',
-        [$productId, $warehouseId, $locationId, $batchId]
-    );
+    try {
+        wmsDb()->execute(
+            'INSERT IGNORE INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved)
+             VALUES (?, ?, ?, ?, 0, 0)',
+            [$productId, $warehouseId, $locationId, $batchId]
+        );
+    } catch (Throwable $e) {}
 
     return wmsStockGet($productId, $locationId, $batchId) ?? [
         'id' => 0,
@@ -220,6 +222,8 @@ function wmsMovementCreate(array $data): int
         throw new RuntimeException('Movement quantity must not be zero.');
     }
 
+    $idempotencyKey = isset($data['idempotency_key']) ? wmsSanitizeString($data['idempotency_key'], 100) : null;
+
     $db = wmsDb();
     $started = false;
     if (!$db->inTransaction()) {
@@ -228,7 +232,37 @@ function wmsMovementCreate(array $data): int
     }
 
     try {
-        $stock = wmsEnsureStockRow($productId, $warehouseId, $locationId, $batchId);
+        if ($idempotencyKey !== null && $idempotencyKey !== '') {
+            $existingMovement = wmsFetchOne('SELECT movement_id FROM wms_idempotency_keys WHERE idempotency_key = ? LIMIT 1 FOR UPDATE', [$idempotencyKey]);
+            if ($existingMovement !== null) {
+                if ($started) {
+                    $db->rollBack();
+                }
+                return (int)$existingMovement['movement_id'];
+            }
+        }
+
+        $product = wmsFetchOne('SELECT is_batch_tracked FROM wms_products WHERE id = ? LIMIT 1', [$productId]);
+        if ($product === null) {
+            throw new RuntimeException('Product not found.');
+        }
+        if ((int)$product['is_batch_tracked'] === 1 && $batchId === null && $movementType !== 'adjustment') {
+            throw new RuntimeException('Batch ID is required for batch-tracked product movements.');
+        }
+
+        $settings = wmsSettings();
+        $allowNegative = (bool)($settings['allow_negative_stock'] ?? false);
+
+        // Ensure stock row exists before locking
+        wmsEnsureStockRow($productId, $warehouseId, $locationId, $batchId);
+
+        // Fetch FOR UPDATE to lock the row exclusively and prevent race conditions
+        [$batchWhere, $batchParams] = wmsBatchWhereClause($batchId);
+        $stock = wmsFetchOne(
+            'SELECT * FROM wms_stocks WHERE product_id = ? AND location_id = ? AND ' . $batchWhere . ' LIMIT 1 FOR UPDATE',
+            array_merge([$productId, $locationId], $batchParams)
+        );
+
         $stockId = (int)($stock['id'] ?? 0);
         $qtyBefore = wmsNormalizeDecimal($stock['qty_on_hand'] ?? 0);
         $reservedBefore = wmsNormalizeDecimal($stock['qty_reserved'] ?? 0);
@@ -237,7 +271,7 @@ function wmsMovementCreate(array $data): int
 
         if (in_array($movementType, ['reserved', 'unreserved'], true)) {
             if ($movementType === 'reserved') {
-                if (($qtyBefore - $reservedBefore) < $qty) {
+                if (!$allowNegative && ($qtyBefore - $reservedBefore) < $qty) {
                     throw new RuntimeException('Insufficient available stock to reserve.');
                 }
                 $reservedAfter = wmsNormalizeDecimal($reservedBefore + $qty);
@@ -249,8 +283,8 @@ function wmsMovementCreate(array $data): int
             }
         } else {
             $qtyAfter = wmsNormalizeDecimal($qtyBefore + $qty);
-            if ($qtyAfter < 0) {
-                throw new RuntimeException('Insufficient stock for movement.');
+            if (!$allowNegative && $qtyAfter < 0) {
+                throw new RuntimeException('Insufficient stock for movement. Negative stock is disabled.');
             }
             if (in_array($movementType, ['out', 'transfer_out', 'cycle_count_adjustment'], true) && $qty < 0 && $reservedBefore > 0) {
                 $reservedAfter = max(0.0, wmsNormalizeDecimal($reservedBefore + $qty));
@@ -259,8 +293,8 @@ function wmsMovementCreate(array $data): int
 
         $db->execute(
             'INSERT INTO wms_movements
-             (movement_type, reference_type, reference_id, product_id, warehouse_id, location_id, batch_id, qty, qty_before, qty_after, unit_cost, notes, actor_user_id, meta, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+             (movement_type, reference_type, reference_id, product_id, warehouse_id, location_id, batch_id, qty, qty_before, qty_after, unit_cost, notes, actor_user_id, idempotency_key, meta, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [
                 $movementType,
                 ($data['reference_type'] ?? null) !== null ? wmsSanitizeString($data['reference_type'], 50) : null,
@@ -275,10 +309,18 @@ function wmsMovementCreate(array $data): int
                 isset($data['unit_cost']) ? wmsNormalizeDecimal($data['unit_cost']) : null,
                 ($data['notes'] ?? null) !== null ? wmsSanitizeString($data['notes'], 2000) : null,
                 isset($data['actor_user_id']) ? (int)$data['actor_user_id'] : null,
+                $idempotencyKey,
                 isset($data['meta']) ? json_encode($data['meta'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
             ]
         );
         $movementId = (int)$db->lastInsertId();
+
+        if ($idempotencyKey !== null && $idempotencyKey !== '') {
+            $db->execute(
+                'INSERT INTO wms_idempotency_keys (idempotency_key, movement_id, created_at) VALUES (?, ?, NOW())',
+                [$idempotencyKey, $movementId]
+            );
+        }
 
         wmsUpdateStockLevels($stockId, $qtyAfter, $reservedAfter);
 
@@ -332,6 +374,9 @@ function wmsReserveStock(array $item): int
     if ($qty <= 0) {
         throw new RuntimeException('Reserve quantity must be greater than zero.');
     }
+    if (!isset($item['reference_type']) || !isset($item['reference_id'])) {
+        throw new RuntimeException('Reservations must include reference_type and reference_id for traceability.');
+    }
 
     $item['movement_type'] = 'reserved';
     $item['qty'] = $qty;
@@ -344,6 +389,9 @@ function wmsReleaseStock(array $item): int
     $qty = wmsNormalizeDecimal($item['qty'] ?? 0);
     if ($qty <= 0) {
         throw new RuntimeException('Release quantity must be greater than zero.');
+    }
+    if (!isset($item['reference_type']) || !isset($item['reference_id'])) {
+        throw new RuntimeException('Releases must include reference_type and reference_id for traceability.');
     }
 
     $item['movement_type'] = 'unreserved';
