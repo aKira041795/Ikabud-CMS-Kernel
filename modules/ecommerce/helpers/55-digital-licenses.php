@@ -37,6 +37,19 @@ function ec_license_generate_jwt(array $payload, string $privateKeyPem): string
     return $base64UrlHeader . '.' . $base64UrlPayload . '.' . $base64UrlSignature;
 }
 
+function ec_license_public_base_url(): string
+{
+    $configured = trim((string)app()->config('app.url', ''));
+    $configuredPath = rtrim((string)parse_url($configured, PHP_URL_PATH), '/');
+    $host = \Ikabud\Kernel\TenantResolver::normalizeHost((string)($_SERVER['HTTP_HOST'] ?? ''));
+
+    if ($host !== '') {
+        return rtrim(request_scheme() . '://' . $host . $configuredPath, '/');
+    }
+
+    return rtrim($configured, '/');
+}
+
 // Hook into order paid
 app()->events()->listen('ecommerce.order.paid', function (array $payload) {
     $orderId = (int)($payload['order_id'] ?? 0);
@@ -60,6 +73,7 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
         $email      = trim((string)($order['customer_email'] ?? ''));
         $customerId = isset($order['customer_id']) ? (int)$order['customer_id'] : null;
         $items      = $order['items'] ?? [];
+        $issuerUrl  = ec_license_public_base_url();
 
         if (empty($items)) return;
 
@@ -109,6 +123,10 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
                     'jti'  => bin2hex(random_bytes(16)),
                 ];
 
+                if ($issuerUrl !== '') {
+                    $jwtPayload['iss_url'] = $issuerUrl;
+                }
+
                 $licenseKey = ec_license_generate_jwt($jwtPayload, $privateKey);
 
                 if ($licenseKey === '') continue;
@@ -143,7 +161,7 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
 
         // Send license delivery email if any keys were issued and email is configured.
         if (!empty($issuedKeys) && $email !== '' && function_exists('sendEmail')) {
-            $baseUrl  = defined('BASE_URL') ? rtrim(BASE_URL, '/') : rtrim((string)external_base_url(), '/');
+            $baseUrl  = ec_license_public_base_url();
             $orderNum = (string)($order['order_number'] ?? '');
 
             $rows = '';

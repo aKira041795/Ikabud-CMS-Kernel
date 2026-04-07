@@ -101,7 +101,7 @@ Once the customer receives the license key, they must input it into their tenant
 
 ### 3.1 User Input
 - The **Guidance admin settings page** (`/admin/guidance/settings`) renders a **Pro Activation** panel when the tenant's current `plan_tier` is not `pro`.
-- The admin pastes the RS256 JWT received by email (after purchasing from the module author's store, e.g. `cmsnew.test`) into the activation textarea and submits the form.
+- The admin pastes the RS256 JWT received by email after purchasing from the tenant's configured Guidance license store URL into the activation textarea and submits the form.
 - The form POSTs to `POST /admin/guidance/api/activate-license`, handled directly by `apiGuidanceActivateLicense()` in `modules/guidance/handlers.php`.
 - A re-activation textarea is also shown when a license is already active (`pro_access.license_state.ok = true`), allowing the admin to replace an expiring or revoked key.
 
@@ -122,9 +122,15 @@ Once the customer receives the license key, they must input it into their tenant
 4. Verify the RS256 signature using the bundled public key at `modules/guidance/license-key.pem`.
 5. Validate claims:
    - `iss = 'ikabud_ecommerce'` — must be issued by the author's ecommerce module.
+  - `iss_url` host matches the tenant's configured `license_store_url` when both are present.
    - `aud = 'guidance'` — must be issued for this module.
    - `exp > time()` — must not be expired (omitting `exp` = perpetual license).
    - `tier` present — must specify the unlocked tier (`pro`, etc.).
+
+**Public-key resolution order:**
+- Guidance first checks the tenant-scoped `license_public_key_pem` module setting when it is configured.
+- If the current tenant is also the issuing store host for `license_store_url`, Guidance next checks that tenant's ecommerce `license_public_key_pem` setting.
+- If neither override is available, Guidance falls back to the bundled module key at `modules/guidance/license-key.pem`.
 
 **Post-verification security checks (in `apiGuidanceActivateLicense()`):**
 6. **Tier allowlist**: `tier` must be one of `['pro', 'basic', 'plus', 'enterprise']`. Crafted JWTs with arbitrary tier strings are rejected before any DB write.
@@ -147,12 +153,13 @@ On success: `grantModuleEntitlementForTenant()` persists the tier + expiry, then
 On failure: returns `['ok' => false, 'status' => 'error', 'error' => '...']` with a human-readable message.
 
 **Key pair management:**
-- The **private key** (RSA 2048-bit) lives exclusively in `cmsnew.test`'s ecommerce settings (`license_private_key_pem`). It is used by `ec_license_generate_jwt()` at purchase time.
+- The **private key** (RSA 2048-bit) lives exclusively in the issuing store's ecommerce settings (`license_private_key_pem`). It is used by `ec_license_generate_jwt()` at purchase time.
+- The **store public key** may also be copied into Guidance's tenant-scoped `license_public_key_pem` setting as an explicit verification override when needed.
 - The **public key** is bundled inside the guidance module at `modules/guidance/license-key.pem` and never changes between versions unless the author rotates keys.
 - Key rotation requires publishing a new module version with the updated `license-key.pem`.
 
 **`guidanceRequirePro()` upgrade link:**
-Upgrade blocks now include `upgrade_url` from the `license_store_url` module setting (default: `https://cmsnew.test`), so API 403 responses carry a link directly to the author's store.
+Upgrade blocks include `upgrade_url` from the tenant's `license_store_url` module setting when it is configured. If no store URL is configured, the Guidance settings page falls back to generic purchase instructions instead of hardcoding a host.
 
 ### 3.4 Entitlement Unlock
 - `apiGuidanceActivateLicense()` calls `grantModuleEntitlementForTenant()` directly on success, so the tier (`pro`) is immediately active in `kernel_tenant_module_entitlements`.
@@ -234,12 +241,12 @@ Upgrade blocks now include `upgrade_url` from the `license_store_url` module set
 
 | Item | Location |
 |------|----------|
-| Private key (RSA 2048) | `cmsnew.test` → ecommerce module setting `license_private_key_pem` |
+| Private key (RSA 2048) | Issuing ecommerce store → module setting `license_private_key_pem` |
 | Public key | `modules/guidance/license-key.pem` (bundled in module source) |
 | Generation command | `openssl genrsa -out private.pem 2048 && openssl rsa -in private.pem -pubout -out license-key.pem` |
 | Rotation policy | Issue new licenses signed with the new key; ship updated `license-key.pem` in a module version bump |
 
-The private key **must never** be committed to version control or shared outside `cmsnew.test`. Customer licenses expire based on `exp` in the JWT; the module author controls duration via the `_license_duration_days` product meta on `cmsnew.test`.
+The private key **must never** be committed to version control or shared outside the issuing ecommerce store. Customer licenses expire based on `exp` in the JWT; the module author controls duration via the `_license_duration_days` product meta on the issuing store.
 
 ## 7. Status: Feature Complete
 

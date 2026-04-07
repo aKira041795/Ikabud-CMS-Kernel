@@ -18,22 +18,29 @@ function ecAdminDashboard(): void
 
     // Today stats
     try {
+        $todayStart = $today . ' 00:00:00';
+        $todayEnd   = $today . ' 23:59:59';
+        
         $todayRevenue = (float)$db->query(
-            "SELECT COALESCE(SUM(total), 0) FROM ec_orders WHERE DATE(created_at) = ? AND status NOT IN ('cancelled', 'refunded')",
-            [$today]
+            "SELECT COALESCE(SUM(total), 0) FROM ec_orders WHERE created_at >= ? AND created_at <= ? AND status NOT IN ('cancelled', 'refunded')",
+            [$todayStart, $todayEnd]
         )->fetchColumn();
 
         $todayOrders = (int)$db->query(
-            "SELECT COUNT(*) FROM ec_orders WHERE DATE(created_at) = ?",
-            [$today]
+            "SELECT COUNT(*) FROM ec_orders WHERE created_at >= ? AND created_at <= ?",
+            [$todayStart, $todayEnd]
         )->fetchColumn();
 
         $pendingOrders = (int)$db->query(
             "SELECT COUNT(*) FROM ec_orders WHERE status = 'pending'"
         )->fetchColumn();
 
+        $monthStart = date('Y-m-01 00:00:00');
+        $monthEnd   = date('Y-m-t 23:59:59');
+
         $monthRevenue = (float)$db->query(
-            "SELECT COALESCE(SUM(total), 0) FROM ec_orders WHERE MONTH(created_at) = MONTH(NOW()) AND YEAR(created_at) = YEAR(NOW()) AND status NOT IN ('cancelled', 'refunded')"
+            "SELECT COALESCE(SUM(total), 0) FROM ec_orders WHERE created_at >= ? AND created_at <= ? AND status NOT IN ('cancelled', 'refunded')",
+            [$monthStart, $monthEnd]
         )->fetchColumn();
 
         $recentOrders = $db->query(

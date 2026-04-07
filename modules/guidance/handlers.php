@@ -5495,8 +5495,12 @@ function apiGuidanceActivateLicense(): void
         return;
     }
 
+    $tenantId = (int)$summary['tenant_id'];
+
     // Validate the JWT using the bundled RS256 public key.
-    $verification = guidanceVerifyLicenseJwt($licenseKey);
+    $verification = guidanceVerifyLicenseJwt($licenseKey, [
+        'tenant_id' => $tenantId,
+    ]);
     if (!($verification['ok'] ?? false)) {
         guidanceProAccessResponse((string)($verification['error'] ?? 'License key is invalid.'), false, 422);
         return;
@@ -5504,7 +5508,6 @@ function apiGuidanceActivateLicense(): void
 
     $tier       = (string)$verification['tier'];
     $expiresAt  = (string)$verification['expires_at'];
-    $tenantId   = (int)$summary['tenant_id'];
 
     // Only allow known tiers — prevents "tier":"superadmin" escalation via crafted JWT.
     $allowedTiers = ['pro', 'basic', 'plus', 'enterprise'];
@@ -5563,6 +5566,7 @@ function apiGuidanceActivateLicense(): void
         'tenant_id' => $tenantId,
         'user_id'   => (int)($user['id'] ?? 0),
         'jti'       => $verification['jti'] ?? '',
+        'issuer_host' => (string)($verification['issuer_host'] ?? ''),
     ]);
 
     $expiryNote = $expiresAt !== '' ? " (expires {$expiresAt})" : ' (perpetual)';
@@ -6029,12 +6033,8 @@ function pageGuidanceSettings(): void
     $settings = guidanceGetAllSettings();
     $proAccess = guidanceSettingsEntitlementSummary();
 
-    // Merge module-level settings (e.g. license_store_url stored in tenant module settings) into $settings.
-    $moduleSettings = function_exists('readTenantModuleSettings') ? readTenantModuleSettings('guidance') : [];
-    $licenseStoreUrl = trim((string)($moduleSettings['license_store_url'] ?? 'https://cmsnew.test'));
-    if (!isset($settings['license_store_url']) || $settings['license_store_url'] === '') {
-        $settings['license_store_url'] = $licenseStoreUrl;
-    }
+    // Merge the tenant-scoped module setting into page settings after normalizing it.
+    $settings['license_store_url'] = guidanceLicenseStoreUrl((int)($proAccess['tenant_id'] ?? 0));
 
     echo guidanceRender('modules/guidance/pages/settings.disyl', array_merge(
         guidanceBasePageContext($user, 'Settings', 'settings'),

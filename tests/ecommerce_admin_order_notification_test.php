@@ -214,7 +214,14 @@ try {
     t('Admin and customer emails are separate',  $adminMails[0]['to'] !== ($customerMails[0]['to'] ?? ''));
 
     if (!empty($customerMails)) {
-        t('Customer license email contains JWT download link', str_contains($customerMails[0]['body'], '/ecommerce/download/'));
+        $hasLink = false;
+        foreach ($customerMails as $m) {
+            if (str_contains($m['body'], '/ecommerce/download/')) {
+                $hasLink = true;
+                break;
+            }
+        }
+        t('Customer license email contains JWT download link', $hasLink);
     }
 
     // Verify license generated in DB

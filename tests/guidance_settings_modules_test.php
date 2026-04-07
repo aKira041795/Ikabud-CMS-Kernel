@@ -181,6 +181,11 @@ $originalGuidanceEntitlement = fetchSingleAssoc(
     'SELECT * FROM ' . moduleTenantEntitlementsTable() . ' WHERE tenant_id = :tenant_id AND module_id = :module_id LIMIT 1',
     [':tenant_id' => $tenantId, ':module_id' => 'guidance']
 );
+$originalGuidanceTenantSettings = fetchAllAssoc(
+    $tenantDb,
+    'SELECT * FROM ' . moduleTenantSettingsTable() . ' WHERE tenant_id = :tenant_id AND module_id = :module_id ORDER BY setting_key',
+    [':tenant_id' => $tenantId, ':module_id' => 'guidance']
+);
 $originalSmsCatalog = fetchSingleAssoc(
     $controlDb,
     'SELECT * FROM ' . moduleCatalogTable() . ' WHERE module_id = :module_id LIMIT 1',
@@ -245,6 +250,14 @@ try {
         'approval_status' => 'approved',
         'commercial_mode' => 'paid',
     ]);
+    deleteRowsByConditions($tenantDb, moduleTenantSettingsTable(), [
+        'tenant_id' => $tenantId,
+        'module_id' => 'guidance',
+    ]);
+    $guidanceStoreConfigured = saveTenantModuleSettingsForTenant('guidance', $tenantId, [
+        'license_store_url' => 'https://licenses.example.test/store',
+    ]);
+    invalidateTenantModuleSettingsCache();
     $smsRevoked = revokeModuleEntitlementForTenant('guidance-sms', $tenantId, [
         'source' => 'guidance_settings_modules_test',
         'metadata' => ['via' => 'guidance_settings_modules_test', 'state' => 'revoked'],
@@ -264,11 +277,26 @@ try {
     });
     $modulesPartial = (string)ob_get_clean();
 
+    saveTenantModuleSettingsForTenant('guidance', $tenantId, [
+        'license_store_url' => '',
+    ]);
+    invalidateTenantModuleSettingsCache();
+
+    ob_start();
+    moduleWithContext('guidance', static function (): void {
+        pageGuidanceSettings();
+    });
+    $settingsPageWithoutStoreLink = (string)ob_get_clean();
+
     t('guidance entitlement can be granted for settings module checks', $guidanceGranted);
     t('guidance sms catalog entry can be approved for settings module checks', $catalogOk);
+    t('guidance license store URL can be configured for settings page checks', $guidanceStoreConfigured);
     t('guidance sms entitlement can be reset to revoked before access checks', $smsRevoked);
     t('settings navigation includes Modules section', str_contains($settingsPage, 'data-section="modules"'), 'Modules nav link missing');
     t('settings page renders Guidance SMS add-on card', str_contains($settingsPage, 'Guidance SMS Addon'), 'Guidance SMS add-on missing from settings page');
+    t('settings page uses tenant-specific guidance license store link', str_contains($settingsPage, 'https://licenses.example.test/store'), 'Configured license store URL missing from settings page');
+    t('settings page no longer hardcodes cmsnew.test', !str_contains($settingsPage, 'cmsnew.test'), 'Legacy store URL still rendered in settings page');
+    t('settings page falls back to generic license guidance when no store URL is configured', str_contains($settingsPageWithoutStoreLink, 'Purchase a license from your configured Guidance store.') && !str_contains($settingsPageWithoutStoreLink, 'Get a license key'), 'Missing generic fallback state for unconfigured license store URL');
     t('paid guidance add-on prompts for access request before activation', str_contains($modulesPartial, 'Request Access') && str_contains($modulesPartial, 'requires tenant access'), $modulesPartial);
 
     $accessRequest = submitModuleAccessRequestForTenant('guidance-sms', $tenantId, [
@@ -323,6 +351,18 @@ try {
     try {
         if ($adminId > 0) {
             $tenantDb->prepare('DELETE FROM gm_users WHERE id = ?')->execute([$adminId]);
+        }
+    } catch (Throwable $e) {
+        // ignore cleanup failures in test teardown
+    }
+
+    try {
+        deleteRowsByConditions($tenantDb, moduleTenantSettingsTable(), [
+            'tenant_id' => $tenantId,
+            'module_id' => 'guidance',
+        ]);
+        foreach ($originalGuidanceTenantSettings as $row) {
+            insertAssocRow($tenantDb, moduleTenantSettingsTable(), $row);
         }
     } catch (Throwable $e) {
         // ignore cleanup failures in test teardown

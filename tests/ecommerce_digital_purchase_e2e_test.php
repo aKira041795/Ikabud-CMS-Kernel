@@ -36,6 +36,7 @@ require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/ecommerce/helpers.php';
+require_once __DIR__ . '/../modules/guidance/helpers.php';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 $pass   = 0;
@@ -53,6 +54,42 @@ function t(string $label, bool $ok, string $detail = ''): void
     $fail++;
     $errors[] = $label . ($detail !== '' ? ': ' . $detail : '');
     echo "  ✗ {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
+}
+
+function restoreTenantModuleSetting(string $moduleId, string $key, bool $hadOriginal, mixed $originalValue): void
+{
+    $tenantId = moduleTenantSettingsTenantId();
+    if ($tenantId === null) {
+        return;
+    }
+
+    $GLOBALS['_kernel_db_unguarded'] = true;
+    try {
+        $db = app()->db();
+        $table = moduleTenantSettingsTable();
+        if (!$hadOriginal) {
+            $stmt = $db->prepare("DELETE FROM {$table} WHERE tenant_id = :tid AND module_id = :mid AND setting_key = :skey");
+            $stmt->execute([':tid' => $tenantId, ':mid' => $moduleId, ':skey' => $key]);
+            return;
+        }
+
+        $stmt = $db->prepare(
+            "INSERT INTO {$table} (tenant_id, module_id, setting_key, setting_value, created_at, updated_at)\n"
+            . "VALUES (:tid, :mid, :skey, :sval, NOW(), NOW())\n"
+            . "ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()"
+        );
+        $stmt->execute([
+            ':tid' => $tenantId,
+            ':mid' => $moduleId,
+            ':skey' => $key,
+            ':sval' => json_encode($originalValue, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+    } finally {
+        $GLOBALS['_kernel_db_unguarded'] = false;
+        invalidateTenantModuleSettingsCache();
+        $tid = $tenantId ?? 0;
+        $GLOBALS['cms_settings_cached_t' . $tid] = false;
+    }
 }
 
 // ── Clean logs ────────────────────────────────────────────────────────────
@@ -158,6 +195,7 @@ try {
     t('No licenses before mark-paid', (int)$licensesBeforePaid === 0);
 
     // ── Mark as paid (fires ecommerce.order.paid event) ──
+    $capturedEmails = [];
     ecOrderMarkPaid($order1Id);
 
     // Verify payment_status updated
@@ -184,11 +222,54 @@ try {
         if (count($parts) === 3) {
             $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
             t('JWT iss = ikabud_ecommerce',  ($payload['iss'] ?? '') === 'ikabud_ecommerce');
+            t('JWT iss_url is present',      !empty($payload['iss_url']));
+            t('JWT iss_url host = cmsnew.test', ((string)parse_url((string)($payload['iss_url'] ?? ''), PHP_URL_HOST)) === 'cmsnew.test', (string)($payload['iss_url'] ?? ''));
             t('JWT aud = guidance',           ($payload['aud'] ?? '') === 'guidance');
             t('JWT tier = pro',               ($payload['tier'] ?? '') === 'pro');
             t('JWT sub = customer email',     ($payload['sub']  ?? '') === TEST_EMAIL);
             t('JWT exp is in the future',     (int)($payload['exp'] ?? 0) > time());
             t('JWT jti is present',           !empty($payload['jti']));
+
+            $guidanceOriginal = readTenantModuleSettings('guidance');
+            $guidanceStoreHadOriginal = array_key_exists('license_store_url', $guidanceOriginal);
+            $guidanceStoreOriginalValue = $guidanceOriginal['license_store_url'] ?? null;
+            $guidancePublicKeyHadOriginal = array_key_exists('license_public_key_pem', $guidanceOriginal);
+            $guidancePublicKeyOriginalValue = $guidanceOriginal['license_public_key_pem'] ?? null;
+            $ecommerceOriginal = readTenantModuleSettings('ecommerce');
+            $ecommercePublicKeyHadOriginal = array_key_exists('license_public_key_pem', $ecommerceOriginal);
+            $ecommercePublicKeyOriginalValue = $ecommerceOriginal['license_public_key_pem'] ?? null;
+            $bundledPublicKey = (string)(@file_get_contents(__DIR__ . '/../modules/guidance/license-key.pem') ?: '');
+
+            try {
+                saveTenantModuleSettings('ecommerce', ['license_public_key_pem' => $bundledPublicKey]);
+                saveTenantModuleSettings('guidance', [
+                    'license_store_url' => 'https://cmsnew.test',
+                    'license_public_key_pem' => '',
+                ]);
+                $matchingStoreVerification = guidanceVerifyLicenseJwt($jwt);
+                t('Guidance accepts JWT when issuer store matches tenant setting', !empty($matchingStoreVerification['ok']), is_array($matchingStoreVerification) ? (string)($matchingStoreVerification['error'] ?? '') : '');
+                t('Guidance exposes issuer host from JWT', (($matchingStoreVerification['issuer_host'] ?? '') === 'cmsnew.test'), is_array($matchingStoreVerification) ? (string)($matchingStoreVerification['issuer_host'] ?? '') : '');
+                t('Guidance can verify via issuing store ecommerce public key', (($matchingStoreVerification['key_source'] ?? '') === 'ecommerce_current_tenant_setting'), is_array($matchingStoreVerification) ? (string)($matchingStoreVerification['key_source'] ?? '') : '');
+
+                saveTenantModuleSettings('guidance', [
+                    'license_store_url' => 'https://cmsnew.test',
+                    'license_public_key_pem' => $bundledPublicKey,
+                ]);
+                $moduleKeyVerification = guidanceVerifyLicenseJwt($jwt);
+                t('Guidance accepts JWT with configured module public key override', !empty($moduleKeyVerification['ok']), is_array($moduleKeyVerification) ? (string)($moduleKeyVerification['error'] ?? '') : '');
+                t('Guidance prefers the configured module public key override', (($moduleKeyVerification['key_source'] ?? '') === 'guidance_module_setting'), is_array($moduleKeyVerification) ? (string)($moduleKeyVerification['key_source'] ?? '') : '');
+
+                saveTenantModuleSettings('guidance', [
+                    'license_store_url' => 'https://different-store.test',
+                    'license_public_key_pem' => '',
+                ]);
+                $mismatchedStoreVerification = guidanceVerifyLicenseJwt($jwt);
+                t('Guidance rejects JWT when issuer store does not match tenant setting', empty($mismatchedStoreVerification['ok']), is_array($mismatchedStoreVerification) ? (string)($mismatchedStoreVerification['error'] ?? '') : '');
+            } finally {
+                restoreTenantModuleSetting('guidance', 'license_store_url', $guidanceStoreHadOriginal, $guidanceStoreOriginalValue);
+                restoreTenantModuleSetting('guidance', 'license_public_key_pem', $guidancePublicKeyHadOriginal, $guidancePublicKeyOriginalValue);
+                restoreTenantModuleSetting('ecommerce', 'license_public_key_pem', $ecommercePublicKeyHadOriginal, $ecommercePublicKeyOriginalValue);
+            }
 
             // Verify RS256 signature with bundled public key
             $pubKeyPath = __DIR__ . '/../modules/guidance/license-key.pem';
@@ -255,6 +336,9 @@ try {
     $createdOrderIds[] = $order2Id;
 
     t('Second order created', $order2Id > 0, "id={$order2Id}");
+
+    // Reset captured emails to only catch the license email triggered by payment
+    $capturedEmails = [];
 
     // Simulate admin click "Mark as Paid" — same code path as admin handler
     ecOrderMarkPaid($order2Id);

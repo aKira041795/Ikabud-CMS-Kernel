@@ -608,6 +608,167 @@ function guidanceIsPro(): bool {
     return guidanceTenantTier() === 'pro';
 }
 
+function guidanceNormalizeExternalUrl(?string $value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+
+    if (!preg_match('#^[a-z][a-z0-9+.-]*://#i', $value)) {
+        $value = 'https://' . ltrim($value, '/');
+    }
+
+    $parts = parse_url($value);
+    if (!is_array($parts)) {
+        return '';
+    }
+
+    $host = \Ikabud\Kernel\TenantResolver::normalizeHost((string)($parts['host'] ?? ''));
+    if ($host === '') {
+        return '';
+    }
+
+    $scheme = strtolower(trim((string)($parts['scheme'] ?? 'https')));
+    if ($scheme === '') {
+        $scheme = 'https';
+    }
+
+    $port = isset($parts['port']) ? ':' . (int)$parts['port'] : '';
+    $path = trim((string)($parts['path'] ?? ''));
+    if ($path !== '' && $path !== '/') {
+        $path = '/' . ltrim($path, '/');
+        $path = rtrim($path, '/');
+    } else {
+        $path = '';
+    }
+
+    return $scheme . '://' . $host . $port . $path;
+}
+
+function guidanceExternalUrlHost(?string $value): string
+{
+    $normalized = guidanceNormalizeExternalUrl($value);
+    if ($normalized === '') {
+        return '';
+    }
+
+    return \Ikabud\Kernel\TenantResolver::normalizeHost((string)(parse_url($normalized, PHP_URL_HOST) ?? ''));
+}
+
+function guidanceLicenseStoreUrl(?int $tenantId = null): string
+{
+    $settings = [];
+
+    if ($tenantId !== null && $tenantId > 0 && function_exists('readTenantModuleSettingsForTenant')) {
+        $settings = readTenantModuleSettingsForTenant('guidance', $tenantId);
+    } elseif (function_exists('readTenantModuleSettings')) {
+        $settings = readTenantModuleSettings('guidance');
+    }
+
+    if (!is_array($settings)) {
+        return '';
+    }
+
+    return guidanceNormalizeExternalUrl((string)($settings['license_store_url'] ?? ''));
+}
+
+function guidanceCurrentRequestHost(): string
+{
+    return \Ikabud\Kernel\TenantResolver::normalizeHost((string)($_SERVER['HTTP_HOST'] ?? ''));
+}
+
+function guidanceBundledLicensePublicKey(): string
+{
+    $path = __DIR__ . '/license-key.pem';
+    if (!is_file($path)) {
+        return '';
+    }
+
+    return (string)file_get_contents($path);
+}
+
+/**
+ * @return array<string, string>
+ */
+function guidanceLicensePublicKeyCandidates(?int $tenantId = null): array
+{
+    $candidates = [];
+    $seen = [];
+
+    if (($tenantId === null || $tenantId <= 0) && function_exists('moduleTenantSettingsTenantId')) {
+        $resolvedTenantId = moduleTenantSettingsTenantId();
+        if ($resolvedTenantId !== null && $resolvedTenantId > 0) {
+            $tenantId = (int)$resolvedTenantId;
+        }
+    }
+
+    $register = static function (string $source, string $pem) use (&$candidates, &$seen): void {
+        $pem = trim($pem);
+        if ($pem === '') {
+            return;
+        }
+
+        $fingerprint = sha1($pem);
+        if (isset($seen[$fingerprint])) {
+            return;
+        }
+
+        $seen[$fingerprint] = true;
+        $candidates[$source] = $pem;
+    };
+
+    $guidanceSettings = [];
+    if ($tenantId !== null && $tenantId > 0 && function_exists('readTenantModuleSettingsForTenant')) {
+        $guidanceSettings = readTenantModuleSettingsForTenant('guidance', $tenantId);
+    } elseif (function_exists('readTenantModuleSettings')) {
+        $guidanceSettings = readTenantModuleSettings('guidance');
+    }
+    if (!is_array($guidanceSettings)) {
+        $guidanceSettings = [];
+    }
+
+    $register('guidance_module_setting', (string)($guidanceSettings['license_public_key_pem'] ?? ''));
+
+    $storeHost = guidanceExternalUrlHost((string)($guidanceSettings['license_store_url'] ?? ''));
+    $requestHost = guidanceCurrentRequestHost();
+    if ($tenantId !== null && $tenantId > 0 && $storeHost !== '' && $requestHost !== '' && $storeHost === $requestHost) {
+        $ecommerceSettings = function_exists('readTenantModuleSettingsForTenant')
+            ? readTenantModuleSettingsForTenant('ecommerce', $tenantId)
+            : [];
+        if (is_array($ecommerceSettings)) {
+            $register('ecommerce_current_tenant_setting', (string)($ecommerceSettings['license_public_key_pem'] ?? ''));
+        }
+    }
+
+    $register('bundled_file', guidanceBundledLicensePublicKey());
+
+    return $candidates;
+}
+
+function guidanceLicenseIssuerHost(array $claims): string
+{
+    foreach (['iss_url', 'issuer_url', 'store_url'] as $key) {
+        $raw = trim((string)($claims[$key] ?? ''));
+        if ($raw === '') {
+            continue;
+        }
+
+        return guidanceExternalUrlHost($raw);
+    }
+
+    foreach (['iss_host', 'issuer_host', 'store_host'] as $key) {
+        $raw = trim((string)($claims[$key] ?? ''));
+        if ($raw === '') {
+            continue;
+        }
+
+        return \Ikabud\Kernel\TenantResolver::normalizeHost($raw);
+    }
+
+    return '';
+}
+
 /**
  * Restrict access to PRO-tier endpoints.
  * Returns a JSON 403 or redirects if the tenant is on the FREE tier.
@@ -617,13 +778,13 @@ function guidanceRequirePro(): void {
         return;
     }
 
-    $storeUrl = trim((string)(readTenantModuleSettings('guidance')['license_store_url'] ?? 'https://cmsnew.test'));
+    $storeUrl = guidanceLicenseStoreUrl();
 
     if (guidanceIsHtmx() || app()->input('api') || str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/api/')) {
         app()->json([
             'error'       => 'upgrade_required',
             'message'     => 'This feature requires the Guidance PRO tier. Please upgrade your license to access it.',
-            'upgrade_url' => $storeUrl,
+            'upgrade_url' => $storeUrl !== '' ? $storeUrl : null,
         ], 403);
         exit;
     }
@@ -636,15 +797,16 @@ function guidanceRequirePro(): void {
 
 /**
  * Return the bundled RS256 public key PEM used to verify Guidance license JWTs.
- * The matching private key is held exclusively by the module author at cmsnew.test.
+ * The matching private key is held exclusively by the module author or store operator.
  */
-function guidanceLicensePublicKey(): string
+function guidanceLicensePublicKey(?int $tenantId = null): string
 {
-    $path = __DIR__ . '/license-key.pem';
-    if (!is_file($path)) {
+    $candidates = guidanceLicensePublicKeyCandidates($tenantId);
+    if ($candidates === []) {
         return '';
     }
-    return (string) file_get_contents($path);
+
+    return (string)reset($candidates);
 }
 
 /**
@@ -687,6 +849,8 @@ function guidanceLicenseJtiTenantBound(string $jti): ?int
  *   ok          bool    — true when signature and all claims are valid
  *   tier        string  — 'pro' (or another tier) from JWT 'tier' claim
  *   expires_at  string  — ISO-8601 expiry, or '' for perpetual
+ *   issuer_host string  — issuer/store host when present in the JWT
+ *   key_source   string  — which trusted public-key source verified the JWT
  *   error       string  — human-readable failure reason (only when ok=false)
  *
  * The JWT must satisfy:
@@ -695,8 +859,10 @@ function guidanceLicenseJtiTenantBound(string $jti): ?int
  *   - aud = 'guidance'
  *   - exp > time()  (or omitted → perpetual)
  *   - signature verifiable by the bundled public key
+ *   - optional issuer/store host claims must match the tenant's configured
+ *     license_store_url when both are present
  */
-function guidanceVerifyLicenseJwt(string $jwt): array
+function guidanceVerifyLicenseJwt(string $jwt, array $options = []): array
 {
     // Strip all whitespace (newlines, spaces) that may be introduced when
     // copying a JWT that was word-wrapped in an email or <code> block.
@@ -735,21 +901,41 @@ function guidanceVerifyLicenseJwt(string $jwt): array
         return ['ok' => false, 'error' => 'Invalid base64url signature.'];
     }
 
-    // Verify RS256 signature against bundled public key
-    $publicKeyPem = guidanceLicensePublicKey();
-    if ($publicKeyPem === '') {
+    $tenantIdForKey = isset($options['tenant_id']) ? (int)$options['tenant_id'] : null;
+
+    // Verify RS256 signature against the trusted public-key candidates.
+    $publicKeyCandidates = guidanceLicensePublicKeyCandidates($tenantIdForKey);
+    if ($publicKeyCandidates === []) {
         return ['ok' => false, 'error' => 'Module license public key not found; contact support.'];
     }
 
-    $pubKey = openssl_pkey_get_public($publicKeyPem);
-    if ($pubKey === false) {
+    $signingInput = $b64Header . '.' . $b64Payload;
+    $loadedPublicKeys = 0;
+    $verifiedSource = '';
+
+    foreach ($publicKeyCandidates as $source => $publicKeyPem) {
+        $pubKey = openssl_pkey_get_public($publicKeyPem);
+        if ($pubKey === false) {
+            continue;
+        }
+
+        $loadedPublicKeys++;
+        $verified = openssl_verify($signingInput, $sigBin, $pubKey, OPENSSL_ALGO_SHA256);
+        if (is_object($pubKey) || $pubKey instanceof \OpenSSLAsymmetricKey) {
+            openssl_free_key($pubKey);
+        }
+
+        if ($verified === 1) {
+            $verifiedSource = $source;
+            break;
+        }
+    }
+
+    if ($loadedPublicKeys === 0) {
         return ['ok' => false, 'error' => 'Could not load module license public key.'];
     }
 
-    $signingInput = $b64Header . '.' . $b64Payload;
-    $verified = openssl_verify($signingInput, $sigBin, $pubKey, OPENSSL_ALGO_SHA256);
-
-    if ($verified !== 1) {
+    if ($verifiedSource === '') {
         return ['ok' => false, 'error' => 'License key signature is invalid. Ensure the key was issued for Guidance by the authorized author.'];
     }
 
@@ -774,6 +960,29 @@ function guidanceVerifyLicenseJwt(string $jwt): array
         return ['ok' => false, 'error' => 'License key has expired. Please renew at the module store.'];
     }
 
+    $expectedStoreUrl = guidanceNormalizeExternalUrl((string)($options['license_store_url'] ?? ''));
+    if ($expectedStoreUrl === '') {
+        $tenantId = isset($options['tenant_id']) ? (int)$options['tenant_id'] : null;
+        $expectedStoreUrl = guidanceLicenseStoreUrl($tenantId);
+    }
+
+    $issuerHost = guidanceLicenseIssuerHost($claims);
+    if ($issuerHost === '') {
+        foreach (['iss_url', 'issuer_url', 'store_url', 'iss_host', 'issuer_host', 'store_host'] as $key) {
+            if (trim((string)($claims[$key] ?? '')) !== '') {
+                return ['ok' => false, 'error' => 'License key contains an invalid issuer store URL or host.'];
+            }
+        }
+    }
+
+    $expectedStoreHost = guidanceExternalUrlHost($expectedStoreUrl);
+    if ($issuerHost !== '' && $expectedStoreHost !== '' && $issuerHost !== $expectedStoreHost) {
+        return [
+            'ok' => false,
+            'error' => 'License key issuer does not match this tenant\'s configured Guidance store URL.',
+        ];
+    }
+
     $expiresAt = ($exp !== null) ? date('Y-m-d H:i:s', $exp) : '';
 
     return [
@@ -781,6 +990,8 @@ function guidanceVerifyLicenseJwt(string $jwt): array
         'tier'       => $tier,
         'expires_at' => $expiresAt,
         'jti'        => (string)($claims['jti'] ?? ''),
+        'issuer_host'=> $issuerHost,
+        'key_source' => $verifiedSource,
     ];
 }
 
@@ -821,7 +1032,9 @@ function guidance_cap_module_license_activate_1(mixed $payload, string $capabili
         return ['ok' => false, 'status' => 'error', 'provider' => 'guidance', 'error' => 'No license key supplied.'];
     }
 
-    $verification = guidanceVerifyLicenseJwt($licenseKey);
+    $verification = guidanceVerifyLicenseJwt($licenseKey, [
+        'tenant_id' => $tenantId,
+    ]);
     if (!($verification['ok'] ?? false)) {
         write_log('guidance.license.activate failed', 'warning', [
             'error'     => $verification['error'] ?? 'unknown',
@@ -859,6 +1072,8 @@ function guidance_cap_module_license_activate_1(mixed $payload, string $capabili
         'tier'      => $tier,
         'expires_at'=> $expiresAt,
         'tenant_id' => $tenantId,
+        'issuer_host' => (string)($verification['issuer_host'] ?? ''),
+        'key_source' => (string)($verification['key_source'] ?? ''),
         'jti'       => $verification['jti'] ?? '',
     ]);
 

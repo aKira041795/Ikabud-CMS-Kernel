@@ -159,7 +159,14 @@
                         <i class="fas fa-crown mt-0.5 text-amber-500"></i>
                         <div>
                             <p class="font-medium">Activate Guidance Pro with your license key.</p>
-                            <p class="mt-1">Purchase a license at <a href="{settings.license_store_url | default:'https://cmsnew.test'}" target="_blank" rel="noopener" class="underline font-medium">{settings.license_store_url | default:'cmsnew.test'}</a>. You'll receive a JWT license key by email — paste it below. Activation is immediate, no admin review required.</p>
+                            <p class="mt-1">
+                                {if settings.license_store_url}
+                                    Purchase a license at <a href="{settings.license_store_url}" target="_blank" rel="noopener" class="underline font-medium">{settings.license_store_url}</a>.
+                                {else}
+                                    Purchase a license from your configured Guidance store.
+                                {/if}
+                                You'll receive a JWT license key by email — paste it below. Activation is immediate, no admin review required.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -177,10 +184,14 @@
                         <p class="text-xs text-gray-400 mt-1">Your license key was emailed to you after purchase. It starts with <code class="bg-gray-100 px-1 rounded">eyJ</code>.</p>
                     </div>
                     <div class="flex items-center justify-between">
-                        <a href="{settings.license_store_url | default:'https://cmsnew.test'}" target="_blank" rel="noopener"
+                        {if settings.license_store_url}
+                        <a href="{settings.license_store_url}" target="_blank" rel="noopener"
                            class="text-sm text-indigo-600 hover:underline flex items-center gap-1">
                             <i class="fas fa-external-link-alt text-xs"></i> Get a license key
                         </a>
+                        {else}
+                        <span class="text-sm text-gray-400">Set the License Store URL to show a direct purchase link.</span>
+                        {/if}
                         <button type="submit" class="inline-flex items-center px-5 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 active:scale-95 transition shadow-sm">
                             <i class="fas fa-bolt mr-2"></i> Activate License
                         </button>

@@ -64,6 +64,8 @@
         "gm_migrations"
     ],
     "reads_tables": [
+        "kernel_module_catalog",
+        "kernel_tenant_module_access_requests",
         "kernel_tenant_module_entitlements",
         "users",
         "audit_logs",
@@ -245,8 +247,16 @@
             "key": "license_store_url",
             "type": "text",
             "label": "License Store URL",
-            "default": "https://cmsnew.test",
-            "description": "URL of the module author's store where Guidance PRO licenses are purchased. Shown on upgrade prompts."
+            "default": "",
+            "description": "URL of the store that issues Guidance PRO licenses for this tenant. Shown on upgrade prompts."
+        },
+        {
+            "key": "license_public_key_pem",
+            "type": "textarea",
+            "label": "License Verify Key (Public, PEM)",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "Optional Guidance license verification key override. Leave blank to use the bundled module key or the current tenant's ecommerce public key when this tenant is the issuing store."
         }
     ],
     "nav": [
