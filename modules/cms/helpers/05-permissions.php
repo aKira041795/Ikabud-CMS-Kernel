@@ -338,7 +338,12 @@ function cmsRequireCap(string $cap): array
             header('Content-Type: application/json');
             echo json_encode(['ok' => false, 'error' => 'Permission denied', 'required' => $cap]);
         } else {
-            echo cmsRender('pages/404.disyl', ['page_title' => 'Access Denied']);
+            $role = strtolower(trim((string)($user['role'] ?? '')));
+            if (($user['source'] ?? '') === 'cms' && in_array($role, ['customer', 'subscriber'], true)) {
+                cmsRedirect('/ecommerce/shop');
+            } else {
+                echo cmsRender('pages/404.disyl', ['page_title' => 'Access Denied']);
+            }
         }
         exit;
     }
