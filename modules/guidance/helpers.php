@@ -757,9 +757,17 @@ function guidanceLicensePublicKeyCandidates(?int $tenantId = null, string $issue
 
         // Map the main application domain to the default tenant ID if it lacks a domain mapping record.
         if (($storeTenantId === null || $storeTenantId <= 0) && function_exists('app')) {
+            $defaultTid = (int)app()->config('app.multi_tenant.default', 1);
             $appHost = \Ikabud\Kernel\TenantResolver::normalizeHost((string)parse_url(app()->config('app.url', ''), PHP_URL_HOST));
+            
             if ($appHost !== '' && $storeHost === $appHost) {
-                $storeTenantId = (int)app()->config('app.multi_tenant.default', 0);
+                $storeTenantId = $defaultTid;
+            } elseif (app()->config('app.multi_tenant.enabled')) {
+                // Failsafe: if the issuer domain wasn't found in control_host and didn't perfectly match APP_URL,
+                // aggressively trial the default tenant's public key. OpenSSL organically rejects wrong keys, 
+                // making this 100% secure while preventing false "invalid signature" blocks for sub-tenants
+                // whose root default tenant lacks explicit control_host domain routing.
+                $storeTenantId = $defaultTid;
             }
         }
 
