@@ -447,6 +447,8 @@ $routes = [
         '/api/v1/admin/tenants/canonical-domain' => 'apiTenantCanonicalDomainSet',
         '/api/v1/admin/tenants/db/upsert' => 'apiTenantDbUpsert',
         '/api/v1/admin/tenants/status' => 'apiTenantStatusSet',
+        '/api/v1/admin/tenants/delete' => 'apiTenantDelete',
+        '/api/v1/admin/tenants/admin-email' => 'apiTenantAdminEmailPush',
     ],
     'PUT' => [],
     'DELETE' => [],
@@ -576,6 +578,7 @@ switch ($handler) {
         $input = app()->input();
         $tenantKey = strtolower(trim((string)($input['tenant_key'] ?? '')));
         $domain = strtolower(trim((string)($input['domain'] ?? '')));
+        $adminEmail = trim((string)($input['admin_email'] ?? ''));
         $entryModuleNorm = normalizeTenantEntryModuleId($input['entry_module_id'] ?? '', true);
         $entryModuleId = $entryModuleNorm['value'];
 
@@ -587,6 +590,11 @@ switch ($handler) {
         if ($domain === '' || !preg_match('/^[a-z0-9\-\.]+$/', $domain)) {
             http_response_code(422);
             echo json_encode(['ok' => false, 'error' => 'Invalid domain']);
+            exit;
+        }
+        if ($adminEmail !== '' && !filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Invalid admin_email']);
             exit;
         }
         if (empty($entryModuleNorm['ok'])) {
@@ -602,8 +610,9 @@ switch ($handler) {
         try {
             $pdo->beginTransaction();
 
-            $stmt = $pdo->prepare('INSERT INTO kernel_tenants (tenant_key, status, entry_module_id) VALUES (:k, :s, :e)');
-            $stmt->execute([':k' => $tenantKey, ':s' => 'active', ':e' => $entryModuleId]);
+            $adminEmailValue = $adminEmail !== '' ? $adminEmail : null;
+            $stmt = $pdo->prepare('INSERT INTO kernel_tenants (tenant_key, status, entry_module_id, admin_email) VALUES (:k, :s, :e, :ae)');
+            $stmt->execute([':k' => $tenantKey, ':s' => 'active', ':e' => $entryModuleId, ':ae' => $adminEmailValue]);
             $tenantId = (int)$pdo->lastInsertId();
             if ($tenantId <= 0) {
                 throw new RuntimeException('Failed to create tenant');
@@ -961,6 +970,173 @@ switch ($handler) {
         } catch (Throwable $e) {
             http_response_code(500);
             echo json_encode(['ok' => false, 'error' => 'Failed to update tenant status']);
+        }
+        exit;
+
+    case 'apiTenantAdminEmailPush':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            exit;
+        }
+        app()->csrfEnforce();
+
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+        $adminEmail = trim((string)($input['admin_email'] ?? ''));
+        if ($tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
+            exit;
+        }
+        if ($adminEmail === '' || !filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'A valid admin_email is required']);
+            exit;
+        }
+
+        try {
+            // 1. Save to control plane
+            $ctrlStmt = app()->controlDb()->prepare(
+                'UPDATE kernel_tenants SET admin_email = :e, updated_at = NOW() WHERE id = :tid'
+            );
+            $ctrlStmt->execute([':e' => $adminEmail, ':tid' => $tenantId]);
+
+            // 2. Push into the tenant's own DB — update the first admin user's email
+            //    in whichever tables are present (cms_users, gm_users).
+            $pushed = [];
+            $skipped = [];
+            $tDb = app()->dbForTenant($tenantId);
+            if ($tDb !== null) {
+                // CMS: role = 'administrator'
+                try {
+                    $check = $tDb->prepare('SELECT id, email FROM cms_users WHERE role = :r ORDER BY id ASC LIMIT 1');
+                    $check->execute([':r' => 'administrator']);
+                    $admin = $check->fetch(PDO::FETCH_ASSOC);
+                    if ($admin) {
+                        if ($admin['email'] === $adminEmail) {
+                            $pushed[] = 'cms_users';
+                        } else {
+                            $r = $tDb->prepare('UPDATE cms_users SET email = :e WHERE id = :id LIMIT 1');
+                            $r->execute([':e' => $adminEmail, ':id' => $admin['id']]);
+                            $pushed[] = 'cms_users';
+                        }
+                    } else {
+                        $skipped[] = 'cms_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    // Table not found = CMS module not installed on this tenant — silent skip
+                    if (strpos($msg, '1146') !== false || stripos($msg, 'Base table or view not found') !== false) {
+                        $skipped[] = 'cms_users';
+                    } elseif (strpos($msg, '1062') !== false || stripos($msg, 'Duplicate entry') !== false) {
+                        // Surface duplicate email as a user-facing error
+                        adminViewCacheInvalidate(['admin:view:tenants']);
+                        echo json_encode(['ok' => false, 'error' => 'That email is already used by another account in this tenant\'s CMS. Choose a different email or update the existing user directly.']);
+                        exit;
+                    } else {
+                        write_log('apiTenantAdminEmailPush cms_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                        $skipped[] = 'cms_users';
+                    }
+                }
+
+                // Guidance: role = 'admin'
+                try {
+                    $check = $tDb->prepare('SELECT id, email FROM gm_users WHERE role = :r AND deleted_at IS NULL ORDER BY id ASC LIMIT 1');
+                    $check->execute([':r' => 'admin']);
+                    $admin = $check->fetch(PDO::FETCH_ASSOC);
+                    if ($admin) {
+                        if ($admin['email'] === $adminEmail) {
+                            $pushed[] = 'gm_users';
+                        } else {
+                            $r = $tDb->prepare('UPDATE gm_users SET email = :e WHERE id = :id LIMIT 1');
+                            $r->execute([':e' => $adminEmail, ':id' => $admin['id']]);
+                            $pushed[] = 'gm_users';
+                        }
+                    } else {
+                        $skipped[] = 'gm_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    // Table not found = guidance module not installed on this tenant — silent skip
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminEmailPush gm_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'gm_users';
+                }
+            } else {
+                $skipped[] = 'tenant_db_not_configured';
+            }
+
+            adminViewCacheInvalidate(['admin:view:tenants']);
+            echo json_encode([
+                'ok' => true,
+                'pushed' => $pushed,
+                'skipped' => $skipped,
+            ]);
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update admin email']);
+        }
+        exit;
+
+    case 'apiTenantDelete':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            exit;
+        }
+        app()->csrfEnforce();
+
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+        if ($tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
+            exit;
+        }
+
+        $pdo = app()->controlDb();
+        try {
+            // Verify tenant exists before deleting
+            $chk = $pdo->prepare('SELECT id FROM kernel_tenants WHERE id = :tid LIMIT 1');
+            $chk->execute([':tid' => $tenantId]);
+            if (!$chk->fetch()) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'Tenant not found']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            // Delete all child records first, then the tenant row
+            foreach ([
+                'DELETE FROM kernel_tenant_module_access_requests WHERE tenant_id = :tid',
+                'DELETE FROM kernel_tenant_module_entitlements WHERE tenant_id = :tid',
+                'DELETE FROM kernel_tenant_db_connections WHERE tenant_id = :tid',
+                'DELETE FROM kernel_tenant_domains WHERE tenant_id = :tid',
+                'DELETE FROM kernel_tenants WHERE id = :tid',
+            ] as $sql) {
+                $pdo->prepare($sql)->execute([':tid' => $tenantId]);
+            }
+            $pdo->commit();
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
+            echo json_encode(['ok' => true]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to delete tenant']);
         }
         exit;
 
@@ -2981,7 +3157,7 @@ switch ($handler) {
 
         try {
             $tStmt = app()->controlDb()->query(
-                'SELECT id, tenant_key, status, entry_module_id, created_at, updated_at '
+                'SELECT id, tenant_key, status, entry_module_id, admin_email, created_at, updated_at '
                 . 'FROM kernel_tenants '
                 . 'ORDER BY id DESC'
             );
@@ -3044,6 +3220,7 @@ switch ($handler) {
                     'tenant_key' => (string)($t['tenant_key'] ?? ''),
                     'status' => (string)($t['status'] ?? 'active'),
                     'entry_module_id' => $t['entry_module_id'] !== null ? (string)$t['entry_module_id'] : null,
+                    'admin_email' => $t['admin_email'] !== null ? (string)$t['admin_email'] : null,
                     'domains' => array_values(array_unique($domainsByTenant[$tid] ?? [])),
                     'db_configured' => $dbConfigured,
                     'db' => $dbInfo,

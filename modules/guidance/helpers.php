@@ -1295,3 +1295,47 @@ function guidanceSaveCounselorAvailability(\Ikabud\Kernel\Contracts\DatabaseCont
         throw $e;
     }
 }
+
+function clientIp(): string
+{
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        return filter_var($_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP) ?: ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    }
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $ips = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+        $ip = end($ips);
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+function rateLimit(string $key, int $maxAttempts = 5, int $windowSeconds = 300): bool
+{
+    $db = guidanceDb();
+
+    static $cleanupDone = false;
+    if (!$cleanupDone) {
+        if (random_int(1, 100) === 1) {
+            try { $db->exec("DELETE FROM gm_rate_limits WHERE expires_at < NOW()"); } catch (\Exception $e) {}
+        }
+        $cleanupDone = true;
+    }
+
+    $stmt = $db->prepare("
+        INSERT INTO gm_rate_limits (rate_key, attempts, window_start, expires_at)
+        VALUES (?, 1, NOW(), NOW() + INTERVAL ? SECOND)
+        ON DUPLICATE KEY UPDATE
+            attempts = IF(expires_at < NOW(), 1, attempts + 1),
+            window_start = IF(expires_at < NOW(), NOW(), window_start),
+            expires_at = IF(expires_at < NOW(), NOW() + INTERVAL ? SECOND, expires_at)
+    ");
+    $stmt->execute([$key, $windowSeconds, $windowSeconds]);
+
+    $checkStmt = $db->prepare("SELECT attempts FROM gm_rate_limits WHERE rate_key = ? AND expires_at >= NOW()");
+    $checkStmt->execute([$key]);
+    $attempts = (int) $checkStmt->fetchColumn();
+
+    return $attempts <= $maxAttempts;
+}
