@@ -126,6 +126,7 @@
                         {if public_customer_has_admin_access}
                         <a href="{public_customer_admin_url}" class="ec-customer-banner__secondary">CMS Admin</a>
                         {/if}
+                        <a href="{base_url}/auth/logout?redirect=/ecommerce/shop" class="ec-customer-banner__secondary">Log Out</a>
                     </div>
                 </div>
             </div>
