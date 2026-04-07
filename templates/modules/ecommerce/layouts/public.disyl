@@ -55,6 +55,7 @@
                     {if public_customer_has_admin_access}
                     <a href="{public_customer_admin_url}" class="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">CMS Admin</a>
                     {/if}
+                    <a href="{base_url}/auth/logout?redirect=/ecommerce/shop" class="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Log Out</a>
                 </div>
             </div>
         </div>
