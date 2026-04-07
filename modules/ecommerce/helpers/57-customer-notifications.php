@@ -106,8 +106,16 @@ app()->events()->listen('ecommerce.order.created', function (array $payload) {
             'forgot_password_url' => $forgotPasswordUrl,
             'login_url' => $loginUrl,
             'my_orders_url' => $myOrdersUrl,
-        ], [
-            'items_table' => $itemRows !== ''
+        ]);
+
+        $body = ecWrapEmailTemplateHtml(
+            '<h2 style="color:#2563eb;">Order Confirmation — #' . htmlspecialchars($orderNumber, ENT_QUOTES) . '</h2>'
+            . $template['message_html']
+            . '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">'
+            . '<tr><td style="padding:4px 8px;font-weight:600;width:40%;">Order Number</td><td style="padding:4px 8px;">#' . htmlspecialchars($orderNumber, ENT_QUOTES) . '</td></tr>'
+            . '<tr><td style="padding:4px 8px;font-weight:600;">Total</td><td style="padding:4px 8px;">' . htmlspecialchars($formattedTotal, ENT_QUOTES) . '</td></tr>'
+            . '</table>'
+            . ($itemRows !== ''
                 ? '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;margin-bottom:16px;">'
                     . '<thead><tr style="background:#f9fafb;">'
                     . '<th style="padding:6px 10px;text-align:left;font-size:12px;text-transform:uppercase;color:#6b7280;">Product</th>'
@@ -116,11 +124,12 @@ app()->events()->listen('ecommerce.order.created', function (array $payload) {
                     . '</tr></thead>'
                     . '<tbody>' . $itemRows . '</tbody>'
                     . '</table>'
-                : '',
-            'account_instructions' => $accountInstructions,
-        ]);
+                : '')
+            . $accountInstructions
+            . '<p style="color:#6b7280;font-size:12px;margin-top:24px;">This is an automated receipt for your records.</p>'
+        );
 
-        sendEmail($customerEmail, $template['subject'], $template['body'], $options);
+        sendEmail($customerEmail, $template['subject'], $body, $options);
 
     } catch (\Throwable $e) {
         write_log('Customer order confirmation email failed for order ' . $orderId . ': ' . $e->getMessage(), 'warning', [

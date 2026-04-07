@@ -978,7 +978,7 @@ function ecProductPricing(int $productId): array
         $salePrice = isset($config['sale_price']) ? (float)$config['sale_price'] : null;
         $currency  = $config['currency'] ?? ecSettings('currency');
         $symbol    = (string)ecSettings('currency_symbol');
-        $onSale    = $price !== null && $salePrice !== null && $salePrice < $price;
+        $onSale    = $price !== null && $salePrice !== null && $salePrice > 0 && $salePrice < $price;
         $active    = $onSale ? $salePrice : $price;
 
         return [
@@ -1049,7 +1049,7 @@ function ecProductUpdatePricing(int $productId, array $data): void
     $config = array_filter([
         'price'      => isset($data['price'])      ? (float)$data['price']      : ($existing['price']      ?? null),
         'currency'   => $data['currency']           ?? ($existing['currency']     ?? ecSettings('currency')),
-        'sale_price' => isset($data['sale_price'])  ? (float)$data['sale_price'] : ($existing['sale_price'] ?? null),
+        'sale_price' => isset($data['sale_price']) && (float)$data['sale_price'] > 0 ? (float)$data['sale_price'] : ($existing['sale_price'] ?? null),
     ], fn($v) => $v !== null);
 
     ecAttachCmsEntityCapability($productId, 'pricing', $config);
