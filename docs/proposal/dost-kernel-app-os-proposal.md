@@ -26,10 +26,11 @@ To further develop, harden, and promote the Application Kernel OS as a globally 
 2.  **Module Integration (PoC):** Scale and refine the primary Proof-of-Concept modules (CMS, Ecommerce, Guidance) to demonstrate the system's global capabilities.
 3.  **Security Hardening:** Ensure that the underlying architecture strictly enforces international data privacy standards through module-scoped databases.
 
-## 4. Methodology & Proof of Concept (PoC)
-To prove that the Kernel OS works as intended on a global scale, the project has built and deployed three real-world application modules running on top of it. These modules represent the core needs of any digital organization, seamlessly and securely isolated by the Kernel OS:
+## 4. Current Proof of Concept (Live Modules)
 
-1.  **CMS (Content Management System) & Ecommerce Modules:** 
+The following four modules demonstrate the system running in production:
+
+1.  **CMS and Ecommerce Modules:** 
     *   *Purpose:* Allows non-technical staff to easily build websites, publish content, and run a transaction engine that handles digital payments and product catalogs. 
     *   *Kernel Benefit:* The Ecommerce module runs safely beside the CMS. If a content update in the CMS fails, the payment processing system remains 100% unaffected and secure.
     *   *Live Examples:* 
@@ -39,6 +40,9 @@ To prove that the Kernel OS works as intended on a global scale, the project has
     *   *Purpose:* An interactive, step-by-step assistant for tracking and monitoring progress, highly suitable for educational institutions and enterprise onboarding.
     *   *Kernel Benefit:* It securely taps into the Kernel OS to track user progress independently of the main website or payment gateways.
     *   *Live Example:* **guidance.ikabudkernel.com** (Currently used for guidance monitoring in educational institutions)
+3.  **WMS Module (Warehouse Management System):**
+    *   *Purpose:* An entity-driven, native WMS for inventory tracking, inbound/outbound fulfillment, transfers, cycle counting, and reverse logistics.
+    *   *Kernel Benefit:* Provides full ERP-lite capabilities natively inside the OS without needing a standalone legacy monolith. Data isolation ensures internal operational data is invisible to the public CMS.
 
 ## 5. Funding Requirements
 To elevate this globally ready system, we are seeking DOST funding across three critical pillars:
@@ -48,7 +52,7 @@ To elevate this globally ready system, we are seeking DOST funding across three 
 
 ## 6. Expected Outputs and Deliverables
 *   **The Kernel OS Framework:** A fully documented, open-architecture web operating system ready for global enterprise deployment.
-*   **Hardened PoC Modules:** Scaled, production-ready versions of the CMS, Ecommerce, and Guidance systems.
+*   **Hardened PoC Modules:** Scaled, production-ready versions of the CMS, Ecommerce, Guidance, and WMS modules.
 *   **Developer Documentation & Blueprints:** Simple guides for international developers to create their own secure modules for the OS.
 
 ## 7. Target Beneficiaries / Impact

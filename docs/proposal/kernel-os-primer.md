@@ -114,6 +114,7 @@ The Kernel OS ships with a growing set of ready-to-use modules:
 | **CMS** | Full website CMS with visual drag-and-drop page builder, media library, content types, themes |
 | **Ecommerce** | Product catalogs, digital storefronts, order management, payment processing |
 | **Guidance** | Step-by-step progress tracking, monitoring dashboards, multi-institution support |
+| **WMS** | Entity-driven warehouse management, inventory tracking, picking/receiving, returns |
 | **AI** | Content automation, AI-assisted writing, search-grounded generation |
 | **Workflow** | State-machine workflow automation for approvals and multi-step processes |
 | **Daily Ledger** | Inventory and financial tracking for small business operations |

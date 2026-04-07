@@ -63,7 +63,7 @@ To develop, harden, and commercialize the Application Kernel OS as a globally co
 **Specific Objectives:**
 
 1. **Consolidate the Core OS**: Finalize runtime policy enforcement, tenant-aware routing, capability bus contracts, and the DiSyL template engine for production-grade global deployment.
-2. **Scale the Proof-of-Concept Modules**: Further develop and harden the three flagship modules (CMS, Ecommerce, Guidance) as reusable, globally deployable application components.
+2. **Scale the Proof-of-Concept Modules**: Further develop and harden the four flagship modules (CMS, Ecommerce, Guidance, WMS) as reusable, globally deployable application components.
 3. **Security Certification & Audit**: Commission a third-party security audit aligned with international standards (OWASP, ISO 27001 readiness) to prepare the platform for global enterprise adoption.
 4. **Open Developer Ecosystem**: Produce thorough developer documentation, a module SDK, and sample modules to enable global developers to build on the platform.
 5. **Global Promotion**: Bring the platform to an international audience through targeted promotional campaigns, developer community engagement, and technology conferences.
@@ -72,7 +72,7 @@ To develop, harden, and commercialize the Application Kernel OS as a globally co
 
 ## 4. Proof of Concept: Live Modules
 
-The following three modules are the platform's current proof of concept. Each runs on the Kernel OS, and each operates in complete isolation from the others — yet they can securely share a single server deployment.
+The following four modules are the platform's current proof of concept. Each runs on the Kernel OS, and each operates in complete isolation from the others — yet they can securely share a single server deployment.
 
 ### Module 1 — CMS (Content Management System)
 
@@ -94,6 +94,12 @@ An interactive monitoring and tracking system that supports step-by-step progres
 
 - **Real-world use demonstrates:** Multi-institution support with complete data separation between tenants.
 - **Live site:** [guidance.ikabudkernel.com](https://guidance.ikabudkernel.com)
+
+### Module 4 — WMS (Warehouse Management System)
+
+An entity-driven warehouse management engine for tracking inventory, inbound receiving, outbound picking, transfers, and cycle counts. It strictly enforces a double-entry stock ledger via an immutable movements table, supporting advanced picking strategies (FIFO/FEFO) and reverse logistics (returns).
+
+- **Real-world use demonstrates:** High-complexity internal business operations (ERP-lite) running natively alongside public-facing sites (CMS/Ecommerce) with zero data bleed.
 
 ---
 
@@ -144,7 +150,7 @@ Bringing the platform to the world:
 | Kernel OS v4.0 | Hardened, fully documented OS runtime | Month 12 |
 | Security Audit Report | Third-party OWASP/ISO-aligned audit findings & resolutions | Month 10 |
 | Module SDK | Developer toolkit and guide for building Kernel OS modules | Month 14 |
-| PoC Module Upgrades | Production-hardened CMS, Ecommerce, and Guidance modules | Month 18 |
+| PoC Module Upgrades | Production-hardened CMS, Ecommerce, Guidance, and WMS modules | Month 18 |
 | Developer Documentation Portal | Public-facing docs site with tutorials and API reference | Month 16 |
 | Global Promotion Campaign | Conference participation, outreach, and PR deliverables | Months 12–24 |
 
