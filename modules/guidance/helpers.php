@@ -691,7 +691,7 @@ function guidanceBundledLicensePublicKey(): string
 /**
  * @return array<string, string>
  */
-function guidanceLicensePublicKeyCandidates(?int $tenantId = null): array
+function guidanceLicensePublicKeyCandidates(?int $tenantId = null, string $issuerHost = ''): array
 {
     $candidates = [];
     $seen = [];
@@ -730,14 +730,44 @@ function guidanceLicensePublicKeyCandidates(?int $tenantId = null): array
 
     $register('guidance_module_setting', (string)($guidanceSettings['license_public_key_pem'] ?? ''));
 
+    // Always try to load the ecommerce module public key for the current tenant as a fallback.
+    // This allows the store tenant to activate modules on itself without manually copy-pasting the public key.
+    $ecommerceSettings = [];
+    if ($tenantId !== null && $tenantId > 0 && function_exists('readTenantModuleSettingsForTenant')) {
+        $ecommerceSettings = readTenantModuleSettingsForTenant('ecommerce', $tenantId);
+    } elseif (function_exists('readTenantModuleSettings')) {
+        $ecommerceSettings = readTenantModuleSettings('ecommerce');
+    }
+    
+    if (is_array($ecommerceSettings)) {
+        $register('ecommerce_current_tenant_setting', (string)($ecommerceSettings['license_public_key_pem'] ?? ''));
+    }
+
     $storeHost = guidanceExternalUrlHost((string)($guidanceSettings['license_store_url'] ?? ''));
+    if ($storeHost === '' && $issuerHost !== '') {
+        $storeHost = $issuerHost;
+    }
     $requestHost = guidanceCurrentRequestHost();
-    if ($tenantId !== null && $tenantId > 0 && $storeHost !== '' && $requestHost !== '' && $storeHost === $requestHost) {
-        $ecommerceSettings = function_exists('readTenantModuleSettingsForTenant')
-            ? readTenantModuleSettingsForTenant('ecommerce', $tenantId)
-            : [];
-        if (is_array($ecommerceSettings)) {
-            $register('ecommerce_current_tenant_setting', (string)($ecommerceSettings['license_public_key_pem'] ?? ''));
+
+    // If the configured store is hosted on this same multi-tenant database cluster,
+    // pull the public key directly from the remote store tenant's ecommerce settings.
+    if ($storeHost !== '' && $storeHost !== $requestHost && class_exists('\Ikabud\Kernel\TenantResolver')) {
+        $record = \Ikabud\Kernel\TenantResolver::lookupControlHostRecord($storeHost);
+        $storeTenantId = (is_array($record) && isset($record['tenant_id'])) ? (int)$record['tenant_id'] : null;
+
+        // Map the main application domain to the default tenant ID if it lacks a domain mapping record.
+        if (($storeTenantId === null || $storeTenantId <= 0) && function_exists('app')) {
+            $appHost = \Ikabud\Kernel\TenantResolver::normalizeHost((string)parse_url(app()->config('app.url', ''), PHP_URL_HOST));
+            if ($appHost !== '' && $storeHost === $appHost) {
+                $storeTenantId = (int)app()->config('app.multi_tenant.default', 0);
+            }
+        }
+
+        if ($storeTenantId !== null && $storeTenantId > 0 && function_exists('readTenantModuleSettingsForTenant')) {
+            $remoteSettings = readTenantModuleSettingsForTenant('ecommerce', $storeTenantId);
+            if (is_array($remoteSettings)) {
+                $register('ecommerce_remote_tenant_setting', (string)($remoteSettings['license_public_key_pem'] ?? ''));
+            }
         }
     }
 
@@ -902,9 +932,10 @@ function guidanceVerifyLicenseJwt(string $jwt, array $options = []): array
     }
 
     $tenantIdForKey = isset($options['tenant_id']) ? (int)$options['tenant_id'] : null;
+    $issuerHost = guidanceLicenseIssuerHost($claims);
 
     // Verify RS256 signature against the trusted public-key candidates.
-    $publicKeyCandidates = guidanceLicensePublicKeyCandidates($tenantIdForKey);
+    $publicKeyCandidates = guidanceLicensePublicKeyCandidates($tenantIdForKey, $issuerHost);
     if ($publicKeyCandidates === []) {
         return ['ok' => false, 'error' => 'Module license public key not found; contact support.'];
     }
@@ -963,7 +994,6 @@ function guidanceVerifyLicenseJwt(string $jwt, array $options = []): array
         $expectedStoreUrl = guidanceLicenseStoreUrl($tenantId);
     }
 
-    $issuerHost = guidanceLicenseIssuerHost($claims);
     if ($issuerHost === '') {
         foreach (['iss_url', 'issuer_url', 'store_url', 'iss_host', 'issuer_host', 'store_host'] as $key) {
             if (trim((string)($claims[$key] ?? '')) !== '') {
