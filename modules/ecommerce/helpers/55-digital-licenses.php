@@ -138,7 +138,7 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
 
         // Send license delivery email if any keys were issued and email is configured.
         if (!empty($issuedKeys) && $email !== '' && function_exists('sendEmail')) {
-            $baseUrl  = rtrim((string)app()->config('app.url', ''), '/');
+            $baseUrl  = defined('BASE_URL') ? rtrim(BASE_URL, '/') : rtrim((string)external_base_url(), '/');
             $orderNum = (string)($order['order_number'] ?? '');
 
             $rows = '';
@@ -157,7 +157,52 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
                     . '</tr>';
             }
 
-            $body = '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#374151;max-width:600px;margin:auto;">'
+            // Detect whether a fresh customer account was auto-created during this checkout
+            // (created within the last 10 minutes) so we can include a "set your password" CTA.
+            $accountSetupSection = '';
+            if (function_exists('cmsDb')) {
+                try {
+                    $cmDb = cmsDb();
+                    $accRow = $cmDb->query(
+                    "SELECT id, created_at FROM cms_users WHERE email = ? AND is_active = 1 LIMIT 1",
+                    [$email]
+                )->fetch(\PDO::FETCH_ASSOC);
+
+                if ($accRow) {
+                    $userId = (int)$accRow['id'];
+                    $createdAt = strtotime($accRow['created_at'] ?? 'now');
+
+                    if (time() - $createdAt < 600) {
+                        $rawToken = bin2hex(random_bytes(32));
+                        $tokenHash = hash('sha256', $rawToken);
+                        $cmDb->execute(
+                            'INSERT INTO cms_password_resets (user_id, token_hash, requester_ip, expires_at, created_at)
+                             VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 72 HOUR), NOW())',
+                            [$userId, $tokenHash, '127.0.0.1']
+                        );
+                        $setupUrl = $baseUrl . '/cms/reset-password?token=' . urlencode($rawToken);
+                        $accountSetupSection = '<div style="margin-top:24px;padding:16px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;">'
+                            . '<h3 style="margin:0 0 8px;color:#15803d;font-size:15px;">Your account is ready</h3>'
+                            . '<p style="margin:0 0 12px;font-size:13px;color:#374151;">We automatically created a customer account for <strong>' . htmlspecialchars($email, ENT_QUOTES) . '</strong> so you can access your orders and licenses at any time.</p>'
+                            . '<p style="margin:0 0 12px;font-size:13px;color:#374151;">Set a password to activate your account:</p>'
+                            . '<a href="' . htmlspecialchars($setupUrl, ENT_QUOTES) . '" style="display:inline-block;padding:10px 20px;background:#15803d;color:#fff;border-radius:5px;text-decoration:none;font-weight:600;font-size:13px;">Set Your Password</a>'
+                            . '<p style="margin:12px 0 0;font-size:12px;color:#6b7280;">This link expires in 72 hours. You can always use <a href="' . htmlspecialchars($baseUrl . '/cms/forgot-password', ENT_QUOTES) . '" style="color:#ea580c;">Forgot Password</a> to generate a new one.</p>'
+                            . '</div>';
+                    } else {
+                        $loginUrl = $baseUrl . '/cms/login?redirect=' . urlencode('/ecommerce/my-orders');
+                        $accountSetupSection = '<div style="margin-top:24px;padding:16px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;">'
+                            . '<h3 style="margin:0 0 8px;color:#334155;font-size:15px;">Access your digital items anytime</h3>'
+                            . '<p style="margin:0 0 12px;font-size:13px;color:#475569;">You can log in to your account at <strong>' . htmlspecialchars($email, ENT_QUOTES) . '</strong> to view your licenses and order history at your convenience.</p>'
+                            . '<a href="' . htmlspecialchars($loginUrl, ENT_QUOTES) . '" style="display:inline-block;padding:10px 20px;background:#3b82f6;color:#fff;border-radius:5px;text-decoration:none;font-weight:600;font-size:13px;">Log In to Your Account</a>'
+                            . '</div>';
+                    }
+                }
+            } catch (\Throwable $ignored) {
+                // Non-fatal: email still sends without the account section
+            }
+        }
+
+        $body = '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#374151;max-width:600px;margin:auto;">'
                 . '<h2 style="color:#ea580c;">Your Digital License(s) for Order #' . htmlspecialchars($orderNum, ENT_QUOTES) . '</h2>'
                 . '<p>Thank you for your purchase! Your license key(s) are ready.</p>'
                 . '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">'
@@ -168,6 +213,7 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
                 . '</tr></thead>'
                 . '<tbody>' . $rows . '</tbody>'
                 . '</table>'
+                . $accountSetupSection
                 . '<p style="margin-top:20px;font-size:13px;color:#6b7280;">You can also access your licenses any time from your <a href="' . htmlspecialchars($baseUrl . '/ecommerce/my-orders', ENT_QUOTES) . '" style="color:#ea580c;">account order history</a>.</p>'
                 . '</body></html>';
 
