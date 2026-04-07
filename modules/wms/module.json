@@ -23,6 +23,7 @@
         "wms_returns",
         "wms_return_items",
         "wms_idempotency_keys",
+        "wms_tasks",
         "audit_logs",
         "rate_limits"
     ],
@@ -42,7 +43,8 @@
         "database/migrations/010_wms_users.sql",
         "database/migrations/011_wms_suppliers.sql",
         "database/migrations/012_wms_returns.sql",
-        "database/migrations/013_wms_hardening.sql"
+        "database/migrations/013_wms_hardening.sql",
+        "database/migrations/014_wms_phase2.sql"
     ],
     "events": [
         {
@@ -87,6 +89,13 @@
             },
             {
                 "id": "wms.stock.release@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "wms.replenishment.suggest@1",
                 "priority": 50,
                 "modes": [
                     "first"

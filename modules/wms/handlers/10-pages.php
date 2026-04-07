@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+function wmsPageTasks(array $params = []): void
+{
+    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    echo wmsRender('admin/tasks.disyl', wmsAdminContext($user, 'tasks', [
+        'page_title' => 'Task Queue',
+    ]));
+}
+
 function wmsPageDashboard(array $params = []): void
 {
     $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);

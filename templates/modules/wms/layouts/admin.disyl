@@ -61,6 +61,10 @@
                     <span>📊</span>
                     <span x-show="sidebarOpen" x-cloak>Dashboard</span>
                 </a>
+                <a href="{base_url}/wms/tasks" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'tasks'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
+                    <span>📋</span>
+                    <span x-show="sidebarOpen" x-cloak>Tasks</span>
+                </a>
                 <a href="{base_url}/wms/receiving" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'receiving'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
                     <span>📥</span>
                     <span x-show="sidebarOpen" x-cloak>Receiving</span>

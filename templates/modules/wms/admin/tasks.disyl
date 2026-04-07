@@ -1,0 +1,157 @@
+<div class="space-y-6 max-w-6xl mx-auto">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Tasks</h1>
+        <div class="flex gap-2">
+            <button onclick="document.getElementById('taskGenerateReplenishModal').showModal()" class="px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-700 text-sm font-medium transition-colors">
+                Auto-Replenish Tasks
+            </button>
+            <button onclick="document.getElementById('taskCreateModal').showModal()" class="px-4 py-2 bg-wms-600 text-white rounded hover:bg-wms-700 text-sm font-medium transition-colors shadow-sm">
+                + New Task
+            </button>
+        </div>
+    </div>
+
+    <!-- Active Tasks Board -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+            <h2 class="font-medium text-slate-800">Task Queue</h2>
+            <div class="flex items-center gap-2">
+                <select class="w-full rounded-md border-slate-300 shadow-sm text-sm focus:border-wms-500 focus:ring-wms-500" id="filterTaskStatus" onchange="wmsTaskBoardFilter()">
+                    <option value="">All Statuses</option>
+                    <option value="pending" selected>Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <select class="w-full rounded-md border-slate-300 shadow-sm text-sm focus:border-wms-500 focus:ring-wms-500" id="filterTaskType" onchange="wmsTaskBoardFilter()">
+                    <option value="">All Types</option>
+                    <option value="pick">Pick</option>
+                    <option value="putaway">Putaway</option>
+                    <option value="replenish">Replenish</option>
+                    <option value="count">Count</option>
+                </select>
+                <button onclick="wmsTaskBoardReload()" class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded hover:bg-slate-200 text-sm font-medium border border-slate-300">
+                    Refresh
+                </button>
+            </div>
+        </div>
+        <div class="overflow-x-auto min-h-[400px]">
+            <table class="w-full text-left text-sm" id="tasksTable">
+                <thead class="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+                    <tr>
+                        <th class="px-4 py-3">Task ID</th>
+                        <th class="px-4 py-3">Warehouse</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Priority</th>
+                        <th class="px-4 py-3">Assigned To</th>
+                        <th class="px-4 py-3">Ref</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-slate-700" id="tasksTbody">
+                    <tr><td colspan="8" class="text-center py-8 text-slate-500">Loading tasks...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+let wmsTasksList = [];
+
+async function wmsTaskBoardReload() {
+    const status = document.getElementById('filterTaskStatus').value;
+    const type = document.getElementById('filterTaskType').value;
+    
+    let url = '/api/v1/wms/tasks?t=' + Date.now();
+    if (status) url += '&status=' + status;
+    if (type) url += '&task_type=' + type;
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to load');
+        const json = await res.json();
+        wmsTasksList = json.data || [];
+        wmsTaskBoardRender();
+    } catch (e) {
+        document.getElementById('tasksTbody').innerHTML = `<tr><td colspan="8" class="text-center py-8 text-red-500">Failed to load tasks</td></tr>`;
+    }
+}
+
+function wmsTaskBoardRender() {
+    const tbody = document.getElementById('tasksTbody');
+    if (wmsTasksList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-500">No tasks found.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = wmsTasksList.map(task => `
+        <tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-4 py-3 font-medium text-slate-900">#${task.id}</td>
+            <td class="px-4 py-3">${task.warehouse_id}</td>
+            <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200 uppercase tracking-wider">
+                    ${task.task_type}
+                </span>
+            </td>
+            <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium 
+                    ${task.status === 'completed' ? 'bg-green-50 text-green-700 border border-green-200' : 
+                      task.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 
+                      task.status === 'cancelled' ? 'bg-red-50 text-red-700 border border-red-200' : 
+                      'bg-slate-100 text-slate-700 border border-slate-200'}">
+                    ${task.status}
+                </span>
+            </td>
+            <td class="px-4 py-3">${task.priority}</td>
+            <td class="px-4 py-3">${task.assigned_to ? 'User #' + task.assigned_to : '<span class="text-slate-400 italic">Unassigned</span>'}</td>
+            <td class="px-4 py-3">${task.reference_type ? task.reference_type + ' #' + task.reference_id : '-'}</td>
+            <td class="px-4 py-3 text-right space-x-2">
+                ${task.status === 'pending' ? `<button onclick="wmsTaskSetStatus(${task.id}, 'in_progress')" class="text-blue-600 hover:text-blue-800 font-medium">Start</button>` : ''}
+                ${task.status === 'in_progress' ? `<button onclick="wmsTaskSetStatus(${task.id}, 'completed')" class="text-green-600 hover:text-green-800 font-medium">Complete</button>` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function wmsTaskSetStatus(id, status) {
+    if (!confirm(`Mark task #${id} as ${status}?`)) return;
+    try {
+        const res = await fetch(`/api/v1/wms/tasks/${id}/status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ status })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Failed');
+        wmsTaskBoardReload();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function wmsTaskBoardFilter() {
+    wmsTaskBoardReload();
+}
+
+// Auto-replenish dialog integration placeholder
+function wmsAutoReplenish(warehouseId) {
+    fetch('/api/v1/wms/tasks/auto-replenish', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ warehouse_id: warehouseId })
+    })
+    .then(r => r.json())
+    .then(j => {
+        if (j.ok) {
+            alert(j.tasks_created + ' replenishment tasks generated.');
+            wmsTaskBoardReload();
+        } else {
+            alert(j.error);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', wmsTaskBoardReload);
+</script>
