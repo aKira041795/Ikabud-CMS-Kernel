@@ -250,3 +250,53 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
         ]);
     }
 });
+function ecOrderLicenseRegenerate(int $licenseId): bool
+{
+    $db = ecDb();
+    $row = $db->query("SELECT id, order_id, customer_email, target_module, target_tier FROM ec_order_licenses WHERE id = ? LIMIT 1", [$licenseId])->fetch(\PDO::FETCH_ASSOC);
+    if (!$row) return false;
+
+    // Load ecommerce settings to check if digital fulfillment is configured
+    $settings = isset($_ENV['TEST_TENANT_ID']) ? \readTenantModuleSettingsForTenant('ecommerce', (int)$_ENV['TEST_TENANT_ID']) : \readTenantModuleSettings('ecommerce');
+    $privateKey = trim((string)($settings['license_private_key_pem'] ?? ''));
+    if ($privateKey === '') {
+        return false; // Store hasn't configured a key to sign licenses.
+    }
+
+    $email = trim((string)($row['customer_email'] ?? ''));
+    $targetModule = trim((string)$row['target_module']);
+    $targetTier   = trim((string)($row['target_tier'] ?? 'pro'));
+    $issuerUrl  = ec_license_public_base_url();
+
+    // Default 1-year duration
+    $expiresAt = time() + (365 * 86400);
+
+    // Build JWT payload
+    $jwtPayload = [
+        'iss'  => 'ikabud_ecommerce',
+        'sub'  => $email,
+        'aud'  => $targetModule,
+        'tier' => $targetTier,
+        'iat'  => time(),
+        'exp'  => $expiresAt,
+        'jti'  => bin2hex(random_bytes(16)),
+    ];
+
+    if ($issuerUrl !== '') {
+        $jwtPayload['iss_url'] = $issuerUrl;
+    }
+
+    $licenseKey = ec_license_generate_jwt($jwtPayload, $privateKey);
+
+    if ($licenseKey === '') return false;
+
+    $downloadToken = bin2hex(random_bytes(32));
+
+    $db->execute("UPDATE ec_order_licenses SET license_key = ?, download_token = ?, downloaded_at = NULL WHERE id = ?", [
+        $licenseKey,
+        $downloadToken,
+        $licenseId
+    ]);
+
+    return true;
+}

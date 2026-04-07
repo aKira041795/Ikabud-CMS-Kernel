@@ -70,6 +70,13 @@ function ecAdminOrderDetail(array $params = []): void
         } elseif ($action === 'mark_paid') {
             ecOrderMarkPaid($orderId);
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Order marked as paid.'];
+        } elseif ($action === 'regenerate_license') {
+            if (function_exists('ecOrderLicenseRegenerate') && !empty($input['license_id'])) {
+                $regenerated = ecOrderLicenseRegenerate((int)$input['license_id']);
+                $_SESSION['ec_message'] = $regenerated
+                    ? ['type' => 'success', 'text' => 'License key regenerated successfully.']
+                    : ['type' => 'error', 'text' => 'Failed to regenerate license key. Please ensure your private key is saved in module settings.'];
+            }
         }
 
         header('Location: /ecommerce/admin/orders/' . $orderId);
