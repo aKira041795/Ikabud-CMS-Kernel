@@ -210,7 +210,7 @@ function apiGuidanceResetPassword(): void {
         }
         
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        guidanceDb()->prepare('UPDATE gm_users SET password_hash = ?, updated_at = NOW() WHERE id = ?')
+        guidanceDb()->prepare('UPDATE gm_users SET password = ?, updated_at = NOW() WHERE id = ?')
                    ->execute([$hash, $user['id']]);
                    
         // also try kernel update if we can
