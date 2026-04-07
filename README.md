@@ -58,6 +58,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full Kernel OS architec
 | [api-reference.md](docs/api-reference.md) | REST API reference |
 | [module-development-guide.md](docs/module-development-guide.md) | Guide for building new modules |
 | [cms-module.md](docs/cms-module.md) | CMS module documentation |
+| [wms-module.md](docs/wms-module.md) | WMS module documentation |
 | [cms-architecture.md](docs/cms-architecture.md) | CMS module architecture |
 | [page-builder-technical-spec.md](docs/page-builder-technical-spec.md) | Visual page builder spec |
 | [roadmap.md](docs/roadmap.md) | Project roadmap |
