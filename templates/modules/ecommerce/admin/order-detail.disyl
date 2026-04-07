@@ -177,7 +177,7 @@
                             </a>
                             {/if}
                             <form action="" method="post" class="inline" onsubmit="return confirm('Are you sure you want to generate a new license key? The old key will be invalidated.')">
-                                {csrf_field}
+                                <input type="hidden" name="_token" value="{csrf_token}">
                                 <input type="hidden" name="action" value="regenerate_license">
                                 <input type="hidden" name="license_id" value="{lic.id}">
                                 <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded">
