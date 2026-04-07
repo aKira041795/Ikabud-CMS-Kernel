@@ -921,9 +921,6 @@ function guidanceVerifyLicenseJwt(string $jwt, array $options = []): array
 
         $loadedPublicKeys++;
         $verified = openssl_verify($signingInput, $sigBin, $pubKey, OPENSSL_ALGO_SHA256);
-        if (is_object($pubKey) || $pubKey instanceof \OpenSSLAsymmetricKey) {
-            openssl_free_key($pubKey);
-        }
 
         if ($verified === 1) {
             $verifiedSource = $source;
