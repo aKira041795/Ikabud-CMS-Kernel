@@ -1,0 +1,59 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+    <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs uppercase tracking-wide text-[#999]">Products</div><div class="mt-2 text-3xl font-semibold">{summary.products}</div></div>
+    <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs uppercase tracking-wide text-[#999]">Warehouses</div><div class="mt-2 text-3xl font-semibold">{summary.warehouses}</div></div>
+    <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs uppercase tracking-wide text-[#999]">Locations</div><div class="mt-2 text-3xl font-semibold">{summary.locations}</div></div>
+    <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs uppercase tracking-wide text-[#999]">Pending Deliveries</div><div class="mt-2 text-3xl font-semibold">{summary.deliveries_pending}</div></div>
+    <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs uppercase tracking-wide text-[#999]">Open Orders</div><div class="mt-2 text-3xl font-semibold">{summary.orders_pending}</div></div>
+    <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs uppercase tracking-wide text-[#999]">Low Stock</div><div class="mt-2 text-3xl font-semibold text-amber-600">{summary.low_stock_count}</div></div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 font-semibold">Recent Deliveries</div>
+        <div class="divide-y divide-slate-100">
+            {if recent_deliveries | count == 0}
+            <div class="p-6 text-sm text-[#999]">No deliveries yet.</div>
+            {/if}
+            {foreach recent_deliveries as delivery}
+            <div class="p-4">
+                <div class="font-medium text-slate-900">{delivery.reference_number}</div>
+                <div class="text-xs text-[#999] mt-1">{delivery.supplier_name | default:'No supplier'} · {delivery.status}</div>
+            </div>
+            {/foreach}
+        </div>
+    </section>
+
+    <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 font-semibold">Recent Orders</div>
+        <div class="divide-y divide-slate-100">
+            {if recent_orders | count == 0}
+            <div class="p-6 text-sm text-[#999]">No orders yet.</div>
+            {/if}
+            {foreach recent_orders as order}
+            <div class="p-4">
+                <div class="font-medium text-slate-900">{order.order_number}</div>
+                <div class="text-xs text-[#999] mt-1">{order.customer_name | default:'No customer'} · {order.status}</div>
+            </div>
+            {/foreach}
+        </div>
+    </section>
+
+    <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 font-semibold">Recent Movements</div>
+        <div class="divide-y divide-slate-100">
+            {if recent_movements | count == 0}
+            <div class="p-6 text-sm text-[#999]">No movements recorded yet.</div>
+            {/if}
+            {foreach recent_movements as movement}
+            <div class="p-4">
+                <div class="font-medium text-slate-900">{movement.product_name}</div>
+                <div class="text-xs text-[#999] mt-1">{movement.movement_type} · Qty {movement.qty} · {movement.location_code}</div>
+            </div>
+            {/foreach}
+        </div>
+    </section>
+</div>
+{/block}

@@ -1278,9 +1278,17 @@ switch ($handler) {
             app()->redirect($loginHome);
             exit;
         }
-        echo app()->render('pages/login.disyl', [
+        $loginContext = [
             'page_title' => 'Sign In',
-        ]);
+        ];
+        $loginTenantId = app()->tenant()->current();
+        if ($loginTenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
+            $entryModuleId = tenantEntryModuleIdForTenant((int)$loginTenantId);
+            if ($entryModuleId === 'wms' && function_exists('wmsLoginPageContext')) {
+                $loginContext = wmsLoginPageContext();
+            }
+        }
+        echo app()->render('pages/login.disyl', $loginContext);
         break;
 
     case 'pageSuperadminPerf':

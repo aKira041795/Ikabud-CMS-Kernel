@@ -1,0 +1,47 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<section class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div>
+            <div class="text-lg font-semibold text-slate-900">Order Picking Queue</div>
+            <div class="text-sm text-[#999]">Generate pick lists, pick stock, and dispatch orders.</div>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-[#999] uppercase text-xs tracking-wide">
+                <tr>
+                    <th class="px-4 py-3 text-left">Order</th>
+                    <th class="px-4 py-3 text-left">Customer</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Priority</th>
+                    <th class="px-4 py-3 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {if orders | count == 0}
+                <tr><td colspan="5" class="px-4 py-6 text-[#999]">No orders queued.</td></tr>
+                {/if}
+                {foreach orders as order}
+                <tr>
+                    <td class="px-4 py-3 font-medium text-slate-900">{order.order_number}</td>
+                    <td class="px-4 py-3">{order.customer_name | default:'-'}</td>
+                    <td class="px-4 py-3">{order.status}</td>
+                    <td class="px-4 py-3">{order.priority}</td>
+                    <td class="px-4 py-3 space-x-2">
+                        <button class="rounded-lg bg-wms-600 text-white px-3 py-1.5 text-xs" onclick="wmsPost('{base_url}/api/v1/wms/orders/{order.id}/picklist', {})">Pick list</button>
+                        {if order.status != 'picked' && order.status != 'dispatched' && order.status != 'cancelled'}
+                        <button class="rounded-lg bg-amber-600 text-white px-3 py-1.5 text-xs" onclick="wmsPost('{base_url}/api/v1/wms/orders/{order.id}/pick', {})">Pick</button>
+                        {/if}
+                        {if order.status == 'picked'}
+                        <button class="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs" onclick="wmsPost('{base_url}/api/v1/wms/orders/{order.id}/dispatch', {})">Dispatch</button>
+                        {/if}
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</section>
+{/block}

@@ -1,0 +1,198 @@
+{
+    "id": "wms",
+    "name": "Warehouse Management System",
+    "version": "1.1.0",
+    "description": "Entity-driven warehouse management for inventory, receiving, picking, transfers, cycle counts, suppliers, and returns.",
+    "author": "Ikabud Kernel Team",
+    "owns_tables": [
+        "wms_users",
+        "wms_products",
+        "wms_warehouses",
+        "wms_locations",
+        "wms_batches",
+        "wms_stocks",
+        "wms_movements",
+        "wms_deliveries",
+        "wms_delivery_items",
+        "wms_orders",
+        "wms_order_items",
+        "wms_putaway_rules",
+        "wms_cycle_counts",
+        "wms_cycle_count_items",
+        "wms_suppliers",
+        "wms_returns",
+        "wms_return_items",
+        "audit_logs",
+        "rate_limits"
+    ],
+    "reads_tables": [
+        "users"
+    ],
+    "migrations": [
+        "database/migrations/001_wms_products.sql",
+        "database/migrations/002_wms_warehouses_locations.sql",
+        "database/migrations/003_wms_batches.sql",
+        "database/migrations/004_wms_stocks.sql",
+        "database/migrations/005_wms_movements.sql",
+        "database/migrations/006_wms_deliveries.sql",
+        "database/migrations/007_wms_orders.sql",
+        "database/migrations/008_wms_putaway_rules.sql",
+        "database/migrations/009_wms_cycle_counts.sql",
+        "database/migrations/010_wms_users.sql",
+        "database/migrations/011_wms_suppliers.sql",
+        "database/migrations/012_wms_returns.sql"
+    ],
+    "events": [
+        {
+            "key": "wms.delivery.received",
+            "description": "Fired when a delivery is received."
+        },
+        {
+            "key": "wms.order.dispatched",
+            "description": "Fired when an order is dispatched."
+        },
+        {
+            "key": "wms.movement.created",
+            "description": "Fired after a stock movement is recorded."
+        },
+        {
+            "key": "wms.stock.low",
+            "description": "Fired when stock falls below configured threshold."
+        }
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 550,
+                "modes": [
+                    "pipeline"
+                ]
+            },
+            {
+                "id": "wms.stock.query@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "wms.stock.reserve@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "wms.stock.release@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "kernel.auth.authenticate@1": {
+                    "allow_callers": [
+                        "wms",
+                        "kernel"
+                    ]
+                }
+            }
+        }
+    },
+    "auth_cookie": "wms_token",
+    "settings_fields": [
+        {
+            "key": "low_stock_threshold",
+            "type": "number",
+            "label": "Default Low Stock Threshold",
+            "default": "10"
+        },
+        {
+            "key": "picking_strategy",
+            "type": "select",
+            "label": "Default Picking Strategy",
+            "default": "fefo"
+        }
+    ],
+    "nav": [
+        {
+            "label": "Warehouse",
+            "url": "/wms",
+            "icon": "warehouse",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ]
+        },
+        {
+            "label": "Receiving",
+            "url": "/wms/receiving",
+            "icon": "inbox",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Picking",
+            "url": "/wms/picking",
+            "icon": "box",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Inventory",
+            "url": "/wms/inventory",
+            "icon": "layers",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ]
+        },
+        {
+            "label": "Suppliers",
+            "url": "/wms/suppliers",
+            "icon": "factory",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ]
+        },
+        {
+            "label": "Returns",
+            "url": "/wms/returns",
+            "icon": "return",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ]
+        },
+        {
+            "label": "Users",
+            "url": "/wms/users",
+            "icon": "user",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Settings",
+            "url": "/wms/settings",
+            "icon": "settings",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        }
+    ]
+}

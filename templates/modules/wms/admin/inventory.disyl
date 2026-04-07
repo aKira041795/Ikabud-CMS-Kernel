@@ -1,0 +1,94 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-2 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200">
+            <div class="text-lg font-semibold text-slate-900">Stock Snapshot</div>
+            <div class="text-sm text-[#999]">Current on-hand, reserved, and available inventory.</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-[#999] uppercase text-xs tracking-wide">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Product</th>
+                        <th class="px-4 py-3 text-left">Warehouse</th>
+                        <th class="px-4 py-3 text-left">Location</th>
+                        <th class="px-4 py-3 text-left">Batch</th>
+                        <th class="px-4 py-3 text-right">On Hand</th>
+                        <th class="px-4 py-3 text-right">Reserved</th>
+                        <th class="px-4 py-3 text-right">Available</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {if stock_rows | count == 0}
+                    <tr><td colspan="7" class="px-4 py-6 text-[#999]">No stock rows available.</td></tr>
+                    {/if}
+                    {foreach stock_rows as row}
+                    <tr>
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-slate-900">{row.product_name}</div>
+                            <div class="text-xs text-[#999]">{row.sku}</div>
+                        </td>
+                        <td class="px-4 py-3">{row.warehouse_name}</td>
+                        <td class="px-4 py-3">{row.location_code}</td>
+                        <td class="px-4 py-3">{row.batch_number | default:'-'}</td>
+                        <td class="px-4 py-3 text-right">{row.qty_on_hand}</td>
+                        <td class="px-4 py-3 text-right">{row.qty_reserved}</td>
+                        <td class="px-4 py-3 text-right font-semibold {if row.qty_available <= wms_settings.low_stock_threshold}text-amber-600{else}text-slate-900{/if}">{row.qty_available}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="xl:col-span-1 space-y-6">
+        <section class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200">
+                <div class="text-lg font-semibold text-slate-900">Low Stock</div>
+                <div class="text-sm text-[#999]">Threshold: {wms_settings.low_stock_threshold}</div>
+            </div>
+            <div class="divide-y divide-slate-100">
+                {if low_stock_items | count == 0}
+                <div class="p-6 text-sm text-[#999]">No low stock alerts.</div>
+                {/if}
+                {foreach low_stock_items as item}
+                <div class="p-4">
+                    <div class="font-medium text-slate-900">{item.product_name}</div>
+                    <div class="text-xs text-[#999] mt-1">{item.warehouse_name} · Qty {item.qty_available}</div>
+                </div>
+                {/foreach}
+            </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="text-lg font-semibold text-slate-900">Stock Adjustment</div>
+            <div class="text-sm text-[#999] mt-1">Correct qty for shrinkage, damage, or counting errors.</div>
+            <form class="mt-4 space-y-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/stock/adjust', {product_id: Number(f.get('product_id')), warehouse_id: Number(f.get('warehouse_id')), location_id: Number(f.get('location_id')), qty: Number(f.get('qty')), reason: f.get('reason')});">
+                <select class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" name="product_id" required>
+                    <option value="">Product</option>
+                    {foreach products as product}
+                    <option value="{product.id}">{product.sku} — {product.name}</option>
+                    {/foreach}
+                </select>
+                <select class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" name="warehouse_id" required>
+                    <option value="">Warehouse</option>
+                    {foreach warehouses as warehouse}
+                    <option value="{warehouse.id}">{warehouse.code} — {warehouse.name}</option>
+                    {/foreach}
+                </select>
+                <select class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" name="location_id" required>
+                    <option value="">Location</option>
+                    {foreach locations as location}
+                    <option value="{location.id}">{location.code} — {location.name}</option>
+                    {/foreach}
+                </select>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" step="0.0001" name="qty" placeholder="Qty change (+5 or -3)" required>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="reason" placeholder="Reason (e.g. Damaged goods)" required>
+                <button class="w-full rounded-xl bg-wms-600 text-white px-4 py-2 text-sm font-medium" type="submit">Apply Adjustment</button>
+            </form>
+        </section>
+    </div>
+</div>
+{/block}

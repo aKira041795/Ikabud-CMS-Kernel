@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `wms_putaway_rules` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `warehouse_id` INT UNSIGNED NOT NULL,
+    `product_id` INT UNSIGNED NULL,
+    `product_type` VARCHAR(50) NULL,
+    `preferred_zone` VARCHAR(50) NULL,
+    `preferred_location_id` INT UNSIGNED NULL,
+    `min_qty` DECIMAL(14,4) NULL,
+    `max_qty` DECIMAL(14,4) NULL,
+    `priority` INT NOT NULL DEFAULT 100,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_wms_putaway_rules_lookup` (`warehouse_id`, `product_id`, `product_type`, `is_active`),
+    KEY `idx_wms_putaway_rules_priority` (`priority`),
+    CONSTRAINT `fk_wms_putaway_rules_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `wms_warehouses` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_wms_putaway_rules_product` FOREIGN KEY (`product_id`) REFERENCES `wms_products` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_wms_putaway_rules_location` FOREIGN KEY (`preferred_location_id`) REFERENCES `wms_locations` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

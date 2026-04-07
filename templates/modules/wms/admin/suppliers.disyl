@@ -1,0 +1,67 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5">
+        <div class="text-lg font-semibold text-slate-900">Add Supplier</div>
+        <div class="text-sm text-[#999] mt-1">Register a new supplier for deliveries.</div>
+        <form class="mt-5 space-y-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/suppliers', {code: f.get('code'), name: f.get('name'), contact_person: f.get('contact_person'), email: f.get('email'), phone: f.get('phone'), lead_time_days: f.get('lead_time_days') ? Number(f.get('lead_time_days')) : null});">
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="code" placeholder="Code (e.g. SUP-001)" required>
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="name" placeholder="Company name" required>
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="contact_person" placeholder="Contact person">
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="email" name="email" placeholder="Email address">
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="phone" placeholder="Phone number">
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" name="lead_time_days" placeholder="Lead time (days)" min="0">
+            <button class="w-full rounded-xl bg-wms-600 text-white px-4 py-2 text-sm font-medium" type="submit">Add supplier</button>
+        </form>
+    </section>
+
+    <section class="xl:col-span-2 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200">
+            <div class="text-lg font-semibold text-slate-900">Supplier Directory</div>
+            <div class="text-sm text-[#999]">{suppliers | count} suppliers registered.</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-[#999] uppercase text-xs tracking-wide">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Code</th>
+                        <th class="px-4 py-3 text-left">Name</th>
+                        <th class="px-4 py-3 text-left">Contact</th>
+                        <th class="px-4 py-3 text-left">Email</th>
+                        <th class="px-4 py-3 text-left">Phone</th>
+                        <th class="px-4 py-3 text-left">Lead Time</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-left">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {if suppliers | count == 0}
+                    <tr><td colspan="8" class="px-4 py-6 text-[#999]">No suppliers yet. Add one to link your deliveries.</td></tr>
+                    {/if}
+                    {foreach suppliers as supplier}
+                    <tr>
+                        <td class="px-4 py-3 font-mono text-xs font-semibold text-slate-700">{supplier.code}</td>
+                        <td class="px-4 py-3 font-medium text-slate-900">{supplier.name}</td>
+                        <td class="px-4 py-3 text-[#999]">{supplier.contact_person | default:'-'}</td>
+                        <td class="px-4 py-3 text-[#999]">{supplier.email | default:'-'}</td>
+                        <td class="px-4 py-3 text-[#999]">{supplier.phone | default:'-'}</td>
+                        <td class="px-4 py-3 text-[#999]">{if supplier.lead_time_days}{supplier.lead_time_days}d{else}-{/if}</td>
+                        <td class="px-4 py-3">
+                            {if supplier.is_active}
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Active</span>
+                            {else}
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-[#999]">Inactive</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3">
+                            <button class="rounded-lg bg-red-50 text-red-600 px-3 py-1 text-xs hover:bg-red-100" onclick="if(confirm('Delete this supplier?')) wmsPost('{base_url}/api/v1/wms/suppliers/{supplier.id}/delete', {});">Delete</button>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{/block}

@@ -1,0 +1,78 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5">
+        <div class="text-lg font-semibold text-slate-900">Add User</div>
+        <div class="text-sm text-[#999] mt-1">Create a new WMS staff account.</div>
+        <form class="mt-5 space-y-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/users', {username: f.get('username'), email: f.get('email'), password: f.get('password'), full_name: f.get('full_name'), role: f.get('role')});">
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="full_name" placeholder="Full name" required>
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="username" placeholder="Username" required>
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="email" name="email" placeholder="Email address" required>
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="password" name="password" placeholder="Password (min 8 chars)" required minlength="8">
+            <select class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" name="role" required>
+                <option value="viewer">Viewer — read only</option>
+                <option value="supervisor">Supervisor — receive, pick, transfer</option>
+                <option value="admin">Admin — full access</option>
+            </select>
+            <button class="w-full rounded-xl bg-wms-600 text-white px-4 py-2 text-sm font-medium" type="submit">Create user</button>
+        </form>
+    </section>
+
+    <section class="xl:col-span-2 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200">
+            <div class="text-lg font-semibold text-slate-900">Staff Accounts</div>
+            <div class="text-sm text-[#999]">{users | count} users in this warehouse.</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-[#999] uppercase text-xs tracking-wide">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Name</th>
+                        <th class="px-4 py-3 text-left">Username</th>
+                        <th class="px-4 py-3 text-left">Email</th>
+                        <th class="px-4 py-3 text-left">Role</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-left">Joined</th>
+                        <th class="px-4 py-3 text-left">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {if users | count == 0}
+                    <tr><td colspan="7" class="px-4 py-6 text-[#999]">No users found.</td></tr>
+                    {/if}
+                    {foreach users as wmsuser}
+                    <tr>
+                        <td class="px-4 py-3 font-medium text-slate-900">{wmsuser.full_name}</td>
+                        <td class="px-4 py-3 font-mono text-xs text-[#999]">@{wmsuser.username}</td>
+                        <td class="px-4 py-3 text-[#999]">{wmsuser.email}</td>
+                        <td class="px-4 py-3">
+                            {if wmsuser.role == 'admin'}
+                            <span class="inline-flex items-center rounded-full bg-wms-50 px-2 py-0.5 text-xs font-medium text-wms-700">Admin</span>
+                            {elseif wmsuser.role == 'supervisor'}
+                            <span class="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">Supervisor</span>
+                            {else}
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-[#999]">Viewer</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3">
+                            {if wmsuser.is_active}
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Active</span>
+                            {else}
+                            <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">Inactive</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 text-[#999] text-xs">{wmsuser.created_at}</td>
+                        <td class="px-4 py-3">
+                            {if wmsuser.is_active}
+                            <button class="rounded-lg bg-amber-50 text-amber-700 px-3 py-1 text-xs hover:bg-amber-100" onclick="if(confirm('Deactivate {wmsuser.full_name}?')) wmsPost('{base_url}/api/v1/wms/users/{wmsuser.id}/delete', {});">Deactivate</button>
+                            {/if}
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{/block}

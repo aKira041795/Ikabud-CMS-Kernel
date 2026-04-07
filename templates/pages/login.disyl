@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sign In — {gui.app_name}</title>
+    <title>{page_title | default:'Sign In'} — {gui.app_name}</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     {if gui.font_url}<link href="{gui.font_url}" rel="stylesheet">{/if}
     <style>
@@ -34,22 +34,22 @@
 <body>
     <div class="login-card">
         <div class="login-logo">
-            <h1><span>{gui.app_name_accent}</span> {gui.app_name_rest}</h1>
-            <p>Sign in to continue</p>
+            <h1>{if login_brand_html}{login_brand_html | raw}{else}<span>{gui.app_name_accent}</span> {gui.app_name_rest}{/if}</h1>
+            <p>{login_subtitle | default:'Sign in to continue'}</p>
         </div>
 
         <div id="login-error" class="error-msg"></div>
 
         <form id="login-form" onsubmit="return handleLogin(event)">
             <div class="form-group">
-                <label class="form-label" for="username">Username</label>
+                <label class="form-label" for="username">{login_username_label | default:'Username'}</label>
                 <input class="form-input" type="text" id="username" name="username" autocomplete="username" required autofocus>
             </div>
             <div class="form-group">
                 <label class="form-label" for="password">Password</label>
                 <input class="form-input" type="password" id="password" name="password" autocomplete="current-password" required>
             </div>
-            <button type="submit" class="btn-login" id="login-btn">Sign In</button>
+            <button type="submit" class="btn-login" id="login-btn">{login_button_text | default:'Sign In'}</button>
         </form>
     </div>
 
@@ -58,8 +58,11 @@
             e.preventDefault();
             var btn = document.getElementById('login-btn');
             var errEl = document.getElementById('login-error');
+            var loadingText = '{if login_loading_text}{login_loading_text}{else}Signing in...{/if}';
+            var submitText = '{if login_button_text}{login_button_text}{else}Sign In{/if}';
+            var loginEndpoint = '{if login_endpoint}{login_endpoint}{else}{base_url}/api/v1/auth/login{/if}';
             btn.disabled = true;
-            btn.textContent = 'Signing in...';
+            btn.textContent = loadingText;
             errEl.classList.remove('show');
 
             var data = {
@@ -67,7 +70,7 @@
                 password: document.getElementById('password').value
             };
 
-            fetch('{base_url}/api/v1/auth/login', {
+            fetch(loginEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -80,14 +83,14 @@
                     errEl.textContent = res.error || 'Login failed';
                     errEl.classList.add('show');
                     btn.disabled = false;
-                    btn.textContent = 'Sign In';
+                    btn.textContent = submitText;
                 }
             })
             .catch(function() {
                 errEl.textContent = 'Network error. Please try again.';
                 errEl.classList.add('show');
                 btn.disabled = false;
-                btn.textContent = 'Sign In';
+                btn.textContent = submitText;
             });
 
             return false;

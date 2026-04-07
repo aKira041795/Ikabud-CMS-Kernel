@@ -1,0 +1,40 @@
+CREATE TABLE IF NOT EXISTS `wms_cycle_counts` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `reference_number` VARCHAR(100) NOT NULL,
+    `warehouse_id` INT UNSIGNED NOT NULL,
+    `location_id` INT UNSIGNED NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'open',
+    `scheduled_at` DATETIME NULL,
+    `completed_at` DATETIME NULL,
+    `notes` TEXT NULL,
+    `created_by` INT UNSIGNED NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_wms_cycle_counts_reference` (`reference_number`),
+    KEY `idx_wms_cycle_counts_status` (`status`, `warehouse_id`),
+    CONSTRAINT `fk_wms_cycle_counts_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `wms_warehouses` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_wms_cycle_counts_location` FOREIGN KEY (`location_id`) REFERENCES `wms_locations` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `wms_cycle_count_items` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `cycle_count_id` INT UNSIGNED NOT NULL,
+    `product_id` INT UNSIGNED NOT NULL,
+    `location_id` INT UNSIGNED NOT NULL,
+    `batch_id` INT UNSIGNED NULL,
+    `qty_system` DECIMAL(14,4) NOT NULL DEFAULT 0,
+    `qty_counted` DECIMAL(14,4) NULL,
+    `adjustment_movement_id` BIGINT UNSIGNED NULL,
+    `notes` VARCHAR(1000) NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_wms_cycle_count_items_line` (`cycle_count_id`, `product_id`, `location_id`, `batch_id`),
+    KEY `idx_wms_cycle_count_items_product` (`product_id`),
+    CONSTRAINT `fk_wms_cycle_count_items_count` FOREIGN KEY (`cycle_count_id`) REFERENCES `wms_cycle_counts` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_wms_cycle_count_items_product` FOREIGN KEY (`product_id`) REFERENCES `wms_products` (`id`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_wms_cycle_count_items_location` FOREIGN KEY (`location_id`) REFERENCES `wms_locations` (`id`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_wms_cycle_count_items_batch` FOREIGN KEY (`batch_id`) REFERENCES `wms_batches` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_wms_cycle_count_items_movement` FOREIGN KEY (`adjustment_movement_id`) REFERENCES `wms_movements` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
