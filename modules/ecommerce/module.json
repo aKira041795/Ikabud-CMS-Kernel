@@ -371,6 +371,13 @@
             "label": "Admin Order Notification Email",
             "default": "",
             "description": "Email address to notify when a new order is placed. Leave blank to disable."
+        },
+        {
+            "key": "admin_email",
+            "type": "email",
+            "label": "Admin Email",
+            "default": "",
+            "description": "General admin email address for store communications."
         }
     ],
     "events": [

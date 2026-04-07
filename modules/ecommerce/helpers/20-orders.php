@@ -215,6 +215,21 @@ function ecOrderHydrateData(array $order): array
     $order['customer_email'] = $billing['email'] !== '' ? $billing['email'] : (string)($order['guest_email'] ?? '');
     $order['customer_name'] = trim($billing['first_name'] . ' ' . $billing['last_name']);
 
+    if (!empty($order['items']) && !empty($order['licenses'])) {
+        $licensesByItem = [];
+        foreach ($order['licenses'] as $lic) {
+            $licensesByItem[$lic['order_item_id']][] = $lic;
+        }
+        foreach ($order['items'] as &$itm) {
+            $iid = $itm['id'];
+            if (isset($licensesByItem[$iid])) {
+                $itm['licenses'] = $licensesByItem[$iid];
+                $itm['license_key'] = $licensesByItem[$iid][0]['license_key'] ?? '';
+            }
+        }
+        unset($itm);
+    }
+
     return $order;
 }
 

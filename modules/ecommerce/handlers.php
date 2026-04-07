@@ -16,6 +16,7 @@ require_once __DIR__ . '/handlers/35-admin-products.php';
 require_once __DIR__ . '/handlers/40-admin-orders.php';
 require_once __DIR__ . '/handlers/45-admin-categories.php';
 require_once __DIR__ . '/handlers/50-admin-settings.php';
+require_once __DIR__ . '/handlers/52-admin-email-templates.php';
 require_once __DIR__ . '/handlers/55-admin-reports.php';
 require_once __DIR__ . '/handlers/60-admin-coupons.php';
 require_once __DIR__ . '/handlers/70-pos.php';

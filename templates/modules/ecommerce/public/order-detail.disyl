@@ -45,6 +45,12 @@
                                 <div class="font-medium text-gray-900">{item.product_title}</div>
                                 {if item.variant_label}<div class="text-xs text-gray-500 mt-1">{item.variant_label}</div>{/if}
                                 {if item.sku}<div class="text-xs text-gray-400 mt-1">SKU: {item.sku}</div>{/if}
+                                {if item.license_key}
+                                <div class="mt-2 w-full max-w-full rounded bg-blue-50 px-2 py-2 text-xs text-blue-700">
+                                    <div class="font-semibold uppercase tracking-wide text-[10px] text-blue-800">Key</div>
+                                    <code class="mt-1 block w-full max-w-full whitespace-normal break-all font-mono text-[11px] text-blue-900">{item.license_key}</code>
+                                </div>
+                                {/if}
                             </td>
                             <td class="px-5 py-4 text-right text-gray-700">{order.currency_symbol | default:ec_settings.currency_symbol}{item.unit_price}</td>
                             <td class="px-5 py-4 text-center text-gray-600">{item.qty}</td>

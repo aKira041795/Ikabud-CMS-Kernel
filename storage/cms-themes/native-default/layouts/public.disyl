@@ -51,9 +51,24 @@
         .cms-content-with-sidebar.sidebar-left { grid-template-columns: minmax(220px, var(--sidebar-width, 300px)) minmax(0, 1fr); }
         .cms-content-with-sidebar .cms-main-slot { min-width: 0; }
         .cms-content-with-sidebar .cms-sidebar-slot { min-width: 0; }
+        .ec-customer-banner { margin: 1.5rem 0 0; padding: 1rem 1.25rem; border: 1px solid #fed7aa; border-radius: 1rem; background: linear-gradient(135deg, #fff7ed 0%, #ffffff 60%, #f8fafc 100%); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); }
+        .ec-customer-banner__eyebrow { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #c2410c; }
+        .ec-customer-banner__title { margin: 0.35rem 0 0; font-size: 1.15rem; font-weight: 700; color: #111827; }
+        .ec-customer-banner__meta { margin: 0.35rem 0 0; font-size: 0.95rem; color: #475569; }
+        .ec-customer-banner__meta strong { color: #0f172a; }
+        .ec-customer-banner__row { display: flex; gap: 1rem; align-items: center; justify-content: space-between; }
+        .ec-customer-banner__actions { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+        .ec-customer-banner__primary,
+        .ec-customer-banner__secondary { display: inline-flex; align-items: center; justify-content: center; padding: 0.7rem 1rem; border-radius: 0.8rem; font-size: 0.9rem; font-weight: 600; text-decoration: none !important; }
+        .ec-customer-banner__primary { background: #ea580c; color: #ffffff; }
+        .ec-customer-banner__primary:hover { background: #c2410c; }
+        .ec-customer-banner__secondary { border: 1px solid #cbd5e1; color: #334155; background: #ffffff; }
+        .ec-customer-banner__secondary:hover { background: #f8fafc; }
         @media (max-width: 640px) {
             .cms-gallery-cols-3, .cms-gallery-cols-4 { grid-template-columns: repeat(2, 1fr); }
             .cms-columns-stack { grid-template-columns: 1fr !important; }
+            .ec-customer-banner__row { flex-direction: column; align-items: flex-start; }
+            .ec-customer-banner__actions { width: 100%; }
         }
         @media (max-width: 1024px) {
             .cms-content-with-sidebar,
@@ -98,6 +113,23 @@
 
     <div class="site-content">
         <div class="{if builder_enabled}cms-builder-fullwidth{else}container{/if}">
+            {if public_render_origin == 'ecommerce' && public_customer_is_logged_in}
+            <div class="ec-customer-banner">
+                <div class="ec-customer-banner__row">
+                    <div>
+                        <div class="ec-customer-banner__eyebrow">Signed In</div>
+                        <h2 class="ec-customer-banner__title">Welcome back, {public_customer_display_name}</h2>
+                        <p class="ec-customer-banner__meta">Shopping with <strong>{public_customer_email}</strong>. Your recent ecommerce activity stays linked to this account.</p>
+                    </div>
+                    <div class="ec-customer-banner__actions">
+                        <a href="{public_customer_orders_url}" class="ec-customer-banner__primary">My Orders</a>
+                        {if public_customer_has_admin_access}
+                        <a href="{public_customer_admin_url}" class="ec-customer-banner__secondary">CMS Admin</a>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+            {/if}
             <div class="{if has_customized_sidebar && !builder_enabled}cms-content-with-sidebar {if sidebar_position == 'left'}sidebar-left{/if}{/if}"{if has_customized_sidebar && !builder_enabled} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
                 {if has_customized_sidebar && !builder_enabled}
                 {if sidebar_position == 'left'}

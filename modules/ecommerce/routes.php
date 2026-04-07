@@ -30,6 +30,7 @@ return [
         '/ecommerce/admin/categories'             => 'ecommerce:ecAdminCategories',
         '/ecommerce/admin/coupons'                => 'ecommerce:ecAdminCoupons',
         '/ecommerce/admin/reports'                => 'ecommerce:ecAdminReports',
+        '/ecommerce/admin/email-templates'        => 'ecommerce:ecAdminEmailTemplates',
         '/ecommerce/admin/settings'               => 'ecommerce:ecAdminSettings',
         '/ecommerce/pos'                          => 'ecommerce:ecPosTerminal',
 
@@ -60,6 +61,7 @@ return [
         '/ecommerce/admin/orders/{id}'              => 'ecommerce:ecAdminOrderDetail',
         '/ecommerce/admin/categories'               => 'ecommerce:ecAdminCategories',
         '/ecommerce/admin/coupons'                  => 'ecommerce:ecAdminCoupons',
+        '/ecommerce/admin/email-templates'          => 'ecommerce:ecAdminEmailTemplates',
         '/ecommerce/admin/settings'                 => 'ecommerce:ecAdminSettings',
 
         // ── REST API — Products ──────────────────────────────────────

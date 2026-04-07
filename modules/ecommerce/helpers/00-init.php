@@ -291,8 +291,34 @@ function ecRender(string $template, array $context = []): void
         $context['base_url'] = ecGetBaseUrl();
     }
 
+    if (!array_key_exists('user', $context)) {
+        $context['user'] = app()->user();
+    }
+
     if (!array_key_exists('year', $context)) {
         $context['year'] = date('Y');
+    }
+
+    if (!array_key_exists('public_customer_is_logged_in', $context)) {
+        $user = is_array($context['user'] ?? null) ? $context['user'] : null;
+        $role = strtolower(trim((string)($user['role'] ?? '')));
+        $displayName = trim((string)($user['display_name'] ?? ''));
+
+        if ($displayName === '') {
+            $displayName = trim((string)(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
+        }
+        if ($displayName === '') {
+            $displayName = trim((string)($user['email'] ?? 'Customer')) ?: 'Customer';
+        }
+
+        $isPublicCmsUser = $user !== null && (($user['source'] ?? '') === 'cms' || in_array($role, ['subscriber', 'customer', 'editor', 'administrator'], true));
+        $context['public_customer_is_logged_in'] = $isPublicCmsUser;
+        $context['public_customer_display_name'] = $displayName;
+        $context['public_customer_email'] = trim((string)($user['email'] ?? ''));
+        $context['public_customer_orders_url'] = rtrim((string)$context['base_url'], '/') . '/ecommerce/my-orders';
+        $context['public_customer_login_url'] = rtrim((string)$context['base_url'], '/') . '/cms/login?redirect=' . urlencode('/ecommerce/my-orders');
+        $context['public_customer_admin_url'] = rtrim((string)$context['base_url'], '/') . '/cms/admin';
+        $context['public_customer_has_admin_access'] = $isPublicCmsUser && in_array($role, ['editor', 'administrator', 'superadmin'], true);
     }
 
     $context = ecPublicRenderContext($template, $context);

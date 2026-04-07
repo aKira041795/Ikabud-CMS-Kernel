@@ -1,0 +1,96 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="max-w-5xl space-y-6">
+
+    {if message}
+    <div class="px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+            <h2 class="text-base font-semibold text-gray-900">Order Email Templates</h2>
+            <p class="mt-1 text-sm text-gray-500">Customize the two ecommerce emails currently wired to new-order events. Subjects stay plain text. Bodies accept HTML and placeholders.</p>
+        </div>
+        <div class="px-5 py-3 border-b border-amber-100 bg-amber-50 text-sm text-amber-900">
+            Admin notification emails use the store notification address from Settings. Customer order confirmations still use the configured admin email for reply-to and from handling.
+        </div>
+
+        <form method="post" action="" class="p-5 space-y-6">
+            <input type="hidden" name="_token" value="{csrf_token}">
+
+            <section class="rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-100 bg-white flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-900">Admin Notification</h3>
+                        <p class="text-sm text-gray-500">Sent to the admin notification email whenever a new order is placed.</p>
+                    </div>
+                    <span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">Order Event</span>
+                </div>
+                <div class="p-5 space-y-4">
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span class="font-semibold uppercase tracking-wide text-gray-500">Placeholders</span>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;order_number&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;customer_line&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;customer_email&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;order_total&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;source_suffix&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;items_table&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;admin_order_url&#125;</code>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Subject</label>
+                        <input type="text" name="email_tpl_admin_order_subject" value="{email_templates.admin_order_notification.subject}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">HTML Body</label>
+                        <textarea name="email_tpl_admin_order_body" rows="14"
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none resize-y">{email_templates.admin_order_notification.body}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">Use HTML. Keep &#123;items_table&#125; and &#123;admin_order_url&#125; if you still want the built-in order summary and admin CTA.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-100 bg-white flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-900">Customer Order Confirmation</h3>
+                        <p class="text-sm text-gray-500">Sent to the customer after checkout succeeds.</p>
+                    </div>
+                    <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">Customer Email</span>
+                </div>
+                <div class="p-5 space-y-4">
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span class="font-semibold uppercase tracking-wide text-gray-500">Placeholders</span>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;order_number&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;customer_greeting&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;customer_email&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;order_total&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;items_table&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;account_instructions&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;my_orders_url&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;login_url&#125;</code>
+                        <code class="rounded bg-gray-100 px-2 py-1">&#123;forgot_password_url&#125;</code>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Subject</label>
+                        <input type="text" name="email_tpl_customer_order_subject" value="{email_templates.customer_order_confirmation.subject}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">HTML Body</label>
+                        <textarea name="email_tpl_customer_order_body" rows="16"
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none resize-y">{email_templates.customer_order_confirmation.body}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">Use HTML. &#123;account_instructions&#125; injects the dynamic login or forgot-password block when applicable.</p>
+                    </div>
+                </div>
+            </section>
+
+            <div class="flex items-center justify-end gap-3">
+                <button type="submit" class="px-6 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Save Templates</button>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}

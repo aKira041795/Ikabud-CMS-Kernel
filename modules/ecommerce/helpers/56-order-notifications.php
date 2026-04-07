@@ -42,6 +42,9 @@ app()->events()->listen('ecommerce.order.created', function (array $payload) {
         $adminOrderUrl  = $baseUrl . '/ecommerce/admin/orders/' . $orderId;
 
         $formattedTotal = $currencySymbol . number_format($total, 2);
+        $formattedCustomer = $customerName !== ''
+            ? $customerName . ' <' . $customerEmail . '>'
+            : $customerEmail;
 
         $itemRows = '';
         foreach ($order['items'] ?? [] as $item) {
@@ -58,29 +61,29 @@ app()->events()->listen('ecommerce.order.created', function (array $payload) {
                 . '</tr>';
         }
 
-        $body = '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#374151;max-width:600px;margin:auto;">'
-            . '<h2 style="color:#ea580c;">New Order Received — #' . htmlspecialchars($orderNumber, ENT_QUOTES) . '</h2>'
-            . '<p style="margin:0 0 12px;">A new order has been placed' . ($source !== 'web' ? ' via ' . htmlspecialchars($source, ENT_QUOTES) : '') . '.</p>'
-            . '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">'
-            . '<tr><td style="padding:4px 8px;font-weight:600;width:40%;">Order Number</td><td style="padding:4px 8px;">#' . htmlspecialchars($orderNumber, ENT_QUOTES) . '</td></tr>'
-            . '<tr style="background:#f9fafb;"><td style="padding:4px 8px;font-weight:600;">Customer</td><td style="padding:4px 8px;">' . htmlspecialchars($customerName !== '' ? $customerName . ' &lt;' . $customerEmail . '&gt;' : $customerEmail, ENT_QUOTES) . '</td></tr>'
-            . '<tr><td style="padding:4px 8px;font-weight:600;">Total</td><td style="padding:4px 8px;">' . htmlspecialchars($formattedTotal, ENT_QUOTES) . '</td></tr>'
-            . '</table>'
-            . ($itemRows !== '' ?
-                '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;margin-bottom:16px;">'
-                . '<thead><tr style="background:#f9fafb;">'
-                . '<th style="padding:6px 10px;text-align:left;font-size:12px;text-transform:uppercase;color:#6b7280;">Product</th>'
-                . '<th style="padding:6px 10px;text-align:center;font-size:12px;text-transform:uppercase;color:#6b7280;">Qty</th>'
-                . '<th style="padding:6px 10px;text-align:right;font-size:12px;text-transform:uppercase;color:#6b7280;">Unit Price</th>'
-                . '</tr></thead>'
-                . '<tbody>' . $itemRows . '</tbody>'
-                . '</table>'
-                : ''
-            )
-            . '<p><a href="' . htmlspecialchars($adminOrderUrl, ENT_QUOTES) . '" style="color:#ea580c;">View Order in Admin →</a></p>'
-            . '</body></html>';
+        $template = ecCompileEmailTemplate('admin_order_notification', [
+            'order_number' => $orderNumber,
+            'customer_line' => $formattedCustomer,
+            'customer_name' => $customerName !== '' ? $customerName : 'Customer',
+            'customer_email' => $customerEmail,
+            'order_total' => $formattedTotal,
+            'source' => $source,
+            'source_suffix' => $source !== 'web' ? ' via ' . $source : '',
+            'admin_order_url' => $adminOrderUrl,
+        ], [
+            'items_table' => $itemRows !== ''
+                ? '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;margin-bottom:16px;">'
+                    . '<thead><tr style="background:#f9fafb;">'
+                    . '<th style="padding:6px 10px;text-align:left;font-size:12px;text-transform:uppercase;color:#6b7280;">Product</th>'
+                    . '<th style="padding:6px 10px;text-align:center;font-size:12px;text-transform:uppercase;color:#6b7280;">Qty</th>'
+                    . '<th style="padding:6px 10px;text-align:right;font-size:12px;text-transform:uppercase;color:#6b7280;">Unit Price</th>'
+                    . '</tr></thead>'
+                    . '<tbody>' . $itemRows . '</tbody>'
+                    . '</table>'
+                : '',
+        ]);
 
-        sendEmail($adminEmail, 'New Order #' . $orderNumber, $body);
+        sendEmail($adminEmail, $template['subject'], $template['body']);
 
     } catch (\Throwable $e) {
         write_log('Admin order notification failed for order ' . $orderId . ': ' . $e->getMessage(), 'warning', [

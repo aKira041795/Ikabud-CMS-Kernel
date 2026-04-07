@@ -73,6 +73,14 @@
             </a>
 
             <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Communications</span>
+            </div>
+            <a href="{base_url}/ecommerce/admin/email-templates" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'email_templates'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7l9 6 9-6m-18 0v10a2 2 0 002 2h14a2 2 0 002-2V7m-18 0a2 2 0 012-2h14a2 2 0 012 2"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Email Templates</span>
+            </a>
+
+            <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Analytics</span>
             </div>
             <a href="{base_url}/ecommerce/admin/reports" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'reports'}bg-slate-800 text-white{else}text-slate-300{/if}">

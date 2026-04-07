@@ -50,6 +50,12 @@
                                     <strong>{item.product_title}</strong>
                                     {if item.variant_label}<div class="native-note">{item.variant_label}</div>{/if}
                                     {if item.sku}<div class="native-note">SKU: {item.sku}</div>{/if}
+                                    {if item.license_key}
+                                        <div class="native-note" style="margin-top: 6px; padding: 8px 10px; background: #eff6ff; border-radius: 4px; color: #1d4ed8; display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; word-break: break-word;">
+                                            <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #1e3a8a; margin-bottom: 4px;">Key</div>
+                                            <code style="display: block; font-family: monospace; font-size: 11px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; word-break: break-all; color: #1e3a8a;">{item.license_key}</code>
+                                        </div>
+                                    {/if}
                                 </td>
                                 <td style="text-align:right;">{order.currency_symbol | default:ec_settings.currency_symbol}{item.unit_price}</td>
                                 <td style="text-align:center;">{item.qty}</td>
