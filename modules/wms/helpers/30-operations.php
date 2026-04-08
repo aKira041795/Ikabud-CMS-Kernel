@@ -88,6 +88,12 @@ function wmsOrderGeneratePickList(int $orderId): array
         ]);
     }
 
+    // Phase 4: Pick Path Routing Optimization
+    // Sort the final pick list by location_code to create the shortest physical path
+    usort($result, function ($a, $b) {
+        return strnatcasecmp((string)($a['location_code'] ?? ''), (string)($b['location_code'] ?? ''));
+    });
+
     wmsDb()->execute('UPDATE wms_orders SET status = ? WHERE id = ?', ['picking', $orderId]);
 
     return $result;

@@ -13,3 +13,4 @@ require_once __DIR__ . '/handlers/50-api-suppliers.php';
 require_once __DIR__ . '/handlers/60-api-returns.php';
 require_once __DIR__ . '/handlers/70-api-users.php';
 require_once __DIR__ . '/handlers/80-api-tasks.php';
+require_once __DIR__ . '/handlers/90-api-intelligence.php';

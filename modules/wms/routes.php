@@ -43,6 +43,8 @@ return [
         '/api/v1/wms/reports/movement-history' => 'wms:wmsApiReportMovementHistory',
         '/api/v1/wms/reports/velocity' => 'wms:wmsApiReportVelocity',
         '/api/v1/wms/reports/expiry' => 'wms:wmsApiReportExpiry',
+        '/api/v1/wms/intelligence/slotting' => 'wms:wmsApiIntelligenceSlotting',
+        '/api/v1/wms/intelligence/forecast' => 'wms:wmsApiIntelligenceForecast',
         '/api/v1/wms/tasks' => 'wms:wmsApiTasksList',
         '/api/v1/wms/tasks/{id}' => 'wms:wmsApiTaskGet',
         '/api/v1/wms/suppliers' => 'wms:wmsApiSuppliersList',
