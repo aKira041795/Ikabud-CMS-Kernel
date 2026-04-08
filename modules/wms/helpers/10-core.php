@@ -398,6 +398,38 @@ function wms_cap_wms_stock_query_1(mixed $payload, string $capabilityId = '', st
 function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $payload = wmsCap_wmsStockPayload($payload);
+    
+    // Support batch items directly in payload
+    if (!empty($payload['items']) && is_array($payload['items'])) {
+        $movementIds = [];
+        $app = app();
+        $db = $app->db();
+        $db->beginTransaction();
+        try {
+            foreach ($payload['items'] as $it) {
+                $item = [
+                    'product_id' => (int)($it['product_id'] ?? 0),
+                    'warehouse_id' => (int)($it['warehouse_id'] ?? 0),
+                    'location_id' => (int)($it['location_id'] ?? 0),
+                    'batch_id' => isset($it['batch_id']) ? (int)$it['batch_id'] : null,
+                    'qty' => wmsNormalizeDecimal($it['qty'] ?? 0),
+                    'reference_type' => (string)($payload['reference_type'] ?? 'reservation'),
+                    'reference_id' => isset($payload['reference_id']) ? (int)$payload['reference_id'] : null,
+                    'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
+                ];
+                if ($item['product_id'] > 0 && $item['qty'] > 0) {
+                    $movementIds[] = wmsReserveStock($item);
+                }
+            }
+            $db->commit();
+            return ['ok' => true, 'movement_ids' => $movementIds];
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            throw $e;
+        }
+    }
+    
+    // Single item fallback
     $item = [
         'product_id' => (int)($payload['product_id'] ?? 0),
         'warehouse_id' => (int)($payload['warehouse_id'] ?? 0),

@@ -171,12 +171,27 @@ function ecOrderCreate(array $data): array
 
     // Fire event
     try {
+        $eventItems = [];
+        if (!empty($data['cart_items'])) {
+            foreach ($data['cart_items'] as $item) {
+                // Format for WMS stock reserve integration map
+                $eventItems[] = [
+                    'product_id'   => (int)$item['product_id'],
+                    'qty'          => max(1, (int)($item['qty'] ?? 1)),
+                    'warehouse_id' => 1 // simplified assumption or config
+                ];
+            }
+        }
         app()->events()->fire('ecommerce.order.created', [
             'order_id'       => $orderId,
             'order_number'   => $orderNumber,
             'customer_email' => $data['guest_email'] ?? ($data['billing']['email'] ?? ''),
             'total'          => (float)($data['total'] ?? 0),
             'source'         => $source,
+            'order'          => [
+                'id'    => $orderId,
+                'items' => $eventItems
+            ]
         ]);
     } catch (\Throwable $e) {
         write_log('ecommerce.order.created event error: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);

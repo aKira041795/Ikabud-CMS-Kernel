@@ -141,7 +141,8 @@
                     ]
                 }
             }
-        }
+        },
+        "consumes": []
     },
     "auth_cookie": "wms_token",
     "settings_fields": [

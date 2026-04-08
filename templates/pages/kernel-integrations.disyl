@@ -1,0 +1,312 @@
+{extends "layouts/app"}
+
+{block head}
+<style>
+    .intg-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+    .intg-section-header { padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; gap: 10px; }
+    .intg-section-header h2 { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; }
+    .intg-section-header p { font-size: 12px; color: var(--text-muted); margin: 0; }
+    .intg-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 20px; }
+    .intg-form-full { grid-column: 1 / -1; }
+    .intg-field { display: flex; flex-direction: column; gap: 5px; }
+    .intg-label { font-size: 12px; font-weight: 600; color: var(--text); }
+    .intg-hint { font-size: 11px; color: var(--text-muted); }
+    .intg-input, .intg-textarea { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); width: 100%; box-sizing: border-box; }
+    .intg-textarea { font-family: monospace; font-size: 12px; resize: vertical; }
+    .intg-input:focus, .intg-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,.12); }
+    .intg-toggle-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); padding-top: 4px; }
+    .intg-form-actions { padding: 0 20px 20px; }
+    .btn-intg-save { background: var(--primary); color: #fff; border: none; padding: 8px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .btn-intg-save:hover { filter: brightness(.95); }
+    .btn-intg-save:disabled { opacity: .6; cursor: not-allowed; }
+    .intg-status { margin: 0 20px 14px; font-size: 12px; padding: 8px 12px; border-radius: 8px; display: none; }
+    .intg-status.ok { background: var(--success-light); color: var(--success); border: 1px solid var(--success); display: block; }
+    .intg-status.err { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); display: block; }
+    .intg-table { width: 100%; border-collapse: collapse; }
+    .intg-table th { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); }
+    .intg-table td { font-size: 13px; padding: 11px 16px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+    .intg-table tr:last-child td { border-bottom: none; }
+    .intg-table tr:hover td { background: var(--bg); }
+    .intg-mono { font-family: monospace; font-size: 11px; color: var(--text-muted); }
+    .intg-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .intg-pill.active { background: var(--success-light); color: var(--success); }
+    .intg-pill.inactive { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+    .intg-pill.success { background: var(--success-light); color: var(--success); }
+    .intg-pill.failed { background: var(--danger-light); color: var(--danger); }
+    .intg-pill.dot::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .intg-actions { display: flex; gap: 6px; align-items: center; }
+    .btn-intg-toggle { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; border: none; cursor: pointer; transition: filter .15s; }
+    .btn-intg-toggle.on { background: var(--success-light); color: var(--success); }
+    .btn-intg-toggle.off { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-intg-delete { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; border: none; background: var(--danger-light); color: var(--danger); cursor: pointer; transition: filter .15s; }
+    .btn-intg-delete:hover, .btn-intg-toggle:hover { filter: brightness(.95); }
+    .intg-log-details summary { cursor: pointer; color: var(--primary); font-size: 12px; }
+    .intg-log-details summary:hover { text-decoration: underline; }
+    .intg-payloads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .intg-payload-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+    .intg-payload-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    .intg-payload-pre { font-family: monospace; font-size: 10px; color: var(--text); white-space: pre-wrap; word-break: break-all; margin: 0; }
+    .intg-empty { padding: 40px; text-align: center; color: var(--text-muted); font-size: 13px; }
+    .intg-error-text { color: var(--danger); font-size: 11px; margin-bottom: 4px; }
+    @media (max-width: 640px) {
+        .intg-form-grid { grid-template-columns: 1fr; }
+        .intg-payloads { grid-template-columns: 1fr; }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="page-header">
+    <div>
+        <h2>Integration Bridge</h2>
+        <div class="page-desc">Map kernel events to module capabilities without custom code. Inspect execution logs in real time.</div>
+    </div>
+</div>
+
+<!-- Create Integration -->
+<div class="intg-section">
+    <div class="intg-section-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <div>
+            <h2>Create Integration</h2>
+        </div>
+    </div>
+    <div class="intg-form-grid">
+        <div class="intg-field">
+            <label class="intg-label" for="intg_name">Name</label>
+            <input class="intg-input" id="intg_name" type="text" placeholder="e.g. Order to WMS">
+        </div>
+        <div class="intg-field">
+            <label class="intg-label" for="intg_trigger">Trigger Event</label>
+            <input class="intg-input" id="intg_trigger" type="text" placeholder="e.g. ecommerce.order.created">
+        </div>
+        <div class="intg-field">
+            <label class="intg-label" for="intg_cap">Target Capability</label>
+            <input class="intg-input" id="intg_cap" type="text" placeholder="e.g. wms.stock.reserve@1">
+        </div>
+        <div class="intg-field">
+            <label class="intg-label">Status</label>
+            <div class="intg-toggle-row">
+                <input type="checkbox" id="intg_active" checked style="width:16px;height:16px;cursor:pointer;">
+                <label for="intg_active" style="cursor:pointer;">Active on create</label>
+            </div>
+        </div>
+        <div class="intg-field intg-form-full">
+            <label class="intg-label" for="intg_json">Mapping JSON</label>
+            <span class="intg-hint">Use <code style="font-size:11px;">{{"{{"}}path.to.value{{"}}"}}</code> dot-notation inside string values. Must be valid JSON.</span>
+            <textarea class="intg-textarea" id="intg_json" rows="5" placeholder='{&#10;  "reference_type": "order",&#10;  "reference_id": "{{order.id}}",&#10;  "items": "{{order.items}}"&#10;}'></textarea>
+        </div>
+    </div>
+    <div id="intg-save-status" class="intg-status"></div>
+    <div class="intg-form-actions">
+        <button class="btn-intg-save" id="intg-save-btn" onclick="submitIntegration()">Save Integration</button>
+    </div>
+</div>
+
+<!-- Integration List -->
+<div class="intg-section">
+    <div class="intg-section-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <div>
+            <h2>Active Integrations</h2>
+        </div>
+    </div>
+    {if integrations | count > 0}
+    <table class="intg-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Trigger Event</th>
+                <th>Target Capability</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="intg-list">
+            {foreach integrations as intg}
+            <tr id="intg-row-{intg.id}">
+                <td style="font-weight:600;">{intg.name}</td>
+                <td class="intg-mono">{intg.trigger_event}</td>
+                <td class="intg-mono">{intg.target_capability}</td>
+                <td>
+                    {if intg.is_active}
+                    <span class="intg-pill active dot">Active</span>
+                    {else}
+                    <span class="intg-pill inactive">Inactive</span>
+                    {/if}
+                </td>
+                <td>
+                    <div class="intg-actions">
+                        {if intg.is_active}
+                        <button class="btn-intg-toggle off" onclick="toggleIntegration({intg.id})">Disable</button>
+                        {else}
+                        <button class="btn-intg-toggle on" onclick="toggleIntegration({intg.id})">Enable</button>
+                        {/if}
+                        <button class="btn-intg-delete" onclick="deleteIntegration({intg.id})">Delete</button>
+                    </div>
+                </td>
+            </tr>
+            {/foreach}
+        </tbody>
+    </table>
+    {else}
+    <div class="intg-empty">No integrations configured yet. Use the form above to create the first one.</div>
+    {/if}
+</div>
+
+<!-- Logs -->
+<div class="intg-section">
+    <div class="intg-section-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div>
+            <h2>Recent Logs</h2>
+            <p>Last 50 executions</p>
+        </div>
+    </div>
+    {if logs | count > 0}
+    <table class="intg-table">
+        <thead>
+            <tr>
+                <th style="width:160px;">Time</th>
+                <th>Integration</th>
+                <th style="width:100px;">Status</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {foreach logs as log}
+            <tr>
+                <td class="intg-mono" style="white-space:nowrap;">{log.created_at}</td>
+                <td style="font-weight:600;">{log.integration_name}</td>
+                <td>
+                    {if log.status == 'success'}
+                    <span class="intg-pill success dot">Success</span>
+                    {else}
+                    <span class="intg-pill failed dot">Failed</span>
+                    {/if}
+                </td>
+                <td>
+                    {if log.error_message}
+                    <div class="intg-error-text"><strong>Error:</strong> {log.error_message}</div>
+                    {/if}
+                    <details class="intg-log-details">
+                        <summary>&#9658; View Payloads</summary>
+                        <div class="intg-payloads">
+                            <div class="intg-payload-block">
+                                <div class="intg-payload-label">Payload In</div>
+                                <pre class="intg-payload-pre">{log.payload_in}</pre>
+                            </div>
+                            <div class="intg-payload-block">
+                                <div class="intg-payload-label">Payload Out</div>
+                                <pre class="intg-payload-pre">{log.payload_out}</pre>
+                            </div>
+                        </div>
+                    </details>
+                </td>
+            </tr>
+            {/foreach}
+        </tbody>
+    </table>
+    {else}
+    <div class="intg-empty">No execution logs yet. Logs are created whenever an integration fires.</div>
+    {/if}
+</div>
+{/block}
+
+{block scripts}
+<script>
+var BASE = '{base_url}';
+
+function setStatus(msg, type) {
+    var el = document.getElementById('intg-save-status');
+    if (!el) return;
+    el.className = 'intg-status ' + type;
+    el.textContent = msg;
+}
+
+async function submitIntegration() {
+    var btn = document.getElementById('intg-save-btn');
+    var name = (document.getElementById('intg_name').value || '').trim();
+    var trigger = (document.getElementById('intg_trigger').value || '').trim();
+    var cap = (document.getElementById('intg_cap').value || '').trim();
+    var json = (document.getElementById('intg_json').value || '').trim();
+    var active = document.getElementById('intg_active').checked;
+
+    if (!name || !trigger || !cap || !json) {
+        setStatus('All fields are required.', 'err');
+        return;
+    }
+
+    try {
+        JSON.parse(json);
+    } catch (e) {
+        setStatus('Mapping JSON is not valid: ' + e.message, 'err');
+        return;
+    }
+
+    btn.disabled = true;
+    setStatus('Saving...', '');
+
+    try {
+        var res = await fetch(BASE + '/api/v1/kernel/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                trigger_event: trigger,
+                target_capability: cap,
+                mapping_json: json,
+                is_active: active ? 1 : 0
+            })
+        });
+        var data = await res.json();
+        if (data.ok) {
+            setStatus('Integration saved.', 'ok');
+            setTimeout(function() { window.location.reload(); }, 600);
+        } else {
+            setStatus(data.error || 'Save failed.', 'err');
+            btn.disabled = false;
+        }
+    } catch (e) {
+        setStatus('Network error: ' + e.message, 'err');
+        btn.disabled = false;
+    }
+}
+
+async function toggleIntegration(id) {
+    try {
+        var res = await fetch(BASE + '/api/v1/kernel/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ _action: 'toggle', id: id })
+        });
+        var data = await res.json();
+        if (data.ok) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Toggle failed');
+        }
+    } catch (e) {
+        alert('Network error');
+    }
+}
+
+async function deleteIntegration(id) {
+    if (!confirm('Delete this integration? This cannot be undone.')) return;
+    try {
+        var res = await fetch(BASE + '/api/v1/kernel/integrations?id=' + id, {
+            method: 'DELETE'
+        });
+        var data = await res.json();
+        if (data.ok) {
+            var row = document.getElementById('intg-row-' + id);
+            if (row) row.remove();
+        } else {
+            alert(data.error || 'Delete failed');
+        }
+    } catch (e) {
+        alert('Network error');
+    }
+}
+</script>
+{/block}

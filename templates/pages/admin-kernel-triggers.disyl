@@ -53,16 +53,36 @@
     @media (max-width: 980px) {
         .quick-create-grid { grid-template-columns: 1fr; }
     }
+
+    /* ── Bridge tab ──────────────────────────────────── */
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+    .tab-btn { padding: 9px 20px; font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+    .tab-btn.active { color: var(--primary, #2563eb); border-bottom-color: var(--primary, #2563eb); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .bridge-form input, .bridge-form textarea, .bridge-form select { width: 100%; }
+    .bridge-table th, .bridge-table td { padding: 8px 12px; font-size: 12px; vertical-align: middle; }
+    .bridge-table th { font-weight: 700; }
+    .bridge-logs summary { cursor: pointer; font-size: 12px; color: var(--primary, #2563eb); }
+    .bridge-logs pre { font-size: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap; word-break: break-all; }
 </style>
 {/block}
 
 {block content}
 <div class="page-header">
     <div>
-        <h2>Automation Rules</h2>
-        <div class="page-desc">Create simple “when this happens, do this” rules. Each rule listens to an event and runs an action.</div>
+        <h2>Automation &amp; Integration</h2>
+        <div class="page-desc">Automation Rules react to events with full template control. Integration Bridges map raw events to capabilities using simple JSON.</div>
     </div>
 </div>
+
+<div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('triggers')" id="tab-triggers">Automation Rules</button>
+    <button class="tab-btn" onclick="switchTab('bridges')" id="tab-bridges">Integration Bridges</button>
+</div>
+
+<div id="tab-panel-triggers" class="tab-panel active">
 
 <div class="tips-grid">
     <div class="tip-card">
@@ -203,6 +223,97 @@
         </table>
     </div>
 </div>
+
+</div>{# /tab-panel-triggers #}
+
+<div id="tab-panel-bridges" class="tab-panel">
+
+    <div class="panel">
+        <div class="toolbar">
+            <div class="left"><strong style="font-size:13px;">Create Integration Bridge</strong></div>
+        </div>
+        <div class="quick-create bridge-form" style="margin-top:8px;">
+            <div class="quick-create-grid" style="grid-template-columns:1fr 1fr;">
+                <div>
+                    <label class="muted" style="font-size:11px;">Name</label>
+                    <input class="input" id="brName" type="text" placeholder="e.g. Order to WMS">
+                </div>
+                <div>
+                    <label class="muted" style="font-size:11px;">Trigger Event</label>
+                    <input class="input" id="brEvent" type="text" placeholder="e.g. ecommerce.order.created">
+                </div>
+                <div>
+                    <label class="muted" style="font-size:11px;">Target Capability</label>
+                    <input class="input" id="brCap" type="text" placeholder="e.g. wms.stock.reserve@1">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding-top:18px;">
+                    <label class="muted" style="font-size:11px;">Active</label>
+                    <input type="checkbox" id="brActive" checked style="width:16px;height:16px;">
+                </div>
+            </div>
+            <div style="margin-top:10px;">
+                <label class="muted" style="font-size:11px;">Mapping JSON — use <code>{{dot.notation}}</code> for values from the event payload</label>
+                <textarea class="tpl" id="brJson" style="min-height:88px;width:100%;margin-top:4px;" placeholder='{ "reference_type": "order", "reference_id": "{{order.id}}", "items": "{{order.items}}" }'></textarea>
+            </div>
+            <div class="quick-create-actions">
+                <button class="btn btn-primary" onclick="createBridge()">Save Bridge</button>
+                <span class="quick-create-note">Bridges fire synchronously on each matching event. Results are logged below.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;" id="bridgesPanel">
+        <div class="toolbar">
+            <div class="left">
+                <strong style="font-size:13px;">Active Bridges</strong>
+                <span class="badge" id="bridgeCount">…</span>
+            </div>
+            <div class="right">
+                <button class="btn" onclick="loadBridges()">Reload</button>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="bridge-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Event</th>
+                        <th>Capability</th>
+                        <th>Status</th>
+                        <th>Version Lock</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="bridgeTbody">
+                    <tr><td colspan="6" class="muted">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;" id="bridgeLogsPanel">
+        <div class="toolbar">
+            <div class="left"><strong style="font-size:13px;">Recent Bridge Logs</strong></div>
+            <div class="right"><button class="btn" onclick="loadBridgeLogs()">Reload</button></div>
+        </div>
+        <div class="table-wrap">
+            <table class="bridge-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Bridge</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="bridgeLogsTbody">
+                    <tr><td colspan="4" class="muted">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>{# /tab-panel-bridges #}
 {/block}
 
 {block scripts}
@@ -872,6 +983,207 @@
         }).finally(function() {
             if (loading) loading.style.display = 'none';
         });
+    }
+
+    // ── Tab switching ─────────────────────────────────────────────────
+    var ACTIVE_TAB = 'triggers';
+
+    function switchTab(name) {
+        ACTIVE_TAB = name;
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+        var btn = document.getElementById('tab-' + name);
+        var panel = document.getElementById('tab-panel-' + name);
+        if (btn) btn.classList.add('active');
+        if (panel) panel.classList.add('active');
+        if (name === 'bridges') {
+            loadBridges();
+            loadBridgeLogs();
+        }
+    }
+
+    // ── Integration Bridge JS ─────────────────────────────────────────
+    var BRIDGES = [];
+    var BRIDGE_LOGS = [];
+
+    function createBridge() {
+        var name = (document.getElementById('brName') || {}).value || '';
+        var event = (document.getElementById('brEvent') || {}).value || '';
+        var cap = (document.getElementById('brCap') || {}).value || '';
+        var json = (document.getElementById('brJson') || {}).value || '';
+        var active = (document.getElementById('brActive') || {}).checked ? 1 : 0;
+
+        if (!name || !event || !cap || !json) {
+            showToast('Name, event, capability and mapping JSON are required');
+            return;
+        }
+
+        try { JSON.parse(json); } catch(e) {
+            showToast('Mapping JSON is not valid: ' + e.message);
+            return;
+        }
+
+        var btn = document.querySelector('[onclick="createBridge()"]');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+        fetch('/api/v1/kernel/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+            body: JSON.stringify({ name: name, trigger_event: event, target_capability: cap, mapping_json: json, is_active: active })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) {
+                showToast('Bridge saved');
+                document.getElementById('brName').value = '';
+                document.getElementById('brEvent').value = '';
+                document.getElementById('brCap').value = '';
+                document.getElementById('brJson').value = '';
+                document.getElementById('brActive').checked = true;
+                loadBridges();
+                loadBridgeLogs();
+            } else {
+                showToast((res && res.error) ? res.error : 'Failed to save bridge');
+            }
+        })
+        .catch(function() { showToast('Network error'); })
+        .finally(function() {
+            if (btn) { btn.disabled = false; btn.textContent = 'Save Bridge'; }
+        });
+    }
+
+    function loadBridges() {
+        var tbody = document.getElementById('bridgeTbody');
+        var countEl = document.getElementById('bridgeCount');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+
+        fetch('/api/v1/kernel/integrations')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            BRIDGES = Array.isArray(res.integrations) ? res.integrations : [];
+            if (countEl) countEl.textContent = String(BRIDGES.length);
+
+            if (!BRIDGES.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:20px;">No bridges configured.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = BRIDGES.map(function(b) {
+                var statusBadge = Number(b.is_active) === 1
+                    ? '<span class="badge" style="background:#d4f5e0;color:#065f46;">Active</span>'
+                    : '<span class="badge" style="background:#f1f5f9;color:#64748b;">Inactive</span>';
+                var srcBadge = b.event_source === 'promoted'
+                    ? '<span class="badge warn" style="font-size:10px;">Promoted</span> '
+                    : '';
+                var lockBadge = b.version_lock
+                    ? '<span class="badge" style="font-size:10px;background:#fef3c7;color:#92400e;" title="Locked to this capability version">🔒 ' + esc(b.version_lock) + '</span>'
+                    : '<span class="muted" style="font-size:11px;">—</span>';
+                var promoteBtn = b.event_source !== 'promoted'
+                    ? '<button class="btn" style="font-size:11px;" onclick="promoteBridge(' + b.id + ')" title="Promote to full Automation Rule">Promote</button>'
+                    : '<span class="muted" style="font-size:11px;">Promoted</span>';
+                return (
+                    '<tr>' +
+                    '<td><strong>' + esc(b.name) + '</strong>' + (srcBadge ? '<br>' + srcBadge : '') + '</td>' +
+                    '<td class="mono" style="font-size:11px;">' + esc(b.trigger_event) + '</td>' +
+                    '<td class="mono" style="font-size:11px;">' + esc(b.target_capability) + '</td>' +
+                    '<td>' + statusBadge + '</td>' +
+                    '<td>' + lockBadge + '</td>' +
+                    '<td class="row-actions">' +
+                        '<button class="btn" style="font-size:11px;" onclick="toggleBridge(' + b.id + ')">' + (Number(b.is_active) ? 'Disable' : 'Enable') + '</button>' +
+                        promoteBtn +
+                        '<button class="btn" style="font-size:11px;color:#d42828;" onclick="deleteBridge(' + b.id + ')">Delete</button>' +
+                    '</td>' +
+                    '</tr>'
+                );
+            }).join('');
+        })
+        .catch(function() { showToast('Failed to load bridges'); });
+    }
+
+    function loadBridgeLogs() {
+        var tbody = document.getElementById('bridgeLogsTbody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
+
+        fetch('/api/v1/kernel/integrations')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            BRIDGE_LOGS = Array.isArray(res.logs) ? res.logs : [];
+
+            if (!BRIDGE_LOGS.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:20px;">No logs found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = BRIDGE_LOGS.map(function(l) {
+                var statusBadge = l.status === 'success'
+                    ? '<span class="badge" style="background:#d4f5e0;color:#065f46;">Success</span>'
+                    : '<span class="badge" style="background:#fee2e2;color:#991b1b;">Failed</span>';
+                var errorRow = l.error_message
+                    ? '<div style="margin-top:4px;font-size:11px;color:#d42828;">' + esc(l.error_message) + '</div>'
+                    : '';
+                var payloadIn = l.payload_in ? ('<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:11px;color:#2563eb;">Payload In</summary><pre class="mono" style="font-size:10px;background:#1e293b;color:#e2e8f0;padding:6px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;">' + esc(l.payload_in) + '</pre></details>') : '';
+                var payloadOut = l.payload_out ? ('<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:11px;color:#2563eb;">Payload Out</summary><pre class="mono" style="font-size:10px;background:#1e293b;color:#e2e8f0;padding:6px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;">' + esc(l.payload_out) + '</pre></details>') : '';
+                return (
+                    '<tr>' +
+                    '<td class="mono" style="font-size:11px;white-space:nowrap;">' + esc(l.created_at || '—') + '</td>' +
+                    '<td><strong>' + esc(l.integration_name || '—') + '</strong></td>' +
+                    '<td>' + statusBadge + '</td>' +
+                    '<td>' + errorRow + payloadIn + payloadOut + '</td>' +
+                    '</tr>'
+                );
+            }).join('');
+        })
+        .catch(function() { showToast('Failed to load bridge logs'); });
+    }
+
+    function toggleBridge(id) {
+        fetch('/api/v1/kernel/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+            body: JSON.stringify({ _action: 'toggle', id: id })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) { loadBridges(); } else { showToast((res && res.error) ? res.error : 'Failed'); }
+        })
+        .catch(function() { showToast('Network error'); });
+    }
+
+    function deleteBridge(id) {
+        if (!confirm('Delete this bridge? This cannot be undone.')) return;
+        fetch('/api/v1/kernel/integrations?id=' + id, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': KERNEL_CSRF }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) { loadBridges(); showToast('Bridge deleted'); } else { showToast('Failed to delete'); }
+        })
+        .catch(function() { showToast('Network error'); });
+    }
+
+    function promoteBridge(id) {
+        if (!confirm('Promote this bridge to a full Automation Rule? The original bridge will remain but be marked as Promoted.')) return;
+        fetch('/api/v1/kernel/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+            body: JSON.stringify({ _action: 'promote', id: id })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) {
+                showToast('Promoted to Automation Rule');
+                loadBridges();
+                // Switch to triggers tab so user sees the newly-promoted rule
+                switchTab('triggers');
+                reloadAll(true);
+            } else {
+                showToast((res && res.error) ? res.error : 'Failed to promote');
+            }
+        })
+        .catch(function() { showToast('Network error'); });
     }
 
     loadAdvancedModePreference();
