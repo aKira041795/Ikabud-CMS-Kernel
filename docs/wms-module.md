@@ -1,7 +1,7 @@
 # WMS Module — Warehouse Management System
 
 **Module ID:** `wms`  
-**Version:** 1.1.0  
+**Version:** 1.2.0 (Phase 5)
 **Author:** Ikabud Kernel Team  
 **Depends:** _(none — standalone)_
 
@@ -9,16 +9,19 @@
 
 ## Overview
 
-The WMS module is a standalone, entity-driven Warehouse Management System that runs inside the Ikabud Kernel OS. It conforms fully to the kernel's multi-tenant architecture: `wms_*` tables live in each tenant's own database (identical pattern to the CMS module's `cms_*` tables). No dedicated WMS database is needed — `wmsDb()` wraps `module('wms')->db()` → `ModuleDB` → `app()->db()`.
+The WMS module is a reference-grade, entity-driven Warehouse Management System that runs inside the Ikabud Kernel OS. It acts as the core proof-of-architecture for the Kernel OS, demonstrating how complex, transaction-heavy business logic (ERP-lite) can run securely alongside public-facing modules (like CMS and Ecommerce) without cross-contamination.
+
+It conforms fully to the kernel's multi-tenant architecture: `wms_*` tables live in each tenant's own database. No dedicated WMS database is needed — `wmsDb()` wraps `module('wms')->db()` → `ModuleDB` → `app()->db()`.
 
 ### Core Principles
 
-1. **Everything is an entity** — no page-based logic; all state is modeled as entities with defined schemas
-2. **No direct stock mutation** — `wms_stocks` is only ever updated by `wmsMovementCreate()`; every stock change first creates an immutable `wms_movements` record
-3. **Tenant isolation at DB level** — each tenant has their own database; no `tenant_id` columns needed
-4. **ModuleDB sandbox** — `owns_tables` in `module.json` lists all `wms_*` tables; the kernel enforces access
-5. **Context-aware** — the module resolves its database via the current tenant context automatically
-6. **DiSyL templates** — all admin/entry-module page renders use the kernel's DiSyL template engine via `module('wms')->render()` (wrapped as `wmsRender()`); render paths use `modules/wms/...` and the physical files live in `templates/modules/wms/`
+1. **Movement-First Architecture** — `wms_movements` is the immutable source of truth. `wms_stocks` is merely a cached projection of those movements. Stock is never mutated directly.
+2. **Tenant Isolation at DB Level** — Each tenant has their own database. No `tenant_id` columns are used, eliminating query leaks.
+3. **Concurrency Safe** — All stock mutations use strict `SELECT ... FOR UPDATE` row-level locking to prevent race conditions during high-volume picking.
+4. **Idempotent Operations** — Movements support `idempotency_key` verification to safely handle network retries without double-deducting stock.
+5. **Traceable Reservations** — Stock reservations are strictly linked to specific `reference_type` and `reference_id` (e.g. an Order ID), making allocation debuggable.
+6. **Operational Intelligence** — Built-in auto-replenishment, slotting optimization, forecasting, and explicit worker task assignments (`wms_tasks`).
+7. **Production Ready** — Natively handles Bill of Materials (Recipes) and automatic raw material consumption for manufacturing/bakery use cases.
 
 ---
 
@@ -1082,9 +1085,9 @@ The WMS module uses `app()->db()` — the tenant-resolved database connection �
 
 ## Roadmap & Next Phases (Post-Core Stability)
 
-With the core WMS architecture now hardened (movement-first ledger, tenant isolation, concurrency locking, idempotent execution), the focus shifts from data correctness to **operational intelligence** and **real-world execution**.
+*Note: As of Version 1.2.0, Phases 2 through 6 have been implemented into the codebase. The following serves as a record of the architectural intent behind these features.*
 
-### Phase 2 — Operational Intelligence Layer
+### Phase 2 — Operational Intelligence Layer (Implemented)
 Turning the tracking system into an active decision-making engine.
 - **Demand & Stock Intelligence:** Introduce reorder points, safety stock calculations, and supplier lead-time evaluation via a new `wms.replenishment.suggest@1` capability.
 - **Auto-Replenishment (Internal):** Generate automatic transfer tasks from bulk reserve areas to picking bins when stock thresholds are breached.
@@ -1114,8 +1117,3 @@ Unlocking the multi-module power of the Kernel OS.
 - **Cross-Module Expositions:** Expand usage of `wms.stock.query@1` and `wms.stock.reserve@1` so modules like POS/Ecommerce can synchronously validate stock before sale.
 - **Event-Driven Automation:** Aggressively wire WMS events to Kernel OS triggers (e.g., `wms.stock.low` triggers a purchase request notification; `wms.order.dispatched` triggers the billing module).
 - **Multi-Context Deployments:** Scale the exact same WMS module implementation across diverse tenant environments (school inventory, food production, enterprise asset tracking) without code changes.
-
-### Immediate Action Items
-1. Establish the `wms_tasks` entity to formalize operational assignments.
-2. Develop a basic mobile-optimized picking workflow.
-3. Integrate simple barcode scanning hooks into the frontend UI.

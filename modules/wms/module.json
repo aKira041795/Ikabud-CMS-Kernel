@@ -1,7 +1,7 @@
 {
     "id": "wms",
     "name": "Warehouse Management System",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Entity-driven warehouse management for inventory, receiving, picking, transfers, cycle counts, suppliers, and returns.",
     "author": "Ikabud Kernel Team",
     "owns_tables": [
