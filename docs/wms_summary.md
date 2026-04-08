@@ -35,3 +35,19 @@ The Warehouse Management System (WMS) module is a reference-grade, entity-driven
 The WMS doesn't live in a silo; it aggressively leverages the Kernel OS capability bus for interoperability:
 *   **Headless Stock Queries**: Exposes `wms.stock.query@1` and `wms.stock.reserve@1` capabilities so an external Ecommerce Module or POS system can synchronously validate or lock stock before completing a sale.
 *   **Event-Driven Triggers**: Emits standard events like `wms.stock.low`, `wms.order.picked`, and `wms.production.completed`. These allow external billing modules or notification services to trigger actions automatically based on warehouse activity without tight code coupling.
+
+---
+
+## 6. The Roadmap to Commercial Platformization
+
+The WMS architecture has successfully crossed the threshold from an internal system into a highly stable **operational primitive**. It now possesses the correct foundational movement ledger, execution tools, and intelligence layers. 
+
+The next phase deliberately pauses new "features" to prioritize transforming the module into a **Zero-Touch, Scalable Platform** ready for real-world enterprise adoption:
+
+*   **Tenant Onboarding Engine (Day 0)**: Developing a streamlined setup wizard so businesses can create warehouses, auto-generate hierarchical bin locations, CSV-import their products, establish initial stock levels, and customize rules painlessly.
+*   **Granular Configuration Layer (`wms_configs`)**: Abstracting all hard-coded logic into tenant-level settings. Admins will freely toggle picking strategies, negative stock policies, auto-replenishment behavior, and default quarantine routing.
+*   **Observability & Debugging Tooling**: Equipping support staff and administrators with internal diagnostics, such as a **Movement Trace Viewer** ("How did this stock drop to 42?") and a **Reservation Inspector** ("Which pending order is currently holding this item?").
+*   **Financial Extension (Costing & POs)**: Introducing the Financial & Business Layer to calculate live inventory valuation (FIFO/Moving Average) and closing the supply loop with a robust `purchase_orders` workflow that translates replenishment suggestions into inbound deliveries.
+*   **Ecosystem Orchestration via Contracts**: Publishing strict capability contracts (`wms.stock.query@1`, `wms.stock.reserve@1`) enabling external Point of Sale (POS) and Ecommerce modules to rely on the WMS as the definitive inventory authority.
+
+By focusing on configuration, observability, and data portability (Import/Export), the WMS positions itself not merely as a tracking tool, but as a universally deployable ERP-lite engine capable of scaling horizontally across the Kernel OS ecosystem.

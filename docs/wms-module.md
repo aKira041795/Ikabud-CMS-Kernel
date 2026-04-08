@@ -1117,3 +1117,35 @@ Unlocking the multi-module power of the Kernel OS.
 - **Cross-Module Expositions:** Expand usage of `wms.stock.query@1` and `wms.stock.reserve@1` so modules like POS/Ecommerce can synchronously validate stock before sale.
 - **Event-Driven Automation:** Aggressively wire WMS events to Kernel OS triggers (e.g., `wms.stock.low` triggers a purchase request notification; `wms.order.dispatched` triggers the billing module).
 - **Multi-Context Deployments:** Scale the exact same WMS module implementation across diverse tenant environments (school inventory, food production, enterprise asset tracking) without code changes.
+
+---
+
+## Future Roadmap: Platformization & Commercial Readiness
+
+With the core operational execution engines stabilized (Phases 1-6), the WMS must evolve from an internal system into a **scalable, zero-touch platform product**. Feature bloat must be avoided in favor of observability, configuration, and ecosystem connectivity.
+
+### Phase 7 — Platformization (Make It a Product)
+- **Configuration Engine (`wms_configs`)**: Expose all hardcoded behaviors (picking strategy, `allow_negative_stock`, auto-replenishment toggles, default quarantine locations) to tenant administrators.
+- **Role & Permission Granularity**: Shift from basic roles to capability-scoped permissions (e.g., `wms.task.execute` vs `wms.stock.adjust`).
+- **Tenant Onboarding Flow (Day 0 Experience)**: Build a guided wizard for new tenants (Create Warehouse → Define Locations → Import Products → Set Initial Stock → Configure Rules).
+- **Data Import / Export Layer**: Implement robust CSV/Excel import/export pipelines for products, stock, suppliers, and movement snapshots.
+- **Observability & Debugging Tools**: Provide internal support views like a **Movement Trace Viewer** ("Why is stock = 42?") and a **Reservation Inspector** ("Who is holding this stock?").
+
+### Phase 8 — Financial & Business Layer
+- **Costing Engine**: Formalize FIFO or Moving Average costing models. Compute live inventory valuations and Cost of Goods Sold (COGS).
+- **Purchase Order System**: Close the supply loop by introducing `wms_purchase_orders` with approval flows, linking Replenishment Suggestions → PO → Delivery → Inbound Movement.
+- **Sales / POS Integration (External)**: Utilize the `wms.stock.reserve@1` contract strictly. POS checks stock, reserves it natively, and confirms to deduct. 
+
+### Phase 9 — Advanced Intelligence (AI Application)
+- **Smart Replenishment**: Elevate threshold-based triggers with trend, seasonality, and supplier lead-time predictions.
+- **Anomaly Detection**: Flag unusual stock drops, abnormal returns, or shrinkage/theft patterns automatically.
+- **Dynamic Slotting**: Auto-adjust bin assignments based on live velocity metrics continuously rather than via manual reporting.
+
+### Phase 10 — Ecosystem Expansion
+- **Public Capability Contracts**: Document and strictly version capability interfaces (`wms.stock.query@1`, `wms.stock.reserve@1`, `wms.production.consume@1`) so third-party modules can depend on them reliably.
+- **Marketplace Vision**: Standardize the WMS as the central operational ledger for Ecommerce, Procurement, POS, and external Reporting modules.
+
+### Immediate Next Priorities
+1. **Tenant Onboarding + Config Engine**: Without a frictionless setup wizard, adoption dies.
+2. **Observability Tools**: Debugging real-world data requires transparent movement and reservation traces.
+3. **Purchase Order Flow**: Closes the loop from demand back to supply.
