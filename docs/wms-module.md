@@ -761,6 +761,36 @@ All endpoints return JSON. Prefix: `/api/v1/wms/`
 | GET | `/api/v1/wms/reports/velocity` | `wmsApiReportVelocity` | Fast vs slow movers (movements/day over period) |
 | GET | `/api/v1/wms/reports/expiry` | `wmsApiReportExpiry` | Batches expiring within N days |
 
+### Worker Tasks
+
+| Method | Path | Handler | Description |
+|--------|------|---------|-------------|
+| GET | `/api/v1/wms/tasks` | `wmsApiTasksList` | List assigned/unassigned worker tasks |
+| POST | `/api/v1/wms/tasks` | `wmsApiTaskCreate` | Manual task creation |
+| POST | `/api/v1/wms/tasks/auto-replenish` | `wmsApiTaskGenerateReplenishments` | Generate bin replenishments |
+| POST | `/api/v1/wms/tasks/{id}/status` | `wmsApiTaskUpdateStatus` | Update task status |
+| POST | `/api/v1/wms/tasks/{id}/scan-confirm` | `wmsApiTaskScanConfirm` | Barcode scan confirmation |
+
+### Production & Manufacturing
+
+| Method | Path | Handler | Description |
+|--------|------|---------|-------------|
+| POST | `/api/v1/wms/production/recipes` | `wmsApiProductionRecipeCreate` | Create BoM / Recipe |
+| POST | `/api/v1/wms/production/orders` | `wmsApiProductionOrderCreate` | Create Mfg Order |
+| POST | `/api/v1/wms/production/orders/{id}/start` | `wmsApiProductionOrderStart` | Allocate/consume raw materials |
+| POST | `/api/v1/wms/production/orders/{id}/complete` | `wmsApiProductionOrderComplete` | Receive finished goods |
+
+### System & Integrations
+
+| Method | Path | Handler | Description |
+|--------|------|---------|-------------|
+| GET | `/api/v1/wms/configs` | `wmsApiConfigsList` | Module tenant settings |
+| POST | `/api/v1/wms/configs` | `wmsApiConfigsUpdate` | Update module tenant settings |
+| GET | `/api/v1/wms/diagnostics/ping` | `wmsApiDiagnosticsPing` | Verify module heartbeat & DB |
+| GET | `/api/v1/wms/financial/valuation` | `wmsApiFinancialValuation` | Current inventory valuation |
+| POST | `/api/v1/wms/webhooks/register` | `wmsApiEventWebhookRegistration` | Bind event webhook |
+| POST | `/api/v1/wms/import/products` | `wmsApiImportProductsCsv` | CSV import for products |
+
 ### Admin Pages (Entry Module)
 
 | Method | Path | Handler | Description |
@@ -773,6 +803,11 @@ All endpoints return JSON. Prefix: `/api/v1/wms/`
 | GET | `/wms/returns` | `wmsPageReturns` | Returns queue + restock actions |
 | GET | `/wms/users` | `wmsPageUsers` | WMS staff management (admin only) |
 | GET | `/wms/settings` | `wmsPageSettings` | Module settings (putaway rules, thresholds) |
+| GET | `/wms/tasks` | `wmsPageTasks` | Task queue interface |
+| GET | `/wms/scanner` | `wmsPageScanner` | Mobile scanner interface |
+| GET | `/wms/onboarding` | `wmsPageOnboarding` | First-time CSV onboarding |
+| GET | `/wms/diagnostics` | `wmsPageDiagnostics` | Module diagnostics |
+| GET | `/wms/financial` | `wmsPageFinancial` | Valuation and financial reporting |
 
 ---
 
@@ -982,7 +1017,16 @@ modules/wms/
 │   ├── 40-api-operations.php            # deliveries, orders, transfers, cycle counts
 │   ├── 50-api-suppliers.php             # supplier CRUD
 │   ├── 60-api-returns.php               # returns + restock flow
-│   └── 70-api-users.php                 # WMS staff management
+│   ├── 70-api-users.php                 # WMS staff management
+│   ├── 80-api-tasks.php                 # worker tasks, queueing, active scan tasks
+│   ├── 90-api-intelligence.php          # auto-replenishment, slotting optimization, forecasting
+│   ├── 100-api-production.php           # bill of materials, manufacturing tasks, raw material consumption
+│   ├── 110-api-events.php               # webhook and event dispatch endpoints
+│   ├── 120-api-configs.php              # tenant-scoped configuration
+│   ├── 130-api-onboarding.php           # CSV onboarding checkpoints
+│   ├── 140-api-diagnostics.php          # server / DB diagnostics
+│   ├── 150-api-financial.php            # valuation, purchase order integration
+│   └── 160-api-import-export.php        # data porting (import/export CSV)
 │
 ├── helpers/
 │   ├── 00-bootstrap.php                 # capability handler map
@@ -1008,16 +1052,22 @@ modules/wms/
 └── templates/
     └── modules/wms/
         ├── layouts/
-        │   └── admin.disyl                    # Shared WMS admin shell
+        │   ├── admin.disyl                    # Shared WMS admin shell
+        │   └── mobile.disyl                   # Responsive mobile layout
         └── admin/
             ├── dashboard.disyl                # DiSyL — warehouse overview
-            ├── receiving.disyl                # DiSyL — inbound deliveries UI
-            ├── picking.disyl                  # DiSyL — pick queue UI
+            ├── diagnostics.disyl              # DiSyL — module diagnostics
+            ├── financial.disyl                # DiSyL — financial capabilities
             ├── inventory.disyl                # DiSyL — stock browser + manual adjustment
-            ├── suppliers.disyl                # DiSyL — supplier directory CRUD
+            ├── onboarding.disyl               # DiSyL — setup checklist / wizard
+            ├── picking.disyl                  # DiSyL — pick queue UI
+            ├── receiving.disyl                # DiSyL — inbound deliveries UI
             ├── returns.disyl                  # DiSyL — returns queue + restock actions
-            ├── users.disyl                    # DiSyL — WMS staff management (admin only)
-            └── settings.disyl                 # DiSyL — runtime + putaway rules view
+            ├── scanner-home.disyl             # DiSyL — mobile scan interface
+            ├── settings.disyl                 # DiSyL — runtime + putaway rules view
+            ├── suppliers.disyl                # DiSyL — supplier directory CRUD
+            ├── tasks.disyl                    # DiSyL — worker tasks queue
+            └── users.disyl                    # DiSyL — WMS staff management (admin only)
 ```
 
 ---
