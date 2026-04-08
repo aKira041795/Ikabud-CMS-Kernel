@@ -12,16 +12,21 @@
     .intg-label { font-size: 12px; font-weight: 600; color: var(--text); }
     .intg-hint { font-size: 11px; color: var(--text-muted); }
     .intg-input, .intg-textarea { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); width: 100%; box-sizing: border-box; }
+    .intg-select { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); width: 100%; box-sizing: border-box; }
     .intg-textarea { font-family: monospace; font-size: 12px; resize: vertical; }
     .intg-input:focus, .intg-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,.12); }
+    .intg-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,.12); }
     .intg-toggle-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); padding-top: 4px; }
     .intg-form-actions { padding: 0 20px 20px; }
+    .intg-form-actions-inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .btn-intg-save { background: var(--primary); color: #fff; border: none; padding: 8px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
     .btn-intg-save:hover { filter: brightness(.95); }
     .btn-intg-save:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-intg-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 8px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; }
     .intg-status { margin: 0 20px 14px; font-size: 12px; padding: 8px 12px; border-radius: 8px; display: none; }
     .intg-status.ok { background: var(--success-light); color: var(--success); border: 1px solid var(--success); display: block; }
     .intg-status.err { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); display: block; }
+    .intg-status.pending { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); display: block; }
     .intg-table { width: 100%; border-collapse: collapse; }
     .intg-table th { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); }
     .intg-table td { font-size: 13px; padding: 11px 16px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
@@ -48,9 +53,19 @@
     .intg-payload-pre { font-family: monospace; font-size: 10px; color: var(--text); white-space: pre-wrap; word-break: break-all; margin: 0; }
     .intg-empty { padding: 40px; text-align: center; color: var(--text-muted); font-size: 13px; }
     .intg-error-text { color: var(--danger); font-size: 11px; margin-bottom: 4px; }
+    .intg-badges { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+    .intg-meta { font-size: 11px; color: var(--text-muted); display:flex; gap:10px; flex-wrap:wrap; }
+    .intg-trace { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
+    .intg-template-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .intg-template-chip { font-size: 11px; border: 1px solid var(--border); background: var(--bg); color: var(--text); padding: 5px 9px; border-radius: 999px; cursor: pointer; }
+    .intg-guidance { padding: 0 20px 16px; display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; }
+    .intg-guide-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px; }
+    .intg-guide-card strong { display:block; font-size:12px; margin-bottom:4px; }
+    .intg-guide-card span { font-size:11px; color: var(--text-muted); line-height:1.45; }
     @media (max-width: 640px) {
         .intg-form-grid { grid-template-columns: 1fr; }
         .intg-payloads { grid-template-columns: 1fr; }
+        .intg-guidance { grid-template-columns: 1fr; }
     }
 </style>
 {/block}
@@ -59,7 +74,7 @@
 <div class="page-header">
     <div>
         <h2>Integration Bridge</h2>
-        <div class="page-desc">Map kernel events to module capabilities without custom code. Inspect execution logs in real time.</div>
+        <div class="page-desc">Map kernel events to module capabilities without custom code. Create, validate, promote, and inspect traceable bridge executions from a single superadmin surface.</div>
     </div>
 </div>
 
@@ -69,9 +84,42 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
         <div>
             <h2>Create Integration</h2>
+            <p>Choose a known event and capability, then adjust the mapping JSON before activation.</p>
+        </div>
+    </div>
+    <div class="intg-guidance">
+        <div class="intg-guide-card">
+            <strong>1. Pick a trigger event</strong>
+            <span>Use the known event picker to avoid typos and to see the event variables you can map.</span>
+        </div>
+        <div class="intg-guide-card">
+            <strong>2. Lock the capability version</strong>
+            <span>Version lock is filled from the selected capability so runtime drift is caught explicitly in logs.</span>
+        </div>
+        <div class="intg-guide-card">
+            <strong>3. Activate only after validation</strong>
+            <span>Use the sample mapping helpers and recent logs below to confirm the bridge is safe before broader rollout.</span>
         </div>
     </div>
     <div class="intg-form-grid">
+        <div class="intg-field">
+            <label class="intg-label" for="intg_event_picker">Known Event</label>
+            <select class="intg-select" id="intg_event_picker" onchange="applyKnownEvent()">
+                <option value="">Choose a known event…</option>
+                {foreach bridge_events as evt}
+                <option value="{evt.event_key}" data-module="{evt.module}" data-description="{evt.description}" data-vars="{evt.available_vars_csv}">{evt.module} · {evt.event_key}</option>
+                {/foreach}
+            </select>
+        </div>
+        <div class="intg-field">
+            <label class="intg-label" for="intg_cap_picker">Known Capability</label>
+            <select class="intg-select" id="intg_cap_picker" onchange="applyKnownCapability()">
+                <option value="">Choose a known capability…</option>
+                {foreach bridge_capabilities as cap}
+                <option value="{cap.id}" data-description="{cap.description}">{cap.label}</option>
+                {/foreach}
+            </select>
+        </div>
         <div class="intg-field">
             <label class="intg-label" for="intg_name">Name</label>
             <input class="intg-input" id="intg_name" type="text" placeholder="e.g. Order to WMS">
@@ -85,21 +133,38 @@
             <input class="intg-input" id="intg_cap" type="text" placeholder="e.g. wms.stock.reserve@1">
         </div>
         <div class="intg-field">
+            <label class="intg-label" for="intg_version_lock">Version Lock</label>
+            <input class="intg-input" id="intg_version_lock" type="text" placeholder="Auto-filled from selected capability">
+            <span class="intg-hint">Leave blank only if you intentionally want the bridge to follow capability alias resolution.</span>
+        </div>
+        <div class="intg-field">
             <label class="intg-label">Status</label>
             <div class="intg-toggle-row">
                 <input type="checkbox" id="intg_active" checked style="width:16px;height:16px;cursor:pointer;">
                 <label for="intg_active" style="cursor:pointer;">Active on create</label>
             </div>
         </div>
+        <div class="intg-field">
+            <label class="intg-label">Bridge Validation</label>
+            <div class="intg-meta" id="intg_validation_meta">Choose an event or capability to inspect available variables and version lock behavior.</div>
+        </div>
         <div class="intg-field intg-form-full">
             <label class="intg-label" for="intg_json">Mapping JSON</label>
             <span class="intg-hint">Use <code style="font-size:11px;">{{"{{"}}path.to.value{{"}}"}}</code> dot-notation inside string values. Must be valid JSON.</span>
             <textarea class="intg-textarea" id="intg_json" rows="5" placeholder='{&#10;  "reference_type": "order",&#10;  "reference_id": "{{order.id}}",&#10;  "items": "{{order.items}}"&#10;}'></textarea>
+            <div class="intg-template-row">
+                <button class="intg-template-chip" type="button" onclick="applyTemplateSample('reserve')">Reserve Sample</button>
+                <button class="intg-template-chip" type="button" onclick="applyTemplateSample('release')">Release Sample</button>
+                <button class="intg-template-chip" type="button" onclick="applyTemplateSample('clear')">Clear</button>
+            </div>
         </div>
     </div>
     <div id="intg-save-status" class="intg-status"></div>
     <div class="intg-form-actions">
-        <button class="btn-intg-save" id="intg-save-btn" onclick="submitIntegration()">Save Integration</button>
+        <div class="intg-form-actions-inline">
+            <button class="btn-intg-save" id="intg-save-btn" onclick="submitIntegration()">Save Integration</button>
+            <button class="btn-intg-secondary" type="button" onclick="validateIntegrationDraft()">Validate Draft</button>
+        </div>
     </div>
 </div>
 
@@ -119,6 +184,7 @@
                 <th>Trigger Event</th>
                 <th>Target Capability</th>
                 <th>Status</th>
+                <th>Version Lock</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -127,7 +193,22 @@
             <tr id="intg-row-{intg.id}">
                 <td style="font-weight:600;">{intg.name}</td>
                 <td class="intg-mono">{intg.trigger_event}</td>
-                <td class="intg-mono">{intg.target_capability}</td>
+                <td>
+                    <div class="intg-mono">{intg.target_capability}</div>
+                    <div class="intg-badges">
+                        <span class="intg-pill inactive">{if intg.event_source}{intg.event_source}{else}eventbus{/if}</span>
+                        {if intg.event_source == 'promoted'}
+                        <span class="intg-pill failed">Promoted</span>
+                        {/if}
+                    </div>
+                    <details class="intg-log-details" style="margin-top:6px;">
+                        <summary>&#9658; View Mapping</summary>
+                        <div class="intg-payload-block" style="margin-top:8px;">
+                            <div class="intg-payload-label">Mapping JSON</div>
+                            <pre class="intg-payload-pre">{intg.mapping_json}</pre>
+                        </div>
+                    </details>
+                </td>
                 <td>
                     {if intg.is_active}
                     <span class="intg-pill active dot">Active</span>
@@ -136,11 +217,21 @@
                     {/if}
                 </td>
                 <td>
+                    {if intg.version_lock}
+                    <span class="intg-pill failed">{intg.version_lock}</span>
+                    {else}
+                    <span class="intg-mono">—</span>
+                    {/if}
+                </td>
+                <td>
                     <div class="intg-actions">
                         {if intg.is_active}
                         <button class="btn-intg-toggle off" onclick="toggleIntegration({intg.id})">Disable</button>
                         {else}
                         <button class="btn-intg-toggle on" onclick="toggleIntegration({intg.id})">Enable</button>
+                        {/if}
+                        {if intg.event_source != 'promoted'}
+                        <button class="btn-intg-toggle on" onclick="promoteIntegration({intg.id})">Promote</button>
                         {/if}
                         <button class="btn-intg-delete" onclick="deleteIntegration({intg.id})">Delete</button>
                     </div>
@@ -170,6 +261,7 @@
                 <th style="width:160px;">Time</th>
                 <th>Integration</th>
                 <th style="width:100px;">Status</th>
+                <th style="width:180px;">Trace</th>
                 <th>Details</th>
             </tr>
         </thead>
@@ -184,6 +276,11 @@
                     {else}
                     <span class="intg-pill failed dot">Failed</span>
                     {/if}
+                </td>
+                <td>
+                    <div class="intg-mono">Req: {if log.request_id}{log.request_id}{else}—{/if}</div>
+                    <div class="intg-mono">Trace: {if log.correlation_id}{log.correlation_id}{else}—{/if}</div>
+                    <div class="intg-mono">{if log.duration_ms}{log.duration_ms} ms{else}0 ms{/if}</div>
                 </td>
                 <td>
                     {if log.error_message}
@@ -216,11 +313,98 @@
 {block scripts}
 <script>
 var BASE = '{base_url}';
+var KNOWN_EVENT_SELECT = null;
+var KNOWN_CAP_SELECT = null;
+
+function selectedOptionData(selectId) {
+    var select = document.getElementById(selectId);
+    if (!select || !select.options || select.selectedIndex < 0) return null;
+    return select.options[select.selectedIndex] || null;
+}
+
+function applyKnownEvent() {
+    var option = selectedOptionData('intg_event_picker');
+    if (!option || !option.value) return;
+    document.getElementById('intg_trigger').value = option.value;
+    updateValidationMeta();
+}
+
+function applyKnownCapability() {
+    var option = selectedOptionData('intg_cap_picker');
+    if (!option || !option.value) return;
+    document.getElementById('intg_cap').value = option.value;
+    document.getElementById('intg_version_lock').value = option.value;
+    updateValidationMeta();
+}
+
+function updateValidationMeta() {
+    var meta = document.getElementById('intg_validation_meta');
+    if (!meta) return;
+    var evtOption = selectedOptionData('intg_event_picker');
+    var capOption = selectedOptionData('intg_cap_picker');
+    var parts = [];
+    if (evtOption && evtOption.value) {
+        var vars = String(evtOption.getAttribute('data-vars') || '').split(',').filter(Boolean);
+        var evtDesc = String(evtOption.getAttribute('data-description') || '');
+        parts.push(evtDesc ? evtDesc : 'Known event selected');
+        parts.push('Vars: ' + (vars.length ? vars.join(', ') : 'none declared'));
+    }
+    if (capOption && capOption.value) {
+        var capDesc = String(capOption.getAttribute('data-description') || '');
+        parts.push(capDesc ? capDesc : 'Capability selected');
+        parts.push('Version lock: ' + capOption.value);
+    }
+    meta.textContent = parts.length ? parts.join(' • ') : 'Choose an event or capability to inspect available variables and version lock behavior.';
+}
+
+function applyTemplateSample(kind) {
+    var textarea = document.getElementById('intg_json');
+    if (!textarea) return;
+    if (kind === 'clear') {
+        textarea.value = '';
+        return;
+    }
+    if (kind === 'release') {
+        textarea.value = JSON.stringify({
+            reference_type: 'order',
+            reference_id: '{{order.id}}',
+            items: '{{order.items}}',
+            idempotency_key: '{{idempotency_key}}',
+            actor_user_id: '{{actor_user_id}}'
+        }, null, 2);
+        return;
+    }
+    textarea.value = JSON.stringify({
+        reference_type: 'order',
+        reference_id: '{{order.id}}',
+        items: '{{order.items}}',
+        idempotency_key: '{{idempotency_key}}',
+        actor_user_id: '{{actor_user_id}}'
+    }, null, 2);
+}
+
+function validateIntegrationDraft() {
+    var name = (document.getElementById('intg_name').value || '').trim();
+    var trigger = (document.getElementById('intg_trigger').value || '').trim();
+    var cap = (document.getElementById('intg_cap').value || '').trim();
+    var json = (document.getElementById('intg_json').value || '').trim();
+    if (!name || !trigger || !cap || !json) {
+        setStatus('Draft incomplete. Fill name, event, capability, and mapping JSON before validation.', 'err');
+        return;
+    }
+    try {
+        JSON.parse(json);
+    } catch (e) {
+        setStatus('Mapping JSON is not valid: ' + e.message, 'err');
+        return;
+    }
+    setStatus('Draft looks structurally valid. Saving will still verify capability registration and duplicate bridge conflicts.', 'ok');
+}
 
 function setStatus(msg, type) {
     var el = document.getElementById('intg-save-status');
     if (!el) return;
-    el.className = 'intg-status ' + type;
+    el.className = 'intg-status ' + (type || 'pending');
     el.textContent = msg;
 }
 
@@ -230,6 +414,7 @@ async function submitIntegration() {
     var trigger = (document.getElementById('intg_trigger').value || '').trim();
     var cap = (document.getElementById('intg_cap').value || '').trim();
     var json = (document.getElementById('intg_json').value || '').trim();
+    var versionLock = (document.getElementById('intg_version_lock').value || '').trim();
     var active = document.getElementById('intg_active').checked;
 
     if (!name || !trigger || !cap || !json) {
@@ -250,21 +435,22 @@ async function submitIntegration() {
     try {
         var res = await fetch(BASE + '/api/v1/kernel/integrations', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}' },
             body: JSON.stringify({
                 name: name,
                 trigger_event: trigger,
                 target_capability: cap,
                 mapping_json: json,
-                is_active: active ? 1 : 0
+                is_active: active ? 1 : 0,
+                version_lock: versionLock || null
             })
         });
         var data = await res.json();
         if (data.ok) {
-            setStatus('Integration saved.', 'ok');
+            setStatus('Integration saved. Request: ' + String(data.request_id || 'n/a'), 'ok');
             setTimeout(function() { window.location.reload(); }, 600);
         } else {
-            setStatus(data.error || 'Save failed.', 'err');
+            setStatus((data.error || 'Save failed.') + ' Request: ' + String(data.request_id || 'n/a'), 'err');
             btn.disabled = false;
         }
     } catch (e) {
@@ -277,7 +463,7 @@ async function toggleIntegration(id) {
     try {
         var res = await fetch(BASE + '/api/v1/kernel/integrations', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}' },
             body: JSON.stringify({ _action: 'toggle', id: id })
         });
         var data = await res.json();
@@ -295,7 +481,8 @@ async function deleteIntegration(id) {
     if (!confirm('Delete this integration? This cannot be undone.')) return;
     try {
         var res = await fetch(BASE + '/api/v1/kernel/integrations?id=' + id, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': '{csrf_token}' }
         });
         var data = await res.json();
         if (data.ok) {
@@ -308,5 +495,29 @@ async function deleteIntegration(id) {
         alert('Network error');
     }
 }
+
+async function promoteIntegration(id) {
+    if (!confirm('Promote this bridge to a full Automation Rule? The bridge stays visible but will be marked as promoted.')) return;
+    try {
+        var res = await fetch(BASE + '/api/v1/kernel/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}' },
+            body: JSON.stringify({ _action: 'promote', id: id })
+        });
+        var data = await res.json();
+        if (data.ok) {
+            setStatus('Bridge promoted to Automation Rule. Request: ' + String(data.request_id || 'n/a'), 'ok');
+            setTimeout(function() { window.location.reload(); }, 600);
+            return;
+        }
+        setStatus((data.error || 'Promote failed.') + ' Request: ' + String(data.request_id || 'n/a'), 'err');
+    } catch (e) {
+        setStatus('Network error: ' + e.message, 'err');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateValidationMeta();
+});
 </script>
 {/block}

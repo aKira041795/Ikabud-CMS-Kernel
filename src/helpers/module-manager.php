@@ -2138,6 +2138,8 @@ function tenantSafeKernelMigrationFiles(): array
         '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
         '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
+        '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',
+        '011_integration_bridge_hardening.sql' => BASE_PATH . '/database/migrations/011_integration_bridge_hardening.sql',
     ];
 
     $files = [];
@@ -2551,6 +2553,8 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
         '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
         '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
+        '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',
+        '011_integration_bridge_hardening.sql' => BASE_PATH . '/database/migrations/011_integration_bridge_hardening.sql',
     ];
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
@@ -2566,7 +2570,23 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
             continue;
         }
 
-        $db->exec($sql);
+        $sql = preg_replace('/--.*$/m', '', $sql) ?? $sql;
+        $statements = array_filter(array_map('trim', explode(';', $sql)), static fn(string $statement): bool => $statement !== '');
+        foreach ($statements as $statement) {
+            try {
+                $db->exec($statement);
+            } catch (PDOException $e) {
+                $mysqlCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : 0;
+                $idempotentCodes = [
+                    1050,
+                    1060,
+                    1061,
+                ];
+                if (!in_array($mysqlCode, $idempotentCodes, true)) {
+                    throw $e;
+                }
+            }
+        }
         tenantRecordModuleMigration($db, '_kernel', $artifactName);
         $applied[$artifactName] = true;
         $executed[] = $artifactName;

@@ -373,6 +373,13 @@
             "description": "How many products to show per page in the shop."
         },
         {
+            "key": "default_wms_warehouse_id",
+            "type": "number",
+            "label": "Default WMS Warehouse ID",
+            "default": "0",
+            "description": "Optional warehouse ID injected into ecommerce order events when cart items do not provide a warehouse. Set to 0 to require explicit routing elsewhere."
+        },
+        {
             "key": "admin_notification_email",
             "type": "email",
             "label": "Admin Order Notification Email",
@@ -396,7 +403,13 @@
                 "order_number",
                 "customer_email",
                 "total",
-                "source"
+                "source",
+                "actor_user_id",
+                "idempotency_key",
+                "order",
+                "order.id",
+                "order.warehouse_id",
+                "order.items"
             ]
         },
         {
@@ -422,7 +435,11 @@
             "description": "Fired when an order is cancelled",
             "available_vars": [
                 "order_id",
-                "order_number"
+                "order_number",
+                "idempotency_key",
+                "order",
+                "order.id",
+                "order.items"
             ]
         },
         {

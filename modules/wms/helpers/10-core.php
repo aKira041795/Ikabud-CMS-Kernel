@@ -398,7 +398,7 @@ function wms_cap_wms_stock_query_1(mixed $payload, string $capabilityId = '', st
 function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $payload = wmsCap_wmsStockPayload($payload);
-    
+
     // Support batch items directly in payload
     if (!empty($payload['items']) && is_array($payload['items'])) {
         $movementIds = [];
@@ -406,17 +406,34 @@ function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', 
         $db = $app->db();
         $db->beginTransaction();
         try {
-            foreach ($payload['items'] as $it) {
+            foreach ($payload['items'] as $index => $it) {
+                $warehouseId = (int)($it['warehouse_id'] ?? $payload['warehouse_id'] ?? 0);
+                $locationId = (int)($it['location_id'] ?? 0);
+                if ($locationId <= 0 && $warehouseId > 0) {
+                    $locationId = wmsResolveBridgeLocationId($warehouseId);
+                }
+
+                $itemIdempotencyKey = trim((string)($it['idempotency_key'] ?? ''));
+                if ($itemIdempotencyKey === '') {
+                    $baseIdempotencyKey = trim((string)($payload['idempotency_key'] ?? ''));
+                    if ($baseIdempotencyKey !== '') {
+                        $itemIdempotencyKey = $baseIdempotencyKey . ':' . ((int)$index + 1);
+                    }
+                }
+
                 $item = [
                     'product_id' => (int)($it['product_id'] ?? 0),
-                    'warehouse_id' => (int)($it['warehouse_id'] ?? 0),
-                    'location_id' => (int)($it['location_id'] ?? 0),
+                    'warehouse_id' => $warehouseId,
+                    'location_id' => $locationId,
                     'batch_id' => isset($it['batch_id']) ? (int)$it['batch_id'] : null,
                     'qty' => wmsNormalizeDecimal($it['qty'] ?? 0),
                     'reference_type' => (string)($payload['reference_type'] ?? 'reservation'),
                     'reference_id' => isset($payload['reference_id']) ? (int)$payload['reference_id'] : null,
                     'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
                 ];
+                if ($itemIdempotencyKey !== '') {
+                    $item['idempotency_key'] = $itemIdempotencyKey;
+                }
                 if ($item['product_id'] > 0 && $item['qty'] > 0) {
                     $movementIds[] = wmsReserveStock($item);
                 }
@@ -428,18 +445,27 @@ function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', 
             throw $e;
         }
     }
-    
+
+    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+    $locationId = (int)($payload['location_id'] ?? 0);
+    if ($locationId <= 0 && $warehouseId > 0) {
+        $locationId = wmsResolveBridgeLocationId($warehouseId);
+    }
+
     // Single item fallback
     $item = [
         'product_id' => (int)($payload['product_id'] ?? 0),
-        'warehouse_id' => (int)($payload['warehouse_id'] ?? 0),
-        'location_id' => (int)($payload['location_id'] ?? 0),
+        'warehouse_id' => $warehouseId,
+        'location_id' => $locationId,
         'batch_id' => isset($payload['batch_id']) ? (int)$payload['batch_id'] : null,
         'qty' => wmsNormalizeDecimal($payload['qty'] ?? 0),
         'reference_type' => (string)($payload['reference_type'] ?? 'reservation'),
         'reference_id' => isset($payload['reference_id']) ? (int)$payload['reference_id'] : null,
         'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
     ];
+    if (!empty($payload['idempotency_key'])) {
+        $item['idempotency_key'] = (string)$payload['idempotency_key'];
+    }
 
     return [
         'ok' => true,
@@ -450,21 +476,111 @@ function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', 
 function wms_cap_wms_stock_release_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $payload = wmsCap_wmsStockPayload($payload);
+
+    if (!empty($payload['items']) && is_array($payload['items'])) {
+        $movementIds = [];
+        $app = app();
+        $db = $app->db();
+        $db->beginTransaction();
+        try {
+            foreach ($payload['items'] as $index => $it) {
+                $warehouseId = (int)($it['warehouse_id'] ?? $payload['warehouse_id'] ?? 0);
+                $locationId = (int)($it['location_id'] ?? 0);
+                if ($locationId <= 0 && $warehouseId > 0) {
+                    $locationId = wmsResolveBridgeLocationId($warehouseId);
+                }
+
+                $itemIdempotencyKey = trim((string)($it['idempotency_key'] ?? ''));
+                if ($itemIdempotencyKey === '') {
+                    $baseIdempotencyKey = trim((string)($payload['idempotency_key'] ?? ''));
+                    if ($baseIdempotencyKey !== '') {
+                        $itemIdempotencyKey = $baseIdempotencyKey . ':release:' . ((int)$index + 1);
+                    }
+                }
+
+                $item = [
+                    'product_id' => (int)($it['product_id'] ?? 0),
+                    'warehouse_id' => $warehouseId,
+                    'location_id' => $locationId,
+                    'batch_id' => isset($it['batch_id']) ? (int)$it['batch_id'] : null,
+                    'qty' => wmsNormalizeDecimal($it['qty'] ?? 0),
+                    'reference_type' => (string)($payload['reference_type'] ?? 'reservation'),
+                    'reference_id' => isset($payload['reference_id']) ? (int)$payload['reference_id'] : null,
+                    'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
+                ];
+                if ($itemIdempotencyKey !== '') {
+                    $item['idempotency_key'] = $itemIdempotencyKey;
+                }
+                if ($item['product_id'] > 0 && $item['qty'] > 0) {
+                    $movementIds[] = wmsReleaseStock($item);
+                }
+            }
+            $db->commit();
+            return ['ok' => true, 'movement_ids' => $movementIds];
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            throw $e;
+        }
+    }
+
+    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+    $locationId = (int)($payload['location_id'] ?? 0);
+    if ($locationId <= 0 && $warehouseId > 0) {
+        $locationId = wmsResolveBridgeLocationId($warehouseId);
+    }
+
     $item = [
         'product_id' => (int)($payload['product_id'] ?? 0),
-        'warehouse_id' => (int)($payload['warehouse_id'] ?? 0),
-        'location_id' => (int)($payload['location_id'] ?? 0),
+        'warehouse_id' => $warehouseId,
+        'location_id' => $locationId,
         'batch_id' => isset($payload['batch_id']) ? (int)$payload['batch_id'] : null,
         'qty' => wmsNormalizeDecimal($payload['qty'] ?? 0),
         'reference_type' => (string)($payload['reference_type'] ?? 'reservation'),
         'reference_id' => isset($payload['reference_id']) ? (int)$payload['reference_id'] : null,
         'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
     ];
+    if (!empty($payload['idempotency_key'])) {
+        $item['idempotency_key'] = (string)$payload['idempotency_key'];
+    }
 
     return [
         'ok' => true,
         'movement_id' => wmsReleaseStock($item),
     ];
+}
+
+function wmsResolveBridgeLocationId(int $warehouseId): int
+{
+    $warehouseId = wmsRequirePositiveId($warehouseId, 'Warehouse ID');
+
+    $configuredLocationId = (int)wmsConfigGet('bridge.default_location_id', 0);
+    if ($configuredLocationId > 0) {
+        $configuredLocation = wmsFetchOne(
+            'SELECT id FROM wms_locations WHERE id = ? AND warehouse_id = ? AND is_active = 1 AND deleted_at IS NULL LIMIT 1',
+            [$configuredLocationId, $warehouseId]
+        );
+        if ($configuredLocation !== null) {
+            return (int)$configuredLocation['id'];
+        }
+    }
+
+    $location = wmsFetchOne(
+        'SELECT id FROM wms_locations WHERE warehouse_id = ? AND is_active = 1 AND deleted_at IS NULL AND type <> ? ORDER BY sort_order ASC, id ASC LIMIT 1',
+        [$warehouseId, 'staging']
+    );
+    if ($location !== null) {
+        return (int)$location['id'];
+    }
+
+    $fallback = wmsFetchOne(
+        'SELECT id FROM wms_locations WHERE warehouse_id = ? AND is_active = 1 AND deleted_at IS NULL ORDER BY sort_order ASC, id ASC LIMIT 1',
+        [$warehouseId]
+    );
+    if ($fallback !== null) {
+        return (int)$fallback['id'];
+    }
+
+    throw new RuntimeException('No active WMS location available for warehouse #' . $warehouseId . '.');
 }
 
 function wms_cap_wms_order_create_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array

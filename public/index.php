@@ -1396,27 +1396,87 @@ switch ($handler) {
             app()->redirect('/');
             exit;
         }
-        
+
         $db = app()->db();
         $integrations = $db->query('SELECT * FROM kernel_integrations ORDER BY created_at DESC')->fetchAll();
-        $logs = $db->query('SELECT l.*, i.name as integration_name FROM kernel_integration_logs l LEFT JOIN kernel_integrations i ON i.id = l.integration_id ORDER BY l.created_at DESC LIMIT 50')->fetchAll();
-        
+        $logs = $db->query('SELECT l.*, i.name as integration_name FROM kernel_integration_logs l LEFT JOIN kernel_integrations i ON i.id = l.integration_id ORDER BY l.created_at DESC LIMIT 100')->fetchAll();
+        $eventsRows = $db->query(
+            'SELECT module, event_key, description, available_vars FROM kernel_events ORDER BY module ASC, event_key ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($eventsRows as &$eventRow) {
+            if (!is_array($eventRow)) {
+                continue;
+            }
+            $eventRow['available_vars'] = !empty($eventRow['available_vars'])
+                ? (json_decode((string)$eventRow['available_vars'], true) ?: [])
+                : [];
+            $eventRow['available_vars_csv'] = !empty($eventRow['available_vars'])
+                ? implode(',', array_map(static fn($value): string => (string)$value, (array)$eventRow['available_vars']))
+                : '';
+        }
+        unset($eventRow);
+
+        $capabilityInspect = app()->capabilities()->inspectAll();
+        $capabilities = [];
+        foreach ($capabilityInspect as $capabilityId => $definition) {
+            if (is_string($capabilityId) && $capabilityId !== '') {
+                $capabilities[] = [
+                    'id' => $capabilityId,
+                    'label' => $capabilityId,
+                    'description' => is_array($definition) ? (string)($definition['description'] ?? '') : '',
+                ];
+                continue;
+            }
+            if (is_array($definition) && !empty($definition['id'])) {
+                $capabilities[] = [
+                    'id' => (string)$definition['id'],
+                    'label' => (string)($definition['label'] ?? $definition['id']),
+                    'description' => (string)($definition['description'] ?? ''),
+                ];
+            }
+        }
+        usort($capabilities, static fn(array $left, array $right): int => strcmp((string)$left['id'], (string)$right['id']));
+
         echo app()->render('pages/kernel-integrations.disyl', [
             'title' => 'Kernel Integrations',
             'user' => $user,
             'integrations' => $integrations,
-            'logs' => $logs
+            'logs' => $logs,
+            'bridge_events' => $eventsRows,
+            'bridge_capabilities' => $capabilities,
+            'csrf_token' => app()->csrfToken(),
         ]);
         exit;
     
     case 'apiKernelIntegrations':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->requireAuth();
         if (!in_array($user['role'] ?? '', ['admin', 'superadmin'], true) || ($user['source'] ?? '') !== 'kernel') {
-            app()->json(['ok' => false, 'error' => 'Forbidden'], 403);
+            app()->json(['ok' => false, 'error' => 'Forbidden', 'request_id' => request_id()], 403);
             exit;
         }
         $db = app()->db();
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        $bridgeAudit = static function (string $action, ?string $entityId = null, mixed $oldData = null, mixed $newData = null): void {
+            try {
+                app()->cap()->call('kernel.audit.record@1', [
+                    'module' => '_kernel',
+                    'action' => $action,
+                    'entity_type' => 'kernel_integration',
+                    'entity_id' => $entityId,
+                    'old_data' => $oldData,
+                    'new_data' => $newData,
+                ]);
+            } catch (Throwable $e) {
+                write_log('kernel integration audit failed: ' . $e->getMessage(), 'warning', [
+                    'module' => '_kernel',
+                    'action' => $action,
+                    'entity_id' => $entityId,
+                    'request_id' => request_id(),
+                ]);
+            }
+        };
 
         if ($method === 'GET') {
             $integrations = $db->query('SELECT * FROM kernel_integrations ORDER BY created_at DESC')->fetchAll();
@@ -1425,7 +1485,7 @@ switch ($handler) {
                 . 'LEFT JOIN kernel_integrations i ON i.id = l.integration_id '
                 . 'ORDER BY l.created_at DESC LIMIT 100'
             )->fetchAll();
-            app()->json(['ok' => true, 'integrations' => $integrations, 'logs' => $logs]);
+            app()->json(['ok' => true, 'integrations' => $integrations, 'logs' => $logs, 'request_id' => request_id()]);
             exit;
         }
 
@@ -1435,21 +1495,30 @@ switch ($handler) {
 
             if ($action === 'toggle') {
                 $id = (int)($input['id'] ?? 0);
-                if ($id <= 0) { app()->json(['ok' => false, 'error' => 'Missing id'], 400); exit; }
+                if ($id <= 0) { app()->json(['ok' => false, 'error' => 'Missing id', 'request_id' => request_id()], 400); exit; }
+                $existingStmt = $db->prepare('SELECT * FROM kernel_integrations WHERE id = ? LIMIT 1');
+                $existingStmt->execute([$id]);
+                $existing = $existingStmt->fetch();
+                if (!$existing) {
+                    app()->json(['ok' => false, 'error' => 'Bridge not found', 'request_id' => request_id()], 404);
+                    exit;
+                }
                 $stmt = $db->prepare('UPDATE kernel_integrations SET is_active = NOT is_active, updated_at = NOW() WHERE id = ?');
                 $stmt->execute([$id]);
-                app()->json(['ok' => true]);
+                $toggled = !empty($existing['is_active']) ? 0 : 1;
+                $bridgeAudit('kernel.integration.toggle', (string)$id, $existing, ['is_active' => $toggled]);
+                app()->json(['ok' => true, 'is_active' => $toggled, 'request_id' => request_id()]);
                 exit;
             }
 
             if ($action === 'promote') {
                 // Convert a bridge to a full EventTrigger rule
                 $id = (int)($input['id'] ?? 0);
-                if ($id <= 0) { app()->json(['ok' => false, 'error' => 'Missing id'], 400); exit; }
+                if ($id <= 0) { app()->json(['ok' => false, 'error' => 'Missing id', 'request_id' => request_id()], 400); exit; }
                 $row = $db->prepare('SELECT * FROM kernel_integrations WHERE id = ?');
                 $row->execute([$id]);
                 $intg = $row->fetch();
-                if (!$intg) { app()->json(['ok' => false, 'error' => 'Bridge not found'], 404); exit; }
+                if (!$intg) { app()->json(['ok' => false, 'error' => 'Bridge not found', 'request_id' => request_id()], 404); exit; }
 
                 // Build Disyl-style template from mapping_json dot-notation
                 $mapping = json_decode((string)($intg['mapping_json'] ?? '{}'), true) ?: [];
@@ -1483,67 +1552,116 @@ switch ($handler) {
                         // Mark original bridge with event_source=promoted so it's visually distinguishable
                         $db->prepare('UPDATE kernel_integrations SET event_source = ?, updated_at = NOW() WHERE id = ?')
                            ->execute(['promoted', $id]);
-                        app()->json(['ok' => true, 'trigger_id' => $result['id'] ?? null]);
+                        $bridgeAudit('kernel.integration.promote', (string)$id, $intg, ['event_source' => 'promoted', 'trigger_id' => $result['id'] ?? null]);
+                        app()->json(['ok' => true, 'trigger_id' => $result['id'] ?? null, 'request_id' => request_id()]);
                     } else {
-                        app()->json(['ok' => false, 'error' => $result['error'] ?? 'Failed to save trigger'], 500);
+                        app()->json(['ok' => false, 'error' => $result['error'] ?? 'Failed to save trigger', 'request_id' => request_id()], 500);
                     }
                 } else {
-                    app()->json(['ok' => false, 'error' => 'kernelTriggerSave not available'], 500);
+                    app()->json(['ok' => false, 'error' => 'kernelTriggerSave not available', 'request_id' => request_id()], 500);
                 }
                 exit;
             }
 
             // Default: create new bridge
             if (!isset($input['name'], $input['trigger_event'], $input['target_capability'], $input['mapping_json'])) {
-                app()->json(['ok' => false, 'error' => 'Missing required fields (name, trigger_event, target_capability, mapping_json)'], 400);
+                app()->json(['ok' => false, 'error' => 'Missing required fields (name, trigger_event, target_capability, mapping_json)', 'request_id' => request_id()], 400);
                 exit;
             }
 
+            $name = trim((string)$input['name']);
+            $triggerEvent = trim((string)$input['trigger_event']);
+            $targetCap = trim((string)$input['target_capability']);
+            if ($name === '' || $triggerEvent === '' || $targetCap === '') {
+                app()->json(['ok' => false, 'error' => 'Name, trigger_event, and target_capability must be non-empty.', 'request_id' => request_id()], 422);
+                exit;
+            }
+
+            $mappingInput = $input['mapping_json'];
+            if (is_string($mappingInput)) {
+                $mappingJson = trim($mappingInput);
+                $decodedMapping = json_decode($mappingJson, true);
+            } elseif (is_array($mappingInput)) {
+                $decodedMapping = $mappingInput;
+                $mappingJson = json_encode($mappingInput, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            } else {
+                $decodedMapping = null;
+                $mappingJson = '';
+            }
+
             // Phase 3 — validate mapping_json is valid JSON
-            json_decode($input['mapping_json']);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                app()->json(['ok' => false, 'error' => 'mapping_json is not valid JSON'], 400);
+            if (!is_array($decodedMapping) || $mappingJson === '') {
+                app()->json(['ok' => false, 'error' => 'mapping_json must be a valid JSON object.', 'request_id' => request_id()], 400);
                 exit;
             }
 
             // Phase 3 — capability existence check at creation time (fail-fast)
-            $targetCap = (string)$input['target_capability'];
             $resolvedCap = app()->capabilities()->resolve($targetCap);
             if (!app()->capabilities()->has($resolvedCap)) {
-                app()->json(['ok' => false, 'error' => 'Capability not registered: ' . $targetCap . '. Ensure the module is enabled and has booted.'], 422);
+                app()->json(['ok' => false, 'error' => 'Capability not registered: ' . $targetCap . '. Ensure the module is enabled and has booted.', 'request_id' => request_id()], 422);
+                exit;
+            }
+
+            $duplicateStmt = $db->prepare('SELECT id FROM kernel_integrations WHERE trigger_event = ? AND target_capability = ? LIMIT 1');
+            $duplicateStmt->execute([$triggerEvent, $targetCap]);
+            $existingId = (int)($duplicateStmt->fetchColumn() ?: 0);
+            if ($existingId > 0) {
+                app()->json(['ok' => false, 'error' => 'A bridge for this event and capability already exists.', 'id' => $existingId, 'request_id' => request_id()], 409);
                 exit;
             }
 
             $versionLock = (string)($input['version_lock'] ?? '');
             $eventSource = (string)($input['event_source'] ?? 'eventbus');
 
-            $stmt = $db->prepare(
-                'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) '
-                . 'VALUES (?, ?, ?, ?, ?, ?, ?)'
-            );
-            $stmt->execute([
-                $input['name'],
-                $input['trigger_event'],
-                $targetCap,
-                $input['mapping_json'],
-                isset($input['is_active']) ? (int)$input['is_active'] : 1,
-                $eventSource,
-                $versionLock !== '' ? $versionLock : null,
+            try {
+                $stmt = $db->prepare(
+                    'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) '
+                    . 'VALUES (?, ?, ?, ?, ?, ?, ?)'
+                );
+                $stmt->execute([
+                    $name,
+                    $triggerEvent,
+                    $targetCap,
+                    $mappingJson,
+                    isset($input['is_active']) ? (int)$input['is_active'] : 1,
+                    $eventSource,
+                    $versionLock !== '' ? $versionLock : null,
+                ]);
+            } catch (Throwable $e) {
+                $message = str_contains(strtolower($e->getMessage()), 'duplicate') || str_contains(strtolower($e->getMessage()), 'unique')
+                    ? 'A bridge for this event and capability already exists.'
+                    : 'Failed to create bridge.';
+                app()->json(['ok' => false, 'error' => $message, 'request_id' => request_id()], 409);
+                exit;
+            }
+            $newId = (int)$db->lastInsertId();
+            $bridgeAudit('kernel.integration.create', (string)$newId, null, [
+                'name' => $name,
+                'trigger_event' => $triggerEvent,
+                'target_capability' => $targetCap,
+                'event_source' => $eventSource,
+                'version_lock' => $versionLock !== '' ? $versionLock : null,
             ]);
-            app()->json(['ok' => true, 'id' => (int)$db->lastInsertId()]);
+            app()->json(['ok' => true, 'id' => $newId, 'request_id' => request_id()]);
             exit;
         }
 
         if ($method === 'DELETE') {
             $id = (int)($_GET['id'] ?? 0);
             if ($id > 0) {
+                $existingStmt = $db->prepare('SELECT * FROM kernel_integrations WHERE id = ? LIMIT 1');
+                $existingStmt->execute([$id]);
+                $existing = $existingStmt->fetch();
                 $db->prepare('DELETE FROM kernel_integrations WHERE id = ?')->execute([$id]);
+                if ($existing) {
+                    $bridgeAudit('kernel.integration.delete', (string)$id, $existing, null);
+                }
             }
-            app()->json(['ok' => true]);
+            app()->json(['ok' => true, 'request_id' => request_id()]);
             exit;
         }
 
-        app()->json(['ok' => false, 'error' => 'Method not allowed'], 405);
+        app()->json(['ok' => false, 'error' => 'Method not allowed', 'request_id' => request_id()], 405);
         exit;
 
     case 'pageSuperadminSettings':

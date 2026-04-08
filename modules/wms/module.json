@@ -157,6 +157,13 @@
             "type": "select",
             "label": "Default Picking Strategy",
             "default": "fefo"
+        },
+        {
+            "key": "bridge.default_location_id",
+            "type": "number",
+            "label": "Bridge Default Location ID",
+            "default": "0",
+            "description": "Optional fallback location used when bridge-triggered reserve/release payloads specify a warehouse but no location."
         }
     ],
     "nav": [

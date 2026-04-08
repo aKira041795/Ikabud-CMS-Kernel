@@ -74,6 +74,7 @@ function ecOrderCreate(array $data): array
         $orderId = (int)$db->lastInsertId();
 
         // Insert order items
+        $wmsAuthorityActive = ecUsesWmsStockAuthority();
         if (!empty($data['cart_items'])) {
             $itemValues = [];
             $itemParams = [];
@@ -94,8 +95,10 @@ function ecOrderCreate(array $data): array
                     round($unitPrice * $qty, 2),
                     $item['variant_label'] ?? null
                 );
-                // Decrement stock
-                ecProductDecrementStock((int)$item['product_id'], $qty);
+                // WMS becomes the stock authority once the order-created bridge is active.
+                if (!$wmsAuthorityActive) {
+                    ecProductDecrementStock((int)$item['product_id'], $qty);
+                }
             }
             if ($itemValues) {
                 $db->execute(
@@ -104,6 +107,8 @@ function ecOrderCreate(array $data): array
                 );
             }
         }
+
+        $bridgeSnapshot = ecBuildOrderBridgeSnapshot($orderId, $data, $source);
 
         // Insert address meta
         $addressFields = ['billing_first_name', 'billing_last_name', 'billing_email',
@@ -128,6 +133,7 @@ function ecOrderCreate(array $data): array
         if (!empty($data['shipping_rate_id'])) {
             $meta['shipping_rate_id'] = $data['shipping_rate_id'];
         }
+        $meta['integration_bridge_snapshot'] = json_encode($bridgeSnapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         $metaValues = [];
         $metaParams = [];
@@ -171,27 +177,16 @@ function ecOrderCreate(array $data): array
 
     // Fire event
     try {
-        $eventItems = [];
-        if (!empty($data['cart_items'])) {
-            foreach ($data['cart_items'] as $item) {
-                // Format for WMS stock reserve integration map
-                $eventItems[] = [
-                    'product_id'   => (int)$item['product_id'],
-                    'qty'          => max(1, (int)($item['qty'] ?? 1)),
-                    'warehouse_id' => 1 // simplified assumption or config
-                ];
-            }
-        }
+        $eventIdempotencyKey = ecOrderEventIdempotencyKey($orderId, 'created');
         app()->events()->fire('ecommerce.order.created', [
             'order_id'       => $orderId,
             'order_number'   => $orderNumber,
             'customer_email' => $data['guest_email'] ?? ($data['billing']['email'] ?? ''),
             'total'          => (float)($data['total'] ?? 0),
             'source'         => $source,
-            'order'          => [
-                'id'    => $orderId,
-                'items' => $eventItems
-            ]
+            'actor_user_id'  => isset($data['placed_by_user_id']) ? (int)$data['placed_by_user_id'] : null,
+            'idempotency_key' => $eventIdempotencyKey,
+            'order'          => $bridgeSnapshot,
         ]);
     } catch (\Throwable $e) {
         write_log('ecommerce.order.created event error: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
@@ -202,6 +197,106 @@ function ecOrderCreate(array $data): array
         'order_number'       => $orderNumber,
         'confirmation_token' => $token,
     ];
+}
+
+function ecUsesWmsStockAuthority(): bool
+{
+    return \Ikabud\Kernel\IntegrationBridge::hasActiveBridge('ecommerce.order.created', 'wms.stock.reserve@1');
+}
+
+function ecOrderEventIdempotencyKey(int $orderId, string $suffix): string
+{
+    return 'order_' . $orderId . '_' . trim($suffix);
+}
+
+function ecBuildOrderBridgeSnapshot(int $orderId, array $data, string $source): array
+{
+    return [
+        'id' => $orderId,
+        'warehouse_id' => ecResolveOrderWarehouseId($data),
+        'items' => ecBuildOrderEventItems($data),
+        'source' => $source,
+        'actor_user_id' => isset($data['placed_by_user_id']) ? (int)$data['placed_by_user_id'] : null,
+    ];
+}
+
+function ecOrderBridgeSnapshot(array $order): array
+{
+    $raw = (string)($order['meta']['integration_bridge_snapshot'] ?? '');
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            if (!isset($decoded['id'])) {
+                $decoded['id'] = (int)($order['id'] ?? 0);
+            }
+            if (!isset($decoded['items']) || !is_array($decoded['items'])) {
+                $decoded['items'] = [];
+            }
+            if (!array_key_exists('warehouse_id', $decoded)) {
+                $decoded['warehouse_id'] = 0;
+            }
+            if (!isset($decoded['source'])) {
+                $decoded['source'] = (string)($order['source'] ?? 'web');
+            }
+
+            return $decoded;
+        }
+    }
+
+    return [
+        'id' => (int)($order['id'] ?? 0),
+        'warehouse_id' => (int)ecSettings('default_wms_warehouse_id', 0),
+        'items' => ecBuildOrderEventItems([
+            'cart_items' => (array)($order['items'] ?? []),
+            'warehouse_id' => (int)ecSettings('default_wms_warehouse_id', 0),
+        ]),
+        'source' => (string)($order['source'] ?? 'web'),
+        'actor_user_id' => isset($order['placed_by_user_id']) ? (int)$order['placed_by_user_id'] : null,
+    ];
+}
+
+function ecResolveOrderWarehouseId(array $data): int
+{
+    if (isset($data['warehouse_id']) && (int)$data['warehouse_id'] > 0) {
+        return (int)$data['warehouse_id'];
+    }
+
+    foreach ((array)($data['cart_items'] ?? []) as $item) {
+        if ((int)($item['warehouse_id'] ?? 0) > 0) {
+            return (int)$item['warehouse_id'];
+        }
+    }
+
+    return (int)ecSettings('default_wms_warehouse_id', 0);
+}
+
+function ecBuildOrderEventItems(array $data): array
+{
+    $orderWarehouseId = ecResolveOrderWarehouseId($data);
+    $eventItems = [];
+
+    foreach ((array)($data['cart_items'] ?? []) as $item) {
+        $warehouseId = (int)($item['warehouse_id'] ?? $orderWarehouseId);
+        $eventItem = [
+            'product_id' => (int)($item['product_id'] ?? 0),
+            'qty' => max(1, (int)($item['qty'] ?? 1)),
+            'warehouse_id' => $warehouseId,
+        ];
+
+        if ((int)($item['location_id'] ?? 0) > 0) {
+            $eventItem['location_id'] = (int)$item['location_id'];
+        }
+        if (!empty($item['batch_id'])) {
+            $eventItem['batch_id'] = (int)$item['batch_id'];
+        }
+        if (!empty($item['sku'])) {
+            $eventItem['sku'] = (string)$item['sku'];
+        }
+
+        $eventItems[] = $eventItem;
+    }
+
+    return $eventItems;
 }
 
 function ecOrderHydrateData(array $order): array
@@ -428,7 +523,16 @@ function ecOrderUpdateStatus(int $orderId, string $newStatus, ?string $note = nu
     };
     if ($eventKey) {
         try {
-            app()->events()->fire($eventKey, ['order_id' => $orderId, 'order_number' => $order['order_number']]);
+            $eventPayload = ['order_id' => $orderId, 'order_number' => $order['order_number']];
+            if ($newStatus === 'cancelled') {
+                $bridgeSnapshot = ecOrderBridgeSnapshot($order);
+                $eventPayload['idempotency_key'] = ecOrderEventIdempotencyKey($orderId, 'cancelled');
+                $eventPayload['customer_email'] = (string)($order['customer_email'] ?? $order['guest_email'] ?? '');
+                $eventPayload['source'] = (string)($bridgeSnapshot['source'] ?? $order['source'] ?? 'web');
+                $eventPayload['actor_user_id'] = $bridgeSnapshot['actor_user_id'] ?? null;
+                $eventPayload['order'] = $bridgeSnapshot;
+            }
+            app()->events()->fire($eventKey, $eventPayload);
         } catch (\Throwable $e) {}
     }
 

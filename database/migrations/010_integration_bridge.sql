@@ -24,5 +24,7 @@ CREATE TABLE IF NOT EXISTS kernel_integration_logs (
 
 -- v2 additions: origin tracking and capability version guard
 ALTER TABLE kernel_integrations
-    ADD COLUMN IF NOT EXISTS event_source VARCHAR(30) NOT NULL DEFAULT 'eventbus' AFTER is_active,
-    ADD COLUMN IF NOT EXISTS version_lock VARCHAR(255) DEFAULT NULL AFTER event_source;
+    ADD COLUMN event_source VARCHAR(30) NOT NULL DEFAULT 'eventbus' AFTER is_active;
+
+ALTER TABLE kernel_integrations
+    ADD COLUMN version_lock VARCHAR(255) DEFAULT NULL AFTER event_source;
