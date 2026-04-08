@@ -1,7 +1,5 @@
 <?php
-
 declare(strict_types=1);
-
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/handlers/00-bootstrap.php';
 require_once __DIR__ . '/handlers/05-auth.php';
@@ -16,3 +14,6 @@ require_once __DIR__ . '/handlers/80-api-tasks.php';
 require_once __DIR__ . '/handlers/90-api-intelligence.php';
 require_once __DIR__ . '/handlers/100-api-production.php';
 require_once __DIR__ . '/handlers/110-api-events.php';
+require_once __DIR__ . '/handlers/120-api-configs.php';
+require_once __DIR__ . '/handlers/130-api-onboarding.php';
+require_once __DIR__ . '/handlers/140-api-diagnostics.php';

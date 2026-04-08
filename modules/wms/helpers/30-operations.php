@@ -95,7 +95,7 @@ function wmsOrderGeneratePickList(int $orderId): array
         throw new RuntimeException('Pick lists can only be generated for pending orders.');
     }
 
-    $strategy = strtolower((string)(wmsSettings()['picking_strategy'] ?? 'fefo'));
+    $strategy = strtolower((string)wmsConfigGet('picking.default_strategy', 'fefo'));
     $items = wmsFetchAll('SELECT * FROM wms_order_items WHERE order_id = ? ORDER BY id ASC', [$orderId]);
     $result = [];
 

@@ -44,9 +44,9 @@ The WMS architecture has successfully crossed the threshold from an internal sys
 
 The next phase deliberately pauses new "features" to prioritize transforming the module into a **Zero-Touch, Scalable Platform** ready for real-world enterprise adoption:
 
-*   **Tenant Onboarding Engine (Day 0)**: Developing a streamlined setup wizard so businesses can create warehouses, auto-generate hierarchical bin locations, CSV-import their products, establish initial stock levels, and customize rules painlessly.
-*   **Granular Configuration Layer (`wms_configs`)**: Abstracting all hard-coded logic into tenant-level settings. Admins will freely toggle picking strategies, negative stock policies, auto-replenishment behavior, and default quarantine routing.
-*   **Observability & Debugging Tooling**: Equipping support staff and administrators with internal diagnostics, such as a **Movement Trace Viewer** ("How did this stock drop to 42?") and a **Reservation Inspector** ("Which pending order is currently holding this item?").
+*   **Tenant Onboarding Engine (Day 0) (Completed)**: A streamlined setup wizard (`/wms/onboarding`) so businesses can initialize their environments seamlessly.
+*   **Granular Configuration Layer (`wms_configs`) (Completed)**: Abstracted all hard-coded logic into tenant-level settings (handled via `wmsConfigGet()`/`wmsConfigSet()`). Admins will freely toggle picking strategies, negative stock policies, auto-replenishment behavior, and default quarantine routing.
+*   **Observability & Debugging Tooling (Completed)**: Equipped administrators with internal diagnostics (`/wms/diagnostics`), including a **Movement Trace Viewer** and an active **Reservation Inspector**.
 *   **Financial Extension (Costing & POs)**: Introducing the Financial & Business Layer to calculate live inventory valuation (FIFO/Moving Average) and closing the supply loop with a robust `purchase_orders` workflow that translates replenishment suggestions into inbound deliveries.
 *   **Ecosystem Orchestration via Contracts**: Publishing strict capability contracts (`wms.stock.query@1`, `wms.stock.reserve@1`) enabling external Point of Sale (POS) and Ecommerce modules to rely on the WMS as the definitive inventory authority.
 

@@ -159,8 +159,7 @@ function wmsMovementsList(array $filters = []): array
 
 function wmsLowStockItems(int $warehouseId = 0, ?int $threshold = null): array
 {
-    $settings = wmsSettings();
-    $threshold = $threshold ?? (int)($settings['low_stock_threshold'] ?? 10);
+    $threshold = $threshold ?? wmsConfigGet('low_stock_threshold', 10);
     if ($threshold < 0) {
         $threshold = 0;
     }
@@ -250,8 +249,7 @@ function wmsMovementCreate(array $data): int
             throw new RuntimeException('Batch ID is required for batch-tracked product movements.');
         }
 
-        $settings = wmsSettings();
-        $allowNegative = (bool)($settings['allow_negative_stock'] ?? false);
+        $allowNegative = (bool)wmsConfigGet('system.allow_negative_stock', false);
 
         // Ensure stock row exists before locking
         wmsEnsureStockRow($productId, $warehouseId, $locationId, $batchId);

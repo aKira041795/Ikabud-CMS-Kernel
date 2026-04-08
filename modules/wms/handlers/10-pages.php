@@ -151,3 +151,20 @@ function wmsPageUsers(array $params = []): void
         'users' => wmsFetchAll('SELECT id, username, email, full_name, role, is_active, created_at FROM wms_users ORDER BY full_name ASC'),
     ]));
 }
+
+
+function wmsPageOnboarding(array $params = []): void
+{
+    $user = wmsRequireStaff(['admin']);
+    echo wmsRender('admin/onboarding.disyl', wmsAdminContext($user, 'onboarding', [
+        'page_title' => 'WMS Onboarding',
+    ]));
+}
+
+function wmsPageDiagnostics(array $params = []): void
+{
+    $user = wmsRequireStaff(['admin', 'supervisor']);
+    echo wmsRender('admin/diagnostics.disyl', wmsAdminContext($user, 'diagnostics', [
+        'page_title' => 'Diagnostics & Observability',
+    ]));
+}

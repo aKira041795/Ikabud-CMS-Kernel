@@ -239,6 +239,38 @@ function wmsSettings(): array
     return array_merge($defaults, $settings);
 }
 
+
+function wmsConfigGet(string $key, mixed $default = null): mixed
+{
+    $row = wmsFetchOne('SELECT config_value FROM wms_configs WHERE config_key = ? LIMIT 1', [$key]);
+    if ($row !== null && isset($row['config_value'])) {
+        $val = json_decode($row['config_value'], true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $val;
+        }
+    }
+    return $default;
+}
+
+function wmsConfigSet(string $key, mixed $value, ?string $description = null): void
+{
+    $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+    $db = wmsDb();
+    if ($description !== null) {
+        $db->execute(
+            'INSERT INTO wms_configs (config_key, config_value, description) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE config_value = VALUES(config_value), description = VALUES(description)',
+            [$key, $json, $description]
+        );
+    } else {
+        $db->execute(
+            'INSERT INTO wms_configs (config_key, config_value) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE config_value = VALUES(config_value)',
+            [$key, $json]
+        );
+    }
+}
+
 function wmsNormalizeDecimal(mixed $value, int $precision = 4): float
 {
     return round((float)$value, $precision);
