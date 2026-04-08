@@ -1103,8 +1103,8 @@ Leveraging the data model for physical efficiency.
 - **Pick Path Routing:** Optimize pick lists to calculate the shortest path across bins (leveraging location code hierarchy).
 - **Simple Forecasting:** Introduce 7–30 day moving averages to predict demand, feeding directly into internal replenishment suggestions.
 
-### Phase 5 — Production & Assembly Integration (Pending)
-*Note: Pending integration with the Daily Ledger module and specific operational use cases.*
+### Phase 5 — Production & Assembly Integration
+
 - **Entity Expansion:** Introduce `wms_recipes` and `wms_production_orders`.
 - **BOM (Bill of Materials) Consumption:** Auto-deduct raw materials/ingredients via `OUT` movements and record finished goods via `IN` movements.
 - **Expiry-Aware Production:** Enforce strict FEFO logic specifically for production consumption (e.g., consuming near-expiry raw materials first).

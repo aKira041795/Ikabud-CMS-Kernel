@@ -24,6 +24,10 @@
         "wms_return_items",
         "wms_idempotency_keys",
         "wms_tasks",
+        "wms_recipes",
+        "wms_recipe_items",
+        "wms_production_orders",
+        "wms_production_materials",
         "audit_logs",
         "rate_limits"
     ],
@@ -44,7 +48,8 @@
         "database/migrations/011_wms_suppliers.sql",
         "database/migrations/012_wms_returns.sql",
         "database/migrations/013_wms_hardening.sql",
-        "database/migrations/014_wms_phase2.sql"
+        "database/migrations/014_wms_phase2.sql",
+        "database/migrations/015_wms_phase5_production.sql"
     ],
     "events": [
         {
