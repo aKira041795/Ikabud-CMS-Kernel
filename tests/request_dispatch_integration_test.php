@@ -37,11 +37,13 @@ function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string
     $hook = $hookCode ?? '';
 
     $script = "<?php\n"
-        . "require {$bootstrap};\n"
         . "foreach ({$serverExport} as \$key => \$value) { \$_SERVER[(string) \$key] = \$value; }\n"
         . "if (!isset(\$_SERVER['REQUEST_METHOD'])) { \$_SERVER['REQUEST_METHOD'] = 'GET'; }\n"
         . "if (!isset(\$_SERVER['REQUEST_URI'])) { \$_SERVER['REQUEST_URI'] = '/'; }\n"
         . "if (!isset(\$_SERVER['HTTP_HOST'])) { \$_SERVER['HTTP_HOST'] = 'applicationos.test'; }\n"
+        . "\$_SERVER['SCRIPT_NAME'] = '/public/index.php';\n"
+        . "\$_SERVER['PHP_SELF'] = '/public/index.php';\n"
+        . "require {$bootstrap};\n"
         . "\$user = {$userExport};\n"
         . "if (is_array(\$user)) { app()->setUser(\$user); }\n"
         . $hook . "\n"
@@ -175,6 +177,76 @@ t(
     'public entrypoint redirects authenticated CMS users away from CMS login',
     ($cmsLoginRedirect['context']['redirect'] ?? '') === '/cms/admin',
     json_encode($cmsLoginRedirect['context'])
+);
+
+$kernelIntegrationsPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/kernel/integrations',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    [
+        'id' => 1,
+        'username' => 'root',
+        'name' => 'Root User',
+        'role' => 'superadmin',
+        'source' => 'kernel',
+    ]
+);
+t(
+    'kernel integrations page renders for kernel superadmin without fatal errors',
+    ($kernelIntegrationsPage['exit_code'] ?? 1) === 0
+        && str_contains($kernelIntegrationsPage['body'] ?? '', 'Integration Bridge')
+        && !str_contains($kernelIntegrationsPage['body'] ?? '', 'Page not found'),
+    $kernelIntegrationsPage['raw']
+);
+t(
+    'kernel integrations page includes a rendered CSRF token for JS requests',
+    preg_match("/X-CSRF-Token': '[a-f0-9]{64}'/", $kernelIntegrationsPage['body'] ?? '') === 1,
+    $kernelIntegrationsPage['body'] ?? ''
+);
+
+$kernelIntegrationsDeleteNoCsrf = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'DELETE',
+        'REQUEST_URI' => '/api/v1/kernel/integrations?id=0',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    [
+        'id' => 1,
+        'username' => 'root',
+        'name' => 'Root User',
+        'role' => 'superadmin',
+        'source' => 'kernel',
+    ]
+);
+t(
+    'kernel integrations API rejects mutating requests without CSRF token',
+    str_contains($kernelIntegrationsDeleteNoCsrf['body'] ?? '', 'Invalid CSRF token'),
+    $kernelIntegrationsDeleteNoCsrf['raw']
+);
+
+$kernelIntegrationsDeleteWithCsrf = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'DELETE',
+        'REQUEST_URI' => '/api/v1/kernel/integrations?id=0',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    [
+        'id' => 1,
+        'username' => 'root',
+        'name' => 'Root User',
+        'role' => 'superadmin',
+        'source' => 'kernel',
+    ],
+    <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP
+);
+t(
+    'kernel integrations API accepts mutating requests with valid CSRF token',
+    str_contains($kernelIntegrationsDeleteWithCsrf['body'] ?? '', '"ok":true'),
+    $kernelIntegrationsDeleteWithCsrf['raw']
 );
 
 $entrypointSource = (string)file_get_contents(__DIR__ . '/../public/index.php');

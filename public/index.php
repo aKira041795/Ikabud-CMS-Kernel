@@ -453,7 +453,9 @@ $routes = [
         '/api/v1/admin/tenants/admin-email' => 'apiTenantAdminEmailPush',
     ],
     'PUT' => [],
-    'DELETE' => [],
+    'DELETE' => [
+        '/api/v1/kernel/integrations' => 'apiKernelIntegrations',
+    ],
 ];
 
 // Batch-load all tenant module settings in 1 query (avoids N+1 per module)
@@ -1487,6 +1489,10 @@ switch ($handler) {
             )->fetchAll();
             app()->json(['ok' => true, 'integrations' => $integrations, 'logs' => $logs, 'request_id' => request_id()]);
             exit;
+        }
+
+        if (in_array($method, ['POST', 'DELETE'], true)) {
+            app()->csrfEnforce();
         }
 
         if ($method === 'POST') {
