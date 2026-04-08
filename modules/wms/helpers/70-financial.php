@@ -15,7 +15,7 @@ function wmsCalculateInventoryValuation(int $productId = 0): array
         $params[] = $productId;
     }
 
-    $products = $db->fetchAll(
+    $products = wmsFetchAll(
         "SELECT p.id, p.sku, p.name, SUM(s.qty_on_hand) AS total_qty
          FROM wms_products p
          JOIN wms_stocks s ON s.product_id = p.id
@@ -35,15 +35,15 @@ function wmsCalculateInventoryValuation(int $productId = 0): array
             if ($method === 'MAC') {
                 // Simplified Moving Average Cost: Average of all 'in' unit costs for this product
                 // In a perfect ledger, MAC is computed incrementally, but for a fast approximation:
-                $avgCost = (float)$db->fetchColumn(
+                $avgCost = (float)($db->query(
                     "SELECT AVG(unit_cost) FROM wms_movements 
                      WHERE product_id = ? AND qty > 0 AND unit_cost IS NOT NULL AND unit_cost > 0",
                     [$p['id']]
-                ) ?: 0.0;
+                )->fetchColumn() ?: 0.0);
                 $val = $qty * $avgCost;
             } else {
                 // FIFO (Default): Roll forward through 'in' movements until we cover total_qty on hand
-                $inbound = $db->fetchAll(
+                $inbound = wmsFetchAll(
                     "SELECT qty, unit_cost FROM wms_movements 
                      WHERE product_id = ? AND qty > 0 AND unit_cost IS NOT NULL AND unit_cost > 0
                      ORDER BY created_at DESC", // Actually we need newest stock to represent what's "on hand" in FIFO
@@ -141,7 +141,11 @@ function wmsPurchaseOrderSubmit(int $poId, int $actorId): int
     if (!$po || $po['deleted_at']) throw new RuntimeException('PO not found');
     if ($po['status'] !== 'draft') throw new RuntimeException('Only draft POs can be submitted');
 
-    $items = $db->fetchAll('SELECT * FROM wms_purchase_order_items WHERE purchase_order_id = ?', [$poId]);
+    $items = wmsFetchAll('SELECT * FROM wms_purchase_order_items WHERE purchase_order_id = ?', [$poId]);
+    $supplier = wmsFetchOne('SELECT id, name FROM wms_suppliers WHERE id = ? AND deleted_at IS NULL LIMIT 1', [(int)$po['supplier_id']]);
+    if ($supplier === null) {
+        throw new RuntimeException('Supplier not found for purchase order.');
+    }
     
     $db->beginTransaction();
     try {
@@ -150,12 +154,15 @@ function wmsPurchaseOrderSubmit(int $poId, int $actorId): int
         // Create an expected Inbound Delivery for this PO automatically
         $referenceNumber = 'PO-' . str_pad((string)$poId, 6, '0', STR_PAD_LEFT);
         $db->execute(
-            'INSERT INTO wms_deliveries (reference_number, warehouse_id, supplier_id, status, expected_at, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
-            [$referenceNumber, $po['warehouse_id'], $po['supplier_id'], 'pending', $po['expected_delivery_date'], 'Auto-generated from PO #' . $poId, $actorId]
+            'INSERT INTO wms_deliveries (reference_number, supplier_name, supplier_id, warehouse_id, status, expected_at, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+            [$referenceNumber, $supplier['name'], $po['supplier_id'], $po['warehouse_id'], 'pending', $po['expected_delivery_date'], 'Auto-generated from PO #' . $poId, $actorId]
         );
         $deliveryId = (int)$db->lastInsertId();
 
-        $defaultLocationId = (int)$db->fetchColumn('SELECT id FROM wms_locations WHERE warehouse_id = ? AND deleted_at IS NULL ORDER BY is_active DESC, code ASC LIMIT 1', [$po['warehouse_id']]);
+        $defaultLocationId = (int)($db->query('SELECT id FROM wms_locations WHERE warehouse_id = ? AND deleted_at IS NULL ORDER BY is_active DESC, code ASC LIMIT 1', [$po['warehouse_id']])->fetchColumn() ?: 0);
+        if ($defaultLocationId <= 0) {
+            throw new RuntimeException('No active location found for the selected warehouse.');
+        }
         
         foreach ($items as $item) {
             $db->execute(

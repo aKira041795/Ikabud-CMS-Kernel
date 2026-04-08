@@ -29,7 +29,7 @@
 
     <!-- Main Content Area -->
     <main class="flex-1 overflow-y-auto p-4 relative">
-        {content}
+        {content|raw}
     </main>
 
     <!-- Bottom Nav Bar -->
@@ -69,7 +69,7 @@
             <input type="text" id="wedgeInput" x-effect="if(scanning) setTimeout(() => document.getElementById('wedgeInput').focus(), 100)"
                 class="bg-slate-800 text-white border border-slate-700 rounded px-4 py-3 w-full max-w-sm text-center text-xl tracking-widest focus:ring-2 focus:ring-green-500 focus:outline-none" 
                 placeholder="Or type barcode..." 
-                onkeydown="if(event.key === 'Enter') { window.handleScan(this.value); this.value = ''; scanning = false; }">
+                @keydown.enter.prevent="if ($event.target.value.trim() !== '') { window.handleScan($event.target.value.trim()); } $event.target.value = ''; scanning = false">
                 
             <p class="mt-4 text-slate-400 text-sm">Hardware wedge scanners emit an 'Enter' keypress automatically.</p>
         </div>

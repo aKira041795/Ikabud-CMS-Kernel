@@ -1,0 +1,137 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="max-w-5xl mx-auto space-y-6" id="wmsOnboardingRoot" data-status-url="{base_url}/api/v1/wms/onboarding/status" data-complete-url="{base_url}/api/v1/wms/onboarding/complete">
+    <section class="rounded-2xl border border-slate-200 bg-white p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+                <div class="text-2xl font-semibold text-slate-900">Tenant Onboarding</div>
+                <p class="mt-2 max-w-2xl text-sm text-slate-600">Use this checklist to confirm the warehouse basics are in place before operations go live. The goal is a clean Day 0: warehouse, catalog, locations, and rules visible before the first receipt or pick.</p>
+            </div>
+            <button id="markOnboardingCompleteBtn" class="rounded-xl bg-wms-600 px-4 py-2 text-sm font-medium text-white hover:bg-wms-700">Mark Setup Complete</button>
+        </div>
+    </section>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-600">Warehouses</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-900">{warehouse_count}</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-600">Products</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-900">{product_count}</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-600">Locations</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-900">{location_count}</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <a href="{base_url}/wms/receiving" class="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-wms-300 hover:shadow-sm">
+            <div class="text-sm font-semibold text-slate-900">Inbound Setup</div>
+            <div class="mt-2 text-sm text-slate-600">Create the first warehouse, register initial receipts, and validate receiving paths.</div>
+        </a>
+        <a href="{base_url}/wms/inventory" class="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-wms-300 hover:shadow-sm">
+            <div class="text-sm font-semibold text-slate-900">Catalog + Locations</div>
+            <div class="mt-2 text-sm text-slate-600">Add products, locations, and stock layers before enabling live operational work.</div>
+        </a>
+        <a href="{base_url}/wms/settings" class="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-wms-300 hover:shadow-sm">
+            <div class="text-sm font-semibold text-slate-900">Rules + Strategy</div>
+            <div class="mt-2 text-sm text-slate-600">Review picking strategy, low-stock thresholds, and putaway rules for the tenant.</div>
+        </a>
+    </div>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+                <div class="text-lg font-semibold text-slate-900">Readiness Checklist</div>
+                <div class="text-sm text-slate-600">This status is backed by live tenant data, not static setup flags.</div>
+            </div>
+            <button id="refreshOnboardingStatusBtn" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Refresh Status</button>
+        </div>
+        <div id="onboardingBanner" class="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">Checking onboarding status…</div>
+        <div class="mt-5 space-y-3">
+            <div id="onboarding-step-warehouse_created" class="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-4">
+                <div>
+                    <div class="font-medium text-slate-900">Warehouse Created</div>
+                    <div class="text-sm text-slate-600">At least one active warehouse exists for operational work.</div>
+                </div>
+                <div id="onboarding-label-warehouse_created" class="text-sm font-medium text-slate-600">Pending</div>
+            </div>
+            <div id="onboarding-step-categories_created" class="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-4">
+                <div>
+                    <div class="font-medium text-slate-900">Initial Catalog Added</div>
+                    <div class="text-sm text-slate-600">At least one product exists in the tenant catalog.</div>
+                </div>
+                <div id="onboarding-label-categories_created" class="text-sm font-medium text-slate-600">Pending</div>
+            </div>
+            <div id="onboarding-step-locations_generated" class="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-4">
+                <div>
+                    <div class="font-medium text-slate-900">Locations Generated</div>
+                    <div class="text-sm text-slate-600">Storage locations exist so receiving and picking can resolve valid bins.</div>
+                </div>
+                <div id="onboarding-label-locations_generated" class="text-sm font-medium text-slate-600">Pending</div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const root = document.getElementById('wmsOnboardingRoot');
+    const banner = document.getElementById('onboardingBanner');
+    const refreshBtn = document.getElementById('refreshOnboardingStatusBtn');
+    const completeBtn = document.getElementById('markOnboardingCompleteBtn');
+
+    function updateStep(key, completed) {
+        const row = document.getElementById('onboarding-step-' + key);
+        const label = document.getElementById('onboarding-label-' + key);
+        if (!row || !label) {
+            return;
+        }
+        row.className = 'flex items-center justify-between rounded-xl border px-4 py-4 ' + (completed ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white');
+        label.className = 'text-sm font-medium ' + (completed ? 'text-emerald-700' : 'text-slate-600');
+        label.textContent = completed ? 'Done' : 'Pending';
+    }
+
+    async function loadStatus() {
+        banner.className = 'mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700';
+        banner.textContent = 'Checking onboarding status…';
+        try {
+            const res = await fetch(root.dataset.statusUrl, {headers: {'Accept': 'application/json'}});
+            const json = await res.json();
+            if (!res.ok || !json.ok) {
+                throw new Error(json.error || 'Failed to load onboarding status.');
+            }
+
+            const steps = json.steps || {};
+            updateStep('warehouse_created', !!steps.warehouse_created);
+            updateStep('categories_created', !!steps.categories_created);
+            updateStep('locations_generated', !!steps.locations_generated);
+
+            if (json.completed) {
+                banner.className = 'mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700';
+                banner.textContent = 'Onboarding has been marked complete for this tenant.';
+            } else {
+                banner.className = 'mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700';
+                banner.textContent = 'Onboarding is still open. Finish the checklist above before handing operations to staff.';
+            }
+        } catch (error) {
+            banner.className = 'mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700';
+            banner.textContent = error.message;
+        }
+    }
+
+    refreshBtn.addEventListener('click', loadStatus);
+    completeBtn.addEventListener('click', () => {
+        if (!confirm('Mark onboarding complete for this tenant?')) {
+            return;
+        }
+        wmsPost(root.dataset.completeUrl, {}, loadStatus);
+    });
+
+    loadStatus();
+});
+</script>
+{/block}

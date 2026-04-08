@@ -1,7 +1,7 @@
 # WMS Module — Warehouse Management System
 
 **Module ID:** `wms`  
-**Version:** 1.2.0 (Phase 5)
+**Version:** 1.4.0 (Phase 7 with scan-confirmed task execution, operator exception dispositions, CSV onboarding flows, and staged receiving-to-putaway closure)
 **Author:** Ikabud Kernel Team  
 **Depends:** _(none — standalone)_
 
@@ -20,8 +20,10 @@ It conforms fully to the kernel's multi-tenant architecture: `wms_*` tables live
 3. **Concurrency Safe** — All stock mutations use strict `SELECT ... FOR UPDATE` row-level locking to prevent race conditions during high-volume picking.
 4. **Idempotent Operations** — Movements support `idempotency_key` verification to safely handle network retries without double-deducting stock.
 5. **Traceable Reservations** — Stock reservations are strictly linked to specific `reference_type` and `reference_id` (e.g. an Order ID), making allocation debuggable.
-6. **Operational Intelligence** — Built-in auto-replenishment, slotting optimization, forecasting, and explicit worker task assignments (`wms_tasks`).
-7. **Production Ready** — Natively handles Bill of Materials (Recipes) and automatic raw material consumption for manufacturing/bakery use cases.
+6. **Received Is Not Yet Available** — Inbound receipts land in warehouse staging first. Stock becomes available only after an explicit putaway transfer into a final storage location.
+7. **Operational Intelligence** — Built-in auto-replenishment, slotting optimization, forecasting, and explicit worker task assignments (`wms_tasks`).
+8. **Platform Controls** — Tenant-scoped configuration in `wms_configs`, onboarding checkpoints, diagnostics endpoints, and financial valuation / purchase-order support.
+9. **Production Ready** — Natively handles Bill of Materials (Recipes) and automatic raw material consumption for manufacturing/bakery use cases.
 
 ---
 
@@ -110,6 +112,7 @@ CREATE TABLE IF NOT EXISTS wms_locations (
     capacity_unit  VARCHAR(50) NULL DEFAULT NULL,
     sort_order     INT UNSIGNED NOT NULL DEFAULT 0,
     is_active      TINYINT(1) NOT NULL DEFAULT 1,
+    is_staging     TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Inbound staging locations keep stock unavailable until putaway',
     deleted_at     DATETIME NULL DEFAULT NULL,
     created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -117,6 +120,7 @@ CREATE TABLE IF NOT EXISTS wms_locations (
     INDEX idx_wms_location_warehouse (warehouse_id),
     INDEX idx_wms_location_parent (parent_id),
     INDEX idx_wms_location_type (type),
+    INDEX idx_wms_location_staging (warehouse_id, is_staging, is_active),
     CONSTRAINT fk_wms_location_warehouse FOREIGN KEY (warehouse_id)
         REFERENCES wms_warehouses (id) ON DELETE CASCADE,
     CONSTRAINT fk_wms_location_parent FOREIGN KEY (parent_id)
@@ -160,13 +164,15 @@ CREATE TABLE IF NOT EXISTS wms_stocks (
     batch_id      INT UNSIGNED NULL DEFAULT NULL,
     qty_on_hand   DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
     qty_reserved  DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
-    qty_available DECIMAL(14,4) GENERATED ALWAYS AS (qty_on_hand - qty_reserved) STORED,
+    qty_staged    DECIMAL(14,4) NOT NULL DEFAULT 0.0000 COMMENT 'Mirrors on-hand stock that is still in staging locations',
+    qty_available DECIMAL(14,4) GENERATED ALWAYS AS (qty_on_hand - qty_reserved - qty_staged) STORED,
     updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uniq_wms_stock (product_id, location_id, batch_id),
     INDEX idx_wms_stock_product (product_id),
     INDEX idx_wms_stock_warehouse (warehouse_id),
     INDEX idx_wms_stock_location (location_id),
     INDEX idx_wms_stock_batch (batch_id),
+    INDEX idx_wms_stock_staged (qty_staged),
     CONSTRAINT fk_wms_stock_product FOREIGN KEY (product_id)
         REFERENCES wms_products (id),
     CONSTRAINT fk_wms_stock_warehouse FOREIGN KEY (warehouse_id)
@@ -244,7 +250,7 @@ CREATE TABLE IF NOT EXISTS wms_deliveries (
     reference_no   VARCHAR(100) NOT NULL,
     supplier_name  VARCHAR(255) NULL DEFAULT NULL,
     warehouse_id   INT UNSIGNED NOT NULL,
-    status         ENUM('pending','partial','received','cancelled') NOT NULL DEFAULT 'pending',
+    status         ENUM('pending','partial','staged','received','cancelled') NOT NULL DEFAULT 'pending',
     expected_at    DATE NULL DEFAULT NULL,
     received_at    DATETIME NULL DEFAULT NULL,
     notes          TEXT NULL DEFAULT NULL,
@@ -263,7 +269,7 @@ CREATE TABLE IF NOT EXISTS wms_deliveries (
 
 ### 9. `wms_delivery_items`
 
-Line items within a delivery. Stores expected vs received quantities and the target put-away location.
+Line items within a delivery. Stores expected vs received vs put-away quantities, separating inbound staging from the final storage bin.
 
 ```sql
 CREATE TABLE IF NOT EXISTS wms_delivery_items (
@@ -271,19 +277,24 @@ CREATE TABLE IF NOT EXISTS wms_delivery_items (
     delivery_id    INT UNSIGNED NOT NULL,
     product_id     INT UNSIGNED NOT NULL,
     location_id    INT UNSIGNED NOT NULL COMMENT 'Target put-away location',
+    staging_location_id INT UNSIGNED NULL DEFAULT NULL COMMENT 'Inbound staging location used at receipt time',
     batch_id       INT UNSIGNED NULL DEFAULT NULL,
     qty_expected   DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
     qty_received   DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    qty_put_away   DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
     unit_cost      DECIMAL(14,4) NULL DEFAULT NULL,
     notes          TEXT NULL DEFAULT NULL,
     INDEX idx_wms_ditem_delivery (delivery_id),
     INDEX idx_wms_ditem_product (product_id),
+    INDEX idx_wms_ditem_staging (staging_location_id),
     CONSTRAINT fk_wms_ditem_delivery FOREIGN KEY (delivery_id)
         REFERENCES wms_deliveries (id) ON DELETE CASCADE,
     CONSTRAINT fk_wms_ditem_product FOREIGN KEY (product_id)
         REFERENCES wms_products (id),
     CONSTRAINT fk_wms_ditem_location FOREIGN KEY (location_id)
         REFERENCES wms_locations (id),
+    CONSTRAINT fk_wms_ditem_staging_location FOREIGN KEY (staging_location_id)
+        REFERENCES wms_locations (id) ON DELETE SET NULL,
     CONSTRAINT fk_wms_ditem_batch FOREIGN KEY (batch_id)
         REFERENCES wms_batches (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -792,13 +803,22 @@ All endpoints return JSON. Prefix: `/api/v1/wms/`
            reference_id: 1,
            product_id: 5,
            warehouse_id: 1,
-           location_id: 12,
+              location_id: <resolved inbound staging location>,
            qty: 100,
            ...
        })
-   → Updates wms_stocks (qty_on_hand += 100)
-   → Updates delivery status to 'received'
-   → Fires event: wms.delivery.received
+    → Updates wms_stocks (qty_on_hand += 100, qty_staged += 100, qty_available stays 0)
+    → Updates delivery line qty_received and staging_location_id
+    → Auto-creates one putaway task per received delivery line
+    → Updates delivery status to 'staged'
+    → Fires event: wms.delivery.received
+
+3. Task-driven putaway scan confirmation
+    → Worker scans the staged product and the final location
+    → wmsTransferCreate() moves stock from staging → final location
+    → Delivery line qty_put_away increases
+    → qty_staged falls to 0 at staging, qty_available rises at the final bin
+    → Delivery status flips to 'received' only when all received stock is put away
 ```
 
 ### Flow 2: Internal Transfer
@@ -1085,7 +1105,7 @@ The WMS module uses `app()->db()` — the tenant-resolved database connection �
 
 ## Roadmap & Next Phases (Post-Core Stability)
 
-*Note: As of Version 1.2.0, Phases 2 through 6 have been implemented into the codebase. The following serves as a record of the architectural intent behind these features.*
+*Note: As of Version 1.4.0, Phases 2 through 6 are implemented, and the first commercial-readiness slices of later phases are live: tenant configuration, onboarding state, diagnostics endpoints, inventory valuation, purchase-order intake/submission, scan-confirmed task execution, operator exception queues with in-app disposition paths, and CSV import/export for products, stock, and suppliers. The roadmap below separates what is already in code from what still needs hardening.*
 
 ### Phase 2 — Operational Intelligence Layer (Implemented)
 Turning the tracking system into an active decision-making engine.
@@ -1096,8 +1116,8 @@ Turning the tracking system into an active decision-making engine.
 
 ### Phase 3 — Execution Layer (Human + Device Integration)
 Connecting the system to physical warehouse realities.
-- **Barcode / QR Workflows:** Implement scanning for product, location, and action confirmation to reduce errors and UI friction during receiving, picking, and transfers.
-- **Mobile-First Interfaces:** Design optimized, high-contrast UI screens tailored for warehouse workers (e.g., "My Tasks", "Scan to Confirm") on handheld devices.
+- **Barcode / QR Workflows:** Product and location scan confirmation is now wired into runtime task start/completion flows, with mismatch handling routed into `wms_task_exceptions`.
+- **Mobile-First Interfaces:** High-contrast task and scanner screens are live for handheld execution, and the scanner queue now supports the same in-app exception dispositions as the desktop task board. The next step is broader receiving and transfer coverage.
 - **Offline Mode:** Explore localized task caching to handle poor warehouse connectivity, syncing movements gracefully upon reconnection.
 
 ### Phase 4 — Intelligence & Optimization
@@ -1124,17 +1144,24 @@ Unlocking the multi-module power of the Kernel OS.
 
 With the core operational execution engines stabilized (Phases 1-6), the WMS must evolve from an internal system into a **scalable, zero-touch platform product**. Feature bloat must be avoided in favor of observability, configuration, and ecosystem connectivity.
 
-### Phase 7 — Platformization (Make It a Product)
-- **Configuration Engine (`wms_configs`)**: Expose all hardcoded behaviors (picking strategy, `allow_negative_stock`, auto-replenishment toggles, default quarantine locations) to tenant administrators.
-- **Role & Permission Granularity**: Shift from basic roles to capability-scoped permissions (e.g., `wms.task.execute` vs `wms.stock.adjust`).
-- **Tenant Onboarding Flow (Day 0 Experience)**: Build a guided wizard for new tenants (Create Warehouse → Define Locations → Import Products → Set Initial Stock → Configure Rules).
-- **Data Import / Export Layer**: Implement robust CSV/Excel import/export pipelines for products, stock, suppliers, and movement snapshots.
-- **Observability & Debugging Tools**: Provide internal support views like a **Movement Trace Viewer** ("Why is stock = 42?") and a **Reservation Inspector** ("Who is holding this stock?").
+### Phase 7 — Platformization (Core Controls Partially Implemented)
+- **Configuration Engine (`wms_configs`)**: Implemented for tenant-scoped defaults such as costing method and default currency, with room to expose more operational toggles in the UI.
+- **Role & Permission Granularity**: Still pending. The module currently relies on `admin`, `supervisor`, and `viewer` role bands.
+- **Tenant Onboarding Flow (Day 0 Experience)**: Initial checklist/status flow is implemented, and guided CSV intake now covers product, stock, and supplier onboarding.
+- **Data Import / Export Layer**: Product, stock, and supplier CSV import/export are live. The remaining gap is broader coverage for deliveries, orders, and finance exports.
+- **Observability & Debugging Tools**: Movement Trace and Reservation Inspector are live, and both the desktop task board and mobile scanner queue now expose blocked work directly in the runtime UI with quarantine, damaged-stock write-off, and reservation-release dispositions. Next steps are richer exception timelines and stronger audit pivots.
 
-### Phase 8 — Financial & Business Layer
-- **Costing Engine**: Formalize FIFO or Moving Average costing models. Compute live inventory valuations and Cost of Goods Sold (COGS).
-- **Purchase Order System**: Close the supply loop by introducing `wms_purchase_orders` with approval flows, linking Replenishment Suggestions → PO → Delivery → Inbound Movement.
-- **Sales / POS Integration (External)**: Utilize the `wms.stock.reserve@1` contract strictly. POS checks stock, reserves it natively, and confirms to deduct. 
+### Phase 8 — Financial & Business Layer (Initial Implementation Live)
+- **Costing Engine**: FIFO and Moving Average valuation inputs are now modeled through `wms_configs` and the valuation API, but full COGS accounting and finance exports remain pending.
+- **Purchase Order System**: `wms_purchase_orders` and `wms_purchase_order_items` are implemented, including PO-to-inbound-delivery conversion. Approval flows, receipts reconciliation, and supplier performance scoring remain open.
+- **Sales / POS Integration (External)**: Still depends on wider adoption of `wms.stock.reserve@1` and related capability contracts by adjacent modules.
+
+### Best-Practice Hardening Priorities
+- **Directed work and confirmation**: Worker-directed product/location confirmation is live for task start/completion. The next step is widening that guardrail to receiving, transfer, and richer quantity confirmation paths.
+- **Receiving closure**: Inbound receipt now lands in staging and auto-creates line-level putaway tasks. The next gap is richer partial-receipt handling and broader guarded receiving and transfer flows.
+- **Exception management**: Runtime exception queues now support in-app quarantine moves, damaged-stock write-offs, and reservation release for blocked pick work from both desktop and handheld flows. Remaining gaps are richer exception timelines, stronger audit pivots, and wider remediation coverage across more task classes.
+- **Grouped work and cluster picking**: Batch, cluster, or grouped work assignment remains a meaningful gap for larger operations with high order concurrency.
+- **Label, LP, and container workflows**: License plate handling, label printing, and packing/containerization are common must-haves for commercial deployments and are still future work in this module.
 
 ### Phase 9 — Advanced Intelligence (AI Application)
 - **Smart Replenishment**: Elevate threshold-based triggers with trend, seasonality, and supplier lead-time predictions.
@@ -1146,6 +1173,6 @@ With the core operational execution engines stabilized (Phases 1-6), the WMS mus
 - **Marketplace Vision**: Standardize the WMS as the central operational ledger for Ecommerce, Procurement, POS, and external Reporting modules.
 
 ### Immediate Next Priorities
-1. **Tenant Onboarding + Config Engine**: Without a frictionless setup wizard, adoption dies.
-2. **Observability Tools**: Debugging real-world data requires transparent movement and reservation traces.
-3. **Purchase Order Flow**: Closes the loop from demand back to supply.
+1. **Grouped work and offline-safe mobile execution**: Move from single-task execution into clustered work assignment with connectivity-tolerant handheld flows.
+2. **Broader guarded receiving and transfer coverage**: Extend scan-confirmed execution and partial-flow tooling beyond picks and putaway into more inbound and internal-move scenarios.
+3. **LP, label, and container support**: Add license plates, packing/container tracking, and label workflows so inbound/outbound execution scales past single-SKU handling.

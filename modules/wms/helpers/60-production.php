@@ -1,10 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
-use PDO;
-use Throwable;
-
 function wmsRecipeCreate(array $data): int
 {
     $productId = wmsRequirePositiveId((int)($data['product_id'] ?? 0), 'Finished Good Product ID');

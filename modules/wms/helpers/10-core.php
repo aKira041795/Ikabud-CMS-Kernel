@@ -191,6 +191,17 @@ function wmsJsonError(string $message, int $status = 400, array $extra = []): ne
     exit;
 }
 
+function wmsLog(string $message, string $level = 'info'): void
+{
+    try {
+        wmsCtx()->log($message, $level);
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('wms log failed: ' . $message . ' (' . $e->getMessage() . ')', $level);
+        }
+    }
+}
+
 function wmsAudit(string $action, ?string $entityType = null, ?string $entityId = null, mixed $oldData = null, mixed $newData = null): void
 {
     try {
@@ -333,6 +344,20 @@ function wmsSqlLike(string $value): string
     return '%' . $value . '%';
 }
 
+function wmsLocationRecord(int $locationId): ?array
+{
+    if ($locationId <= 0) {
+        return null;
+    }
+
+    return wmsFetchOne('SELECT * FROM wms_locations WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$locationId]);
+}
+
+function wmsLocationIsStaging(int $locationId): bool
+{
+    return (int)(wmsLocationRecord($locationId)['is_staging'] ?? 0) === 1;
+}
+
 function wmsMovementTypes(): array
 {
     return ['in', 'out', 'transfer_out', 'transfer_in', 'adjustment', 'cycle_count_adjustment', 'reserved', 'unreserved'];
@@ -340,7 +365,7 @@ function wmsMovementTypes(): array
 
 function wmsDeliveryStatuses(): array
 {
-    return ['pending', 'partial', 'received', 'cancelled'];
+    return ['pending', 'partial', 'staged', 'received', 'cancelled'];
 }
 
 function wmsOrderStatuses(): array

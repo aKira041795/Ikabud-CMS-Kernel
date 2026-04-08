@@ -50,6 +50,7 @@ return [
         '/api/v1/wms/intelligence/forecast' => 'wms:wmsApiIntelligenceForecast',
         '/api/v1/wms/tasks' => 'wms:wmsApiTasksList',
         '/api/v1/wms/tasks/{id}' => 'wms:wmsApiTaskGet',
+        '/api/v1/wms/tasks/exceptions' => 'wms:wmsApiTaskExceptionsList',
         '/api/v1/wms/suppliers' => 'wms:wmsApiSuppliersList',
         '/api/v1/wms/suppliers/{id}' => 'wms:wmsApiSupplierGet',
         '/api/v1/wms/returns' => 'wms:wmsApiReturnsList',
@@ -60,7 +61,10 @@ return [
         '/api/v1/wms/diagnostics/trace' => 'wms:wmsApiDiagnosticsTrace',
         '/api/v1/wms/diagnostics/reservations' => 'wms:wmsApiDiagnosticsReservations',
         '/api/v1/wms/financial/valuation' => 'wms:wmsApiFinancialValuation',
-        '/api/v1/wms/purchase-orders' => 'wms:wmsApiPurchaseOrdersList'
+        '/api/v1/wms/purchase-orders' => 'wms:wmsApiPurchaseOrdersList',
+        '/api/v1/wms/exports/products.csv' => 'wms:wmsApiExportProductsCsv',
+        '/api/v1/wms/exports/stock.csv' => 'wms:wmsApiExportStockCsv',
+        '/api/v1/wms/exports/suppliers.csv' => 'wms:wmsApiExportSuppliersCsv'
     ],
     'POST' => [
         '/wms/auth/login' => 'wms:wmsAuthLogin',
@@ -91,7 +95,10 @@ return [
         '/api/v1/wms/tasks' => 'wms:wmsApiTaskCreate',
         '/api/v1/wms/tasks/auto-replenish' => 'wms:wmsApiTaskGenerateReplenishments',
         '/api/v1/wms/tasks/{id}/status' => 'wms:wmsApiTaskUpdateStatus',
+        '/api/v1/wms/tasks/{id}/scan-confirm' => 'wms:wmsApiTaskScanConfirm',
         '/api/v1/wms/tasks/{id}/assign' => 'wms:wmsApiTaskAssign',
+        '/api/v1/wms/tasks/exceptions/{id}/disposition' => 'wms:wmsApiTaskExceptionDisposition',
+        '/api/v1/wms/tasks/exceptions/{id}/resolve' => 'wms:wmsApiTaskExceptionResolve',
         '/api/v1/wms/production/recipes' => 'wms:wmsApiProductionRecipeCreate',
         '/api/v1/wms/production/orders' => 'wms:wmsApiProductionOrderCreate',
         '/api/v1/wms/production/orders/{id}/start' => 'wms:wmsApiProductionOrderStart',
@@ -108,6 +115,9 @@ return [
         '/api/v1/wms/configs' => 'wms:wmsApiConfigsUpdate',
         '/api/v1/wms/onboarding/start' => 'wms:wmsApiOnboardingStart',
         '/api/v1/wms/onboarding/complete' => 'wms:wmsApiOnboardingComplete',
+        '/api/v1/wms/import/products' => 'wms:wmsApiImportProductsCsv',
+        '/api/v1/wms/import/stock' => 'wms:wmsApiImportStockCsv',
+        '/api/v1/wms/import/suppliers' => 'wms:wmsApiImportSuppliersCsv',
         '/api/v1/wms/purchase-orders' => 'wms:wmsApiPurchaseOrderCreate',
         '/api/v1/wms/purchase-orders/{id}/submit' => 'wms:wmsApiPurchaseOrderSubmit'
     ]

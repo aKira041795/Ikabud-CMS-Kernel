@@ -7,12 +7,17 @@ function wmsPageTasks(array $params = []): void
     $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
     echo wmsRender('admin/tasks.disyl', wmsAdminContext($user, 'tasks', [
         'page_title' => 'Task Queue',
+        'warehouses' => wmsFetchAll('SELECT id, code, name FROM wms_warehouses WHERE deleted_at IS NULL ORDER BY name ASC'),
+        'task_users' => wmsFetchAll('SELECT id, full_name, username, role FROM wms_users WHERE is_active = 1 ORDER BY full_name ASC'),
+        'products' => wmsFetchAll('SELECT id, sku, name FROM wms_products WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 300'),
+        'locations' => wmsFetchAll('SELECT id, warehouse_id, code, name FROM wms_locations WHERE deleted_at IS NULL AND is_active = 1 ORDER BY code ASC LIMIT 500'),
     ]));
 }
 
 function wmsPageScanner(array $params = []): void
 {
     $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
     
     // For mobile layout, we bypass wmsAdminContext which sets up the desktop sidebar.
     // Instead we create a minimal context.
@@ -20,9 +25,14 @@ function wmsPageScanner(array $params = []): void
         'auth_user' => $user,
         'current_page' => 'scanner_home',
         'page_title' => 'Scanner',
-        'base_url' => rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/'),
+        'base_url' => $baseUrl,
+        'csrf_token' => app()->csrfToken(),
         'content' => wmsRender('admin/scanner-home.disyl', [
-            'auth_user' => $user
+            'auth_user' => $user,
+            'base_url' => $baseUrl,
+            'csrf_token' => app()->csrfToken(),
+            'products' => wmsFetchAll('SELECT id, sku, name FROM wms_products WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 300'),
+            'locations' => wmsFetchAll('SELECT id, warehouse_id, code, name FROM wms_locations WHERE deleted_at IS NULL AND is_active = 1 ORDER BY code ASC LIMIT 500'),
         ])
     ];
 
@@ -47,7 +57,7 @@ function wmsPageDashboard(array $params = []): void
         $summary['products'] = (int)($db->query('SELECT COUNT(*) FROM wms_products WHERE deleted_at IS NULL')->fetchColumn() ?: 0);
         $summary['warehouses'] = (int)($db->query('SELECT COUNT(*) FROM wms_warehouses WHERE deleted_at IS NULL')->fetchColumn() ?: 0);
         $summary['locations'] = (int)($db->query('SELECT COUNT(*) FROM wms_locations WHERE deleted_at IS NULL')->fetchColumn() ?: 0);
-        $summary['deliveries_pending'] = (int)($db->query("SELECT COUNT(*) FROM wms_deliveries WHERE status IN ('pending', 'partial') AND deleted_at IS NULL")->fetchColumn() ?: 0);
+        $summary['deliveries_pending'] = (int)($db->query("SELECT COUNT(*) FROM wms_deliveries WHERE status IN ('pending', 'partial', 'staged') AND deleted_at IS NULL")->fetchColumn() ?: 0);
         $summary['orders_pending'] = (int)($db->query("SELECT COUNT(*) FROM wms_orders WHERE status IN ('pending', 'picking', 'picked') AND deleted_at IS NULL")->fetchColumn() ?: 0);
         $summary['low_stock_count'] = count(wmsLowStockItems());
     } catch (Throwable $e) {
@@ -79,10 +89,40 @@ function wmsPageReceiving(array $params = []): void
     $user = wmsRequireStaff(['admin', 'supervisor']);
     echo wmsRender('admin/receiving.disyl', wmsAdminContext($user, 'receiving', [
         'page_title' => 'Receiving',
-        'deliveries' => wmsFetchAll('SELECT * FROM wms_deliveries WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 50'),
+        'deliveries' => wmsFetchAll(
+            'SELECT
+                d.*, w.name AS warehouse_name,
+                COALESCE(item_totals.qty_expected_total, 0) AS qty_expected_total,
+                COALESCE(item_totals.qty_received_total, 0) AS qty_received_total,
+                COALESCE(item_totals.qty_put_away_total, 0) AS qty_put_away_total,
+                COALESCE(item_totals.lines_pending_putaway, 0) AS lines_pending_putaway,
+                COALESCE(task_totals.open_putaway_tasks, 0) AS open_putaway_tasks
+             FROM wms_deliveries d
+             INNER JOIN wms_warehouses w ON w.id = d.warehouse_id
+             LEFT JOIN (
+                 SELECT
+                    di.delivery_id,
+                    COALESCE(SUM(di.qty_expected), 0) AS qty_expected_total,
+                    COALESCE(SUM(di.qty_received), 0) AS qty_received_total,
+                    COALESCE(SUM(di.qty_put_away), 0) AS qty_put_away_total,
+                    COALESCE(SUM(CASE WHEN di.qty_received > di.qty_put_away THEN 1 ELSE 0 END), 0) AS lines_pending_putaway
+                 FROM wms_delivery_items di
+                 GROUP BY di.delivery_id
+             ) item_totals ON item_totals.delivery_id = d.id
+             LEFT JOIN (
+                 SELECT di.delivery_id, COUNT(DISTINCT t.id) AS open_putaway_tasks
+                 FROM wms_delivery_items di
+                 INNER JOIN wms_tasks t ON t.reference_type = ? AND t.reference_id = di.id AND t.task_type = ? AND t.status IN (\'pending\', \'in_progress\')
+                 GROUP BY di.delivery_id
+             ) task_totals ON task_totals.delivery_id = d.id
+             WHERE d.deleted_at IS NULL
+             ORDER BY d.created_at DESC
+             LIMIT 50',
+            ['delivery_item', 'putaway']
+        ),
         'warehouses' => wmsFetchAll('SELECT id, code, name FROM wms_warehouses WHERE deleted_at IS NULL ORDER BY name ASC'),
         'products' => wmsFetchAll('SELECT id, sku, name FROM wms_products WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 200'),
-        'locations' => wmsFetchAll('SELECT id, warehouse_id, code, name FROM wms_locations WHERE deleted_at IS NULL AND is_active = 1 ORDER BY code ASC LIMIT 300'),
+        'locations' => wmsFetchAll('SELECT id, warehouse_id, code, name FROM wms_locations WHERE deleted_at IS NULL AND is_active = 1 AND COALESCE(is_staging, 0) = 0 ORDER BY code ASC LIMIT 300'),
     ]));
 }
 
@@ -158,6 +198,9 @@ function wmsPageOnboarding(array $params = []): void
     $user = wmsRequireStaff(['admin']);
     echo wmsRender('admin/onboarding.disyl', wmsAdminContext($user, 'onboarding', [
         'page_title' => 'WMS Onboarding',
+        'warehouse_count' => (int)(wmsDb()->query('SELECT COUNT(*) FROM wms_warehouses WHERE deleted_at IS NULL')->fetchColumn() ?: 0),
+        'product_count' => (int)(wmsDb()->query('SELECT COUNT(*) FROM wms_products WHERE deleted_at IS NULL')->fetchColumn() ?: 0),
+        'location_count' => (int)(wmsDb()->query('SELECT COUNT(*) FROM wms_locations WHERE deleted_at IS NULL')->fetchColumn() ?: 0),
     ]));
 }
 
@@ -166,6 +209,7 @@ function wmsPageDiagnostics(array $params = []): void
     $user = wmsRequireStaff(['admin', 'supervisor']);
     echo wmsRender('admin/diagnostics.disyl', wmsAdminContext($user, 'diagnostics', [
         'page_title' => 'Diagnostics & Observability',
+        'products' => wmsFetchAll('SELECT id, sku, name FROM wms_products WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 300'),
     ]));
 }
 
@@ -174,5 +218,8 @@ function wmsPageFinancial(array $params = []): void
     $user = wmsRequireStaff(['admin', 'supervisor']);
     echo wmsRender('admin/financial.disyl', wmsAdminContext($user, 'financial', [
         'page_title' => 'Financial & POs',
+        'warehouses' => wmsFetchAll('SELECT id, code, name FROM wms_warehouses WHERE deleted_at IS NULL ORDER BY name ASC'),
+        'suppliers' => wmsFetchAll('SELECT id, code, name FROM wms_suppliers WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC'),
+        'products' => wmsFetchAll('SELECT id, sku, name FROM wms_products WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 300'),
     ]));
 }

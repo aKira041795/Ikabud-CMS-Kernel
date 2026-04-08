@@ -35,10 +35,12 @@ function wmsApiDeliveryGet(array $params = []): void
             wmsJsonError('Delivery not found.', 404);
         }
         $delivery['items'] = wmsFetchAll(
-            'SELECT di.*, p.sku, p.name AS product_name, l.code AS location_code, b.batch_number
+            'SELECT di.*, p.sku, p.name AS product_name, l.code AS location_code, sl.code AS staging_location_code, b.batch_number,
+                    GREATEST(di.qty_received - di.qty_put_away, 0) AS qty_pending_putaway
              FROM wms_delivery_items di
              INNER JOIN wms_products p ON p.id = di.product_id
              INNER JOIN wms_locations l ON l.id = di.location_id
+             LEFT JOIN wms_locations sl ON sl.id = di.staging_location_id
              LEFT JOIN wms_batches b ON b.id = di.batch_id
              WHERE di.delivery_id = ? ORDER BY di.id ASC',
             [$id]
@@ -61,6 +63,7 @@ function wmsApiDeliveryCreate(array $params = []): void
         $db = wmsDb();
         $db->beginTransaction();
         try {
+            $deliveryStatus = in_array(($status = wmsSanitizeString(wmsInput('status', 'pending'), 20)), wmsDeliveryStatuses(), true) ? $status : 'pending';
             $db->execute(
                 'INSERT INTO wms_deliveries (reference_number, supplier_name, supplier_reference, warehouse_id, status, expected_at, received_at, notes, meta, created_by, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NOW(), NOW())',
@@ -69,7 +72,7 @@ function wmsApiDeliveryCreate(array $params = []): void
                     wmsSanitizeString(wmsInput('supplier_name', ''), 255) ?: null,
                     wmsSanitizeString(wmsInput('supplier_reference', ''), 100) ?: null,
                     $warehouseId,
-                    in_array(($status = wmsSanitizeString(wmsInput('status', 'pending'), 20)), wmsDeliveryStatuses(), true) ? $status : 'pending',
+                    $deliveryStatus,
                     wmsSanitizeString(wmsInput('expected_at', ''), 20) ?: null,
                     wmsSanitizeString(wmsInput('notes', ''), 2000) ?: null,
                     ($meta = wmsJsonDecodeArray(wmsInput('meta', []))) !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
@@ -77,6 +80,7 @@ function wmsApiDeliveryCreate(array $params = []): void
                 ]
             );
             $deliveryId = (int)$db->lastInsertId();
+            $hasOperationalProgress = false;
 
             foreach ($items as $item) {
                 $productId = (int)($item['product_id'] ?? 0);
@@ -85,25 +89,73 @@ function wmsApiDeliveryCreate(array $params = []): void
                 if ($productId <= 0 || $locationId <= 0 || $qtyExpected <= 0) {
                     throw new RuntimeException('Each delivery item requires product, location, and quantity.');
                 }
+
+                $putawayLocation = wmsLocationRecord($locationId);
+                if ($putawayLocation === null || (int)($putawayLocation['warehouse_id'] ?? 0) !== $warehouseId) {
+                    throw new RuntimeException('Putaway location is invalid for the selected warehouse.');
+                }
+                if ((int)($putawayLocation['is_staging'] ?? 0) === 1) {
+                    throw new RuntimeException('Putaway location cannot be a staging location.');
+                }
+
+                $stagingLocationId = isset($item['staging_location_id']) && (int)$item['staging_location_id'] > 0 ? (int)$item['staging_location_id'] : null;
+                if ($stagingLocationId !== null) {
+                    $stagingLocation = wmsLocationRecord($stagingLocationId);
+                    if ($stagingLocation === null || (int)($stagingLocation['warehouse_id'] ?? 0) !== $warehouseId) {
+                        throw new RuntimeException('Staging location is invalid for the selected warehouse.');
+                    }
+                    if ((int)($stagingLocation['is_staging'] ?? 0) !== 1) {
+                        throw new RuntimeException('Staging location must be marked as staging.');
+                    }
+                    if ($stagingLocationId === $locationId) {
+                        throw new RuntimeException('Staging and putaway locations must differ.');
+                    }
+                }
+
+                $qtyReceived = isset($item['qty_received']) && $item['qty_received'] !== ''
+                    ? wmsNormalizeDecimal($item['qty_received'])
+                    : 0.0;
+                if ($qtyReceived < 0 || $qtyReceived > $qtyExpected) {
+                    throw new RuntimeException('Received quantity must be between zero and the expected quantity.');
+                }
+
+                $qtyPutAway = isset($item['qty_put_away']) && $item['qty_put_away'] !== ''
+                    ? wmsNormalizeDecimal($item['qty_put_away'])
+                    : ($qtyReceived > 0 && $stagingLocationId === null ? $qtyReceived : 0.0);
+                if ($qtyPutAway < 0 || $qtyPutAway > $qtyReceived) {
+                    throw new RuntimeException('Putaway quantity must be between zero and the received quantity.');
+                }
+
                 $db->execute(
-                    'INSERT INTO wms_delivery_items (delivery_id, product_id, location_id, batch_id, qty_expected, qty_received, unit_cost, meta, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+                    'INSERT INTO wms_delivery_items (delivery_id, product_id, location_id, staging_location_id, batch_id, qty_expected, qty_received, qty_put_away, unit_cost, meta, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
                     [
                         $deliveryId,
                         $productId,
                         $locationId,
+                        $stagingLocationId,
                         isset($item['batch_id']) && (int)$item['batch_id'] > 0 ? (int)$item['batch_id'] : null,
                         $qtyExpected,
-                        wmsNormalizeDecimal($item['qty_received'] ?? 0),
+                        $qtyReceived,
+                        $qtyPutAway,
                         isset($item['unit_cost']) && $item['unit_cost'] !== '' ? wmsNormalizeDecimal($item['unit_cost']) : null,
                         ($meta = wmsJsonDecodeArray($item['meta'] ?? [])) !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
                     ]
                 );
+
+                $hasOperationalProgress = $hasOperationalProgress || $qtyReceived > 0 || $qtyPutAway > 0;
+            }
+
+            if ($hasOperationalProgress) {
+                $deliveryStatus = wmsDeliveryRefreshStatus($deliveryId);
+                if ($deliveryStatus !== 'pending') {
+                    $db->execute('UPDATE wms_deliveries SET received_at = COALESCE(received_at, NOW()), updated_at = NOW() WHERE id = ?', [$deliveryId]);
+                }
             }
 
             $db->commit();
             wmsAudit('wms.delivery.created', 'wms_deliveries', (string)$deliveryId, null, ['reference_number' => $referenceNumber]);
-            wmsJsonOk(['id' => $deliveryId], 201);
+            wmsJsonOk(['id' => $deliveryId, 'status' => $deliveryStatus], 201);
         } catch (Throwable $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();

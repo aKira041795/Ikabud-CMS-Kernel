@@ -1,10 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
-use PDO;
-use Throwable;
-
 function wmsBatchWhereClause(?int $batchId): array
 {
     if ($batchId === null || $batchId <= 0) {
@@ -34,8 +29,8 @@ function wmsEnsureStockRow(int $productId, int $warehouseId, int $locationId, ?i
 
     try {
         wmsDb()->execute(
-            'INSERT IGNORE INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved)
-             VALUES (?, ?, ?, ?, 0, 0)',
+            'INSERT IGNORE INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged)
+             VALUES (?, ?, ?, ?, 0, 0, 0)',
             [$productId, $warehouseId, $locationId, $batchId]
         );
     } catch (Throwable $e) {}
@@ -48,15 +43,16 @@ function wmsEnsureStockRow(int $productId, int $warehouseId, int $locationId, ?i
         'batch_id' => $batchId,
         'qty_on_hand' => 0,
         'qty_reserved' => 0,
+        'qty_staged' => 0,
         'qty_available' => 0,
     ];
 }
 
-function wmsUpdateStockLevels(int $stockId, float $qtyOnHand, float $qtyReserved): void
+function wmsUpdateStockLevels(int $stockId, float $qtyOnHand, float $qtyReserved, float $qtyStaged): void
 {
     wmsDb()->execute(
-        'UPDATE wms_stocks SET qty_on_hand = ?, qty_reserved = ?, updated_at = NOW() WHERE id = ?',
-        [wmsNormalizeDecimal($qtyOnHand), wmsNormalizeDecimal($qtyReserved), $stockId]
+        'UPDATE wms_stocks SET qty_on_hand = ?, qty_reserved = ?, qty_staged = ?, updated_at = NOW() WHERE id = ?',
+        [wmsNormalizeDecimal($qtyOnHand), wmsNormalizeDecimal($qtyReserved), wmsNormalizeDecimal($qtyStaged), $stockId]
     );
 }
 
@@ -92,10 +88,10 @@ function wmsStockSnapshot(int $warehouseId = 0, array $filters = []): array
 
     return wmsFetchAll(
         'SELECT s.id, s.product_id, s.warehouse_id, s.location_id, s.batch_id,
-                s.qty_on_hand, s.qty_reserved, s.qty_available, s.updated_at,
+                s.qty_on_hand, s.qty_reserved, s.qty_staged, s.qty_available, s.updated_at,
                 p.sku, p.name AS product_name, p.barcode,
                 w.code AS warehouse_code, w.name AS warehouse_name,
-                l.code AS location_code, l.name AS location_name,
+                l.code AS location_code, l.name AS location_name, COALESCE(l.is_staging, 0) AS is_staging,
                 b.batch_number, b.expires_at
          FROM wms_stocks s
          INNER JOIN wms_products p ON p.id = s.product_id
@@ -245,7 +241,7 @@ function wmsMovementCreate(array $data): int
         if ($product === null) {
             throw new RuntimeException('Product not found.');
         }
-        if ((int)$product['is_batch_tracked'] === 1 && $batchId === null && $movementType !== 'adjustment') {
+        if ((int)$product['is_batch_tracked'] === 1 && $batchId === null && ($movementType !== 'adjustment' || $qty > 0)) {
             throw new RuntimeException('Batch ID is required for batch-tracked product movements.');
         }
 
@@ -264,12 +260,16 @@ function wmsMovementCreate(array $data): int
         $stockId = (int)($stock['id'] ?? 0);
         $qtyBefore = wmsNormalizeDecimal($stock['qty_on_hand'] ?? 0);
         $reservedBefore = wmsNormalizeDecimal($stock['qty_reserved'] ?? 0);
+        $stagedBefore = wmsNormalizeDecimal($stock['qty_staged'] ?? 0);
+        $availableBefore = wmsNormalizeDecimal($qtyBefore - $reservedBefore - $stagedBefore);
+        $isStagingLocation = wmsLocationIsStaging($locationId);
         $qtyAfter = $qtyBefore;
         $reservedAfter = $reservedBefore;
+        $stagedAfter = $isStagingLocation ? $qtyBefore : 0.0;
 
         if (in_array($movementType, ['reserved', 'unreserved'], true)) {
             if ($movementType === 'reserved') {
-                if (!$allowNegative && ($qtyBefore - $reservedBefore) < $qty) {
+                if (!$allowNegative && $availableBefore < $qty) {
                     throw new RuntimeException('Insufficient available stock to reserve.');
                 }
                 $reservedAfter = wmsNormalizeDecimal($reservedBefore + $qty);
@@ -287,6 +287,8 @@ function wmsMovementCreate(array $data): int
             if (in_array($movementType, ['out', 'transfer_out', 'cycle_count_adjustment'], true) && $qty < 0 && $reservedBefore > 0) {
                 $reservedAfter = max(0.0, wmsNormalizeDecimal($reservedBefore + $qty));
             }
+
+            $stagedAfter = $isStagingLocation ? $qtyAfter : 0.0;
         }
 
         $db->execute(
@@ -319,7 +321,7 @@ function wmsMovementCreate(array $data): int
             );
         }
 
-        wmsUpdateStockLevels($stockId, $qtyAfter, $reservedAfter);
+        wmsUpdateStockLevels($stockId, $qtyAfter, $reservedAfter, $stagedAfter);
 
         if ($started) {
             $db->commit();
@@ -335,6 +337,7 @@ function wmsMovementCreate(array $data): int
             'qty_before' => $qtyBefore,
             'qty_after' => $qtyAfter,
             'qty_reserved_after' => $reservedAfter,
+            'qty_staged_after' => $stagedAfter,
         ]);
 
         try {

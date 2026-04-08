@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 function wmsApiConfigsList(): never
 {
-    wmsRequireRole(['admin', 'supervisor']);
+    wmsRequireStaff(['admin', 'supervisor']);
 
     $db = wmsDb();
     $configs = $db->fetchAll('SELECT config_key, config_value, description, updated_at FROM wms_configs ORDER BY config_key ASC');
@@ -21,7 +21,7 @@ function wmsApiConfigsList(): never
 
 function wmsApiConfigsUpdate(): never
 {
-    wmsRequireRole(['admin', 'supervisor']);
+    wmsRequireStaff(['admin', 'supervisor']);
 
     $input = wmsInput('configs');
     if (!is_array($input)) {

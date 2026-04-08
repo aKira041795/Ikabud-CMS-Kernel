@@ -1,0 +1,281 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="max-w-6xl mx-auto space-y-6" id="wmsFinancialRoot" data-valuation-url="{base_url}/api/v1/wms/financial/valuation" data-pos-url="{base_url}/api/v1/wms/purchase-orders" data-create-po-url="{base_url}/api/v1/wms/purchase-orders">
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <section class="rounded-2xl border border-slate-200 bg-white p-6 xl:col-span-1">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <div class="text-lg font-semibold text-slate-900">Inventory Valuation</div>
+                    <div class="text-sm text-slate-600">Live value based on the configured costing method.</div>
+                </div>
+                <button id="refreshFinancialData" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Refresh</button>
+            </div>
+            <div class="mt-6 rounded-2xl bg-slate-50 p-5">
+                <div class="text-xs uppercase tracking-wide text-slate-600">Total Valuation</div>
+                <div class="mt-2 text-3xl font-semibold text-slate-900" id="valuationTotal">Loading…</div>
+                <div class="mt-2 text-sm text-slate-600" id="valuationMethod">Waiting for data…</div>
+            </div>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-6 xl:col-span-2">
+            <div class="text-lg font-semibold text-slate-900">Create Purchase Order</div>
+            <div class="mt-1 text-sm text-slate-600">Close the replenishment loop by creating supplier POs directly from WMS.</div>
+            <form id="purchaseOrderForm" class="mt-5 space-y-4">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="supplier_id" required>
+                        <option value="">Supplier</option>
+                        {foreach suppliers as supplier}
+                        <option value="{supplier.id}">{supplier.code} — {supplier.name}</option>
+                        {/foreach}
+                    </select>
+                    <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="warehouse_id" required>
+                        <option value="">Warehouse</option>
+                        {foreach warehouses as warehouse}
+                        <option value="{warehouse.id}">{warehouse.code} — {warehouse.name}</option>
+                        {/foreach}
+                    </select>
+                    <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" type="date" name="expected_delivery_date">
+                    <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="notes" placeholder="Notes or supplier context">
+                </div>
+
+                <div>
+                    <div class="mb-2 flex items-center justify-between">
+                        <div class="text-sm font-medium text-slate-900">Line Items</div>
+                        <button type="button" id="addPoItemBtn" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Add Item</button>
+                    </div>
+                    <div id="poItems" class="space-y-3"></div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit" class="rounded-xl bg-wms-600 px-4 py-2 text-sm font-medium text-white hover:bg-wms-700">Create Purchase Order</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-5 py-4">
+            <div class="text-lg font-semibold text-slate-900">Valuation Breakdown</div>
+            <div class="text-sm text-slate-600">Products currently contributing to on-hand inventory value.</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">SKU</th>
+                        <th class="px-4 py-3 text-left">Product</th>
+                        <th class="px-4 py-3 text-left">Qty On Hand</th>
+                        <th class="px-4 py-3 text-left">Valuation</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100" id="valuationTbody">
+                    <tr><td colspan="4" class="px-4 py-10 text-center text-slate-600">Loading valuation…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-5 py-4">
+            <div class="text-lg font-semibold text-slate-900">Purchase Orders</div>
+            <div class="text-sm text-slate-600">Draft and submitted purchase orders with supplier and warehouse context.</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">PO</th>
+                        <th class="px-4 py-3 text-left">Supplier</th>
+                        <th class="px-4 py-3 text-left">Warehouse</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-left">Expected</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100" id="purchaseOrdersTbody">
+                    <tr><td colspan="6" class="px-4 py-10 text-center text-slate-600">Loading purchase orders…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <template id="poItemRowTemplate">
+        <div class="po-item-row grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,1fr)_140px_140px_auto]">
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" data-field="product_id" required>
+                <option value="">Product</option>
+                {foreach products as product}
+                <option value="{product.id}">{product.sku} — {product.name}</option>
+                {/foreach}
+            </select>
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" data-field="qty" type="number" step="0.0001" min="0.0001" placeholder="Qty" required>
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" data-field="unit_cost" type="number" step="0.0001" min="0" placeholder="Unit cost" required>
+            <button type="button" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100" data-remove-item>Remove</button>
+        </div>
+    </template>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const root = document.getElementById('wmsFinancialRoot');
+    const itemTemplate = document.getElementById('poItemRowTemplate');
+    const poItems = document.getElementById('poItems');
+    const purchaseOrderForm = document.getElementById('purchaseOrderForm');
+    const purchaseOrdersTbody = document.getElementById('purchaseOrdersTbody');
+    const valuationTbody = document.getElementById('valuationTbody');
+    const valuationTotal = document.getElementById('valuationTotal');
+    const valuationMethod = document.getElementById('valuationMethod');
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function formatCurrency(value, currency) {
+        return new Intl.NumberFormat('en-US', {style: 'currency', currency: currency || 'USD'}).format(Number(value || 0));
+    }
+
+    function addPoItemRow() {
+        poItems.appendChild(itemTemplate.content.cloneNode(true));
+    }
+
+    function collectItems() {
+        return Array.from(poItems.querySelectorAll('.po-item-row')).map((row) => ({
+            product_id: Number(row.querySelector('[data-field="product_id"]').value || 0),
+            qty: Number(row.querySelector('[data-field="qty"]').value || 0),
+            unit_cost: Number(row.querySelector('[data-field="unit_cost"]').value || 0)
+        })).filter(item => item.product_id > 0 && item.qty > 0);
+    }
+
+    async function loadValuation() {
+        valuationTotal.textContent = 'Loading…';
+        valuationMethod.textContent = 'Fetching latest costing data…';
+        try {
+            const res = await fetch(root.dataset.valuationUrl, {headers: {'Accept': 'application/json'}});
+            const json = await res.json();
+            if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load valuation.');
+
+            valuationTotal.textContent = formatCurrency(json.total_valuation, json.currency);
+            valuationMethod.textContent = 'Method: ' + escapeHtml(json.method) + ' · Currency: ' + escapeHtml(json.currency);
+
+            const products = json.products || [];
+            if (!products.length) {
+                valuationTbody.innerHTML = '<tr><td colspan="4" class="px-4 py-10 text-center text-slate-600">No valued stock is currently on hand.</td></tr>';
+                return;
+            }
+
+            valuationTbody.innerHTML = products.map(product => '<tr>'
+                + '<td class="px-4 py-3 font-medium text-slate-900">' + escapeHtml(product.sku) + '</td>'
+                + '<td class="px-4 py-3 text-slate-700">' + escapeHtml(product.name) + '</td>'
+                + '<td class="px-4 py-3 text-slate-700">' + escapeHtml(product.qty_on_hand) + '</td>'
+                + '<td class="px-4 py-3 text-slate-700">' + formatCurrency(product.valuation, json.currency) + '</td>'
+                + '</tr>').join('');
+        } catch (error) {
+            valuationTotal.textContent = 'Unavailable';
+            valuationMethod.textContent = error.message;
+            valuationTbody.innerHTML = '<tr><td colspan="4" class="px-4 py-10 text-center text-red-600">' + escapeHtml(error.message) + '</td></tr>';
+        }
+    }
+
+    async function loadPurchaseOrders() {
+        try {
+            const res = await fetch(root.dataset.posUrl, {headers: {'Accept': 'application/json'}});
+            const json = await res.json();
+            if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load purchase orders.');
+
+            const rows = json.purchase_orders || [];
+            if (!rows.length) {
+                purchaseOrdersTbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-slate-600">No purchase orders exist yet.</td></tr>';
+                return;
+            }
+
+            purchaseOrdersTbody.innerHTML = rows.map(po => {
+                const badgeClass = po.status === 'submitted'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : po.status === 'received'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : po.status === 'cancelled'
+                            ? 'bg-red-50 text-red-700 border border-red-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200';
+                const action = po.status === 'draft'
+                    ? '<button onclick="wmsSubmitPurchaseOrder(' + Number(po.id) + ')" class="rounded-lg bg-wms-50 px-3 py-1.5 text-xs font-medium text-wms-700 hover:bg-wms-100">Submit</button>'
+                    : '';
+                return '<tr>'
+                    + '<td class="px-4 py-3 font-medium text-slate-900">PO-' + String(po.id).padStart(6, '0') + '</td>'
+                    + '<td class="px-4 py-3 text-slate-700">' + escapeHtml(po.supplier_name) + '</td>'
+                    + '<td class="px-4 py-3 text-slate-700">' + escapeHtml(po.warehouse_name) + '</td>'
+                    + '<td class="px-4 py-3"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ' + badgeClass + '">' + escapeHtml(po.status) + '</span></td>'
+                    + '<td class="px-4 py-3 text-slate-700">' + escapeHtml(po.expected_delivery_date || '-') + '</td>'
+                    + '<td class="px-4 py-3 text-right">' + action + '</td>'
+                    + '</tr>';
+            }).join('');
+        } catch (error) {
+            purchaseOrdersTbody.innerHTML = '<tr><td colspan="6" class="px-4 py-10 text-center text-red-600">' + escapeHtml(error.message) + '</td></tr>';
+        }
+    }
+
+    window.wmsSubmitPurchaseOrder = function (id) {
+        if (!confirm('Submit this purchase order and create its inbound delivery?')) {
+            return;
+        }
+        wmsPost('{base_url}/api/v1/wms/purchase-orders/' + id + '/submit', {}, () => {
+            loadPurchaseOrders();
+            loadValuation();
+        });
+    };
+
+    document.getElementById('addPoItemBtn').addEventListener('click', addPoItemRow);
+    poItems.addEventListener('click', (event) => {
+        if (event.target.matches('[data-remove-item]')) {
+            const rows = poItems.querySelectorAll('.po-item-row');
+            if (rows.length === 1) {
+                rows[0].querySelector('[data-field="product_id"]').value = '';
+                rows[0].querySelector('[data-field="qty"]').value = '';
+                rows[0].querySelector('[data-field="unit_cost"]').value = '';
+                return;
+            }
+            event.target.closest('.po-item-row').remove();
+        }
+    });
+
+    purchaseOrderForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const form = new FormData(purchaseOrderForm);
+        const items = collectItems();
+        if (!items.length) {
+            alert('Add at least one valid purchase-order line.');
+            return;
+        }
+
+        const data = {
+            supplier_id: Number(form.get('supplier_id') || 0),
+            warehouse_id: Number(form.get('warehouse_id') || 0),
+            expected_delivery_date: form.get('expected_delivery_date') || null,
+            notes: form.get('notes') || '',
+            items
+        };
+
+        wmsPost(root.dataset.createPoUrl, data, () => {
+            purchaseOrderForm.reset();
+            poItems.innerHTML = '';
+            addPoItemRow();
+            loadPurchaseOrders();
+            loadValuation();
+        });
+    });
+
+    document.getElementById('refreshFinancialData').addEventListener('click', () => {
+        loadValuation();
+        loadPurchaseOrders();
+    });
+
+    addPoItemRow();
+    loadValuation();
+    loadPurchaseOrders();
+});
+</script>
+{/block}

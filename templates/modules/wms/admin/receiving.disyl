@@ -4,7 +4,7 @@
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
     <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5">
         <div class="text-lg font-semibold text-slate-900">Create Delivery</div>
-        <div class="text-sm text-[#999] mt-1">Post to the WMS receiving API.</div>
+        <div class="text-sm text-[#999] mt-1">Create an inbound delivery. Receipt lands in warehouse staging first, then auto-generated putaway tasks move stock to the final bin.</div>
         <form class="mt-5 space-y-3" onsubmit="event.preventDefault(); const form = new FormData(this); const data = {reference_number: form.get('reference_number'), supplier_name: form.get('supplier_name'), warehouse_id: Number(form.get('warehouse_id') || 0), items: [{product_id: Number(form.get('product_id') || 0), location_id: Number(form.get('location_id') || 0), qty_expected: Number(form.get('qty_expected') || 0)}]}; wmsPost('{base_url}/api/v1/wms/deliveries', data);">
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2" type="text" name="reference_number" placeholder="Reference number" required>
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2" type="text" name="supplier_name" placeholder="Supplier name">
@@ -21,7 +21,7 @@
                 {/foreach}
             </select>
             <select class="w-full rounded-xl border border-slate-200 px-3 py-2" name="location_id" required>
-                <option value="">Putaway location</option>
+                <option value="">Final putaway location</option>
                 {foreach locations as location}
                 <option value="{location.id}">{location.code} — {location.name}</option>
                 {/foreach}
@@ -35,7 +35,7 @@
         <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
             <div>
                 <div class="text-lg font-semibold text-slate-900">Receiving Queue</div>
-                <div class="text-sm text-[#999]">Pending and recent inbound receipts.</div>
+                <div class="text-sm text-[#999]">Pending, staged, and completed inbound receipts with putaway progress.</div>
             </div>
         </div>
         <div class="overflow-x-auto">
@@ -46,22 +46,32 @@
                         <th class="px-4 py-3 text-left">Supplier</th>
                         <th class="px-4 py-3 text-left">Warehouse</th>
                         <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-left">Receipt</th>
+                        <th class="px-4 py-3 text-left">Putaway</th>
+                        <th class="px-4 py-3 text-left">Tasks</th>
                         <th class="px-4 py-3 text-left">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {if deliveries | count == 0}
-                    <tr><td colspan="5" class="px-4 py-6 text-[#999]">No deliveries found.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-6 text-[#999]">No deliveries found.</td></tr>
                     {/if}
                     {foreach deliveries as delivery}
                     <tr>
                         <td class="px-4 py-3 font-medium text-slate-900">{delivery.reference_number}</td>
                         <td class="px-4 py-3">{delivery.supplier_name | default:'-'}</td>
-                        <td class="px-4 py-3">{delivery.warehouse_id}</td>
-                        <td class="px-4 py-3">{delivery.status}</td>
+                        <td class="px-4 py-3">{delivery.warehouse_name | default:delivery.warehouse_id}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium {if delivery.status == 'received'}bg-emerald-50 text-emerald-700{elseif delivery.status == 'staged'}bg-amber-50 text-amber-700{elseif delivery.status == 'partial'}bg-blue-50 text-blue-700{elseif delivery.status == 'cancelled'}bg-rose-50 text-rose-700{else}bg-slate-100 text-slate-700{/if}">{delivery.status}</span>
+                        </td>
+                        <td class="px-4 py-3 text-slate-700">{delivery.qty_received_total} / {delivery.qty_expected_total}</td>
+                        <td class="px-4 py-3 text-slate-700">{delivery.qty_put_away_total} / {delivery.qty_received_total}</td>
+                        <td class="px-4 py-3 text-slate-700">{delivery.open_putaway_tasks} open{if delivery.lines_pending_putaway > 0}<div class="text-xs text-[#999] mt-1">{delivery.lines_pending_putaway} line(s) still staged</div>{/if}</td>
                         <td class="px-4 py-3">
                             {if delivery.status != 'received' && delivery.status != 'cancelled'}
-                            <button class="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs" onclick="wmsPost('{base_url}/api/v1/wms/deliveries/{delivery.id}/receive', {})">Receive</button>
+                            <button class="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs" onclick="wmsPost('{base_url}/api/v1/wms/deliveries/{delivery.id}/receive', {})">Receive to staging</button>
+                            {elseif delivery.status == 'received'}
+                            <span class="text-xs text-emerald-700 font-medium">Putaway complete</span>
                             {/if}
                         </td>
                     </tr>

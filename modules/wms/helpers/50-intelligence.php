@@ -1,10 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
-use PDO;
-use Throwable;
-
 function wmsIntelligenceSlottingSuggest(int $warehouseId, int $days = 30): array
 {
     // Phase 4: Slotting Optimization

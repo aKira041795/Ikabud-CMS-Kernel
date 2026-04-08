@@ -1,63 +1,135 @@
 <div class="h-full flex flex-col space-y-4" x-data="scannerTasks()">
-
-    <!-- Header Stats -->
-    <div class="grid grid-cols-2 gap-3 mb-2 shrink-0">
+    <div class="grid grid-cols-3 gap-3 mb-2 shrink-0">
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center shadow-sm">
-            <div class="text-3xl font-black text-blue-700 tabular-nums leading-none" x-text="tasks.filter(t => t.status === 'pending').length">-</div>
+            <div class="text-3xl font-black text-blue-700 tabular-nums leading-none" x-text="tasks.filter((t) => t.status === 'pending').length">-</div>
             <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mt-1">Pending</div>
         </div>
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center shadow-sm">
-            <div class="text-3xl font-black text-amber-700 tabular-nums leading-none" x-text="tasks.filter(t => t.status === 'in_progress').length">-</div>
+            <div class="text-3xl font-black text-amber-700 tabular-nums leading-none" x-text="tasks.filter((t) => t.status === 'in_progress').length">-</div>
             <div class="text-xs font-semibold text-amber-600 uppercase tracking-wide mt-1">Active</div>
+        </div>
+        <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 text-center shadow-sm">
+            <div class="text-3xl font-black text-rose-700 tabular-nums leading-none" x-text="exceptions.length">-</div>
+            <div class="text-xs font-semibold text-rose-600 uppercase tracking-wide mt-1">Exceptions</div>
         </div>
     </div>
 
-    <!-- Scanner Action Context -->
     <div class="bg-wms-50 border-2 border-wms-200 border-dashed rounded-xl p-4 flex flex-col items-center justify-center min-h-[120px] shadow-sm relative overflow-hidden transition-all duration-300"
-         :class="{'ring-4 ring-green-400 border-solid bg-green-50': lastScanGood, 'ring-4 ring-red-400 border-solid bg-red-50': lastScanBad}">
+         :class="{'ring-4 ring-emerald-400 border-solid bg-emerald-50': lastScanGood, 'ring-4 ring-rose-400 border-solid bg-rose-50': lastScanBad}">
         <div class="text-wms-600 mb-2">
             <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
         </div>
-        <h3 class="text-sm font-semibold text-wms-800 tracking-wide">Ready for Barcode</h3>
-        <p class="text-xs text-wms-600 mt-1 opacity-80">Scan a Location, Product, or Task</p>
-        
+        <h3 class="text-sm font-semibold text-wms-800 tracking-wide">Ready for Guarded Scan</h3>
+        <p class="text-xs text-wms-600 mt-1 opacity-80" x-text="selectedTask ? 'Scan product, location, or task code for the selected work.' : 'Select a task, then scan a product or location.'"></p>
+
         <div x-show="lastScanText" x-transition.opacity class="absolute bottom-1 w-full text-center">
             <span class="text-[10px] font-mono tracking-widest bg-black/10 px-2 py-0.5 rounded" x-text="lastScanText"></span>
         </div>
     </div>
 
-    <!-- Task List -->
+    <section class="bg-white rounded-xl shadow border border-slate-200 p-4 space-y-4 shrink-0">
+        <div class="flex items-start justify-between gap-3">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-500">Selected Task</div>
+                <div class="mt-1 text-base font-semibold text-slate-900" x-text="selectedTask ? '#' + selectedTask.id + ' - ' + selectedTask.task_type : 'Choose work from your queue'"></div>
+                <div class="mt-1 text-sm text-slate-600" x-text="selectedTask ? ((selectedTask.expected_scan?.reference?.label || referenceLabel(selectedTask)) + ' • ' + selectedTask.status) : 'Task details and scan guardrails will appear here.'"></div>
+            </div>
+            <div x-show="selectedTask && Number(selectedTask.open_exception_count || 0) > 0" class="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 border border-rose-200">
+                <span x-text="selectedTask ? selectedTask.open_exception_count : 0"></span> open
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3" x-show="selectedTask">
+            <div class="text-xs uppercase tracking-widest text-slate-500">Expected Products</div>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="line in uniqueProducts(selectedTask?.expected_scan?.products || [])" :key="line.product_id + ':' + (line.sku || '')">
+                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 border border-slate-200" x-text="(line.sku || line.product_name || ('Product #' + line.product_id)) + (line.barcode ? ' / ' + line.barcode : '')"></span>
+                </template>
+                <div x-show="uniqueProducts(selectedTask?.expected_scan?.products || []).length === 0" class="text-xs text-slate-500">No product guardrail for this task.</div>
+            </div>
+            <div class="text-xs uppercase tracking-widest text-slate-500">Expected Locations</div>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="line in uniqueLocations(selectedTask?.expected_scan?.locations || [])" :key="(line.location_id || 0) + ':' + (line.location_code || '')">
+                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 border border-slate-200" x-text="line.location_code || ('Location #' + line.location_id)"></span>
+                </template>
+                <div x-show="uniqueLocations(selectedTask?.expected_scan?.locations || []).length === 0" class="text-xs text-slate-500">No location guardrail for this task.</div>
+            </div>
+            <div class="text-xs text-slate-600" x-text="selectedTask?.expected_scan?.hint || 'Scan confirmation will validate the selected task.'"></div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3">
+            <input class="rounded-xl border border-slate-200 px-3 py-3 text-sm" type="text" placeholder="Product barcode, SKU, or PRD-*" x-model="productCode">
+            <input class="rounded-xl border border-slate-200 px-3 py-3 text-sm" type="text" placeholder="Location code or LOC-*" x-model="locationCode">
+            <input class="rounded-xl border border-slate-200 px-3 py-3 text-sm" type="number" step="0.0001" min="0" placeholder="Optional quantity" x-model="qty">
+        </div>
+
+        <div class="flex gap-2" x-show="selectedTask">
+            <button type="button" class="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50" @click="submitScan('start')" :disabled="!selectedTask || selectedTask.status !== 'pending'">Start Task</button>
+            <button type="button" class="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50" @click="submitScan('complete')" :disabled="!selectedTask || selectedTask.status !== 'in_progress'">Complete Task</button>
+        </div>
+
+        <div x-show="lastMessage" class="rounded-xl border px-3 py-2 text-sm" :class="lastScanBad ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'" x-text="lastMessage"></div>
+    </section>
+
+    <div class="bg-white rounded-xl shadow border border-slate-200 p-4 space-y-3 shrink-0" x-show="exceptions.length > 0">
+        <div class="flex items-center justify-between gap-2">
+            <div>
+                <div class="text-sm font-semibold text-slate-900">Open Exceptions</div>
+                <div class="text-xs text-slate-500">Resolve blockers or apply a disposition directly from the handheld queue.</div>
+            </div>
+            <div class="text-xs font-semibold text-rose-700" x-text="exceptions.length + ' open'"></div>
+        </div>
+        <template x-for="exception in exceptions" :key="exception.id">
+            <div class="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-widest text-rose-700" x-text="exception.exception_type"></div>
+                        <div class="mt-1 text-sm font-medium text-slate-900" x-text="'Task #' + exception.task_id"></div>
+                        <div class="mt-1 text-xs text-slate-600" x-text="exception.message"></div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <template x-for="option in dispositionOptions(exception)" :key="exception.id + ':' + option.value">
+                                <span class="inline-flex items-center rounded-full bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700 border border-rose-200" x-text="option.label"></span>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="flex shrink-0 flex-col gap-2">
+                        <button type="button" class="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800 border border-amber-200" @click="openDisposition(exception.id)">Disposition</button>
+                        <button type="button" class="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-700 border border-slate-200" @click="resolveException(exception.id)">Resolve</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
     <div class="flex-1 overflow-y-auto pb-6 space-y-3">
         <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest sticky top-0 bg-slate-100 py-2 z-10 border-b border-slate-200">My Queue</h2>
-        
-        <template x-for="t in sortedTasks" :key="t.id">
-            <div class="bg-white rounded-xl shadow border border-slate-200 p-4 relative overflow-hidden active:scale-[0.98] transition-transform" 
-                 @click="openTask(t.id)"
-                 :class="{'border-l-4 border-l-amber-500': t.status === 'in_progress'}">
-                <div class="flex justify-between items-start mb-2">
+
+        <template x-for="task in sortedTasks" :key="task.id">
+            <button type="button" class="w-full text-left bg-white rounded-xl shadow border border-slate-200 p-4 relative overflow-hidden active:scale-[0.98] transition-transform"
+                 @click="selectTask(task.id)"
+                 :class="selectedTask && selectedTask.id === task.id ? 'ring-2 ring-wms-400 border-wms-300' : (task.status === 'in_progress' ? 'border-l-4 border-l-amber-500' : '')">
+                <div class="flex justify-between items-start mb-2 gap-3">
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm"
-                          :class="{
-                              'bg-indigo-100 text-indigo-700 border border-indigo-200': t.task_type === 'pick',
-                              'bg-emerald-100 text-emerald-700 border border-emerald-200': t.task_type === 'putaway',
-                              'bg-purple-100 text-purple-700 border border-purple-200': t.task_type === 'replenish',
-                              'bg-slate-100 text-slate-700 border border-slate-200': t.task_type === 'count'
-                          }" x-text="t.task_type"></span>
-                    <span class="text-xs font-mono text-slate-400">#<span x-text="t.id"></span></span>
+                          :class="badgeClass(task.task_type)" x-text="task.task_type"></span>
+                    <span class="text-xs font-mono text-slate-400">#<span x-text="task.id"></span></span>
                 </div>
-                
-                <p class="text-sm text-slate-800 font-medium leading-tight mb-2" x-text="t.notes || 'No description provided'"></p>
-                
-                <div class="flex justify-between items-end mt-auto pt-2 border-t border-slate-100">
-                    <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest" x-text="t.reference_type ? t.reference_type + ' ' + t.reference_id : 'MANUAL TASK'"></div>
-                    <div x-show="t.status === 'in_progress'" class="flex items-center gap-1 text-amber-600">
+
+                <p class="text-sm text-slate-800 font-medium leading-tight mb-2" x-text="task.notes || 'No description provided'"></p>
+
+                <div class="flex justify-between items-end mt-auto pt-2 border-t border-slate-100 gap-3">
+                    <div>
+                        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest" x-text="referenceLabel(task)"></div>
+                        <div class="mt-1 text-[10px] text-rose-600 font-semibold" x-show="Number(task.open_exception_count || 0) > 0" x-text="task.open_exception_count + ' open exception(s)'"></div>
+                    </div>
+                    <div x-show="task.status === 'in_progress'" class="flex items-center gap-1 text-amber-600">
                         <span class="relative flex h-2 w-2">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                         </span>
                         <span class="text-[10px] font-bold uppercase tracking-widest">Active</span>
                     </div>
                 </div>
-            </div>
+            </button>
         </template>
 
         <div x-show="tasks.length === 0" class="text-center py-8 text-slate-400">
@@ -66,62 +138,410 @@
         </div>
     </div>
 
+    <div x-show="dispositionState.open" x-transition.opacity class="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 px-3 py-4" @click.self="closeDisposition()" @keydown.escape.window="closeDisposition()">
+        <div class="w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4">
+                <div>
+                    <div class="text-xs uppercase tracking-widest text-slate-500">Exception Disposition</div>
+                    <div class="mt-1 text-base font-semibold text-slate-900" x-text="dispositionException ? ('Task #' + dispositionException.task_id) : 'Select exception'"></div>
+                    <div class="mt-1 text-sm text-slate-600" x-text="dispositionException ? referenceLabel(dispositionException) : ''"></div>
+                </div>
+                <button type="button" class="rounded-full border border-slate-200 bg-white p-2 text-slate-500" @click="closeDisposition()" :disabled="dispositionState.saving">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <div class="space-y-4 px-4 py-4">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-xs uppercase tracking-widest text-slate-500">Blocked Work</div>
+                    <div class="mt-2 text-sm font-medium text-slate-900" x-text="dispositionException ? dispositionException.exception_type : ''"></div>
+                    <div class="mt-1 text-sm text-slate-600" x-text="dispositionException ? dispositionException.message : ''"></div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <template x-for="option in dispositionOptions(dispositionException)" :key="'sheet:' + option.value">
+                            <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700 border border-slate-200" x-text="option.label"></span>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    Leave the override fields blank to auto-detect product, location, batch, and quantity when the exception maps to one stock line.
+                </div>
+
+                <div class="space-y-3">
+                    <select class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm" x-model="dispositionState.dispositionType">
+                        <template x-for="option in dispositionOptions(dispositionException)" :key="'select:' + option.value">
+                            <option :value="option.value" x-text="option.label"></option>
+                        </template>
+                    </select>
+
+                    <textarea class="min-h-[110px] w-full rounded-xl border border-slate-200 px-3 py-3 text-sm" placeholder="Notes for the disposition movement or reservation release." x-model="dispositionState.resolutionNote"></textarea>
+                </div>
+
+                <details class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <summary class="cursor-pointer text-sm font-semibold text-slate-800">Advanced Overrides</summary>
+                    <div class="mt-4 grid grid-cols-1 gap-3">
+                        <input class="rounded-xl border border-slate-200 px-3 py-3 text-sm" type="number" step="0.0001" min="0" placeholder="Optional quantity override" x-model="dispositionState.qty">
+                        <select class="rounded-xl border border-slate-200 px-3 py-3 text-sm" x-model="dispositionState.productId">
+                            <option value="">Auto-detect product</option>
+                            <template x-for="product in productsCatalog" :key="'product:' + product.id">
+                                <option :value="String(product.id)" x-text="(product.sku || ('Product #' + product.id)) + ' - ' + (product.name || '')"></option>
+                            </template>
+                        </select>
+                        <select class="rounded-xl border border-slate-200 px-3 py-3 text-sm" x-model="dispositionState.locationId">
+                            <option value="">Auto-detect source location</option>
+                            <template x-for="location in dispositionLocations()" :key="'location:' + location.id">
+                                <option :value="String(location.id)" x-text="(location.code || ('Location #' + location.id)) + ' - ' + (location.name || '')"></option>
+                            </template>
+                        </select>
+                        <input class="rounded-xl border border-slate-200 px-3 py-3 text-sm" type="number" min="1" placeholder="Optional batch ID override" x-model="dispositionState.batchId">
+                    </div>
+                </details>
+
+                <div class="flex gap-2 pb-1">
+                    <button type="button" class="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700" @click="closeDisposition()" :disabled="dispositionState.saving">Cancel</button>
+                    <button type="button" class="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50" @click="submitDisposition()" :disabled="!dispositionException || dispositionState.saving" x-text="dispositionState.saving ? 'Applying...' : 'Apply Disposition'"></button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
 document.addEventListener('alpine:init', () => {
     Alpine.data('scannerTasks', () => ({
         tasks: [],
+        exceptions: [],
+        selectedTask: null,
+        productCode: '',
+        locationCode: '',
+        qty: '',
         lastScanText: '',
+        lastMessage: '',
         lastScanGood: false,
         lastScanBad: false,
-        
+        productsCatalog: {products|json},
+        locationsCatalog: {locations|json},
+        dispositionException: null,
+        dispositionState: {
+            open: false,
+            exceptionId: 0,
+            dispositionType: 'quarantine',
+            productId: '',
+            locationId: '',
+            batchId: '',
+            qty: '',
+            resolutionNote: '',
+            saving: false,
+        },
+
         get sortedTasks() {
-            return this.tasks.sort((a, b) => {
-                // In progress first
+            return [...this.tasks].sort((a, b) => {
                 if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
                 if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
-                return a.priority - b.priority;
+                return Number(a.priority || 0) - Number(b.priority || 0);
             });
         },
 
         init() {
             this.load();
-            window.addEventListener('wms-barcode-scanned', (e) => this.handleScan(e.detail.barcode));
+            window.addEventListener('wms-barcode-scanned', (event) => this.handleScan(event.detail.barcode));
+        },
+
+        badgeClass(taskType) {
+            if (taskType === 'pick') return 'bg-indigo-100 text-indigo-700 border border-indigo-200';
+            if (taskType === 'putaway') return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
+            if (taskType === 'replenish') return 'bg-purple-100 text-purple-700 border border-purple-200';
+            if (taskType === 'count') return 'bg-slate-100 text-slate-700 border border-slate-200';
+            return 'bg-sky-100 text-sky-700 border border-sky-200';
+        },
+
+        referenceLabel(task) {
+            if (!task || !task.reference_type) {
+                return 'MANUAL TASK';
+            }
+            if (task.reference_type === 'delivery_item') {
+                return 'delivery line #' + task.reference_id;
+            }
+            return task.reference_type + ' #' + task.reference_id;
+        },
+
+        uniqueProducts(lines) {
+            const map = new Map();
+            (lines || []).forEach((line) => {
+                const key = String(line.product_id || line.sku || line.barcode || '');
+                if (key && !map.has(key)) {
+                    map.set(key, line);
+                }
+            });
+            return Array.from(map.values());
+        },
+
+        uniqueLocations(lines) {
+            const map = new Map();
+            (lines || []).forEach((line) => {
+                const key = String(line.location_id || line.location_code || '');
+                if (key && !map.has(key)) {
+                    map.set(key, line);
+                }
+            });
+            return Array.from(map.values());
+        },
+
+        emptyDispositionState() {
+            return {
+                open: false,
+                exceptionId: 0,
+                dispositionType: 'quarantine',
+                productId: '',
+                locationId: '',
+                batchId: '',
+                qty: '',
+                resolutionNote: '',
+                saving: false,
+            };
+        },
+
+        dispositionLabel(type) {
+            if (type === 'quarantine') return 'Move stock to quarantine';
+            if (type === 'mark_damaged') return 'Write off as damaged';
+            if (type === 'release_reservation') return 'Release reservation';
+            return type || 'Disposition';
+        },
+
+        dispositionOptions(exception) {
+            const options = [
+                {value: 'quarantine', label: 'Move stock to quarantine'},
+                {value: 'mark_damaged', label: 'Write off as damaged'}
+            ];
+
+            if (exception && exception.reference_type === 'order' && exception.task_type === 'pick') {
+                options.push({value: 'release_reservation', label: 'Release reservation'});
+            }
+
+            return options;
+        },
+
+        dispositionLocations() {
+            return this.locationsCatalog || [];
+        },
+
+        flashState(kind, message) {
+            this.lastMessage = message;
+            this.lastScanGood = kind === 'good';
+            this.lastScanBad = kind === 'bad';
+            setTimeout(() => {
+                this.lastScanGood = false;
+                this.lastScanBad = false;
+            }, 800);
         },
 
         async load() {
-            const res = await fetch('/api/v1/wms/tasks?status=pending&assigned_to={auth_user.id}');
-            const res2 = await fetch('/api/v1/wms/tasks?status=in_progress&assigned_to={auth_user.id}');
-            
-            const j1 = await res.json();
-            const j2 = await res2.json();
-            
-            this.tasks = [...(j1.data||[]), ...(j2.data||[])];
-        },
-        
-        handleScan(barcode) {
-            this.lastScanText = barcode;
-            
-            // Dummy validation logic for Phase 3 visual feedback
-            if (barcode.startsWith('LOC-') || barcode.startsWith('PRD-') || barcode.startsWith('TSK-')) {
-                this.lastScanGood = true;
-                setTimeout(() => this.lastScanGood = false, 500);
-            } else {
-                this.lastScanBad = true;
-                setTimeout(() => this.lastScanBad = false, 500);
+            const [pendingRes, activeRes, exceptionRes] = await Promise.all([
+                fetch('{base_url}/api/v1/wms/tasks?status=pending&assigned_to={auth_user.id}', {headers: {'Accept': 'application/json'}}),
+                fetch('{base_url}/api/v1/wms/tasks?status=in_progress&assigned_to={auth_user.id}', {headers: {'Accept': 'application/json'}}),
+                fetch('{base_url}/api/v1/wms/tasks/exceptions?status=open', {headers: {'Accept': 'application/json'}})
+            ]);
+
+            const pendingJson = await pendingRes.json();
+            const activeJson = await activeRes.json();
+            const exceptionJson = await exceptionRes.json();
+
+            this.tasks = [...(pendingJson.data || []), ...(activeJson.data || [])];
+            this.exceptions = exceptionJson.data || [];
+
+            if (this.selectedTask) {
+                const updated = this.tasks.find((task) => Number(task.id) === Number(this.selectedTask.id));
+                if (updated) {
+                    await this.selectTask(updated.id, false);
+                } else {
+                    this.selectedTask = null;
+                }
+            }
+
+            if (this.dispositionException) {
+                const updatedException = this.exceptions.find((exception) => Number(exception.id) === Number(this.dispositionException.id));
+                if (updatedException) {
+                    this.dispositionException = updatedException;
+                } else {
+                    this.closeDisposition();
+                }
             }
         },
 
-        openTask(id) {
-            // For now, auto-start task on tap
-            if (confirm('Start task #' + id + '?')) {
-                fetch(`/api/v1/wms/tasks/${id}/status`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({status: 'in_progress'})
-                }).then(() => this.load());
+        async selectTask(id, clearFields = true) {
+            const res = await fetch('{base_url}/api/v1/wms/tasks/' + id, {headers: {'Accept': 'application/json'}});
+            const json = await res.json();
+            if (!json.ok) {
+                this.flashState('bad', json.error || 'Failed to load task details.');
+                return;
             }
+
+            this.selectedTask = json.data;
+            if (clearFields) {
+                this.productCode = '';
+                this.locationCode = '';
+                this.qty = '';
+                this.lastMessage = '';
+            }
+        },
+
+        async resolveException(id) {
+            const res = await fetch('{base_url}/api/v1/wms/tasks/exceptions/' + id + '/resolve', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{csrf_token}'},
+                body: JSON.stringify({resolution_note: 'Resolved from mobile scanner queue.'})
+            });
+            const json = await res.json();
+            if (!json.ok) {
+                this.flashState('bad', json.error || 'Failed to resolve exception.');
+                return;
+            }
+
+            this.flashState('good', 'Exception resolved.');
+            await this.load();
+        },
+
+        openDisposition(id) {
+            const exception = this.exceptions.find((row) => Number(row.id) === Number(id));
+            if (!exception) {
+                this.flashState('bad', 'Exception details are unavailable. Refresh and try again.');
+                return;
+            }
+
+            const next = this.emptyDispositionState();
+            const options = this.dispositionOptions(exception);
+            next.open = true;
+            next.exceptionId = Number(exception.id);
+            next.dispositionType = options[0] ? options[0].value : 'quarantine';
+
+            this.dispositionException = exception;
+            this.dispositionState = next;
+        },
+
+        closeDisposition() {
+            if (this.dispositionState.saving) {
+                return;
+            }
+
+            this.dispositionException = null;
+            this.dispositionState = this.emptyDispositionState();
+        },
+
+        async submitDisposition() {
+            if (!this.dispositionException) {
+                this.flashState('bad', 'Select an exception before applying a disposition.');
+                return;
+            }
+
+            this.dispositionState.saving = true;
+            try {
+                const payload = {
+                    disposition_type: String(this.dispositionState.dispositionType || '').trim(),
+                    product_id: this.dispositionState.productId ? Number(this.dispositionState.productId) : null,
+                    location_id: this.dispositionState.locationId ? Number(this.dispositionState.locationId) : null,
+                    batch_id: this.dispositionState.batchId ? Number(this.dispositionState.batchId) : null,
+                    qty: String(this.dispositionState.qty || '').trim(),
+                    resolution_note: String(this.dispositionState.resolutionNote || '').trim(),
+                };
+
+                const res = await fetch('{base_url}/api/v1/wms/tasks/exceptions/' + this.dispositionException.id + '/disposition', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{csrf_token}'},
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+
+                if (!res.ok || !json.ok) {
+                    throw new Error(json.error || 'Failed to apply disposition.');
+                }
+
+                const label = this.dispositionLabel(payload.disposition_type);
+                this.dispositionException = null;
+                this.dispositionState = this.emptyDispositionState();
+                this.flashState('good', label + ' applied.');
+                await this.load();
+            } catch (error) {
+                this.dispositionState.saving = false;
+                this.flashState('bad', error.message || 'Failed to apply disposition.');
+            }
+        },
+
+        handleScan(barcode) {
+            const normalized = String(barcode || '').trim();
+            if (!normalized) {
+                return;
+            }
+
+            this.lastScanText = normalized;
+            const upper = normalized.toUpperCase();
+
+            if (upper.startsWith('TSK-')) {
+                const taskId = Number(upper.replace('TSK-', ''));
+                if (taskId > 0) {
+                    this.selectTask(taskId);
+                    this.flashState('good', 'Task selected from scan.');
+                    return;
+                }
+            }
+
+            if (upper.startsWith('LOC-')) {
+                this.locationCode = normalized;
+                this.flashState('good', 'Location captured.');
+                return;
+            }
+
+            this.productCode = normalized;
+            this.flashState('good', 'Product captured.');
+        },
+
+        async submitScan(action) {
+            if (!this.selectedTask) {
+                this.flashState('bad', 'Select a task before scanning.');
+                return;
+            }
+
+            const res = await fetch('{base_url}/api/v1/wms/tasks/' + this.selectedTask.id + '/scan-confirm', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{csrf_token}'},
+                body: JSON.stringify({
+                    action,
+                    product_code: this.productCode,
+                    location_code: this.locationCode,
+                    qty: this.qty
+                })
+            });
+            const json = await res.json();
+            if (!json.ok) {
+                this.flashState('bad', json.error || 'Scan confirmation failed.');
+                return;
+            }
+
+            if (json.matched === false) {
+                this.flashState('bad', json.message || 'Scan mismatch recorded as an exception.');
+                if (json.task) {
+                    this.selectedTask = json.task;
+                }
+                await this.load();
+                return;
+            }
+
+            if (action === 'complete' && json.executed === false) {
+                this.flashState('bad', json.message || 'Task execution blocked and queued as an exception.');
+                if (json.task) {
+                    this.selectedTask = json.task;
+                }
+                await this.load();
+                return;
+            }
+
+            this.flashState('good', action === 'start' ? 'Task started with scan confirmation.' : 'Task completed with scan confirmation.');
+            this.productCode = '';
+            this.locationCode = '';
+            this.qty = '';
+            if (json.task) {
+                this.selectedTask = json.task;
+            }
+            await this.load();
         }
     }));
 });

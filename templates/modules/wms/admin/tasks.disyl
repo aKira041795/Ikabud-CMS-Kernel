@@ -1,157 +1,623 @@
-<div class="space-y-6 max-w-6xl mx-auto">
-    <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Tasks</h1>
-        <div class="flex gap-2">
-            <button onclick="document.getElementById('taskGenerateReplenishModal').showModal()" class="px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-700 text-sm font-medium transition-colors">
-                Auto-Replenish Tasks
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6 max-w-7xl mx-auto">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Task Queue</h1>
+            <p class="mt-1 text-sm text-slate-600">Execute warehouse work through scan-confirmed transitions and clear exceptions from the same board.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button onclick="document.getElementById('taskGenerateReplenishModal').showModal()" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                Auto-Replenish
             </button>
-            <button onclick="document.getElementById('taskCreateModal').showModal()" class="px-4 py-2 bg-wms-600 text-white rounded hover:bg-wms-700 text-sm font-medium transition-colors shadow-sm">
-                + New Task
+            <button onclick="document.getElementById('taskCreateModal').showModal()" class="rounded-xl bg-wms-600 px-4 py-2 text-sm font-medium text-white hover:bg-wms-700">
+                Create Task
             </button>
         </div>
     </div>
 
-    <!-- Active Tasks Board -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-            <h2 class="font-medium text-slate-800">Task Queue</h2>
-            <div class="flex items-center gap-2">
-                <select class="w-full rounded-md border-slate-300 shadow-sm text-sm focus:border-wms-500 focus:ring-wms-500" id="filterTaskStatus" onchange="wmsTaskBoardFilter()">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-600">Visible Tasks</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-900" id="tasksStatTotal">0</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-600">Pending</div>
+            <div class="mt-2 text-3xl font-semibold text-amber-600" id="tasksStatPending">0</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-600">In Progress</div>
+            <div class="mt-2 text-3xl font-semibold text-blue-600" id="tasksStatInProgress">0</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-600">Open Exceptions</div>
+            <div class="mt-2 text-3xl font-semibold text-rose-600" id="tasksStatExceptions">0</div>
+        </div>
+    </div>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+                <div class="text-lg font-semibold text-slate-900">Execution Board</div>
+                <div class="text-sm text-slate-600">Filter by status or type, then launch a guarded start or completion scan for the selected task.</div>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row">
+                <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" id="filterTaskStatus" onchange="wmsTaskBoardReload()">
                     <option value="">All Statuses</option>
-                    <option value="pending" selected>Pending</option>
+                    <option value="pending">Pending</option>
                     <option value="in_progress">In Progress</option>
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
-                <select class="w-full rounded-md border-slate-300 shadow-sm text-sm focus:border-wms-500 focus:ring-wms-500" id="filterTaskType" onchange="wmsTaskBoardFilter()">
+                <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" id="filterTaskType" onchange="wmsTaskBoardReload()">
                     <option value="">All Types</option>
                     <option value="pick">Pick</option>
                     <option value="putaway">Putaway</option>
-                    <option value="replenish">Replenish</option>
+                    <option value="transfer">Transfer</option>
                     <option value="count">Count</option>
+                    <option value="replenish">Replenish</option>
                 </select>
-                <button onclick="wmsTaskBoardReload()" class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded hover:bg-slate-200 text-sm font-medium border border-slate-300">
+                <button onclick="wmsTaskBoardReload()" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                     Refresh
                 </button>
             </div>
         </div>
-        <div class="overflow-x-auto min-h-[400px]">
-            <table class="w-full text-left text-sm" id="tasksTable">
-                <thead class="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
                     <tr>
-                        <th class="px-4 py-3">Task ID</th>
+                        <th class="px-4 py-3">Task</th>
                         <th class="px-4 py-3">Warehouse</th>
                         <th class="px-4 py-3">Type</th>
                         <th class="px-4 py-3">Status</th>
                         <th class="px-4 py-3">Priority</th>
-                        <th class="px-4 py-3">Assigned To</th>
-                        <th class="px-4 py-3">Ref</th>
+                        <th class="px-4 py-3">Assigned</th>
+                        <th class="px-4 py-3">Reference</th>
+                        <th class="px-4 py-3">Exceptions</th>
                         <th class="px-4 py-3 text-right">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100 text-slate-700" id="tasksTbody">
-                    <tr><td colspan="8" class="text-center py-8 text-slate-500">Loading tasks...</td></tr>
+                <tbody class="divide-y divide-slate-100" id="tasksTbody">
+                    <tr><td colspan="9" class="px-4 py-10 text-center text-slate-600">Loading tasks...</td></tr>
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 bg-slate-50 px-5 py-4">
+            <div class="text-lg font-semibold text-slate-900">Open Exception Queue</div>
+            <div class="text-sm text-slate-600">Mismatched scans and blocked task executions land here until an operator resolves or dispositions them.</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3">Created</th>
+                        <th class="px-4 py-3">Task</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3">Message</th>
+                        <th class="px-4 py-3">Warehouse</th>
+                        <th class="px-4 py-3">Assigned</th>
+                        <th class="px-4 py-3 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100" id="taskExceptionsTbody">
+                    <tr><td colspan="7" class="px-4 py-10 text-center text-slate-600">Loading exceptions...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
+
+<dialog id="taskGenerateReplenishModal" class="min-w-[22rem] rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-slate-900/50">
+    <form id="taskReplenishForm" class="space-y-4 p-6">
+        <div>
+            <div class="text-lg font-semibold text-slate-900">Generate Replenishment Tasks</div>
+            <p class="mt-1 text-sm text-slate-600">Scan the selected warehouse for stock below threshold and create missing replenish work only once.</p>
+        </div>
+        <select class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" name="warehouse_id" required>
+            <option value="">Select warehouse</option>
+            {foreach warehouses as warehouse}
+            <option value="{warehouse.id}">{warehouse.code} — {warehouse.name}</option>
+            {/foreach}
+        </select>
+        <div class="flex justify-end gap-2">
+            <button type="button" onclick="document.getElementById('taskGenerateReplenishModal').close()" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Cancel</button>
+            <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Generate</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="taskCreateModal" class="min-w-[42rem] max-w-[90vw] rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-slate-900/50">
+    <form id="taskCreateForm" class="space-y-4 p-6">
+        <div>
+            <div class="text-lg font-semibold text-slate-900">Create Task</div>
+            <p class="mt-1 text-sm text-slate-600">Use explicit task creation for manual work, transfers, counts, and exception recovery.</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="warehouse_id" required>
+                <option value="">Warehouse</option>
+                {foreach warehouses as warehouse}
+                <option value="{warehouse.id}">{warehouse.code} — {warehouse.name}</option>
+                {/foreach}
+            </select>
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="task_type" required>
+                <option value="pick">Pick</option>
+                <option value="putaway">Putaway</option>
+                <option value="transfer">Transfer</option>
+                <option value="count">Count</option>
+                <option value="replenish">Replenish</option>
+            </select>
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" min="1" max="255" name="priority" value="50" placeholder="Priority">
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="assigned_to">
+                <option value="">Unassigned</option>
+                {foreach task_users as task_user}
+                <option value="{task_user.id}">{task_user.full_name} — {task_user.role}</option>
+                {/foreach}
+            </select>
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="reference_type">
+                <option value="">No reference</option>
+                <option value="order">Order</option>
+                <option value="delivery">Delivery</option>
+                <option value="cycle_count">Cycle Count</option>
+                <option value="product">Product</option>
+                <option value="transfer">Transfer</option>
+            </select>
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" min="1" name="reference_id" placeholder="Reference ID">
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2" type="datetime-local" name="due_at">
+            <textarea class="min-h-[120px] rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2" name="notes" placeholder="Describe the work, risk, or exception context."></textarea>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button type="button" onclick="document.getElementById('taskCreateModal').close()" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Cancel</button>
+            <button type="submit" class="rounded-xl bg-wms-600 px-4 py-2 text-sm font-medium text-white hover:bg-wms-700">Create Task</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="taskScanModal" class="min-w-[34rem] max-w-[92vw] rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-slate-900/50">
+    <form id="taskScanForm" class="space-y-4 p-6">
+        <input type="hidden" name="task_id" value="">
+        <input type="hidden" name="action" value="start">
+        <div>
+            <div class="text-lg font-semibold text-slate-900" id="taskScanHeading">Scan Task</div>
+            <p class="mt-1 text-sm text-slate-600" id="taskScanSubheading">Confirm the expected product and location before changing task state.</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4" id="taskScanSummary"></div>
+        <div id="taskScanFeedback" class="hidden rounded-xl border px-3 py-2 text-sm"></div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="product_code" placeholder="Product barcode, SKU, or PRD-*">
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="location_code" placeholder="Location code or LOC-*">
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2" type="number" step="0.0001" min="0" name="qty" placeholder="Optional quantity confirmation">
+        </div>
+        <div class="flex justify-end gap-2">
+            <button type="button" onclick="document.getElementById('taskScanModal').close()" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Cancel</button>
+            <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800" id="taskScanSubmitButton">Confirm Scan</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="taskExceptionDispositionModal" class="min-w-[40rem] max-w-[92vw] rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-slate-900/50">
+    <form id="taskExceptionDispositionForm" class="space-y-4 p-6">
+        <input type="hidden" name="exception_id" value="">
+        <div>
+            <div class="text-lg font-semibold text-slate-900">Exception Disposition</div>
+            <p class="mt-1 text-sm text-slate-600">Use the ledger-backed remediation path instead of resolving the exception without operational follow-through.</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4" id="taskExceptionDispositionSummary"></div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700" id="taskExceptionDispositionHint">
+            Leave product, source location, batch, and quantity blank to auto-detect them from the task when the exception maps to one stock line.
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="disposition_type" id="taskExceptionDispositionType" required>
+                <option value="quarantine">Move stock to quarantine</option>
+                <option value="mark_damaged">Write off as damaged</option>
+            </select>
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" step="0.0001" min="0" name="qty" placeholder="Optional qty override">
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="product_id">
+                <option value="">Auto-detect product</option>
+                {foreach products as product}
+                <option value="{product.id}">{product.sku} — {product.name}</option>
+                {/foreach}
+            </select>
+            <select class="rounded-xl border border-slate-200 px-3 py-2 text-sm" name="location_id">
+                <option value="">Auto-detect source location</option>
+                {foreach locations as location}
+                <option value="{location.id}">{location.code} — {location.name}</option>
+                {/foreach}
+            </select>
+            <input class="rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2" type="number" min="1" name="batch_id" placeholder="Optional batch ID override">
+            <textarea class="min-h-[110px] rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2" name="resolution_note" placeholder="Notes for the disposition movement or release."></textarea>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button type="button" onclick="document.getElementById('taskExceptionDispositionModal').close()" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Cancel</button>
+            <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Apply Disposition</button>
+        </div>
+    </form>
+</dialog>
 
 <script>
 let wmsTasksList = [];
+let wmsTaskExceptions = [];
+let wmsCurrentScanTask = null;
+let wmsCurrentTaskException = null;
+
+function wmsEscapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function wmsTaskStatusClass(status) {
+    if (status === 'completed') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    if (status === 'in_progress') return 'bg-blue-50 text-blue-700 border border-blue-200';
+    if (status === 'cancelled') return 'bg-red-50 text-red-700 border border-red-200';
+    return 'bg-amber-50 text-amber-700 border border-amber-200';
+}
+
+function wmsTaskUniqueRows(rows, keyBuilder) {
+    const map = new Map();
+    (rows || []).forEach((row) => {
+        const key = keyBuilder(row);
+        if (key && !map.has(key)) {
+            map.set(key, row);
+        }
+    });
+    return Array.from(map.values());
+}
+
+function wmsTaskFormatReference(task) {
+    if (!task.reference_type) {
+        return 'Manual';
+    }
+    if (task.reference_type === 'delivery_item') {
+        return 'delivery line #' + task.reference_id;
+    }
+    return task.reference_type + ' #' + task.reference_id;
+}
+
+function wmsTaskDispositionLabel(type) {
+    if (type === 'quarantine') return 'Move stock to quarantine';
+    if (type === 'mark_damaged') return 'Write off as damaged';
+    if (type === 'release_reservation') return 'Release reservation';
+    return type || 'Disposition';
+}
+
+function wmsTaskExceptionDispositionOptions(exception) {
+    const options = [
+        {value: 'quarantine', label: 'Move stock to quarantine'},
+        {value: 'mark_damaged', label: 'Write off as damaged'}
+    ];
+
+    if (exception && exception.reference_type === 'order' && exception.task_type === 'pick') {
+        options.push({value: 'release_reservation', label: 'Release reservation'});
+    }
+
+    return options;
+}
+
+function wmsTaskSetScanFeedback(message, isError) {
+    const panel = document.getElementById('taskScanFeedback');
+    panel.className = 'rounded-xl border px-3 py-2 text-sm ' + (isError
+        ? 'border-rose-200 bg-rose-50 text-rose-700'
+        : 'border-emerald-200 bg-emerald-50 text-emerald-700');
+    panel.textContent = message;
+    panel.classList.remove('hidden');
+}
+
+function wmsTaskClearScanFeedback() {
+    const panel = document.getElementById('taskScanFeedback');
+    panel.classList.add('hidden');
+    panel.textContent = '';
+}
 
 async function wmsTaskBoardReload() {
     const status = document.getElementById('filterTaskStatus').value;
     const type = document.getElementById('filterTaskType').value;
-    
-    let url = '/api/v1/wms/tasks?t=' + Date.now();
-    if (status) url += '&status=' + status;
-    if (type) url += '&task_type=' + type;
+
+    let taskUrl = '{base_url}/api/v1/wms/tasks?t=' + Date.now();
+    if (status) taskUrl += '&status=' + encodeURIComponent(status);
+    if (type) taskUrl += '&task_type=' + encodeURIComponent(type);
+
+    const exceptionUrl = '{base_url}/api/v1/wms/tasks/exceptions?status=open&t=' + Date.now();
 
     try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to load');
-        const json = await res.json();
-        wmsTasksList = json.data || [];
+        const [taskRes, exceptionRes] = await Promise.all([
+            fetch(taskUrl, {headers: {'Accept': 'application/json'}}),
+            fetch(exceptionUrl, {headers: {'Accept': 'application/json'}})
+        ]);
+
+        if (!taskRes.ok) throw new Error('Failed to load tasks.');
+        if (!exceptionRes.ok) throw new Error('Failed to load task exceptions.');
+
+        const taskJson = await taskRes.json();
+        const exceptionJson = await exceptionRes.json();
+        if (!taskJson.ok) throw new Error(taskJson.error || 'Failed to load tasks.');
+        if (!exceptionJson.ok) throw new Error(exceptionJson.error || 'Failed to load task exceptions.');
+
+        wmsTasksList = taskJson.data || [];
+        wmsTaskExceptions = exceptionJson.data || [];
         wmsTaskBoardRender();
-    } catch (e) {
-        document.getElementById('tasksTbody').innerHTML = `<tr><td colspan="8" class="text-center py-8 text-red-500">Failed to load tasks</td></tr>`;
+        wmsTaskExceptionRender();
+    } catch (error) {
+        document.getElementById('tasksTbody').innerHTML = '<tr><td colspan="9" class="px-4 py-10 text-center text-rose-600">' + wmsEscapeHtml(error.message) + '</td></tr>';
+        document.getElementById('taskExceptionsTbody').innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-rose-600">' + wmsEscapeHtml(error.message) + '</td></tr>';
     }
 }
 
 function wmsTaskBoardRender() {
     const tbody = document.getElementById('tasksTbody');
+    document.getElementById('tasksStatTotal').textContent = String(wmsTasksList.length);
+    document.getElementById('tasksStatPending').textContent = String(wmsTasksList.filter(task => task.status === 'pending').length);
+    document.getElementById('tasksStatInProgress').textContent = String(wmsTasksList.filter(task => task.status === 'in_progress').length);
+    document.getElementById('tasksStatExceptions').textContent = String(wmsTaskExceptions.length);
+
     if (wmsTasksList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-500">No tasks found.</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-10 text-center text-slate-600">No tasks found for the selected filters.</td></tr>';
         return;
     }
 
-    tbody.innerHTML = wmsTasksList.map(task => `
-        <tr class="hover:bg-slate-50 transition-colors">
-            <td class="px-4 py-3 font-medium text-slate-900">#${task.id}</td>
-            <td class="px-4 py-3">${task.warehouse_id}</td>
-            <td class="px-4 py-3">
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200 uppercase tracking-wider">
-                    ${task.task_type}
-                </span>
-            </td>
-            <td class="px-4 py-3">
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium 
-                    ${task.status === 'completed' ? 'bg-green-50 text-green-700 border border-green-200' : 
-                      task.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 
-                      task.status === 'cancelled' ? 'bg-red-50 text-red-700 border border-red-200' : 
-                      'bg-slate-100 text-slate-700 border border-slate-200'}">
-                    ${task.status}
-                </span>
-            </td>
-            <td class="px-4 py-3">${task.priority}</td>
-            <td class="px-4 py-3">${task.assigned_to ? 'User #' + task.assigned_to : '<span class="text-slate-400 italic">Unassigned</span>'}</td>
-            <td class="px-4 py-3">${task.reference_type ? task.reference_type + ' #' + task.reference_id : '-'}</td>
-            <td class="px-4 py-3 text-right space-x-2">
-                ${task.status === 'pending' ? `<button onclick="wmsTaskSetStatus(${task.id}, 'in_progress')" class="text-blue-600 hover:text-blue-800 font-medium">Start</button>` : ''}
-                ${task.status === 'in_progress' ? `<button onclick="wmsTaskSetStatus(${task.id}, 'completed')" class="text-green-600 hover:text-green-800 font-medium">Complete</button>` : ''}
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = wmsTasksList.map((task) => {
+        const warehouseLabel = task.warehouse_code ? task.warehouse_code + ' - ' + task.warehouse_name : (task.warehouse_name || ('Warehouse #' + task.warehouse_id));
+        const assignedLabel = task.assigned_name || 'Unassigned';
+        const notes = task.notes ? '<div class="mt-1 text-xs text-slate-600">' + wmsEscapeHtml(task.notes) + '</div>' : '';
+        const exceptionBadge = Number(task.open_exception_count || 0) > 0
+            ? '<span class="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 border border-rose-200">' + wmsEscapeHtml(task.open_exception_count) + ' open</span>'
+            : '<span class="text-xs text-slate-500">Clear</span>';
+
+        let actions = '<span class="text-xs text-slate-400">No action</span>';
+        if (task.status === 'pending') {
+            actions = '<button onclick="wmsTaskOpenScan(' + Number(task.id) + ', \'start\')" class="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">Scan Start</button>';
+        } else if (task.status === 'in_progress') {
+            actions = '<button onclick="wmsTaskOpenScan(' + Number(task.id) + ', \'complete\')" class="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100">Scan Complete</button>';
+        }
+
+        return '<tr class="align-top hover:bg-slate-50">'
+            + '<td class="px-4 py-3"><div class="font-medium text-slate-900">#' + wmsEscapeHtml(task.id) + '</div>' + notes + '</td>'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml(warehouseLabel) + '</td>'
+            + '<td class="px-4 py-3"><span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-slate-700">' + wmsEscapeHtml(task.task_type) + '</span></td>'
+            + '<td class="px-4 py-3"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ' + wmsTaskStatusClass(task.status) + '">' + wmsEscapeHtml(task.status) + '</span></td>'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml(task.priority) + '</td>'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml(assignedLabel) + '</td>'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml(wmsTaskFormatReference(task)) + '</td>'
+            + '<td class="px-4 py-3">' + exceptionBadge + '</td>'
+            + '<td class="px-4 py-3 text-right">' + actions + '</td>'
+            + '</tr>';
+    }).join('');
 }
 
-async function wmsTaskSetStatus(id, status) {
-    if (!confirm(`Mark task #${id} as ${status}?`)) return;
+function wmsTaskExceptionRender() {
+    const tbody = document.getElementById('taskExceptionsTbody');
+    if (wmsTaskExceptions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-slate-600">No open task exceptions.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = wmsTaskExceptions.map((exception) => {
+        const assignedLabel = exception.assigned_name || 'Unassigned';
+        return '<tr class="align-top hover:bg-slate-50">'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml(exception.created_at || '-') + '</td>'
+            + '<td class="px-4 py-3"><div class="font-medium text-slate-900">#' + wmsEscapeHtml(exception.task_id) + '</div><div class="text-xs text-slate-500">' + wmsEscapeHtml(wmsTaskFormatReference(exception)) + '</div></td>'
+            + '<td class="px-4 py-3"><span class="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 border border-rose-200">' + wmsEscapeHtml(exception.exception_type) + '</span></td>'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml(exception.message || '') + '</td>'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml((exception.warehouse_code || '') + (exception.warehouse_name ? ' - ' + exception.warehouse_name : '')) + '</td>'
+            + '<td class="px-4 py-3 text-slate-700">' + wmsEscapeHtml(assignedLabel) + '</td>'
+            + '<td class="px-4 py-3 text-right"><div class="flex justify-end gap-2"><button onclick="wmsOpenTaskExceptionDisposition(' + Number(exception.id) + ')" class="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100">Disposition</button><button onclick="wmsResolveTaskException(' + Number(exception.id) + ')" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800">Resolve</button></div></td>'
+            + '</tr>';
+    }).join('');
+}
+
+function wmsTaskRenderExceptionSummary(exception) {
+    const options = wmsTaskExceptionDispositionOptions(exception)
+        .map((option) => '<span class="inline-flex rounded-full bg-white px-2 py-1 text-xs font-medium text-slate-700 border border-slate-200">' + wmsEscapeHtml(option.label) + '</span>')
+        .join(' ');
+
+    return ''
+        + '<div class="space-y-3">'
+        + '<div>'
+        + '<div class="text-xs uppercase tracking-wide text-slate-500">Exception</div>'
+        + '<div class="mt-1 font-semibold text-slate-900">#' + wmsEscapeHtml(exception.id) + ' on task #' + wmsEscapeHtml(exception.task_id) + '</div>'
+        + '<div class="mt-1 text-sm text-slate-600">' + wmsEscapeHtml(wmsTaskFormatReference(exception)) + ' • ' + wmsEscapeHtml(exception.exception_type) + '</div>'
+        + '</div>'
+        + '<div class="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">' + wmsEscapeHtml(exception.message || '') + '</div>'
+        + '<div>'
+        + '<div class="text-xs uppercase tracking-wide text-slate-500">Available Dispositions</div>'
+        + '<div class="mt-2 flex flex-wrap gap-2">' + options + '</div>'
+        + '</div>'
+        + '</div>';
+}
+
+function wmsTaskRenderScanSummary(task, action) {
+    const expected = task.expected_scan || {};
+    const products = wmsTaskUniqueRows(expected.products || [], (line) => String(line.product_id || line.sku || line.barcode || ''));
+    const locations = wmsTaskUniqueRows(expected.locations || [], (line) => String(line.location_id || line.location_code || ''));
+    const productChips = products.length > 0
+        ? products.map((line) => '<span class="inline-flex rounded-full bg-white px-2 py-1 text-xs font-medium text-slate-700 border border-slate-200">' + wmsEscapeHtml((line.sku || line.product_name || ('Product #' + line.product_id)) + (line.barcode ? ' / ' + line.barcode : '')) + '</span>').join(' ')
+        : '<span class="text-xs text-slate-500">No product scan required for this task.</span>';
+    const locationChips = locations.length > 0
+        ? locations.map((line) => '<span class="inline-flex rounded-full bg-white px-2 py-1 text-xs font-medium text-slate-700 border border-slate-200">' + wmsEscapeHtml(line.location_code || ('Location #' + line.location_id)) + '</span>').join(' ')
+        : '<span class="text-xs text-slate-500">No location scan required for this task.</span>';
+    const qtyLine = expected.qty_expected !== null && expected.qty_expected !== undefined
+        ? '<div class="text-xs text-slate-600">Expected quantity: <span class="font-medium text-slate-900">' + wmsEscapeHtml(expected.qty_expected) + '</span></div>'
+        : '<div class="text-xs text-slate-500">Quantity confirmation is optional for this task.</div>';
+
+    return ''
+        + '<div class="space-y-3">'
+        + '<div>'
+        + '<div class="text-xs uppercase tracking-wide text-slate-500">Task</div>'
+        + '<div class="mt-1 font-semibold text-slate-900">#' + wmsEscapeHtml(task.id) + ' - ' + wmsEscapeHtml(task.task_type) + '</div>'
+        + '<div class="mt-1 text-sm text-slate-600">' + wmsEscapeHtml((expected.reference && expected.reference.label) || wmsTaskFormatReference(task)) + '</div>'
+        + '</div>'
+        + '<div class="rounded-xl border border-slate-200 bg-white p-3">'
+        + '<div class="text-xs uppercase tracking-wide text-slate-500">Guardrail</div>'
+        + '<div class="mt-1 text-sm text-slate-700">' + wmsEscapeHtml(expected.hint || 'Scan confirmation will validate the expected work inputs.') + '</div>'
+        + '</div>'
+        + '<div class="grid grid-cols-1 gap-3 md:grid-cols-2">'
+        + '<div><div class="text-xs uppercase tracking-wide text-slate-500">Expected Products</div><div class="mt-2 flex flex-wrap gap-2">' + productChips + '</div></div>'
+        + '<div><div class="text-xs uppercase tracking-wide text-slate-500">Expected Locations</div><div class="mt-2 flex flex-wrap gap-2">' + locationChips + '</div></div>'
+        + '</div>'
+        + qtyLine
+        + '<div class="text-xs text-slate-500">Open exceptions on task: ' + wmsEscapeHtml(task.open_exception_count || 0) + '. Successful ' + wmsEscapeHtml(action) + ' confirmation auto-resolves them.</div>'
+        + '</div>';
+}
+
+async function wmsTaskOpenScan(id, action) {
     try {
-        const res = await fetch(`/api/v1/wms/tasks/${id}/status`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ status })
-        });
+        const res = await fetch('{base_url}/api/v1/wms/tasks/' + id, {headers: {'Accept': 'application/json'}});
+        if (!res.ok) throw new Error('Failed to load task details.');
         const json = await res.json();
-        if (!json.ok) throw new Error(json.error || 'Failed');
-        wmsTaskBoardReload();
-    } catch (e) {
-        alert(e.message);
+        if (!json.ok) throw new Error(json.error || 'Failed to load task details.');
+
+        wmsCurrentScanTask = json.data;
+        const form = document.getElementById('taskScanForm');
+        form.reset();
+        form.elements.task_id.value = String(id);
+        form.elements.action.value = action;
+        document.getElementById('taskScanHeading').textContent = action === 'start' ? 'Scan to Start Task' : 'Scan to Complete Task';
+        document.getElementById('taskScanSubheading').textContent = action === 'start'
+            ? 'Confirm the expected task inputs before releasing the work to the floor.'
+            : 'Confirm the expected task inputs before finishing the warehouse action.';
+        document.getElementById('taskScanSubmitButton').textContent = action === 'start' ? 'Start Task' : 'Complete Task';
+        document.getElementById('taskScanSummary').innerHTML = wmsTaskRenderScanSummary(json.data, action);
+        wmsTaskClearScanFeedback();
+        document.getElementById('taskScanModal').showModal();
+    } catch (error) {
+        alert(error.message || 'Failed to open scan modal.');
     }
 }
 
-function wmsTaskBoardFilter() {
-    wmsTaskBoardReload();
-}
-
-// Auto-replenish dialog integration placeholder
-function wmsAutoReplenish(warehouseId) {
-    fetch('/api/v1/wms/tasks/auto-replenish', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ warehouse_id: warehouseId })
-    })
-    .then(r => r.json())
-    .then(j => {
-        if (j.ok) {
-            alert(j.tasks_created + ' replenishment tasks generated.');
-            wmsTaskBoardReload();
-        } else {
-            alert(j.error);
-        }
+function wmsResolveTaskException(id) {
+    if (!confirm('Resolve this task exception?')) {
+        return;
+    }
+    wmsPost('{base_url}/api/v1/wms/tasks/exceptions/' + id + '/resolve', {resolution_note: 'Resolved from task board.'}, () => {
+        wmsTaskBoardReload();
     });
 }
 
-document.addEventListener('DOMContentLoaded', wmsTaskBoardReload);
+function wmsOpenTaskExceptionDisposition(id) {
+    const exception = wmsTaskExceptions.find((row) => Number(row.id) === Number(id));
+    if (!exception) {
+        alert('Task exception details are unavailable. Refresh the board and try again.');
+        return;
+    }
+
+    wmsCurrentTaskException = exception;
+    const form = document.getElementById('taskExceptionDispositionForm');
+    form.reset();
+    form.elements.exception_id.value = String(id);
+
+    const dispositionType = document.getElementById('taskExceptionDispositionType');
+    dispositionType.innerHTML = wmsTaskExceptionDispositionOptions(exception)
+        .map((option) => '<option value="' + wmsEscapeHtml(option.value) + '">' + wmsEscapeHtml(option.label) + '</option>')
+        .join('');
+
+    document.getElementById('taskExceptionDispositionSummary').innerHTML = wmsTaskRenderExceptionSummary(exception);
+    document.getElementById('taskExceptionDispositionHint').textContent = 'Leave product, source location, batch, and quantity blank to auto-detect them from the task when the exception maps to one stock line.';
+    document.getElementById('taskExceptionDispositionModal').showModal();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const taskCreateForm = document.getElementById('taskCreateForm');
+    const taskReplenishForm = document.getElementById('taskReplenishForm');
+    const taskScanForm = document.getElementById('taskScanForm');
+    const taskExceptionDispositionForm = document.getElementById('taskExceptionDispositionForm');
+
+    taskCreateForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = new FormData(taskCreateForm);
+        const data = {
+            warehouse_id: Number(form.get('warehouse_id') || 0),
+            task_type: form.get('task_type'),
+            priority: Number(form.get('priority') || 50),
+            assigned_to: form.get('assigned_to') ? Number(form.get('assigned_to')) : null,
+            reference_type: form.get('reference_type') || null,
+            reference_id: form.get('reference_id') ? Number(form.get('reference_id')) : null,
+            due_at: form.get('due_at') || null,
+            notes: form.get('notes') || ''
+        };
+
+        wmsPost('{base_url}/api/v1/wms/tasks', data, () => {
+            taskCreateForm.reset();
+            document.getElementById('taskCreateModal').close();
+            wmsTaskBoardReload();
+        });
+    });
+
+    taskReplenishForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = new FormData(taskReplenishForm);
+        const warehouseId = Number(form.get('warehouse_id') || 0);
+        if (warehouseId <= 0) {
+            alert('Please select a warehouse.');
+            return;
+        }
+        wmsPost('{base_url}/api/v1/wms/tasks/auto-replenish', {warehouse_id: warehouseId}, (json) => {
+            alert((json.tasks_created || 0) + ' replenishment task(s) generated.');
+            taskReplenishForm.reset();
+            document.getElementById('taskGenerateReplenishModal').close();
+            wmsTaskBoardReload();
+        });
+    });
+
+    taskScanForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = new FormData(taskScanForm);
+        const taskId = Number(form.get('task_id') || 0);
+        const action = String(form.get('action') || 'start');
+        const payload = {
+            action,
+            product_code: String(form.get('product_code') || '').trim(),
+            location_code: String(form.get('location_code') || '').trim(),
+            qty: String(form.get('qty') || '').trim()
+        };
+
+        wmsPost('{base_url}/api/v1/wms/tasks/' + taskId + '/scan-confirm', payload, (json) => {
+            if (json.matched === false) {
+                wmsTaskSetScanFeedback(json.message || 'Scan mismatch recorded as an exception.', true);
+                wmsTaskBoardReload();
+                return;
+            }
+
+            if (action === 'complete' && json.executed === false) {
+                wmsTaskSetScanFeedback(json.message || 'Task execution was blocked and queued as an exception.', true);
+                wmsTaskBoardReload();
+                return;
+            }
+
+            wmsTaskSetScanFeedback(action === 'start' ? 'Task started with scan confirmation.' : 'Task completed with scan confirmation.', false);
+            wmsTaskBoardReload();
+            setTimeout(() => {
+                document.getElementById('taskScanModal').close();
+            }, 250);
+        });
+    });
+
+    taskExceptionDispositionForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = new FormData(taskExceptionDispositionForm);
+        const exceptionId = Number(form.get('exception_id') || 0);
+        const payload = {
+            disposition_type: String(form.get('disposition_type') || ''),
+            product_id: form.get('product_id') ? Number(form.get('product_id')) : null,
+            location_id: form.get('location_id') ? Number(form.get('location_id')) : null,
+            batch_id: form.get('batch_id') ? Number(form.get('batch_id')) : null,
+            qty: String(form.get('qty') || '').trim(),
+            resolution_note: String(form.get('resolution_note') || '').trim()
+        };
+
+        wmsPost('{base_url}/api/v1/wms/tasks/exceptions/' + exceptionId + '/disposition', payload, () => {
+            taskExceptionDispositionForm.reset();
+            document.getElementById('taskExceptionDispositionModal').close();
+            wmsTaskBoardReload();
+        });
+    });
+
+    wmsTaskBoardReload();
+});
 </script>
+{/block}

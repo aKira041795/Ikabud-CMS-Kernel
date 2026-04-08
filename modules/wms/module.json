@@ -1,8 +1,8 @@
 {
     "id": "wms",
     "name": "Warehouse Management System",
-    "version": "1.2.0",
-    "description": "Entity-driven warehouse management for inventory, receiving, picking, transfers, cycle counts, suppliers, and returns.",
+    "version": "1.4.0",
+    "description": "Entity-driven warehouse management for inventory, task execution, imports, diagnostics, onboarding, and financial supply loops.",
     "author": "Ikabud Kernel Team",
     "owns_tables": [
         "wms_users",
@@ -28,8 +28,12 @@
         "wms_recipe_items",
         "wms_production_orders",
         "wms_production_materials",
+        "wms_task_exceptions",
         "audit_logs",
-        "rate_limits"
+        "rate_limits",
+        "wms_configs",
+        "wms_purchase_orders",
+        "wms_purchase_order_items"
     ],
     "reads_tables": [
         "users"
@@ -49,7 +53,12 @@
         "database/migrations/012_wms_returns.sql",
         "database/migrations/013_wms_hardening.sql",
         "database/migrations/014_wms_phase2.sql",
-        "database/migrations/015_wms_phase5_production.sql"
+        "database/migrations/015_wms_phase5_production.sql",
+        "database/migrations/016_wms_phase6_platformization.sql",
+        "database/migrations/017_wms_phase6_financials.sql",
+        "database/migrations/018_wms_phase7_task_exceptions.sql",
+        "database/migrations/019_wms_phase75_receiving_closure.sql",
+        "database/migrations/020_wms_phase76_exception_dispositions.sql"
     ],
     "events": [
         {
@@ -161,6 +170,26 @@
             ]
         },
         {
+            "label": "Tasks",
+            "url": "/wms/tasks",
+            "icon": "clipboard",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ]
+        },
+        {
+            "label": "Scanner",
+            "url": "/wms/scanner",
+            "icon": "device-mobile",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ]
+        },
+        {
             "label": "Receiving",
             "url": "/wms/receiving",
             "icon": "inbox",
@@ -220,6 +249,32 @@
             "label": "Settings",
             "url": "/wms/settings",
             "icon": "settings",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Onboarding",
+            "url": "/wms/onboarding",
+            "icon": "sparkles",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Diagnostics",
+            "url": "/wms/diagnostics",
+            "icon": "shield-check",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Financial",
+            "url": "/wms/financial",
+            "icon": "currency-dollar",
             "roles": [
                 "admin",
                 "supervisor"
