@@ -20,6 +20,71 @@ function wmsLocationExists(int $locationId): bool
     return (int)(wmsDb()->query('SELECT id FROM wms_locations WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$locationId])->fetchColumn() ?: 0) > 0;
 }
 
+function wmsOrderCreate(array $data): int
+{
+    $orderNumber = wmsSanitizeString($data['order_number'] ?? '', 100);
+    $warehouseId = (int)($data['warehouse_id'] ?? 0);
+    $items = isset($data['items']) && is_array($data['items']) ? $data['items'] : [];
+    
+    if ($orderNumber === '' || $warehouseId <= 0 || $items === []) {
+        throw new RuntimeException('Order number, warehouse, and items are required.');
+    }
+
+    $db = wmsDb();
+    $db->beginTransaction();
+    try {
+        $db->execute(
+            'INSERT INTO wms_orders (order_number, external_reference, customer_name, warehouse_id, status, priority, ordered_at, dispatched_at, notes, meta, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NOW(), NOW())',
+            [
+                $orderNumber,
+                wmsSanitizeString($data['external_reference'] ?? '', 100) ?: null,
+                wmsSanitizeString($data['customer_name'] ?? '', 255) ?: null,
+                $warehouseId,
+                in_array(($status = wmsSanitizeString($data['status'] ?? 'pending', 20)), wmsOrderStatuses(), true) ? $status : 'pending',
+                (int)($data['priority'] ?? 100),
+                wmsSanitizeString($data['ordered_at'] ?? '', 20) ?: date('Y-m-d H:i:s'),
+                wmsSanitizeString($data['notes'] ?? '', 2000) ?: null,
+                ($meta = (is_array($data['meta'] ?? null) ? $data['meta'] : [])) !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                (int)($data['created_by'] ?? 0),
+            ]
+        );
+        $orderId = (int)$db->lastInsertId();
+
+        foreach ($items as $item) {
+            $productId = (int)($item['product_id'] ?? 0);
+            $qtyOrdered = wmsNormalizeDecimal($item['qty_ordered'] ?? 0);
+            if ($productId <= 0 || $qtyOrdered <= 0) {
+                throw new RuntimeException('Each order item requires product and quantity.');
+            }
+            $db->execute(
+                'INSERT INTO wms_order_items (order_id, product_id, location_id, batch_id, qty_ordered, qty_reserved, qty_picked, notes, meta, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+                [
+                    $orderId,
+                    $productId,
+                    ($locationId = (int)($item['location_id'] ?? 0)) > 0 ? $locationId : null,
+                    isset($item['batch_id']) && (int)$item['batch_id'] > 0 ? (int)$item['batch_id'] : null,
+                    $qtyOrdered,
+                    wmsNormalizeDecimal($item['qty_reserved'] ?? 0),
+                    wmsNormalizeDecimal($item['qty_picked'] ?? 0),
+                    wmsSanitizeString($item['notes'] ?? '', 500) ?: null,
+                    ($meta = (is_array($item['meta'] ?? null) ? $item['meta'] : [])) !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                ]
+            );
+        }
+
+        $db->commit();
+        wmsAudit('wms.order.created', 'wms_orders', (string)$orderId, null, ['order_number' => $orderNumber]);
+        return $orderId;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
 function wmsOrderGeneratePickList(int $orderId): array
 {
     $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [$orderId]);

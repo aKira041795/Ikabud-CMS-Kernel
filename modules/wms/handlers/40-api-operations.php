@@ -185,66 +185,10 @@ function wmsApiOrderCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
         $user = wmsRequireStaff(['admin', 'supervisor']);
-        $orderNumber = wmsSanitizeString(wmsInput('order_number', ''), 100);
-        $warehouseId = (int)wmsInput('warehouse_id', 0);
-        $items = wmsRequestBodyItems('items');
-        if ($orderNumber === '' || $warehouseId <= 0 || $items === []) {
-            wmsJsonError('Order number, warehouse, and items are required.', 422);
-        }
-
-        $db = wmsDb();
-        $db->beginTransaction();
-        try {
-            $db->execute(
-                'INSERT INTO wms_orders (order_number, external_reference, customer_name, warehouse_id, status, priority, ordered_at, dispatched_at, notes, meta, created_by, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NOW(), NOW())',
-                [
-                    $orderNumber,
-                    wmsSanitizeString(wmsInput('external_reference', ''), 100) ?: null,
-                    wmsSanitizeString(wmsInput('customer_name', ''), 255) ?: null,
-                    $warehouseId,
-                    in_array(($status = wmsSanitizeString(wmsInput('status', 'pending'), 20)), wmsOrderStatuses(), true) ? $status : 'pending',
-                    (int)wmsInput('priority', 100),
-                    wmsSanitizeString(wmsInput('ordered_at', ''), 20) ?: date('Y-m-d H:i:s'),
-                    wmsSanitizeString(wmsInput('notes', ''), 2000) ?: null,
-                    ($meta = wmsJsonDecodeArray(wmsInput('meta', []))) !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-                    (int)($user['id'] ?? 0),
-                ]
-            );
-            $orderId = (int)$db->lastInsertId();
-
-            foreach ($items as $item) {
-                $productId = (int)($item['product_id'] ?? 0);
-                $qtyOrdered = wmsNormalizeDecimal($item['qty_ordered'] ?? 0);
-                if ($productId <= 0 || $qtyOrdered <= 0) {
-                    throw new RuntimeException('Each order item requires product and quantity.');
-                }
-                $db->execute(
-                    'INSERT INTO wms_order_items (order_id, product_id, location_id, batch_id, qty_ordered, qty_reserved, qty_picked, notes, meta, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
-                    [
-                        $orderId,
-                        $productId,
-                        ($locationId = (int)($item['location_id'] ?? 0)) > 0 ? $locationId : null,
-                        isset($item['batch_id']) && (int)$item['batch_id'] > 0 ? (int)$item['batch_id'] : null,
-                        $qtyOrdered,
-                        wmsNormalizeDecimal($item['qty_reserved'] ?? 0),
-                        wmsNormalizeDecimal($item['qty_picked'] ?? 0),
-                        wmsSanitizeString($item['notes'] ?? '', 500) ?: null,
-                        ($meta = wmsJsonDecodeArray($item['meta'] ?? [])) !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-                    ]
-                );
-            }
-
-            $db->commit();
-            wmsAudit('wms.order.created', 'wms_orders', (string)$orderId, null, ['order_number' => $orderNumber]);
-            wmsJsonOk(['id' => $orderId], 201);
-        } catch (Throwable $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            throw $e;
-        }
+        $data = wmsInput();
+        $data['created_by'] = (int)($user['id'] ?? 0);
+        $orderId = wmsOrderCreate($data);
+        wmsJsonOk(['id' => $orderId]);
     });
 }
 

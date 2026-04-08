@@ -94,6 +94,7 @@ return [
         '/api/v1/wms/returns/{id}/restock' => 'wms:wmsApiReturnRestock',
         '/api/v1/wms/users' => 'wms:wmsApiUserCreate',
         '/api/v1/wms/users/{id}' => 'wms:wmsApiUserUpdate',
-        '/api/v1/wms/users/{id}/delete' => 'wms:wmsApiUserDelete'
+        '/api/v1/wms/users/{id}/delete' => 'wms:wmsApiUserDelete',
+        '/api/v1/wms/webhooks/register' => 'wms:wmsApiEventWebhookRegistration'
     ]
 ];

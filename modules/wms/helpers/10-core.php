@@ -377,3 +377,23 @@ function wms_cap_wms_stock_release_1(mixed $payload, string $capabilityId = '', 
         'movement_id' => wmsReleaseStock($item),
     ];
 }
+
+function wms_cap_wms_order_create_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    // Payload should mirror wmsOrderCreate expected data array
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
+    }
+    
+    // Defer to the operation helper in 30-operations.php
+    try {
+        if (!function_exists('wmsOrderCreate')) {
+            // In case 30-operations.php hasn't been loaded yet via standard flow
+            require_once __DIR__ . '/30-operations.php'; 
+        }
+        $orderId = wmsOrderCreate($payload);
+        return ['ok' => true, 'order_id' => $orderId];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}

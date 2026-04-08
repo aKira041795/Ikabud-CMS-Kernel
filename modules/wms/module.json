@@ -61,12 +61,20 @@
             "description": "Fired when an order is dispatched."
         },
         {
+            "key": "wms.order.picked",
+            "description": "Fired when an order is successfully picked."
+        },
+        {
             "key": "wms.movement.created",
             "description": "Fired after a stock movement is recorded."
         },
         {
             "key": "wms.stock.low",
             "description": "Fired when stock falls below configured threshold."
+        },
+        {
+            "key": "wms.production.completed",
+            "description": "Fired when a production order successfully consumes materials and generates yield."
         }
     ],
     "capabilities": {
@@ -101,6 +109,13 @@
             },
             {
                 "id": "wms.replenishment.suggest@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "wms.order.create@1",
                 "priority": 50,
                 "modes": [
                     "first"
