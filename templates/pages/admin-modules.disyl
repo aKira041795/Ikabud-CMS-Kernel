@@ -11,6 +11,7 @@
     .module-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
     .module-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-light); margin-bottom: 14px; flex-wrap: wrap; }
     .module-meta span { display: flex; align-items: center; gap: 4px; }
+    .entity-authority-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 6px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); color: #2563eb; border-radius: 6px; font-weight: 600; margin-bottom: 8px; }
     .module-actions { display: flex; gap: 8px; align-items: center; }
     .status-dot { width: 6px; height: 6px; border-radius: 50%; }
     .status-pill.enabled .status-dot { background: var(--success); }
@@ -142,13 +143,25 @@
             <div class="module-desc">{mod.description}</div>
             {/if}
 
-            <div class="module-meta">
+            <div class="module-meta" style="margin-bottom: 8px;">
                 {if mod.author}<span>By {mod.author}</span>{/if}
                 <span>{mod.route_count} routes</span>
                 <span>{mod.nav_count} nav items</span>
                 <span>{mod.capability_exposes_count} exposes</span>
                 <span>{mod.capability_depends_count} depends</span>
             </div>
+
+            {if mod.entities_owned_count > 0}
+            <div style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 4px;">
+                <span class="entity-authority-badge" title="This module is the authoritative owner for these entities">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    Authority
+                </span>
+                {foreach mod.entities_owned as entity}
+                    <span style="font-size: 11px; padding: 2px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text-light); font-family: monospace;">{entity}</span>
+                {/foreach}
+            </div>
+            {/if}
 
             {if mod.capability_manifest_error}
             <div class="cap-warning">
@@ -790,85 +803,97 @@
                 return;
             }
 
-            var rows = '';
+            if (!window.activeProviderId || providers.indexOf(window.activeProviderId) === -1) {
+                window.activeProviderId = providers[0] || '';
+            }
+            var activeId = window.activeProviderId;
+
+            var selectHtml = '<div class="caller-header">'
+                + '<span>Provides (module):</span>'
+                + '<select id="provider-module-select">';
             providers.forEach(function(pid) {
-                var capsForProvider = byProvider[pid];
-                var capHtml = '';
+                var selected = pid === activeId ? ' selected' : '';
+                selectHtml += '<option value="' + pid.replace(/"/g, '&quot;') + '"' + selected + '>' + pid + '</option>';
+            });
+            selectHtml += '</select></div>';
 
-                capsForProvider.forEach(function(entry) {
-                    var cid = entry.id;
-                    var m = entry.metrics || {};
-                    var b = entry.breaker || {};
-                    var policy = entry.policy || {};
+            var capsForProvider = byProvider[activeId] || [];
+            var capHtml = '';
 
-                    var count = m.count || 0;
-                    var errors = m.errors || 0;
-                    var p95 = m.p95_ms || 0;
-                    var openUntil = b.open_until || 0;
-                    var now = Math.floor(Date.now() / 1000);
-                    var hasErrors = errors > 0;
-                    var isOpen = openUntil > now;
+            capsForProvider.forEach(function(entry) {
+                var cid = entry.id;
+                var m = entry.metrics || {};
+                var b = entry.breaker || {};
+                var policy = entry.policy || {};
 
-                    var cls = 'ok';
-                    if (isOpen) cls = 'err';
-                    else if (hasErrors) cls = 'warn';
+                var count = m.count || 0;
+                var errors = m.errors || 0;
+                var p95 = m.p95_ms || 0;
+                var openUntil = b.open_until || 0;
+                var now = Math.floor(Date.now() / 1000);
+                var hasErrors = errors > 0;
+                var isOpen = openUntil > now;
 
-                    // Compute existing allow_callers for this provider+capability from policy
-                    var allow = [];
-                    if (policy && policy.capabilities && policy.capabilities[cid] && Array.isArray(policy.capabilities[cid].allow_callers)) {
-                        allow = policy.capabilities[cid].allow_callers;
-                    }
-                    var accessHtml = '';
-                    if (modulesList.length) {
-                        accessHtml += '<div class="cap-access-row">';
-                        modulesList.forEach(function(mod) {
-                            var mid = String(mod.id || '');
-                            if (!mid || mid === pid) return; // skip self
-                            var mname = String(mod.name || mid);
-                            var label = mname + ' (' + mid + ')';
-                            var checked = allow.indexOf(mid) !== -1 ? ' checked' : '';
-                            accessHtml += '<label class="cap-access" title="' + label.replace(/"/g, '&quot;') + '">'
-                                + '<input type="checkbox" class="cap-access-toggle" data-provider="' + pid.replace(/"/g, '&quot;') + '" data-capability="' + cid.replace(/"/g, '&quot;') + '" data-module="' + mid.replace(/"/g, '&quot;') + '"' + checked + '>'
-                                + label
-                                + '</label>';
-                        });
-                        accessHtml += '</div>';
-                    }
+                var cls = 'ok';
+                if (isOpen) cls = 'err';
+                else if (hasErrors) cls = 'warn';
 
-                    capHtml += '<div class="cap-cap-pill">'
-                        + '<span class="cap-cap-pill-code">' + cid + '</span>'
-                        + '<span class="cap-metric-badge ' + cls + '">'
-                        + '<strong>' + (p95 || 0) + 'ms</strong>'
-                        + '<span>p95 · ' + count + ' calls' + (errors ? (', ' + errors + ' errors') : '') + (isOpen ? ' · breaker OPEN' : '') + '</span>'
-                        + '</span>'
-                        + '<span class="cap-reset" data-capability="' + cid.replace(/"/g, '&quot;') + '" data-provider="' + pid.replace(/"/g, '&quot;') + '">reset</span>'
-                        + accessHtml
-                        + '</div>';
-                });
-
-                if (!capHtml) {
-                    capHtml = '<span class="cap-empty">No capabilities</span>';
+                // Compute existing allow_callers for this provider+capability from policy
+                var allow = [];
+                if (policy && policy.capabilities && policy.capabilities[cid] && Array.isArray(policy.capabilities[cid].allow_callers)) {
+                    allow = policy.capabilities[cid].allow_callers;
+                }
+                var accessHtml = '';
+                if (modulesList.length) {
+                    accessHtml += '<div class="cap-access-row">';
+                    modulesList.forEach(function(mod) {
+                        var mid = String(mod.id || '');
+                        if (!mid || mid === activeId) return; // skip self
+                        var mname = String(mod.name || mid);
+                        var label = mname + ' (' + mid + ')';
+                        var checked = allow.indexOf(mid) !== -1 ? ' checked' : '';
+                        accessHtml += '<label class="cap-access" title="' + label.replace(/"/g, '&quot;') + '">'
+                            + '<input type="checkbox" class="cap-access-toggle" data-provider="' + activeId.replace(/"/g, '&quot;') + '" data-capability="' + cid.replace(/"/g, '&quot;') + '" data-module="' + mid.replace(/"/g, '&quot;') + '"' + checked + '>'
+                            + label
+                            + '</label>';
+                    });
+                    accessHtml += '</div>';
                 }
 
-                rows += '<tr>'
-                    + '<td class="cap-provider">' + pid + '</td>'
-                    + '<td><div class="cap-cap-list">' + capHtml + '</div></td>'
-                    + '</tr>';
+                capHtml += '<div class="cap-cap-pill">'
+                    + '<span class="cap-cap-pill-code">' + cid + '</span>'
+                    + '<span class="cap-metric-badge ' + cls + '">'
+                    + '<strong>' + (p95 || 0) + 'ms</strong>'
+                    + '<span>p95 · ' + count + ' calls' + (errors ? (', ' + errors + ' errors') : '') + (isOpen ? ' · breaker OPEN' : '') + '</span>'
+                    + '</span>'
+                    + '<span class="cap-reset" data-capability="' + cid.replace(/"/g, '&quot;') + '" data-provider="' + activeId.replace(/"/g, '&quot;') + '">reset</span>'
+                    + accessHtml
+                    + '</div>';
             });
+
+            if (!capHtml) {
+                capHtml = '<div class="cap-empty" style="width:100%;">No capabilities attached to this provider module.</div>';
+            }
 
             var html = ''
                 + '<div class="cap-hint">'
-                + '<strong>Provides (module)</strong> = the module that implements the capability. '
-                + '<strong>Allowed modules</strong> (checkboxes) = who is allowed to use it.'
+                + '<strong>Allowed modules</strong> (checkboxes) = who is allowed to call this module\'s capabilities. '
                 + '</div>'
-                + '<table class="cap-table">'
-                + '<thead><tr><th>Provides (module)</th><th>Capabilities · Access · Latency · Breakers</th></tr></thead>'
-                + '<tbody>' + rows + '</tbody>'
-                + '</table>';
+                + selectHtml
+                + '<div class="cap-cap-list" style="margin-top: 16px;">' + capHtml + '</div>';
 
             panel.classList.remove('cap-panel-loading');
             panel.classList.remove('cap-panel-error');
             panel.innerHTML = html;
+
+            var sel = document.getElementById('provider-module-select');
+            if (sel) {
+                sel.addEventListener('change', function() {
+                    window.activeProviderId = String(sel.value || '');
+                    loadCapabilitiesInsights();
+                });
+            }
+
             bindBreakerButtons();
             bindCapabilityAccess();
         }).catch(function() {
@@ -1005,7 +1030,11 @@
                 return idA.localeCompare(idB);
             });
 
-            var activeId = callerModules[0].id || '';
+            if (!window.activeCallerId) {
+                window.activeCallerId = callerModules[0] ? (callerModules[0].id || '') : '';
+            }
+            var activeId = window.activeCallerId;
+
             var selectHtml = '<div class="caller-header">'
                 + '<span>Module:</span>'
                 + '<select id="caller-module-select">';
@@ -1029,7 +1058,8 @@
                 selectEl.addEventListener('change', function() {
                     var mid = String(selectEl.value || '');
                     if (!mid) return;
-                    renderCallerCapabilities(mid);
+                    window.activeCallerId = mid;
+                    loadCallerWiringPanel();
                 });
             }
         }).catch(function() {

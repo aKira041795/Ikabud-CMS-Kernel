@@ -401,6 +401,8 @@ $routes = [
         '/admin/platform' => 'pageAdminPlatform',
         '/admin/ai' => 'pageAdminAi',
         '/superadmin/settings' => 'pageSuperadminSettings',
+        '/kernel/integrations' => 'pageKernelIntegrations',
+        '/api/v1/kernel/integrations' => 'apiKernelIntegrations',
         '/superadmin/perf' => 'pageSuperadminPerf',
         '/api/v1/superadmin/modules' => 'apiSuperadminModules',
         '/api/v1/superadmin/perf' => 'apiSuperadminPerf',
@@ -1386,6 +1388,162 @@ switch ($handler) {
         echo '</tbody></table></div>';
         echo '<p class="text-xs text-slate-400 mt-4 text-center">Reload the page to run another probe.</p>';
         echo '</div></body></html>';
+        exit;
+
+    case 'pageKernelIntegrations':
+        $user = app()->requireAuth();
+        if (($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            app()->redirect('/');
+            exit;
+        }
+        
+        $db = app()->db();
+        $integrations = $db->query('SELECT * FROM kernel_integrations ORDER BY created_at DESC')->fetchAll();
+        $logs = $db->query('SELECT l.*, i.name as integration_name FROM kernel_integration_logs l LEFT JOIN kernel_integrations i ON i.id = l.integration_id ORDER BY l.created_at DESC LIMIT 50')->fetchAll();
+        
+        echo app()->render('pages/kernel-integrations.disyl', [
+            'title' => 'Kernel Integrations',
+            'user' => $user,
+            'integrations' => $integrations,
+            'logs' => $logs
+        ]);
+        exit;
+    
+    case 'apiKernelIntegrations':
+        $user = app()->requireAuth();
+        if (!in_array($user['role'] ?? '', ['admin', 'superadmin'], true) || ($user['source'] ?? '') !== 'kernel') {
+            app()->json(['ok' => false, 'error' => 'Forbidden'], 403);
+            exit;
+        }
+        $db = app()->db();
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+        if ($method === 'GET') {
+            $integrations = $db->query('SELECT * FROM kernel_integrations ORDER BY created_at DESC')->fetchAll();
+            $logs = $db->query(
+                'SELECT l.*, i.name as integration_name FROM kernel_integration_logs l '
+                . 'LEFT JOIN kernel_integrations i ON i.id = l.integration_id '
+                . 'ORDER BY l.created_at DESC LIMIT 100'
+            )->fetchAll();
+            app()->json(['ok' => true, 'integrations' => $integrations, 'logs' => $logs]);
+            exit;
+        }
+
+        if ($method === 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $action = (string)($input['_action'] ?? 'create');
+
+            if ($action === 'toggle') {
+                $id = (int)($input['id'] ?? 0);
+                if ($id <= 0) { app()->json(['ok' => false, 'error' => 'Missing id'], 400); exit; }
+                $stmt = $db->prepare('UPDATE kernel_integrations SET is_active = NOT is_active, updated_at = NOW() WHERE id = ?');
+                $stmt->execute([$id]);
+                app()->json(['ok' => true]);
+                exit;
+            }
+
+            if ($action === 'promote') {
+                // Convert a bridge to a full EventTrigger rule
+                $id = (int)($input['id'] ?? 0);
+                if ($id <= 0) { app()->json(['ok' => false, 'error' => 'Missing id'], 400); exit; }
+                $row = $db->prepare('SELECT * FROM kernel_integrations WHERE id = ?');
+                $row->execute([$id]);
+                $intg = $row->fetch();
+                if (!$intg) { app()->json(['ok' => false, 'error' => 'Bridge not found'], 404); exit; }
+
+                // Build Disyl-style template from mapping_json dot-notation
+                $mapping = json_decode((string)($intg['mapping_json'] ?? '{}'), true) ?: [];
+                $tplParts = [];
+                foreach ($mapping as $k => $v) {
+                    // Convert {{dot.notation}} → {dot_notation} Disyl-style
+                    $converted = is_string($v)
+                        ? preg_replace_callback('/\{\{([^}]+)\}\}/', function ($m) {
+                            return '{' . str_replace('.', '_', trim($m[1])) . '}';
+                        }, $v)
+                        : json_encode($v);
+                    $tplParts[] = '"' . addslashes($k) . '":"' . addslashes((string)$converted) . '"';
+                }
+                $tpl = '{' . implode(',', $tplParts) . '}';
+
+                if (function_exists('kernelTriggerSave')) {
+                    $result = kernelTriggerSave([
+                        'module'         => 'kernel',
+                        'event_key'      => (string)($intg['trigger_event'] ?? ''),
+                        'capability_id'  => (string)($intg['target_capability'] ?? ''),
+                        'is_enabled'     => 1,
+                        'priority'       => 100,
+                        'template'       => $tpl,
+                        'max_per_minute' => null,
+                        'retry_count'    => 0,
+                        'timeout_ms'     => 5000,
+                        'meta'           => null,
+                    ]);
+
+                    if (!empty($result['ok'])) {
+                        // Mark original bridge with event_source=promoted so it's visually distinguishable
+                        $db->prepare('UPDATE kernel_integrations SET event_source = ?, updated_at = NOW() WHERE id = ?')
+                           ->execute(['promoted', $id]);
+                        app()->json(['ok' => true, 'trigger_id' => $result['id'] ?? null]);
+                    } else {
+                        app()->json(['ok' => false, 'error' => $result['error'] ?? 'Failed to save trigger'], 500);
+                    }
+                } else {
+                    app()->json(['ok' => false, 'error' => 'kernelTriggerSave not available'], 500);
+                }
+                exit;
+            }
+
+            // Default: create new bridge
+            if (!isset($input['name'], $input['trigger_event'], $input['target_capability'], $input['mapping_json'])) {
+                app()->json(['ok' => false, 'error' => 'Missing required fields (name, trigger_event, target_capability, mapping_json)'], 400);
+                exit;
+            }
+
+            // Phase 3 — validate mapping_json is valid JSON
+            json_decode($input['mapping_json']);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                app()->json(['ok' => false, 'error' => 'mapping_json is not valid JSON'], 400);
+                exit;
+            }
+
+            // Phase 3 — capability existence check at creation time (fail-fast)
+            $targetCap = (string)$input['target_capability'];
+            $resolvedCap = app()->capabilities()->resolve($targetCap);
+            if (!app()->capabilities()->has($resolvedCap)) {
+                app()->json(['ok' => false, 'error' => 'Capability not registered: ' . $targetCap . '. Ensure the module is enabled and has booted.'], 422);
+                exit;
+            }
+
+            $versionLock = (string)($input['version_lock'] ?? '');
+            $eventSource = (string)($input['event_source'] ?? 'eventbus');
+
+            $stmt = $db->prepare(
+                'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) '
+                . 'VALUES (?, ?, ?, ?, ?, ?, ?)'
+            );
+            $stmt->execute([
+                $input['name'],
+                $input['trigger_event'],
+                $targetCap,
+                $input['mapping_json'],
+                isset($input['is_active']) ? (int)$input['is_active'] : 1,
+                $eventSource,
+                $versionLock !== '' ? $versionLock : null,
+            ]);
+            app()->json(['ok' => true, 'id' => (int)$db->lastInsertId()]);
+            exit;
+        }
+
+        if ($method === 'DELETE') {
+            $id = (int)($_GET['id'] ?? 0);
+            if ($id > 0) {
+                $db->prepare('DELETE FROM kernel_integrations WHERE id = ?')->execute([$id]);
+            }
+            app()->json(['ok' => true]);
+            exit;
+        }
+
+        app()->json(['ok' => false, 'error' => 'Method not allowed'], 405);
         exit;
 
     case 'pageSuperadminSettings':
@@ -2946,6 +3104,16 @@ switch ($handler) {
 
             $editableSettingsFields = moduleEditableSettingsFields($m);
             $settingsContextNotice = null;
+
+            // Compute entity authority UI indicators
+            $entitiesOwned = [];
+            if (!empty($m['entities']) && is_array($m['entities'])) {
+                foreach ($m['entities'] as $eType => $eDef) {
+                    if (!empty($eDef['authority']) && $eDef['authority'] === true) {
+                        $entitiesOwned[] = $eType;
+                    }
+                }
+            }
             if (empty($editableSettingsFields) && !empty($m['settings_fields']) && moduleTenantSettingsModeEnabled()) {
                 $settingsContextNotice = 'Feature settings are managed by the Superadmin on the tenant domain.';
             }
@@ -2969,6 +3137,8 @@ switch ($handler) {
                 'capability_missing_depends' => $capMissing,
                 'capability_manifest_error' => $capError,
                 'capability_ready_to_enable' => ($capError === null && empty($capMissing)),
+                'entities_owned' => $entitiesOwned,
+                'entities_owned_count' => count($entitiesOwned),
             ];
         }
         echo app()->render('pages/admin-modules.disyl', [
@@ -3111,6 +3281,16 @@ switch ($handler) {
             $allowKernelAdmin = (bool)(is_array($settings) ? ($settings['allow_kernel_admin'] ?? false) : false);
             $editableSettingsFields = moduleEditableSettingsFields($m);
             $settingsContextNotice = null;
+
+            // Compute entity authority UI indicators
+            $entitiesOwned = [];
+            if (!empty($m['entities']) && is_array($m['entities'])) {
+                foreach ($m['entities'] as $eType => $eDef) {
+                    if (!empty($eDef['authority']) && $eDef['authority'] === true) {
+                        $entitiesOwned[] = $eType;
+                    }
+                }
+            }
             if (empty($editableSettingsFields) && !empty($m['settings_fields']) && moduleTenantSettingsModeEnabled()) {
                 $settingsContextNotice = 'Feature settings are managed by the Superadmin on the tenant domain.';
             }

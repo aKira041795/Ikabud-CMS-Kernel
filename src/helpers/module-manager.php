@@ -2006,6 +2006,25 @@ function getEnabledModules(): array
     resetSkippedModules();
 
     $enabled = array_filter(discoverModules(), fn($m) => !empty($m['_enabled']));
+
+    // Parse entity authorities and contracts across all enabled modules 
+    // strictly during kernel boot.
+    app()->entityAuthority()->reset();
+    app()->syncContracts()->reset();
+    foreach ($enabled as $id => $mod) {
+        if (!empty($mod['entities']) && is_array($mod['entities'])) {
+            foreach ($mod['entities'] as $eType => $eDef) {
+                if (!empty($eDef['authority']) && $eDef['authority'] === true) {
+                    app()->entityAuthority()->registerAuthority($eType, $id, $eDef);
+                }
+                if (!empty($eDef['sync_contracts']) && is_array($eDef['sync_contracts'])) {
+                    foreach ($eDef['sync_contracts'] as $operation => $handlerStr) {
+                        app()->syncContracts()->registerContract($eType, $id, $operation, $handlerStr);
+                    }
+                }
+            }
+        }
+    }
     $declaredCapabilities = [];
     foreach ($enabled as $module) {
         $check = validateModuleCapabilities($module);

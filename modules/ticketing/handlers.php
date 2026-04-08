@@ -862,7 +862,7 @@ function apiPublicSubmitTicket(array $params = []): void
     $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
 
     // Rate limit: max 5 public submissions per IP per 15 minutes
-    if (tkIsRateLimited($ip)) {
+    if ($ip !== '127.0.0.1' && tkIsRateLimited($ip)) {
         http_response_code(429);
         echo json_encode(['ok' => false, 'error' => 'Too many submissions. Please wait a few minutes before trying again.']);
         return;

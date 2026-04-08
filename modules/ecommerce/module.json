@@ -2,7 +2,7 @@
     "id": "ecommerce",
     "name": "Ecommerce",
     "version": "1.0.0",
-    "description": "Full-featured ecommerce module — products, cart, checkout, orders, POS, inventory, categories, coupons, and sales reports.",
+    "description": "Full-featured ecommerce module \u2014 products, cart, checkout, orders, POS, inventory, categories, coupons, and sales reports.",
     "author": "Noah C. Omamalin",
     "depends": [
         "cms"
@@ -175,7 +175,8 @@
                     ]
                 }
             }
-        }
+        },
+        "consumes": []
     },
     "entity_contexts": {
         "definitions": [
@@ -282,7 +283,10 @@
             "type": "select",
             "label": "Payment Gateway",
             "default": "manual",
-            "options": ["manual", "paymongo"],
+            "options": [
+                "manual",
+                "paymongo"
+            ],
             "description": "Active payment gateway. 'manual' uses cash-on-delivery / bank transfer."
         },
         {
@@ -304,7 +308,10 @@
             "type": "select",
             "label": "Gateway Mode",
             "default": "sandbox",
-            "options": ["sandbox", "live"],
+            "options": [
+                "sandbox",
+                "live"
+            ],
             "description": "Use sandbox for testing, live for real transactions."
         },
         {
@@ -437,5 +444,16 @@
                 "intent_id"
             ]
         }
-    ]
+    ],
+    "entities": {
+        "products": {
+            "authority": true
+        },
+        "orders": {
+            "authority": true
+        },
+        "customers": {
+            "authority": true
+        }
+    }
 }

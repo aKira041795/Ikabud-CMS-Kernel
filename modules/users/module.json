@@ -5,30 +5,170 @@
     "description": "CMS users module (accounts, roles, CRUD capabilities).",
     "author": "Noah C. Omamalin",
     "owns_tables": [],
-    "reads_tables": ["cms_users"],
+    "reads_tables": [
+        "cms_users"
+    ],
     "migrations": [
         "database/migrations/001_cms_users.sql"
     ],
     "nav": [],
     "capabilities": {
         "exposes": [
-            { "id": "users.get@1", "priority": 50, "modes": ["first"], "schema": { "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" } } } },
-            { "id": "users.list@1", "priority": 50, "modes": ["first"], "schema": { "type": "object", "properties": { "q": { "type": "string" }, "limit": { "type": "integer" }, "offset": { "type": "integer" } } } },
-            { "id": "users.create@1", "priority": 50, "modes": ["first"], "schema": { "type": "object", "required": ["username", "email"], "properties": { "username": { "type": "string" }, "email": { "type": "string" }, "password": { "type": "string" }, "role": { "type": "string" }, "display_name": { "type": "string" } } } },
-            { "id": "users.update@1", "priority": 50, "modes": ["first"], "schema": { "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" }, "email": { "type": "string" }, "password": { "type": "string" }, "role": { "type": "string" }, "display_name": { "type": "string" }, "status": { "type": "string" } } } }
+            {
+                "id": "users.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "id"
+                    ],
+                    "properties": {
+                        "id": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "users.list@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "q": {
+                            "type": "string"
+                        },
+                        "limit": {
+                            "type": "integer"
+                        },
+                        "offset": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "users.create@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "username",
+                        "email"
+                    ],
+                    "properties": {
+                        "username": {
+                            "type": "string"
+                        },
+                        "email": {
+                            "type": "string"
+                        },
+                        "password": {
+                            "type": "string"
+                        },
+                        "role": {
+                            "type": "string"
+                        },
+                        "display_name": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "users.update@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "id"
+                    ],
+                    "properties": {
+                        "id": {
+                            "type": "integer"
+                        },
+                        "email": {
+                            "type": "string"
+                        },
+                        "password": {
+                            "type": "string"
+                        },
+                        "role": {
+                            "type": "string"
+                        },
+                        "display_name": {
+                            "type": "string"
+                        },
+                        "status": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         ],
         "depends": [],
         "policy": {
             "capabilities": {
-                "users.get@1": { "allow_callers": ["cms", "users"] },
-                "users.list@1": { "allow_callers": ["cms", "users"] },
-                "users.create@1": { "allow_callers": ["cms", "users"] },
-                "users.update@1": { "allow_callers": ["cms", "users"] }
+                "users.get@1": {
+                    "allow_callers": [
+                        "cms",
+                        "users"
+                    ]
+                },
+                "users.list@1": {
+                    "allow_callers": [
+                        "cms",
+                        "users"
+                    ]
+                },
+                "users.create@1": {
+                    "allow_callers": [
+                        "cms",
+                        "users"
+                    ]
+                },
+                "users.update@1": {
+                    "allow_callers": [
+                        "cms",
+                        "users"
+                    ]
+                }
             }
         }
     },
     "events": [
-        { "key": "users.created", "description": "User created", "available_vars": ["user_id", "username", "role"] },
-        { "key": "users.updated", "description": "User updated", "available_vars": ["user_id"] }
-    ]
+        {
+            "key": "users.created",
+            "description": "User created",
+            "available_vars": [
+                "user_id",
+                "username",
+                "role"
+            ]
+        },
+        {
+            "key": "users.updated",
+            "description": "User updated",
+            "available_vars": [
+                "user_id"
+            ]
+        }
+    ],
+    "entities": {
+        "users": {
+            "authority": true
+        }
+    }
 }

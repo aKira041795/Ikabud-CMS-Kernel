@@ -19,6 +19,9 @@ use Ikabud\Kernel\Capabilities\CapabilityBus;
 use Ikabud\Kernel\Capabilities\CapabilityRegistry;
 use Ikabud\Kernel\Database\MigrationRunner;
 use Ikabud\Kernel\EntityContext\ContextRegistry;
+use Ikabud\Kernel\EntityAuthority\EntityAuthorityRegistry;
+use Ikabud\Kernel\EntityAuthority\SyncContractRegistry;
+
 use Ikabud\Kernel\TenantResolver;
 use Ikabud\Kernel\Database\ModuleDB;
 use Ikabud\Kernel\DiSyL\TemplateEngine;
@@ -47,6 +50,9 @@ class App
     private ?CapabilityRegistry $capabilityRegistry = null;
     private ?CapabilityBus $capabilityBus = null;
     private ?ContextRegistry $entityContextRegistry = null;
+    private ?EntityAuthorityRegistry $entityAuthorityRegistry = null;
+    private ?SyncContractRegistry $syncContractRegistry = null;
+
     private ?array $currentUser = null;
     private bool $resolvingCurrentUser = false;
     private bool $booted = false;
@@ -87,6 +93,19 @@ class App
         $this->config = $config;
         $this->hooks = Hooks::getInstance();
         $this->primeRenderBaseCaches();
+        
+        try {
+            $db = $this->db();
+            $stmt = $db->query("SELECT DISTINCT trigger_event FROM kernel_integrations WHERE is_active = 1");
+            if ($stmt) {
+                while ($trigger = $stmt->fetchColumn()) {
+                    $this->events()->listen((string)$trigger, [\Ikabud\Kernel\IntegrationBridge::class, 'handle'], 100, 'kernel');
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore during setup/migrations if table doesn't exist
+        }
+        
         $this->booted = true;
 
         // Register kernel core capability providers before modules boot.
@@ -368,6 +387,28 @@ class App
         }
 
         return $this->entityContextRegistry;
+    }
+
+    /**
+     * Get the entity authority registry (enforces single-module ownership).
+     */
+    public function entityAuthority(): EntityAuthorityRegistry
+    {
+        if ($this->entityAuthorityRegistry === null) {
+            $this->entityAuthorityRegistry = new EntityAuthorityRegistry();
+        }
+        return $this->entityAuthorityRegistry;
+    }
+
+    /**
+     * Get the sync contract registry (allows modules to register for CRUD-like events against an authoritative entity).
+     */
+    public function syncContracts(): SyncContractRegistry
+    {
+        if ($this->syncContractRegistry === null) {
+            $this->syncContractRegistry = new SyncContractRegistry();
+        }
+        return $this->syncContractRegistry;
     }
 
     /**

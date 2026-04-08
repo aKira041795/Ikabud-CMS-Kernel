@@ -596,5 +596,16 @@
                 "administrator"
             ]
         }
-    ]
+    ],
+    "entities": {
+        "pages": {
+            "authority": true
+        },
+        "posts": {
+            "authority": true
+        },
+        "categories": {
+            "authority": true
+        }
+    }
 }
