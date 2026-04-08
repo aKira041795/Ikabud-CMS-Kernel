@@ -10,6 +10,25 @@ function wmsPageTasks(array $params = []): void
     ]));
 }
 
+function wmsPageScanner(array $params = []): void
+{
+    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    
+    // For mobile layout, we bypass wmsAdminContext which sets up the desktop sidebar.
+    // Instead we create a minimal context.
+    $context = [
+        'auth_user' => $user,
+        'current_page' => 'scanner_home',
+        'page_title' => 'Scanner',
+        'base_url' => rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/'),
+        'content' => wmsRender('admin/scanner-home.disyl', [
+            'auth_user' => $user
+        ])
+    ];
+
+    echo wmsRender('layouts/mobile.disyl', $context);
+}
+
 function wmsPageDashboard(array $params = []): void
 {
     $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);

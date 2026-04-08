@@ -7,6 +7,7 @@ return [
         '/wms/login' => 'wms:wmsPageLogin',
         '/wms/logout' => 'wms:wmsLogout',
         '/wms' => 'wms:wmsPageDashboard',
+        '/wms/scanner' => 'wms:wmsPageScanner',
         '/wms/tasks' => 'wms:wmsPageTasks',
         '/wms/receiving' => 'wms:wmsPageReceiving',
         '/wms/picking' => 'wms:wmsPagePicking',
