@@ -168,3 +168,11 @@ function wmsPageDiagnostics(array $params = []): void
         'page_title' => 'Diagnostics & Observability',
     ]));
 }
+
+function wmsPageFinancial(array $params = []): void
+{
+    $user = wmsRequireStaff(['admin', 'supervisor']);
+    echo wmsRender('admin/financial.disyl', wmsAdminContext($user, 'financial', [
+        'page_title' => 'Financial & POs',
+    ]));
+}

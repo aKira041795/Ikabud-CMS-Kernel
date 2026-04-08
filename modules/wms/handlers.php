@@ -17,3 +17,4 @@ require_once __DIR__ . '/handlers/110-api-events.php';
 require_once __DIR__ . '/handlers/120-api-configs.php';
 require_once __DIR__ . '/handlers/130-api-onboarding.php';
 require_once __DIR__ . '/handlers/140-api-diagnostics.php';
+require_once __DIR__ . '/handlers/150-api-financial.php';

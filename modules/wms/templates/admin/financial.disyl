@@ -1,0 +1,124 @@
+@extends('layouts/admin')
+
+@section('content')
+<div class="max-w-6xl mx-auto py-8" x-data="financialWizard()">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Financial & Value Extension</h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Live Inventory Valuation -->
+        <div class="col-span-1 md:col-span-1 bg-white shadow rounded-lg p-6 flex flex-col justify-center items-center">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase">Live Vault Value</h3>
+            <template x-if="loadingValuation">
+                <span class="text-gray-400 mt-2">Computing...</span>
+            </template>
+            <template x-if="!loadingValuation">
+                <div class="text-center mt-2">
+                    <span class="text-3xl font-bold" x-text="formatCurrency(valuation.total_valuation)"></span>
+                    <p class="text-xs text-gray-500 mt-1" x-text="'Based on ' + valuation.method + ' costing'"></p>
+                </div>
+            </template>
+        </div>
+
+        <div class="col-span-1 md:col-span-2 bg-white shadow rounded-lg p-6">
+            <h3 class="text-lg font-bold mb-4 border-b pb-2">Purchase Orders (Outbound to Suppliers)</h3>
+            <p class="text-sm text-gray-600 mb-4">Current replenishment contracts pushed out to suppliers.</p>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">PO ID</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Warehouse</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="po in pos" :key="po.id">
+                            <tr>
+                                <td class="px-4 py-2 font-bold text-sm" x-text="'PO-' + String(po.id).padStart(6, '0')"></td>
+                                <td class="px-4 py-2 text-sm text-gray-600" x-text="po.supplier_name"></td>
+                                <td class="px-4 py-2 text-sm text-gray-600" x-text="po.warehouse_name"></td>
+                                <td class="px-4 py-2 text-sm">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                        :class="{'bg-gray-100 text-gray-800': po.status === 'draft', 'bg-blue-100 text-blue-800': po.status === 'submitted', 'bg-green-100 text-green-800': po.status === 'received'}"
+                                        x-text="po.status"></span>
+                                </td>
+                                <td class="px-4 py-2 text-sm">
+                                    <template x-if="po.status === 'draft'">
+                                        <button @click="submitPo(po.id)" class="text-indigo-600 hover:text-indigo-900 font-medium">Submit → Convert</button>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="pos.length === 0">
+                            <tr><td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500">No Purchase Orders exist.</td></tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('financialWizard', () => ({
+        loadingValuation: true,
+        loadingPos: true,
+        valuation: { total_valuation: 0, method: 'FIFO', currency: 'USD' },
+        pos: [],
+        init() {
+            this.fetchValuation();
+            this.fetchPos();
+        },
+        formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: this.valuation.currency || 'USD' }).format(value);
+        },
+        async fetchValuation() {
+            try {
+                const res = await fetch('/api/v1/wms/financial/valuation');
+                if (res.ok) {
+                    this.valuation = await res.json();
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.loadingValuation = false;
+            }
+        },
+        async fetchPos() {
+            try {
+                const res = await fetch('/api/v1/wms/purchase-orders');
+                if (res.ok) {
+                    const data = await res.json();
+                    this.pos = data.purchase_orders || [];
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.loadingPos = false;
+            }
+        },
+        async submitPo(id) {
+            if (!confirm('Are you sure you want to submit this PO? This will automatically create an inbound delivery.')) return;
+            try {
+                const res = await fetch(`/api/v1/wms/purchase-orders/${id}/submit`, { method: 'POST' });
+                if (res.ok) {
+                    alert('PO Submitted successfully');
+                    this.fetchPos();
+                } else {
+                    const data = await res.json();
+                    alert(data.error || 'Failed to submit');
+                }
+            } catch(e) {
+                alert('Error submitting PO');
+            }
+        }
+    }));
+});
+</script>
+@endsection

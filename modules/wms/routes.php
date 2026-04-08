@@ -15,6 +15,7 @@ return [
         '/wms/settings' => 'wms:wmsPageSettings',
         '/wms/onboarding' => 'wms:wmsPageOnboarding',
         '/wms/diagnostics' => 'wms:wmsPageDiagnostics',
+        '/wms/financial' => 'wms:wmsPageFinancial',
         '/wms/suppliers' => 'wms:wmsPageSuppliers',
         '/wms/returns' => 'wms:wmsPageReturns',
         '/wms/users' => 'wms:wmsPageUsers',
@@ -57,7 +58,9 @@ return [
         '/api/v1/wms/configs' => 'wms:wmsApiConfigsList',
         '/api/v1/wms/onboarding/status' => 'wms:wmsApiOnboardingStatus',
         '/api/v1/wms/diagnostics/trace' => 'wms:wmsApiDiagnosticsTrace',
-        '/api/v1/wms/diagnostics/reservations' => 'wms:wmsApiDiagnosticsReservations'
+        '/api/v1/wms/diagnostics/reservations' => 'wms:wmsApiDiagnosticsReservations',
+        '/api/v1/wms/financial/valuation' => 'wms:wmsApiFinancialValuation',
+        '/api/v1/wms/purchase-orders' => 'wms:wmsApiPurchaseOrdersList'
     ],
     'POST' => [
         '/wms/auth/login' => 'wms:wmsAuthLogin',
@@ -104,6 +107,8 @@ return [
         '/api/v1/wms/webhooks/register' => 'wms:wmsApiEventWebhookRegistration',
         '/api/v1/wms/configs' => 'wms:wmsApiConfigsUpdate',
         '/api/v1/wms/onboarding/start' => 'wms:wmsApiOnboardingStart',
-        '/api/v1/wms/onboarding/complete' => 'wms:wmsApiOnboardingComplete'
+        '/api/v1/wms/onboarding/complete' => 'wms:wmsApiOnboardingComplete',
+        '/api/v1/wms/purchase-orders' => 'wms:wmsApiPurchaseOrderCreate',
+        '/api/v1/wms/purchase-orders/{id}/submit' => 'wms:wmsApiPurchaseOrderSubmit'
     ]
 ];
