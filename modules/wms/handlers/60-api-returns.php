@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiReturnsList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $where = ['r.deleted_at IS NULL'];
         $bind = [];
         $status = wmsSanitizeString(wmsInput('status', ''), 30);
@@ -31,7 +31,7 @@ function wmsApiReturnsList(array $params = []): void
 function wmsApiReturnGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $return = wmsFetchOne('SELECT r.*, w.name AS warehouse_name FROM wms_returns r INNER JOIN wms_warehouses w ON w.id = r.warehouse_id WHERE r.id = ? AND r.deleted_at IS NULL LIMIT 1', [$id]);
         if ($return === null) {
@@ -53,7 +53,7 @@ function wmsApiReturnGet(array $params = []): void
 function wmsApiReturnCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $referenceNumber = wmsSanitizeString(wmsInput('reference_number', ''), 100);
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $items = wmsRequestBodyItems('items');
@@ -119,7 +119,7 @@ function wmsApiReturnCreate(array $params = []): void
 function wmsApiReturnRestock(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $returnId = (int)($params['id'] ?? 0);
         $return = wmsFetchOne('SELECT * FROM wms_returns WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$returnId]);
         if ($return === null) {

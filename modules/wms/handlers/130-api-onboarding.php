@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiOnboardingStatus(): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
 
         $completed = (bool)wmsConfigGet('onboarding.completed', false);
 
@@ -23,7 +23,7 @@ function wmsApiOnboardingStatus(): void
 function wmsApiOnboardingStart(): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin']);
+        wmsRequireAnyRole('admin');
 
         if ((bool)wmsConfigGet('onboarding.completed', false)) {
             wmsJsonError('Onboarding already completed.', 400);
@@ -36,7 +36,7 @@ function wmsApiOnboardingStart(): void
 function wmsApiOnboardingComplete(): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
 
         wmsConfigSet('onboarding.completed', true, 'Indicates if the tenant completed the initial setup wizard');
 

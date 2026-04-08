@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiProductsList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $filters = [
             'q' => wmsSanitizeString(wmsInput('q', ''), 120),
             'type' => wmsSanitizeString(wmsInput('type', ''), 50),
@@ -38,7 +38,7 @@ function wmsApiProductsList(array $params = []): void
 function wmsApiProductGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $product = wmsFetchOne('SELECT * FROM wms_products WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($product === null) {
@@ -51,7 +51,7 @@ function wmsApiProductGet(array $params = []): void
 function wmsApiProductCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $sku = wmsSanitizeString(wmsInput('sku', ''), 100);
         $name = wmsSanitizeString(wmsInput('name', ''), 255);
         if ($sku === '' || $name === '') {
@@ -85,7 +85,7 @@ function wmsApiProductCreate(array $params = []): void
 function wmsApiProductUpdate(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_products WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($existing === null) {
@@ -118,7 +118,7 @@ function wmsApiProductUpdate(array $params = []): void
 function wmsApiProductDelete(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin']);
+        $user = wmsRequireAnyRole('admin');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_products WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($existing === null) {
@@ -133,7 +133,7 @@ function wmsApiProductDelete(array $params = []): void
 function wmsApiWarehousesList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         wmsJsonOk(['data' => wmsFetchAll('SELECT * FROM wms_warehouses WHERE deleted_at IS NULL ORDER BY name ASC')]);
     });
 }
@@ -141,7 +141,7 @@ function wmsApiWarehousesList(array $params = []): void
 function wmsApiWarehouseGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $warehouse = wmsFetchOne('SELECT * FROM wms_warehouses WHERE id = ? AND deleted_at IS NULL LIMIT 1', [(int)($params['id'] ?? 0)]);
         if ($warehouse === null) {
             wmsJsonError('Warehouse not found.', 404);
@@ -153,7 +153,7 @@ function wmsApiWarehouseGet(array $params = []): void
 function wmsApiWarehouseCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $code = wmsSanitizeString(wmsInput('code', ''), 50);
         $name = wmsSanitizeString(wmsInput('name', ''), 255);
         if ($code === '' || $name === '') {
@@ -177,7 +177,7 @@ function wmsApiWarehouseCreate(array $params = []): void
 function wmsApiWarehouseUpdate(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_warehouses WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($existing === null) {
@@ -201,7 +201,7 @@ function wmsApiWarehouseUpdate(array $params = []): void
 function wmsApiLocationsList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $where = ['deleted_at IS NULL'];
         $params = [];
         $warehouseId = (int)wmsInput('warehouse_id', 0);
@@ -226,7 +226,7 @@ function wmsApiLocationsList(array $params = []): void
 function wmsApiLocationGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $location = wmsFetchOne('SELECT * FROM wms_locations WHERE id = ? AND deleted_at IS NULL LIMIT 1', [(int)($params['id'] ?? 0)]);
         if ($location === null) {
             wmsJsonError('Location not found.', 404);
@@ -238,7 +238,7 @@ function wmsApiLocationGet(array $params = []): void
 function wmsApiLocationChildren(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         wmsJsonOk(['data' => wmsFetchAll('SELECT * FROM wms_locations WHERE parent_id = ? AND deleted_at IS NULL ORDER BY code ASC', [(int)($params['id'] ?? 0)])]);
     });
 }
@@ -246,7 +246,7 @@ function wmsApiLocationChildren(array $params = []): void
 function wmsApiLocationCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $code = wmsSanitizeString(wmsInput('code', ''), 100);
         $name = wmsSanitizeString(wmsInput('name', ''), 255);
@@ -275,7 +275,7 @@ function wmsApiLocationCreate(array $params = []): void
 function wmsApiLocationUpdate(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_locations WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($existing === null) {
@@ -303,7 +303,7 @@ function wmsApiLocationUpdate(array $params = []): void
 function wmsApiBatchesList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $where = ['1=1'];
         $params = [];
         $productId = (int)wmsInput('product_id', 0);
@@ -326,7 +326,7 @@ function wmsApiBatchesList(array $params = []): void
 function wmsApiBatchGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $batch = wmsFetchOne('SELECT b.*, p.sku, p.name AS product_name FROM wms_batches b INNER JOIN wms_products p ON p.id = b.product_id WHERE b.id = ? LIMIT 1', [$id]);
         if ($batch === null) {
@@ -340,7 +340,7 @@ function wmsApiBatchGet(array $params = []): void
 function wmsApiBatchCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $productId = (int)wmsInput('product_id', 0);
         $batchNumber = wmsSanitizeString(wmsInput('batch_number', ''), 100);
         if ($productId <= 0 || $batchNumber === '') {

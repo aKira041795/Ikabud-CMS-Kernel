@@ -7,7 +7,7 @@ function wmsApiEventWebhookRegistration(array $params = []): void
     // This is a placeholder for external webhook registration
     // Kernel OS uses the wmsCtx()->fireEvent() which other modules can listen to.
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin']);
+        wmsRequireAnyRole('admin');
         wmsJsonOk(['message' => 'Webhooks are natively handled via Kernel OS Event Bus']);
     });
 }

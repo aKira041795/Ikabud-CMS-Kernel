@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiTasksList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $filters = wmsInput();
         wmsJsonOk(['data' => wmsTasksList($filters)]);
     });
@@ -14,7 +14,7 @@ function wmsApiTasksList(array $params = []): void
 function wmsApiTaskGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         wmsJsonOk(['data' => wmsTaskGetDetailed($id)]);
     });
@@ -23,7 +23,7 @@ function wmsApiTaskGet(array $params = []): void
 function wmsApiTaskExceptionsList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $filters = wmsInput();
         wmsJsonOk(['data' => wmsTaskExceptionsList($filters)]);
     });
@@ -32,7 +32,7 @@ function wmsApiTaskExceptionsList(array $params = []): void
 function wmsApiTaskCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $data = wmsInput();
         $id = wmsTaskCreate($data);
         wmsJsonOk(['id' => $id, 'data' => wmsTaskGetDetailed($id)]);
@@ -42,7 +42,7 @@ function wmsApiTaskCreate(array $params = []): void
 function wmsApiTaskUpdateStatus(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $data = wmsInput();
         $status = (string)($data['status'] ?? '');
@@ -54,7 +54,7 @@ function wmsApiTaskUpdateStatus(array $params = []): void
 function wmsApiTaskScanConfirm(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $payload = is_array(wmsInput()) ? wmsInput() : [];
         $result = wmsTaskScanConfirm($id, $payload, (int)$user['id']);
@@ -65,7 +65,7 @@ function wmsApiTaskScanConfirm(array $params = []): void
 function wmsApiTaskAssign(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $data = wmsInput();
         $assigneeId = isset($data['assigned_to']) && (int)$data['assigned_to'] > 0 ? (int)$data['assigned_to'] : null;
@@ -80,7 +80,7 @@ function wmsApiTaskAssign(array $params = []): void
 function wmsApiTaskExceptionResolve(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $resolutionNote = (string)wmsInput('resolution_note', 'Resolved from exception queue.');
         $exception = wmsTaskExceptionResolve($id, $resolutionNote, (int)$user['id']);
@@ -91,7 +91,7 @@ function wmsApiTaskExceptionResolve(array $params = []): void
 function wmsApiTaskExceptionDisposition(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $payload = is_array(wmsInput()) ? wmsInput() : [];
         $dispositionType = wmsSanitizeString($payload['disposition_type'] ?? '', 50);
@@ -107,7 +107,7 @@ function wmsApiTaskExceptionDisposition(array $params = []): void
 function wmsApiTaskGenerateReplenishments(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $data = wmsInput();
         $warehouseId = (int)($data['warehouse_id'] ?? 0);
         if ($warehouseId <= 0) {

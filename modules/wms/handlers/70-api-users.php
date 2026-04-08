@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiUsersList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin']);
+        wmsRequireAnyRole('admin');
         wmsJsonOk(['data' => wmsFetchAll(
             'SELECT id, username, email, full_name, role, is_active, created_at FROM wms_users ORDER BY full_name ASC'
         )]);
@@ -15,7 +15,7 @@ function wmsApiUsersList(array $params = []): void
 function wmsApiUserCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $actor = wmsRequireStaff(['admin']);
+        $actor = wmsRequireAnyRole('admin');
         $username = wmsSanitizeString(wmsInput('username', ''), 100);
         $email = wmsSanitizeString(wmsInput('email', ''), 255);
         $password = (string)wmsInput('password', '');
@@ -51,7 +51,7 @@ function wmsApiUserCreate(array $params = []): void
 function wmsApiUserUpdate(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $actor = wmsRequireStaff(['admin']);
+        $actor = wmsRequireAnyRole('admin');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_users WHERE id = ? LIMIT 1', [$id]);
         if ($existing === null) {
@@ -91,7 +91,7 @@ function wmsApiUserUpdate(array $params = []): void
 function wmsApiUserDelete(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $actor = wmsRequireStaff(['admin']);
+        $actor = wmsRequireAnyRole('admin');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT id, username FROM wms_users WHERE id = ? LIMIT 1', [$id]);
         if ($existing === null) {

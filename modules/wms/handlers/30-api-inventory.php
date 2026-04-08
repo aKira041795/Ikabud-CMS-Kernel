@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiStockSnapshot(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $filters = [
             'product_id' => (int)wmsInput('product_id', 0),
@@ -19,7 +19,7 @@ function wmsApiStockSnapshot(array $params = []): void
 function wmsApiStockLow(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $threshold = wmsInput('threshold', null);
         $threshold = $threshold === null || $threshold === '' ? null : (int)$threshold;
@@ -30,7 +30,7 @@ function wmsApiStockLow(array $params = []): void
 function wmsApiMovementsList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         wmsJsonOk(['data' => wmsMovementsList([
             'product_id' => (int)wmsInput('product_id', 0),
             'warehouse_id' => (int)wmsInput('warehouse_id', 0),
@@ -44,7 +44,7 @@ function wmsApiMovementsList(array $params = []): void
 function wmsApiPutawayRulesList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $where = ['1=1'];
         $bind = [];
@@ -67,7 +67,7 @@ function wmsApiPutawayRulesList(array $params = []): void
 function wmsApiPutawayRuleCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         if ($warehouseId <= 0) {
             wmsJsonError('Warehouse is required.', 422);
@@ -94,7 +94,7 @@ function wmsApiPutawayRuleCreate(array $params = []): void
 function wmsApiPutawayRuleUpdate(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_putaway_rules WHERE id = ? LIMIT 1', [$id]);
         if ($existing === null) {
@@ -122,7 +122,7 @@ function wmsApiPutawayRuleUpdate(array $params = []): void
 function wmsApiPutawaySuggest(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $productId = (int)wmsInput('product_id', 0);
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         if ($productId <= 0 || $warehouseId <= 0) {
@@ -135,7 +135,7 @@ function wmsApiPutawaySuggest(array $params = []): void
 function wmsApiReportStockSnapshot(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         wmsJsonOk([
             'generated_at' => date('c'),
             'data' => wmsStockSnapshot((int)wmsInput('warehouse_id', 0), [
@@ -150,7 +150,7 @@ function wmsApiReportStockSnapshot(array $params = []): void
 function wmsApiReportMovementHistory(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         wmsJsonOk([
             'generated_at' => date('c'),
             'data' => wmsMovementsList([
@@ -167,7 +167,7 @@ function wmsApiReportMovementHistory(array $params = []): void
 function wmsApiReportVelocity(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $days = max(1, (int)wmsInput('days', 30));
         wmsJsonOk(['generated_at' => date('c'), 'data' => wmsVelocityReport($days)]);
     });
@@ -176,7 +176,7 @@ function wmsApiReportVelocity(array $params = []): void
 function wmsApiReportExpiry(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $days = max(1, (int)wmsInput('days', 30));
         wmsJsonOk(['generated_at' => date('c'), 'data' => wmsExpiryReport($days)]);
     });
@@ -185,7 +185,7 @@ function wmsApiReportExpiry(array $params = []): void
 function wmsApiStockAdjust(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $productId = (int)wmsInput('product_id', 0);
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $locationId = (int)wmsInput('location_id', 0);

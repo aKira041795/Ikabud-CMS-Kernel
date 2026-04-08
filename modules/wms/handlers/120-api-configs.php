@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 function wmsApiConfigsList(): never
 {
-    wmsRequireStaff(['admin', 'supervisor']);
+    wmsRequireAnyRole('admin', 'supervisor');
 
     $db = wmsDb();
-    $configs = $db->fetchAll('SELECT config_key, config_value, description, updated_at FROM wms_configs ORDER BY config_key ASC');
+    $configs = wmsFetchAll('SELECT config_key, config_value, description, updated_at FROM wms_configs ORDER BY config_key ASC');
     
     $parsed = [];
     foreach ($configs as $cfg) {
@@ -16,12 +16,12 @@ function wmsApiConfigsList(): never
         $parsed[] = $cfg;
     }
 
-    wmsJson(['configs' => $parsed]);
+    wmsJsonOk(['configs' => $parsed]);
 }
 
 function wmsApiConfigsUpdate(): never
 {
-    wmsRequireStaff(['admin', 'supervisor']);
+    wmsRequireAnyRole('admin', 'supervisor');
 
     $input = wmsInput('configs');
     if (!is_array($input)) {
@@ -45,5 +45,5 @@ function wmsApiConfigsUpdate(): never
     $user = wmsUser();
     wmsLog('Configurations updated by ' . ($user['email'] ?? 'unknown'));
 
-    wmsJson(['success' => true, 'message' => 'Configurations updated.']);
+    wmsJsonOk(['success' => true, 'message' => 'Configurations updated.']);
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiSuppliersList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $where = ['deleted_at IS NULL'];
         $bind = [];
         $q = wmsSanitizeString(wmsInput('q', ''), 120);
@@ -29,7 +29,7 @@ function wmsApiSuppliersList(array $params = []): void
 function wmsApiSupplierGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $supplier = wmsFetchOne('SELECT * FROM wms_suppliers WHERE id = ? AND deleted_at IS NULL LIMIT 1', [(int)($params['id'] ?? 0)]);
         if ($supplier === null) {
             wmsJsonError('Supplier not found.', 404);
@@ -45,7 +45,7 @@ function wmsApiSupplierGet(array $params = []): void
 function wmsApiSupplierCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $code = wmsSanitizeString(wmsInput('code', ''), 50);
         $name = wmsSanitizeString(wmsInput('name', ''), 255);
         if ($code === '' || $name === '') {
@@ -75,7 +75,7 @@ function wmsApiSupplierCreate(array $params = []): void
 function wmsApiSupplierUpdate(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_suppliers WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($existing === null) {
@@ -103,7 +103,7 @@ function wmsApiSupplierUpdate(array $params = []): void
 function wmsApiSupplierDelete(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin']);
+        $user = wmsRequireAnyRole('admin');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_suppliers WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($existing === null) {

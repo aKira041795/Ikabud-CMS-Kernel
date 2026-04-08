@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiDiagnosticsTrace(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
 
         $productId = (int)wmsInput('product_id', 0);
         if ($productId <= 0) {
@@ -34,7 +34,7 @@ function wmsApiDiagnosticsTrace(array $params = []): void
 function wmsApiDiagnosticsReservations(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
 
         $reservations = wmsFetchAll(
             'SELECT 

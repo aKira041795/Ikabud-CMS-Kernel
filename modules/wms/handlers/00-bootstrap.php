@@ -2,11 +2,6 @@
 
 declare(strict_types=1);
 
-function wmsRequireStaff(array $roles = ['admin', 'supervisor']): array
-{
-    return wmsCtx()->requireAnyRole(...$roles);
-}
-
 function wmsRequestBodyItems(string $key = 'items'): array
 {
     $items = wmsInput($key, []);

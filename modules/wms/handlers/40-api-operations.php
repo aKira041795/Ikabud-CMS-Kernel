@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiDeliveriesList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $status = wmsSanitizeString(wmsInput('status', ''), 30);
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $where = ['d.deleted_at IS NULL'];
@@ -28,7 +28,7 @@ function wmsApiDeliveriesList(array $params = []): void
 function wmsApiDeliveryGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $delivery = wmsFetchOne('SELECT * FROM wms_deliveries WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($delivery === null) {
@@ -52,7 +52,7 @@ function wmsApiDeliveryGet(array $params = []): void
 function wmsApiDeliveryCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $referenceNumber = wmsSanitizeString(wmsInput('reference_number', ''), 100);
         $items = wmsRequestBodyItems('items');
@@ -168,7 +168,7 @@ function wmsApiDeliveryCreate(array $params = []): void
 function wmsApiDeliveryReceive(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $result = wmsDeliveryReceive((int)($params['id'] ?? 0), (int)($user['id'] ?? 0));
         wmsJsonOk($result);
     });
@@ -177,7 +177,7 @@ function wmsApiDeliveryReceive(array $params = []): void
 function wmsApiDeliveryCancel(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         $existing = wmsFetchOne('SELECT * FROM wms_deliveries WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($existing === null) {
@@ -191,7 +191,7 @@ function wmsApiDeliveryCancel(array $params = []): void
 function wmsApiOrdersList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $status = wmsSanitizeString(wmsInput('status', ''), 30);
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         $where = ['o.deleted_at IS NULL'];
@@ -214,7 +214,7 @@ function wmsApiOrdersList(array $params = []): void
 function wmsApiOrderGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$id]);
         if ($order === null) {
@@ -236,7 +236,7 @@ function wmsApiOrderGet(array $params = []): void
 function wmsApiOrderCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $data = wmsInput();
         $data['created_by'] = (int)($user['id'] ?? 0);
         $orderId = wmsOrderCreate($data);
@@ -247,7 +247,7 @@ function wmsApiOrderCreate(array $params = []): void
 function wmsApiOrderPickList(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         wmsJsonOk(['data' => wmsOrderGeneratePickList((int)($params['id'] ?? 0))]);
     });
 }
@@ -255,7 +255,7 @@ function wmsApiOrderPickList(array $params = []): void
 function wmsApiOrderPick(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         wmsJsonOk(wmsOrderPick((int)($params['id'] ?? 0), (int)($user['id'] ?? 0)));
     });
 }
@@ -263,7 +263,7 @@ function wmsApiOrderPick(array $params = []): void
 function wmsApiOrderDispatch(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         wmsOrderDispatch((int)($params['id'] ?? 0), (int)($user['id'] ?? 0));
         wmsJsonOk(['id' => (int)($params['id'] ?? 0)]);
     });
@@ -272,7 +272,7 @@ function wmsApiOrderDispatch(array $params = []): void
 function wmsApiOrderCancel(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         wmsOrderCancel($id, (int)($user['id'] ?? 0));
         wmsJsonOk(['id' => $id]);
@@ -282,7 +282,7 @@ function wmsApiOrderCancel(array $params = []): void
 function wmsApiTransfersList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         wmsJsonOk(['data' => wmsFetchAll(
             "SELECT * FROM wms_movements WHERE movement_type IN ('transfer_out', 'transfer_in') ORDER BY created_at DESC LIMIT 500"
         )]);
@@ -292,7 +292,7 @@ function wmsApiTransfersList(array $params = []): void
 function wmsApiTransferCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $fromLocationId = (int)wmsInput('from_location_id', 0);
         $toLocationId = (int)wmsInput('to_location_id', 0);
         $items = wmsRequestBodyItems('items');
@@ -312,7 +312,7 @@ function wmsApiTransferCreate(array $params = []): void
 function wmsApiCycleCountsList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         wmsJsonOk(['data' => wmsFetchAll('SELECT * FROM wms_cycle_counts ORDER BY created_at DESC LIMIT 200')]);
     });
 }
@@ -320,7 +320,7 @@ function wmsApiCycleCountsList(array $params = []): void
 function wmsApiCycleCountGet(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
         $id = (int)($params['id'] ?? 0);
         $count = wmsFetchOne('SELECT * FROM wms_cycle_counts WHERE id = ? LIMIT 1', [$id]);
         if ($count === null) {
@@ -334,7 +334,7 @@ function wmsApiCycleCountGet(array $params = []): void
 function wmsApiCycleCountCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $warehouseId = (int)wmsInput('warehouse_id', 0);
         if ($warehouseId <= 0) {
             wmsJsonError('Warehouse is required.', 422);
@@ -359,7 +359,7 @@ function wmsApiCycleCountCreate(array $params = []): void
 function wmsApiCycleCountSnapshot(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         wmsJsonOk(['data' => wmsCycleCountSnapshot((int)($params['id'] ?? 0))]);
     });
 }
@@ -367,7 +367,7 @@ function wmsApiCycleCountSnapshot(array $params = []): void
 function wmsApiCycleCountRecordItem(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $countId = (int)($params['id'] ?? 0);
         $itemId = (int)($params['itemId'] ?? 0);
         $qtyCounted = wmsNormalizeDecimal(wmsInput('qty_counted', 0));
@@ -382,7 +382,7 @@ function wmsApiCycleCountRecordItem(array $params = []): void
 function wmsApiCycleCountComplete(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         wmsJsonOk(wmsCycleCountClose((int)($params['id'] ?? 0), (int)($user['id'] ?? 0)));
     });
 }

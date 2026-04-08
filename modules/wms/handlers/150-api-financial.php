@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiFinancialValuation(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
 
         $productId = (int)wmsInput('product_id', 0);
         $valuation = wmsCalculateInventoryValuation($productId);
@@ -17,7 +17,7 @@ function wmsApiFinancialValuation(array $params = []): void
 function wmsApiPurchaseOrdersList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+        wmsRequireAnyRole('admin', 'supervisor', 'viewer');
 
         $pos = wmsFetchAll(
             'SELECT 
@@ -37,7 +37,7 @@ function wmsApiPurchaseOrdersList(array $params = []): void
 function wmsApiPurchaseOrderCreate(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
 
         $data = [
             'supplier_id' => wmsInput('supplier_id'),
@@ -55,7 +55,7 @@ function wmsApiPurchaseOrderCreate(array $params = []): void
 function wmsApiPurchaseOrderSubmit(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
-        $user = wmsRequireStaff(['admin', 'supervisor']);
+        $user = wmsRequireAnyRole('admin', 'supervisor');
         $id = (int)($params['id'] ?? 0);
         if ($id <= 0) {
             wmsJsonError('Purchase order ID is required.', 422);

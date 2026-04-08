@@ -5,7 +5,7 @@ declare(strict_types=1);
 function wmsApiIntelligenceSlotting(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $warehouseId = (int)(wmsInput('warehouse_id', 0));
         $days = (int)(wmsInput('days', 30));
         
@@ -21,7 +21,7 @@ function wmsApiIntelligenceSlotting(array $params = []): void
 function wmsApiIntelligenceForecast(array $params = []): void
 {
     wmsResponseGuard(function (): void {
-        wmsRequireStaff(['admin', 'supervisor']);
+        wmsRequireAnyRole('admin', 'supervisor');
         $warehouseId = (int)(wmsInput('warehouse_id', 0));
         $days = (int)(wmsInput('days', 30));
         

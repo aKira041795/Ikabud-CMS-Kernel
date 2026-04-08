@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 function wmsPageTasks(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
     echo wmsRender('admin/tasks.disyl', wmsAdminContext($user, 'tasks', [
         'page_title' => 'Task Queue',
         'warehouses' => wmsFetchAll('SELECT id, code, name FROM wms_warehouses WHERE deleted_at IS NULL ORDER BY name ASC'),
@@ -16,7 +16,7 @@ function wmsPageTasks(array $params = []): void
 
 function wmsPageScanner(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
     
     // For mobile layout, we bypass wmsAdminContext which sets up the desktop sidebar.
@@ -41,7 +41,7 @@ function wmsPageScanner(array $params = []): void
 
 function wmsPageDashboard(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
 
     $summary = [
         'products' => 0,
@@ -86,7 +86,7 @@ function wmsPageDashboard(array $params = []): void
 
 function wmsPageReceiving(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor']);
+    $user = wmsRequireAnyRole('admin', 'supervisor');
     echo wmsRender('admin/receiving.disyl', wmsAdminContext($user, 'receiving', [
         'page_title' => 'Receiving',
         'deliveries' => wmsFetchAll(
@@ -128,7 +128,7 @@ function wmsPageReceiving(array $params = []): void
 
 function wmsPagePicking(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor']);
+    $user = wmsRequireAnyRole('admin', 'supervisor');
     echo wmsRender('admin/picking.disyl', wmsAdminContext($user, 'picking', [
         'page_title' => 'Picking',
         'orders' => wmsFetchAll('SELECT * FROM wms_orders WHERE deleted_at IS NULL ORDER BY priority ASC, created_at DESC LIMIT 50'),
@@ -137,7 +137,7 @@ function wmsPagePicking(array $params = []): void
 
 function wmsPageInventory(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
     echo wmsRender('admin/inventory.disyl', wmsAdminContext($user, 'inventory', [
         'page_title' => 'Inventory',
         'stock_rows' => array_slice(wmsStockSnapshot(0, []), 0, 200),
@@ -150,7 +150,7 @@ function wmsPageInventory(array $params = []): void
 
 function wmsPageSettings(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor']);
+    $user = wmsRequireAnyRole('admin', 'supervisor');
     echo wmsRender('admin/settings.disyl', wmsAdminContext($user, 'settings', [
         'page_title' => 'WMS Settings',
         'putaway_rules' => wmsFetchAll('SELECT r.*, w.name AS warehouse_name FROM wms_putaway_rules r INNER JOIN wms_warehouses w ON w.id = r.warehouse_id ORDER BY r.priority DESC, r.id DESC'),
@@ -160,7 +160,7 @@ function wmsPageSettings(array $params = []): void
 
 function wmsPageSuppliers(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
     echo wmsRender('admin/suppliers.disyl', wmsAdminContext($user, 'suppliers', [
         'page_title' => 'Suppliers',
         'suppliers' => wmsFetchAll('SELECT * FROM wms_suppliers WHERE deleted_at IS NULL ORDER BY name ASC'),
@@ -169,7 +169,7 @@ function wmsPageSuppliers(array $params = []): void
 
 function wmsPageReturns(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor', 'viewer']);
+    $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
     echo wmsRender('admin/returns.disyl', wmsAdminContext($user, 'returns', [
         'page_title' => 'Returns',
         'returns' => wmsFetchAll(
@@ -185,7 +185,7 @@ function wmsPageReturns(array $params = []): void
 
 function wmsPageUsers(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin']);
+    $user = wmsRequireAnyRole('admin');
     echo wmsRender('admin/users.disyl', wmsAdminContext($user, 'users', [
         'page_title' => 'Users',
         'users' => wmsFetchAll('SELECT id, username, email, full_name, role, is_active, created_at FROM wms_users ORDER BY full_name ASC'),
@@ -195,7 +195,7 @@ function wmsPageUsers(array $params = []): void
 
 function wmsPageOnboarding(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin']);
+    $user = wmsRequireAnyRole('admin');
     echo wmsRender('admin/onboarding.disyl', wmsAdminContext($user, 'onboarding', [
         'page_title' => 'WMS Onboarding',
         'warehouse_count' => (int)(wmsDb()->query('SELECT COUNT(*) FROM wms_warehouses WHERE deleted_at IS NULL')->fetchColumn() ?: 0),
@@ -206,7 +206,7 @@ function wmsPageOnboarding(array $params = []): void
 
 function wmsPageDiagnostics(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor']);
+    $user = wmsRequireAnyRole('admin', 'supervisor');
     echo wmsRender('admin/diagnostics.disyl', wmsAdminContext($user, 'diagnostics', [
         'page_title' => 'Diagnostics & Observability',
         'products' => wmsFetchAll('SELECT id, sku, name FROM wms_products WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 300'),
@@ -215,7 +215,7 @@ function wmsPageDiagnostics(array $params = []): void
 
 function wmsPageFinancial(array $params = []): void
 {
-    $user = wmsRequireStaff(['admin', 'supervisor']);
+    $user = wmsRequireAnyRole('admin', 'supervisor');
     echo wmsRender('admin/financial.disyl', wmsAdminContext($user, 'financial', [
         'page_title' => 'Financial & POs',
         'warehouses' => wmsFetchAll('SELECT id, code, name FROM wms_warehouses WHERE deleted_at IS NULL ORDER BY name ASC'),
