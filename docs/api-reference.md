@@ -574,6 +574,120 @@ Reset circuit breaker state for a specific capability/provider pair, or for all 
 
 ---
 
+## Kernel Integrations (Superadmin)
+
+These endpoints back the Kernel Integration Bridge registry UI at `/kernel/integrations`.
+
+- Auth scope: kernel `superadmin` for the page, kernel `admin` or `superadmin` for the JSON API
+- CSRF: required for `POST` and `DELETE` via `_token` or `X-CSRF-Token`
+- Response correlation: all JSON responses include `request_id`
+
+### GET /api/v1/kernel/integrations
+
+Return the current bridge registry plus the most recent execution logs.
+
+**Response**:
+
+```json
+{
+  "ok": true,
+  "integrations": [
+    {
+      "id": 12,
+      "name": "Ecommerce Order Reserve",
+      "trigger_event": "ecommerce.order.created",
+      "target_capability": "wms.stock.reserve@1",
+      "mapping_json": "{\"reference_type\":\"order\",\"reference_id\":\"{{order.id}}\",\"items\":\"{{order.items}}\"}",
+      "is_active": 1,
+      "event_source": "eventbus",
+      "version_lock": "wms.stock.reserve@1"
+    }
+  ],
+  "logs": [
+    {
+      "integration_id": 12,
+      "integration_name": "Ecommerce Order Reserve",
+      "status": "success",
+      "request_id": "e4f9a6c2f440f2f1",
+      "correlation_id": "4cc4d6bc5f5d7a24",
+      "duration_ms": 14,
+      "error_message": null
+    }
+  ],
+  "request_id": "e4f9a6c2f440f2f1"
+}
+```
+
+### POST /api/v1/kernel/integrations
+
+Create a new bridge, or perform an action against an existing bridge.
+
+**Create Body** (JSON):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Human-readable bridge name |
+| `trigger_event` | string | yes | Event key emitted into the kernel event bus |
+| `target_capability` | string | yes | Capability id or alias to invoke |
+| `mapping_json` | object or JSON string | yes | Declarative payload map |
+| `is_active` | int/bool | no | Defaults to active |
+| `event_source` | string | no | Defaults to `eventbus` |
+| `version_lock` | string | no | Fully resolved capability id expected at runtime |
+
+**Action Body** (JSON):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `_action` | string | yes | `toggle` or `promote` |
+| `id` | int | yes | Bridge row id |
+
+**Behavior**:
+
+- Create validates that `mapping_json` is a JSON object.
+- Create rejects duplicate `(trigger_event, target_capability)` pairs.
+- Create rejects unresolved or unregistered capabilities.
+- `toggle` flips `is_active` and records a kernel audit entry.
+- `promote` converts the bridge mapping into a Kernel Trigger rule and marks the bridge `event_source` as `promoted`.
+
+**Example Create Response**:
+
+```json
+{
+  "ok": true,
+  "id": 12,
+  "request_id": "7bc713fa67204c87"
+}
+```
+
+**Common Errors**:
+
+- `400` — missing required fields or invalid `mapping_json`
+- `403` — forbidden role/source
+- `409` — duplicate bridge for the same event/capability pair
+- `419` — invalid CSRF token
+- `422` — unresolved capability or invalid non-empty contract fields
+
+### DELETE /api/v1/kernel/integrations?id={id}
+
+Delete a bridge row.
+
+**Behavior**:
+
+- Requires a valid CSRF token.
+- Returns success even when `id=0`, but only deletes when a positive id is supplied.
+- Records a kernel audit entry when an existing bridge row is removed.
+
+**Response**:
+
+```json
+{
+  "ok": true,
+  "request_id": "2d444475451c4a8f"
+}
+```
+
+---
+
 ## Report Endpoints
 
 All report endpoints support content negotiation. All require `branch_id` and date range.

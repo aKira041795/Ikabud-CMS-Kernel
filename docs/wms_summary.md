@@ -33,7 +33,7 @@ The Warehouse Management System (WMS) module is a reference-grade, entity-driven
 ## 5. Kernel OS Ecosystem Leverage
 
 The WMS doesn't live in a silo; it aggressively leverages the Kernel OS capability bus for interoperability:
-*   **Headless Stock Queries**: Exposes `wms.stock.query@1` and `wms.stock.reserve@1` capabilities so an external Ecommerce Module or POS system can synchronously validate or lock stock before completing a sale.
+*   **Headless Stock Contracts**: Exposes `wms.stock.query@1`, `wms.stock.reserve@1`, and `wms.stock.release@1` so external Ecommerce or POS flows can validate stock, reserve it at sale time, and release it deterministically on cancellation.
 *   **Event-Driven Triggers**: Emits standard events like `wms.stock.low`, `wms.order.picked`, and `wms.production.completed`. These allow external billing modules or notification services to trigger actions automatically based on warehouse activity without tight code coupling.
 
 ---
@@ -48,6 +48,8 @@ The next phase deliberately pauses new "features" to prioritize transforming the
 *   **Granular Configuration Layer (`wms_configs`) (Completed)**: Abstracted all hard-coded logic into tenant-level settings (handled via `wmsConfigGet()`/`wmsConfigSet()`). Admins will freely toggle picking strategies, negative stock policies, auto-replenishment behavior, and default quarantine routing.
 *   **Observability & Debugging Tooling (Completed)**: Equipped administrators with internal diagnostics (`/wms/diagnostics`), including a **Movement Trace Viewer** and an active **Reservation Inspector**.
 *   **Financial Extension (Costing & POs) (Completed)**: Introduced the Financial & Business Layer computing live inventory valuation directly from the movement ledger using toggleable cost models (`FIFO`, `MAC`). Closed the outbound supply loop with a robust `wms_purchase_orders` workflow that translates replenishment forecasts securely into expected `wms_deliveries`.
-*   **Ecosystem Orchestration via Contracts**: Publishing strict capability contracts (`wms.stock.query@1`, `wms.stock.reserve@1`) enabling external Point of Sale (POS) and Ecommerce modules to rely on the WMS as the definitive inventory authority.
+*   **Ecosystem Orchestration via Contracts**: Publishing strict capability contracts (`wms.stock.query@1`, `wms.stock.reserve@1`, `wms.stock.release@1`) enabling external Point of Sale (POS) and Ecommerce modules to rely on the WMS as the definitive inventory authority.
+
+For bridge-triggered reserve/release calls, WMS can also derive an active `location_id` from the provided warehouse. Tenants may pin this fallback with the `bridge.default_location_id` setting when integrations supply warehouse routing but omit an explicit location.
 
 By focusing on configuration, observability, and data portability (Import/Export), the WMS positions itself not merely as a tracking tool, but as a universally deployable ERP-lite engine capable of scaling horizontally across the Kernel OS ecosystem.

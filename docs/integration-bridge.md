@@ -44,8 +44,9 @@ Dual entry (defining the exact same canonical record via multiple module inputs)
 ## Architectural Rules
 
 1. **Strict Authority**: Modules maintain their own boundaries. Do not use the bridge to build bidirectional state syncs.
-2. **Fail-Fast Behavior**: If a capability execution fails, the bridge catches the exception, logs it as `failed`, and stops. It *does not* swallow the error silently if it crashes the runtime, but logs it for visibility. It *does not* retry.
+2. **Fail-Fast Behavior**: If a capability execution fails, the bridge catches the exception, logs it as `failed`, and stops. It does not retry, queue, or continue into multi-step recovery logic.
 3. **No Magic Routing**: Every integration is explicitly defined in the `kernel_integrations` registry.
+4. **Version-Safe Dispatch**: A bridge may pin a `version_lock` to the fully resolved capability id (for example `wms.stock.reserve@1`). If alias resolution drifts, the bridge logs an explicit version-lock failure instead of silently calling the wrong provider.
 
 ---
 
@@ -70,8 +71,9 @@ The Kernel will enforce that only **one module** can claim authority per entity 
 The bridge uses a simple, deterministic JSON mapping system to translate an Event's outbound payload into a Capability's expected inbound payload.
 
 * **Syntax**: Supports basic `{{dot.notation}}` string replacements inside JSON string values.
-* **Resolution**: If a string *exactly* matches an array or object path (e.g., `"items": "{{order.items}}"`), the mapped variable will safely retain its structured type (Array/Object) rather than cast to a string.
-* **Idempotency**: If the source event payload provides an `idempotency_key`, the mapper natively passes it through to the resolved capability payload.
+* **Resolution**: If a string *exactly* matches an array or object path (e.g., `"items": "{{order.items}}"`), the mapped variable retains its structured type instead of being flattened into a string.
+* **Nested Structures**: Mapping values may themselves be nested JSON objects/arrays, and the mapper resolves placeholders recursively inside those structures.
+* **Idempotency**: If the source event payload provides an `idempotency_key`, the bridge passes it through automatically unless the mapping explicitly overrides it.
 
 **What it does NOT support:**
 * Expressions, loops, math, or conditional statements.
@@ -81,9 +83,11 @@ The bridge uses a simple, deterministic JSON mapping system to translate an Even
 ## Database Architecture
 
 1. `kernel_integrations`: The source of truth for declared mappings.
-   * `name`, `trigger_event`, `target_capability`, `mapping_json`, `is_active`
+  * `name`, `trigger_event`, `target_capability`, `mapping_json`, `is_active`, `event_source`, `version_lock`
 2. `kernel_integration_logs`: The observability trail for fired integrations.
-   * `status` (success/failed), `payload_in`, `payload_out`, `error_message`
+  * `status` (success/failed), `payload_in`, `payload_out`, `error_message`, `request_id`, `correlation_id`, `duration_ms`
+
+The bridge schema is part of the tenant-safe kernel migration set. New tenant databases receive both the base bridge tables and the hardening columns/indexes during request-time kernel migration sync.
 
 ---
 
@@ -108,7 +112,11 @@ The integration registry is visible to Kernel Superadmins at:
 The interface allows administrators to:
 1. Create new integrations manually by defining the Trigger Event, Target Capability, and the JSON payload map.
 2. Toggle integrations on/off.
-3. Review recent execution logs, including expanding payloads and viewing capability rejection errors inline.
+3. Pick from known registered Events and Capabilities, with event variable hints and capability version-lock prefill.
+4. Promote a simple bridge into a full Kernel Trigger rule while marking the original bridge row as `promoted` for traceability.
+5. Review recent execution logs, including request id, correlation id, duration, payloads, and inline capability rejection errors.
+
+The mutating bridge API at `/api/v1/kernel/integrations` now enforces Kernel CSRF validation on `POST` and `DELETE` requests and returns a `request_id` in all JSON responses for operator support and incident correlation.
 
 ---
 
@@ -117,8 +125,8 @@ The interface allows administrators to:
 A primary driver for this engine is decoupling Order generation from Inventory control.
 
 **Ownership Model:**
-* Ecommerce = owns products + orders
-* WMS = owns stock + fulfillment
+* Ecommerce = owns orders and storefront checkout flow
+* WMS = owns stock reservation and release behavior
 
 **Trigger Event:** `ecommerce.order.created` (Ecommerce owns this)  
 **Target Capability:** `wms.stock.reserve@1` (WMS reacts)
@@ -129,17 +137,43 @@ A primary driver for this engine is decoupling Order generation from Inventory c
   "reference_type": "order",
   "reference_id": "{{order.id}}",
   "items": "{{order.items}}",
-  "idempotency_key": "order_{{order.id}}"
+  "idempotency_key": "{{idempotency_key}}",
+  "actor_user_id": "{{actor_user_id}}"
 }
 ```
 
 **Execution Flow (One-Way Action):**
 1. Checkout finishes in Ecommerce, firing `ecommerce.order.created` to `EventBus`.
-2. Integration Bridge intercepts the wildcard listener.
-3. The bridge queries the `kernel_integrations` table and flexibly casts the `$payload['order']['items']` array onto the `wms.stock.reserve@1` schema.
-4. `app()->cap()->call()` resolves and executes the targeted WMS capability.
-5. Success/Failure is logged to `kernel_integration_logs`.
-6. WMS then operates on its stock (reserves inventory, creates `wms_movements`).
+2. Ecommerce persists an `integration_bridge_snapshot` in order meta so later lifecycle events can reuse the same warehouse and item-routing data.
+3. The bridge loads the matching active row from `kernel_integrations`, resolves the mapping, and preserves `order.items` as structured data.
+4. `app()->cap()->call()` executes `wms.stock.reserve@1` with request/correlation context plus the event idempotency key.
+5. Success or failure is logged to `kernel_integration_logs`, and the bridge emits `integration.result.wms.stock.reserve_v1` for downstream automation.
+6. WMS reserves stock, writes `wms_movements`, and honors per-item or derived idempotency keys so replays do not double-reserve.
 
-**Optional Reverse Bridge:**
-If the reservation fails, WMS emits `wms.stock.failed`. The Bridge maps this to an `ecommerce.order.cancel@1` capability to perform the cancellation securely in the Ecommerce module. **This provides bi-directional behavior without tight coupling or data syncing.**
+**Compensating Release Flow:**
+
+When an order is cancelled, Ecommerce emits `ecommerce.order.cancelled` using the stored bridge snapshot instead of reconstructing a lossy item list from order rows.
+
+**Trigger Event:** `ecommerce.order.cancelled`  
+**Target Capability:** `wms.stock.release@1`
+
+**Mapping JSON:**
+```json
+{
+  "reference_type": "order",
+  "reference_id": "{{order.id}}",
+  "items": "{{order.items}}",
+  "idempotency_key": "{{idempotency_key}}",
+  "actor_user_id": "{{actor_user_id}}"
+}
+```
+
+This allows the system to release prior reservations deterministically, create a single `unreserved` movement, and survive event replay without over-releasing stock.
+
+---
+
+## Runtime Notes for WMS Consumers
+
+* `wms.stock.reserve@1` and `wms.stock.release@1` accept batch `items` payloads.
+* If an item omits `location_id` but provides `warehouse_id`, WMS derives an active location automatically. A tenant can optionally pin this behavior with `bridge.default_location_id` in WMS settings.
+* If Ecommerce is using an active `ecommerce.order.created` → `wms.stock.reserve@1` bridge, local Ecommerce stock decrement is skipped so WMS remains the sole reservation authority.
