@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS `wms_suppliers` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP PROCEDURE IF EXISTS wms_add_supplier_id;
-DELIMITER //
+
 CREATE PROCEDURE wms_add_supplier_id()
 BEGIN
     IF NOT EXISTS (
@@ -31,8 +31,7 @@ BEGIN
             ADD COLUMN `supplier_id` INT UNSIGNED DEFAULT NULL AFTER `supplier_name`,
             ADD KEY `idx_wms_deliveries_supplier_id` (`supplier_id`);
     END IF;
-END //
-DELIMITER ;
+END;
 CALL wms_add_supplier_id();
 DROP PROCEDURE IF EXISTS wms_add_supplier_id;
 

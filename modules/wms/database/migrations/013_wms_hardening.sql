@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `wms_idempotency_keys` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP PROCEDURE IF EXISTS wms_add_quarantine_location;
-DELIMITER //
+
 CREATE PROCEDURE wms_add_quarantine_location()
 BEGIN
     IF NOT EXISTS (
@@ -22,7 +22,6 @@ BEGIN
             ADD COLUMN `quarantine_location_id` INT UNSIGNED DEFAULT NULL AFTER `address`,
             ADD KEY `idx_wms_warehouses_quarantine` (`quarantine_location_id`);
     END IF;
-END //
-DELIMITER ;
+END;
 CALL wms_add_quarantine_location();
 DROP PROCEDURE IF EXISTS wms_add_quarantine_location;

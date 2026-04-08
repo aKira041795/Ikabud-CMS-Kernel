@@ -2,7 +2,7 @@
 
 -- 1. Demand & Stock Intelligence
 DROP PROCEDURE IF EXISTS wms_add_product_replenishment_cols;
-DELIMITER //
+
 CREATE PROCEDURE wms_add_product_replenishment_cols()
 BEGIN
     IF NOT EXISTS (
@@ -15,8 +15,7 @@ BEGIN
             ADD COLUMN `reorder_point` DECIMAL(14,4) NOT NULL DEFAULT 0.0000 AFTER `weight`,
             ADD COLUMN `safety_stock` DECIMAL(14,4) NOT NULL DEFAULT 0.0000 AFTER `reorder_point`;
     END IF;
-END //
-DELIMITER ;
+END;
 CALL wms_add_product_replenishment_cols();
 DROP PROCEDURE IF EXISTS wms_add_product_replenishment_cols;
 
