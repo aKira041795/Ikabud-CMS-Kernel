@@ -46,6 +46,9 @@ function ecPosProductSearch(string $query, int $limit = 20): array
         foreach ($rows as &$row) {
             $row['pricing']   = ecProductPricing((int)$row['id']);
             $row['inventory'] = ecProductInventory((int)$row['id']);
+            $row['sku'] = (string)($row['inventory']['sku'] ?? $row['sku'] ?? '');
+            $row['stock_qty'] = $row['inventory']['stock_qty'] ?? ($row['stock_qty'] ?? null);
+            $row['track_stock'] = $row['inventory']['track_stock'] ?? ($row['track_stock'] ?? false);
         }
         unset($row);
 

@@ -27,6 +27,50 @@ const EC_ORDER_STATUS_RANK = [
     'refunded' => 60,
 ];
 
+function ecWithKernelDbUnguarded(callable $callback): mixed
+{
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
+
+    try {
+        return $callback();
+    } finally {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+    }
+}
+
+function ecActiveIntegrationMode(bool $refresh = false): string
+{
+    if (!$refresh) {
+        $cached = kernel_request_context_get('_ec_active_integration_mode', null);
+        if (is_string($cached)) {
+            return $cached;
+        }
+    }
+
+    try {
+        $mode = ecWithKernelDbUnguarded(static function (): string {
+            $stmt = app()->db()->prepare(
+                "SELECT integration_mode
+                 FROM kernel_integrations
+                 WHERE is_active = 1
+                   AND integration_mode IN ('wms_authoritative_products', 'ecommerce_authoritative_products')
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT 1"
+            );
+            $stmt->execute();
+
+            return trim((string)($stmt->fetchColumn() ?: ''));
+        });
+    } catch (\Throwable $e) {
+        $mode = '';
+    }
+
+    kernel_request_context_set('_ec_active_integration_mode', $mode);
+
+    return $mode;
+}
+
 function ecManualPaymentModeSetting(): string
 {
     $mode = trim((string)ecSettings('manual_payment_mode'));
@@ -198,7 +242,7 @@ function ecWmsFulfillmentBridgeDefinitions(): array
     ];
 }
 
-function ecSyncWmsFulfillmentBridges(bool $enabled): array
+function ecSyncWmsFulfillmentBridges(bool $enabled, ?string $integrationMode = null): array
 {
     if (!class_exists(\Ikabud\Kernel\IntegrationBridge::class)) {
         throw new RuntimeException('Integration bridge runtime is unavailable.');
@@ -211,6 +255,114 @@ function ecSyncWmsFulfillmentBridges(bool $enabled): array
 
     $ids = [];
     foreach (ecWmsFulfillmentBridgeDefinitions() as $definition) {
+        if (is_string($integrationMode) && $integrationMode !== '') {
+            $definition['integration_mode'] = $integrationMode;
+        }
+        $ids[] = \Ikabud\Kernel\IntegrationBridge::upsertBridge($definition);
+    }
+
+    return $ids;
+}
+
+function ecWmsProductManagedBridgeNames(): array
+{
+    return [
+        'wms_ecommerce_product_created',
+        'wms_ecommerce_product_updated',
+        'ecommerce_wms_product_created',
+        'ecommerce_wms_product_updated',
+    ];
+}
+
+function ecWmsProductBridgeDefinitions(string $mode): array
+{
+    if ($mode === 'wms_authoritative_products') {
+        return [
+            [
+                'name' => 'wms_ecommerce_product_created',
+                'trigger_event' => 'wms.product.created',
+                'target_capability' => 'ecommerce.product.upsert@1',
+                'mapping' => [
+                    'sku' => '{{sku}}',
+                    'title' => '{{name}}',
+                    'excerpt' => '{{description}}',
+                    'body' => '{{description}}',
+                    'is_active' => '{{is_active}}',
+                ],
+            ],
+            [
+                'name' => 'wms_ecommerce_product_updated',
+                'trigger_event' => 'wms.product.updated',
+                'target_capability' => 'ecommerce.product.upsert@1',
+                'mapping' => [
+                    'sku' => '{{sku}}',
+                    'title' => '{{name}}',
+                    'excerpt' => '{{description}}',
+                    'body' => '{{description}}',
+                    'is_active' => '{{is_active}}',
+                ],
+            ],
+        ];
+    }
+
+    if ($mode === 'ecommerce_authoritative_products') {
+        return [
+            [
+                'name' => 'ecommerce_wms_product_created',
+                'trigger_event' => 'ecommerce.product.created',
+                'target_capability' => 'wms.product.upsert@1',
+                'mapping' => [
+                    'sku' => '{{sku}}',
+                    'name' => '{{title}}',
+                    'description' => '{{excerpt}}',
+                    'is_active' => '{{is_active}}',
+                    'product_type' => 'physical',
+                ],
+            ],
+            [
+                'name' => 'ecommerce_wms_product_updated',
+                'trigger_event' => 'ecommerce.product.updated',
+                'target_capability' => 'wms.product.upsert@1',
+                'mapping' => [
+                    'sku' => '{{sku}}',
+                    'name' => '{{title}}',
+                    'description' => '{{excerpt}}',
+                    'is_active' => '{{is_active}}',
+                    'product_type' => 'physical',
+                ],
+            ],
+        ];
+    }
+
+    return [];
+}
+
+function ecSyncWmsProductAuthorityBridges(?string $mode): array
+{
+    if (!class_exists(\Ikabud\Kernel\IntegrationBridge::class)) {
+        throw new RuntimeException('Integration bridge runtime is unavailable.');
+    }
+
+    $managedNames = ecWmsProductManagedBridgeNames();
+    $normalizedMode = is_string($mode) ? trim($mode) : '';
+    if ($normalizedMode === '' || $normalizedMode === 'decoupled') {
+        \Ikabud\Kernel\IntegrationBridge::deleteBridgesByNames($managedNames);
+        return [];
+    }
+
+    $definitions = ecWmsProductBridgeDefinitions($normalizedMode);
+    $activeNames = array_values(array_filter(array_map(
+        static fn(array $definition): string => trim((string)($definition['name'] ?? '')),
+        $definitions
+    )));
+    $staleNames = array_values(array_diff($managedNames, $activeNames));
+    if ($staleNames !== []) {
+        \Ikabud\Kernel\IntegrationBridge::deleteBridgesByNames($staleNames);
+    }
+
+    $ids = [];
+    foreach ($definitions as $definition) {
+        $definition['integration_mode'] = $normalizedMode;
         $ids[] = \Ikabud\Kernel\IntegrationBridge::upsertBridge($definition);
     }
 

@@ -170,28 +170,11 @@ function ecProductList(array $filters = []): array
                 ];
             }
 
-            // Inline inventory parsing
-            $iConfig = $inventoryMap[$id] ?? [];
-            $isDigital = $digitalMap[$id] ?? false;
-            
-            if (empty($iConfig)) {
-                $row['inventory'] = ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
-            } elseif ($isDigital) {
-                $row['inventory'] = ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => $iConfig['sku'] ?? '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
-            } else {
-                $trackStock = (bool)($iConfig['track_stock'] ?? true);
-                $stockQty   = (int)($iConfig['stock_qty']   ?? 0);
-                
-                $row['inventory'] = [
-                    'track_stock' => $trackStock,
-                    'stock_qty'   => $stockQty,
-                    'badge'       => ['label' => ($trackStock && $stockQty <= 0 ? 'Out of stock' : ''), 'tone' => ($trackStock && $stockQty <= 0 ? 'negative' : '')],
-                    'sku'         => $iConfig['sku'] ?? '',
-                    'in_stock'    => !$trackStock || $stockQty > 0,
-                    'out_of_stock' => $trackStock && $stockQty <= 0,
-                    'low_stock'   => $trackStock && $stockQty > 0 && $stockQty <= $lowStockThreshold,
-                ];
-            }
+            $row['inventory'] = ecProductInventoryStateFromConfig(
+                $inventoryMap[$id] ?? [],
+                (bool)($digitalMap[$id] ?? false),
+                $lowStockThreshold
+            );
         }
         unset($row);
 
@@ -279,6 +262,49 @@ function ecProductGetBySlug(string $slug): ?array
         return $row ? ecProductGet((int)$row['id']) : null;
     } catch (\Throwable $e) {
         return null;
+    }
+}
+
+function ecProductBridgeEventPayload(int $productId): array
+{
+    $product = ecProductGet($productId);
+    if (!is_array($product)) {
+        return [
+            'id' => $productId,
+            'product_id' => $productId,
+        ];
+    }
+
+    $pricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+    $inventory = is_array($product['inventory'] ?? null) ? $product['inventory'] : [];
+    $status = trim((string)($product['status'] ?? 'draft'));
+
+    return [
+        'id' => $productId,
+        'product_id' => $productId,
+        'title' => trim((string)($product['title'] ?? '')),
+        'slug' => trim((string)($product['slug'] ?? '')),
+        'excerpt' => trim((string)($product['excerpt'] ?? '')),
+        'status' => $status,
+        'is_active' => $status === 'published' ? 1 : 0,
+        'sku' => trim((string)($inventory['sku'] ?? '')),
+        'track_stock' => (bool)($inventory['track_stock'] ?? false),
+        'stock_qty' => array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : null,
+        'price' => array_key_exists('price', $pricing) && $pricing['price'] !== null ? (float)$pricing['price'] : null,
+        'sale_price' => array_key_exists('sale_price', $pricing) && $pricing['sale_price'] !== null ? (float)$pricing['sale_price'] : null,
+    ];
+}
+
+function ecEmitProductEvent(string $eventKey, int $productId): void
+{
+    try {
+        app()->events()->fire($eventKey, ecProductBridgeEventPayload($productId), 'ecommerce');
+    } catch (\Throwable $e) {
+        write_log('ecEmitProductEvent error: ' . $e->getMessage(), 'warning', [
+            'module' => 'ecommerce',
+            'event' => $eventKey,
+            'product_id' => $productId,
+        ]);
     }
 }
 
@@ -469,6 +495,60 @@ function ecStorefrontNormalizeInventory(array $inventory): array
         'out_of_stock' => $outOfStock,
         'low_stock' => $lowStock,
     ];
+}
+
+function ecProductInventoryStateFromConfig(array $config, bool $isDigital, int $lowStockThreshold): array
+{
+    if (empty($config)) {
+        return [
+            'in_stock' => true,
+            'out_of_stock' => false,
+            'low_stock' => false,
+            'stock_qty' => null,
+            'sku' => '',
+            'track_stock' => false,
+            'badge' => ['label' => '', 'tone' => ''],
+        ];
+    }
+
+    if ($isDigital) {
+        return [
+            'in_stock' => true,
+            'out_of_stock' => false,
+            'low_stock' => false,
+            'stock_qty' => null,
+            'sku' => $config['sku'] ?? '',
+            'track_stock' => false,
+            'badge' => ['label' => '', 'tone' => ''],
+        ];
+    }
+
+    $trackStock = (bool)($config['track_stock'] ?? true);
+    $stockQty = (int)($config['stock_qty'] ?? 0);
+    $inventory = [
+        'track_stock' => $trackStock,
+        'stock_qty' => $stockQty,
+        'badge' => [
+            'label' => ($trackStock && $stockQty <= 0 ? 'Out of stock' : ''),
+            'tone' => ($trackStock && $stockQty <= 0 ? 'negative' : ''),
+        ],
+        'sku' => $config['sku'] ?? '',
+        'in_stock' => !$trackStock || $stockQty > 0,
+        'out_of_stock' => $trackStock && $stockQty <= 0,
+        'low_stock' => $trackStock && $stockQty > 0 && $stockQty <= $lowStockThreshold,
+    ];
+
+    $wmsSnapshot = ecWmsInventorySnapshotForSku((string)($inventory['sku'] ?? ''));
+    if ($wmsSnapshot !== []) {
+        $inventory = array_merge($inventory, $wmsSnapshot, [
+            'badge' => [
+                'label' => !empty($wmsSnapshot['out_of_stock']) ? 'Out of stock' : '',
+                'tone' => !empty($wmsSnapshot['out_of_stock']) ? 'negative' : '',
+            ],
+        ]);
+    }
+
+    return $inventory;
 }
 
 function ecStorefrontSaleBadgeText(array $pricing): string
@@ -858,9 +938,9 @@ function ecProductCreate(array $data, int $authorId = 0): int
     }
 
     // Set initial pricing/inventory if provided
-    if (!empty($data['price'])) {
+    if (array_key_exists('price', $data) || array_key_exists('sale_price', $data)) {
         ecProductUpdatePricing($productId, [
-            'price'      => (float)$data['price'],
+            'price'      => isset($data['price']) ? (float)$data['price'] : null,
             'currency'   => $data['currency']   ?? ecSettings('currency'),
             'sale_price' => isset($data['sale_price']) ? (float)$data['sale_price'] : null,
         ]);
@@ -882,6 +962,8 @@ function ecProductCreate(array $data, int $authorId = 0): int
             cmsSyncMediaUsage($productId, ['featured_image_id' => $featuredImageId], null);
         });
     }
+
+    ecEmitProductEvent('ecommerce.product.created', $productId);
 
     return $productId;
 }
@@ -932,7 +1014,7 @@ function ecProductUpdate(int $id, array $data): void
         });
     }
 
-    if (!empty($data['price']) || isset($data['sale_price'])) {
+    if (array_key_exists('price', $data) || array_key_exists('sale_price', $data)) {
         ecProductUpdatePricing($id, $data);
     }
 
@@ -949,6 +1031,8 @@ function ecProductUpdate(int $id, array $data): void
             cmsSyncMediaUsage($id, ['featured_image_id' => $data['featured_image_id'] ?? null], null);
         });
     }
+
+    ecEmitProductEvent('ecommerce.product.updated', $id);
 }
 
 /**
@@ -1103,23 +1187,13 @@ function ecProductInventory(int $productId): array
             "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_is_digital' LIMIT 1",
             [$productId]
         )->fetch(\PDO::FETCH_ASSOC);
-        if (($digitalMeta['meta_value'] ?? '') === '1') {
-            return ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => $config['sku'] ?? '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
-        }
-
-        $trackStock = (bool)($config['track_stock'] ?? true);
-        $stockQty   = (int)($config['stock_qty']   ?? 0);
         $threshold  = (int)ecSettings('low_stock_threshold');
 
-        return [
-            'track_stock' => $trackStock,
-            'stock_qty'   => $stockQty,
-            'badge'       => ['label' => ($trackStock && $stockQty <= 0 ? 'Out of stock' : ''), 'tone' => ($trackStock && $stockQty <= 0 ? 'negative' : '')],
-            'sku'         => $config['sku'] ?? '',
-            'in_stock'    => !$trackStock || $stockQty > 0,
-            'out_of_stock' => $trackStock && $stockQty <= 0,
-            'low_stock'   => $trackStock && $stockQty > 0 && $stockQty <= $threshold,
-        ];
+        return ecProductInventoryStateFromConfig(
+            $config,
+            ($digitalMeta['meta_value'] ?? '') === '1',
+            $threshold
+        );
     } catch (\Throwable $e) {
         return [];
     }
@@ -1321,6 +1395,158 @@ function ecProductSkuExists(string $sku, int $excludeProductId = 0): bool
     )->fetchColumn();
 
     return $existing !== false && (int)$existing !== $excludeProductId;
+}
+
+function ecProductFindIdBySku(string $sku): int
+{
+    $normalizedSku = strtoupper(trim($sku));
+    if ($normalizedSku === '') {
+        return 0;
+    }
+
+    $existing = ecDb()->query(
+        "SELECT entity_id
+         FROM cms_entity_capabilities
+         WHERE capability_id = 'inventory'
+           AND JSON_UNQUOTE(JSON_EXTRACT(config, '$.sku')) = ?
+         LIMIT 1",
+        [$normalizedSku]
+    )->fetchColumn();
+
+    return $existing !== false ? (int)$existing : 0;
+}
+
+function ecWmsInventorySnapshotForSku(string $sku): array
+{
+    $normalizedSku = strtoupper(trim($sku));
+    if ($normalizedSku === '' || ecActiveIntegrationMode() !== 'wms_authoritative_products') {
+        return [];
+    }
+
+    $warehouseId = max(0, (int)ecSettings('default_wms_warehouse_id'));
+    $cacheKey = $warehouseId . ':' . $normalizedSku;
+    static $cache = [];
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    try {
+        if (!function_exists('wms_cap_wms_stock_query_1')) {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $result = moduleWithContext('wms', static function () use ($normalizedSku, $warehouseId): array {
+            return wms_cap_wms_stock_query_1([
+                'warehouse_id' => $warehouseId,
+                'filters' => ['q' => $normalizedSku],
+            ]);
+        });
+        $rows = is_array($result['data'] ?? null) ? $result['data'] : [];
+        $matchingRows = array_values(array_filter($rows, static function (mixed $row) use ($normalizedSku): bool {
+            return is_array($row) && strtoupper(trim((string)($row['sku'] ?? ''))) === $normalizedSku;
+        }));
+        if ($matchingRows === []) {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $qtyOnHand = 0.0;
+        $qtyReserved = 0.0;
+        $qtyStaged = 0.0;
+        $qtyAvailable = 0.0;
+        foreach ($matchingRows as $row) {
+            $qtyOnHand += (float)($row['qty_on_hand'] ?? 0);
+            $qtyReserved += (float)($row['qty_reserved'] ?? 0);
+            $qtyStaged += (float)($row['qty_staged'] ?? 0);
+            $qtyAvailable += (float)($row['qty_available'] ?? 0);
+        }
+
+        $threshold = (int)ecSettings('low_stock_threshold');
+        $stockQty = (int)round($qtyAvailable);
+        $cache[$cacheKey] = [
+            'track_stock' => true,
+            'stock_qty' => $stockQty,
+            'qty_on_hand' => $qtyOnHand,
+            'qty_reserved' => $qtyReserved,
+            'qty_staged' => $qtyStaged,
+            'qty_available' => $qtyAvailable,
+            'in_stock' => $qtyAvailable > 0,
+            'out_of_stock' => $qtyAvailable <= 0,
+            'low_stock' => $qtyAvailable > 0 && $qtyAvailable <= $threshold,
+            'source' => 'wms',
+        ];
+
+        return $cache[$cacheKey];
+    } catch (\Throwable $e) {
+        $cache[$cacheKey] = [];
+        return [];
+    }
+}
+
+function ecProductDefaultAuthorId(): int
+{
+    try {
+        return (int)(ecDb()->query('SELECT id FROM cms_users ORDER BY id ASC LIMIT 1')->fetchColumn() ?: 0);
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+function ec_cap_product_upsert_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
+    }
+
+    $sku = trim((string)($payload['sku'] ?? ''));
+    if ($sku === '') {
+        return ['ok' => false, 'error' => 'Product SKU is required.'];
+    }
+
+    $productId = ecProductFindIdBySku($sku);
+    $status = trim((string)($payload['status'] ?? ''));
+    if ($status === '' && array_key_exists('is_active', $payload)) {
+        $status = !empty($payload['is_active']) ? 'published' : 'draft';
+    }
+    if (!in_array($status, ['draft', 'published', 'private'], true)) {
+        $status = 'draft';
+    }
+
+    $data = [
+        'title' => trim((string)($payload['title'] ?? $payload['name'] ?? $sku)),
+        'excerpt' => trim((string)($payload['excerpt'] ?? $payload['description'] ?? '')),
+        'body' => array_key_exists('body', $payload)
+            ? (string)$payload['body']
+            : (string)($payload['description'] ?? ''),
+        'status' => $status,
+        'sku' => $sku,
+    ];
+
+    if (array_key_exists('price', $payload) && is_numeric($payload['price'])) {
+        $data['price'] = (float)$payload['price'];
+    }
+    if (array_key_exists('sale_price', $payload) && is_numeric($payload['sale_price'])) {
+        $data['sale_price'] = (float)$payload['sale_price'];
+    }
+    if (array_key_exists('track_stock', $payload)) {
+        $data['track_stock'] = (bool)$payload['track_stock'];
+    }
+    if (array_key_exists('stock_qty', $payload) && is_numeric($payload['stock_qty'])) {
+        $data['stock_qty'] = (int)$payload['stock_qty'];
+    }
+
+    try {
+        if ($productId > 0) {
+            ecProductUpdate($productId, $data);
+            return ['ok' => true, 'product_id' => $productId, 'sku' => $sku, 'action' => 'updated'];
+        }
+
+        $productId = ecProductCreate($data, ecProductDefaultAuthorId());
+        return ['ok' => true, 'product_id' => $productId, 'sku' => $sku, 'action' => 'created'];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage(), 'sku' => $sku];
+    }
 }
 
 function ecAttachCmsEntityCapability(int $entityId, string $capabilityId, array $config): void

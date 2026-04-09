@@ -701,34 +701,7 @@ function ec_cap_inventory_data_1(mixed $payload, string $capabilityId = '', stri
         return [];
     }
 
-    $config = [];
-    try {
-        $db = ecDb();
-        $row = $db->query(
-            "SELECT config FROM cms_entity_capabilities WHERE entity_id = ? AND capability_id = 'inventory' LIMIT 1",
-            [$entityId]
-        )->fetch(\PDO::FETCH_ASSOC);
-
-        if ($row) {
-            $config = (array)json_decode($row['config'] ?? '{}', true);
-        }
-    } catch (\Throwable $e) {
-        return [];
-    }
-
-    $trackStock = (bool)($config['track_stock'] ?? true);
-    $stockQty   = (int)($config['stock_qty']   ?? 0);
-    $sku        = $config['sku'] ?? '';
-    $threshold  = (int)ecSettings('low_stock_threshold');
-
-    return [
-        'track_stock' => $trackStock,
-        'stock_qty'   => $stockQty,
-        'sku'         => $sku,
-        'in_stock'    => !$trackStock || $stockQty > 0,
-        'out_of_stock' => $trackStock && $stockQty <= 0,
-        'low_stock'   => $trackStock && $stockQty > 0 && $stockQty <= $threshold,
-    ];
+    return ecProductInventory($entityId);
 }
 
 function ec_cap_products_list_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array

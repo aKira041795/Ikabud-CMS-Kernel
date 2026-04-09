@@ -27,6 +27,7 @@ class IntegrationBridge
         $name = trim((string)($definition['name'] ?? ''));
         $triggerEvent = trim((string)($definition['trigger_event'] ?? ''));
         $targetCapability = trim((string)($definition['target_capability'] ?? ''));
+        $integrationMode = trim((string)($definition['integration_mode'] ?? ''));
         $eventSource = trim((string)($definition['event_source'] ?? 'eventbus')) ?: 'eventbus';
         $mapping = $definition['mapping'] ?? $definition['mapping_json'] ?? null;
         $errors = [];
@@ -108,6 +109,7 @@ class IntegrationBridge
                 'name' => $name,
                 'trigger_event' => $triggerEvent,
                 'target_capability' => $targetCapability,
+                'integration_mode' => $integrationMode,
                 'event_source' => $eventSource,
                 'mapping' => is_array($mapping) ? $mapping : [],
                 'mapping_json' => is_string($mappingJson) ? $mappingJson : null,

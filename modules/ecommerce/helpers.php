@@ -27,6 +27,7 @@ function ecommerce_capability_handlers(): array
 		'cms.cart.add@1' => 'ec_cap_cms_cart_add_1',
 		'ecommerce.products.list@1' => 'ec_cap_products_list_1',
 		'ecommerce.products.get@1' => 'ec_cap_products_get_1',
+		'ecommerce.product.upsert@1' => 'ec_cap_product_upsert_1',
 		'ecommerce.cart.get@1' => 'ec_cap_cart_get_1',
 		'ecommerce.orders.create@1' => 'ec_cap_orders_create_1',
 		'ecommerce.orders.get@1' => 'ec_cap_orders_get_1',

@@ -611,6 +611,196 @@ PHP,
     $dispatchDb->prepare('DELETE FROM kernel_integrations WHERE name LIKE ?')->execute([$kernelBridgeName . '%']);
 }
 
+$managedModeBridgeNames = [
+    'ecommerce_wms_reserve',
+    'ecommerce_wms_order_create',
+    'ecommerce_wms_release',
+    'ecommerce_wms_cancel_order',
+    'wms_ecommerce_processing',
+    'wms_ecommerce_shipped',
+    'wms_ecommerce_delivered',
+    'wms_ecommerce_manual_payment_complete',
+    'wms_ecommerce_product_created',
+    'wms_ecommerce_product_updated',
+    'ecommerce_wms_product_created',
+    'ecommerce_wms_product_updated',
+    'WMS ↔ Ecommerce Order Sync',
+    'WMS ↔ Ecommerce Order Cancel',
+    'WMS ↔ Ecommerce Stock Alert',
+    'WMS → Ecommerce Product Update',
+    'Ecommerce → WMS Product Update',
+];
+
+try {
+    $managedModePlaceholders = implode(', ', array_fill(0, count($managedModeBridgeNames), '?'));
+    $managedModeIdsStmt = $dispatchDb->prepare('SELECT id FROM kernel_integrations WHERE name IN (' . $managedModePlaceholders . ')');
+    $managedModeIdsStmt->execute($managedModeBridgeNames);
+    $managedModeIds = array_map('intval', $managedModeIdsStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    if ($managedModeIds !== []) {
+        $cleanupPlaceholders = implode(', ', array_fill(0, count($managedModeIds), '?'));
+        $dispatchDb->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (' . $cleanupPlaceholders . ')')->execute($managedModeIds);
+    }
+    $dispatchDb->prepare('DELETE FROM kernel_integrations WHERE name IN (' . $managedModePlaceholders . ')')->execute($managedModeBridgeNames);
+
+    $applyWmsMode = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/kernel/integrations',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        [
+            'id' => 1,
+            'username' => 'root',
+            'name' => 'Root User',
+            'role' => 'superadmin',
+            'source' => 'kernel',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP,
+        json_encode([
+            '_action' => 'apply_mode',
+            'mode' => 'wms_authoritative_products',
+        ], JSON_UNESCAPED_SLASHES)
+    );
+    $applyWmsModePayload = json_decode((string)($applyWmsMode['body'] ?? ''), true);
+    t(
+        'kernel integrations API applies the WMS-authoritative mode',
+        is_array($applyWmsModePayload)
+            && ($applyWmsModePayload['ok'] ?? false) === true
+            && ($applyWmsModePayload['mode'] ?? '') === 'wms_authoritative_products',
+        $applyWmsMode['raw']
+    );
+
+    $modeRowsStmt = $dispatchDb->prepare('SELECT name, target_capability, integration_mode FROM kernel_integrations WHERE name IN (' . $managedModePlaceholders . ') ORDER BY name ASC');
+    $modeRowsStmt->execute($managedModeBridgeNames);
+    $modeRows = $modeRowsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $modeNames = array_map(static fn(array $row): string => (string)($row['name'] ?? ''), $modeRows);
+
+    t(
+        'WMS-authoritative mode provisions canonical fulfillment and WMS-to-ecommerce product bridges',
+        !array_diff([
+            'ecommerce_wms_reserve',
+            'ecommerce_wms_order_create',
+            'ecommerce_wms_release',
+            'ecommerce_wms_cancel_order',
+            'wms_ecommerce_processing',
+            'wms_ecommerce_shipped',
+            'wms_ecommerce_delivered',
+            'wms_ecommerce_manual_payment_complete',
+            'wms_ecommerce_product_created',
+            'wms_ecommerce_product_updated',
+        ], $modeNames),
+        json_encode($modeRows, JSON_UNESCAPED_SLASHES)
+    );
+    t(
+        'WMS-authoritative mode does not recreate unsupported legacy stock-alert bridges',
+        !in_array('WMS ↔ Ecommerce Stock Alert', $modeNames, true)
+            && !in_array('WMS → Ecommerce Product Update', $modeNames, true),
+        json_encode($modeRows, JSON_UNESCAPED_SLASHES)
+    );
+    t(
+        'WMS-authoritative mode tags managed product bridges with the selected integration mode',
+        count(array_filter($modeRows, static fn(array $row): bool => str_starts_with((string)($row['name'] ?? ''), 'wms_ecommerce_product_') && (string)($row['integration_mode'] ?? '') === 'wms_authoritative_products')) === 2,
+        json_encode($modeRows, JSON_UNESCAPED_SLASHES)
+    );
+
+    $applyEcommerceMode = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/kernel/integrations',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        [
+            'id' => 1,
+            'username' => 'root',
+            'name' => 'Root User',
+            'role' => 'superadmin',
+            'source' => 'kernel',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP,
+        json_encode([
+            '_action' => 'apply_mode',
+            'mode' => 'ecommerce_authoritative_products',
+        ], JSON_UNESCAPED_SLASHES)
+    );
+    $applyEcommerceModePayload = json_decode((string)($applyEcommerceMode['body'] ?? ''), true);
+    t(
+        'kernel integrations API applies the ecommerce-authoritative mode',
+        is_array($applyEcommerceModePayload)
+            && ($applyEcommerceModePayload['ok'] ?? false) === true
+            && ($applyEcommerceModePayload['mode'] ?? '') === 'ecommerce_authoritative_products',
+        $applyEcommerceMode['raw']
+    );
+
+    $modeRowsStmt->execute($managedModeBridgeNames);
+    $modeRows = $modeRowsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $modeNames = array_map(static fn(array $row): string => (string)($row['name'] ?? ''), $modeRows);
+    t(
+        'ecommerce-authoritative mode swaps in ecommerce-to-WMS product bridges',
+        in_array('ecommerce_wms_product_created', $modeNames, true)
+            && in_array('ecommerce_wms_product_updated', $modeNames, true)
+            && !in_array('wms_ecommerce_product_created', $modeNames, true)
+            && !in_array('wms_ecommerce_product_updated', $modeNames, true),
+        json_encode($modeRows, JSON_UNESCAPED_SLASHES)
+    );
+
+    $applyDecoupledMode = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/kernel/integrations',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        [
+            'id' => 1,
+            'username' => 'root',
+            'name' => 'Root User',
+            'role' => 'superadmin',
+            'source' => 'kernel',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP,
+        json_encode([
+            '_action' => 'apply_mode',
+            'mode' => 'decoupled',
+        ], JSON_UNESCAPED_SLASHES)
+    );
+    $applyDecoupledModePayload = json_decode((string)($applyDecoupledMode['body'] ?? ''), true);
+    t(
+        'kernel integrations API applies the decoupled mode',
+        is_array($applyDecoupledModePayload)
+            && ($applyDecoupledModePayload['ok'] ?? false) === true
+            && ($applyDecoupledModePayload['mode'] ?? '') === 'decoupled',
+        $applyDecoupledMode['raw']
+    );
+
+    $modeRowsStmt->execute($managedModeBridgeNames);
+    $modeRows = $modeRowsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    t(
+        'decoupled mode removes managed WMS and ecommerce bridge presets',
+        $modeRows === [],
+        json_encode($modeRows, JSON_UNESCAPED_SLASHES)
+    );
+} finally {
+    $managedModeIdsStmt = $dispatchDb->prepare('SELECT id FROM kernel_integrations WHERE name IN (' . implode(', ', array_fill(0, count($managedModeBridgeNames), '?')) . ')');
+    $managedModeIdsStmt->execute($managedModeBridgeNames);
+    $managedModeIds = array_map('intval', $managedModeIdsStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    if ($managedModeIds !== []) {
+        $cleanupPlaceholders = implode(', ', array_fill(0, count($managedModeIds), '?'));
+        $dispatchDb->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (' . $cleanupPlaceholders . ')')->execute($managedModeIds);
+    }
+    $dispatchDb->prepare('DELETE FROM kernel_integrations WHERE name IN (' . implode(', ', array_fill(0, count($managedModeBridgeNames), '?')) . ')')->execute($managedModeBridgeNames);
+}
+
 $customerFixture = seedCustomerOrderTimelineFixture(bin2hex(random_bytes(4)));
 
 try {

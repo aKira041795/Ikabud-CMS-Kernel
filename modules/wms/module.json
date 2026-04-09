@@ -98,6 +98,36 @@
             ]
         },
         {
+            "key": "wms.product.created",
+            "description": "Fired when a WMS product is created.",
+            "available_vars": [
+                "id",
+                "sku",
+                "barcode",
+                "name",
+                "description",
+                "unit",
+                "product_type",
+                "is_active",
+                "actor_user_id"
+            ]
+        },
+        {
+            "key": "wms.product.updated",
+            "description": "Fired when a WMS product is updated.",
+            "available_vars": [
+                "id",
+                "sku",
+                "barcode",
+                "name",
+                "description",
+                "unit",
+                "product_type",
+                "is_active",
+                "actor_user_id"
+            ]
+        },
+        {
             "key": "wms.movement.created",
             "description": "Fired after a stock movement is recorded."
         },

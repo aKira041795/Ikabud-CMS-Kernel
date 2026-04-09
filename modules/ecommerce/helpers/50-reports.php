@@ -96,22 +96,57 @@ function ecReportInventory(): array
     $threshold = (int)ecSettings('low_stock_threshold');
 
     try {
-        $rows = ecDb()->query(
-            "SELECT c.id, c.title, c.slug,
-                    ec.config,
-                    JSON_UNQUOTE(JSON_EXTRACT(ec.config, '$.sku')) as sku,
-                    CAST(JSON_EXTRACT(ec.config, '$.stock_qty') AS SIGNED) as stock_qty,
-                    JSON_EXTRACT(ec.config, '$.track_stock') as track_stock
+        $candidates = ecDb()->query(
+            "SELECT c.id, c.title, c.slug
              FROM cms_content c
              INNER JOIN cms_entity_capabilities ec ON ec.entity_id = c.id AND ec.capability_id = 'inventory'
              WHERE c.type = 'product'
                AND c.deleted_at IS NULL
-               AND JSON_EXTRACT(ec.config, '$.track_stock') = true
-               AND CAST(JSON_EXTRACT(ec.config, '$.stock_qty') AS SIGNED) <= ?
-             ORDER BY stock_qty ASC
-             LIMIT 50",
-            [$threshold]
+             ORDER BY c.title ASC",
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $rows = [];
+        foreach ($candidates as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+
+            $productId = (int)($candidate['id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+
+            $inventory = ecProductInventory($productId);
+            if (empty($inventory['track_stock'])) {
+                continue;
+            }
+
+            $stockQty = array_key_exists('stock_qty', $inventory) && $inventory['stock_qty'] !== null
+                ? (int)$inventory['stock_qty']
+                : 0;
+            if ($stockQty > $threshold) {
+                continue;
+            }
+
+            $rows[] = [
+                'id' => $productId,
+                'title' => (string)($candidate['title'] ?? ''),
+                'slug' => (string)($candidate['slug'] ?? ''),
+                'sku' => (string)($inventory['sku'] ?? ''),
+                'stock_qty' => $stockQty,
+                'track_stock' => !empty($inventory['track_stock']),
+                'in_stock' => !empty($inventory['in_stock']),
+                'out_of_stock' => !empty($inventory['out_of_stock']),
+                'low_stock' => !empty($inventory['low_stock']),
+                'source' => (string)($inventory['source'] ?? 'ecommerce'),
+            ];
+        }
+
+        usort($rows, static function (array $left, array $right): int {
+            return [(int)($left['stock_qty'] ?? 0), (string)($left['title'] ?? '')]
+                <=> [(int)($right['stock_qty'] ?? 0), (string)($right['title'] ?? '')];
+        });
+        $rows = array_slice($rows, 0, 50);
 
         return [
             'low_stock_threshold' => $threshold,

@@ -318,7 +318,7 @@ Reads `_price`, `_currency`, and `_sale_price` meta.
 
 ### `inventory`
 
-Reads `_sku`, `_stock_qty`, and `_track_inventory` meta.
+Reads the attached inventory capability data. In Ecommerce this is normally sourced from the entity capability config (`sku`, `stock_qty`, `track_stock`), but when the active integration mode is `wms_authoritative_products` the shared read model overlays live WMS stock snapshot values by SKU instead of trusting the local quantity alone.
 
 ### `booking`
 

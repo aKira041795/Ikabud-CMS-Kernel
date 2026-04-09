@@ -78,6 +78,10 @@ function wmsApiProductCreate(array $params = []): void
 
         $id = (int)wmsDb()->lastInsertId();
         wmsAudit('wms.product.created', 'wms_products', (string)$id, null, ['id' => $id, 'sku' => $sku, 'name' => $name, 'actor_id' => (int)($user['id'] ?? 0)]);
+        $product = wmsFetchOne('SELECT * FROM wms_products WHERE id = ? LIMIT 1', [$id]);
+        if ($product !== null) {
+            wmsEmitProductEvent('wms.product.created', $product, (int)($user['id'] ?? 0));
+        }
         wmsJsonOk(['id' => $id], 201);
     });
 }
@@ -111,6 +115,10 @@ function wmsApiProductUpdate(array $params = []): void
         );
 
         wmsAudit('wms.product.updated', 'wms_products', (string)$id, $existing, ['actor_id' => (int)($user['id'] ?? 0)]);
+        $product = wmsFetchOne('SELECT * FROM wms_products WHERE id = ? LIMIT 1', [$id]);
+        if ($product !== null) {
+            wmsEmitProductEvent('wms.product.updated', $product, (int)($user['id'] ?? 0));
+        }
         wmsJsonOk(['id' => $id]);
     });
 }

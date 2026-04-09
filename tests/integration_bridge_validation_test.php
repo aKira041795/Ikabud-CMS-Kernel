@@ -142,14 +142,35 @@ try {
             'items' => '{{order.items}}',
         ],
     ]);
-    $storedBridge = $db->prepare('SELECT version_lock FROM kernel_integrations WHERE id = ? LIMIT 1');
+    $storedBridge = $db->prepare('SELECT version_lock, integration_mode FROM kernel_integrations WHERE id = ? LIMIT 1');
     $storedBridge->execute([$upsertId]);
-    $storedVersionLock = (string)($storedBridge->fetchColumn() ?: '');
+    $storedBridgeRow = $storedBridge->fetch(PDO::FETCH_ASSOC) ?: [];
+    $storedVersionLock = (string)($storedBridgeRow['version_lock'] ?? '');
 
     t(
         'programmatic upsert persists shared version-lock normalization',
         $storedVersionLock === 'wms.stock.reserve@1',
         $storedVersionLock
+    );
+
+    $modeBridgeId = \Ikabud\Kernel\IntegrationBridge::upsertBridge([
+        'name' => $bridgeName . '_mode',
+        'trigger_event' => 'wms.product.updated',
+        'target_capability' => 'ecommerce.product.upsert@1',
+        'integration_mode' => 'wms_authoritative_products',
+        'mapping' => [
+            'sku' => '{{sku}}',
+            'title' => '{{name}}',
+        ],
+    ]);
+    $modeBridge = $db->prepare('SELECT integration_mode FROM kernel_integrations WHERE id = ? LIMIT 1');
+    $modeBridge->execute([$modeBridgeId]);
+    $storedMode = (string)($modeBridge->fetchColumn() ?: '');
+
+    t(
+        'programmatic upsert persists integration mode normalization',
+        $storedMode === 'wms_authoritative_products',
+        $storedMode
     );
 
     $moduleScopedBridgeId = 0;

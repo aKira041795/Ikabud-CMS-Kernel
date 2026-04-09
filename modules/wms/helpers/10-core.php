@@ -626,6 +626,30 @@ function wmsResolveBridgeLocationId(int $warehouseId): int
     throw new RuntimeException('No active WMS location available for warehouse #' . $warehouseId . '.');
 }
 
+function wmsProductEventPayload(array $product, ?int $actorUserId = null): array
+{
+    return [
+        'id' => (int)($product['id'] ?? 0),
+        'sku' => trim((string)($product['sku'] ?? '')),
+        'barcode' => trim((string)($product['barcode'] ?? '')),
+        'name' => trim((string)($product['name'] ?? '')),
+        'description' => (string)($product['description'] ?? ''),
+        'unit' => trim((string)($product['unit'] ?? '')),
+        'product_type' => trim((string)($product['product_type'] ?? '')),
+        'is_active' => (int)($product['is_active'] ?? 0),
+        'actor_user_id' => $actorUserId,
+    ];
+}
+
+function wmsEmitProductEvent(string $eventKey, array $product, ?int $actorUserId = null): void
+{
+    try {
+        wmsCtx()->fireEvent($eventKey, wmsProductEventPayload($product, $actorUserId));
+    } catch (Throwable $e) {
+        wmsLog('wms product event failed: ' . $e->getMessage(), 'warning');
+    }
+}
+
 function wms_cap_wms_order_create_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     // Payload should mirror wmsOrderCreate expected data array
@@ -742,27 +766,44 @@ function wms_cap_wms_product_upsert_1(mixed $payload, string $capabilityId = '',
         return ['ok' => false, 'error' => 'Product SKU is required for WMS sync'];
     }
 
-    $title = trim((string)($payload['title'] ?? $sku));
+    $name = trim((string)($payload['name'] ?? $payload['title'] ?? $sku));
     $barcode = trim((string)($payload['barcode'] ?? ''));
-    $type = trim((string)($payload['type'] ?? 'goods'));
+    $description = trim((string)($payload['description'] ?? ''));
+    $unit = trim((string)($payload['unit'] ?? 'pcs'));
+    $productType = trim((string)($payload['product_type'] ?? $payload['type'] ?? 'physical'));
+    $isActiveRaw = $payload['is_active'] ?? true;
+    if (is_string($isActiveRaw)) {
+        $normalizedActive = strtolower(trim($isActiveRaw));
+        $isActive = in_array($normalizedActive, ['1', 'true', 'yes', 'published', 'active'], true) ? 1 : 0;
+    } else {
+        $isActive = (int)!empty($isActiveRaw);
+    }
+    $actorUserId = isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null;
 
     try {
-        $db = app()->modDb('wms');
+        $db = wmsDb();
         
         $stmt = $db->prepare('SELECT id FROM wms_products WHERE sku = ? LIMIT 1');
         $stmt->execute([$sku]);
         $existingId = $stmt->fetchColumn();
 
         if ($existingId) {
-            $updateStmt = $db->prepare('UPDATE wms_products SET title = ?, barcode = ?, type = ?, updated_at = NOW() WHERE id = ?');
-            $updateStmt->execute([$title, $barcode, $type, $existingId]);
-            $productId = $existingId;
+            $updateStmt = $db->prepare('UPDATE wms_products SET name = ?, barcode = ?, description = ?, unit = ?, product_type = ?, is_active = ?, deleted_at = NULL, updated_at = NOW() WHERE id = ?');
+            $updateStmt->execute([$name, $barcode !== '' ? $barcode : null, $description !== '' ? $description : null, $unit, $productType, $isActive, $existingId]);
+            $productId = (int)$existingId;
             $action = 'updated';
+            $eventKey = 'wms.product.updated';
         } else {
-            $insertStmt = $db->prepare('INSERT INTO wms_products (sku, title, barcode, type, is_active, created_at) VALUES (?, ?, ?, ?, 1, NOW())');
-            $insertStmt->execute([$sku, $title, $barcode, $type]);
-            $productId = $db->lastInsertId();
+            $insertStmt = $db->prepare('INSERT INTO wms_products (sku, barcode, name, description, unit, product_type, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+            $insertStmt->execute([$sku, $barcode !== '' ? $barcode : null, $name, $description !== '' ? $description : null, $unit, $productType, $isActive]);
+            $productId = (int)$db->lastInsertId();
             $action = 'created';
+            $eventKey = 'wms.product.created';
+        }
+
+        $product = wmsFetchOne('SELECT * FROM wms_products WHERE id = ? LIMIT 1', [$productId]);
+        if ($product !== null) {
+            wmsEmitProductEvent($eventKey, $product, $actorUserId);
         }
 
         return ['ok' => true, 'product_id' => $productId, 'sku' => $sku, 'action' => $action];

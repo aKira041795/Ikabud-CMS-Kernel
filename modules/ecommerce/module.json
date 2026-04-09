@@ -106,6 +106,60 @@
                 }
             },
             {
+                "id": "ecommerce.product.upsert@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "sku"
+                    ],
+                    "properties": {
+                        "sku": {
+                            "type": "string"
+                        },
+                        "title": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "excerpt": {
+                            "type": "string"
+                        },
+                        "description": {
+                            "type": "string"
+                        },
+                        "body": {
+                            "type": "string"
+                        },
+                        "status": {
+                            "type": "string"
+                        },
+                        "is_active": {
+                            "type": [
+                                "integer",
+                                "boolean"
+                            ]
+                        },
+                        "price": {
+                            "type": "number"
+                        },
+                        "sale_price": {
+                            "type": "number"
+                        },
+                        "track_stock": {
+                            "type": "boolean"
+                        },
+                        "stock_qty": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            {
                 "id": "ecommerce.cart.get@1",
                 "priority": 50,
                 "modes": [
@@ -259,6 +313,13 @@
                     "allow_callers": [
                         "ecommerce",
                         "cms"
+                    ]
+                },
+                "ecommerce.product.upsert@1": {
+                    "allow_callers": [
+                        "ecommerce",
+                        "wms",
+                        "kernel"
                     ]
                 },
                 "ecommerce.cart.get@1": {
@@ -587,6 +648,42 @@
                 "order.customer_email",
                 "order.warehouse_id",
                 "order.items"
+            ]
+        },
+        {
+            "key": "ecommerce.product.created",
+            "description": "Fired when a product is created or first synced into ecommerce.",
+            "available_vars": [
+                "id",
+                "product_id",
+                "title",
+                "slug",
+                "excerpt",
+                "status",
+                "is_active",
+                "sku",
+                "track_stock",
+                "stock_qty",
+                "price",
+                "sale_price"
+            ]
+        },
+        {
+            "key": "ecommerce.product.updated",
+            "description": "Fired when a product is updated or resynced in ecommerce.",
+            "available_vars": [
+                "id",
+                "product_id",
+                "title",
+                "slug",
+                "excerpt",
+                "status",
+                "is_active",
+                "sku",
+                "track_stock",
+                "stock_qty",
+                "price",
+                "sale_price"
             ]
         },
         {

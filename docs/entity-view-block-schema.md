@@ -246,7 +246,7 @@ capability_data.inventory
 
 **CapabilityBus provider:** `entity.capability.inventory.data@1`  
 **PHP function:** `cms_cap_entity_capability_inventory_data_1()`  
-**Data source:** `cms_content_meta` keys `_sku`, `_stock_qty`, `_track_inventory`
+**Data source:** default CMS provider reads local `_sku`, `_stock_qty`, `_track_inventory` metadata. The Ecommerce provider overrides this with capability-config backed inventory data, and when `integration_mode = wms_authoritative_products` it overlays live WMS snapshot quantities by SKU while preserving the same `InventoryData` shape.
 
 ---
 
@@ -330,7 +330,7 @@ capabilities are attached. Each sub-section has its own inner gate.
 | Capability ID       | CapabilityBus Key                          | Block File                  | Gate Position | Data Source                    |
 |---------------------|--------------------------------------------|-----------------------------|---------------|--------------------------------|
 | `pricing`           | `entity.capability.pricing.data@1`         | pricing.block.disyl         | slot 3        | `_price`, `_currency`, `_sale_price` meta |
-| `inventory`         | `entity.capability.inventory.data@1`       | inventory.block.disyl       | slot 4        | `_sku`, `_stock_qty`, `_track_inventory` meta |
+| `inventory`         | `entity.capability.inventory.data@1`       | inventory.block.disyl       | slot 4        | local inventory config by default; live WMS snapshot overlay by SKU when `wms_authoritative_products` is active |
 | `booking`           | `entity.capability.booking.data@1`         | action.block.disyl (sub)    | slot 7        | stub (future module)           |
 | `inquiry`           | `entity.capability.inquiry.data@1`         | action.block.disyl (sub)    | slot 7        | config passthrough             |
 | `progress_tracking`  | `entity.capability.progress_tracking.data@1`| progress.block.disyl        | slot 2b       | `cms_entity_progress` table (primary); `_progress_user_{id}` meta (legacy fallback) |

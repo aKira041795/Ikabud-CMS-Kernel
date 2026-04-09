@@ -13,6 +13,10 @@ The WMS module is a reference-grade, entity-driven Warehouse Management System t
 
 It conforms fully to the kernel's multi-tenant architecture: `wms_*` tables live in each tenant's own database. No dedicated WMS database is needed — `wmsDb()` wraps `module('wms')->db()` → `ModuleDB` → `app()->db()`.
 
+### Ecommerce Integration Modes
+
+When kernel integration mode resolves to `wms_authoritative_products`, WMS becomes the live stock authority for Ecommerce product reads. Ecommerce still keeps its own SKU and inventory capability config for product identity and module-local defaults, but storefront/admin consumers read final stock quantities by overlaying the WMS stock snapshot (`qty_on_hand`, `qty_reserved`, `qty_available`) by SKU at the Ecommerce inventory read-model boundary. This avoids duplicating stock-write bridges into CMS-owned tables while keeping product availability aligned with WMS movement projections.
+
 ### Core Principles
 
 1. **Movement-First Architecture** — `wms_movements` is the immutable source of truth. `wms_stocks` is merely a cached projection of those movements. Stock is never mutated directly.
