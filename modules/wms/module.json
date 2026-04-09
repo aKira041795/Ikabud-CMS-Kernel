@@ -78,6 +78,26 @@
             "description": "Fired when an order is marked as delivered."
         },
         {
+            "key": "wms.order.payment_collected",
+            "description": "Fired when payment is collected for a delivered order.",
+            "available_vars": [
+                "order_id",
+                "wms_order_id",
+                "order_number",
+                "external_reference",
+                "warehouse_id",
+                "customer_name",
+                "status",
+                "ecommerce_order_id",
+                "ecommerce_order_number",
+                "payment_status",
+                "payment_method",
+                "collected_at",
+                "actor_user_id",
+                "meta"
+            ]
+        },
+        {
             "key": "wms.movement.created",
             "description": "Fired after a stock movement is recorded."
         },

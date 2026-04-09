@@ -181,6 +181,63 @@
                         }
                     }
                 }
+            },
+            {
+                "id": "ecommerce.orders.payment.sync@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "payment_status"
+                    ],
+                    "properties": {
+                        "order_id": {
+                            "type": "integer"
+                        },
+                        "order_number": {
+                            "type": "string"
+                        },
+                        "external_reference": {
+                            "type": "string"
+                        },
+                        "payment_status": {
+                            "type": "string"
+                        },
+                        "only_if_gateway": {
+                            "type": "string"
+                        },
+                        "only_if_manual_payment_mode": {
+                            "type": "string"
+                        },
+                        "source": {
+                            "type": "string"
+                        },
+                        "history_key": {
+                            "type": "string"
+                        },
+                        "note": {
+                            "type": "string"
+                        },
+                        "actor_user_id": {
+                            "type": "integer"
+                        },
+                        "wms_order_id": {
+                            "type": "integer"
+                        },
+                        "event": {
+                            "type": "string"
+                        },
+                        "payment_method": {
+                            "type": "string"
+                        },
+                        "collected_at": {
+                            "type": "string"
+                        }
+                    }
+                }
             }
         ],
         "depends": [],
@@ -222,6 +279,13 @@
                     ]
                 },
                 "ecommerce.orders.status.sync@1": {
+                    "allow_callers": [
+                        "ecommerce",
+                        "wms",
+                        "kernel"
+                    ]
+                },
+                "ecommerce.orders.payment.sync@1": {
                     "allow_callers": [
                         "ecommerce",
                         "wms",
@@ -349,6 +413,18 @@
             "label": "Payment Method Label",
             "default": "Pay on Delivery",
             "description": "Label shown to customers at checkout for the manual payment method."
+        },
+        {
+            "key": "manual_payment_mode",
+            "type": "select",
+            "label": "Manual Payment Mode",
+            "default": "pay_on_delivery",
+            "options": [
+                "pay_on_delivery",
+                "bank_transfer",
+                "offline_manual"
+            ],
+            "description": "Controls how manual orders are settled. Only pay_on_delivery is auto-completed from WMS cash-collection events."
         },
         {
             "key": "payment_instructions",
@@ -501,11 +577,15 @@
             "available_vars": [
                 "order_id",
                 "order_number",
+                "customer_email",
+                "source",
+                "actor_user_id",
                 "idempotency_key",
                 "order",
                 "order.id",
                 "order.order_number",
                 "order.customer_email",
+                "order.warehouse_id",
                 "order.items"
             ]
         },

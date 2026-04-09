@@ -421,6 +421,7 @@ $routes = [
         '/auth/login' => 'authLogin',
         '/api/v1/auth/login' => 'authLogin',
         '/api/v1/auth/refresh' => 'authRefresh',
+        '/api/v1/kernel/integrations' => 'apiKernelIntegrations',
         '/api/v1/admin/modules/install' => 'apiInstallModule',
         '/api/v1/admin/modules/enable' => 'apiEnableModule',
         '/api/v1/admin/modules/disable' => 'apiDisableModule',
@@ -1499,6 +1500,21 @@ switch ($handler) {
             $input = json_decode(file_get_contents('php://input'), true) ?? [];
             $action = (string)($input['_action'] ?? 'create');
 
+            if ($action === 'validate') {
+                $validation = \Ikabud\Kernel\IntegrationBridge::validateDefinition($input);
+                $statusCode = !empty($validation['ok']) ? 200 : 422;
+                app()->json([
+                    'ok' => !empty($validation['ok']),
+                    'errors' => array_values(array_filter($validation['errors'] ?? [], static fn(mixed $value): bool => is_string($value) && $value !== '')),
+                    'resolved_capability' => $validation['resolved_capability'] ?? null,
+                    'available_vars' => $validation['available_vars'] ?? [],
+                    'mapping_vars' => $validation['mapping_vars'] ?? [],
+                    'version_lock' => $validation['normalized']['version_lock'] ?? null,
+                    'request_id' => request_id(),
+                ], $statusCode);
+                exit;
+            }
+
             if ($action === 'toggle') {
                 $id = (int)($input['id'] ?? 0);
                 if ($id <= 0) { app()->json(['ok' => false, 'error' => 'Missing id', 'request_id' => request_id()], 400); exit; }
@@ -1596,28 +1612,49 @@ switch ($handler) {
             }
 
             // Phase 3 — validate mapping_json is valid JSON
-            if (!is_array($decodedMapping) || $mappingJson === '') {
+            if (!is_array($decodedMapping) || $mappingJson === '' || (function_exists('array_is_list') ? array_is_list($decodedMapping) : array_keys($decodedMapping) === range(0, count($decodedMapping) - 1))) {
                 app()->json(['ok' => false, 'error' => 'mapping_json must be a valid JSON object.', 'request_id' => request_id()], 400);
                 exit;
             }
 
-            // Phase 3 — capability existence check at creation time (fail-fast)
-            $resolvedCap = app()->capabilities()->resolve($targetCap);
-            if (!app()->capabilities()->has($resolvedCap)) {
-                app()->json(['ok' => false, 'error' => 'Capability not registered: ' . $targetCap . '. Ensure the module is enabled and has booted.', 'request_id' => request_id()], 422);
+            $validation = \Ikabud\Kernel\IntegrationBridge::validateDefinition(array_merge($input, [
+                'mapping_json' => $decodedMapping,
+                'event_source' => (string)($input['event_source'] ?? 'eventbus'),
+            ]));
+            if (empty($validation['ok'])) {
+                app()->json([
+                    'ok' => false,
+                    'error' => implode(' ', array_values(array_filter($validation['errors'] ?? [], static fn(mixed $value): bool => is_string($value) && $value !== ''))),
+                    'errors' => $validation['errors'] ?? [],
+                    'request_id' => request_id(),
+                ], 422);
                 exit;
             }
 
-            $duplicateStmt = $db->prepare('SELECT id FROM kernel_integrations WHERE trigger_event = ? AND target_capability = ? LIMIT 1');
-            $duplicateStmt->execute([$triggerEvent, $targetCap]);
-            $existingId = (int)($duplicateStmt->fetchColumn() ?: 0);
+            $normalized = is_array($validation['normalized'] ?? null) ? $validation['normalized'] : [];
+            $resolvedCap = (string)($validation['resolved_capability'] ?? '');
+            $existingRowsStmt = $db->prepare('SELECT id, target_capability FROM kernel_integrations WHERE trigger_event = ?');
+            $existingRowsStmt->execute([$triggerEvent]);
+            $existingRows = $existingRowsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $existingId = 0;
+            foreach ($existingRows as $existingRow) {
+                $existingTarget = trim((string)($existingRow['target_capability'] ?? ''));
+                if ($existingTarget === '') {
+                    continue;
+                }
+                if ((string)app()->capabilities()->resolve($existingTarget) === $resolvedCap) {
+                    $existingId = (int)($existingRow['id'] ?? 0);
+                    break;
+                }
+            }
             if ($existingId > 0) {
                 app()->json(['ok' => false, 'error' => 'A bridge for this event and capability already exists.', 'id' => $existingId, 'request_id' => request_id()], 409);
                 exit;
             }
 
-            $versionLock = (string)($input['version_lock'] ?? '');
-            $eventSource = (string)($input['event_source'] ?? 'eventbus');
+            $versionLock = $normalized['version_lock'] ?? null;
+            $eventSource = (string)($normalized['event_source'] ?? 'eventbus');
+            $mappingJson = (string)($normalized['mapping_json'] ?? $mappingJson);
 
             try {
                 $stmt = $db->prepare(
@@ -1625,13 +1662,13 @@ switch ($handler) {
                     . 'VALUES (?, ?, ?, ?, ?, ?, ?)'
                 );
                 $stmt->execute([
-                    $name,
+                    (string)($normalized['name'] ?? $name),
                     $triggerEvent,
-                    $targetCap,
+                    (string)($normalized['target_capability'] ?? $targetCap),
                     $mappingJson,
-                    isset($input['is_active']) ? (int)$input['is_active'] : 1,
+                    (int)($normalized['is_active'] ?? (isset($input['is_active']) ? (int)$input['is_active'] : 1)),
                     $eventSource,
-                    $versionLock !== '' ? $versionLock : null,
+                    is_string($versionLock) && $versionLock !== '' ? $versionLock : null,
                 ]);
             } catch (Throwable $e) {
                 $message = str_contains(strtolower($e->getMessage()), 'duplicate') || str_contains(strtolower($e->getMessage()), 'unique')
@@ -1642,11 +1679,11 @@ switch ($handler) {
             }
             $newId = (int)$db->lastInsertId();
             $bridgeAudit('kernel.integration.create', (string)$newId, null, [
-                'name' => $name,
+                'name' => (string)($normalized['name'] ?? $name),
                 'trigger_event' => $triggerEvent,
-                'target_capability' => $targetCap,
+                'target_capability' => (string)($normalized['target_capability'] ?? $targetCap),
                 'event_source' => $eventSource,
-                'version_lock' => $versionLock !== '' ? $versionLock : null,
+                'version_lock' => is_string($versionLock) && $versionLock !== '' ? $versionLock : null,
             ]);
             app()->json(['ok' => true, 'id' => $newId, 'request_id' => request_id()]);
             exit;

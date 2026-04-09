@@ -27,6 +27,41 @@ const EC_ORDER_STATUS_RANK = [
     'refunded' => 60,
 ];
 
+function ecManualPaymentModeSetting(): string
+{
+    $mode = trim((string)ecSettings('manual_payment_mode'));
+    if (in_array($mode, ['pay_on_delivery', 'bank_transfer', 'offline_manual'], true)) {
+        return $mode;
+    }
+
+    return 'pay_on_delivery';
+}
+
+function ecManualPaymentLabelSetting(): string
+{
+    return trim((string)ecSettings('payment_method_label')) ?: 'Manual';
+}
+
+function ecOrderManualPaymentMode(array $order): string
+{
+    $mode = trim((string)($order['meta']['payment_manual_mode'] ?? ''));
+    if ($mode !== '') {
+        return $mode;
+    }
+
+    return ecManualPaymentModeSetting();
+}
+
+function ecOrderManualPaymentLabel(array $order): string
+{
+    $label = trim((string)($order['meta']['payment_manual_label'] ?? ''));
+    if ($label !== '') {
+        return $label;
+    }
+
+    return ecManualPaymentLabelSetting();
+}
+
 function ecWmsFulfillmentManagedBridgeNames(): array
 {
     return [
@@ -37,6 +72,7 @@ function ecWmsFulfillmentManagedBridgeNames(): array
         'wms_ecommerce_processing',
         'wms_ecommerce_shipped',
         'wms_ecommerce_delivered',
+        'wms_ecommerce_manual_payment_complete',
     ];
 }
 
@@ -140,6 +176,25 @@ function ecWmsFulfillmentBridgeDefinitions(): array
                 'note' => 'WMS marked the order as delivered.',
             ],
         ],
+        [
+            'name' => 'wms_ecommerce_manual_payment_complete',
+            'trigger_event' => 'wms.order.payment_collected',
+            'target_capability' => 'ecommerce.orders.payment.sync@1',
+            'mapping' => [
+                'order_id' => '{{ecommerce_order_id}}',
+                'external_reference' => '{{external_reference}}',
+                'payment_status' => 'paid',
+                'only_if_gateway' => 'manual',
+                'only_if_manual_payment_mode' => 'pay_on_delivery',
+                'source' => 'wms_bridge',
+                'event' => 'wms.order.payment_collected',
+                'wms_order_id' => '{{wms_order_id}}',
+                'collected_at' => '{{collected_at}}',
+                'payment_method' => '{{payment_method}}',
+                'history_key' => 'wms:{{wms_order_id}}:paid',
+                'note' => 'WMS collected pay-on-delivery payment.',
+            ],
+        ],
     ];
 }
 
@@ -183,6 +238,10 @@ function ecOrderCreate(array $data): array
     $customerId   = isset($data['customer_id']) ? (int)$data['customer_id'] : null;
     $source       = in_array($data['source'] ?? '', ['web', 'pos', 'api'], true) ? $data['source'] : 'web';
     $currency     = $data['currency'] ?? ecSettings('currency');
+    $paymentGatewayConfig = function_exists('ecPaymentGatewayConfig') ? ecPaymentGatewayConfig() : ['gateway' => 'manual'];
+    $paymentGateway = trim((string)($paymentGatewayConfig['gateway'] ?? 'manual')) ?: 'manual';
+    $manualPaymentMode = $paymentGateway === 'manual' ? ecManualPaymentModeSetting() : '';
+    $manualPaymentLabel = $paymentGateway === 'manual' ? ecManualPaymentLabelSetting() : '';
 
     // Begin DB transaction
     $db->beginTransaction();
@@ -277,6 +336,10 @@ function ecOrderCreate(array $data): array
         if (!empty($data['shipping_rate_id'])) {
             $meta['shipping_rate_id'] = $data['shipping_rate_id'];
         }
+        if ($paymentGateway === 'manual') {
+            $meta['payment_manual_mode'] = $manualPaymentMode;
+            $meta['payment_manual_label'] = $manualPaymentLabel;
+        }
         $meta['integration_bridge_snapshot'] = json_encode($bridgeSnapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         $metaValues = [];
@@ -304,9 +367,15 @@ function ecOrderCreate(array $data): array
 
         // Payment transaction record
         $db->execute(
-            "INSERT INTO ec_payment_transactions (order_id, gateway, amount, currency, status, created_at, updated_at)
-             VALUES (?, 'manual', ?, ?, 'pending', NOW(), NOW())",
-            [$orderId, (float)($data['total'] ?? 0), $currency]
+            "INSERT INTO ec_payment_transactions (order_id, gateway, amount, currency, status, notes, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'pending', ?, NOW(), NOW())",
+            [
+                $orderId,
+                $paymentGateway,
+                (float)($data['total'] ?? 0),
+                $currency,
+                null,
+            ]
         );
 
         // Increment coupon uses
@@ -325,33 +394,118 @@ function ecOrderCreate(array $data): array
         throw $e;
     }
 
-    // Fire event
-    try {
-        $eventIdempotencyKey = ecOrderEventIdempotencyKey($orderId, 'created');
-        app()->events()->fire('ecommerce.order.created', [
-            'order_id'       => $orderId,
-            'order_number'   => $orderNumber,
-            'customer_email' => $data['guest_email'] ?? ($data['billing']['email'] ?? ''),
-            'total'          => (float)($data['total'] ?? 0),
-            'source'         => $source,
-            'actor_user_id'  => isset($data['placed_by_user_id']) ? (int)$data['placed_by_user_id'] : null,
-            'idempotency_key' => $eventIdempotencyKey,
-            'order'          => $bridgeSnapshot,
-        ]);
-    } catch (\Throwable $e) {
-        write_log('ecommerce.order.created event error: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
+    $createdEventPayload = ecBuildOrderCreatedEventPayload($orderId, $orderNumber, $data, $source, $bridgeSnapshot);
+    if (empty($data['defer_created_event'])) {
+        try {
+            app()->events()->fire('ecommerce.order.created', $createdEventPayload);
+        } catch (\Throwable $e) {
+            write_log('ecommerce.order.created event error: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
+        }
     }
 
     return [
         'order_id'           => $orderId,
         'order_number'       => $orderNumber,
         'confirmation_token' => $token,
+        'created_event_payload' => $createdEventPayload,
     ];
 }
 
 function ecUsesWmsStockAuthority(): bool
 {
     return \Ikabud\Kernel\IntegrationBridge::hasActiveBridge('ecommerce.order.created', 'wms.stock.reserve@1');
+}
+
+function ecUsesWmsOrderCreateBridge(): bool
+{
+    return \Ikabud\Kernel\IntegrationBridge::hasActiveBridge('ecommerce.order.created', 'wms.order.create@1');
+}
+
+function ecOrderHasWmsReservation(int $orderId): bool
+{
+    if ($orderId <= 0 || !ecTableExists('wms_movements')) {
+        return false;
+    }
+
+    try {
+        $stmt = app()->db()->prepare(
+            'SELECT id FROM wms_movements WHERE reference_type = ? AND reference_id = ? AND movement_type = ? LIMIT 1'
+        );
+        $stmt->execute(['order', $orderId, 'reserved']);
+
+        return $stmt->fetchColumn() !== false;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+function ecOrderHasLinkedWmsOrder(string $orderNumber): bool
+{
+    $orderNumber = trim($orderNumber);
+    if ($orderNumber === '' || !ecTableExists('wms_orders')) {
+        return false;
+    }
+
+    try {
+        $stmt = app()->db()->prepare(
+            'SELECT id FROM wms_orders WHERE external_reference = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute([$orderNumber]);
+
+        return $stmt->fetchColumn() !== false;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+function ecEnsureCheckoutWmsBridgeApplied(int $orderId): void
+{
+    if ($orderId <= 0 || !class_exists(\Ikabud\Kernel\IntegrationBridge::class)) {
+        return;
+    }
+
+    $needsReserve = ecUsesWmsStockAuthority();
+    $needsOrderCreate = ecUsesWmsOrderCreateBridge();
+    if (!$needsReserve && !$needsOrderCreate) {
+        return;
+    }
+
+    $order = ecOrderGet($orderId);
+    if (!$order) {
+        return;
+    }
+
+    $hasReservation = !$needsReserve || ecOrderHasWmsReservation($orderId);
+    $hasLinkedOrder = !$needsOrderCreate || ecOrderHasLinkedWmsOrder((string)($order['order_number'] ?? ''));
+    if ($hasReservation && $hasLinkedOrder) {
+        return;
+    }
+
+    $snapshot = ecOrderBridgeSnapshot($order);
+    \Ikabud\Kernel\IntegrationBridge::handle([
+        'order_id' => (int)($order['id'] ?? 0),
+        'order_number' => (string)($order['order_number'] ?? ''),
+        'customer_email' => (string)($order['customer_email'] ?? $order['guest_email'] ?? ''),
+        'total' => (float)($order['total'] ?? 0),
+        'source' => (string)($order['source'] ?? 'web'),
+        'actor_user_id' => isset($order['placed_by_user_id']) ? (int)$order['placed_by_user_id'] : null,
+        'idempotency_key' => ecOrderEventIdempotencyKey($orderId, 'created'),
+        'order' => $snapshot,
+    ], 'ecommerce.order.created');
+}
+
+function ecBuildOrderCreatedEventPayload(int $orderId, string $orderNumber, array $data, string $source, array $bridgeSnapshot): array
+{
+    return [
+        'order_id' => $orderId,
+        'order_number' => $orderNumber,
+        'customer_email' => $data['guest_email'] ?? ($data['billing']['email'] ?? ''),
+        'total' => (float)($data['total'] ?? 0),
+        'source' => $source,
+        'actor_user_id' => isset($data['placed_by_user_id']) ? (int)$data['placed_by_user_id'] : null,
+        'idempotency_key' => ecOrderEventIdempotencyKey($orderId, 'created'),
+        'order' => $bridgeSnapshot,
+    ];
 }
 
 function ecOrderEventIdempotencyKey(int $orderId, string $suffix): string
@@ -603,10 +757,19 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
             [$id]
         )->fetch(\PDO::FETCH_ASSOC) ?: null;
         if ($payment) {
-            $payment['label'] = ucfirst((string)($payment['gateway'] ?? ''));
+            $gateway = trim((string)($payment['gateway'] ?? ''));
+            $payment['label'] = $gateway === 'manual'
+                ? ecOrderManualPaymentLabel($order)
+                : ucfirst($gateway);
+            if ($gateway === 'manual') {
+                $payment['mode'] = ecOrderManualPaymentMode($order);
+            }
             $order['payment'] = $payment;
         } else {
-            $order['payment'] = null;
+            $order['payment'] = [
+                'gateway' => '',
+                'label' => '',
+            ];
         }
 
         $order['licenses'] = $db->query(
@@ -900,12 +1063,80 @@ function ec_cap_orders_status_sync_1(mixed $payload, string $capabilityId = '', 
     return ['ok' => true, 'order_id' => (int)$order['id'], 'status' => $status];
 }
 
+function ec_cap_orders_payment_sync_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
+    }
+
+    $paymentStatus = trim((string)($payload['payment_status'] ?? ''));
+    if ($paymentStatus !== 'paid') {
+        return ['ok' => false, 'error' => 'Unsupported payment status: ' . $paymentStatus];
+    }
+
+    $order = ecCapResolveOrderForStatusSync($payload);
+    if ($order === null) {
+        return ['ok' => false, 'error' => 'Order not found for payment sync.'];
+    }
+
+    $expectedGateway = trim((string)($payload['only_if_gateway'] ?? ''));
+    $paymentGateway = trim((string)($order['payment']['gateway'] ?? ''));
+    if ($expectedGateway !== '' && $paymentGateway !== $expectedGateway) {
+        return [
+            'ok' => true,
+            'ignored' => true,
+            'reason' => 'gateway_mismatch',
+            'order_id' => (int)$order['id'],
+            'payment_gateway' => $paymentGateway,
+        ];
+    }
+
+    $expectedManualPaymentMode = trim((string)($payload['only_if_manual_payment_mode'] ?? ''));
+    $manualPaymentMode = $paymentGateway === 'manual' ? ecOrderManualPaymentMode($order) : '';
+    if ($expectedManualPaymentMode !== '' && $manualPaymentMode !== $expectedManualPaymentMode) {
+        return [
+            'ok' => true,
+            'ignored' => true,
+            'reason' => 'manual_payment_mode_mismatch',
+            'order_id' => (int)$order['id'],
+            'manual_payment_mode' => $manualPaymentMode,
+        ];
+    }
+
+    if ((string)($order['payment_status'] ?? '') === 'paid') {
+        return [
+            'ok' => true,
+            'ignored' => true,
+            'reason' => 'already_paid',
+            'order_id' => (int)$order['id'],
+        ];
+    }
+
+    ecOrderMarkPaid((int)$order['id'], [
+        'source' => trim((string)($payload['source'] ?? 'wms_bridge')) ?: 'wms_bridge',
+        'event' => trim((string)($payload['event'] ?? '')),
+        'wms_order_id' => isset($payload['wms_order_id']) ? (int)$payload['wms_order_id'] : 0,
+        'history_key' => trim((string)($payload['history_key'] ?? '')),
+        'note' => trim((string)($payload['note'] ?? '')),
+        'payment_method' => trim((string)($payload['payment_method'] ?? '')),
+        'collected_at' => trim((string)($payload['collected_at'] ?? '')),
+        'manual_payment_mode' => $manualPaymentMode,
+        'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
+    ]);
+
+    return [
+        'ok' => true,
+        'order_id' => (int)$order['id'],
+        'payment_status' => 'paid',
+    ];
+}
+
 /**
  * Update payment status (e.g. manual mark-as-paid).
  * Idempotent: if the order is already paid the event is not re-fired,
  * preventing duplicate license generation and email delivery.
  */
-function ecOrderMarkPaid(int $orderId): void
+function ecOrderMarkPaid(int $orderId, array $options = []): void
 {
     $db = ecDb();
 
@@ -915,8 +1146,37 @@ function ecOrderMarkPaid(int $orderId): void
         return;
     }
 
+    $paymentMeta = array_filter([
+        'source' => trim((string)($options['source'] ?? '')),
+        'event' => trim((string)($options['event'] ?? '')),
+        'wms_order_id' => isset($options['wms_order_id']) && (int)$options['wms_order_id'] > 0 ? (int)$options['wms_order_id'] : null,
+        'history_key' => trim((string)($options['history_key'] ?? '')),
+        'note' => trim((string)($options['note'] ?? '')),
+        'payment_method' => trim((string)($options['payment_method'] ?? '')),
+        'collected_at' => trim((string)($options['collected_at'] ?? '')),
+        'manual_payment_mode' => trim((string)($options['manual_payment_mode'] ?? '')),
+        'actor_user_id' => isset($options['actor_user_id']) && (int)$options['actor_user_id'] > 0 ? (int)$options['actor_user_id'] : null,
+    ], static fn(mixed $value): bool => $value !== null && $value !== '');
+    $paymentMetaJson = $paymentMeta !== [] ? json_encode($paymentMeta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null;
+
     $db->execute("UPDATE ec_orders SET payment_status = 'paid', updated_at = NOW() WHERE id = ?", [$orderId]);
-    $db->execute("UPDATE ec_payment_transactions SET status = 'succeeded', updated_at = NOW() WHERE order_id = ? AND status = 'pending'", [$orderId]);
+    if ($paymentMetaJson !== null) {
+        $db->execute(
+            "UPDATE ec_payment_transactions
+             SET status = 'succeeded',
+                 notes = ?,
+                 updated_at = NOW()
+             WHERE order_id = ? AND status = 'pending'",
+            [$paymentMetaJson, $orderId]
+        );
+        $db->execute(
+            "INSERT INTO ec_order_meta (order_id, meta_key, meta_value) VALUES (?, 'payment_completion_meta', ?)
+             ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+            [$orderId, $paymentMetaJson]
+        );
+    } else {
+        $db->execute("UPDATE ec_payment_transactions SET status = 'succeeded', updated_at = NOW() WHERE order_id = ? AND status = 'pending'", [$orderId]);
+    }
 
     $order = ecOrderGet($orderId);
     if ($order) {

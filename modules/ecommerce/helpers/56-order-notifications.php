@@ -9,7 +9,8 @@ declare(strict_types=1);
 // address configured in the 'admin_notification_email' ecommerce setting.
 // ─────────────────────────────────────────────────────────────────────────
 
-app()->events()->listen('ecommerce.order.created', function (array $payload) {
+function ecSendAdminOrderNotification(array $payload): void
+{
     $orderId     = (int)($payload['order_id']     ?? 0);
     $orderNumber = (string)($payload['order_number'] ?? '');
     $total       = (float)($payload['total']       ?? 0);
@@ -100,4 +101,8 @@ app()->events()->listen('ecommerce.order.created', function (array $payload) {
             'order_id' => $orderId,
         ]);
     }
+}
+
+app()->events()->listen('ecommerce.order.created', function (array $payload) {
+    ecSendAdminOrderNotification($payload);
 });

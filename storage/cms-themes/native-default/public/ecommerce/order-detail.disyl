@@ -130,6 +130,17 @@
             </section>
 
             <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Payment</h2>
+                <div class="native-summary-list">
+                    <div class="native-summary-row"><span>Payment Status</span><strong style="text-transform:capitalize;">{order.payment_status}</strong></div>
+                    <div class="native-summary-row"><span>Order Status</span><strong style="text-transform:capitalize;">{order.status}</strong></div>
+                    {if order.payment}
+                    <div class="native-summary-row"><span>Payment Method</span><strong>{if order.payment.label}{order.payment.label}{else}{order.payment.gateway}{/if}</strong></div>
+                    {/if}
+                </div>
+            </section>
+
+            <section class="native-storefront-panel">
                 <h2 class="native-panel-title">Shipping Address</h2>
                 <p class="native-panel-copy">{order.shipping.first_name} {order.shipping.last_name}<br>
                     {order.shipping.address_line1}<br>

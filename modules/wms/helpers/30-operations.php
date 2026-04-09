@@ -864,6 +864,79 @@ function wmsOrderDeliver(int $orderId, ?int $actorUserId = null): void
     wmsCtx()->fireEvent('wms.order.delivered', wmsOrderBridgeEventPayload($orderId, $order, 'delivered'));
 }
 
+function wmsOrderCollectPayment(int $orderId, ?int $actorUserId = null, array $options = []): array
+{
+    $db = wmsDb();
+    $db->beginTransaction();
+
+    try {
+        $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [$orderId]);
+        if ($order === null) {
+            throw new RuntimeException('Order not found.');
+        }
+        if ((string)($order['status'] ?? '') !== 'delivered') {
+            throw new RuntimeException('Only delivered orders can record payment collection.');
+        }
+
+        $meta = wmsJsonDecodeArray($order['meta'] ?? null);
+        if (!empty($meta['payment_collected_at'])) {
+            $db->commit();
+            return [
+                'order_id' => $orderId,
+                'already_collected' => true,
+                'collected_at' => (string)$meta['payment_collected_at'],
+                'payment_method' => (string)($meta['payment_collection_method'] ?? ''),
+            ];
+        }
+
+        $collectedAt = trim((string)($options['collected_at'] ?? '')) ?: date('Y-m-d H:i:s');
+        $paymentMethod = trim((string)($options['payment_method'] ?? 'pay_on_delivery')) ?: 'pay_on_delivery';
+        $note = trim((string)($options['note'] ?? ''));
+
+        $meta['payment_collected_at'] = $collectedAt;
+        $meta['payment_collection_method'] = $paymentMethod;
+        if ($actorUserId !== null && $actorUserId > 0) {
+            $meta['payment_collected_by'] = $actorUserId;
+        }
+        if ($note !== '') {
+            $meta['payment_collection_note'] = $note;
+        }
+
+        $db->execute(
+            'UPDATE wms_orders SET meta = ?, updated_at = NOW() WHERE id = ?',
+            [json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $orderId]
+        );
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    wmsAudit('wms.order.payment_collected', 'wms_orders', (string)$orderId, $order, [
+        'status' => 'delivered',
+        'payment_method' => $paymentMethod,
+        'collected_at' => $collectedAt,
+        'actor_user_id' => $actorUserId,
+    ]);
+    wmsCtx()->fireEvent('wms.order.payment_collected', array_merge(
+        wmsOrderBridgeEventPayload($orderId, $order, 'delivered'),
+        [
+            'payment_status' => 'paid',
+            'payment_method' => $paymentMethod,
+            'collected_at' => $collectedAt,
+            'actor_user_id' => $actorUserId,
+        ]
+    ));
+
+    return [
+        'order_id' => $orderId,
+        'collected_at' => $collectedAt,
+        'payment_method' => $paymentMethod,
+    ];
+}
+
 function wmsTransferCreate(
     int $fromLocationId,
     int $toLocationId,

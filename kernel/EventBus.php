@@ -245,7 +245,28 @@ class EventBus
 
         $matched = $this->mergeListeners($this->listenersFor($event), $matchedWildcards);
 
-        // Fire
+        try {
+            if (
+                class_exists(IntegrationBridge::class)
+                && $event !== ''
+                && !str_starts_with($event, 't.')
+                && !str_starts_with($event, 'kernel.database.')
+                && !str_starts_with($event, 'integration.result.')
+            ) {
+                IntegrationBridge::handle($payload, $event);
+            }
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log("EventBus: integration bridge error on '{$event}': " . $e->getMessage(), 'warning', [
+                    'event' => $event,
+                    'module' => $module,
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        }
+
+        // Fire listeners after the bridge so slow notification work does not
+        // block critical integration side effects like reserve/order-create.
         foreach ($matched as $entry) {
             try {
                 $listenerModule = (string)($entry['module'] ?? '');
@@ -273,26 +294,6 @@ class EventBus
                         'trace'  => $e->getTraceAsString(),
                     ]);
                 }
-            }
-        }
-
-        try {
-            if (
-                class_exists(IntegrationBridge::class)
-                && $event !== ''
-                && !str_starts_with($event, 't.')
-                && !str_starts_with($event, 'kernel.database.')
-                && !str_starts_with($event, 'integration.result.')
-            ) {
-                IntegrationBridge::handle($payload, $event);
-            }
-        } catch (\Throwable $e) {
-            if (function_exists('write_log')) {
-                write_log("EventBus: integration bridge error on '{$event}': " . $e->getMessage(), 'warning', [
-                    'event' => $event,
-                    'module' => $module,
-                    'trace' => $e->getTraceAsString(),
-                ]);
             }
         }
 

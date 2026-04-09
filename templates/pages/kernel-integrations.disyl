@@ -398,7 +398,45 @@ function validateIntegrationDraft() {
         setStatus('Mapping JSON is not valid: ' + e.message, 'err');
         return;
     }
-    setStatus('Draft looks structurally valid. Saving will still verify capability registration and duplicate bridge conflicts.', 'ok');
+
+    setStatus('Validating draft...', 'pending');
+
+    fetch(BASE + '/api/v1/kernel/integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}' },
+        body: JSON.stringify({
+            _action: 'validate',
+            name: name,
+            trigger_event: trigger,
+            target_capability: cap,
+            mapping_json: JSON.parse(json),
+            version_lock: (document.getElementById('intg_version_lock').value || '').trim() || null,
+            is_active: document.getElementById('intg_active').checked ? 1 : 0
+        })
+    })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                var parts = ['Draft validation passed'];
+                if (data.resolved_capability) {
+                    parts.push('Resolved capability: ' + data.resolved_capability);
+                }
+                if (data.version_lock) {
+                    parts.push('Version lock: ' + data.version_lock);
+                }
+                if (Array.isArray(data.mapping_vars) && data.mapping_vars.length) {
+                    parts.push('Mapping vars: ' + data.mapping_vars.join(', '));
+                }
+                setStatus(parts.join(' • '), 'ok');
+                return;
+            }
+
+            var errors = Array.isArray(data.errors) ? data.errors.filter(Boolean) : [];
+            setStatus((errors.length ? errors.join(' ') : (data.error || 'Draft validation failed.')) + ' Request: ' + String(data.request_id || 'n/a'), 'err');
+        })
+        .catch(function(error) {
+            setStatus('Validation failed: ' + error.message, 'err');
+        });
 }
 
 function setStatus(msg, type) {

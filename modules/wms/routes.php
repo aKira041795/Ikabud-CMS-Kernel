@@ -84,6 +84,7 @@ return [
         '/api/v1/wms/orders/{id}/pick' => 'wms:wmsApiOrderPick',
         '/api/v1/wms/orders/{id}/dispatch' => 'wms:wmsApiOrderDispatch',
         '/api/v1/wms/orders/{id}/deliver' => 'wms:wmsApiOrderDeliver',
+        '/api/v1/wms/orders/{id}/collect-payment' => 'wms:wmsApiOrderCollectPayment',
         '/api/v1/wms/orders/{id}/cancel' => 'wms:wmsApiOrderCancel',
         '/api/v1/wms/transfers' => 'wms:wmsApiTransferCreate',
         '/api/v1/wms/cycle-counts' => 'wms:wmsApiCycleCountCreate',

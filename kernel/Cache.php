@@ -45,11 +45,15 @@ class Cache
 
     /** @var bool Whether stats have been loaded for this request */
     private bool $statsLoaded = false;
+
+    /** @var bool Whether routine cache invalidations should be logged */
+    private bool $logInvalidations;
     
-    public function __construct(string $cacheDir = null, int $maxCacheSizeMB = 0)
+    public function __construct(string $cacheDir = null, int $maxCacheSizeMB = 0, bool $logInvalidations = false)
     {
         $this->cacheDir = $cacheDir ?? dirname(__DIR__) . '/storage/cache';
         $this->maxCacheSizeMB = $maxCacheSizeMB;
+        $this->logInvalidations = $logInvalidations;
         $this->statsFile = $this->cacheDir . '/.cache_stats.json';
         
         // Ensure cache directory exists
@@ -64,6 +68,15 @@ class Cache
         
         // Register shutdown handler to save stats at end of request
         register_shutdown_function([$this, 'saveStats']);
+    }
+
+    private function logInvalidationNotice(string $message): void
+    {
+        if (!$this->logInvalidations) {
+            return;
+        }
+
+        error_log($message);
     }
     
     /**
@@ -516,7 +529,7 @@ class Cache
         // Remove tag index file
         @unlink($tagFile);
         
-        error_log("Ikabud Cache: Cleared $cleared files for tag '$tag' in instance $instanceId");
+        $this->logInvalidationNotice("Ikabud Cache: Cleared $cleared files for tag '$tag' in instance $instanceId");
         return $cleared;
     }
     
@@ -571,7 +584,7 @@ class Cache
             }
         }
         
-        error_log("Ikabud Cache: Cleared $cleared files for instance $instanceId");
+        $this->logInvalidationNotice("Ikabud Cache: Cleared $cleared files for instance $instanceId");
         return $cleared;
     }
     
@@ -620,7 +633,7 @@ class Cache
             }
         }
         
-        error_log("Ikabud Cache: Cleared $cleared files matching pattern '$urlPattern' in instance $instanceId");
+        $this->logInvalidationNotice("Ikabud Cache: Cleared $cleared files matching pattern '$urlPattern' in instance $instanceId");
         return $cleared;
     }
     
@@ -729,8 +742,10 @@ class Cache
         // Reset stats
         $this->resetStats();
 
-        error_log("Ikabud Cache: Cleared $cleared cache files" . 
-                  (count($errors) > 0 ? " with " . count($errors) . " errors" : ""));
+        $this->logInvalidationNotice(
+            "Ikabud Cache: Cleared $cleared cache files"
+            . (count($errors) > 0 ? " with " . count($errors) . " errors" : "")
+        );
 
         return [
             'cleared' => $cleared,

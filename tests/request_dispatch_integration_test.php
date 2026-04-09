@@ -39,14 +39,26 @@ function headerValues(array $headers, string $prefix): array
     }));
 }
 
-function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string $hookCode = null): array
+function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string $hookCode = null, ?string $rawBody = null): array
 {
     $runnerPath = sys_get_temp_dir() . '/ikabud-request-dispatch-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
     $bootstrap = var_export(__DIR__ . '/../bootstrap.php', true);
-    $entrypoint = var_export(__DIR__ . '/../public/index.php', true);
+    $entrypointPath = __DIR__ . '/../public/index.php';
     $serverExport = var_export($server, true);
     $userExport = var_export($user, true);
     $hook = $hookCode ?? '';
+    $patchedEntrypointPath = null;
+
+    if ($rawBody !== null) {
+        $patchedEntrypointPath = __DIR__ . '/../public/ikabud-request-dispatch-entrypoint-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
+        $entrypointSource = (string)file_get_contents($entrypointPath);
+        $replacement = "file_get_contents('data://text/plain," . rawurlencode($rawBody) . "')";
+        $entrypointSource = str_replace("file_get_contents('php://input')", $replacement, $entrypointSource);
+        file_put_contents($patchedEntrypointPath, $entrypointSource);
+        $entrypointPath = $patchedEntrypointPath;
+    }
+
+    $entrypoint = var_export($entrypointPath, true);
 
     $script = "<?php\n"
         . "foreach ({$serverExport} as \$key => \$value) { \$_SERVER[(string) \$key] = \$value; }\n"
@@ -71,6 +83,9 @@ function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string
     $exitCode = 0;
     exec('php ' . escapeshellarg($runnerPath) . ' 2>&1', $output, $exitCode);
     @unlink($runnerPath);
+    if (is_string($patchedEntrypointPath) && $patchedEntrypointPath !== '') {
+        @unlink($patchedEntrypointPath);
+    }
 
     $stdout = implode("\n", $output);
     $parts = explode("\n__CONTEXT__\n", $stdout, 2);
@@ -427,6 +442,175 @@ t(
     $kernelIntegrationsDeleteWithCsrf['raw']
 );
 
+$kernelBridgeSuffix = bin2hex(random_bytes(4));
+$kernelBridgeName = 'request_dispatch_bridge_' . $kernelBridgeSuffix;
+
+try {
+    $kernelIntegrationsValidate = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/kernel/integrations',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        [
+            'id' => 1,
+            'username' => 'root',
+            'name' => 'Root User',
+            'role' => 'superadmin',
+            'source' => 'kernel',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP,
+        json_encode([
+            '_action' => 'validate',
+            'name' => $kernelBridgeName,
+            'trigger_event' => 'ecommerce.order.created',
+            'target_capability' => 'wms.stock.reserve@1',
+            'mapping_json' => [
+                'reference_type' => 'order',
+                'reference_id' => '{{order.id}}',
+                'items' => '{{order.items}}',
+                'idempotency_key' => '{{idempotency_key}}',
+            ],
+        ], JSON_UNESCAPED_SLASHES)
+    );
+    $kernelIntegrationsValidatePayload = json_decode((string)($kernelIntegrationsValidate['body'] ?? ''), true);
+    t(
+        'kernel integrations API validates a bridge draft via live POST body',
+        is_array($kernelIntegrationsValidatePayload)
+            && ($kernelIntegrationsValidatePayload['ok'] ?? false) === true
+            && ($kernelIntegrationsValidatePayload['resolved_capability'] ?? '') === 'wms.stock.reserve@1'
+            && ($kernelIntegrationsValidatePayload['version_lock'] ?? '') === 'wms.stock.reserve@1',
+        $kernelIntegrationsValidate['raw']
+    );
+
+    $kernelIntegrationsValidateInvalid = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/kernel/integrations',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        [
+            'id' => 1,
+            'username' => 'root',
+            'name' => 'Root User',
+            'role' => 'superadmin',
+            'source' => 'kernel',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP,
+        json_encode([
+            '_action' => 'validate',
+            'name' => $kernelBridgeName . '_invalid',
+            'trigger_event' => 'ecommerce.order.created',
+            'target_capability' => 'wms.stock.reserve@1',
+            'mapping_json' => [
+                'reference_id' => '{{order.unknown_id}}',
+            ],
+        ], JSON_UNESCAPED_SLASHES)
+    );
+    $kernelIntegrationsValidateInvalidPayload = json_decode((string)($kernelIntegrationsValidateInvalid['body'] ?? ''), true);
+    t(
+        'kernel integrations API rejects invalid draft mappings via live POST body',
+        is_array($kernelIntegrationsValidateInvalidPayload)
+            && ($kernelIntegrationsValidateInvalidPayload['ok'] ?? true) === false
+            && str_contains(implode(' ', $kernelIntegrationsValidateInvalidPayload['errors'] ?? []), 'Unknown mapping variables'),
+        $kernelIntegrationsValidateInvalid['raw']
+    );
+
+    $kernelIntegrationsCreate = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/kernel/integrations',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        [
+            'id' => 1,
+            'username' => 'root',
+            'name' => 'Root User',
+            'role' => 'superadmin',
+            'source' => 'kernel',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP,
+        json_encode([
+            'name' => $kernelBridgeName,
+            'trigger_event' => 'ecommerce.order.paid',
+            'target_capability' => 'wms.stock.reserve',
+            'mapping_json' => [
+                'reference_type' => 'payment',
+                'reference_id' => '{{order_id}}',
+            ],
+            'is_active' => 1,
+        ], JSON_UNESCAPED_SLASHES)
+    );
+    $kernelIntegrationsCreatePayload = json_decode((string)($kernelIntegrationsCreate['body'] ?? ''), true);
+    $createdKernelBridgeId = (int)($kernelIntegrationsCreatePayload['id'] ?? 0);
+    t(
+        'kernel integrations API creates a bridge via live POST body',
+        is_array($kernelIntegrationsCreatePayload)
+            && ($kernelIntegrationsCreatePayload['ok'] ?? false) === true
+            && $createdKernelBridgeId > 0,
+        $kernelIntegrationsCreate['raw']
+    );
+
+    $kernelIntegrationsCreateDuplicate = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/kernel/integrations',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        [
+            'id' => 1,
+            'username' => 'root',
+            'name' => 'Root User',
+            'role' => 'superadmin',
+            'source' => 'kernel',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+PHP,
+        json_encode([
+            'name' => $kernelBridgeName . '_duplicate',
+            'trigger_event' => 'ecommerce.order.paid',
+            'target_capability' => 'wms.stock.reserve@1',
+            'mapping_json' => [
+                'reference_type' => 'payment',
+                'reference_id' => '{{order_id}}',
+            ],
+            'is_active' => 1,
+        ], JSON_UNESCAPED_SLASHES)
+    );
+    $kernelIntegrationsCreateDuplicatePayload = json_decode((string)($kernelIntegrationsCreateDuplicate['body'] ?? ''), true);
+    t(
+        'kernel integrations API treats alias and resolved version duplicates as the same bridge',
+        is_array($kernelIntegrationsCreateDuplicatePayload)
+            && ($kernelIntegrationsCreateDuplicatePayload['ok'] ?? true) === false
+            && (int)($kernelIntegrationsCreateDuplicatePayload['id'] ?? 0) === $createdKernelBridgeId,
+        $kernelIntegrationsCreateDuplicate['raw']
+    );
+} finally {
+    $cleanupBridgeRows = $dispatchDb->prepare('SELECT id FROM kernel_integrations WHERE name LIKE ?');
+    $cleanupBridgeRows->execute([$kernelBridgeName . '%']);
+    $cleanupBridgeIds = array_map('intval', $cleanupBridgeRows->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    if ($cleanupBridgeIds !== []) {
+        $cleanupPlaceholders = implode(', ', array_fill(0, count($cleanupBridgeIds), '?'));
+        $dispatchDb->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (' . $cleanupPlaceholders . ')')->execute($cleanupBridgeIds);
+    }
+    $dispatchDb->prepare('DELETE FROM kernel_integrations WHERE name LIKE ?')->execute([$kernelBridgeName . '%']);
+}
+
 $customerFixture = seedCustomerOrderTimelineFixture(bin2hex(random_bytes(4)));
 
 try {
@@ -453,6 +637,8 @@ try {
         $customerOrdersPage['raw']
     );
 
+    file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+
     $customerOrderDetail = runRequestThroughEntrypoint(
         [
             'REQUEST_METHOD' => 'GET',
@@ -468,12 +654,21 @@ try {
         ]
     );
     t(
-        'customer order detail renders progress timeline and WMS bridge notes',
+        'customer order detail renders progress timeline, payment status, and WMS bridge notes',
         ($customerOrderDetail['exit_code'] ?? 1) === 0
             && str_contains($customerOrderDetail['body'] ?? '', 'Order Progress')
+            && str_contains($customerOrderDetail['body'] ?? '', 'Payment Status')
+            && str_contains($customerOrderDetail['body'] ?? '', 'paid')
             && str_contains($customerOrderDetail['body'] ?? '', 'WMS marked the order as delivered.')
             && str_contains($customerOrderDetail['body'] ?? '', 'delivered'),
         $customerOrderDetail['raw']
+    );
+
+    $customerOrderDetailLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
+    t(
+        'customer order detail render does not log ecommerce render contract mismatches',
+        !str_contains($customerOrderDetailLog, 'ecommerce.render_context.contract_mismatch'),
+        $customerOrderDetailLog
     );
 } finally {
     cleanupCustomerOrderTimelineFixture($customerFixture);

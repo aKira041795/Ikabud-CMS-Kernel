@@ -383,6 +383,52 @@ function wmsCap_wmsStockPayload(mixed $payload): array
     return is_array($payload) ? $payload : [];
 }
 
+function wmsBridgeResolveProductId(array $item): int
+{
+    $productId = (int)($item['product_id'] ?? 0);
+    if ($productId > 0) {
+        $existing = wmsFetchOne('SELECT id FROM wms_products WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$productId]);
+        if ($existing !== null) {
+            return (int)($existing['id'] ?? 0);
+        }
+    }
+
+    $sku = trim((string)($item['sku'] ?? ''));
+    if ($sku !== '') {
+        $matched = wmsFetchOne(
+            'SELECT id FROM wms_products WHERE deleted_at IS NULL AND (sku = ? OR barcode = ?) ORDER BY id ASC LIMIT 1',
+            [$sku, $sku]
+        );
+        if ($matched !== null) {
+            return (int)($matched['id'] ?? 0);
+        }
+    }
+
+    return 0;
+}
+
+function wmsBridgeNormalizeStockItem(array $item, array $payload, int $index = 0): array
+{
+    $normalized = $item;
+    $resolvedProductId = wmsBridgeResolveProductId($normalized);
+    if ($resolvedProductId > 0) {
+        $normalized['product_id'] = $resolvedProductId;
+    }
+
+    $itemIdempotencyKey = trim((string)($normalized['idempotency_key'] ?? ''));
+    if ($itemIdempotencyKey === '') {
+        $baseIdempotencyKey = trim((string)($payload['idempotency_key'] ?? ''));
+        if ($baseIdempotencyKey !== '') {
+            $itemIdempotencyKey = $baseIdempotencyKey . ':' . ($index + 1);
+        }
+    }
+    if ($itemIdempotencyKey !== '') {
+        $normalized['idempotency_key'] = $itemIdempotencyKey;
+    }
+
+    return $normalized;
+}
+
 function wms_cap_wms_stock_query_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $payload = wmsCap_wmsStockPayload($payload);
@@ -407,18 +453,11 @@ function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', 
         $db->beginTransaction();
         try {
             foreach ($payload['items'] as $index => $it) {
+                $it = is_array($it) ? wmsBridgeNormalizeStockItem($it, $payload, $index) : [];
                 $warehouseId = (int)($it['warehouse_id'] ?? $payload['warehouse_id'] ?? 0);
                 $locationId = (int)($it['location_id'] ?? 0);
                 if ($locationId <= 0 && $warehouseId > 0) {
                     $locationId = wmsResolveBridgeLocationId($warehouseId);
-                }
-
-                $itemIdempotencyKey = trim((string)($it['idempotency_key'] ?? ''));
-                if ($itemIdempotencyKey === '') {
-                    $baseIdempotencyKey = trim((string)($payload['idempotency_key'] ?? ''));
-                    if ($baseIdempotencyKey !== '') {
-                        $itemIdempotencyKey = $baseIdempotencyKey . ':' . ((int)$index + 1);
-                    }
                 }
 
                 $item = [
@@ -431,8 +470,8 @@ function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', 
                     'reference_id' => isset($payload['reference_id']) ? (int)$payload['reference_id'] : null,
                     'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
                 ];
-                if ($itemIdempotencyKey !== '') {
-                    $item['idempotency_key'] = $itemIdempotencyKey;
+                if (!empty($it['idempotency_key'])) {
+                    $item['idempotency_key'] = (string)$it['idempotency_key'];
                 }
                 if ($item['product_id'] > 0 && $item['qty'] > 0) {
                     $movementIds[] = wmsReserveStock($item);
@@ -453,6 +492,7 @@ function wms_cap_wms_stock_reserve_1(mixed $payload, string $capabilityId = '', 
     }
 
     // Single item fallback
+    $payload = wmsBridgeNormalizeStockItem($payload, $payload, 0);
     $item = [
         'product_id' => (int)($payload['product_id'] ?? 0),
         'warehouse_id' => $warehouseId,
@@ -484,6 +524,7 @@ function wms_cap_wms_stock_release_1(mixed $payload, string $capabilityId = '', 
         $db->beginTransaction();
         try {
             foreach ($payload['items'] as $index => $it) {
+                $it = is_array($it) ? wmsBridgeNormalizeStockItem($it, $payload, $index) : [];
                 $warehouseId = (int)($it['warehouse_id'] ?? $payload['warehouse_id'] ?? 0);
                 $locationId = (int)($it['location_id'] ?? 0);
                 if ($locationId <= 0 && $warehouseId > 0) {
@@ -528,6 +569,8 @@ function wms_cap_wms_stock_release_1(mixed $payload, string $capabilityId = '', 
     if ($locationId <= 0 && $warehouseId > 0) {
         $locationId = wmsResolveBridgeLocationId($warehouseId);
     }
+
+    $payload = wmsBridgeNormalizeStockItem($payload, $payload, 0);
 
     $item = [
         'product_id' => (int)($payload['product_id'] ?? 0),
@@ -602,6 +645,7 @@ function wms_cap_wms_order_create_1(mixed $payload, string $capabilityId = '', s
             if (!is_array($item)) {
                 continue;
             }
+            $payload['items'][$index] = wmsBridgeNormalizeStockItem($item, $payload, $index);
             if (!isset($item['qty_ordered']) && isset($item['qty'])) {
                 $payload['items'][$index]['qty_ordered'] = $item['qty'];
             }

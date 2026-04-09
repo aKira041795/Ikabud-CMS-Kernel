@@ -51,10 +51,22 @@ echo "\n=== KERNEL CACHE CLEAR ALL ===\n";
 $cacheRoot = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'ikabud_cache_clear_all_' . bin2hex(random_bytes(6));
 @mkdir($cacheRoot, 0775, true);
 
+$errorLog = tempnam(sys_get_temp_dir(), 'ikabud_cache_log_');
+if ($errorLog === false) {
+    throw new RuntimeException('Failed to create temporary error log file.');
+}
+
+$previousErrorLog = ini_get('error_log');
+ini_set('error_log', $errorLog);
+
 $cache = new \Ikabud\Kernel\Cache($cacheRoot);
 
-register_shutdown_function(static function () use ($cacheRoot): void {
+register_shutdown_function(static function () use ($cacheRoot, $errorLog, $previousErrorLog): void {
     removeTree($cacheRoot);
+    if (is_string($previousErrorLog) && $previousErrorLog !== '') {
+        ini_set('error_log', $previousErrorLog);
+    }
+    @unlink($errorLog);
 });
 
 $instanceDir = $cacheRoot . '/cms_t1';
@@ -76,6 +88,7 @@ file_put_contents($disylDir . '/.manifest.json', '{}');
 file_put_contents($disylDir . '/.gitkeep', '');
 
 $result = $cache->clearAll();
+$loggedLines = file_exists($errorLog) ? trim((string) file_get_contents($errorLog)) : '';
 
 $remainingFiles = [];
 $items = new RecursiveIteratorIterator(
@@ -94,6 +107,16 @@ t('clearAll removes instance cache files and tag indexes', !is_file($instanceDir
 t('clearAll removes nested cache directories after purging their files', !is_dir($cacheRoot . '/cms') && !is_dir($nestedDir));
 t('clearAll removes template compiler output but preserves keep files', !is_file($disylDir . '/Template_Test_123.php') && !is_file($disylDir . '/.manifest.json') && is_file($disylDir . '/.gitkeep'), json_encode($remainingFiles));
 t('clearAll leaves only preserved keep files behind', $remainingFiles === ['disyl/.gitkeep'], json_encode($remainingFiles));
+t('clearAll does not emit invalidation notices by default', $loggedLines === '', $loggedLines);
+
+file_put_contents($instanceDir . '/page.cache', 'page-cache');
+file_put_contents($instanceDir . '/.tag_' . md5('cms:home') . '.idx', serialize(['/home']));
+file_put_contents($errorLog, '');
+
+$verboseCache = new \Ikabud\Kernel\Cache($cacheRoot, 0, true);
+$verboseCache->clearAll();
+$verboseLog = file_exists($errorLog) ? trim((string) file_get_contents($errorLog)) : '';
+t('clearAll can emit invalidation notices when explicitly enabled', str_contains($verboseLog, 'Ikabud Cache: Cleared'), $verboseLog);
 
 echo "\n";
 echo $fail === 0

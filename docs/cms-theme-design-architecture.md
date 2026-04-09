@@ -157,6 +157,8 @@ For bundled themes, the cleaner native architecture is:
 - optional custom templates only for explicit editor-selected layouts
 - dedicated ecommerce route templates only where the route is not already on the canonical entity/list path
 
+For storefront debugging, remember that those dedicated ecommerce route templates are resolved from the active theme first. If `storage/cms-themes/{slug}/public/ecommerce/order-detail.disyl` or a sibling route template exists, that file is the live rendering source of truth for the storefront route even when the module fallback template under `templates/modules/ecommerce/...` already contains the expected UI.
+
 That keeps native themes traditional in feel without reviving a second CMS route-template family inside the theme.
 
 ---

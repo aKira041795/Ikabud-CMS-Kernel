@@ -106,6 +106,7 @@ function ecApiCheckout(): void
         'guest_email'      => $customerId ? null : ($billing['email'] ?? null),
         'guest_name'       => $customerId ? null : trim(($billing['first_name'] ?? '') . ' ' . ($billing['last_name'] ?? '')),
         'customer_note'    => trim((string)($input['customer_note'] ?? '')),
+        'defer_created_event' => true,
     ];
 
     try {
@@ -117,6 +118,15 @@ function ecApiCheckout(): void
 
     // Clear cart
     ecCartClear();
+
+    try {
+        \Ikabud\Kernel\IntegrationBridge::handle((array)($result['created_event_payload'] ?? []), 'ecommerce.order.created');
+    } catch (\Throwable $e) {
+        write_log('ecApiCheckout inline bridge dispatch failed: ' . $e->getMessage(), 'warning', [
+            'module' => 'ecommerce',
+            'order_id' => (int)$result['order_id'],
+        ]);
+    }
 
     $responseData = [
         'order_id'     => $result['order_id'],
@@ -159,5 +169,31 @@ function ecApiCheckout(): void
         }
     }
 
-    ecJsonOk($responseData, 201);
+    http_response_code(201);
+    header('Content-Type: application/json');
+    $response = json_encode(array_merge(['ok' => true], $responseData), JSON_UNESCAPED_UNICODE);
+    echo $response;
+    release_session_lock_if_active();
+    finish_response_if_possible();
+
+    try {
+        if (function_exists('ecSendAdminOrderNotification')) {
+            ecSendAdminOrderNotification((array)($result['created_event_payload'] ?? []));
+        }
+        if (function_exists('ecSendCustomerOrderConfirmation')) {
+            ecSendCustomerOrderConfirmation((array)($result['created_event_payload'] ?? []));
+        }
+    } catch (\Throwable $e) {
+        write_log('ecApiCheckout deferred order notifications failed: ' . $e->getMessage(), 'warning', [
+            'module' => 'ecommerce',
+            'order_id' => (int)$result['order_id'],
+        ]);
+    }
+
+    exit;
+}
+
+function ecCheckoutApiDeferredEventEnabled(): bool
+{
+    return true;
 }

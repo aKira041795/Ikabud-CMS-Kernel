@@ -638,16 +638,34 @@ Create a new bridge, or perform an action against an existing bridge.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `_action` | string | yes | `toggle` or `promote` |
+| `_action` | string | yes | `toggle`, `promote`, or `validate` |
 | `id` | int | yes | Bridge row id |
 
 **Behavior**:
 
 - Create validates that `mapping_json` is a JSON object.
+- Create and `validate` share the same runtime bridge-definition checks.
 - Create rejects duplicate `(trigger_event, target_capability)` pairs.
 - Create rejects unresolved or unregistered capabilities.
+- Create and `validate` reject mappings that reference unknown event variables when the event declares `available_vars`.
+- Create and `validate` reject bridges that the target capability caller policy would deny for `kernel`.
+- Create and `validate` reject explicit `version_lock` values that do not match the currently resolved capability id.
+- Create and `validate` reject mappings that are missing statically knowable schema-required payload keys.
 - `toggle` flips `is_active` and records a kernel audit entry.
 - `promote` converts the bridge mapping into a Kernel Trigger rule and marks the bridge `event_source` as `promoted`.
+
+**Example Validate Response**:
+
+```json
+{
+  "ok": true,
+  "resolved_capability": "wms.stock.reserve@1",
+  "available_vars": ["order", "order.id", "order.items", "idempotency_key"],
+  "mapping_vars": ["order.id", "order.items", "idempotency_key"],
+  "version_lock": "wms.stock.reserve@1",
+  "request_id": "7bc713fa67204c87"
+}
+```
 
 **Example Create Response**:
 

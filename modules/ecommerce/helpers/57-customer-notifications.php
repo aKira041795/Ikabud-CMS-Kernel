@@ -9,7 +9,8 @@ declare(strict_types=1);
 // customer who placed the order.
 // ─────────────────────────────────────────────────────────────────────────
 
-app()->events()->listen('ecommerce.order.created', function (array $payload) {
+function ecSendCustomerOrderConfirmation(array $payload): void
+{
     if (!function_exists('sendEmail')) {
         return;
     }
@@ -137,4 +138,8 @@ app()->events()->listen('ecommerce.order.created', function (array $payload) {
             'order_id' => $orderId,
         ]);
     }
+}
+
+app()->events()->listen('ecommerce.order.created', function (array $payload) {
+    ecSendCustomerOrderConfirmation($payload);
 });

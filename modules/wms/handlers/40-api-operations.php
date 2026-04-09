@@ -278,6 +278,20 @@ function wmsApiOrderDeliver(array $params = []): void
     });
 }
 
+function wmsApiOrderCollectPayment(array $params = []): void
+{
+    wmsResponseGuard(function () use ($params): void {
+        $user = wmsRequireAnyRole('admin', 'supervisor');
+        $id = (int)($params['id'] ?? 0);
+        $result = wmsOrderCollectPayment($id, (int)($user['id'] ?? 0), [
+            'payment_method' => trim((string)wmsInput('payment_method', 'pay_on_delivery')),
+            'collected_at' => trim((string)wmsInput('collected_at', '')),
+            'note' => trim((string)wmsInput('note', '')),
+        ]);
+        wmsJsonOk($result);
+    });
+}
+
 function wmsApiOrderCancel(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {

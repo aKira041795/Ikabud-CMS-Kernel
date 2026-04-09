@@ -74,6 +74,10 @@ return [
         'idle_validation_seconds' => max(5, (int) ($_ENV['APP_DB_IDLE_VALIDATION_SECONDS'] ?? 60)),
     ],
 
+    'cache' => [
+        'log_invalidations' => filter_var($_ENV['APP_CACHE_LOG_INVALIDATIONS'] ?? false, FILTER_VALIDATE_BOOL),
+    ],
+
     'crypto' => [
         'control_db_enc_key' => $_ENV['CONTROL_DB_ENC_KEY'] ?? ($_ENV['APP_ENCRYPTION_KEY'] ?? null),
     ],

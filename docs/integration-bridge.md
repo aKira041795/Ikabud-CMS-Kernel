@@ -89,6 +89,10 @@ The bridge uses a simple, deterministic JSON mapping system to translate an Even
 
 The bridge schema is part of the tenant-safe kernel migration set. New tenant databases receive both the base bridge tables and the hardening columns/indexes during request-time kernel migration sync.
 
+### Runtime guardrail
+
+`IntegrationBridge::handle()` is kernel infrastructure even when a module invokes it inline during a request. In practice that means bridge reads and writes to `kernel_integrations` and `kernel_integration_logs` must run under the kernel DB-unguarded scope rather than inheriting the active module's `ModuleDB` restrictions. If that guard is not lifted, real module-driven flows can appear to succeed while the bridge silently skips kernel-table access that still works from standalone kernel or debug entrypoints.
+
 ---
 
 ## Module Manifest Extensions
@@ -117,6 +121,8 @@ The interface allows administrators to:
 5. Review recent execution logs, including request id, correlation id, duration, payloads, and inline capability rejection errors.
 
 The mutating bridge API at `/api/v1/kernel/integrations` now enforces Kernel CSRF validation on `POST` and `DELETE` requests and returns a `request_id` in all JSON responses for operator support and incident correlation.
+
+Bridge draft validation and create now share the same runtime checks. The kernel rejects definitions that reference unknown event variables, violate target capability caller policy for `kernel`, mismatch an explicit `version_lock`, or omit schema-required payload keys that are statically knowable from the mapping.
 
 ---
 

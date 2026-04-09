@@ -35,6 +35,7 @@ class App
     
     private array $config = [];
     private ?PDO $db = null;
+    private ?int $dbTenantTarget = null;
     private ?int $dbLastVerified = null;
     private ?PDO $controlDb = null;
     private ?int $controlDbLastVerified = null;
@@ -835,6 +836,15 @@ class App
      */
     public function db(): PDO
     {
+        $tenantTarget = $this->resolveCurrentTenantDbTarget();
+
+        if ($this->db instanceof PDO) {
+            if (!$this->db->inTransaction() && $tenantTarget !== $this->dbTenantTarget) {
+                $this->db = null;
+                $this->dbLastVerified = null;
+            }
+        }
+
         if ($this->db instanceof PDO) {
             if ($this->db->inTransaction() || !$this->shouldValidateConnection($this->dbLastVerified)) {
                 return $this->db;
@@ -849,6 +859,7 @@ class App
                     'exception' => get_class($e),
                 ]);
                 $this->db = null;
+                $this->dbTenantTarget = null;
                 $this->dbLastVerified = null;
             }
         }
@@ -856,7 +867,7 @@ class App
         if ($this->db === null) {
             $dbConfig = $this->config['database'] ?? [];
 
-            $tenantDbConfig = $this->resolveTenantDatabaseConfig();
+            $tenantDbConfig = $tenantTarget !== null ? $this->resolveTenantDatabaseConfig() : null;
             if (is_array($tenantDbConfig)) {
                 $dbConfig = array_merge($dbConfig, $tenantDbConfig);
             }
@@ -875,6 +886,7 @@ class App
                     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
                 ]
             );
+            $this->dbTenantTarget = $tenantTarget;
             $this->dbLastVerified = time();
         }
         
@@ -1005,6 +1017,7 @@ class App
     public function reconnectDb(): PDO
     {
         $this->db = null;
+        $this->dbTenantTarget = null;
         $this->dbLastVerified = null;
         return $this->db();
     }
@@ -1024,6 +1037,7 @@ class App
         $currentTid = $this->tenant()->current();
         if (PHP_SAPI !== 'cli' && $currentTid !== null && (int)$currentTid === $tenantId) {
             $this->db = null;
+            $this->dbTenantTarget = null;
         }
         unset($this->tenantDbPool[$tenantId]);
         return $this->dbForTenant($tenantId);
@@ -1074,7 +1088,9 @@ class App
     {
         if ($this->cache === null) {
             $this->cache = new Cache(
-                $this->config('paths.cache', STORAGE_PATH . '/cache')
+                $this->config('paths.cache', STORAGE_PATH . '/cache'),
+                0,
+                (bool) $this->config('app.cache.log_invalidations', false)
             );
         }
         
