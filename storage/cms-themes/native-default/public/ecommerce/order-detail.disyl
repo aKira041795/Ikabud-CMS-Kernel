@@ -32,6 +32,42 @@
     <div class="native-order-layout">
         <section class="native-stack">
             <div class="native-storefront-panel">
+                <h2 class="native-panel-title">Order Progress</h2>
+                <div style="display:grid; gap:0.75rem; grid-template-columns:repeat(2, minmax(0, 1fr));">
+                    {foreach ['pending', 'processing', 'shipped', 'delivered'] as stage}
+                    <div style="border:1px solid #e5e7eb; border-radius:16px; padding:0.85rem 0.9rem; background:
+                        {if order.status == stage || (stage == 'pending' && (order.status == 'processing' || order.status == 'shipped' || order.status == 'delivered' || order.status == 'completed')) || (stage == 'processing' && (order.status == 'shipped' || order.status == 'delivered' || order.status == 'completed')) || (stage == 'shipped' && (order.status == 'delivered' || order.status == 'completed')) || (stage == 'delivered' && order.status == 'completed')}
+                        #ecfdf5
+                        {else}
+                        #f8fafc
+                        {/if}; color:
+                        {if order.status == stage || (stage == 'pending' && (order.status == 'processing' || order.status == 'shipped' || order.status == 'delivered' || order.status == 'completed')) || (stage == 'processing' && (order.status == 'shipped' || order.status == 'delivered' || order.status == 'completed')) || (stage == 'shipped' && (order.status == 'delivered' || order.status == 'completed')) || (stage == 'delivered' && order.status == 'completed')}
+                        #047857
+                        {else}
+                        #64748b
+                        {/if};">
+                        <div style="font-size:0.8rem; font-weight:700; text-transform:capitalize;">{stage}</div>
+                    </div>
+                    {/foreach}
+                </div>
+
+                {if order.status_history | count > 0}
+                <div style="margin-top:1.25rem; display:grid; gap:0.9rem;">
+                    {foreach order.status_history as entry}
+                    <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+                        <div style="width:0.65rem; height:0.65rem; border-radius:999px; background:#ea580c; margin-top:0.35rem; flex-shrink:0;"></div>
+                        <div>
+                            <div style="font-size:0.95rem; font-weight:700; text-transform:capitalize; color:#0f172a;">{entry.status}</div>
+                            <div class="native-note">{entry.created_at | date:'M j, Y g:i A'}{if entry.source} • {entry.source | replace:'_':' '}{/if}</div>
+                            {if entry.note}<div style="margin-top:0.2rem; color:#475569;">{entry.note}</div>{/if}
+                        </div>
+                    </div>
+                    {/foreach}
+                </div>
+                {/if}
+            </div>
+
+            <div class="native-storefront-panel">
                 <h2 class="native-panel-title">Items</h2>
                 <div class="native-table-wrap">
                     <table class="native-table">

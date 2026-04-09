@@ -22,6 +22,7 @@
         "ec_shipping_rates",
         "ec_customer_addresses",
         "ec_order_licenses",
+        "ec_order_status_history",
         "rate_limits"
     ],
     "reads_tables": [
@@ -47,7 +48,8 @@
         "modules/ecommerce/database/migrations/008_ec_cms_categories_taxonomy.sql",
         "modules/ecommerce/database/migrations/009_ec_digital_licenses.sql",
         "modules/ecommerce/database/migrations/010_ec_payment_intent_fields.sql",
-        "modules/ecommerce/database/migrations/011_ec_digital_license_delivery.sql"
+        "modules/ecommerce/database/migrations/011_ec_digital_license_delivery.sql",
+        "modules/ecommerce/database/migrations/012_ec_order_status_history.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -134,6 +136,51 @@
                         }
                     }
                 }
+            },
+            {
+                "id": "ecommerce.orders.status.sync@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "status"
+                    ],
+                    "properties": {
+                        "order_id": {
+                            "type": "integer"
+                        },
+                        "order_number": {
+                            "type": "string"
+                        },
+                        "external_reference": {
+                            "type": "string"
+                        },
+                        "status": {
+                            "type": "string"
+                        },
+                        "source": {
+                            "type": "string"
+                        },
+                        "history_key": {
+                            "type": "string"
+                        },
+                        "note": {
+                            "type": "string"
+                        },
+                        "actor_user_id": {
+                            "type": "integer"
+                        },
+                        "wms_order_id": {
+                            "type": "integer"
+                        },
+                        "event": {
+                            "type": "string"
+                        }
+                    }
+                }
             }
         ],
         "depends": [],
@@ -172,6 +219,13 @@
                     "allow_callers": [
                         "ecommerce",
                         "cms"
+                    ]
+                },
+                "ecommerce.orders.status.sync@1": {
+                    "allow_callers": [
+                        "ecommerce",
+                        "wms",
+                        "kernel"
                     ]
                 }
             }
@@ -373,6 +427,13 @@
             "description": "How many products to show per page in the shop."
         },
         {
+            "key": "wms_fulfillment_bridge_enabled",
+            "type": "checkbox",
+            "label": "Enable WMS Fulfillment Bridge",
+            "default": false,
+            "description": "Provision the default ecommerce↔WMS reserve, order-create, cancellation, and fulfillment-sync bridges."
+        },
+        {
             "key": "default_wms_warehouse_id",
             "type": "number",
             "label": "Default WMS Warehouse ID",
@@ -408,6 +469,10 @@
                 "idempotency_key",
                 "order",
                 "order.id",
+                "order.order_number",
+                "order.customer_name",
+                "order.customer_email",
+                "order.created_at",
                 "order.warehouse_id",
                 "order.items"
             ]
@@ -439,6 +504,8 @@
                 "idempotency_key",
                 "order",
                 "order.id",
+                "order.order_number",
+                "order.customer_email",
                 "order.items"
             ]
         },

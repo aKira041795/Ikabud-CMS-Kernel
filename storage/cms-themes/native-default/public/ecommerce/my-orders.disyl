@@ -48,7 +48,7 @@
                             <span class="native-pill native-pill--sale">Processing</span>
                             {elseif o.status == 'shipped'}
                             <span class="native-pill native-pill--muted">Shipped</span>
-                            {elseif o.status == 'completed'}
+                            {elseif o.status == 'delivered' || o.status == 'completed'}
                             <span class="native-pill native-pill--success">Completed</span>
                             {elseif o.status == 'cancelled'}
                             <span class="native-pill native-pill--danger">Cancelled</span>

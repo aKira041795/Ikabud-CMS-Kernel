@@ -39,6 +39,7 @@ $routes = require $routesPath;
 
 $html = '';
 $loginHtml = '';
+$diagnosticsHtml = '';
 $renderError = '';
 
 try {
@@ -78,6 +79,62 @@ try {
     }
 }
 
+try {
+    $diagnosticsHtml = app()->render('modules/wms/admin/diagnostics.disyl', wmsAdminContext(
+        ['id' => 1, 'role' => 'admin', 'source' => 'kernel', 'name' => 'WMS Admin', 'display_name' => 'WMS Admin'],
+        'diagnostics',
+        [
+            'page_title' => 'Diagnostics & Observability',
+            'filters' => [
+                'product_id' => 12,
+                'ecommerce_order_id' => 321,
+                'external_reference' => 'EC-2026-0001',
+            ],
+            'products' => [
+                ['id' => 12, 'sku' => 'SKU-12', 'name' => 'Bridge Product'],
+            ],
+            'bridge_orders' => [
+                [
+                    'id' => 88,
+                    'order_number' => 'WMS-1001',
+                    'external_reference' => 'EC-2026-0001',
+                    'ecommerce_order_id' => 321,
+                    'status' => 'dispatched',
+                    'reserved_qty' => 2,
+                ],
+            ],
+            'reservations' => [
+                [
+                    'ecommerce_order_id' => 321,
+                    'wms_order_number' => 'WMS-1001',
+                    'external_reference' => 'EC-2026-0001',
+                    'sku' => 'SKU-12',
+                    'product_name' => 'Bridge Product',
+                    'location_code' => 'A-01',
+                    'warehouse_name' => 'Main Warehouse',
+                    'qty' => 2,
+                ],
+            ],
+            'trace' => [
+                [
+                    'movement_type' => 'reserved',
+                    'reference_type' => 'order',
+                    'reference_id' => 321,
+                    'product_sku' => 'SKU-12',
+                    'product_name' => 'Bridge Product',
+                    'location_code' => 'A-01',
+                    'qty' => 2,
+                    'created_at' => '2026-04-09 08:00:00',
+                ],
+            ],
+        ]
+    ));
+} catch (Throwable $e) {
+    if ($renderError === '') {
+        $renderError = $e->getMessage();
+    }
+}
+
 echo "\n=== WMS MODULE ===\n";
 
 t('wms manifest parses', is_array($manifest), 'module.json parse failed');
@@ -90,6 +147,7 @@ t('wms routes expose login post', isset($routes['POST']['/wms/auth/login']) && $
 t('wms routes expose dashboard', isset($routes['GET']['/wms']) && $routes['GET']['/wms'] === 'wms:wmsPageDashboard');
 t('wms routes expose stock snapshot api', isset($routes['GET']['/api/v1/wms/stock']) && $routes['GET']['/api/v1/wms/stock'] === 'wms:wmsApiStockSnapshot');
 t('wms routes expose delivery receive api', isset($routes['POST']['/api/v1/wms/deliveries/{id}/receive']) && $routes['POST']['/api/v1/wms/deliveries/{id}/receive'] === 'wms:wmsApiDeliveryReceive');
+t('wms routes expose order deliver api', isset($routes['POST']['/api/v1/wms/orders/{id}/deliver']) && $routes['POST']['/api/v1/wms/orders/{id}/deliver'] === 'wms:wmsApiOrderDeliver');
 
 $capabilityHandlers = wms_capability_handlers();
 t('wms capability handler map includes kernel auth', ($capabilityHandlers['kernel.auth.authenticate@1'] ?? '') === 'wms_cap_kernel_auth_authenticate_1');
@@ -97,6 +155,7 @@ t('wms capability handler map includes stock query', ($capabilityHandlers['wms.s
 t('wms movement types include transfer and reservation flows', in_array('transfer_out', wmsMovementTypes(), true) && in_array('reserved', wmsMovementTypes(), true));
 t('wms dashboard template renders successfully', $renderError === '', $renderError);
 t('wms dashboard render includes key headings', str_contains($html, 'Warehouse Dashboard') && str_contains($html, 'Recent Deliveries') && str_contains($html, 'Recent Movements'));
+t('wms diagnostics render includes reservation proof headings', str_contains($diagnosticsHtml, 'Bridge-Linked WMS Orders') && str_contains($diagnosticsHtml, 'Recent Ecommerce Reservation Trace') && str_contains($diagnosticsHtml, 'Movement Trace'));
 t('wms login render includes WMS branding', str_contains($loginHtml, 'WMS') && str_contains($loginHtml, 'warehouse operations'));
 t('wms login render posts to WMS auth route', str_contains($loginHtml, '/wms/auth/login'));
 

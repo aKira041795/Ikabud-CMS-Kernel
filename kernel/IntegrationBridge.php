@@ -8,6 +8,86 @@ use Throwable;
 
 class IntegrationBridge
 {
+    private static int $activeDepth = 0;
+
+    public static function upsertBridge(array $definition): int
+    {
+        $name = trim((string)($definition['name'] ?? ''));
+        $triggerEvent = trim((string)($definition['trigger_event'] ?? ''));
+        $targetCapability = trim((string)($definition['target_capability'] ?? ''));
+        $eventSource = trim((string)($definition['event_source'] ?? 'eventbus')) ?: 'eventbus';
+        $versionLock = trim((string)($definition['version_lock'] ?? $targetCapability));
+        $isActive = isset($definition['is_active']) ? (int)!empty($definition['is_active']) : 1;
+        $mapping = $definition['mapping'] ?? $definition['mapping_json'] ?? null;
+
+        if ($name === '' || $triggerEvent === '' || $targetCapability === '') {
+            throw new \InvalidArgumentException('Bridge name, trigger_event, and target_capability are required.');
+        }
+
+        if (!is_array($mapping)) {
+            throw new \InvalidArgumentException('Bridge mapping must be an array.');
+        }
+
+        $resolvedCapability = (string)app()->capabilities()->resolve($targetCapability);
+        if (!app()->capabilities()->has($resolvedCapability)) {
+            throw new \RuntimeException('Capability not registered: ' . $targetCapability);
+        }
+
+        $mappingJson = json_encode($mapping, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($mappingJson) || $mappingJson === '') {
+            throw new \RuntimeException('Failed to encode bridge mapping.');
+        }
+
+        $db = app()->db();
+        $existingStmt = $db->prepare('SELECT id FROM kernel_integrations WHERE name = ? LIMIT 1');
+        $existingStmt->execute([$name]);
+        $existingId = (int)($existingStmt->fetchColumn() ?: 0);
+
+        if ($existingId > 0) {
+            $db->prepare(
+                'UPDATE kernel_integrations SET trigger_event = ?, target_capability = ?, mapping_json = ?, is_active = ?, event_source = ?, version_lock = ?, updated_at = NOW() WHERE id = ?'
+            )->execute([
+                $triggerEvent,
+                $targetCapability,
+                $mappingJson,
+                $isActive,
+                $eventSource,
+                $versionLock !== '' ? $versionLock : null,
+                $existingId,
+            ]);
+
+            return $existingId;
+        }
+
+        $db->prepare(
+            'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )->execute([
+            $name,
+            $triggerEvent,
+            $targetCapability,
+            $mappingJson,
+            $isActive,
+            $eventSource,
+            $versionLock !== '' ? $versionLock : null,
+        ]);
+
+        return (int)$db->lastInsertId();
+    }
+
+    public static function deleteBridgesByNames(array $names): int
+    {
+        $names = array_values(array_filter(array_map(static fn(mixed $value): string => trim((string)$value), $names)));
+        if ($names === []) {
+            return 0;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($names), '?'));
+        $stmt = app()->db()->prepare('DELETE FROM kernel_integrations WHERE name IN (' . $placeholders . ')');
+        $stmt->execute($names);
+
+        return (int)$stmt->rowCount();
+    }
+
     public static function hasActiveBridge(string $event, string $targetCapability): bool
     {
         try {
@@ -24,6 +104,17 @@ class IntegrationBridge
 
     public static function handle(array $payload, string $event): void
     {
+        if ($event === '' || str_starts_with($event, 'kernel.database.') || str_starts_with($event, 'integration.result.')) {
+            return;
+        }
+
+        if (self::$activeDepth > 0) {
+            return;
+        }
+
+        self::$activeDepth++;
+
+        try {
         $app = app();
         $db = $app->db();
         $requestId = function_exists('request_id') ? request_id() : null;
@@ -94,6 +185,9 @@ class IntegrationBridge
                 $correlationId,
                 (int)round((microtime(true) - $startedAt) * 1000)
             );
+        }
+        } finally {
+            self::$activeDepth = max(0, self::$activeDepth - 1);
         }
     }
 

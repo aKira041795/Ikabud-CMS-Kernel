@@ -1,6 +1,18 @@
 <?php
 declare(strict_types=1);
 
+$_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'applicationos.test';
+$_SERVER['REQUEST_URI'] = $_SERVER['REQUEST_URI'] ?? '/';
+
+require __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../src/helpers/module-manager.php';
+
+$dispatchDb = app()->db();
+$dispatchRunner = new \Ikabud\Kernel\Database\MigrationRunner($dispatchDb);
+tenantSyncKernelMigrations($dispatchDb);
+$dispatchRunner->migrate('ecommerce');
+$dispatchRunner->migrate('wms');
+
 $pass = 0;
 $fail = 0;
 $errors = [];
@@ -41,6 +53,10 @@ function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string
         . "if (!isset(\$_SERVER['REQUEST_METHOD'])) { \$_SERVER['REQUEST_METHOD'] = 'GET'; }\n"
         . "if (!isset(\$_SERVER['REQUEST_URI'])) { \$_SERVER['REQUEST_URI'] = '/'; }\n"
         . "if (!isset(\$_SERVER['HTTP_HOST'])) { \$_SERVER['HTTP_HOST'] = 'applicationos.test'; }\n"
+        . "\$_GET = [];\n"
+        . "\$__ik_query = parse_url((string) \$_SERVER['REQUEST_URI'], PHP_URL_QUERY);\n"
+        . "if (is_string(\$__ik_query) && \$__ik_query !== '') { parse_str(\$__ik_query, \$_GET); }\n"
+        . "\$_REQUEST = array_merge(\$_REQUEST ?? [], \$_GET);\n"
         . "\$_SERVER['SCRIPT_NAME'] = '/public/index.php';\n"
         . "\$_SERVER['PHP_SELF'] = '/public/index.php';\n"
         . "require {$bootstrap};\n"
@@ -76,6 +92,168 @@ function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string
         'headers' => $headers,
         'raw' => $stdout,
     ];
+}
+
+function seedCustomerOrderTimelineFixture(string $suffix): array
+{
+    $db = app()->db();
+    $customerId = 910000 + random_int(100, 999);
+    $orderNumber = 'EC-DISP-' . strtoupper($suffix);
+    $token = bin2hex(random_bytes(16));
+
+    $statement = $db->prepare(
+        "INSERT INTO ec_orders (order_number, customer_id, guest_email, guest_name, source, status, payment_status, subtotal, discount_amount, tax_amount, shipping_amount, total, currency, coupon_code, customer_note, confirmation_token, placed_by_user_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'web', 'delivered', 'paid', 100.00, 0.00, 0.00, 0.00, 100.00, 'PHP', NULL, '', ?, NULL, NOW(), NOW())"
+    );
+    $statement->execute([$orderNumber, $customerId, 'dispatch-' . $suffix . '@example.com', 'Dispatch Fixture', $token]);
+    $orderId = (int)$db->lastInsertId();
+
+    $statement = $db->prepare(
+        'INSERT INTO ec_order_items (order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL)'
+    );
+    $statement->execute([$orderId, 1, 'Dispatch Fixture Product', 'DISP-' . strtoupper($suffix), 100.00, 1, 100.00]);
+
+    $statement = $db->prepare('INSERT INTO ec_order_meta (order_id, meta_key, meta_value) VALUES (?, ?, ?)');
+    foreach ([
+        ['billing_first_name', 'Dispatch'],
+        ['billing_last_name', 'Fixture'],
+        ['billing_email', 'dispatch-' . $suffix . '@example.com'],
+        ['billing_address_line1', '123 Dispatch St'],
+        ['billing_city', 'Manila'],
+        ['billing_state', 'NCR'],
+        ['billing_postal_code', '1000'],
+        ['billing_country', 'PH'],
+        ['shipping_first_name', 'Dispatch'],
+        ['shipping_last_name', 'Fixture'],
+        ['shipping_address_line1', '123 Dispatch St'],
+        ['shipping_city', 'Manila'],
+        ['shipping_state', 'NCR'],
+        ['shipping_postal_code', '1000'],
+        ['shipping_country', 'PH'],
+    ] as [$metaKey, $metaValue]) {
+        $statement->execute([$orderId, $metaKey, $metaValue]);
+    }
+
+    $statement = $db->prepare(
+        'INSERT INTO ec_order_status_history (order_id, status, source, note, actor_user_id, history_key, meta, created_at) VALUES (?, ?, ?, ?, NULL, ?, NULL, DATE_ADD(NOW(), INTERVAL ? SECOND))'
+    );
+    foreach ([
+        ['pending', 'checkout', 'Order placed.'],
+        ['processing', 'wms_bridge', 'WMS marked the order as picked.'],
+        ['shipped', 'wms_bridge', 'WMS marked the order as dispatched.'],
+        ['delivered', 'wms_bridge', 'WMS marked the order as delivered.'],
+    ] as $index => [$status, $source, $note]) {
+        $statement->execute([$orderId, $status, $source, $note, 'dispatch:' . $suffix . ':' . $status, $index]);
+    }
+
+    return [
+        'order_id' => $orderId,
+        'order_number' => $orderNumber,
+        'customer_id' => $customerId,
+    ];
+}
+
+function cleanupCustomerOrderTimelineFixture(array $fixture): void
+{
+    $orderId = (int)($fixture['order_id'] ?? 0);
+    if ($orderId <= 0) {
+        return;
+    }
+
+    $db = app()->db();
+    foreach ([
+        'DELETE FROM ec_order_status_history WHERE order_id = ?',
+        'DELETE FROM ec_order_licenses WHERE order_id = ?',
+        'DELETE FROM ec_order_items WHERE order_id = ?',
+        'DELETE FROM ec_order_meta WHERE order_id = ?',
+        'DELETE FROM ec_payment_transactions WHERE order_id = ?',
+        'DELETE FROM ec_orders WHERE id = ?',
+    ] as $sql) {
+        $statement = $db->prepare($sql);
+        $statement->execute([$orderId]);
+    }
+}
+
+function seedWmsDiagnosticsFixture(string $suffix): array
+{
+    $db = app()->db();
+    $warehouseCode = 'WDG-' . strtoupper($suffix);
+    $locationCode = 'WDGL-' . strtoupper($suffix);
+    $sku = 'WDG-SKU-' . strtoupper($suffix);
+    $externalReference = 'EC-DIAG-' . strtoupper($suffix);
+    $ecommerceOrderId = 920000 + random_int(100, 999);
+
+    $statement = $db->prepare('INSERT INTO wms_warehouses (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())');
+    $statement->execute([$warehouseCode, 'Diagnostics Warehouse ' . strtoupper($suffix)]);
+    $warehouseId = (int)$db->lastInsertId();
+
+    $statement = $db->prepare('INSERT INTO wms_locations (warehouse_id, parent_id, code, name, type, sort_order, is_active, created_at, updated_at) VALUES (?, NULL, ?, ?, ?, 0, 1, NOW(), NOW())');
+    $statement->execute([$warehouseId, $locationCode, 'Diagnostics Bin ' . strtoupper($suffix), 'bin']);
+    $locationId = (int)$db->lastInsertId();
+
+    $statement = $db->prepare("INSERT INTO wms_products (sku, barcode, name, description, unit, product_type, is_batch_tracked, is_active, created_at, updated_at) VALUES (?, NULL, ?, '', 'pcs', 'physical', 0, 1, NOW(), NOW())");
+    $statement->execute([$sku, 'Diagnostics Product ' . strtoupper($suffix)]);
+    $productId = (int)$db->lastInsertId();
+
+    $orderNumber = 'WMS-DIAG-' . strtoupper($suffix);
+    $meta = json_encode([
+        'source_module' => 'ecommerce',
+        'ecommerce_order_id' => $ecommerceOrderId,
+        'ecommerce_order_number' => $externalReference,
+        'customer_email' => 'diag-' . $suffix . '@example.com',
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    $statement = $db->prepare('INSERT INTO wms_orders (order_number, external_reference, customer_name, warehouse_id, status, priority, ordered_at, notes, meta, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 100, NOW(), ?, ?, NULL, NOW(), NOW())');
+    $statement->execute([$orderNumber, $externalReference, 'Diagnostics Customer', $warehouseId, 'dispatched', 'Seeded diagnostics fixture', $meta]);
+    $orderId = (int)$db->lastInsertId();
+
+    $statement = $db->prepare('INSERT INTO wms_order_items (order_id, product_id, location_id, batch_id, qty_ordered, qty_reserved, qty_picked, notes, meta, created_at, updated_at) VALUES (?, ?, ?, NULL, 2.0000, 2.0000, 0.0000, ?, NULL, NOW(), NOW())');
+    $statement->execute([$orderId, $productId, $locationId, 'Seeded diagnostics item']);
+
+    $statement = $db->prepare('INSERT INTO wms_movements (movement_type, reference_type, reference_id, product_id, warehouse_id, location_id, batch_id, qty, qty_before, qty_after, unit_cost, notes, actor_user_id, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, NULL, NULL, NOW())');
+    $statement->execute(['reserved', 'order', $ecommerceOrderId, $productId, $warehouseId, $locationId, 2.0000, 10.0000, 8.0000, 'Seeded ecommerce reservation trace']);
+
+    return [
+        'warehouse_id' => $warehouseId,
+        'location_id' => $locationId,
+        'product_id' => $productId,
+        'order_id' => $orderId,
+        'order_number' => $orderNumber,
+        'external_reference' => $externalReference,
+        'ecommerce_order_id' => $ecommerceOrderId,
+        'sku' => $sku,
+    ];
+}
+
+function cleanupWmsDiagnosticsFixture(array $fixture): void
+{
+    $db = app()->db();
+
+    if (!empty($fixture['order_id'])) {
+        $statement = $db->prepare('DELETE FROM wms_order_items WHERE order_id = ?');
+        $statement->execute([(int)$fixture['order_id']]);
+
+        $statement = $db->prepare('DELETE FROM wms_orders WHERE id = ?');
+        $statement->execute([(int)$fixture['order_id']]);
+    }
+
+    if (!empty($fixture['product_id'])) {
+        $statement = $db->prepare('DELETE FROM wms_movements WHERE product_id = ?');
+        $statement->execute([(int)$fixture['product_id']]);
+
+        $statement = $db->prepare('DELETE FROM wms_products WHERE id = ?');
+        $statement->execute([(int)$fixture['product_id']]);
+    }
+
+    if (!empty($fixture['location_id'])) {
+        $statement = $db->prepare('DELETE FROM wms_locations WHERE id = ?');
+        $statement->execute([(int)$fixture['location_id']]);
+    }
+
+    if (!empty($fixture['warehouse_id'])) {
+        $statement = $db->prepare('DELETE FROM wms_warehouses WHERE id = ?');
+        $statement->execute([(int)$fixture['warehouse_id']]);
+    }
 }
 
 echo "\n=== REQUEST DISPATCH ENTRYPOINT ===\n";
@@ -248,6 +426,161 @@ t(
     str_contains($kernelIntegrationsDeleteWithCsrf['body'] ?? '', '"ok":true'),
     $kernelIntegrationsDeleteWithCsrf['raw']
 );
+
+$customerFixture = seedCustomerOrderTimelineFixture(bin2hex(random_bytes(4)));
+
+try {
+    $customerOrdersPage = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/ecommerce/my-orders',
+            'HTTP_HOST' => 'applicationos.test',
+        ],
+        [
+            'id' => $customerFixture['customer_id'],
+            'username' => 'customer.fixture',
+            'name' => 'Customer Fixture',
+            'role' => 'customer',
+            'source' => 'cms',
+        ]
+    );
+    t(
+        'customer my-orders page renders fulfilled bridge-backed order status',
+        ($customerOrdersPage['exit_code'] ?? 1) === 0
+            && str_contains($customerOrdersPage['body'] ?? '', 'My Orders')
+            && str_contains($customerOrdersPage['body'] ?? '', $customerFixture['order_number'])
+            && str_contains($customerOrdersPage['body'] ?? '', 'Completed'),
+        $customerOrdersPage['raw']
+    );
+
+    $customerOrderDetail = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/ecommerce/my-orders/' . $customerFixture['order_id'],
+            'HTTP_HOST' => 'applicationos.test',
+        ],
+        [
+            'id' => $customerFixture['customer_id'],
+            'username' => 'customer.fixture',
+            'name' => 'Customer Fixture',
+            'role' => 'customer',
+            'source' => 'cms',
+        ]
+    );
+    t(
+        'customer order detail renders progress timeline and WMS bridge notes',
+        ($customerOrderDetail['exit_code'] ?? 1) === 0
+            && str_contains($customerOrderDetail['body'] ?? '', 'Order Progress')
+            && str_contains($customerOrderDetail['body'] ?? '', 'WMS marked the order as delivered.')
+            && str_contains($customerOrderDetail['body'] ?? '', 'delivered'),
+        $customerOrderDetail['raw']
+    );
+} finally {
+    cleanupCustomerOrderTimelineFixture($customerFixture);
+}
+
+$wmsDiagnosticsFixture = seedWmsDiagnosticsFixture(bin2hex(random_bytes(4)));
+
+try {
+    $wmsDiagnosticsPage = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/wms/diagnostics?external_reference=' . rawurlencode($wmsDiagnosticsFixture['external_reference']),
+            'HTTP_HOST' => 'applicationos.test',
+        ],
+        [
+            'id' => 51,
+            'username' => 'wms.admin',
+            'name' => 'WMS Admin',
+            'role' => 'admin',
+            'source' => 'wms',
+        ]
+    );
+    t(
+        'wms diagnostics route renders seeded ecommerce-linked proof data',
+        ($wmsDiagnosticsPage['exit_code'] ?? 1) === 0
+            && str_contains($wmsDiagnosticsPage['body'] ?? '', 'Bridge-Linked WMS Orders')
+            && str_contains($wmsDiagnosticsPage['body'] ?? '', $wmsDiagnosticsFixture['order_number'])
+            && str_contains($wmsDiagnosticsPage['body'] ?? '', $wmsDiagnosticsFixture['sku'])
+            && str_contains($wmsDiagnosticsPage['body'] ?? '', $wmsDiagnosticsFixture['external_reference']),
+        $wmsDiagnosticsPage['raw']
+    );
+
+    $missingReference = 'EC-DIAG-MISSING-' . strtoupper(bin2hex(random_bytes(3)));
+    $wmsDiagnosticsMissPage = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/wms/diagnostics?external_reference=' . rawurlencode($missingReference),
+            'HTTP_HOST' => 'applicationos.test',
+        ],
+        [
+            'id' => 51,
+            'username' => 'wms.admin',
+            'name' => 'WMS Admin',
+            'role' => 'admin',
+            'source' => 'wms',
+        ]
+    );
+    t(
+        'wms diagnostics route does not leak unfiltered reservation or trace rows on missing external reference',
+        ($wmsDiagnosticsMissPage['exit_code'] ?? 1) === 0
+            && str_contains($wmsDiagnosticsMissPage['body'] ?? '', 'No bridge-linked WMS orders matched the current filters.')
+            && str_contains($wmsDiagnosticsMissPage['body'] ?? '', 'No ecommerce reservation movements matched the current filters.')
+            && str_contains($wmsDiagnosticsMissPage['body'] ?? '', 'No movement trace rows matched the current filters.')
+            && !str_contains($wmsDiagnosticsMissPage['body'] ?? '', $wmsDiagnosticsFixture['order_number']),
+        $wmsDiagnosticsMissPage['raw']
+    );
+
+    $wmsReservationsApi = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/api/v1/wms/diagnostics/reservations?external_reference=' . rawurlencode($missingReference),
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+        ],
+        [
+            'id' => 51,
+            'username' => 'wms.admin',
+            'name' => 'WMS Admin',
+            'role' => 'admin',
+            'source' => 'wms',
+        ]
+    );
+    $wmsReservationsPayload = json_decode((string)($wmsReservationsApi['body'] ?? ''), true);
+    t(
+        'wms diagnostics reservations api returns an empty list for missing external reference',
+        is_array($wmsReservationsPayload)
+            && ($wmsReservationsPayload['ok'] ?? false) === true
+            && ($wmsReservationsPayload['reservations'] ?? []) === [],
+        $wmsReservationsApi['raw']
+    );
+
+    $wmsTraceApi = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/api/v1/wms/diagnostics/trace?external_reference=' . rawurlencode($missingReference),
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+        ],
+        [
+            'id' => 51,
+            'username' => 'wms.admin',
+            'name' => 'WMS Admin',
+            'role' => 'admin',
+            'source' => 'wms',
+        ]
+    );
+    $wmsTracePayload = json_decode((string)($wmsTraceApi['body'] ?? ''), true);
+    t(
+        'wms diagnostics trace api returns an empty list for missing external reference',
+        is_array($wmsTracePayload)
+            && ($wmsTracePayload['ok'] ?? false) === true
+            && ($wmsTracePayload['trace'] ?? []) === [],
+        $wmsTraceApi['raw']
+    );
+} finally {
+    cleanupWmsDiagnosticsFixture($wmsDiagnosticsFixture);
+}
 
 $entrypointSource = (string)file_get_contents(__DIR__ . '/../public/index.php');
 $securityHeadersCallPos = strpos($entrypointSource, 'SecurityHeaders())->apply();');

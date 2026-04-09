@@ -207,9 +207,14 @@ function wmsPageOnboarding(array $params = []): void
 function wmsPageDiagnostics(array $params = []): void
 {
     $user = wmsRequireAnyRole('admin', 'supervisor');
+    $filters = wmsDiagnosticsFilters();
     echo wmsRender('admin/diagnostics.disyl', wmsAdminContext($user, 'diagnostics', [
         'page_title' => 'Diagnostics & Observability',
         'products' => wmsFetchAll('SELECT id, sku, name FROM wms_products WHERE deleted_at IS NULL AND is_active = 1 ORDER BY name ASC LIMIT 300'),
+        'filters' => $filters,
+        'reservations' => wmsDiagnosticsReservationRows($filters),
+        'bridge_orders' => wmsDiagnosticsBridgeOrders($filters),
+        'trace' => wmsDiagnosticsTraceRows($filters),
     ]));
 }
 

@@ -30,6 +30,7 @@ function ecommerce_capability_handlers(): array
 		'ecommerce.cart.get@1' => 'ec_cap_cart_get_1',
 		'ecommerce.orders.create@1' => 'ec_cap_orders_create_1',
 		'ecommerce.orders.get@1' => 'ec_cap_orders_get_1',
+		'ecommerce.orders.status.sync@1' => 'ec_cap_orders_status_sync_1',
 	];
 }
 

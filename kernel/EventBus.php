@@ -276,6 +276,26 @@ class EventBus
             }
         }
 
+        try {
+            if (
+                class_exists(IntegrationBridge::class)
+                && $event !== ''
+                && !str_starts_with($event, 't.')
+                && !str_starts_with($event, 'kernel.database.')
+                && !str_starts_with($event, 'integration.result.')
+            ) {
+                IntegrationBridge::handle($payload, $event);
+            }
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log("EventBus: integration bridge error on '{$event}': " . $e->getMessage(), 'warning', [
+                    'event' => $event,
+                    'module' => $module,
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        }
+
         return $called;
     }
 

@@ -68,8 +68,16 @@ loadModuleRoutes([
 $suffix = bridgeTestSuffix();
 $cleanup = [
     'reserve_integration_id' => 0,
+    'order_create_integration_id' => 0,
     'release_integration_id' => 0,
+    'cancel_order_integration_id' => 0,
+    'processing_integration_id' => 0,
+    'shipped_integration_id' => 0,
+    'delivered_integration_id' => 0,
     'order_id' => 0,
+    'second_order_id' => 0,
+    'wms_order_id' => 0,
+    'second_wms_order_id' => 0,
     'location_id' => 0,
     'warehouse_id' => 0,
     'product_id' => 0,
@@ -78,12 +86,20 @@ $cleanup = [
 try {
     $db->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (SELECT id FROM kernel_integrations WHERE name IN (?, ?))')->execute([
         'test_bridge_reserve_' . $suffix,
-        'test_bridge_release_' . $suffix,
+        'test_bridge_order_create_' . $suffix,
     ]);
-    $db->prepare('DELETE FROM kernel_integrations WHERE name IN (?, ?)')->execute([
+    $bridgeNames = [
         'test_bridge_reserve_' . $suffix,
+        'test_bridge_order_create_' . $suffix,
         'test_bridge_release_' . $suffix,
-    ]);
+        'test_bridge_cancel_order_' . $suffix,
+        'test_bridge_processing_' . $suffix,
+        'test_bridge_shipped_' . $suffix,
+        'test_bridge_delivered_' . $suffix,
+    ];
+    $placeholders = implode(', ', array_fill(0, count($bridgeNames), '?'));
+    $db->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (SELECT id FROM kernel_integrations WHERE name IN (' . $placeholders . '))')->execute($bridgeNames);
+    $db->prepare('DELETE FROM kernel_integrations WHERE name IN (' . $placeholders . ')')->execute($bridgeNames);
 
     $warehouseCode = 'TBW-' . strtoupper($suffix);
     $locationCode = 'TBL-' . strtoupper($suffix);
@@ -135,6 +151,32 @@ try {
         'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) '
         . 'VALUES (?, ?, ?, ?, 1, ?, ?)'
     )->execute([
+        'test_bridge_order_create_' . $suffix,
+        'ecommerce.order.created',
+        'wms.order.create@1',
+        json_encode([
+            'order_number' => '{{order.order_number}}',
+            'external_reference' => '{{order.order_number}}',
+            'customer_name' => '{{order.customer_name}}',
+            'warehouse_id' => '{{order.warehouse_id}}',
+            'ordered_at' => '{{order.created_at}}',
+            'items' => '{{order.items}}',
+            'meta' => [
+                'source_module' => 'ecommerce',
+                'ecommerce_order_id' => '{{order.id}}',
+                'ecommerce_order_number' => '{{order.order_number}}',
+                'customer_email' => '{{order.customer_email}}',
+            ],
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'eventbus',
+        'wms.order.create@1',
+    ]);
+    $cleanup['order_create_integration_id'] = (int)$db->lastInsertId();
+
+    $db->prepare(
+        'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) '
+        . 'VALUES (?, ?, ?, ?, 1, ?, ?)'
+    )->execute([
         'test_bridge_release_' . $suffix,
         'ecommerce.order.cancelled',
         'wms.stock.release@1',
@@ -144,14 +186,52 @@ try {
     ]);
     $cleanup['release_integration_id'] = (int)$db->lastInsertId();
 
+    $db->prepare(
+        'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) '
+        . 'VALUES (?, ?, ?, ?, 1, ?, ?)'
+    )->execute([
+        'test_bridge_cancel_order_' . $suffix,
+        'ecommerce.order.cancelled',
+        'wms.order.cancel@1',
+        json_encode([
+            'external_reference' => '{{order.order_number}}',
+            'actor_user_id' => '{{actor_user_id}}',
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'eventbus',
+        'wms.order.cancel@1',
+    ]);
+    $cleanup['cancel_order_integration_id'] = (int)$db->lastInsertId();
+
+    foreach ([
+        ['id' => 'processing_integration_id', 'name' => 'test_bridge_processing_' . $suffix, 'event' => 'wms.order.picked', 'status' => 'processing', 'history_key' => 'wms:{{wms_order_id}}:picked', 'note' => 'WMS marked the order as picked.'],
+        ['id' => 'shipped_integration_id', 'name' => 'test_bridge_shipped_' . $suffix, 'event' => 'wms.order.dispatched', 'status' => 'shipped', 'history_key' => 'wms:{{wms_order_id}}:dispatched', 'note' => 'WMS marked the order as dispatched.'],
+        ['id' => 'delivered_integration_id', 'name' => 'test_bridge_delivered_' . $suffix, 'event' => 'wms.order.delivered', 'status' => 'delivered', 'history_key' => 'wms:{{wms_order_id}}:delivered', 'note' => 'WMS marked the order as delivered.'],
+    ] as $statusBridge) {
+        $db->prepare(
+            'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) '
+            . 'VALUES (?, ?, ?, ?, 1, ?, ?)'
+        )->execute([
+            $statusBridge['name'],
+            $statusBridge['event'],
+            'ecommerce.orders.status.sync@1',
+            json_encode([
+                'order_id' => '{{ecommerce_order_id}}',
+                'external_reference' => '{{external_reference}}',
+                'status' => $statusBridge['status'],
+                'source' => 'wms_bridge',
+                'event' => $statusBridge['event'],
+                'wms_order_id' => '{{wms_order_id}}',
+                'history_key' => $statusBridge['history_key'],
+                'note' => $statusBridge['note'],
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'eventbus',
+            'ecommerce.orders.status.sync@1',
+        ]);
+        $cleanup[$statusBridge['id']] = (int)$db->lastInsertId();
+    }
+
     $reserveResults = [];
     $releaseResults = [];
-    app()->events()->listen('ecommerce.order.created', static function (array $payload, string $event): void {
-        \Ikabud\Kernel\IntegrationBridge::handle($payload, $event);
-    }, 100, 'kernel');
-    app()->events()->listen('ecommerce.order.cancelled', static function (array $payload, string $event): void {
-        \Ikabud\Kernel\IntegrationBridge::handle($payload, $event);
-    }, 100, 'kernel');
     app()->events()->listen('integration.result.wms.stock.reserve_v1', static function (array $payload) use (&$reserveResults): void {
         $reserveResults[] = $payload;
     }, 110, 'tests');
@@ -221,6 +301,13 @@ try {
     $movementCount = (int)($movementStmt->fetchColumn() ?: 0);
     t('Single reserve movement created', $movementCount === 1, (string)$movementCount);
 
+    $wmsOrderStmt = $db->prepare('SELECT * FROM wms_orders WHERE external_reference = ? ORDER BY id DESC LIMIT 1');
+    $wmsOrderStmt->execute([(string)($order['order_number'] ?? '')]);
+    $wmsOrder = $wmsOrderStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $cleanup['wms_order_id'] = (int)($wmsOrder['id'] ?? 0);
+    t('WMS order created from checkout bridge', $cleanup['wms_order_id'] > 0, json_encode($wmsOrder));
+    t('WMS order stores ecommerce external reference', (string)($wmsOrder['external_reference'] ?? '') === (string)($order['order_number'] ?? ''), (string)($wmsOrder['external_reference'] ?? ''));
+
     t('Reserve integration result event emitted', !empty($reserveResults));
     if (!empty($reserveResults)) {
         $lastResult = end($reserveResults);
@@ -258,6 +345,10 @@ try {
 
     $cancelled = ecOrderUpdateStatus($cleanup['order_id'], 'cancelled');
     t('ecOrderUpdateStatus cancels the order', $cancelled === true);
+
+    $wmsOrderStmt->execute([(string)($order['order_number'] ?? '')]);
+    $cancelledWmsOrder = $wmsOrderStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    t('Ecommerce cancellation also cancels linked WMS order', (string)($cancelledWmsOrder['status'] ?? '') === 'cancelled', (string)($cancelledWmsOrder['status'] ?? ''));
 
     $stockStmt->execute([$cleanup['product_id'], $cleanup['warehouse_id'], $cleanup['location_id']]);
     $qtyReservedAfterCancel = (float)($stockStmt->fetchColumn() ?: 0);
@@ -303,6 +394,79 @@ try {
     $releaseMovementCountAfterReplay = (int)($releaseMovementStmt->fetchColumn() ?: 0);
     t('Cancel replay does not create duplicate release movement', $releaseMovementCountAfterReplay === 1, (string)$releaseMovementCountAfterReplay);
 
+    $secondOrder = ecOrderCreate([
+        'cart_items' => [[
+            'product_id' => $cleanup['product_id'],
+            'variant_id' => null,
+            'product_title' => 'Bridge Test Product',
+            'sku' => $sku,
+            'price_snapshot' => 100.00,
+            'qty' => 2,
+            'variant_label' => null,
+            'warehouse_id' => $cleanup['warehouse_id'],
+        ]],
+        'subtotal' => 100.00,
+        'discount_amount' => 0.00,
+        'tax_amount' => 0.00,
+        'shipping_amount' => 0.00,
+        'total' => 100.00,
+        'currency' => 'PHP',
+        'coupon_code' => null,
+        'shipping_rate_id' => null,
+        'source' => 'web',
+        'billing' => [
+            'first_name' => 'Bridge',
+            'last_name' => 'Second',
+            'email' => 'bridge-second-' . $suffix . '@example.com',
+            'address_line1' => '123 Test St',
+            'address_line2' => '',
+            'city' => 'Manila',
+            'state' => 'NCR',
+            'postal_code' => '1000',
+            'country' => 'PH',
+            'phone' => '',
+        ],
+        'shipping' => [],
+        'guest_email' => 'bridge-second-' . $suffix . '@example.com',
+        'guest_name' => 'Bridge Second',
+        'customer_note' => '',
+        'placed_by_user_id' => null,
+    ]);
+    $cleanup['second_order_id'] = (int)($secondOrder['order_id'] ?? 0);
+    t('Second ecOrderCreate returns order id', $cleanup['second_order_id'] > 0, (string)$cleanup['second_order_id']);
+
+    $wmsOrderStmt->execute([(string)($secondOrder['order_number'] ?? '')]);
+    $secondWmsOrder = $wmsOrderStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $cleanup['second_wms_order_id'] = (int)($secondWmsOrder['id'] ?? 0);
+    t('Second checkout creates linked WMS order', $cleanup['second_wms_order_id'] > 0, json_encode($secondWmsOrder));
+
+    wmsOrderGeneratePickList($cleanup['second_wms_order_id']);
+    $stockStmt->execute([$cleanup['product_id'], $cleanup['warehouse_id'], $cleanup['location_id']]);
+    $qtyReservedAfterPickList = (float)($stockStmt->fetchColumn() ?: 0);
+    t('Pick-list generation reuses checkout reservation without double-reserving', abs($qtyReservedAfterPickList - 2.0) < 0.0001, (string)$qtyReservedAfterPickList);
+
+    wmsOrderPick($cleanup['second_wms_order_id']);
+    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
+    t('WMS pick syncs ecommerce order to processing', (string)($secondOrderState['status'] ?? '') === 'processing', (string)($secondOrderState['status'] ?? ''));
+    $stockStmt->execute([$cleanup['product_id'], $cleanup['warehouse_id'], $cleanup['location_id']]);
+    $qtyReservedAfterPick = (float)($stockStmt->fetchColumn() ?: 0);
+    t('WMS pick clears checkout reservation via stock movement projection', abs($qtyReservedAfterPick - 0.0) < 0.0001, (string)$qtyReservedAfterPick);
+
+    wmsOrderDispatch($cleanup['second_wms_order_id']);
+    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
+    t('WMS dispatch syncs ecommerce order to shipped', (string)($secondOrderState['status'] ?? '') === 'shipped', (string)($secondOrderState['status'] ?? ''));
+
+    wmsOrderDeliver($cleanup['second_wms_order_id']);
+    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
+    t('WMS delivery syncs ecommerce order to delivered', (string)($secondOrderState['status'] ?? '') === 'delivered', (string)($secondOrderState['status'] ?? ''));
+
+    $historyStatuses = array_map(static fn(array $row): string => (string)($row['status'] ?? ''), (array)($secondOrderState['status_history'] ?? []));
+    t('Customer order history records round-trip statuses', $historyStatuses === ['pending', 'processing', 'shipped', 'delivered'], json_encode($historyStatuses));
+
+    app()->events()->fire('wms.order.picked', wmsOrderBridgeEventPayload($cleanup['second_wms_order_id']), 'wms');
+    $secondOrderState = ecOrderGet($cleanup['second_order_id']);
+    t('Stale WMS picked event does not move delivered order backward', (string)($secondOrderState['status'] ?? '') === 'delivered', (string)($secondOrderState['status'] ?? ''));
+
     $db->prepare('UPDATE kernel_integrations SET version_lock = ? WHERE id = ?')->execute(['wms.stock.reserve@999', $cleanup['reserve_integration_id']]);
     app()->events()->fire('ecommerce.order.created', [
         'order_id' => $cleanup['order_id'] + 100000,
@@ -327,7 +491,7 @@ try {
     t('Version-lock mismatch logs failure', (string)($versionLockLog['status'] ?? '') === 'failed', (string)($versionLockLog['status'] ?? ''));
     t('Version-lock mismatch error is explicit', str_contains((string)($versionLockLog['error_message'] ?? ''), 'version lock mismatch'), (string)($versionLockLog['error_message'] ?? ''));
 } finally {
-    foreach (['reserve_integration_id', 'release_integration_id'] as $integrationKey) {
+    foreach (['reserve_integration_id', 'order_create_integration_id', 'release_integration_id', 'cancel_order_integration_id', 'processing_integration_id', 'shipped_integration_id', 'delivered_integration_id'] as $integrationKey) {
         $integrationId = (int)($cleanup[$integrationKey] ?? 0);
         if ($integrationId <= 0) {
             continue;
@@ -335,12 +499,25 @@ try {
         $db->prepare('DELETE FROM kernel_integration_logs WHERE integration_id = ?')->execute([$integrationId]);
         $db->prepare('DELETE FROM kernel_integrations WHERE id = ?')->execute([$integrationId]);
     }
-    if ($cleanup['order_id'] > 0) {
-        $db->prepare('DELETE FROM ec_order_licenses WHERE order_id = ?')->execute([$cleanup['order_id']]);
-        $db->prepare('DELETE FROM ec_order_items WHERE order_id = ?')->execute([$cleanup['order_id']]);
-        $db->prepare('DELETE FROM ec_order_meta WHERE order_id = ?')->execute([$cleanup['order_id']]);
-        $db->prepare('DELETE FROM ec_payment_transactions WHERE order_id = ?')->execute([$cleanup['order_id']]);
-        $db->prepare('DELETE FROM ec_orders WHERE id = ?')->execute([$cleanup['order_id']]);
+    foreach (['second_wms_order_id', 'wms_order_id'] as $wmsOrderKey) {
+        $wmsOrderId = (int)($cleanup[$wmsOrderKey] ?? 0);
+        if ($wmsOrderId <= 0) {
+            continue;
+        }
+        $db->prepare('DELETE FROM wms_order_items WHERE order_id = ?')->execute([$wmsOrderId]);
+        $db->prepare('DELETE FROM wms_orders WHERE id = ?')->execute([$wmsOrderId]);
+    }
+    foreach (['second_order_id', 'order_id'] as $orderKey) {
+        $orderId = (int)($cleanup[$orderKey] ?? 0);
+        if ($orderId <= 0) {
+            continue;
+        }
+        $db->prepare('DELETE FROM ec_order_status_history WHERE order_id = ?')->execute([$orderId]);
+        $db->prepare('DELETE FROM ec_order_licenses WHERE order_id = ?')->execute([$orderId]);
+        $db->prepare('DELETE FROM ec_order_items WHERE order_id = ?')->execute([$orderId]);
+        $db->prepare('DELETE FROM ec_order_meta WHERE order_id = ?')->execute([$orderId]);
+        $db->prepare('DELETE FROM ec_payment_transactions WHERE order_id = ?')->execute([$orderId]);
+        $db->prepare('DELETE FROM ec_orders WHERE id = ?')->execute([$orderId]);
     }
     if ($cleanup['product_id'] > 0) {
         $db->prepare('DELETE FROM wms_idempotency_keys WHERE movement_id IN (SELECT id FROM wms_movements WHERE product_id = ?)')->execute([$cleanup['product_id']]);

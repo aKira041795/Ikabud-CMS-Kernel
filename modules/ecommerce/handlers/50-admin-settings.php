@@ -134,9 +134,13 @@ function ecAdminSettings(): void
             $settings[$key] = trim((string)$raw);
         }
 
-        saveModuleSettings('ecommerce', $settings);
-
-        $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Settings saved.'];
+        try {
+            ecSyncWmsFulfillmentBridges(!empty($settings['wms_fulfillment_bridge_enabled']));
+            saveModuleSettings('ecommerce', $settings);
+            $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Settings saved.'];
+        } catch (\Throwable $e) {
+            $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Settings were not saved: ' . $e->getMessage()];
+        }
         header('Location: /ecommerce/admin/settings');
         exit;
     }

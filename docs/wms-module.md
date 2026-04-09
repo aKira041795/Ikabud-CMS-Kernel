@@ -787,6 +787,8 @@ All endpoints return JSON. Prefix: `/api/v1/wms/`
 | GET | `/api/v1/wms/configs` | `wmsApiConfigsList` | Module tenant settings |
 | POST | `/api/v1/wms/configs` | `wmsApiConfigsUpdate` | Update module tenant settings |
 | GET | `/api/v1/wms/diagnostics/ping` | `wmsApiDiagnosticsPing` | Verify module heartbeat & DB |
+| GET | `/api/v1/wms/diagnostics/reservations` | `wmsApiDiagnosticsReservations` | Reservation proof rows, filterable by product or ecommerce reference |
+| GET | `/api/v1/wms/diagnostics/trace` | `wmsApiDiagnosticsTrace` | Movement trace rows, filterable by product or ecommerce reference |
 | GET | `/api/v1/wms/financial/valuation` | `wmsApiFinancialValuation` | Current inventory valuation |
 | POST | `/api/v1/wms/webhooks/register` | `wmsApiEventWebhookRegistration` | Bind event webhook |
 | POST | `/api/v1/wms/import/products` | `wmsApiImportProductsCsv` | CSV import for products |
@@ -806,7 +808,7 @@ All endpoints return JSON. Prefix: `/api/v1/wms/`
 | GET | `/wms/tasks` | `wmsPageTasks` | Task queue interface |
 | GET | `/wms/scanner` | `wmsPageScanner` | Mobile scanner interface |
 | GET | `/wms/onboarding` | `wmsPageOnboarding` | First-time CSV onboarding |
-| GET | `/wms/diagnostics` | `wmsPageDiagnostics` | Module diagnostics |
+| GET | `/wms/diagnostics` | `wmsPageDiagnostics` | Ecommerce-linked reservation, order, and movement diagnostics |
 | GET | `/wms/financial` | `wmsPageFinancial` | Valuation and financial reporting |
 
 ---

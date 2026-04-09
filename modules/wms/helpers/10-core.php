@@ -370,7 +370,7 @@ function wmsDeliveryStatuses(): array
 
 function wmsOrderStatuses(): array
 {
-    return ['pending', 'picking', 'picked', 'dispatched', 'cancelled'];
+    return ['pending', 'picking', 'picked', 'dispatched', 'delivered', 'cancelled'];
 }
 
 function wmsCycleCountStatuses(): array
@@ -589,6 +589,24 @@ function wms_cap_wms_order_create_1(mixed $payload, string $capabilityId = '', s
     if (!is_array($payload)) {
         return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
     }
+
+    if (!empty($payload['external_reference'])) {
+        $existing = wmsBridgeOrderRecordByPayload(['external_reference' => (string)$payload['external_reference']]);
+        if ($existing !== null) {
+            return ['ok' => true, 'order_id' => (int)$existing['id'], 'existing' => true];
+        }
+    }
+
+    if (!empty($payload['items']) && is_array($payload['items'])) {
+        foreach ($payload['items'] as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if (!isset($item['qty_ordered']) && isset($item['qty'])) {
+                $payload['items'][$index]['qty_ordered'] = $item['qty'];
+            }
+        }
+    }
     
     // Defer to the operation helper in 30-operations.php
     try {
@@ -600,5 +618,60 @@ function wms_cap_wms_order_create_1(mixed $payload, string $capabilityId = '', s
         return ['ok' => true, 'order_id' => $orderId];
     } catch (Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function wmsBridgeOrderRecordByPayload(array $payload): ?array
+{
+    $wmsOrderId = (int)($payload['wms_order_id'] ?? $payload['order_id'] ?? 0);
+    if ($wmsOrderId > 0) {
+        $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$wmsOrderId]);
+        if ($order !== null) {
+            return $order;
+        }
+    }
+
+    $externalReference = trim((string)($payload['external_reference'] ?? $payload['order_number'] ?? ''));
+    if ($externalReference !== '') {
+        $order = wmsFetchOne('SELECT * FROM wms_orders WHERE external_reference = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1', [$externalReference]);
+        if ($order !== null) {
+            return $order;
+        }
+    }
+
+    $ecommerceOrderId = (int)($payload['ecommerce_order_id'] ?? 0);
+    if ($ecommerceOrderId > 0) {
+        $order = wmsFetchOne(
+            'SELECT * FROM wms_orders WHERE meta LIKE ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1',
+            ['%"ecommerce_order_id":' . $ecommerceOrderId . '%']
+        );
+        if ($order !== null) {
+            return $order;
+        }
+    }
+
+    return null;
+}
+
+function wms_cap_wms_order_cancel_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
+    }
+
+    $order = wmsBridgeOrderRecordByPayload($payload);
+    if ($order === null) {
+        return ['ok' => true, 'missing' => true];
+    }
+
+    if ((string)($order['status'] ?? '') === 'cancelled') {
+        return ['ok' => true, 'order_id' => (int)$order['id'], 'already_cancelled' => true];
+    }
+
+    try {
+        wmsOrderCancel((int)$order['id'], isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null);
+        return ['ok' => true, 'order_id' => (int)$order['id']];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage(), 'order_id' => (int)$order['id']];
     }
 }

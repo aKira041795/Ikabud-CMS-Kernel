@@ -25,6 +25,35 @@
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2 space-y-6">
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 class="font-semibold text-gray-900 mb-4">Order Progress</h2>
+                <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    {foreach ['pending', 'processing', 'shipped', 'delivered'] as stage}
+                    <div class="rounded-xl border px-3 py-3 text-sm
+                        {if order.status == stage || (stage == 'pending' && (order.status == 'processing' || order.status == 'shipped' || order.status == 'delivered')) || (stage == 'processing' && (order.status == 'shipped' || order.status == 'delivered')) || (stage == 'shipped' && order.status == 'delivered')}
+                        border-orange-200 bg-orange-50 text-orange-700
+                        {else}
+                        border-gray-200 bg-gray-50 text-gray-500
+                        {/if}">
+                        <div class="font-semibold capitalize">{stage}</div>
+                    </div>
+                    {/foreach}
+                </div>
+
+                <div class="mt-5 space-y-3">
+                    {foreach order.status_history as entry}
+                    <div class="flex gap-3">
+                        <div class="mt-1 h-2.5 w-2.5 rounded-full bg-orange-500 flex-shrink-0"></div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900 capitalize">{entry.status}</div>
+                            <div class="text-xs text-gray-500">{entry.created_at | date:'M j, Y g:i A'}{if entry.source} • {entry.source | replace:'_':' '}{/if}</div>
+                            {if entry.note}<div class="mt-1 text-sm text-gray-600">{entry.note}</div>{/if}
+                        </div>
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-200">
                     <h2 class="font-semibold text-gray-900">Items</h2>
@@ -134,7 +163,6 @@
                     {/foreach}
                 </div>
             </div>
-            {/if}
             {/if}
         </div>
 

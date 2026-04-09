@@ -37,6 +37,9 @@
                         {if order.status == 'picked'}
                         <button class="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs" onclick="wmsPost('{base_url}/api/v1/wms/orders/{order.id}/dispatch', {})">Dispatch</button>
                         {/if}
+                        {if order.status == 'dispatched'}
+                        <button class="rounded-lg bg-sky-600 text-white px-3 py-1.5 text-xs" onclick="wmsPost('{base_url}/api/v1/wms/orders/{order.id}/deliver', {})">Deliver</button>
+                        {/if}
                     </td>
                 </tr>
                 {/foreach}

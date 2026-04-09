@@ -18,6 +18,150 @@ const EC_ORDER_STATUS_TRANSITIONS = [
     'refunded'   => [],
 ];
 
+const EC_ORDER_STATUS_RANK = [
+    'pending' => 10,
+    'processing' => 20,
+    'shipped' => 30,
+    'delivered' => 40,
+    'cancelled' => 50,
+    'refunded' => 60,
+];
+
+function ecWmsFulfillmentManagedBridgeNames(): array
+{
+    return [
+        'ecommerce_wms_reserve',
+        'ecommerce_wms_order_create',
+        'ecommerce_wms_release',
+        'ecommerce_wms_cancel_order',
+        'wms_ecommerce_processing',
+        'wms_ecommerce_shipped',
+        'wms_ecommerce_delivered',
+    ];
+}
+
+function ecWmsFulfillmentBridgeDefinitions(): array
+{
+    return [
+        [
+            'name' => 'ecommerce_wms_reserve',
+            'trigger_event' => 'ecommerce.order.created',
+            'target_capability' => 'wms.stock.reserve@1',
+            'mapping' => [
+                'reference_type' => 'order',
+                'reference_id' => '{{order.id}}',
+                'items' => '{{order.items}}',
+                'idempotency_key' => '{{idempotency_key}}',
+                'actor_user_id' => '{{actor_user_id}}',
+            ],
+        ],
+        [
+            'name' => 'ecommerce_wms_order_create',
+            'trigger_event' => 'ecommerce.order.created',
+            'target_capability' => 'wms.order.create@1',
+            'mapping' => [
+                'order_number' => '{{order.order_number}}',
+                'external_reference' => '{{order.order_number}}',
+                'customer_name' => '{{order.customer_name}}',
+                'warehouse_id' => '{{order.warehouse_id}}',
+                'ordered_at' => '{{order.created_at}}',
+                'items' => '{{order.items}}',
+                'meta' => [
+                    'source_module' => 'ecommerce',
+                    'ecommerce_order_id' => '{{order.id}}',
+                    'ecommerce_order_number' => '{{order.order_number}}',
+                    'customer_email' => '{{order.customer_email}}',
+                ],
+            ],
+        ],
+        [
+            'name' => 'ecommerce_wms_release',
+            'trigger_event' => 'ecommerce.order.cancelled',
+            'target_capability' => 'wms.stock.release@1',
+            'mapping' => [
+                'reference_type' => 'order',
+                'reference_id' => '{{order.id}}',
+                'items' => '{{order.items}}',
+                'idempotency_key' => '{{idempotency_key}}',
+                'actor_user_id' => '{{actor_user_id}}',
+            ],
+        ],
+        [
+            'name' => 'ecommerce_wms_cancel_order',
+            'trigger_event' => 'ecommerce.order.cancelled',
+            'target_capability' => 'wms.order.cancel@1',
+            'mapping' => [
+                'external_reference' => '{{order.order_number}}',
+                'actor_user_id' => '{{actor_user_id}}',
+            ],
+        ],
+        [
+            'name' => 'wms_ecommerce_processing',
+            'trigger_event' => 'wms.order.picked',
+            'target_capability' => 'ecommerce.orders.status.sync@1',
+            'mapping' => [
+                'order_id' => '{{ecommerce_order_id}}',
+                'external_reference' => '{{external_reference}}',
+                'status' => 'processing',
+                'source' => 'wms_bridge',
+                'event' => 'wms.order.picked',
+                'wms_order_id' => '{{wms_order_id}}',
+                'history_key' => 'wms:{{wms_order_id}}:picked',
+                'note' => 'WMS marked the order as picked.',
+            ],
+        ],
+        [
+            'name' => 'wms_ecommerce_shipped',
+            'trigger_event' => 'wms.order.dispatched',
+            'target_capability' => 'ecommerce.orders.status.sync@1',
+            'mapping' => [
+                'order_id' => '{{ecommerce_order_id}}',
+                'external_reference' => '{{external_reference}}',
+                'status' => 'shipped',
+                'source' => 'wms_bridge',
+                'event' => 'wms.order.dispatched',
+                'wms_order_id' => '{{wms_order_id}}',
+                'history_key' => 'wms:{{wms_order_id}}:dispatched',
+                'note' => 'WMS marked the order as dispatched.',
+            ],
+        ],
+        [
+            'name' => 'wms_ecommerce_delivered',
+            'trigger_event' => 'wms.order.delivered',
+            'target_capability' => 'ecommerce.orders.status.sync@1',
+            'mapping' => [
+                'order_id' => '{{ecommerce_order_id}}',
+                'external_reference' => '{{external_reference}}',
+                'status' => 'delivered',
+                'source' => 'wms_bridge',
+                'event' => 'wms.order.delivered',
+                'wms_order_id' => '{{wms_order_id}}',
+                'history_key' => 'wms:{{wms_order_id}}:delivered',
+                'note' => 'WMS marked the order as delivered.',
+            ],
+        ],
+    ];
+}
+
+function ecSyncWmsFulfillmentBridges(bool $enabled): array
+{
+    if (!class_exists(\Ikabud\Kernel\IntegrationBridge::class)) {
+        throw new RuntimeException('Integration bridge runtime is unavailable.');
+    }
+
+    if (!$enabled) {
+        \Ikabud\Kernel\IntegrationBridge::deleteBridgesByNames(ecWmsFulfillmentManagedBridgeNames());
+        return [];
+    }
+
+    $ids = [];
+    foreach (ecWmsFulfillmentBridgeDefinitions() as $definition) {
+        $ids[] = \Ikabud\Kernel\IntegrationBridge::upsertBridge($definition);
+    }
+
+    return $ids;
+}
+
 /**
  * Create a new order from a validated checkout payload.
  *
@@ -108,7 +252,7 @@ function ecOrderCreate(array $data): array
             }
         }
 
-        $bridgeSnapshot = ecBuildOrderBridgeSnapshot($orderId, $data, $source);
+        $bridgeSnapshot = ecBuildOrderBridgeSnapshot($orderId, $orderNumber, $data, $source);
 
         // Insert address meta
         $addressFields = ['billing_first_name', 'billing_last_name', 'billing_email',
@@ -151,6 +295,12 @@ function ecOrderCreate(array $data): array
                 $metaParams
             );
         }
+
+        ecOrderRecordStatusHistory($orderId, 'pending', [
+            'source' => 'checkout',
+            'history_key' => 'checkout:' . $orderId . ':pending',
+            'meta' => ['source' => $source],
+        ]);
 
         // Payment transaction record
         $db->execute(
@@ -209,13 +359,21 @@ function ecOrderEventIdempotencyKey(int $orderId, string $suffix): string
     return 'order_' . $orderId . '_' . trim($suffix);
 }
 
-function ecBuildOrderBridgeSnapshot(int $orderId, array $data, string $source): array
+function ecBuildOrderBridgeSnapshot(int $orderId, string $orderNumber, array $data, string $source): array
 {
+    $billing = is_array($data['billing'] ?? null) ? $data['billing'] : [];
+    $customerName = trim((string)($billing['first_name'] ?? '') . ' ' . (string)($billing['last_name'] ?? ''));
+    $customerEmail = (string)($data['guest_email'] ?? ($billing['email'] ?? ''));
+
     return [
         'id' => $orderId,
+        'order_number' => $orderNumber,
         'warehouse_id' => ecResolveOrderWarehouseId($data),
         'items' => ecBuildOrderEventItems($data),
         'source' => $source,
+        'created_at' => date('Y-m-d H:i:s'),
+        'customer_name' => $customerName,
+        'customer_email' => $customerEmail,
         'actor_user_id' => isset($data['placed_by_user_id']) ? (int)$data['placed_by_user_id'] : null,
     ];
 }
@@ -232,11 +390,20 @@ function ecOrderBridgeSnapshot(array $order): array
             if (!isset($decoded['items']) || !is_array($decoded['items'])) {
                 $decoded['items'] = [];
             }
+            if (!isset($decoded['order_number'])) {
+                $decoded['order_number'] = (string)($order['order_number'] ?? '');
+            }
             if (!array_key_exists('warehouse_id', $decoded)) {
                 $decoded['warehouse_id'] = 0;
             }
             if (!isset($decoded['source'])) {
                 $decoded['source'] = (string)($order['source'] ?? 'web');
+            }
+            if (!isset($decoded['customer_name'])) {
+                $decoded['customer_name'] = trim((string)($order['billing']['first_name'] ?? '') . ' ' . (string)($order['billing']['last_name'] ?? ''));
+            }
+            if (!isset($decoded['customer_email'])) {
+                $decoded['customer_email'] = (string)($order['customer_email'] ?? $order['guest_email'] ?? '');
             }
 
             return $decoded;
@@ -245,12 +412,16 @@ function ecOrderBridgeSnapshot(array $order): array
 
     return [
         'id' => (int)($order['id'] ?? 0),
+        'order_number' => (string)($order['order_number'] ?? ''),
         'warehouse_id' => (int)ecSettings('default_wms_warehouse_id', 0),
         'items' => ecBuildOrderEventItems([
             'cart_items' => (array)($order['items'] ?? []),
             'warehouse_id' => (int)ecSettings('default_wms_warehouse_id', 0),
         ]),
         'source' => (string)($order['source'] ?? 'web'),
+        'created_at' => (string)($order['created_at'] ?? date('Y-m-d H:i:s')),
+        'customer_name' => trim((string)($order['billing']['first_name'] ?? '') . ' ' . (string)($order['billing']['last_name'] ?? '')),
+        'customer_email' => (string)($order['customer_email'] ?? $order['guest_email'] ?? ''),
         'actor_user_id' => isset($order['placed_by_user_id']) ? (int)$order['placed_by_user_id'] : null,
     ];
 }
@@ -280,6 +451,7 @@ function ecBuildOrderEventItems(array $data): array
         $eventItem = [
             'product_id' => (int)($item['product_id'] ?? 0),
             'qty' => max(1, (int)($item['qty'] ?? 1)),
+            'qty_ordered' => max(1, (int)($item['qty'] ?? 1)),
             'warehouse_id' => $warehouseId,
         ];
 
@@ -355,6 +527,29 @@ function ecOrderHydrateData(array $order): array
         unset($itm);
     }
 
+    if (empty($order['status_history'])) {
+        $order['status_history'] = [[
+            'status' => 'pending',
+            'source' => 'legacy',
+            'note' => null,
+            'actor_user_id' => null,
+            'history_key' => null,
+            'meta' => [],
+            'created_at' => (string)($order['created_at'] ?? date('Y-m-d H:i:s')),
+        ]];
+        if ((string)($order['status'] ?? 'pending') !== 'pending') {
+            $order['status_history'][] = [[
+                'status' => (string)$order['status'],
+                'source' => 'legacy',
+                'note' => null,
+                'actor_user_id' => null,
+                'history_key' => null,
+                'meta' => [],
+                'created_at' => (string)($order['updated_at'] ?? $order['created_at'] ?? date('Y-m-d H:i:s')),
+            ]][0];
+        }
+    }
+
     return $order;
 }
 
@@ -419,6 +614,35 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
                FROM ec_order_licenses WHERE order_id = ? ORDER BY id ASC",
             [$id]
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        try {
+            $historyRows = $db->query(
+                'SELECT status, source, note, actor_user_id, history_key, meta, created_at FROM ec_order_status_history WHERE order_id = ? ORDER BY created_at ASC, id ASC',
+                [$id]
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            $historyRows = [];
+        }
+
+        $order['status_history'] = array_map(static function (array $row): array {
+            $meta = [];
+            if (!empty($row['meta'])) {
+                $decoded = json_decode((string)$row['meta'], true);
+                if (is_array($decoded)) {
+                    $meta = $decoded;
+                }
+            }
+
+            return [
+                'status' => (string)($row['status'] ?? ''),
+                'source' => (string)($row['source'] ?? ''),
+                'note' => $row['note'] ?? null,
+                'actor_user_id' => isset($row['actor_user_id']) ? (int)$row['actor_user_id'] : null,
+                'history_key' => $row['history_key'] ?? null,
+                'meta' => $meta,
+                'created_at' => (string)($row['created_at'] ?? ''),
+            ];
+        }, $historyRows);
 
         return ecOrderHydrateData($order);
     } catch (\Throwable $e) {
@@ -493,12 +717,35 @@ function ecOrderList(array $filters = []): array
  */
 function ecOrderUpdateStatus(int $orderId, string $newStatus, ?string $note = null): bool
 {
+    return ecOrderUpdateStatusWithOptions($orderId, $newStatus, $note, []);
+}
+
+function ecOrderUpdateStatusWithOptions(int $orderId, string $newStatus, ?string $note = null, array $options = []): bool
+{
     $order = ecOrderGet($orderId);
     if (!$order) {
         return false;
     }
 
-    $current  = $order['status'];
+    $current  = (string)$order['status'];
+    $source = trim((string)($options['source'] ?? 'ecommerce_admin')) ?: 'ecommerce_admin';
+    $historyKey = trim((string)($options['history_key'] ?? ''));
+    $actorUserId = isset($options['actor_user_id']) && (int)$options['actor_user_id'] > 0 ? (int)$options['actor_user_id'] : null;
+    $meta = is_array($options['meta'] ?? null) ? $options['meta'] : [];
+
+    if ($current === $newStatus) {
+        if ($historyKey !== '') {
+            ecOrderRecordStatusHistory($orderId, $newStatus, [
+                'source' => $source,
+                'note' => $note,
+                'actor_user_id' => $actorUserId,
+                'history_key' => $historyKey,
+                'meta' => $meta,
+            ]);
+        }
+        return true;
+    }
+
     $allowed  = EC_ORDER_STATUS_TRANSITIONS[$current] ?? [];
     if (!in_array($newStatus, $allowed, true)) {
         return false;
@@ -514,6 +761,14 @@ function ecOrderUpdateStatus(int $orderId, string $newStatus, ?string $note = nu
             [$orderId, $note]
         );
     }
+
+    ecOrderRecordStatusHistory($orderId, $newStatus, [
+        'source' => $source,
+        'note' => $note,
+        'actor_user_id' => $actorUserId,
+        'history_key' => $historyKey,
+        'meta' => $meta,
+    ]);
 
     // Fire status-specific events
     $eventKey = match ($newStatus) {
@@ -537,6 +792,112 @@ function ecOrderUpdateStatus(int $orderId, string $newStatus, ?string $note = nu
     }
 
     return true;
+}
+
+function ecOrderRecordStatusHistory(int $orderId, string $status, array $options = []): void
+{
+    $source = trim((string)($options['source'] ?? 'system')) ?: 'system';
+    $note = array_key_exists('note', $options) && $options['note'] !== null ? trim((string)$options['note']) : null;
+    $actorUserId = isset($options['actor_user_id']) && (int)$options['actor_user_id'] > 0 ? (int)$options['actor_user_id'] : null;
+    $historyKey = trim((string)($options['history_key'] ?? ''));
+    $meta = is_array($options['meta'] ?? null) ? $options['meta'] : [];
+
+    ecDb()->execute(
+        'INSERT INTO ec_order_status_history (order_id, status, source, note, actor_user_id, history_key, meta, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)',
+        [
+            $orderId,
+            $status,
+            $source,
+            $note,
+            $actorUserId,
+            $historyKey !== '' ? $historyKey : null,
+            $meta !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+        ]
+    );
+}
+
+function ecOrderFindByNumber(string $orderNumber): ?array
+{
+    $orderNumber = trim($orderNumber);
+    if ($orderNumber === '') {
+        return null;
+    }
+
+    $orderId = (int)(ecDb()->query('SELECT id FROM ec_orders WHERE order_number = ? LIMIT 1', [$orderNumber])->fetchColumn() ?: 0);
+    return $orderId > 0 ? ecOrderGet($orderId) : null;
+}
+
+function ecOrderStatusRank(string $status): int
+{
+    return EC_ORDER_STATUS_RANK[$status] ?? 0;
+}
+
+function ecCapResolveOrderForStatusSync(array $payload): ?array
+{
+    $orderId = (int)($payload['order_id'] ?? 0);
+    if ($orderId > 0) {
+        $order = ecOrderGet($orderId);
+        if ($order !== null) {
+            return $order;
+        }
+    }
+
+    $externalReference = trim((string)($payload['external_reference'] ?? $payload['order_number'] ?? ''));
+    if ($externalReference !== '') {
+        $order = ecOrderFindByNumber($externalReference);
+        if ($order !== null) {
+            return $order;
+        }
+    }
+
+    return null;
+}
+
+function ec_cap_orders_status_sync_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
+    }
+
+    $status = trim((string)($payload['status'] ?? ''));
+    if (!isset(EC_ORDER_STATUS_RANK[$status])) {
+        return ['ok' => false, 'error' => 'Unsupported status: ' . $status];
+    }
+
+    $order = ecCapResolveOrderForStatusSync($payload);
+    if ($order === null) {
+        return ['ok' => false, 'error' => 'Order not found for status sync.'];
+    }
+
+    $currentStatus = (string)($order['status'] ?? 'pending');
+    if (ecOrderStatusRank($currentStatus) > ecOrderStatusRank($status)) {
+        return [
+            'ok' => true,
+            'ignored' => true,
+            'reason' => 'stale',
+            'order_id' => (int)$order['id'],
+            'current_status' => $currentStatus,
+        ];
+    }
+
+    $updated = ecOrderUpdateStatusWithOptions((int)$order['id'], $status, isset($payload['note']) ? (string)$payload['note'] : null, [
+        'source' => trim((string)($payload['source'] ?? 'wms_bridge')) ?: 'wms_bridge',
+        'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
+        'history_key' => trim((string)($payload['history_key'] ?? '')),
+        'meta' => [
+            'event' => (string)($payload['event'] ?? ''),
+            'wms_order_id' => (int)($payload['wms_order_id'] ?? 0),
+            'external_reference' => (string)($payload['external_reference'] ?? ''),
+        ],
+    ]);
+
+    if (!$updated) {
+        return ['ok' => false, 'error' => 'Status transition rejected.', 'order_id' => (int)$order['id'], 'current_status' => $currentStatus];
+    }
+
+    return ['ok' => true, 'order_id' => (int)$order['id'], 'status' => $status];
 }
 
 /**

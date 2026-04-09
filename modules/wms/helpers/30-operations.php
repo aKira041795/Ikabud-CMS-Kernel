@@ -360,6 +360,62 @@ function wmsOrderCreate(array $data): int
     }
 }
 
+function wmsOrderBridgeEventPayload(int $orderId, ?array $order = null, ?string $status = null): array
+{
+    $order = $order ?? wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$orderId]) ?? [];
+    $meta = [];
+    $rawMeta = (string)($order['meta'] ?? '');
+    if ($rawMeta !== '') {
+        $decoded = json_decode($rawMeta, true);
+        if (is_array($decoded)) {
+            $meta = $decoded;
+        }
+    }
+
+    return [
+        'order_id' => $orderId,
+        'wms_order_id' => $orderId,
+        'order_number' => (string)($order['order_number'] ?? ''),
+        'external_reference' => (string)($order['external_reference'] ?? ''),
+        'warehouse_id' => (int)($order['warehouse_id'] ?? 0),
+        'customer_name' => (string)($order['customer_name'] ?? ''),
+        'status' => $status ?? (string)($order['status'] ?? ''),
+        'ecommerce_order_id' => (int)($meta['ecommerce_order_id'] ?? 0),
+        'ecommerce_order_number' => (string)($meta['ecommerce_order_number'] ?? ($order['external_reference'] ?? '')),
+        'meta' => $meta,
+    ];
+}
+
+function wmsOrderBridgeReservationCandidate(array $order, array $item, float $requiredQty): ?array
+{
+    $rawMeta = (string)($order['meta'] ?? '');
+    if ($rawMeta === '') {
+        return null;
+    }
+
+    $meta = json_decode($rawMeta, true);
+    if (!is_array($meta)) {
+        return null;
+    }
+
+    $ecommerceOrderId = (int)($meta['ecommerce_order_id'] ?? 0);
+    if ($ecommerceOrderId <= 0) {
+        return null;
+    }
+
+    return wmsFetchOne(
+        'SELECT m.location_id, m.batch_id, m.qty, l.code AS location_code, b.batch_number
+         FROM wms_movements m
+         INNER JOIN wms_locations l ON l.id = m.location_id
+         LEFT JOIN wms_batches b ON b.id = m.batch_id
+         WHERE m.reference_type = ? AND m.reference_id = ? AND m.movement_type = ?
+           AND m.product_id = ? AND m.warehouse_id = ? AND m.qty >= ?
+         ORDER BY m.created_at ASC, m.id ASC
+         LIMIT 1',
+        ['order', $ecommerceOrderId, 'reserved', (int)$item['product_id'], (int)$order['warehouse_id'], $requiredQty]
+    );
+}
+
 function wmsOrderGeneratePickList(int $orderId): array
 {
     $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE', [$orderId]);
@@ -387,6 +443,28 @@ function wmsOrderGeneratePickList(int $orderId): array
         }
 
         $isBatchTracked = (int)($product['is_batch_tracked'] ?? 0) === 1;
+        $bridgeReservation = wmsOrderBridgeReservationCandidate($order, $item, $requiredQty);
+        if ($bridgeReservation !== null) {
+            wmsDb()->execute(
+                'UPDATE wms_order_items SET location_id = ?, batch_id = ?, qty_reserved = ? WHERE id = ?',
+                [
+                    (int)$bridgeReservation['location_id'],
+                    isset($bridgeReservation['batch_id']) ? (int)$bridgeReservation['batch_id'] : null,
+                    $requiredQty,
+                    (int)$item['id'],
+                ]
+            );
+
+            $result[] = array_merge($item, [
+                'location_id' => (int)$bridgeReservation['location_id'],
+                'batch_id' => isset($bridgeReservation['batch_id']) ? (int)$bridgeReservation['batch_id'] : null,
+                'location_code' => (string)($bridgeReservation['location_code'] ?? ''),
+                'batch_number' => (string)($bridgeReservation['batch_number'] ?? ''),
+                'qty_to_pick' => $requiredQty,
+            ]);
+            continue;
+        }
+
         $pick = wmsOrderPickCandidate((int)$item['product_id'], (int)$order['warehouse_id'], $isBatchTracked, $strategy);
         if ($pick === null) {
             if ($isBatchTracked && wmsBatchTrackedStockHasUnbatchedAvailability((int)$item['product_id'], (int)$order['warehouse_id'])) {
@@ -695,6 +773,7 @@ function wmsOrderPick(int $orderId, ?int $actorUserId = null): array
     }
 
     wmsAudit('wms.order.picked', 'wms_orders', (string)$orderId, $order, ['status' => 'picked']);
+    wmsCtx()->fireEvent('wms.order.picked', wmsOrderBridgeEventPayload($orderId, $order, 'picked'));
 
     return [
         'order_id' => $orderId,
@@ -767,7 +846,22 @@ function wmsOrderDispatch(int $orderId, ?int $actorUserId = null): void
 
     wmsDb()->execute('UPDATE wms_orders SET status = ?, dispatched_at = NOW(), updated_at = NOW() WHERE id = ?', ['dispatched', $orderId]);
     wmsAudit('wms.order.dispatched', 'wms_orders', (string)$orderId, $order, ['status' => 'dispatched', 'actor_user_id' => $actorUserId]);
-    wmsCtx()->fireEvent('wms.order.dispatched', ['order_id' => $orderId]);
+    wmsCtx()->fireEvent('wms.order.dispatched', wmsOrderBridgeEventPayload($orderId, $order, 'dispatched'));
+}
+
+function wmsOrderDeliver(int $orderId, ?int $actorUserId = null): void
+{
+    $order = wmsFetchOne('SELECT * FROM wms_orders WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$orderId]);
+    if ($order === null) {
+        throw new RuntimeException('Order not found.');
+    }
+    if ((string)($order['status'] ?? '') !== 'dispatched') {
+        throw new RuntimeException('Only dispatched orders can be delivered.');
+    }
+
+    wmsDb()->execute('UPDATE wms_orders SET status = ?, updated_at = NOW() WHERE id = ?', ['delivered', $orderId]);
+    wmsAudit('wms.order.delivered', 'wms_orders', (string)$orderId, $order, ['status' => 'delivered', 'actor_user_id' => $actorUserId]);
+    wmsCtx()->fireEvent('wms.order.delivered', wmsOrderBridgeEventPayload($orderId, $order, 'delivered'));
 }
 
 function wmsTransferCreate(

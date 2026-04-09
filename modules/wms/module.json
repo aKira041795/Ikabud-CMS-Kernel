@@ -74,6 +74,10 @@
             "description": "Fired when an order is successfully picked."
         },
         {
+            "key": "wms.order.delivered",
+            "description": "Fired when an order is marked as delivered."
+        },
+        {
             "key": "wms.movement.created",
             "description": "Fired after a stock movement is recorded."
         },
@@ -125,6 +129,13 @@
             },
             {
                 "id": "wms.order.create@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "wms.order.cancel@1",
                 "priority": 50,
                 "modes": [
                     "first"

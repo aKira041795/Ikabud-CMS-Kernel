@@ -1,4 +1,158 @@
-<div class="p-6">
-    <h1 class="text-2xl font-bold mb-4">{{ page_title }}</h1>
-    <p>This area is under development.</p>
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">{page_title}</h1>
+        <p class="mt-2 text-sm text-gray-600">Inspect ecommerce-linked reservations, the corresponding WMS fulfillment orders, and recent movement traces from one place.</p>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 class="text-lg font-semibold text-gray-900">Reservation Filters</h2>
+        <form method="GET" action="{base_url}/wms/diagnostics" class="mt-4 grid gap-4 md:grid-cols-4">
+            <label class="block text-sm">
+                <span class="mb-1 block font-medium text-gray-700">Product</span>
+                <select name="product_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <option value="0">All products</option>
+                    {foreach products as product}
+                    <option value="{product.id}" {if filters.product_id == product.id}selected{/if}>{product.sku} - {product.name}</option>
+                    {/foreach}
+                </select>
+            </label>
+            <label class="block text-sm md:col-span-2">
+                <span class="mb-1 block font-medium text-gray-700">Ecommerce Order Reference</span>
+                <input type="text" name="external_reference" value="{filters.external_reference}" placeholder="EC-2026-0001" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            </label>
+            <label class="block text-sm">
+                <span class="mb-1 block font-medium text-gray-700">Ecommerce Order ID</span>
+                <input type="number" min="0" name="ecommerce_order_id" value="{filters.ecommerce_order_id}" placeholder="0" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            </label>
+            <div class="md:col-span-4 flex flex-wrap gap-3">
+                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Apply Filters</button>
+                <a href="{base_url}/wms/diagnostics" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-2">
+        <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div class="border-b border-gray-200 px-5 py-4">
+                <h2 class="text-lg font-semibold text-gray-900">Bridge-Linked WMS Orders</h2>
+                <p class="mt-1 text-sm text-gray-500">Shows warehouse orders carrying ecommerce references in their bridge metadata.</p>
+            </div>
+            {if bridge_orders | count > 0}
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                        <tr>
+                            <th class="px-4 py-3 text-left">WMS Order</th>
+                            <th class="px-4 py-3 text-left">Ecommerce Ref</th>
+                            <th class="px-4 py-3 text-left">Status</th>
+                            <th class="px-4 py-3 text-right">Reserved Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {foreach bridge_orders as order}
+                        <tr>
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-gray-900">{order.order_number}</div>
+                                <div class="text-xs text-gray-500">ID #{order.id}</div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-gray-800">{order.external_reference}</div>
+                                <div class="text-xs text-gray-500">EC ID #{order.ecommerce_order_id}</div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{order.status}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right font-semibold text-gray-900">{order.reserved_qty}</td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+            {else}
+            <div class="px-5 py-6 text-sm text-gray-500">No bridge-linked WMS orders matched the current filters.</div>
+            {/if}
+        </div>
+
+        <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div class="border-b border-gray-200 px-5 py-4">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Ecommerce Reservation Trace</h2>
+                <p class="mt-1 text-sm text-gray-500">Recent `reserved` movements showing the ecommerce order id, product, location, and linked warehouse order.</p>
+            </div>
+            {if reservations | count > 0}
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Order Link</th>
+                            <th class="px-4 py-3 text-left">Product</th>
+                            <th class="px-4 py-3 text-left">Location</th>
+                            <th class="px-4 py-3 text-right">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {foreach reservations as row}
+                        <tr>
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-gray-900">EC #{row.ecommerce_order_id}</div>
+                                <div class="text-xs text-gray-500">{row.wms_order_number} → {row.external_reference}</div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-gray-900">{row.sku}</div>
+                                <div class="text-xs text-gray-500">{row.product_name}</div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-gray-900">{row.location_code}</div>
+                                <div class="text-xs text-gray-500">{row.warehouse_name}</div>
+                            </td>
+                            <td class="px-4 py-3 text-right font-semibold text-gray-900">{row.qty}</td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+            {else}
+            <div class="px-5 py-6 text-sm text-gray-500">No ecommerce reservation movements matched the current filters.</div>
+            {/if}
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div class="border-b border-gray-200 px-5 py-4">
+            <h2 class="text-lg font-semibold text-gray-900">Movement Trace</h2>
+            <p class="mt-1 text-sm text-gray-500">Use the filters above to focus on a product or ecommerce order and inspect the latest movements.</p>
+        </div>
+        {if trace | count > 0}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Type</th>
+                        <th class="px-4 py-3 text-left">Reference</th>
+                        <th class="px-4 py-3 text-left">Product</th>
+                        <th class="px-4 py-3 text-left">Location</th>
+                        <th class="px-4 py-3 text-right">Qty</th>
+                        <th class="px-4 py-3 text-left">Created</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach trace as row}
+                    <tr>
+                        <td class="px-4 py-3"><span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{row.movement_type}</span></td>
+                        <td class="px-4 py-3 text-gray-700">{row.reference_type} #{row.reference_id}</td>
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-gray-900">{row.product_sku}</div>
+                            <div class="text-xs text-gray-500">{row.product_name}</div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-700">{row.location_code}</td>
+                        <td class="px-4 py-3 text-right font-semibold text-gray-900">{row.qty}</td>
+                        <td class="px-4 py-3 text-gray-500">{row.created_at}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="px-5 py-6 text-sm text-gray-500">No movement trace rows matched the current filters.</div>
+        {/if}
+    </div>
 </div>

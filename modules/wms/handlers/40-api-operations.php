@@ -269,6 +269,15 @@ function wmsApiOrderDispatch(array $params = []): void
     });
 }
 
+function wmsApiOrderDeliver(array $params = []): void
+{
+    wmsResponseGuard(function () use ($params): void {
+        $user = wmsRequireAnyRole('admin', 'supervisor');
+        wmsOrderDeliver((int)($params['id'] ?? 0), (int)($user['id'] ?? 0));
+        wmsJsonOk(['id' => (int)($params['id'] ?? 0)]);
+    });
+}
+
 function wmsApiOrderCancel(array $params = []): void
 {
     wmsResponseGuard(function () use ($params): void {
