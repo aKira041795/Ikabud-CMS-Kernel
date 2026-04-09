@@ -1538,6 +1538,85 @@ switch ($handler) {
                 exit;
             }
 
+            
+            if ($action === 'apply_mode') {
+                $mode = (string)($input['mode'] ?? '');
+                if (!in_array($mode, ['wms_authoritative_products', 'ecommerce_authoritative_products', 'decoupled'], true)) {
+                    app()->json(['ok' => false, 'error' => 'Invalid integration mode', 'request_id' => request_id()], 400);
+                    exit;
+                }
+
+                $db->beginTransaction();
+                try {
+                    $db->query("DELETE FROM kernel_integrations WHERE integration_mode IN ('wms_authoritative_products', 'ecommerce_authoritative_products')");
+
+                    $defaultMappings = [];
+                    if ($mode === 'wms_authoritative_products') {
+                        $defaultMappings = [
+                            [
+                                'name' => 'WMS ↔ Ecommerce Order Sync',
+                                'trigger_event' => 'ecommerce.order.created',
+                                'target_capability' => 'wms.order.create@1',
+                                'mapping_json' => '{"external_reference":"{{order.id}}","items":"{{order.items}}"}',
+                            ],
+                            [
+                                'name' => 'WMS ↔ Ecommerce Order Cancel',
+                                'trigger_event' => 'ecommerce.order.cancelled',
+                                'target_capability' => 'wms.order.cancel@1',
+                                'mapping_json' => '{"external_reference":"{{order.id}}"}',
+                            ],
+                            [
+                                'name' => 'WMS ↔ Ecommerce Stock Alert',
+                                'trigger_event' => 'wms.stock.low',
+                                'target_capability' => 'ecommerce.product.stock_alert',
+                                'mapping_json' => '{"product":"{{items.0.sku}}","alert":"low_stock"}',
+                            ],
+                            [
+                                'name' => 'WMS → Ecommerce Product Update',
+                                'trigger_event' => 'wms.product.updated',
+                                'target_capability' => 'ecommerce.product.upsert@1',
+                                'mapping_json' => '{"id":"{{sku}}","title":"{{name}}","price":"{{default_price}}"}',
+                            ]
+                        ];
+                    } elseif ($mode === 'ecommerce_authoritative_products') {
+                        $defaultMappings = [
+                            [
+                                'name' => 'Ecommerce → WMS Product Update',
+                                'trigger_event' => 'ecommerce.product.updated',
+                                'target_capability' => 'wms.product.upsert@1',
+                                'mapping_json' => '{"sku":"{{id}}","name":"{{title}}","default_price":"{{price}}"}',
+                            ]
+                        ];
+                    }
+
+                    foreach ($defaultMappings as $m) {
+                        require_once __DIR__ . '/../kernel/IntegrationBridge.php';
+                        $bridge = new \Ikabud\Kernel\IntegrationBridge();
+                        $bridge->upsertBridge([
+                            'name' => $m['name'],
+                            'trigger_event' => $m['trigger_event'],
+                            'target_capability' => $m['target_capability'],
+                            'mapping_json' => $m['mapping_json'],
+                            'is_active' => 1,
+                            'integration_mode' => $mode
+                        ]);
+                    }
+
+                    $bridgeAudit = function($t,$s,$p,$ctx) use($db) {
+                         $stmt = $db->prepare("INSERT INTO system_logs (level, message, context, created_at, tenant_id) VALUES (?, ?, ?, NOW(), ?)");
+                         $stmt->execute(['info', "[$t] " . json_encode($ctx), json_encode($ctx), app()->tenantId()]);
+                    };
+                    $bridgeAudit('kernel.integration.apply_mode', null, null, ['mode' => $mode]);
+                    $db->commit();
+                    app()->json(['ok' => true, 'mode' => $mode, 'request_id' => request_id()]);
+                } catch (\Throwable $e) {
+                    $db->rollBack();
+                    write_log('Failed to apply mode: ' . $e->getMessage(), 'error');
+                    app()->json(['ok' => false, 'error' => $e->getMessage(), 'request_id' => request_id()], 500);
+                }
+                exit;
+            }
+
             if ($action === 'promote') {
                 // Convert a bridge to a full EventTrigger rule
                 $id = (int)($input['id'] ?? 0);

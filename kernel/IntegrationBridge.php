@@ -128,6 +128,7 @@ class IntegrationBridge
         $name = (string)($normalized['name'] ?? '');
         $triggerEvent = (string)($normalized['trigger_event'] ?? '');
         $targetCapability = (string)($normalized['target_capability'] ?? '');
+        $integrationMode = (string)($normalized['integration_mode'] ?? '');
         $eventSource = (string)($normalized['event_source'] ?? 'eventbus');
         $versionLock = $normalized['version_lock'] ?? null;
         $isActive = (int)($normalized['is_active'] ?? 1);
@@ -135,6 +136,7 @@ class IntegrationBridge
 
         return self::withKernelDbUnguarded(static function () use (
             $eventSource,
+            $integrationMode,
             $isActive,
             $mappingJson,
             $name,
@@ -149,7 +151,7 @@ class IntegrationBridge
 
             if ($existingId > 0) {
                 $db->prepare(
-                    'UPDATE kernel_integrations SET trigger_event = ?, target_capability = ?, mapping_json = ?, is_active = ?, event_source = ?, version_lock = ?, updated_at = NOW() WHERE id = ?'
+                    'UPDATE kernel_integrations SET trigger_event = ?, target_capability = ?, mapping_json = ?, is_active = ?, event_source = ?, version_lock = ?, integration_mode = ?, updated_at = NOW() WHERE id = ?'
                 )->execute([
                     $triggerEvent,
                     $targetCapability,
@@ -157,6 +159,7 @@ class IntegrationBridge
                     $isActive,
                     $eventSource,
                     is_string($versionLock) && $versionLock !== '' ? $versionLock : null,
+                    $integrationMode !== '' ? $integrationMode : null,
                     $existingId,
                 ]);
 
@@ -164,7 +167,7 @@ class IntegrationBridge
             }
 
             $db->prepare(
-                'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock, integration_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([
                 $name,
                 $triggerEvent,
@@ -173,6 +176,7 @@ class IntegrationBridge
                 $isActive,
                 $eventSource,
                 is_string($versionLock) && $versionLock !== '' ? $versionLock : null,
+                $integrationMode !== '' ? $integrationMode : null,
             ]);
 
             return (int)$db->lastInsertId();

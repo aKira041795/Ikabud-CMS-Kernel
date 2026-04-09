@@ -9,6 +9,7 @@ function wms_capability_handlers(): array
         'wms.stock.query@1' => 'wms_cap_wms_stock_query_1',
         'wms.stock.reserve@1' => 'wms_cap_wms_stock_reserve_1',
         'wms.stock.release@1' => 'wms_cap_wms_stock_release_1',
+        'wms.product.upsert@1' => 'wms_cap_wms_product_upsert_1',
         'wms.order.create@1' => 'wms_cap_wms_order_create_1',
         'wms.order.cancel@1' => 'wms_cap_wms_order_cancel_1',
     ];

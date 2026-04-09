@@ -148,6 +148,13 @@
                 ]
             },
             {
+                "id": "wms.product.upsert@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
                 "id": "wms.order.create@1",
                 "priority": 50,
                 "modes": [

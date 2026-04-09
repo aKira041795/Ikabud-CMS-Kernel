@@ -118,6 +118,40 @@ final class IntegrationCatalog
         return $this->buildTimelines($executions, $normalizedTimelineLimit);
     }
 
+    /**
+     * Delete executions older than the specified retention period to prevent unbounded trace growth.
+     * Logs count of deleted rows. Returns number of rows deleted.
+     */
+    public function pruneExecutionHistory(int $retentionDays = 30): int
+    {
+        if ($retentionDays < 1) {
+            $retentionDays = 1;
+        }
+        
+        $cutoff = date('Y-m-d H:i:s', time() - ($retentionDays * 86400));
+        
+        try {
+            $stmt = $this->db->prepare('DELETE FROM kernel_trigger_executions WHERE created_at < ?');
+            $stmt->execute([$cutoff]);
+            $deleted = $stmt->rowCount();
+            
+            if ($deleted > 0 && function_exists('write_log')) {
+                write_log("IntegrationCatalog::pruneExecutionHistory removed {$deleted} old trigger execution traces.", 'info', [
+                    'retention_days' => $retentionDays,
+                    'cutoff'       => $cutoff,
+                    'deleted'      => $deleted
+                ]);
+            }
+            
+            return $deleted;
+        } catch (Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log("IntegrationCatalog::pruneExecutionHistory failed: " . $e->getMessage(), 'error');
+            }
+            return 0;
+        }
+    }
+
     private function build(): void
     {
         if ($this->built !== null) {
@@ -581,6 +615,12 @@ final class IntegrationCatalog
         if ($triggerId > 0) {
             $conditions[] = 'trigger_id = :trigger_id';
             $params[':trigger_id'] = $triggerId;
+        }
+        
+        $beforeId = isset($filters['before_id']) ? (int)$filters['before_id'] : 0;
+        if ($beforeId > 0) {
+            $conditions[] = 'id < :before_id';
+            $params[':before_id'] = $beforeId;
         }
 
         if ($conditions !== []) {

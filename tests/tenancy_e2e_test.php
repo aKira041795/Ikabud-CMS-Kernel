@@ -440,6 +440,9 @@ $expectedTenantKernelMigrations = [
     '007_kernel_runtime_tables.sql',
     '010_integration_bridge.sql',
     '011_integration_bridge_hardening.sql',
+    '012_kernel_trigger_execution_history.sql',
+    '013_kernel_trigger_execution_history_module_idx.sql',
+    '014_integration_modes.sql',
 ];
 ok($tenantKernelMigrations === $expectedTenantKernelMigrations, 'Tenant-safe kernel migrations include runtime and bridge kernel tables and exclude control-plane schema');
 
@@ -455,6 +458,16 @@ ok(!in_array('daily-ledger', $cmsProvisionPlan, true), 'CMS tenant plan excludes
 ok(!in_array('guidance', $cmsProvisionPlan, true), 'CMS tenant plan excludes guidance module');
 ok(!in_array('ticketing', $cmsProvisionPlan, true), 'CMS tenant plan excludes ticketing module');
 ok(!in_array('sms', $cmsProvisionPlan, true), 'CMS tenant plan excludes unrelated sms module');
+
+$wmsProvisionPlan = tenantProvisionModulePlan('wms');
+sort($wmsProvisionPlan);
+ok(in_array('wms', $wmsProvisionPlan, true), 'WMS tenant plan includes wms module');
+ok(in_array('anti-spam', $wmsProvisionPlan, true), 'WMS tenant plan includes anti-spam shared module');
+ok(!in_array('ecommerce', $wmsProvisionPlan, true), 'WMS tenant plan excludes ecommerce module by default');
+ok(!in_array('cms', $wmsProvisionPlan, true), 'WMS tenant plan excludes cms module by default');
+ok(!in_array('users', $wmsProvisionPlan, true), 'WMS tenant plan excludes users module by default');
+ok(!in_array('media', $wmsProvisionPlan, true), 'WMS tenant plan excludes media module by default');
+ok(!in_array('search', $wmsProvisionPlan, true), 'WMS tenant plan excludes search module by default');
 
 // ────────────────────────────────────────────────────────────────────
 // Summary

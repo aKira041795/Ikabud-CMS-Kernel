@@ -4,6 +4,11 @@
     "version": "1.0.0",
     "description": "Full CMS with pages, posts, custom content types, media library, and public frontend.",
     "author": "Noah C. Omamalin",
+    "depends": [
+        "users",
+        "media",
+        "search"
+    ],
     "auth_cookie": "cms_token",
     "owns_tables": [
         "cms_content",

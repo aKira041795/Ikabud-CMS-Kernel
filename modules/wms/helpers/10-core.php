@@ -719,3 +719,54 @@ function wms_cap_wms_order_cancel_1(mixed $payload, string $capabilityId = '', s
         return ['ok' => false, 'error' => $e->getMessage(), 'order_id' => (int)$order['id']];
     }
 }
+
+/**
+ * Capability: wms.product.upsert@1
+ * Upserts a product from an external source (like Ecommerce) into WMS.
+ *
+ * Payload:
+ * {
+ *     "sku": "SKU-123",
+ *     "title": "Product Title",
+ *     "barcode": "890123"
+ * }
+ */
+function wms_cap_wms_product_upsert_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Payload must be an object'];
+    }
+
+    $sku = trim((string)($payload['sku'] ?? ''));
+    if ($sku === '') {
+        return ['ok' => false, 'error' => 'Product SKU is required for WMS sync'];
+    }
+
+    $title = trim((string)($payload['title'] ?? $sku));
+    $barcode = trim((string)($payload['barcode'] ?? ''));
+    $type = trim((string)($payload['type'] ?? 'goods'));
+
+    try {
+        $db = app()->modDb('wms');
+        
+        $stmt = $db->prepare('SELECT id FROM wms_products WHERE sku = ? LIMIT 1');
+        $stmt->execute([$sku]);
+        $existingId = $stmt->fetchColumn();
+
+        if ($existingId) {
+            $updateStmt = $db->prepare('UPDATE wms_products SET title = ?, barcode = ?, type = ?, updated_at = NOW() WHERE id = ?');
+            $updateStmt->execute([$title, $barcode, $type, $existingId]);
+            $productId = $existingId;
+            $action = 'updated';
+        } else {
+            $insertStmt = $db->prepare('INSERT INTO wms_products (sku, title, barcode, type, is_active, created_at) VALUES (?, ?, ?, ?, 1, NOW())');
+            $insertStmt->execute([$sku, $title, $barcode, $type]);
+            $productId = $db->lastInsertId();
+            $action = 'created';
+        }
+
+        return ['ok' => true, 'product_id' => $productId, 'sku' => $sku, 'action' => $action];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}

@@ -213,7 +213,7 @@ class EventBus
     {
         $called = 0;
 
-        if ($this->recordHistory) {
+        if ($this->recordHistory && !str_starts_with($event, 'kernel.database.') && !str_starts_with($event, 'integration.result.')) {
             $this->history[] = [
                 'event'    => $event,
                 'payload'  => $payload,
@@ -443,6 +443,7 @@ class EventBus
     {
         $this->listeners = [];
         $this->history = [];
+        $this->recordHistory = false;
         $this->listenerSortDirty = [];
         $this->compiledWildcards = [];
         $this->wildcardsDirty = true;

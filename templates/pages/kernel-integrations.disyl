@@ -75,6 +75,14 @@
         .intg-guidance { grid-template-columns: 1fr; }
         .intg-filter-input { min-width: 0; width: 100%; }
     }
+
+    .mode-selector { display: flex; flex-direction: column; gap: 12px; padding: 20px; }
+    .mode-radio { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; padding: 12px; border: 1px solid var(--border); border-radius: 8px; transition: border-color .15s; }
+    .mode-radio:hover { border-color: var(--primary); }
+    .mode-radio input { margin-top: 2px; }
+    .mode-radio strong { display: block; font-size: 13px; color: var(--text); margin-bottom: 2px; }
+    .mode-radio span { display: block; font-size: 12px; color: var(--text-muted); }
+
 </style>
 {/block}
 
@@ -86,6 +94,47 @@
     </div>
 </div>
 
+
+<!-- Mode Selection -->
+<div class="intg-section">
+    <div class="intg-section-header">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <div>
+            <h2>Data Ownership Modes</h2>
+            <p>Select which module has authority over inventory and product listings.</p>
+        </div>
+    </div>
+    <div class="mode-selector">
+        <label class="mode-radio">
+            <input type="radio" name="intg_mode" value="wms_authoritative_products" checked>
+            <div>
+                <strong>WMS Authoritative (Default)</strong>
+                <span>WMS is the source of truth. Ecommerce acts as the follower. WMS maps its product updates down to the shop.</span>
+            </div>
+        </label>
+        <label class="mode-radio">
+            <input type="radio" name="intg_mode" value="ecommerce_authoritative_products">
+            <div>
+                <strong>Ecommerce Authoritative</strong>
+                <span>Ecommerce handles product listings. WMS acts as the follower, fulfilling orders when requested.</span>
+            </div>
+        </label>
+        <label class="mode-radio">
+            <input type="radio" name="intg_mode" value="decoupled">
+            <div>
+                <strong>Decoupled (Standalone)</strong>
+                <span>Systems are disconnected. You must manage WMS and Ecommerce separately.</span>
+            </div>
+        </label>
+    </div>
+    <div class="intg-form-actions">
+        <button type="button" class="btn-intg-save" id="btn-apply-mode" onclick="applyIntegrationMode()">Apply Global Mode</button>
+        <button type="button" class="btn-intg-secondary" onclick="toggleAdvancedMode()">Toggle Advanced Builder</button>
+    </div>
+    <div class="intg-form-actions"><div id="mode-status" class="intg-status"></div></div>
+</div>
+
+<div id="advanced-mode-container" style="display: none;">
 <!-- Create Integration -->
 <div class="intg-section">
     <div class="intg-section-header">
@@ -174,6 +223,8 @@
             <button class="btn-intg-secondary" type="button" onclick="validateIntegrationDraft()">Validate Draft</button>
         </div>
     </div>
+</div>
+
 </div>
 
 <!-- Integration List -->
@@ -703,5 +754,44 @@ document.addEventListener('DOMContentLoaded', function() {
     updateValidationMeta();
     renderIntegrationFilters();
 });
+
+function toggleAdvancedMode() {
+    var c = document.getElementById('advanced-mode-container');
+    c.style.display = (c.style.display === 'none') ? 'block' : 'none';
+}
+
+async function applyIntegrationMode() {
+    var mode = document.querySelector('input[name="intg_mode"]:checked').value;
+    var btn = document.getElementById('btn-apply-mode');
+    var stat = document.getElementById('mode-status');
+    
+    btn.disabled = true;
+    stat.className = 'intg-status pending';
+    stat.textContent = 'Applying mode...';
+    stat.style.display = 'block';
+
+    try {
+        var res = await fetch(BASE + '/api/v1/kernel/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}' },
+            body: JSON.stringify({ _action: 'apply_mode', mode: mode })
+        });
+        var data = await res.json();
+        if (data.ok) {
+            stat.className = 'intg-status ok';
+            stat.textContent = 'Mode applied successfully. Integrations rebuilt.';
+            setTimeout(function() { window.location.reload(); }, 600);
+        } else {
+            stat.className = 'intg-status err';
+            stat.textContent = 'Failed: ' + (data.error || 'Server error');
+            btn.disabled = false;
+        }
+    } catch (e) {
+        stat.className = 'intg-status err';
+        stat.textContent = 'Network error: ' + e.message;
+        btn.disabled = false;
+    }
+}
+
 </script>
 {/block}

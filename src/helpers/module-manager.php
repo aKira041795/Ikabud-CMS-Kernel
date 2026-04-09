@@ -2141,6 +2141,8 @@ function tenantSafeKernelMigrationFiles(): array
         '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',
         '011_integration_bridge_hardening.sql' => BASE_PATH . '/database/migrations/011_integration_bridge_hardening.sql',
         '012_kernel_trigger_execution_history.sql' => BASE_PATH . '/database/migrations/012_kernel_trigger_execution_history.sql',
+        '013_kernel_trigger_execution_history_module_idx.sql' => BASE_PATH . '/database/migrations/013_kernel_trigger_execution_history_module_idx.sql',
+        '014_integration_modes.sql' => BASE_PATH . '/database/migrations/014_integration_modes.sql',
     ];
 
     $files = [];
@@ -2219,6 +2221,17 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
 
         $manifest = $enabled[$current];
 
+        $moduleDepends = $manifest['depends'] ?? [];
+        if (is_array($moduleDepends)) {
+            foreach ($moduleDepends as $depModuleId) {
+                $depModuleId = trim((string)$depModuleId);
+                if ($depModuleId !== '' && isset($enabled[$depModuleId]) && !isset($selected[$depModuleId])) {
+                    $selected[$depModuleId] = true;
+                    $queue[] = $depModuleId;
+                }
+            }
+        }
+
         $depends = $manifest['capabilities']['depends'] ?? [];
         if (is_array($depends)) {
             foreach ($depends as $capabilityId) {
@@ -2264,27 +2277,6 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
                         $selected[$moduleId] = true;
                         $queue[] = $moduleId;
                         continue 2;
-                    }
-                }
-            }
-
-            $policy = $candidate['capabilities']['policy']['capabilities'] ?? [];
-            if (!is_array($policy)) {
-                continue;
-            }
-            foreach ($policy as $rule) {
-                if (!is_array($rule)) {
-                    continue;
-                }
-                $allowCallers = $rule['allow_callers'] ?? [];
-                if (!is_array($allowCallers)) {
-                    continue;
-                }
-                foreach ($allowCallers as $caller) {
-                    if ((string)$caller === $current) {
-                        $selected[$moduleId] = true;
-                        $queue[] = $moduleId;
-                        continue 3;
                     }
                 }
             }
@@ -2557,6 +2549,8 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
         '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',
         '011_integration_bridge_hardening.sql' => BASE_PATH . '/database/migrations/011_integration_bridge_hardening.sql',
         '012_kernel_trigger_execution_history.sql' => BASE_PATH . '/database/migrations/012_kernel_trigger_execution_history.sql',
+        '013_kernel_trigger_execution_history_module_idx.sql' => BASE_PATH . '/database/migrations/013_kernel_trigger_execution_history_module_idx.sql',
+        '014_integration_modes.sql' => BASE_PATH . '/database/migrations/014_integration_modes.sql',
     ];
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
