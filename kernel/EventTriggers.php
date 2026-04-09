@@ -329,6 +329,93 @@ function kernelCorrelationId(): string
 }
 
 /**
+ * Persist trigger execution history for control-plane traces.
+ * Best-effort only: failures must never block runtime dispatch.
+ *
+ * @param array<string, mixed> $execution
+ */
+function kernelTriggerRecordExecution(array $execution): void
+{
+    try {
+        app()->db()->prepare(
+            'INSERT INTO kernel_trigger_executions '
+            . '(trigger_id, module, event_key, capability_id, provider, status, request_id, correlation_id, external_reference, duration_ms, error_message, event_payload, capability_payload, result_payload, created_at) '
+            . 'VALUES (:trigger_id, :module, :event_key, :capability_id, :provider, :status, :request_id, :correlation_id, :external_reference, :duration_ms, :error_message, :event_payload, :capability_payload, :result_payload, NOW())'
+        )->execute([
+            ':trigger_id' => isset($execution['trigger_id']) ? (int)$execution['trigger_id'] : null,
+            ':module' => trim((string)($execution['module'] ?? '')),
+            ':event_key' => trim((string)($execution['event_key'] ?? '')),
+            ':capability_id' => trim((string)($execution['capability_id'] ?? '')),
+            ':provider' => ($execution['provider'] ?? null) !== null ? trim((string)$execution['provider']) : null,
+            ':status' => trim((string)($execution['status'] ?? 'unknown')) ?: 'unknown',
+            ':request_id' => ($execution['request_id'] ?? null) !== null ? trim((string)$execution['request_id']) : null,
+            ':correlation_id' => ($execution['correlation_id'] ?? null) !== null ? trim((string)$execution['correlation_id']) : null,
+            ':external_reference' => ($execution['external_reference'] ?? null) !== null ? trim((string)$execution['external_reference']) : null,
+            ':duration_ms' => isset($execution['duration_ms']) ? (int)$execution['duration_ms'] : null,
+            ':error_message' => ($execution['error_message'] ?? null) !== null ? (string)$execution['error_message'] : null,
+            ':event_payload' => json_encode($execution['event_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':capability_payload' => json_encode($execution['capability_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':result_payload' => json_encode($execution['result_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+    } catch (Throwable $e) {
+        // Ignore persistence failures: execution logging is additive only.
+    }
+}
+
+function kernelTriggerExtractExternalReference(array $eventPayload, ?array $capabilityPayload = null, mixed $resultPayload = null): ?string
+{
+    $extract = static function (mixed $value, string $path = '') use (&$extract): ?string {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $directKeys = ['external_reference', 'ecommerce_order_number'];
+        foreach ($directKeys as $key) {
+            if (isset($value[$key]) && (is_string($value[$key]) || is_int($value[$key]))) {
+                $candidate = trim((string)$value[$key]);
+                if ($candidate !== '') {
+                    return $candidate;
+                }
+            }
+        }
+
+        if ($path === 'order.' && isset($value['order_number']) && (is_string($value['order_number']) || is_int($value['order_number']))) {
+            $candidate = trim((string)$value['order_number']);
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        foreach ($value as $key => $child) {
+            if (!is_string($key) || !is_array($child)) {
+                continue;
+            }
+
+            $nextPath = $path . $key . '.';
+            if (substr_count($nextPath, '.') > 4) {
+                continue;
+            }
+
+            $found = $extract($child, $nextPath);
+            if (is_string($found) && $found !== '') {
+                return $found;
+            }
+        }
+
+        return null;
+    };
+
+    foreach ([$eventPayload, $capabilityPayload, is_array($resultPayload) ? $resultPayload : null] as $candidate) {
+        $found = $extract($candidate, '');
+        if (is_string($found) && $found !== '') {
+            return $found;
+        }
+    }
+
+    return null;
+}
+
+/**
  * Preview a trigger's resolved payload without executing it.
  * Returns the validation result plus the built payload for operator inspection.
  */
@@ -403,6 +490,22 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
 
         $validation = kernelValidateTriggerConfig($eventKey, $capId, is_string($template) ? $template : null, $meta, isset($trigger['provider']) ? (string)$trigger['provider'] : null);
         if (empty($validation['ok'])) {
+            kernelTriggerRecordExecution([
+                'trigger_id' => $triggerId,
+                'module' => $module !== '' ? $module : '_kernel',
+                'event_key' => $eventKey,
+                'capability_id' => $capId,
+                'provider' => $trigger['provider'] ?? null,
+                'status' => 'skipped_invalid',
+                'request_id' => $requestId,
+                'correlation_id' => $correlationId,
+                'external_reference' => kernelTriggerExtractExternalReference($payload),
+                'duration_ms' => 0,
+                'error_message' => implode('; ', $validation['errors'] ?? []),
+                'event_payload' => $payload,
+                'capability_payload' => null,
+                'result_payload' => ['errors' => $validation['errors'] ?? []],
+            ]);
             write_log("kernelEmitEvent: skipped invalid trigger for '{$eventKey}' -> '{$capId}': " . implode('; ', $validation['errors'] ?? []), 'warning', [
                 'event' => $eventKey,
                 'capability' => $capId,
@@ -426,6 +529,22 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
                 $rlCutoff = date('Y-m-d H:i:s', time() - 60);
 
                 if (is_array($rlRow) && ($rlRow['window_start'] ?? '') >= $rlCutoff && (int)($rlRow['attempts'] ?? 0) >= $maxPerMin) {
+                    kernelTriggerRecordExecution([
+                        'trigger_id' => $triggerId,
+                        'module' => $module !== '' ? $module : '_kernel',
+                        'event_key' => $eventKey,
+                        'capability_id' => $capId,
+                        'provider' => $trigger['provider'] ?? null,
+                        'status' => 'rate_limited',
+                        'request_id' => $requestId,
+                        'correlation_id' => $correlationId,
+                        'external_reference' => kernelTriggerExtractExternalReference($payload),
+                        'duration_ms' => 0,
+                        'error_message' => 'Trigger skipped because max_per_minute limit was reached.',
+                        'event_payload' => $payload,
+                        'capability_payload' => null,
+                        'result_payload' => ['max_per_minute' => $maxPerMin],
+                    ]);
                     write_log('trigger.rate_limited', 'warning', [
                         'correlation_id' => $correlationId,
                         'trigger_id' => $triggerId,
@@ -453,8 +572,9 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
         $t0 = microtime(true);
         $triggerOk = false;
         $triggerError = null;
+        $capResult = null;
         try {
-            app()->cap()->call($capId, $capPayload, [
+            $capResult = app()->cap()->call($capId, $capPayload, [
                 'caller' => $module !== '' ? $module : '_kernel',
                 'correlation_id' => $correlationId,
                 'request_id' => $requestId,
@@ -466,6 +586,22 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
         }
 
         $durationMs = (int)round((microtime(true) - $t0) * 1000);
+        kernelTriggerRecordExecution([
+            'trigger_id' => $triggerId,
+            'module' => $module !== '' ? $module : '_kernel',
+            'event_key' => $eventKey,
+            'capability_id' => $capId,
+            'provider' => $trigger['provider'] ?? null,
+            'status' => $triggerOk ? 'success' : 'failed',
+            'request_id' => $requestId,
+            'correlation_id' => $correlationId,
+            'external_reference' => kernelTriggerExtractExternalReference($payload, $capPayload, $capResult),
+            'duration_ms' => $durationMs,
+            'error_message' => $triggerError,
+            'event_payload' => $payload,
+            'capability_payload' => $capPayload,
+            'result_payload' => $capResult,
+        ]);
         write_log('trigger.execution', $triggerOk ? 'info' : 'error', [
             'correlation_id' => $correlationId,
             'request_id' => $requestId,

@@ -9,6 +9,8 @@ declare(strict_types=1);
 require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 
+use Ikabud\Kernel\Capabilities\CapabilityCatalog;
+
 $pass = 0;
 $fail = 0;
 $errors = [];
@@ -110,6 +112,37 @@ $infoByBase = $registry->inspect('kernel.audit.record');
 t('inspect by base id resolves to @1', ($infoByBase['id'] ?? '') === 'kernel.audit.record@1');
 t('inspect by base id sets requested_id', ($infoByBase['requested_id'] ?? '') === 'kernel.audit.record');
 
+echo "\n=== CAPABILITY CATALOG (MANIFEST + RUNTIME) ===\n";
+
+$catalog = new CapabilityCatalog($registry);
+$catalogSummary = $catalog->summary();
+t('catalog summary includes discovered modules', ($catalogSummary['module_count'] ?? 0) >= 1, 'count=' . ($catalogSummary['module_count'] ?? 0));
+t('catalog summary includes declared capabilities', ($catalogSummary['declared_capability_count'] ?? 0) >= 1, 'count=' . ($catalogSummary['declared_capability_count'] ?? 0));
+
+$declaredWmsCapability = $catalog->inspect('wms.order.create');
+t('catalog resolves manifest-only base id before module load', ($declaredWmsCapability['id'] ?? '') === 'wms.order.create@1');
+t('catalog shows wms manifest provider before module load', ($declaredWmsCapability['declared_provider_count'] ?? 0) >= 1);
+t('catalog marks wms capability as not runtime-registered before module load', empty($declaredWmsCapability['runtime_registered']));
+
+$declaredWmsProviderFound = false;
+foreach (($declaredWmsCapability['declared_providers'] ?? []) as $provider) {
+    if (($provider['module'] ?? '') === 'wms') {
+        $declaredWmsProviderFound = true;
+        break;
+    }
+}
+t('catalog includes wms declared provider metadata', $declaredWmsProviderFound);
+
+$wmsModule = $catalog->module('wms');
+$wmsPaymentEventFound = false;
+foreach (($wmsModule['events'] ?? []) as $event) {
+    if (($event['key'] ?? '') === 'wms.order.payment_collected') {
+        $wmsPaymentEventFound = true;
+        break;
+    }
+}
+t('catalog exposes wms payment-collected event metadata', $wmsPaymentEventFound);
+
 echo "\n=== RENDER CONTEXT PIPELINE ===\n";
 
 $hooks = app()->hooks();
@@ -141,6 +174,11 @@ loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
 
 $allAfterModules = $registry->inspectAll();
 t('more capabilities after module load', count($allAfterModules) >= count($all));
+
+$catalogAfterModules = new CapabilityCatalog($registry);
+$runtimeWmsCapability = $catalogAfterModules->inspect('wms.order.create@1');
+t('catalog marks wms capability as runtime-registered after module load', !empty($runtimeWmsCapability['runtime_registered']));
+t('catalog keeps declared provider metadata after module load', ($runtimeWmsCapability['declared_provider_count'] ?? 0) >= 1);
 
 // Find a module-provided capability
 $moduleProviderFound = false;

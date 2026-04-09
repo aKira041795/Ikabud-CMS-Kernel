@@ -457,20 +457,64 @@ Global audit log endpoint (admin/supervisor only). Returns all auditable actions
 
 ## Capability Introspection & Reliability (Admin)
 
-These endpoints are intended for **admin-only tooling** (internal dashboards, observability, incident response). They all require an **admin** kernel user and must be called over **HTTPS**.
+These endpoints are intended for internal dashboards, observability, and incident response. They require a kernel-scoped **admin** or **superadmin** user and must be called over **HTTPS**.
 
 ### GET /api/v1/admin/capabilities
 
-List all registered capabilities and their providers.
+List the normalized kernel capability catalog, including runtime providers, manifest-declared providers, dependent modules, module summaries, and declared events.
 
 **Response**:
 
 ```json
 {
   "ok": true,
+  "summary": {
+    "module_count": 12,
+    "enabled_module_count": 10,
+    "event_count": 18,
+    "runtime_capability_count": 14,
+    "declared_capability_count": 11,
+    "capability_count": 16
+  },
+  "modules": [
+    {
+      "id": "wms",
+      "name": "Warehouse Management System",
+      "enabled": true,
+      "manifest_path": "modules/wms/module.json",
+      "capabilities": {
+        "exposes_count": 7,
+        "depends_count": 0
+      },
+      "events": [
+        {
+          "key": "wms.order.payment_collected",
+          "available_vars": ["external_reference", "payment_status"]
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "module": "wms",
+      "key": "wms.order.payment_collected",
+      "description": "Fired when payment is collected for a delivered order."
+    }
+  ],
   "capabilities": [
     {
       "id": "kernel.auth.authenticate@1",
+      "runtime_registered": true,
+      "declared_provider_count": 1,
+      "declared_providers": [
+        {
+          "module": "wms",
+          "id": "kernel.auth.authenticate@1",
+          "priority": 550,
+          "modes": ["pipeline"]
+        }
+      ],
+      "dependent_modules": [],
       "providers": [
         {
           "provider": "kernel",
@@ -495,7 +539,7 @@ List all registered capabilities and their providers.
 }
 ```
 
-Use this to drive admin UIs (e.g. showing which modules provide which capabilities).
+Use this to drive admin UIs and control-plane tooling that need both runtime state and manifest-declared capability metadata.
 
 ### GET /api/v1/admin/capabilities/metrics
 
@@ -572,6 +616,197 @@ Reset circuit breaker state for a specific capability/provider pair, or for all 
 
 `cleared` is the number of breaker entries removed.
 
+### GET /api/v1/admin/kernel/events
+
+Return the normalized kernel event catalog used by automation tooling.
+
+**Response**:
+
+```json
+{
+  "ok": true,
+  "summary": {
+    "event_count": 8,
+    "trigger_count": 5,
+    "active_trigger_count": 4,
+    "integration_count": 3
+  },
+  "events": [
+    {
+      "module": "kernel",
+      "module_name": "kernel",
+      "event_key": "workflow.transitioned",
+      "key": "workflow.transitioned",
+      "description": "Workflow transitioned",
+      "available_vars": ["workflow_key", "entity_id", "action"],
+      "registered": true,
+      "trigger_count": 1,
+      "integration_count": 1
+    }
+  ],
+  "request_id": "1fc8b6db8a5f4421"
+}
+```
+
+Use this when you need event metadata plus control-plane usage counts, not just raw rows from `kernel_events`.
+
+### GET /api/v1/admin/kernel/triggers
+
+Return saved automation rules enriched with event and capability metadata.
+
+**Response**:
+
+```json
+{
+  "ok": true,
+  "summary": {
+    "trigger_count": 5,
+    "active_trigger_count": 4,
+    "unregistered_trigger_event_count": 0,
+    "trigger_execution_count": 42
+  },
+  "triggers": [
+    {
+      "id": 44,
+      "module": "kernel",
+      "event_key": "workflow.transitioned",
+      "capability_id": "kernel.audit.record@1",
+      "is_enabled": 1,
+      "priority": 70,
+      "event_registered": true,
+      "available_vars": ["workflow_key", "entity_id", "action"],
+      "resolved_capability": "kernel.audit.record@1",
+      "capability_runtime_registered": true,
+      "capability_provider_count": 1,
+      "capability_declared_provider_count": 0,
+      "last_execution_at": "2026-04-09 11:30:42",
+      "last_execution_status": "success"
+    }
+  ],
+  "request_id": "1fc8b6db8a5f4421"
+}
+```
+
+This endpoint keeps the existing rule rows but adds event-registration and capability-resolution context for safer admin review.
+
+### GET /api/v1/admin/kernel/trigger-executions
+
+Return recent persisted trigger execution history for control-plane tracing.
+
+**Query Parameters**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `module` | string | no | Filter by source module |
+| `event_key` | string | no | Filter by event key |
+| `capability_id` | string | no | Filter by target capability |
+| `status` | string | no | Filter by execution status (`success`, `failed`, `rate_limited`, `skipped_invalid`) |
+| `correlation_id` | string | no | Filter a single event chain |
+| `request_id` | string | no | Filter a single request |
+| `external_reference` | string | no | Filter by stored cross-system reference |
+| `trigger_id` | int | no | Filter a single trigger row |
+| `limit` | int | no | Maximum rows returned, capped at `200` |
+
+**Response**:
+
+```json
+{
+  "ok": true,
+  "summary": {
+    "trigger_execution_count": 42,
+    "failed_trigger_execution_count": 3,
+    "rate_limited_trigger_execution_count": 2
+  },
+  "executions": [
+    {
+      "id": 91,
+      "trigger_id": 44,
+      "module": "kernel",
+      "event_key": "workflow.transitioned",
+      "capability_id": "kernel.http.request_context@1",
+      "status": "success",
+      "request_id": "c7e2cbef1fce8f2b",
+      "correlation_id": "91a4d6723cb83410",
+      "external_reference": "TRACE-4F9A3C21",
+      "resolved_capability": "kernel.http.request_context@1",
+      "capability_runtime_registered": true,
+      "trigger_exists": true,
+      "trigger_enabled": true,
+      "duration_ms": 1,
+      "created_at": "2026-04-09 11:30:42"
+    }
+  ],
+  "request_id": "1fc8b6db8a5f4421"
+}
+```
+
+Use this endpoint for recent trace timelines and request/correlation-driven debugging instead of scraping `app.log` for `trigger.execution` lines.
+
+### GET /api/v1/platform
+
+Return the admin platform dashboard payload with kernel identity, module/runtime summaries, capability overview, and recent automation traces.
+
+**Response**:
+
+```json
+{
+  "ok": true,
+  "platform": {
+    "kernel": {
+      "version": "1.4.0",
+      "codename": "Ikabud"
+    }
+  },
+  "events": {
+    "count": 8
+  },
+  "triggers": {
+    "total": 5,
+    "enabled": 4,
+    "executions": 42,
+    "timelines": 8
+  },
+  "traces": [
+    {
+      "_timestamp": "2026-04-09 11:30:42",
+      "ok": true,
+      "status": "success",
+      "event": "workflow.transitioned",
+      "capability": "kernel.http.request_context@1",
+      "trigger_id": 44,
+      "request_id": "c7e2cbef1fce8f2b",
+      "correlation_id": "91a4d6723cb83410",
+      "external_reference": "TRACE-4F9A3C21",
+      "duration_ms": 1,
+      "module": "kernel",
+      "error": null
+    }
+  ],
+  "trace_timelines": [
+    {
+      "key_type": "external_reference",
+      "key": "TRACE-4F9A3C21",
+      "label": "External Ref TRACE-4F9A3C21",
+      "latest_status": "success",
+      "execution_count": 3,
+      "success_count": 3,
+      "executions": [
+        {
+          "event_key": "workflow.transitioned",
+          "capability_id": "kernel.http.request_context@1",
+          "status": "success",
+          "created_at": "2026-04-09 11:30:42"
+        }
+      ]
+    }
+  ],
+  "request_id": "1fc8b6db8a5f4421",
+  "generated_at": "2026-04-09T11:30:43Z"
+}
+```
+
+`traces` and `trace_timelines` are sourced from persisted `kernel_trigger_executions` history rather than `app.log`, so they remain available even if log retention is short or the log file is cleared.
+
 ---
 
 ## Kernel Integrations (Superadmin)
@@ -591,6 +826,13 @@ Return the current bridge registry plus the most recent execution logs.
 ```json
 {
   "ok": true,
+  "summary": {
+    "integration_count": 3,
+    "active_integration_count": 2,
+    "integration_log_count": 12,
+    "trigger_execution_count": 42,
+    "unresolved_integration_target_count": 0
+  },
   "integrations": [
     {
       "id": 12,
@@ -598,15 +840,30 @@ Return the current bridge registry plus the most recent execution logs.
       "trigger_event": "ecommerce.order.created",
       "target_capability": "wms.stock.reserve@1",
       "mapping_json": "{\"reference_type\":\"order\",\"reference_id\":\"{{order.id}}\",\"items\":\"{{order.items}}\"}",
+      "mapping": {
+        "reference_type": "order",
+        "reference_id": "{{order.id}}",
+        "items": "{{order.items}}"
+      },
+      "mapping_valid_json": true,
+      "mapping_vars": ["order.id", "order.items"],
       "is_active": 1,
       "event_source": "eventbus",
-      "version_lock": "wms.stock.reserve@1"
+      "version_lock": "wms.stock.reserve@1",
+      "event_registered": true,
+      "resolved_target_capability": "wms.stock.reserve@1",
+      "target_runtime_registered": true,
+      "target_provider_count": 1,
+      "target_declared_provider_count": 1,
+      "last_status": "success"
     }
   ],
   "logs": [
     {
       "integration_id": 12,
       "integration_name": "Ecommerce Order Reserve",
+      "trigger_event": "ecommerce.order.created",
+      "target_capability": "wms.stock.reserve@1",
       "status": "success",
       "request_id": "e4f9a6c2f440f2f1",
       "correlation_id": "4cc4d6bc5f5d7a24",
@@ -617,6 +874,8 @@ Return the current bridge registry plus the most recent execution logs.
   "request_id": "e4f9a6c2f440f2f1"
 }
 ```
+
+`summary` helps the control plane spot unresolved bridge targets or stale execution posture without re-querying the individual collections.
 
 ### POST /api/v1/kernel/integrations
 

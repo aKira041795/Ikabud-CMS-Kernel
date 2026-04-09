@@ -10,6 +10,18 @@ class IntegrationBridge
 {
     private static int $activeDepth = 0;
 
+    private static function withKernelDbUnguarded(callable $callback): mixed
+    {
+        $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+        kernel_request_context_set('_kernel_db_unguarded', true);
+
+        try {
+            return $callback();
+        } finally {
+            kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+        }
+    }
+
     public static function validateDefinition(array $definition): array
     {
         $name = trim((string)($definition['name'] ?? ''));
@@ -121,40 +133,50 @@ class IntegrationBridge
         $isActive = (int)($normalized['is_active'] ?? 1);
         $mappingJson = (string)($normalized['mapping_json'] ?? '');
 
-        $db = app()->db();
-        $existingStmt = $db->prepare('SELECT id FROM kernel_integrations WHERE name = ? LIMIT 1');
-        $existingStmt->execute([$name]);
-        $existingId = (int)($existingStmt->fetchColumn() ?: 0);
+        return self::withKernelDbUnguarded(static function () use (
+            $eventSource,
+            $isActive,
+            $mappingJson,
+            $name,
+            $targetCapability,
+            $triggerEvent,
+            $versionLock
+        ): int {
+            $db = app()->db();
+            $existingStmt = $db->prepare('SELECT id FROM kernel_integrations WHERE name = ? LIMIT 1');
+            $existingStmt->execute([$name]);
+            $existingId = (int)($existingStmt->fetchColumn() ?: 0);
 
-        if ($existingId > 0) {
+            if ($existingId > 0) {
+                $db->prepare(
+                    'UPDATE kernel_integrations SET trigger_event = ?, target_capability = ?, mapping_json = ?, is_active = ?, event_source = ?, version_lock = ?, updated_at = NOW() WHERE id = ?'
+                )->execute([
+                    $triggerEvent,
+                    $targetCapability,
+                    $mappingJson,
+                    $isActive,
+                    $eventSource,
+                    is_string($versionLock) && $versionLock !== '' ? $versionLock : null,
+                    $existingId,
+                ]);
+
+                return $existingId;
+            }
+
             $db->prepare(
-                'UPDATE kernel_integrations SET trigger_event = ?, target_capability = ?, mapping_json = ?, is_active = ?, event_source = ?, version_lock = ?, updated_at = NOW() WHERE id = ?'
+                'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) VALUES (?, ?, ?, ?, ?, ?, ?)'
             )->execute([
+                $name,
                 $triggerEvent,
                 $targetCapability,
                 $mappingJson,
                 $isActive,
                 $eventSource,
                 is_string($versionLock) && $versionLock !== '' ? $versionLock : null,
-                $existingId,
             ]);
 
-            return $existingId;
-        }
-
-        $db->prepare(
-            'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        )->execute([
-            $name,
-            $triggerEvent,
-            $targetCapability,
-            $mappingJson,
-            $isActive,
-            $eventSource,
-            is_string($versionLock) && $versionLock !== '' ? $versionLock : null,
-        ]);
-
-        return (int)$db->lastInsertId();
+            return (int)$db->lastInsertId();
+        });
     }
 
     public static function deleteBridgesByNames(array $names): int
@@ -164,22 +186,26 @@ class IntegrationBridge
             return 0;
         }
 
-        $placeholders = implode(', ', array_fill(0, count($names), '?'));
-        $stmt = app()->db()->prepare('DELETE FROM kernel_integrations WHERE name IN (' . $placeholders . ')');
-        $stmt->execute($names);
+        return self::withKernelDbUnguarded(static function () use ($names): int {
+            $placeholders = implode(', ', array_fill(0, count($names), '?'));
+            $stmt = app()->db()->prepare('DELETE FROM kernel_integrations WHERE name IN (' . $placeholders . ')');
+            $stmt->execute($names);
 
-        return (int)$stmt->rowCount();
+            return (int)$stmt->rowCount();
+        });
     }
 
     public static function hasActiveBridge(string $event, string $targetCapability): bool
     {
         try {
-            $stmt = app()->db()->prepare(
-                'SELECT 1 FROM kernel_integrations WHERE trigger_event = ? AND target_capability = ? AND is_active = 1 LIMIT 1'
-            );
-            $stmt->execute([$event, $targetCapability]);
+            return self::withKernelDbUnguarded(static function () use ($event, $targetCapability): bool {
+                $stmt = app()->db()->prepare(
+                    'SELECT 1 FROM kernel_integrations WHERE trigger_event = ? AND target_capability = ? AND is_active = 1 LIMIT 1'
+                );
+                $stmt->execute([$event, $targetCapability]);
 
-            return $stmt->fetchColumn() !== false;
+                return $stmt->fetchColumn() !== false;
+            });
         } catch (Throwable $e) {
             return false;
         }

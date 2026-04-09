@@ -56,16 +56,24 @@
     .intg-badges { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
     .intg-meta { font-size: 11px; color: var(--text-muted); display:flex; gap:10px; flex-wrap:wrap; }
     .intg-trace { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
+    .intg-trace-link { display:inline-flex; align-items:center; margin-top:8px; font-size:11px; font-weight:600; color: var(--primary); text-decoration:none; }
+    .intg-trace-link:hover { text-decoration:underline; }
     .intg-template-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
     .intg-template-chip { font-size: 11px; border: 1px solid var(--border); background: var(--bg); color: var(--text); padding: 5px 9px; border-radius: 999px; cursor: pointer; }
     .intg-guidance { padding: 0 20px 16px; display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; }
     .intg-guide-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px; }
     .intg-guide-card strong { display:block; font-size:12px; margin-bottom:4px; }
     .intg-guide-card span { font-size:11px; color: var(--text-muted); line-height:1.45; }
+    .intg-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg); flex-wrap:wrap; }
+    .intg-toolbar-left, .intg-toolbar-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .intg-filter-input, .intg-filter-select { border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; color: var(--text); background: var(--surface); }
+    .intg-filter-input { min-width: 260px; }
+    .intg-filter-note { font-size: 11px; color: var(--text-muted); }
     @media (max-width: 640px) {
         .intg-form-grid { grid-template-columns: 1fr; }
         .intg-payloads { grid-template-columns: 1fr; }
         .intg-guidance { grid-template-columns: 1fr; }
+        .intg-filter-input { min-width: 0; width: 100%; }
     }
 </style>
 {/block}
@@ -176,6 +184,15 @@
             <h2>Active Integrations</h2>
         </div>
     </div>
+    <div class="intg-toolbar">
+        <div class="intg-toolbar-left">
+            <input class="intg-filter-input" id="intgListFilter" type="text" placeholder="Filter by name, event, capability, or version lock..." oninput="renderIntegrationFilters()">
+            <span class="intg-filter-note" id="intgListCount">Showing all bridges</span>
+        </div>
+        <div class="intg-toolbar-right">
+            <button class="btn-intg-secondary" type="button" onclick="clearIntegrationFilters()">Clear</button>
+        </div>
+    </div>
     {if integrations | count > 0}
     <table class="intg-table">
         <thead>
@@ -190,7 +207,7 @@
         </thead>
         <tbody id="intg-list">
             {foreach integrations as intg}
-            <tr id="intg-row-{intg.id}">
+            <tr id="intg-row-{intg.id}" data-name="{intg.name}" data-event="{intg.trigger_event}" data-capability="{intg.target_capability}" data-version-lock="{intg.version_lock}">
                 <td style="font-weight:600;">{intg.name}</td>
                 <td class="intg-mono">{intg.trigger_event}</td>
                 <td>
@@ -254,6 +271,20 @@
             <p>Last 50 executions</p>
         </div>
     </div>
+    <div class="intg-toolbar">
+        <div class="intg-toolbar-left">
+            <input class="intg-filter-input" id="intgLogFilter" type="text" placeholder="Filter by bridge, event, request id, correlation id, or error..." oninput="renderIntegrationFilters()">
+            <select class="intg-filter-select" id="intgLogStatusFilter" onchange="renderIntegrationFilters()">
+                <option value="">All statuses</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+            </select>
+            <span class="intg-filter-note" id="intgLogCount">Showing all logs</span>
+        </div>
+        <div class="intg-toolbar-right">
+            <button class="btn-intg-secondary" type="button" onclick="clearLogFilters()">Clear</button>
+        </div>
+    </div>
     {if logs | count > 0}
     <table class="intg-table">
         <thead>
@@ -267,7 +298,7 @@
         </thead>
         <tbody>
             {foreach logs as log}
-            <tr>
+            <tr data-log-row="1" data-name="{log.integration_name}" data-event="{log.trigger_event}" data-capability="{log.target_capability}" data-status="{log.status}" data-request-id="{log.request_id}" data-correlation-id="{log.correlation_id}" data-error="{log.error_message}">
                 <td class="intg-mono" style="white-space:nowrap;">{log.created_at}</td>
                 <td style="font-weight:600;">{log.integration_name}</td>
                 <td>
@@ -281,6 +312,9 @@
                     <div class="intg-mono">Req: {if log.request_id}{log.request_id}{else}—{/if}</div>
                     <div class="intg-mono">Trace: {if log.correlation_id}{log.correlation_id}{else}—{/if}</div>
                     <div class="intg-mono">{if log.duration_ms}{log.duration_ms} ms{else}0 ms{/if}</div>
+                    {if user.source == 'kernel' and (user.role == 'admin' or user.role == 'superadmin')}
+                    <a class="intg-trace-link" href="{base_url}/admin/kernel/triggers?request_id={log.request_id}&correlation_id={log.correlation_id}&event_key={log.trigger_event}">Open matching trigger runs</a>
+                    {/if}
                 </td>
                 <td>
                     {if log.error_message}
@@ -315,6 +349,11 @@
 var BASE = '{base_url}';
 var KNOWN_EVENT_SELECT = null;
 var KNOWN_CAP_SELECT = null;
+var INTEGRATION_VIEW_FILTERS = {
+    integration_q: '',
+    log_q: '',
+    log_status: ''
+};
 
 function selectedOptionData(selectId) {
     var select = document.getElementById(selectId);
@@ -335,6 +374,109 @@ function applyKnownCapability() {
     document.getElementById('intg_cap').value = option.value;
     document.getElementById('intg_version_lock').value = option.value;
     updateValidationMeta();
+}
+
+function parseIntegrationFiltersFromQuery() {
+    if (typeof URLSearchParams === 'undefined' || typeof window === 'undefined' || !window.location) return;
+    var params = new URLSearchParams(window.location.search || '');
+    Object.keys(INTEGRATION_VIEW_FILTERS).forEach(function(key) {
+        INTEGRATION_VIEW_FILTERS[key] = String(params.get(key) || '').trim();
+    });
+}
+
+function applyIntegrationFiltersToUi() {
+    var listFilter = document.getElementById('intgListFilter');
+    var logFilter = document.getElementById('intgLogFilter');
+    var logStatus = document.getElementById('intgLogStatusFilter');
+    if (listFilter) listFilter.value = INTEGRATION_VIEW_FILTERS.integration_q || '';
+    if (logFilter) logFilter.value = INTEGRATION_VIEW_FILTERS.log_q || '';
+    if (logStatus) logStatus.value = INTEGRATION_VIEW_FILTERS.log_status || '';
+}
+
+function syncIntegrationFiltersFromUi() {
+    var listFilter = document.getElementById('intgListFilter');
+    var logFilter = document.getElementById('intgLogFilter');
+    var logStatus = document.getElementById('intgLogStatusFilter');
+    INTEGRATION_VIEW_FILTERS.integration_q = String((listFilter && listFilter.value) || '').trim();
+    INTEGRATION_VIEW_FILTERS.log_q = String((logFilter && logFilter.value) || '').trim();
+    INTEGRATION_VIEW_FILTERS.log_status = String((logStatus && logStatus.value) || '').trim();
+}
+
+function updateIntegrationQueryString() {
+    if (typeof URLSearchParams === 'undefined' || typeof window === 'undefined' || !window.location || !window.history || !window.history.replaceState) {
+        return;
+    }
+    var params = new URLSearchParams(window.location.search || '');
+    Object.keys(INTEGRATION_VIEW_FILTERS).forEach(function(key) {
+        var value = String(INTEGRATION_VIEW_FILTERS[key] || '').trim();
+        if (value) params.set(key, value);
+        else params.delete(key);
+    });
+    var next = window.location.pathname + (params.toString() ? ('?' + params.toString()) : '');
+    window.history.replaceState({}, '', next);
+}
+
+function renderIntegrationFilters() {
+    syncIntegrationFiltersFromUi();
+    updateIntegrationQueryString();
+
+    var integrationQuery = String(INTEGRATION_VIEW_FILTERS.integration_q || '').toLowerCase();
+    var logQuery = String(INTEGRATION_VIEW_FILTERS.log_q || '').toLowerCase();
+    var logStatus = String(INTEGRATION_VIEW_FILTERS.log_status || '').toLowerCase();
+
+    var integrationRows = Array.prototype.slice.call(document.querySelectorAll('#intg-list tr[id^="intg-row-"]'));
+    var visibleIntegrationCount = 0;
+    integrationRows.forEach(function(row) {
+        var hay = [
+            row.getAttribute('data-name'),
+            row.getAttribute('data-event'),
+            row.getAttribute('data-capability'),
+            row.getAttribute('data-version-lock')
+        ].map(function(value) { return String(value || '').toLowerCase(); }).join(' ');
+        var visible = !integrationQuery || hay.indexOf(integrationQuery) !== -1;
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleIntegrationCount++;
+    });
+
+    var listCount = document.getElementById('intgListCount');
+    if (listCount) {
+        listCount.textContent = visibleIntegrationCount + ' bridge' + (visibleIntegrationCount === 1 ? '' : 's') + ' visible';
+    }
+
+    var logRows = Array.prototype.slice.call(document.querySelectorAll('tr[data-log-row="1"]'));
+    var visibleLogCount = 0;
+    logRows.forEach(function(row) {
+        var hay = [
+            row.getAttribute('data-name'),
+            row.getAttribute('data-event'),
+            row.getAttribute('data-capability'),
+            row.getAttribute('data-request-id'),
+            row.getAttribute('data-correlation-id'),
+            row.getAttribute('data-error')
+        ].map(function(value) { return String(value || '').toLowerCase(); }).join(' ');
+        var status = String(row.getAttribute('data-status') || '').toLowerCase();
+        var visible = (!logQuery || hay.indexOf(logQuery) !== -1) && (!logStatus || status === logStatus);
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleLogCount++;
+    });
+
+    var logCount = document.getElementById('intgLogCount');
+    if (logCount) {
+        logCount.textContent = visibleLogCount + ' log row' + (visibleLogCount === 1 ? '' : 's') + ' visible';
+    }
+}
+
+function clearIntegrationFilters() {
+    INTEGRATION_VIEW_FILTERS.integration_q = '';
+    applyIntegrationFiltersToUi();
+    renderIntegrationFilters();
+}
+
+function clearLogFilters() {
+    INTEGRATION_VIEW_FILTERS.log_q = '';
+    INTEGRATION_VIEW_FILTERS.log_status = '';
+    applyIntegrationFiltersToUi();
+    renderIntegrationFilters();
 }
 
 function updateValidationMeta() {
@@ -526,6 +668,7 @@ async function deleteIntegration(id) {
         if (data.ok) {
             var row = document.getElementById('intg-row-' + id);
             if (row) row.remove();
+            renderIntegrationFilters();
         } else {
             alert(data.error || 'Delete failed');
         }
@@ -555,7 +698,10 @@ async function promoteIntegration(id) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    parseIntegrationFiltersFromQuery();
+    applyIntegrationFiltersToUi();
     updateValidationMeta();
+    renderIntegrationFilters();
 });
 </script>
 {/block}

@@ -93,6 +93,8 @@ The bridge schema is part of the tenant-safe kernel migration set. New tenant da
 
 `IntegrationBridge::handle()` is kernel infrastructure even when a module invokes it inline during a request. In practice that means bridge reads and writes to `kernel_integrations` and `kernel_integration_logs` must run under the kernel DB-unguarded scope rather than inheriting the active module's `ModuleDB` restrictions. If that guard is not lifted, real module-driven flows can appear to succeed while the bridge silently skips kernel-table access that still works from standalone kernel or debug entrypoints.
 
+The same rule applies to helper entrypoints like `IntegrationBridge::upsertBridge()`, `IntegrationBridge::deleteBridgesByNames()`, and `IntegrationBridge::hasActiveBridge()`. Module-scoped callers such as ecommerce settings sync can legitimately manage bridge rows, but the helper itself must elevate to kernel DB-unguarded scope before touching `kernel_integrations`; expanding the module manifest to own kernel bridge tables would be the wrong fix.
+
 ---
 
 ## Module Manifest Extensions

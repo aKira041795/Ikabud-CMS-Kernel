@@ -39,6 +39,24 @@
 .trace-err { color: var(--danger); font-weight: 700; }
 .trace-detail { flex: 1; }
 .trace-ids { font-family: monospace; font-size: 11px; color: var(--text-light); margin-top: 2px; }
+.trace-timeline-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.trace-timeline-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px; }
+.trace-timeline-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.trace-timeline-key { font-family: monospace; font-size: 12px; color: var(--primary); font-weight: 700; }
+.trace-timeline-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.trace-status-pill { display:inline-flex; align-items:center; border-radius:999px; padding:3px 8px; font-size:11px; font-weight:700; }
+.trace-status-pill.success { background: var(--success-light); color: var(--success); }
+.trace-status-pill.failed { background: var(--danger-light); color: var(--danger); }
+.trace-status-pill.rate_limited { background: var(--warning-light); color: var(--warning); }
+.trace-status-pill.skipped_invalid { background: color-mix(in srgb, var(--surface) 75%, var(--primary-light)); color: var(--text); }
+.trace-status-pill.unknown { background: color-mix(in srgb, var(--surface) 80%, var(--border)); color: var(--text); }
+.trace-counts { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.trace-mini-list { display:grid; gap:8px; margin-top:12px; }
+.trace-mini-item { border-top: 1px solid var(--border); padding-top: 8px; }
+.trace-mini-item:first-child { border-top: none; padding-top: 0; }
+.trace-mini-main { font-size: 12px; color: var(--text); }
+.trace-mini-sub { font-family: monospace; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.trace-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
 .glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .glossary-item { padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .glossary-term { font-weight: 700; font-size: 13px; color: var(--primary); }
@@ -126,6 +144,7 @@
         var runtime = data.runtime || {};
         var updates = data.updates || {};
         var traces = data.traces || [];
+        var timelines = data.trace_timelines || [];
         var skipped = Array.isArray(mods.skipped) ? mods.skipped : [];
         var cache = cacheData.ok ? (cacheData.cache || {}) : null;
         var hostCache = cacheData.ok ? (cacheData.tenant_host_lookup_cache || {}) : null;
@@ -298,6 +317,8 @@
         html += statRow('Registered ' + glossTip('_term.event', 'Events'), evts.count || 0);
         html += statRow('Total ' + glossTip('_term.trigger', 'Automations'), trigs.total || 0);
         html += statRow('Active ' + glossTip('_term.trigger', 'Automations'), trigs.enabled || 0);
+        html += statRow('Recorded Runs', trigs.executions || 0);
+        html += statRow('Active Trace Timelines', trigs.timelines || 0);
         html += '</div>';
 
         html += '</div>'; // end grid
@@ -324,21 +345,76 @@
         });
         html += '</div></div>';
 
+        if (timelines.length > 0) {
+            html += '<h2 class="section-title">Recent Trace Timelines</h2>';
+            html += '<div class="section-help">Grouped execution chains keyed by external reference, correlation id, request id, or trigger fallback.</div>';
+            html += '<div class="trace-timeline-grid">';
+            timelines.forEach(function(timeline) {
+                html += '<div class="trace-timeline-card">';
+                html += '<div class="trace-timeline-top">';
+                html += '<div>';
+                html += '<div class="trace-timeline-key">' + esc(timeline.label || timeline.key || 'Timeline') + '</div>';
+                html += '<div class="trace-timeline-meta">Latest: ' + esc(timeline.last_execution_at || '—') + '</div>';
+                html += '</div>';
+                html += traceStatusPill(timeline.latest_status || 'unknown');
+                html += '</div>';
+                html += '<div class="trace-counts">';
+                html += '<span class="badge badge-info">' + esc(String(timeline.execution_count || 0)) + ' runs</span>';
+                if (timeline.success_count) html += '<span class="badge badge-ok">' + esc(String(timeline.success_count)) + ' success</span>';
+                if (timeline.failed_count) html += '<span class="badge badge-err">' + esc(String(timeline.failed_count)) + ' failed</span>';
+                if (timeline.rate_limited_count) html += '<span class="badge badge-warn">' + esc(String(timeline.rate_limited_count)) + ' rate limited</span>';
+                if (timeline.skipped_invalid_count) html += '<span class="badge badge-info">' + esc(String(timeline.skipped_invalid_count)) + ' skipped invalid</span>';
+                html += '</div>';
+                html += '<div class="trace-mini-list">';
+                (timeline.executions || []).forEach(function(item) {
+                    var evtG = GLOSSARY[item.event_key] || {};
+                    var capG = GLOSSARY[item.capability_id] || {};
+                    html += '<div class="trace-mini-item">';
+                    html += '<div class="trace-mini-main">' + traceStatusPill(item.status || 'unknown') + ' <strong>' + (evtG.label || esc(item.event_key || '')) + '</strong> → <strong>' + (capG.label || esc(item.capability_id || '')) + '</strong></div>';
+                    html += '<div class="trace-mini-sub">' + esc(item.created_at || '—') + ' · ' + esc(String(item.duration_ms || 0)) + 'ms';
+                    if (item.external_reference) html += ' · ref ' + esc(item.external_reference);
+                    else if (item.correlation_id) html += ' · corr ' + esc(item.correlation_id);
+                    else if (item.request_id) html += ' · req ' + esc(item.request_id);
+                    html += '</div>';
+                    if (item.error_message) {
+                        html += '<div class="trace-mini-sub" style="color:var(--danger);">' + esc(item.error_message) + '</div>';
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+                html += '<div class="trace-actions"><a class="btn btn-outline btn-sm" href="' + escAttr(buildTriggerTraceUrl({
+                    external_reference: timeline.external_reference || '',
+                    correlation_id: timeline.correlation_id || '',
+                    request_id: timeline.request_id || '',
+                    trigger_id: timeline.key_type === 'trigger_id' ? (timeline.key || '') : ''
+                })) + '">Open In Automation Rules</a></div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+
         // Trigger execution traces
         if (traces.length > 0) {
             html += '<h2 class="section-title">' + glossTip('_term.trigger', 'Automation') + ' Execution Traces</h2>';
             html += '<div class="platform-card">';
             traces.forEach(function(t) {
-                var ok = t.ok;
                 var evtG = GLOSSARY[t.event] || {};
                 var capG = GLOSSARY[t.capability] || {};
                 html += '<div class="trace-row">';
                 html += '<span class="trace-ts">' + esc(t._timestamp || '') + '</span>';
-                html += '<span class="' + (ok ? 'trace-ok' : 'trace-err') + '">' + (ok ? 'OK' : 'FAIL') + '</span>';
+                html += traceStatusPill(t.status || (t.ok ? 'success' : 'failed'));
                 html += '<div class="trace-detail">';
                 html += '<strong>' + (evtG.label || esc(t.event || '')) + '</strong> → <strong>' + (capG.label || esc(t.capability || '')) + '</strong>';
-                if (!ok && t.error) { html += ' <span style="color:var(--danger); font-size:11px;">— ' + esc(t.error) + '</span>'; }
-                html += '<div class="trace-ids">' + glossTip('_term.correlation_id', 'Trace') + ': ' + esc(t.correlation_id || '?') + ' · ' + (t.duration_ms || 0) + 'ms · module: ' + esc(t.module || '?') + '</div>';
+                if (t.error) { html += ' <span style="color:var(--danger); font-size:11px;">— ' + esc(t.error) + '</span>'; }
+                html += '<div class="trace-ids">' + glossTip('_term.correlation_id', 'Trace') + ': ' + esc(t.correlation_id || '?') + ' · req: ' + esc(t.request_id || '?') + ' · ' + (t.duration_ms || 0) + 'ms · module: ' + esc(t.module || '?');
+                if (t.external_reference) html += ' · ref: ' + esc(t.external_reference);
+                html += '</div>';
+                html += '<div class="trace-actions"><a class="btn btn-outline btn-sm" href="' + escAttr(buildTriggerTraceUrl({
+                    external_reference: t.external_reference || '',
+                    correlation_id: t.correlation_id || '',
+                    request_id: t.request_id || '',
+                    trigger_id: t.trigger_id || ''
+                })) + '">Open In Automation Rules</a></div>';
                 html += '</div></div>';
             });
             html += '</div>';
@@ -380,6 +456,27 @@
             + '<div class="flow-step-label">' + esc(label) + '</div>'
             + '<div class="flow-step-note">' + esc(note) + '</div>'
             + '</div>';
+    }
+    function traceStatusLabel(status) {
+        var s = String(status || 'unknown');
+        if (s === 'rate_limited') return 'Rate limited';
+        if (s === 'skipped_invalid') return 'Skipped invalid';
+        if (s.length === 0) return 'Unknown';
+        return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
+    }
+    function traceStatusPill(status) {
+        var s = String(status || 'unknown');
+        return '<span class="trace-status-pill ' + escAttr(s) + '">' + esc(traceStatusLabel(s)) + '</span>';
+    }
+    function buildTriggerTraceUrl(filters) {
+        var params = [];
+        Object.keys(filters || {}).forEach(function(key) {
+            var value = String((filters || {})[key] || '').trim();
+            if (!value) return;
+            params.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+        });
+        var suffix = params.length ? ('?' + params.join('&')) : '';
+        return BASE + '/admin/kernel/triggers' + suffix;
     }
     function bindCacheClearAction(base) {
         var btn = document.getElementById('clear-platform-cache-btn');

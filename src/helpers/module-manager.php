@@ -2140,6 +2140,7 @@ function tenantSafeKernelMigrationFiles(): array
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
         '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',
         '011_integration_bridge_hardening.sql' => BASE_PATH . '/database/migrations/011_integration_bridge_hardening.sql',
+        '012_kernel_trigger_execution_history.sql' => BASE_PATH . '/database/migrations/012_kernel_trigger_execution_history.sql',
     ];
 
     $files = [];
@@ -2555,6 +2556,7 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
         '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',
         '011_integration_bridge_hardening.sql' => BASE_PATH . '/database/migrations/011_integration_bridge_hardening.sql',
+        '012_kernel_trigger_execution_history.sql' => BASE_PATH . '/database/migrations/012_kernel_trigger_execution_history.sql',
     ];
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');

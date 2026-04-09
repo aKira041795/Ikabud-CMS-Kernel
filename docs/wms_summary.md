@@ -1,4 +1,4 @@
-# WMS Module (v1.2.0) - Comprehensive Summary
+# WMS Module (v1.4.0) - Comprehensive Summary
 
 The Warehouse Management System (WMS) module is a reference-grade, entity-driven application running on the Ikabud Kernel OS. Designed to handle complex, high-volume transactions securely, it acts as an **ERP-lite** system isolated entirely within its own tenant database space without cross-contaminating public-facing modules.
 
@@ -34,7 +34,9 @@ The Warehouse Management System (WMS) module is a reference-grade, entity-driven
 
 The WMS doesn't live in a silo; it aggressively leverages the Kernel OS capability bus for interoperability:
 *   **Headless Stock Contracts**: Exposes `wms.stock.query@1`, `wms.stock.reserve@1`, and `wms.stock.release@1` so external Ecommerce or POS flows can validate stock, reserve it at sale time, and release it deterministically on cancellation.
-*   **Event-Driven Triggers**: Emits standard events like `wms.stock.low`, `wms.order.picked`, and `wms.production.completed`. These allow external billing modules or notification services to trigger actions automatically based on warehouse activity without tight code coupling.
+*   **Order-Orchestration Contracts**: Exposes `wms.order.create@1` and `wms.order.cancel@1` so bridge-driven storefront flows can materialize a real WMS order, preserve the upstream `external_reference`, and close it cleanly if the source order is cancelled.
+*   **Event-Driven Triggers**: Emits standard events like `wms.stock.low`, `wms.order.picked`, `wms.order.dispatched`, `wms.order.delivered`, `wms.order.payment_collected`, and `wms.production.completed`. These let Ecommerce, billing, and notification modules react automatically to warehouse activity without tight code coupling.
+*   **Bridge-Friendly Cross-System Identity**: WMS order payloads and diagnostics are built around `external_reference` plus bridge metadata, which makes it practical to correlate an upstream ecommerce order, the downstream WMS order, reservation movements, and payment-collection follow-up from one identifier.
 
 ---
 
@@ -46,10 +48,12 @@ The next phase deliberately pauses new "features" to prioritize transforming the
 
 *   **Tenant Onboarding Engine (Day 0) (Completed)**: A streamlined setup wizard (`/wms/onboarding`) so businesses can initialize their environments seamlessly.
 *   **Granular Configuration Layer (`wms_configs`) (Completed)**: Abstracted all hard-coded logic into tenant-level settings (handled via `wmsConfigGet()`/`wmsConfigSet()`). Admins will freely toggle picking strategies, negative stock policies, auto-replenishment behavior, and default quarantine routing.
-*   **Observability & Debugging Tooling (Completed)**: Equipped administrators with internal diagnostics (`/wms/diagnostics`), including a **Movement Trace Viewer** and an active **Reservation Inspector**.
+*   **Observability & Debugging Tooling (Completed)**: Equipped administrators with internal diagnostics (`/wms/diagnostics`), including a **Movement Trace Viewer**, an active **Reservation Inspector**, and external-reference-aware order tracing for ecommerce bridge investigations.
 *   **Financial Extension (Costing & POs) (Completed)**: Introduced the Financial & Business Layer computing live inventory valuation directly from the movement ledger using toggleable cost models (`FIFO`, `MAC`). Closed the outbound supply loop with a robust `wms_purchase_orders` workflow that translates replenishment forecasts securely into expected `wms_deliveries`.
-*   **Ecosystem Orchestration via Contracts**: Publishing strict capability contracts (`wms.stock.query@1`, `wms.stock.reserve@1`, `wms.stock.release@1`) enabling external Point of Sale (POS) and Ecommerce modules to rely on the WMS as the definitive inventory authority.
+*   **Ecosystem Orchestration via Contracts**: Publishing strict capability contracts (`wms.stock.query@1`, `wms.stock.reserve@1`, `wms.stock.release@1`, `wms.order.create@1`, `wms.order.cancel@1`) enabling external Point of Sale (POS) and Ecommerce modules to rely on the WMS as the definitive inventory and fulfillment authority.
 
 For bridge-triggered reserve/release calls, WMS can also derive an active `location_id` from the provided warehouse. Tenants may pin this fallback with the `bridge.default_location_id` setting when integrations supply warehouse routing but omit an explicit location.
+
+For bridge-triggered order flows, WMS stores the upstream order number in `external_reference` and emits `wms.order.payment_collected` after pay-on-delivery collection. That allows ecommerce to sync customer-visible payment state from the warehouse-side collection step instead of inferring payment completion from delivery alone.
 
 By focusing on configuration, observability, and data portability (Import/Export), the WMS positions itself not merely as a tracking tool, but as a universally deployable ERP-lite engine capable of scaling horizontally across the Kernel OS ecosystem.

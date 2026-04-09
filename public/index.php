@@ -414,6 +414,7 @@ $routes = [
         '/api/v1/admin/cache/health' => 'apiCacheHealth',
         '/api/v1/admin/kernel/events' => 'apiKernelEventsList',
         '/api/v1/admin/kernel/triggers' => 'apiKernelTriggersList',
+        '/api/v1/admin/kernel/trigger-executions' => 'apiKernelTriggerExecutionsList',
         '/api/v1/admin/ai/settings' => 'apiAiSettingsGet',
         '/api/v1/admin/tenants' => 'apiTenantsList',
     ],
@@ -1482,13 +1483,17 @@ switch ($handler) {
         };
 
         if ($method === 'GET') {
-            $integrations = $db->query('SELECT * FROM kernel_integrations ORDER BY created_at DESC')->fetchAll();
-            $logs = $db->query(
-                'SELECT l.*, i.name as integration_name FROM kernel_integration_logs l '
-                . 'LEFT JOIN kernel_integrations i ON i.id = l.integration_id '
-                . 'ORDER BY l.created_at DESC LIMIT 100'
-            )->fetchAll();
-            app()->json(['ok' => true, 'integrations' => $integrations, 'logs' => $logs, 'request_id' => request_id()]);
+            $catalog = new \Ikabud\Kernel\ControlPlane\IntegrationCatalog(
+                $db,
+                new \Ikabud\Kernel\Capabilities\CapabilityCatalog(app()->capabilities())
+            );
+            app()->json([
+                'ok' => true,
+                'summary' => $catalog->summary(),
+                'integrations' => $catalog->integrations(),
+                'logs' => $catalog->logs(),
+                'request_id' => request_id(),
+            ]);
             exit;
         }
 
@@ -3323,7 +3328,9 @@ switch ($handler) {
 
     case 'pageAdminKernelTriggers':
         $user = app()->requireAuth();
-        if (($user['role'] ?? '') !== 'admin') {
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel')) {
             app()->redirect('/');
             exit;
         }
@@ -3594,21 +3601,30 @@ switch ($handler) {
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
         $user = app()->user();
-        if (!$user || ($user['role'] ?? '') !== 'admin') {
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if (!$user || ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel'))) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            echo json_encode(['ok' => false, 'error' => 'Admin or superadmin only']);
             exit;
         }
 
-        $cacheKey = 'api:list-capabilities:v1';
+        $cacheKey = 'api:list-capabilities:v2';
         $cached = adminViewCacheGet($cacheKey, $user);
         if ($cached !== null) {
             echo json_encode($cached);
             exit;
         }
 
-        $out = app()->capabilities()->inspectAll();
-        $payload = ['ok' => true, 'capabilities' => $out, 'request_id' => request_id()];
+        $catalog = new \Ikabud\Kernel\Capabilities\CapabilityCatalog(app()->capabilities());
+        $payload = [
+            'ok' => true,
+            'summary' => $catalog->summary(),
+            'modules' => $catalog->modules(),
+            'events' => $catalog->events(),
+            'capabilities' => $catalog->inspectAll(),
+            'request_id' => request_id(),
+        ];
         adminViewCacheSet($cacheKey, $payload, ['admin:view:capabilities', 'admin:view:platform'], $user);
         echo json_encode($payload);
         exit;
@@ -3617,75 +3633,95 @@ switch ($handler) {
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
         $user = app()->user();
-        if (!$user || ($user['role'] ?? '') !== 'admin') {
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if (!$user || ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel'))) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            echo json_encode(['ok' => false, 'error' => 'Admin or superadmin only']);
             exit;
         }
 
-        try {
-            $stmt = app()->db()->query(
-                'SELECT module, event_key, description, available_vars, updated_at, created_at '
-                . 'FROM kernel_events '
-                . 'ORDER BY module ASC, event_key ASC'
-            );
-            $rows = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
-            foreach ($rows as &$r) {
-                if (!is_array($r)) continue;
-                $r['available_vars'] = !empty($r['available_vars']) ? (json_decode((string)$r['available_vars'], true) ?: []) : [];
-            }
-            unset($r);
-            echo json_encode(['ok' => true, 'events' => $rows]);
-        } catch (Throwable $e) {
-            http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to load events']);
-        }
+        $catalog = new \Ikabud\Kernel\ControlPlane\IntegrationCatalog(
+            app()->db(),
+            new \Ikabud\Kernel\Capabilities\CapabilityCatalog(app()->capabilities())
+        );
+        echo json_encode([
+            'ok' => true,
+            'summary' => $catalog->summary(),
+            'events' => $catalog->events(),
+            'request_id' => request_id(),
+        ]);
         exit;
 
     case 'apiKernelTriggersList':
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
         $user = app()->user();
-        if (!$user || ($user['role'] ?? '') !== 'admin') {
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if (!$user || ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel'))) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            echo json_encode(['ok' => false, 'error' => 'Admin or superadmin only']);
             exit;
         }
 
-        try {
-            $stmt = app()->db()->query(
-                'SELECT t.id, t.module, t.event_key, t.capability_id, t.provider, t.is_enabled, t.priority, '
-                . 't.template, t.max_per_minute, t.retry_count, t.timeout_ms, t.meta, t.updated_by, t.updated_at, t.created_at, '
-                . 'e.description AS event_description '
-                . 'FROM kernel_event_triggers t '
-                . 'LEFT JOIN kernel_events e ON e.module = t.module AND e.event_key = t.event_key '
-                . 'ORDER BY t.module ASC, t.event_key ASC, t.priority ASC, t.id ASC'
-            );
-            $rows = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
-            foreach ($rows as &$r) {
-                if (!is_array($r)) continue;
-                $r['is_enabled'] = (int)($r['is_enabled'] ?? 0);
-                $r['priority'] = (int)($r['priority'] ?? 100);
-                $r['max_per_minute'] = $r['max_per_minute'] !== null ? (int)$r['max_per_minute'] : null;
-                $r['retry_count'] = (int)($r['retry_count'] ?? 0);
-                $r['timeout_ms'] = (int)($r['timeout_ms'] ?? 5000);
-                $r['meta'] = !empty($r['meta']) ? (json_decode((string)$r['meta'], true) ?: []) : [];
-            }
-            unset($r);
-            echo json_encode(['ok' => true, 'triggers' => $rows]);
-        } catch (Throwable $e) {
-            http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to load triggers']);
+        $catalog = new \Ikabud\Kernel\ControlPlane\IntegrationCatalog(
+            app()->db(),
+            new \Ikabud\Kernel\Capabilities\CapabilityCatalog(app()->capabilities())
+        );
+        echo json_encode([
+            'ok' => true,
+            'summary' => $catalog->summary(),
+            'triggers' => $catalog->triggers(),
+            'request_id' => request_id(),
+        ]);
+        exit;
+
+    case 'apiKernelTriggerExecutionsList':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if (!$user || ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel'))) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Admin or superadmin only']);
+            exit;
         }
+
+        $catalog = new \Ikabud\Kernel\ControlPlane\IntegrationCatalog(
+            app()->db(),
+            new \Ikabud\Kernel\Capabilities\CapabilityCatalog(app()->capabilities())
+        );
+        $filters = [
+            'module' => $_GET['module'] ?? null,
+            'event_key' => $_GET['event_key'] ?? null,
+            'capability_id' => $_GET['capability_id'] ?? null,
+            'status' => $_GET['status'] ?? null,
+            'correlation_id' => $_GET['correlation_id'] ?? null,
+            'request_id' => $_GET['request_id'] ?? null,
+            'external_reference' => $_GET['external_reference'] ?? null,
+            'trigger_id' => $_GET['trigger_id'] ?? null,
+        ];
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
+
+        echo json_encode([
+            'ok' => true,
+            'summary' => $catalog->summary(),
+            'executions' => $catalog->executions($filters, $limit),
+            'request_id' => request_id(),
+        ]);
         exit;
 
     case 'apiKernelTriggerSave':
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
         $user = app()->user();
-        if (!$user || ($user['role'] ?? '') !== 'admin') {
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if (!$user || ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel'))) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            echo json_encode(['ok' => false, 'error' => 'Admin or superadmin only']);
             exit;
         }
 
@@ -3746,9 +3782,11 @@ switch ($handler) {
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
         $user = app()->user();
-        if (!$user || ($user['role'] ?? '') !== 'admin') {
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if (!$user || ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel'))) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            echo json_encode(['ok' => false, 'error' => 'Admin or superadmin only']);
             exit;
         }
 
@@ -3777,9 +3815,11 @@ switch ($handler) {
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
         $user = app()->user();
-        if (!$user || ($user['role'] ?? '') !== 'admin') {
+        $role = (string)($user['role'] ?? '');
+        $source = (string)($user['source'] ?? '');
+        if (!$user || ($role !== 'admin' && !($role === 'superadmin' && $source === 'kernel'))) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            echo json_encode(['ok' => false, 'error' => 'Admin or superadmin only']);
             exit;
         }
 
@@ -4688,7 +4728,7 @@ switch ($handler) {
             exit;
         }
 
-        $cacheKey = 'api:platform:v1';
+        $cacheKey = 'api:platform:v2';
         $cached = adminViewCacheGet($cacheKey, $user);
         if ($cached !== null) {
             echo json_encode($cached);
@@ -4722,38 +4762,24 @@ switch ($handler) {
             }
         }
 
+        $capabilityCatalog = new \Ikabud\Kernel\Capabilities\CapabilityCatalog(app()->capabilities(), $allModules);
+        $integrationCatalog = new \Ikabud\Kernel\ControlPlane\IntegrationCatalog(app()->db(), $capabilityCatalog);
+
         // Capabilities (count only for summary — full list via /api/v1/admin/capabilities)
-        $capIds = app()->capabilities()->capabilityIds();
         $capSummary = [];
-        foreach ($capIds as $cid) {
-            $provs = app()->capabilities()->providers($cid);
+        foreach ($capabilityCatalog->inspectAll() as $capability) {
             $capSummary[] = [
-                'id' => $cid,
-                'provider_count' => count($provs),
-                'effective_schema_mode' => app()->cap()->resolveSchemaMode($cid),
+                'id' => (string)($capability['id'] ?? ''),
+                'provider_count' => (int)($capability['provider_count'] ?? 0),
+                'declared_provider_count' => (int)($capability['declared_provider_count'] ?? 0),
+                'runtime_registered' => !empty($capability['runtime_registered']),
+                'effective_schema_mode' => $capability['effective_schema_mode'] ?? null,
             ];
         }
-
-        // Events count
-        $eventsCount = 0;
-        try {
-            $stmt = app()->db()->query('SELECT COUNT(*) FROM kernel_events');
-            $eventsCount = $stmt ? (int)$stmt->fetchColumn() : 0;
-        } catch (Throwable $e) {
-        }
-
-        // Triggers count
-        $triggersTotal = 0;
-        $triggersEnabled = 0;
-        try {
-            $stmt = app()->db()->query('SELECT COUNT(*) as total, SUM(is_enabled) as enabled FROM kernel_event_triggers');
-            $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
-            if (is_array($row)) {
-                $triggersTotal = (int)($row['total'] ?? 0);
-                $triggersEnabled = (int)($row['enabled'] ?? 0);
-            }
-        } catch (Throwable $e) {
-        }
+        $integrationSummary = $integrationCatalog->summary();
+        $eventsCount = (int)($integrationSummary['event_count'] ?? 0);
+        $triggersTotal = (int)($integrationSummary['trigger_count'] ?? 0);
+        $triggersEnabled = (int)($integrationSummary['active_trigger_count'] ?? 0);
 
         // Health summary + per-capability health
         $health = app()->cap()->healthAll();
@@ -4775,33 +4801,27 @@ switch ($handler) {
         // Glossary — plain-English labels for capabilities/events/terms
         $glossary = app()->glossary();
 
-        // Recent trigger traces from app.log (last 20)
-        $traces = [];
-        try {
-            $logPath = STORAGE_PATH . '/logs/app.log';
-            if (is_file($logPath)) {
-                $lines = @file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
-                $traceLines = array_filter($lines, fn($l) => str_contains($l, 'trigger.execution'));
-                $traceLines = array_slice(array_values($traceLines), -20);
-                foreach ($traceLines as $line) {
-                    $jsonStart = strpos($line, '{');
-                    if ($jsonStart !== false) {
-                        $json = json_decode(substr($line, $jsonStart), true);
-                        if (is_array($json)) {
-                            // Extract timestamp from log line prefix
-                            $ts = '';
-                            if (preg_match('/^\[([^\]]+)\]/', $line, $tsMatch)) {
-                                $ts = $tsMatch[1];
-                            }
-                            $json['_timestamp'] = $ts;
-                            $traces[] = $json;
-                        }
-                    }
-                }
-                $traces = array_reverse($traces);
-            }
-        } catch (Throwable $e) {
-        }
+        $recentExecutions = $integrationCatalog->executions([], 20);
+        $traces = array_map(static function (array $execution): array {
+            $status = trim((string)($execution['status'] ?? 'unknown'));
+
+            return [
+                '_timestamp' => $execution['created_at'] ?? '',
+                'ok' => $status === 'success',
+                'status' => $status,
+                'event' => $execution['event_key'] ?? '',
+                'capability' => $execution['resolved_capability'] ?? ($execution['capability_id'] ?? ''),
+                'capability_id' => $execution['capability_id'] ?? '',
+                'trigger_id' => $execution['trigger_id'] ?? null,
+                'correlation_id' => $execution['correlation_id'] ?? null,
+                'request_id' => $execution['request_id'] ?? null,
+                'external_reference' => $execution['external_reference'] ?? null,
+                'duration_ms' => $execution['duration_ms'] ?? 0,
+                'module' => $execution['module'] ?? '',
+                'error' => $execution['error_message'] ?? null,
+            ];
+        }, $recentExecutions);
+        $traceTimelines = $integrationCatalog->timelines([], 8, 80);
 
         $payload = [
             'ok' => true,
@@ -4823,8 +4843,11 @@ switch ($handler) {
             'triggers' => [
                 'total' => $triggersTotal,
                 'enabled' => $triggersEnabled,
+                'executions' => (int)($integrationSummary['trigger_execution_count'] ?? 0),
+                'timelines' => count($traceTimelines),
             ],
             'traces' => $traces,
+            'trace_timelines' => $traceTimelines,
             'glossary' => $glossary,
             'health' => $healthSummary,
             'runtime' => [

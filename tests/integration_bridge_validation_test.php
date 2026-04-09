@@ -40,6 +40,8 @@ loadModuleRoutes([
 
 $suffix = substr(bin2hex(random_bytes(4)), 0, 8);
 $bridgeName = 'test_bridge_validation_' . $suffix;
+$moduleScopedBridgeName = $bridgeName . '_module_scope';
+$moduleScopedTriggerEvent = 'test.bridge.module_scope.' . $suffix;
 
 try {
     $validReserveBridge = \Ikabud\Kernel\IntegrationBridge::validateDefinition([
@@ -149,6 +151,39 @@ try {
         $storedVersionLock === 'wms.stock.reserve@1',
         $storedVersionLock
     );
+
+    $moduleScopedBridgeId = 0;
+    $moduleScopedBridgeExistsBeforeDelete = false;
+    $moduleScopedDeleted = 0;
+    $moduleScopedBridgeExistsAfterDelete = true;
+
+    moduleWithContext('ecommerce', static function () use (
+        &$moduleScopedBridgeId,
+        &$moduleScopedBridgeExistsAfterDelete,
+        &$moduleScopedBridgeExistsBeforeDelete,
+        &$moduleScopedDeleted,
+        $moduleScopedBridgeName,
+        $moduleScopedTriggerEvent
+    ): void {
+        $moduleScopedBridgeId = 
+            \Ikabud\Kernel\IntegrationBridge::upsertBridge([
+                'name' => $moduleScopedBridgeName,
+                'trigger_event' => $moduleScopedTriggerEvent,
+                'target_capability' => 'wms.stock.reserve@1',
+                'mapping' => [
+                    'reference_type' => 'order',
+                    'reference_id' => '{{order.id}}',
+                ],
+            ]);
+        $moduleScopedBridgeExistsBeforeDelete = \Ikabud\Kernel\IntegrationBridge::hasActiveBridge($moduleScopedTriggerEvent, 'wms.stock.reserve@1');
+        $moduleScopedDeleted = \Ikabud\Kernel\IntegrationBridge::deleteBridgesByNames([$moduleScopedBridgeName]);
+        $moduleScopedBridgeExistsAfterDelete = \Ikabud\Kernel\IntegrationBridge::hasActiveBridge($moduleScopedTriggerEvent, 'wms.stock.reserve@1');
+    });
+
+    t('module-scoped bridge upsert bypasses ModuleDB for kernel integration tables', $moduleScopedBridgeId > 0, (string)$moduleScopedBridgeId);
+    t('module-scoped bridge existence check bypasses ModuleDB for kernel integration tables', $moduleScopedBridgeExistsBeforeDelete === true);
+    t('module-scoped bridge delete bypasses ModuleDB for kernel integration tables', $moduleScopedDeleted === 1, (string)$moduleScopedDeleted);
+    t('module-scoped bridge delete removes the kernel integration row', $moduleScopedBridgeExistsAfterDelete === false);
 
     $rejectedByUpsert = false;
     try {

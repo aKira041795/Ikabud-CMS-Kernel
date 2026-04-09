@@ -66,6 +66,27 @@
     .bridge-table th { font-weight: 700; }
     .bridge-logs summary { cursor: pointer; font-size: 12px; color: var(--primary, #2563eb); }
     .bridge-logs pre { font-size: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap; word-break: break-all; }
+    .status-pill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:4px 8px; font-size:11px; font-weight:700; }
+    .status-pill.success { background:#d4f5e0; color:#065f46; }
+    .status-pill.failed { background:#fee2e2; color:#991b1b; }
+    .status-pill.rate-limited { background:#fef3c7; color:#92400e; }
+    .status-pill.skipped-invalid { background:#e2e8f0; color:#334155; }
+    .status-pill.unknown { background:#e2e8f0; color:#475569; }
+    .trace-filters { display:grid; grid-template-columns: minmax(220px, 1.2fr) minmax(160px, .7fr) auto auto; gap:8px; align-items:end; }
+    .trace-kv { display:grid; gap:4px; }
+    .trace-kv .mono { font-size:11px; }
+    .trace-table th, .trace-table td { padding: 8px 10px; font-size: 12px; vertical-align: top; }
+    .trace-table th { font-weight: 700; }
+    .trace-meta { display:grid; gap:6px; }
+    .trace-meta .badge { width: fit-content; }
+    .trace-inline { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+    .trace-details summary { cursor:pointer; color: var(--primary, #2563eb); font-size:11px; }
+    .trace-details pre { margin-top:6px; padding:8px 10px; background:#1e293b; color:#e2e8f0; border-radius:8px; overflow-x:auto; white-space:pre-wrap; word-break:break-word; font-size:10px; }
+    .rule-runtime { margin-top:6px; display:grid; gap:4px; }
+    .rule-runtime .muted { font-size:11px; }
+    @media (max-width: 980px) {
+        .trace-filters { grid-template-columns: 1fr; }
+    }
 </style>
 {/block}
 
@@ -224,6 +245,55 @@
     </div>
 </div>
 
+<div class="panel" style="margin-top:16px;" id="executionsPanel">
+    <div class="toolbar">
+        <div class="left">
+            <strong style="font-size:13px;">Recent Trigger Runs</strong>
+            <span class="badge" id="executionCounts">Loading…</span>
+            <span class="badge" id="executionScope" style="display:none;"></span>
+        </div>
+        <div class="right">
+            <span class="muted" style="font-size:12px;">Recent history from the control plane, searchable by request, correlation, or external reference.</span>
+        </div>
+    </div>
+
+    <div class="trace-filters" style="margin-bottom:12px;">
+        <div>
+            <label class="muted" style="font-size:11px;">Trace Search</label>
+            <input class="input" id="executionFilter" placeholder="Search request id, correlation id, external reference, event, or action..." oninput="renderExecutions()" style="width:100%;min-width:0;">
+        </div>
+        <div>
+            <label class="muted" style="font-size:11px;">Status</label>
+            <select class="select" id="executionStatusFilter" onchange="renderExecutions()" style="width:100%;min-width:0;">
+                <option value="">All statuses</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+                <option value="rate_limited">Rate limited</option>
+                <option value="skipped_invalid">Skipped invalid</option>
+            </select>
+        </div>
+        <button class="btn" type="button" onclick="clearExecutionFilters()">Clear Filters</button>
+        <button class="btn" type="button" onclick="loadExecutions(false)">Reload Runs</button>
+    </div>
+
+    <div class="table-wrap">
+        <table class="trace-table">
+            <thead>
+                <tr>
+                    <th style="min-width:140px;">Time</th>
+                    <th style="min-width:280px;">Rule</th>
+                    <th style="min-width:120px;">Status</th>
+                    <th style="min-width:220px;">Trace</th>
+                    <th style="min-width:280px;">Details</th>
+                </tr>
+            </thead>
+            <tbody id="executionsTbody">
+                <tr><td colspan="5" class="muted">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 </div>{# /tab-panel-triggers #}
 
 <div id="tab-panel-bridges" class="tab-panel">
@@ -322,11 +392,26 @@
     var KERNEL_EVENTS = [];
     var KERNEL_TRIGGERS = [];
     var KERNEL_CAPABILITIES = [];
+    var KERNEL_EXECUTIONS = [];
+    var EXECUTION_SUMMARY = {};
     var EVENTS_BY_KEY = {}; // module|event_key -> event
     var ACTIVE_SUGGEST_EVENT = null;
     var ACTIVE_SUGGESTIONS = [];
     var ACTIVE_ALLOWED_CAPS = [];
     var ADVANCED_MODE = false;
+    var ACTIVE_EXECUTION_TRIGGER_ID = '';
+    var ACTIVE_EXECUTION_TRIGGER_LABEL = '';
+    var EXECUTION_SERVER_FILTERS = {
+        module: '',
+        event_key: '',
+        capability_id: '',
+        status: '',
+        correlation_id: '',
+        request_id: '',
+        external_reference: '',
+        trigger_id: '',
+        q: ''
+    };
 
     function applyModeUI() {
         var panel = document.getElementById('rulesPanel');
@@ -737,6 +822,140 @@
         c.textContent = txt;
     }
 
+    function executionStatusClass(status) {
+        var normalized = String(status || '').toLowerCase();
+        if (normalized === 'success') return 'success';
+        if (normalized === 'failed') return 'failed';
+        if (normalized === 'rate_limited') return 'rate-limited';
+        if (normalized === 'skipped_invalid') return 'skipped-invalid';
+        return 'unknown';
+    }
+
+    function executionStatusLabel(status) {
+        var normalized = String(status || '').toLowerCase();
+        if (normalized === 'rate_limited') return 'Rate limited';
+        if (normalized === 'skipped_invalid') return 'Skipped invalid';
+        if (!normalized) return 'Unknown';
+        return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    }
+
+    function executionStatusBadge(status) {
+        var cls = executionStatusClass(status);
+        return '<span class="status-pill ' + cls + '">' + esc(executionStatusLabel(status)) + '</span>';
+    }
+
+    function parseExecutionFiltersFromQuery() {
+        if (typeof URLSearchParams === 'undefined' || typeof window === 'undefined' || !window.location) {
+            return;
+        }
+
+        var params = new URLSearchParams(window.location.search || '');
+        Object.keys(EXECUTION_SERVER_FILTERS).forEach(function(key) {
+            EXECUTION_SERVER_FILTERS[key] = String(params.get(key) || '').trim();
+        });
+
+        ACTIVE_EXECUTION_TRIGGER_ID = EXECUTION_SERVER_FILTERS.trigger_id || '';
+        ACTIVE_EXECUTION_TRIGGER_LABEL = executionScopeLabelFromFilters();
+    }
+
+    function executionScopeLabelFromFilters() {
+        if (EXECUTION_SERVER_FILTERS.external_reference) return 'Ref ' + EXECUTION_SERVER_FILTERS.external_reference;
+        if (EXECUTION_SERVER_FILTERS.correlation_id) return 'Corr ' + EXECUTION_SERVER_FILTERS.correlation_id;
+        if (EXECUTION_SERVER_FILTERS.request_id) return 'Req ' + EXECUTION_SERVER_FILTERS.request_id;
+        if (EXECUTION_SERVER_FILTERS.trigger_id) return 'Trigger #' + EXECUTION_SERVER_FILTERS.trigger_id;
+        if (EXECUTION_SERVER_FILTERS.event_key) return EXECUTION_SERVER_FILTERS.event_key;
+        return ACTIVE_EXECUTION_TRIGGER_ID ? ('Trigger #' + ACTIVE_EXECUTION_TRIGGER_ID) : '';
+    }
+
+    function applyExecutionFiltersToUi() {
+        var queryEl = document.getElementById('executionFilter');
+        var statusEl = document.getElementById('executionStatusFilter');
+        if (queryEl && EXECUTION_SERVER_FILTERS.q) {
+            queryEl.value = EXECUTION_SERVER_FILTERS.q;
+        }
+        if (statusEl && EXECUTION_SERVER_FILTERS.status) {
+            statusEl.value = EXECUTION_SERVER_FILTERS.status;
+        }
+    }
+
+    function buildExecutionApiUrl(limit) {
+        var params = [];
+        ['module', 'event_key', 'capability_id', 'status', 'correlation_id', 'request_id', 'external_reference', 'trigger_id'].forEach(function(key) {
+            var value = String(EXECUTION_SERVER_FILTERS[key] || '').trim();
+            if (!value) return;
+            params.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+        });
+        params.push('limit=' + encodeURIComponent(String(limit || 50)));
+        return '/api/v1/admin/kernel/trigger-executions?' + params.join('&');
+    }
+
+    function updateExecutionQueryString() {
+        if (typeof URLSearchParams === 'undefined' || typeof window === 'undefined' || !window.location || !window.history || !window.history.replaceState) {
+            return;
+        }
+
+        var params = new URLSearchParams(window.location.search || '');
+        Object.keys(EXECUTION_SERVER_FILTERS).forEach(function(key) {
+            var value = String(EXECUTION_SERVER_FILTERS[key] || '').trim();
+            if (value) {
+                params.set(key, value);
+            } else {
+                params.delete(key);
+            }
+        });
+        var next = window.location.pathname + (params.toString() ? ('?' + params.toString()) : '');
+        window.history.replaceState({}, '', next);
+    }
+
+    function formatPayload(value) {
+        if (value === null || value === undefined || value === '') {
+            return 'null';
+        }
+        if (typeof value === 'string') {
+            return value;
+        }
+        try {
+            return JSON.stringify(value, null, 2);
+        } catch (e) {
+            return String(value);
+        }
+    }
+
+    function setExecutionCounts() {
+        var badge = document.getElementById('executionCounts');
+        var scope = document.getElementById('executionScope');
+        if (badge) {
+            var visible = getFilteredExecutions().length;
+            var total = Number(EXECUTION_SUMMARY.trigger_execution_count || KERNEL_EXECUTIONS.length || 0);
+            var text = String(visible) + ' visible';
+            if (ACTIVE_EXECUTION_TRIGGER_ID) {
+                text += ' for this rule';
+            } else if (total > KERNEL_EXECUTIONS.length) {
+                text += ' of ' + String(total) + ' total';
+            } else {
+                text += ' run' + (visible === 1 ? '' : 's');
+            }
+            badge.textContent = text;
+        }
+        if (scope) {
+            var label = ACTIVE_EXECUTION_TRIGGER_LABEL || executionScopeLabelFromFilters();
+            if (ACTIVE_EXECUTION_TRIGGER_ID || label) {
+                scope.style.display = '';
+                scope.textContent = label;
+            } else {
+                scope.style.display = 'none';
+                scope.textContent = '';
+            }
+        }
+    }
+
+    function syncExecutionFiltersFromUi() {
+        var queryEl = document.getElementById('executionFilter');
+        var statusEl = document.getElementById('executionStatusFilter');
+        EXECUTION_SERVER_FILTERS.q = String((queryEl && queryEl.value) || '').trim();
+        EXECUTION_SERVER_FILTERS.status = String((statusEl && statusEl.value) || '').trim();
+    }
+
     function updateModuleFilterOptions() {
         var sel = document.getElementById('moduleFilter');
         if (!sel) return;
@@ -792,17 +1011,31 @@
 
             var enabled = (Number(t.is_enabled) === 1);
             var tpl = t.template || '';
+            var triggerId = String(t.id || '');
+            var lastStatus = t.last_execution_status || '';
+            var lastAt = t.last_execution_at || '';
+            var runtimeInfo = '';
+            if (lastStatus || lastAt) {
+                runtimeInfo = '<div class="rule-runtime">' +
+                    (lastStatus ? executionStatusBadge(lastStatus) : '') +
+                    (lastAt ? '<div class="muted">Last run: ' + esc(lastAt) + '</div>' : '') +
+                '</div>';
+            }
 
             var maxPerMin = (t.max_per_minute === null || t.max_per_minute === undefined) ? '' : String(t.max_per_minute);
 
             return (
-                '<tr data-module="' + esc(t.module) + '" data-event="' + esc(t.event_key) + '" data-cap="' + esc(t.capability_id) + '" data-trigger-id="' + esc(String(t.id || '')) + '">' +
+                '<tr data-module="' + esc(t.module) + '" data-event="' + esc(t.event_key) + '" data-cap="' + esc(t.capability_id) + '" data-trigger-id="' + esc(triggerId) + '">' +
                     '<td class="mono">' + esc(t.module) + '</td>' +
                     '<td ' + title + '><div class="mono">' + esc(t.event_key) + '</div>' +
                         (desc ? '<div class="muted" style="margin-top:3px;max-width:540px;">' + esc(desc) + '</div>' : '') +
-                        eventBadge +
+                        eventBadge + runtimeInfo +
                     '</td>' +
-                    '<td class="mono">' + esc(t.capability_id) + '</td>' +
+                    '<td class="mono">' + esc(t.capability_id) +
+                        ((t.capability_runtime_registered === false || Number(t.capability_provider_count || 0) < 1)
+                            ? '<div class="muted" style="margin-top:4px;">No active runtime provider</div>'
+                            : '') +
+                    '</td>' +
                     '<td class="cell-tight">' +
                         '<label class="toggle"><input type="checkbox" ' + (enabled ? 'checked' : '') + ' onchange="markDirty(this)"><span class="muted">' + (enabled ? 'Active' : 'Paused') + '</span></label>' +
                     '</td>' +
@@ -813,6 +1046,7 @@
                     '<td class="cell-tight adv-col"><input class="num" type="number" min="0" placeholder="5000" value="' + esc(t.timeout_ms) + '" oninput="markDirty(this)"></td>' +
                     '<td class="cell-tight">' +
                         '<div class="row-actions">' +
+                            '<button class="btn" onclick="focusExecutionsForRule(\'' + esc(triggerId) + '\', \'' + esc(t.event_key + ' → ' + t.capability_id) + '\')">Runs</button>' +
                             '<button class="btn" onclick="saveRow(this)">Save</button>' +
                             '<button class="btn btn-danger" onclick="deleteRow(this)" title="Delete this rule">Delete</button>' +
                             '<span class="muted" data-status></span>' +
@@ -823,6 +1057,137 @@
         }).join('');
 
         setCounts();
+    }
+
+    function getFilteredExecutions() {
+        var queryEl = document.getElementById('executionFilter');
+        var statusEl = document.getElementById('executionStatusFilter');
+        var query = String((queryEl && queryEl.value) || '').toLowerCase().trim();
+        var status = String((statusEl && statusEl.value) || '').toLowerCase().trim();
+
+        return KERNEL_EXECUTIONS.filter(function(execution) {
+            if (ACTIVE_EXECUTION_TRIGGER_ID && String(execution.trigger_id || '') !== String(ACTIVE_EXECUTION_TRIGGER_ID)) {
+                return false;
+            }
+            if (status && String(execution.status || '').toLowerCase() !== status) {
+                return false;
+            }
+            if (!query) {
+                return true;
+            }
+
+            var hay = [
+                execution.request_id,
+                execution.correlation_id,
+                execution.external_reference,
+                execution.event_key,
+                execution.capability_id,
+                execution.resolved_capability,
+                execution.module,
+                execution.status,
+                execution.error_message
+            ].map(function(value) {
+                return String(value || '').toLowerCase();
+            }).join(' ');
+
+            return hay.indexOf(query) !== -1;
+        });
+    }
+
+    function renderExecutions() {
+        var tbody = document.getElementById('executionsTbody');
+        if (!tbody) return;
+
+        syncExecutionFiltersFromUi();
+        updateExecutionQueryString();
+
+        var rows = getFilteredExecutions();
+        setExecutionCounts();
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="muted">No trigger executions match the current filters.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = rows.map(function(execution) {
+            var traceBits = [];
+            if (execution.request_id) traceBits.push('<span class="badge"><span class="mono">req ' + esc(execution.request_id) + '</span></span>');
+            if (execution.correlation_id) traceBits.push('<span class="badge"><span class="mono">corr ' + esc(execution.correlation_id) + '</span></span>');
+            if (execution.external_reference) traceBits.push('<span class="badge"><span class="mono">ref ' + esc(execution.external_reference) + '</span></span>');
+
+            var payloadDetails = '';
+            var eventPayload = formatPayload(execution.event_payload);
+            var capabilityPayload = formatPayload(execution.capability_payload);
+            var resultPayload = formatPayload(execution.result_payload);
+            payloadDetails = '<details class="trace-details"><summary>Payloads</summary>' +
+                '<pre>' + esc('event_payload\n' + eventPayload + '\n\ncapability_payload\n' + capabilityPayload + '\n\nresult_payload\n' + resultPayload) + '</pre>' +
+            '</details>';
+
+            var errorRow = execution.error_message
+                ? '<div style="margin-top:6px;color:#b91c1c;font-size:11px;">' + esc(execution.error_message) + '</div>'
+                : '';
+
+            return (
+                '<tr>' +
+                    '<td class="mono" style="white-space:nowrap;">' + esc(execution.created_at || '—') + '</td>' +
+                    '<td>' +
+                        '<div class="mono">' + esc(execution.event_key || '—') + '</div>' +
+                        '<div class="muted" style="margin-top:4px;">' + esc(execution.capability_id || execution.resolved_capability || '—') + '</div>' +
+                        '<div class="trace-inline">' +
+                            (execution.trigger_id ? '<span class="badge">Trigger #' + esc(execution.trigger_id) + '</span>' : '') +
+                            (execution.trigger_enabled === false ? '<span class="badge warn">Rule disabled now</span>' : '') +
+                        '</div>' +
+                    '</td>' +
+                    '<td>' + executionStatusBadge(execution.status) + '</td>' +
+                    '<td><div class="trace-meta">' + (traceBits.length ? traceBits.join('') : '<span class="muted">—</span>') + '</div></td>' +
+                    '<td>' +
+                        '<div class="trace-kv">' +
+                            '<div class="muted">Duration: <span class="mono">' + esc(execution.duration_ms !== null && execution.duration_ms !== undefined ? execution.duration_ms + 'ms' : '—') + '</span></div>' +
+                            '<div class="muted">Module: <span class="mono">' + esc(execution.module || '—') + '</span></div>' +
+                            payloadDetails +
+                            errorRow +
+                        '</div>' +
+                    '</td>' +
+                '</tr>'
+            );
+        }).join('');
+    }
+
+    function clearExecutionFilters() {
+        var queryEl = document.getElementById('executionFilter');
+        var statusEl = document.getElementById('executionStatusFilter');
+        if (queryEl) queryEl.value = '';
+        if (statusEl) statusEl.value = '';
+        Object.keys(EXECUTION_SERVER_FILTERS).forEach(function(key) {
+            EXECUTION_SERVER_FILTERS[key] = '';
+        });
+        ACTIVE_EXECUTION_TRIGGER_ID = '';
+        ACTIVE_EXECUTION_TRIGGER_LABEL = '';
+        updateExecutionQueryString();
+        loadExecutions(true);
+        renderExecutions();
+    }
+
+    function focusExecutionsForRule(triggerId, label) {
+        ACTIVE_EXECUTION_TRIGGER_ID = String(triggerId || '');
+        ACTIVE_EXECUTION_TRIGGER_LABEL = String(label || '');
+        EXECUTION_SERVER_FILTERS.trigger_id = ACTIVE_EXECUTION_TRIGGER_ID;
+        EXECUTION_SERVER_FILTERS.correlation_id = '';
+        EXECUTION_SERVER_FILTERS.request_id = '';
+        EXECUTION_SERVER_FILTERS.external_reference = '';
+        EXECUTION_SERVER_FILTERS.event_key = '';
+        EXECUTION_SERVER_FILTERS.capability_id = '';
+        EXECUTION_SERVER_FILTERS.module = '';
+        if (!EXECUTION_SERVER_FILTERS.status) {
+            EXECUTION_SERVER_FILTERS.status = '';
+        }
+        updateExecutionQueryString();
+        loadExecutions(true);
+        renderExecutions();
+        var panel = document.getElementById('executionsPanel');
+        if (panel && typeof panel.scrollIntoView === 'function') {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     function getRowEl(el) {
@@ -944,11 +1309,13 @@
         var p1 = fetch('/api/v1/admin/kernel/events').then(function(r) { return r.json(); });
         var p2 = fetch('/api/v1/admin/kernel/triggers').then(function(r) { return r.json(); });
         var p3 = fetch('/api/v1/admin/capabilities').then(function(r) { return r.json(); });
+        var p4 = fetch(buildExecutionApiUrl(50)).then(function(r) { return r.json(); });
 
-        Promise.all([p1, p2, p3]).then(function(res) {
+        Promise.all([p1, p2, p3, p4]).then(function(res) {
             var ev = res[0];
             var tr = res[1];
             var cap = res[2];
+            var ex = res[3];
 
             if (!ev || !ev.ok) {
                 showToast((ev && ev.error) ? ev.error : 'Failed to load events');
@@ -962,18 +1329,28 @@
                 showToast((cap && cap.error) ? cap.error : 'Failed to load actions');
                 return;
             }
+            if (!ex || !ex.ok) {
+                showToast((ex && ex.error) ? ex.error : 'Failed to load trigger runs');
+                return;
+            }
 
             KERNEL_EVENTS = Array.isArray(ev.events) ? ev.events : [];
             KERNEL_TRIGGERS = Array.isArray(tr.triggers) ? tr.triggers : [];
             KERNEL_CAPABILITIES = normalizeCapabilities(cap.capabilities || []);
+            KERNEL_EXECUTIONS = Array.isArray(ex.executions) ? ex.executions : [];
+            EXECUTION_SUMMARY = (ex.summary && typeof ex.summary === 'object') ? ex.summary : {};
+            ACTIVE_EXECUTION_TRIGGER_LABEL = executionScopeLabelFromFilters();
 
             buildEventsIndex();
             updateModuleFilterOptions();
             updateQuickCreateModuleOptions();
             updateQuickCreateCapabilityOptions();
+            applyExecutionFiltersToUi();
+            syncExecutionFiltersFromUi();
             renderEvents();
             setCounts();
             renderTable();
+            renderExecutions();
 
             if (!silent) {
                 showToast('Rules loaded');
@@ -982,6 +1359,33 @@
             showToast('Network error while loading');
         }).finally(function() {
             if (loading) loading.style.display = 'none';
+        });
+    }
+
+    function loadExecutions(silent) {
+        var tbody = document.getElementById('executionsTbody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading…</td></tr>';
+        }
+
+        fetch(buildExecutionApiUrl(50))
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res || !res.ok) {
+                showToast((res && res.error) ? res.error : 'Failed to load trigger runs');
+                return;
+            }
+
+            KERNEL_EXECUTIONS = Array.isArray(res.executions) ? res.executions : [];
+            EXECUTION_SUMMARY = (res.summary && typeof res.summary === 'object') ? res.summary : {};
+            ACTIVE_EXECUTION_TRIGGER_LABEL = executionScopeLabelFromFilters();
+            renderExecutions();
+            if (!silent) {
+                showToast('Trigger runs loaded');
+            }
+        })
+        .catch(function() {
+            showToast('Network error while loading trigger runs');
         });
     }
 
@@ -1187,6 +1591,7 @@
     }
 
     loadAdvancedModePreference();
+    parseExecutionFiltersFromQuery();
     reloadAll(true);
 </script>
 {/block}
