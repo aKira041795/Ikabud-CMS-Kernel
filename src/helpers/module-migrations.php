@@ -421,7 +421,6 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
         '012_kernel_trigger_execution_history.sql' => BASE_PATH . '/database/migrations/012_kernel_trigger_execution_history.sql',
         '013_kernel_trigger_execution_history_module_idx.sql' => BASE_PATH . '/database/migrations/013_kernel_trigger_execution_history_module_idx.sql',
         '014_integration_modes.sql' => BASE_PATH . '/database/migrations/014_integration_modes.sql',
-        '015_users_token_version.sql' => BASE_PATH . '/database/migrations/015_users_token_version.sql',
         '017_audit_logs_actor_module.sql' => BASE_PATH . '/database/migrations/017_audit_logs_actor_module.sql',
     ];
 

@@ -23,8 +23,14 @@ CREATE TABLE IF NOT EXISTS kernel_integration_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- v2 additions: origin tracking and capability version guard
-ALTER TABLE kernel_integrations
-    ADD COLUMN event_source VARCHAR(30) NOT NULL DEFAULT 'eventbus' AFTER is_active;
+SET @_m010_ev := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'kernel_integrations' AND column_name = 'event_source');
+SET @_m010_alt1 := IF(@_m010_ev = 0, 'ALTER TABLE kernel_integrations ADD COLUMN event_source VARCHAR(30) NOT NULL DEFAULT ''eventbus'' AFTER is_active', 'SELECT 1');
+PREPARE _m010_stmt1 FROM @_m010_alt1;
+EXECUTE _m010_stmt1;
+DEALLOCATE PREPARE _m010_stmt1;
 
-ALTER TABLE kernel_integrations
-    ADD COLUMN version_lock VARCHAR(255) DEFAULT NULL AFTER event_source;
+SET @_m010_vl := (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'kernel_integrations' AND column_name = 'version_lock');
+SET @_m010_alt2 := IF(@_m010_vl = 0, 'ALTER TABLE kernel_integrations ADD COLUMN version_lock VARCHAR(255) DEFAULT NULL AFTER event_source', 'SELECT 1');
+PREPARE _m010_stmt2 FROM @_m010_alt2;
+EXECUTE _m010_stmt2;
+DEALLOCATE PREPARE _m010_stmt2;

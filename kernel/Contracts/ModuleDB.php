@@ -169,8 +169,8 @@ class ModuleDB implements DatabaseContract
         // Special carve-out: allow 'SHOW TABLES' (used for table existence checks) but block other SHOW variants.
         foreach (self::FORBIDDEN_KEYWORDS as $keyword) {
             if (preg_match('/\b' . $keyword . '\b/i', $stripped)) {
-                if (strtoupper($keyword) === 'SHOW' && preg_match('/\bSHOW\s+TABLES\b/i', $stripped)) {
-                    continue; // Allow SHOW TABLES LIKE / SHOW TABLES only
+                if (strtoupper($keyword) === 'SHOW' && preg_match('/\bSHOW\s+(TABLES|COLUMNS)\b/i', $stripped)) {
+                    continue; // Allow SHOW TABLES / SHOW COLUMNS (for table and column existence checks)
                 }
                 $this->deny("DDL/DCL statement '{$keyword}' is forbidden for modules", $sql);
             }
@@ -349,3 +349,4 @@ class ModuleDB implements DatabaseContract
         return $this->readsTables;
     }
 }
+
