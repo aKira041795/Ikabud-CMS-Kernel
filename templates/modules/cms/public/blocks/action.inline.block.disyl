@@ -1,6 +1,11 @@
 {if action_sections}{action_sections | raw}{else}
 <div class="cms-action-block cms-action-block-inline my-6 flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-white/90 p-3">
-    {if capabilities.pricing and cart_enabled}
+    {if entity.is_external_product and entity.external_product_url}
+    <a href="{entity.external_product_url}" target="_blank" rel="noopener noreferrer sponsored"
+       class="cms-btn-primary inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 active:bg-slate-950">
+        {entity.external_product_button_text | default:'Buy Externally'}
+    </a>
+    {elseif capabilities.pricing and cart_enabled}
         {if not capabilities.inventory}
     <form method="POST" action="{cart_action_url}" class="inline">
         <input type="hidden" name="product_id" value="{entity.id}">

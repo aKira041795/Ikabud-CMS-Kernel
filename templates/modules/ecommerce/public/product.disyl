@@ -47,6 +47,9 @@
             </nav>
 
             <h1 class="text-2xl font-bold text-gray-900 mb-2">{storefront.page.title|default:storefront.product.title|default:product.title}</h1>
+            {if storefront.product.review_summary.has_reviews|default:product.review_summary.has_reviews}
+            <div class="mb-3 text-sm font-medium text-amber-700">{storefront.product.review_summary.average_rating_formatted|default:product.review_summary.average_rating_formatted}/5 · {storefront.product.review_summary.approved_count|default:product.review_summary.approved_count} {if storefront.product.review_summary.approved_count|default:product.review_summary.approved_count == 1}review{else}reviews{/if}</div>
+            {/if}
 
             <!-- Price -->
             <div class="flex items-baseline gap-3 mb-4">
@@ -92,7 +95,38 @@
 
             <!-- Add to cart -->
             {if storefront.product.id}
-                {if storefront.product.inventory.in_stock}
+                {if storefront.product.is_external_product and storefront.product.external_product_url}
+            <div class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4">
+                <div class="text-sm text-sky-900 mb-3">This product is purchased through an external checkout partner.</div>
+                <a href="{storefront.product.external_product_url}" target="_blank" rel="noopener noreferrer sponsored"
+                   class="inline-flex w-full items-center justify-center px-6 py-3 bg-sky-700 text-white font-medium rounded-lg hover:bg-sky-800">
+                    {storefront.product.external_product_button_text | default:'Buy Externally'}
+                </a>
+            </div>
+                {elseif storefront.product.grouped_children | count > 0}
+            <div class="mb-6 rounded-xl border border-gray-200 p-4" id="grouped-products-form">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold text-gray-900">Grouped Products</h2>
+                    <span class="text-xs text-gray-500">Adjust quantities before adding to cart</span>
+                </div>
+                <div class="space-y-3">
+                    {foreach storefront.product.grouped_children as child}
+                    <div class="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-3" data-grouped-child-row data-product-id="{child.id}">
+                        <img src="{if child.primary_image_url}{child.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{child.title}" class="w-14 h-14 rounded-lg object-cover bg-gray-100">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-gray-900">{child.title}</div>
+                            <div class="text-sm text-gray-500">{child.pricing.formatted | default:'Contact for price'} · {child.inventory.badge.label}</div>
+                        </div>
+                        <input type="number" value="{child.grouped_qty}" min="0" class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:border-orange-500 outline-none" data-grouped-child-qty>
+                    </div>
+                    {/foreach}
+                </div>
+                <button onclick="addGroupedToCart({storefront.product.id|default:product.id}, event)"
+                        class="w-full mt-4 px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
+                    Add Selected Items to Cart
+                </button>
+            </div>
+                {elseif storefront.product.inventory.in_stock}
                     {if storefront.product.inventory.out_of_stock}
             <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
                     {else}
@@ -109,6 +143,37 @@
                 {else}
             <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
                 {/if}
+            {elseif product.is_external_product and product.external_product_url}
+            <div class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4">
+                <div class="text-sm text-sky-900 mb-3">This product is purchased through an external checkout partner.</div>
+                <a href="{product.external_product_url}" target="_blank" rel="noopener noreferrer sponsored"
+                   class="inline-flex w-full items-center justify-center px-6 py-3 bg-sky-700 text-white font-medium rounded-lg hover:bg-sky-800">
+                    {product.external_product_button_text | default:'Buy Externally'}
+                </a>
+            </div>
+            {elseif product.grouped_children | count > 0}
+            <div class="mb-6 rounded-xl border border-gray-200 p-4" id="grouped-products-form">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold text-gray-900">Grouped Products</h2>
+                    <span class="text-xs text-gray-500">Adjust quantities before adding to cart</span>
+                </div>
+                <div class="space-y-3">
+                    {foreach product.grouped_children as child}
+                    <div class="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-3" data-grouped-child-row data-product-id="{child.id}">
+                        <img src="{if child.primary_image_url}{child.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{child.title}" class="w-14 h-14 rounded-lg object-cover bg-gray-100">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-gray-900">{child.title}</div>
+                            <div class="text-sm text-gray-500">{child.pricing.formatted | default:'Contact for price'} · {if child.inventory.low_stock}Low stock{elseif child.inventory.in_stock}In stock{else}Out of stock{/if}</div>
+                        </div>
+                        <input type="number" value="{child.grouped_qty}" min="0" class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:border-orange-500 outline-none" data-grouped-child-qty>
+                    </div>
+                    {/foreach}
+                </div>
+                <button onclick="addGroupedToCart({product.id}, event)"
+                        class="w-full mt-4 px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
+                    Add Selected Items to Cart
+                </button>
+            </div>
             {elseif product.inventory.in_stock}
                 {if product.inventory.out_of_stock}
             <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
@@ -133,6 +198,10 @@
                 {storefront.product.body|default:product.body | raw}
             </div>
             {/if}
+
+            {include "modules/cms/public/blocks/ecommerce-reviews.block.disyl"}
+            {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
+            {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
         </div>
     </div>
 </div>
@@ -187,6 +256,55 @@ async function addToCart(productId, qty) {
         alert('Error. Please try again.');
         btn.disabled = false;
         btn.textContent = 'Add to Cart';
+    }
+}
+
+async function addGroupedToCart(parentProductId, clickEvent) {
+    const btn = clickEvent && clickEvent.currentTarget ? clickEvent.currentTarget : null;
+    if (!btn) {
+        return;
+    }
+
+    const rows = Array.from(document.querySelectorAll('[data-grouped-child-row]'));
+    const groupedItems = rows.map((row) => ({
+        product_id: parseInt(row.getAttribute('data-product-id') || '0', 10),
+        qty: parseInt((row.querySelector('[data-grouped-child-qty]') || {}).value || '0', 10),
+    })).filter((item) => item.product_id > 0 && item.qty > 0);
+
+    if (groupedItems.length === 0) {
+        alert('Select at least one grouped product quantity.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({ grouped_parent_id: parentProductId, grouped_items: groupedItems }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            btn.textContent = 'Added!';
+            btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+            btn.classList.add('bg-emerald-600');
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Add Selected Items to Cart';
+                btn.classList.add('bg-orange-600', 'hover:bg-orange-700');
+                btn.classList.remove('bg-emerald-600');
+            }, 2000);
+        } else {
+            alert(data.error || 'Could not add grouped products to cart');
+            btn.disabled = false;
+            btn.textContent = 'Add Selected Items to Cart';
+        }
+    } catch (e) {
+        alert('Error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Add Selected Items to Cart';
     }
 }
 </script>

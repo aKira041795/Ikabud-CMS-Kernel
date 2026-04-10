@@ -14,6 +14,7 @@ function ecPublicCart(): void
     $cart    = ecCartGet();
     $rates   = ecShippingRates();
     $message = $_SESSION['ec_message'] ?? ['type' => '', 'text' => ''];
+    $relationSections = function_exists('ecCartRecommendationSections') ? ecCartRecommendationSections((array)($cart['items'] ?? [])) : [];
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/public/cart.disyl', [
@@ -21,6 +22,7 @@ function ecPublicCart(): void
         'cart'           => $cart,
         'shipping_rates' => $rates,
         'message'        => $message,
+        'relation_sections' => $relationSections,
     ]);
     
     if (function_exists('releaseSessionAfterRender')) {

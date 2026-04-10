@@ -127,12 +127,14 @@ function ecNormalizeCartContextShape(array $cart, array &$missingKeys, array &$t
         'discount_fmt' => '',
         'tax' => 0.0,
         'tax_fmt' => '',
+        'tax_label' => 'Tax',
         'tax_rate' => 0.0,
+        'tax_breakdown' => [],
         'total' => 0.0,
         'total_fmt' => '',
         'item_count' => 0,
         'coupon' => [],
-    ], ['subtotal_fmt', 'discount_fmt', 'tax_fmt', 'total_fmt', 'item_count', 'coupon'], $missingKeys, $typeMismatches, $pathPrefix . 'totals.');
+    ], ['subtotal_fmt', 'discount_fmt', 'tax_fmt', 'tax_label', 'tax_breakdown', 'total_fmt', 'item_count', 'coupon'], $missingKeys, $typeMismatches, $pathPrefix . 'totals.');
 
     return $cart;
 }
@@ -346,6 +348,8 @@ function ecNormalizeCatalogRenderContext(array $context, string $template, array
         'search' => (string)$context['search'],
         'category_id' => (int)$context['category_id'],
         'category_slug' => trim((string)(is_array($context['current_cat']) ? ($context['current_cat']['slug'] ?? '') : '')),
+        'attribute_filters' => is_array($context['attribute_filters'] ?? null) ? $context['attribute_filters'] : [],
+        'attribute_facets' => is_array($context['attribute_facets'] ?? null) ? $context['attribute_facets'] : [],
     ], ['search', 'category_id', 'category_slug'], $missingKeys, $typeMismatches, 'storefront.filters.');
 
     $storefront['collection'] = kernelApplyRenderContextShape($storefront['collection'], [

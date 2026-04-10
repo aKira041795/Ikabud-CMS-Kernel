@@ -29,7 +29,7 @@ function ecAdminCoupons(): void
                          VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())",
                         [
                             $code,
-                            in_array($input['type'] ?? '', ['percent', 'fixed'], true) ? $input['type'] : 'percent',
+                            ecCouponNormalizeType((string)($input['type'] ?? 'percent')),
                             max(0, (float)($input['value'] ?? 0)),
                             max(0, (float)($input['min_order_amount'] ?? 0)),
                             ($input['max_uses'] ?? '') !== '' ? (int)$input['max_uses'] : null,
@@ -69,6 +69,7 @@ function ecAdminCoupons(): void
 
     $ctx = ecAdminContext($user, 'coupons', [
         'coupons' => $coupons,
+        'coupon_type_options' => ecCouponAllowedTypes(),
         'message' => $_SESSION['ec_message'] ?? null,
     ]);
     unset($_SESSION['ec_message']);

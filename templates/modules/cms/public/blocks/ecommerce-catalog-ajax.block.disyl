@@ -1,0 +1,197 @@
+<script>
+(function () {
+    function currentCatalogSection() {
+        return document.querySelector('[data-catalog-api-url][data-public-render-origin="ecommerce"][data-storefront-page-kind="catalog"]');
+    }
+
+    function isCatalogPageUrl(url) {
+        return url.pathname === '/ecommerce/shop' || url.pathname.indexOf('/ecommerce/shop/category/') === 0;
+    }
+
+    function buildApiUrl(root, pageUrl) {
+        var apiUrl = root && root.dataset ? root.dataset.catalogApiUrl || '' : '';
+        if (!apiUrl) {
+            return null;
+        }
+
+        var page = new URL(pageUrl, window.location.origin);
+        if (!isCatalogPageUrl(page)) {
+            return null;
+        }
+
+        var api = new URL(apiUrl, window.location.origin);
+        page.searchParams.forEach(function (value, key) {
+            api.searchParams.append(key, value);
+        });
+
+        api.searchParams.set('base_list_url', page.pathname);
+        api.searchParams.set('search_action_url', page.pathname);
+        api.searchParams.set('all_items_url', root.dataset.listAllItemsUrl || '/ecommerce/shop');
+        api.searchParams.set('item_base_url', root.dataset.itemBaseUrl || '/ecommerce/shop');
+        api.searchParams.set('presentation_mode', root.dataset.publicPresentationMode || root.dataset.storefrontMode || 'traditional');
+        api.searchParams.set('route_kind', page.pathname.indexOf('/ecommerce/shop/category/') === 0 ? 'shop_category' : 'shop_index');
+
+        if (page.pathname.indexOf('/ecommerce/shop/category/') === 0) {
+            api.searchParams.set('category_slug', decodeURIComponent(page.pathname.split('/').pop() || ''));
+        }
+
+        return api;
+    }
+
+    function setBusy(root, busy) {
+        if (!root) {
+            return;
+        }
+
+        if (busy) {
+            root.setAttribute('aria-busy', 'true');
+            root.style.opacity = '0.6';
+            root.style.pointerEvents = 'none';
+            return;
+        }
+
+        root.removeAttribute('aria-busy');
+        root.style.opacity = '';
+        root.style.pointerEvents = '';
+    }
+
+    function scheduleSearch(form) {
+        window.clearTimeout(form.__catalogSearchTimer || 0);
+        form.__catalogSearchTimer = window.setTimeout(function () {
+            form.requestSubmit();
+        }, 250);
+    }
+
+    async function loadCatalog(pageUrl, pushHistory) {
+        var root = currentCatalogSection();
+        var api = root ? buildApiUrl(root, pageUrl) : null;
+        if (!root || !api) {
+            window.location.href = pageUrl;
+            return;
+        }
+
+        setBusy(root, true);
+
+        try {
+            var response = await fetch(api.toString(), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            var payload = await response.json();
+            if (!response.ok || !payload.ok || !payload.html) {
+                throw new Error(payload.error || 'Could not refresh the catalog.');
+            }
+
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = String(payload.html).trim();
+            var nextRoot = wrapper.firstElementChild;
+            if (!nextRoot) {
+                throw new Error('Catalog response was empty.');
+            }
+
+            root.replaceWith(nextRoot);
+
+            if (pushHistory) {
+                var nextPage = new URL(pageUrl, window.location.origin);
+                window.history.pushState({ catalog: true }, '', nextPage.pathname + nextPage.search);
+            }
+        } catch (error) {
+            window.location.href = pageUrl;
+            return;
+        } finally {
+            setBusy(currentCatalogSection(), false);
+        }
+    }
+
+    document.addEventListener('submit', function (event) {
+        var root = currentCatalogSection();
+        var form = event.target;
+        if (!root || !form || form.method.toLowerCase() !== 'get' || !root.contains(form)) {
+            return;
+        }
+
+        event.preventDefault();
+        var action = form.getAttribute('action') || window.location.pathname;
+        var pageUrl = new URL(action, window.location.origin);
+        var formData = new FormData(form);
+        var params = new URLSearchParams();
+
+        formData.forEach(function (value, key) {
+            if (typeof value === 'string' && value === '') {
+                return;
+            }
+            params.append(key, value);
+        });
+
+        params.delete('page');
+        pageUrl.search = params.toString();
+        loadCatalog(pageUrl.toString(), true);
+    });
+
+    document.addEventListener('change', function (event) {
+        var root = currentCatalogSection();
+        var target = event.target;
+        if (!root || !target || !root.contains(target)) {
+            return;
+        }
+
+        if (target.matches('input[type="checkbox"][name^="attr["]')) {
+            var filterForm = target.form;
+            if (filterForm) {
+                filterForm.requestSubmit();
+            }
+            return;
+        }
+
+        if (target.matches('select[name="cat"]')) {
+            if (target.form) {
+                target.form.requestSubmit();
+            }
+        }
+    });
+
+    document.addEventListener('input', function (event) {
+        var root = currentCatalogSection();
+        var target = event.target;
+        if (!root || !target || !root.contains(target) || !target.matches('input[name="search"]')) {
+            return;
+        }
+
+        var form = target.form;
+        if (!form) {
+            return;
+        }
+
+        scheduleSearch(form);
+    });
+
+    document.addEventListener('click', function (event) {
+        var root = currentCatalogSection();
+        var link = event.target.closest('a[href]');
+        if (!root || !link || !root.contains(link)) {
+            return;
+        }
+
+        if (link.closest('.cms-entity-card, .native-canonical-card, .poc-product-card')) {
+            return;
+        }
+
+        var pageUrl = new URL(link.href, window.location.origin);
+        if (!isCatalogPageUrl(pageUrl)) {
+            return;
+        }
+
+        event.preventDefault();
+        loadCatalog(pageUrl.toString(), true);
+    });
+
+    window.addEventListener('popstate', function () {
+        if (!currentCatalogSection() || !isCatalogPageUrl(new URL(window.location.href))) {
+            return;
+        }
+
+        loadCatalog(window.location.href, false);
+    });
+})();
+</script>

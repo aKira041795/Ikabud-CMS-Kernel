@@ -137,6 +137,10 @@ function ecAdminSettings(): void
         try {
             ecSyncWmsFulfillmentBridges(!empty($settings['wms_fulfillment_bridge_enabled']));
             saveModuleSettings('ecommerce', $settings);
+            invalidateTenantModuleSettingsCache();
+            if (function_exists('ecSettingsResetCache')) {
+                ecSettingsResetCache();
+            }
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Settings saved.'];
         } catch (\Throwable $e) {
             $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Settings were not saved: ' . $e->getMessage()];

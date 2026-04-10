@@ -2,27 +2,33 @@
 
 {block content}
 <!-- Filters -->
-<form method="get" action="" class="flex flex-wrap gap-2 mb-5">
-    <input type="text" name="search" value="{filters.search}" placeholder="Order #, name, email…"
-           class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
-    <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
-        <option value="">All statuses</option>
-        <option value="pending"    {if filters.status == 'pending'}selected{/if}>Pending</option>
-        <option value="processing" {if filters.status == 'processing'}selected{/if}>Processing</option>
-        <option value="shipped"    {if filters.status == 'shipped'}selected{/if}>Shipped</option>
-        <option value="delivered"  {if filters.status == 'delivered'}selected{/if}>Delivered</option>
-        <option value="cancelled"  {if filters.status == 'cancelled'}selected{/if}>Cancelled</option>
-        <option value="refunded"   {if filters.status == 'refunded'}selected{/if}>Refunded</option>
-    </select>
-    <select name="source" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
-        <option value="">All sources</option>
-        <option value="web" {if filters.source == 'web'}selected{/if}>Web</option>
-        <option value="pos" {if filters.source == 'pos'}selected{/if}>POS</option>
-    </select>
-    <input type="date" name="date_from" value="{filters.date_from}" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
-    <input type="date" name="date_to"   value="{filters.date_to}"   class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
-    <button type="submit" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Filter</button>
-</form>
+<div class="flex flex-wrap items-center gap-3 mb-5">
+    <a href="{base_url}/ecommerce/admin/import-export" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16V4m0 12l4-4m-4 4l-4-4M4 20h16"/></svg>
+        Import / Export
+    </a>
+    <form method="get" action="" class="flex flex-wrap gap-2 flex-1">
+        <input type="text" name="search" value="{filters.search}" placeholder="Order #, name, email…"
+               class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+        <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="">All statuses</option>
+            <option value="pending"    {if filters.status == 'pending'}selected{/if}>Pending</option>
+            <option value="processing" {if filters.status == 'processing'}selected{/if}>Processing</option>
+            <option value="shipped"    {if filters.status == 'shipped'}selected{/if}>Shipped</option>
+            <option value="delivered"  {if filters.status == 'delivered'}selected{/if}>Delivered</option>
+            <option value="cancelled"  {if filters.status == 'cancelled'}selected{/if}>Cancelled</option>
+            <option value="refunded"   {if filters.status == 'refunded'}selected{/if}>Refunded</option>
+        </select>
+        <select name="source" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="">All sources</option>
+            <option value="web" {if filters.source == 'web'}selected{/if}>Web</option>
+            <option value="pos" {if filters.source == 'pos'}selected{/if}>POS</option>
+        </select>
+        <input type="date" name="date_from" value="{filters.date_from}" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <input type="date" name="date_to"   value="{filters.date_to}"   class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <button type="submit" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Filter</button>
+    </form>
+</div>
 
 <!-- Orders table -->
 <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">

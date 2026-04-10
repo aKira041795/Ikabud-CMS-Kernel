@@ -70,7 +70,15 @@ function ecApiOrderStatus(array $params = []): void
     $status = trim((string)($input['status'] ?? ''));
     $note   = trim((string)($input['note']   ?? ''));
 
-    $updated = ecOrderUpdateStatus($id, $status, $note ?: null);
+    $updated = ecOrderUpdateStatusWithOptions($id, $status, $note ?: null, [
+        'source' => 'ecommerce_admin',
+        'actor_user_id' => (int)(app()->user()['id'] ?? 0),
+        'tracking' => [
+            'tracking_number' => $input['tracking_number'] ?? '',
+            'carrier' => $input['tracking_carrier'] ?? '',
+            'tracking_url' => $input['tracking_url'] ?? '',
+        ],
+    ]);
     if (!$updated) {
         ecJsonError('Invalid status or transition not allowed', 422);
     }
@@ -98,4 +106,29 @@ function ecApiOrderNote(array $params = []): void
         [$id, $note]
     );
     ecJsonOk(['ok' => true]);
+}
+
+function ecApiOrderRefund(array $params = []): void
+{
+    ecRequireAdmin();
+    $id = (int)($params['id'] ?? 0);
+    $input = ecInput();
+
+    try {
+        $result = ecOrderCreateRefund($id, (array)($input['refund_qty'] ?? $input['items'] ?? []), [
+            'amount' => $input['amount'] ?? $input['refund_amount'] ?? 0,
+            'reason' => $input['reason'] ?? $input['refund_reason'] ?? '',
+            'admin_note' => $input['note'] ?? $input['refund_note'] ?? '',
+            'restock_inventory' => !empty($input['restock_inventory']) || !empty($input['restock']),
+            'gateway_refund_id' => $input['gateway_refund_id'] ?? '',
+            'created_by_user_id' => (int)(app()->user()['id'] ?? 0),
+        ]);
+    } catch (\InvalidArgumentException $e) {
+        ecJsonError($e->getMessage(), 422);
+    } catch (\Throwable $e) {
+        write_log('ecApiOrderRefund error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce', 'order_id' => $id]);
+        ecJsonError('Could not create refund.', 500);
+    }
+
+    ecJsonOk($result, 201);
 }

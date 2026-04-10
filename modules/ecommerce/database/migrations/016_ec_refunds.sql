@@ -1,0 +1,40 @@
+CREATE TABLE IF NOT EXISTS ec_refunds (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    order_id INT UNSIGNED NOT NULL,
+    refund_number VARCHAR(40) NOT NULL,
+    created_by_user_id INT UNSIGNED NULL DEFAULT NULL,
+    refunded_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    reason VARCHAR(255) NOT NULL DEFAULT '',
+    admin_note TEXT NULL DEFAULT NULL,
+    restock_inventory TINYINT(1) NOT NULL DEFAULT 0,
+    status ENUM('completed', 'failed') NOT NULL DEFAULT 'completed',
+    gateway_refund_id VARCHAR(255) NULL DEFAULT NULL,
+    meta JSON NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_ec_refunds_number (refund_number),
+    KEY idx_ec_refunds_order (order_id, created_at),
+    KEY idx_ec_refunds_status (status),
+    CONSTRAINT fk_ec_refunds_order FOREIGN KEY (order_id) REFERENCES ec_orders(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ec_refunds_user FOREIGN KEY (created_by_user_id) REFERENCES cms_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ec_refund_items (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    refund_id INT UNSIGNED NOT NULL,
+    order_item_id INT UNSIGNED NOT NULL,
+    product_id INT UNSIGNED NOT NULL,
+    qty_refunded SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    line_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    restock_qty SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_ec_refund_item (refund_id, order_item_id),
+    KEY idx_ec_refund_items_refund (refund_id),
+    KEY idx_ec_refund_items_order_item (order_item_id),
+    CONSTRAINT fk_ec_refund_items_refund FOREIGN KEY (refund_id) REFERENCES ec_refunds(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ec_refund_items_order_item FOREIGN KEY (order_item_id) REFERENCES ec_order_items(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

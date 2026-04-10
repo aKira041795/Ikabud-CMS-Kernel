@@ -1,5 +1,9 @@
 {* list-card-action.block.disyl — compact add-to-cart for entity list cards *}
-{if capabilities.pricing and cart_enabled}
+{if entity.is_external_product and entity.external_product_url}
+    <a href="{entity.external_product_url}" target="_blank" rel="noopener noreferrer sponsored" class="cms-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors">
+        {entity.external_product_button_text | default:'Buy Externally'}
+    </a>
+{elseif capabilities.pricing and cart_enabled}
     {if not capabilities.inventory}
     <form method="POST" action="{cart_action_url}" class="cms-list-card-action inline">
         <input type="hidden" name="product_id" value="{entity.id}">

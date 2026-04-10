@@ -1,0 +1,81 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="flex flex-wrap items-center gap-3 mb-5">
+    <form method="get" action="" class="flex gap-2 flex-1">
+        <input type="text" name="search" value="{search}" placeholder="Search reviews or products…"
+               class="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-0 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none">
+        <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="pending" {if status == 'pending'}selected{/if}>Pending ({review_counts.pending})</option>
+            <option value="approved" {if status == 'approved'}selected{/if}>Approved ({review_counts.approved})</option>
+            <option value="rejected" {if status == 'rejected'}selected{/if}>Rejected ({review_counts.rejected})</option>
+            <option value="spam" {if status == 'spam'}selected{/if}>Spam ({review_counts.spam})</option>
+            <option value="all" {if status == 'all'}selected{/if}>All Reviews</option>
+        </select>
+        <button type="submit" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Filter</button>
+    </form>
+</div>
+
+<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+            <tr>
+                <th class="px-5 py-3 text-left">Review</th>
+                <th class="px-4 py-3 text-left">Product</th>
+                <th class="px-4 py-3 text-center">Rating</th>
+                <th class="px-4 py-3 text-center">Status</th>
+                <th class="px-4 py-3 text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {if reviews | count == 0}
+            <tr><td colspan="5" class="px-5 py-10 text-center text-gray-400">No reviews found.</td></tr>
+            {/if}
+            {foreach reviews as review}
+            <tr class="align-top hover:bg-gray-50">
+                <td class="px-5 py-4">
+                    <div class="font-medium text-gray-900">{review.reviewer_name}</div>
+                    <div class="mt-1 text-xs text-gray-500">{review.guest_email | default:'Logged-in customer'}{if review.verified_purchase} · Verified purchase{/if}</div>
+                    <p class="mt-2 text-sm text-gray-700 whitespace-pre-line">{review.review_body}</p>
+                    <div class="mt-2 text-xs text-gray-400">{review.created_at}</div>
+                </td>
+                <td class="px-4 py-4">
+                    <div class="font-medium text-gray-900">{review.product_title}</div>
+                    <div class="text-xs text-gray-400">/ecommerce/shop/{review.product_slug}</div>
+                </td>
+                <td class="px-4 py-4 text-center font-semibold text-amber-600">{review.rating}/5</td>
+                <td class="px-4 py-4 text-center">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                        {if review.status == 'approved'}bg-emerald-50 text-emerald-700{elseif review.status == 'pending'}bg-amber-50 text-amber-700{elseif review.status == 'rejected'}bg-red-50 text-red-700{else}bg-slate-100 text-slate-700{/if}">
+                        {review.status}
+                    </span>
+                </td>
+                <td class="px-4 py-4 text-right">
+                    <div class="flex flex-col items-end gap-2">
+                        <form method="post" action="{base_url}/ecommerce/admin/reviews/{review.id}/approve">
+                            <input type="hidden" name="_token" value="{csrf_token}">
+                            <button type="submit" class="text-xs text-emerald-600 hover:text-emerald-700 font-medium">Approve</button>
+                        </form>
+                        <form method="post" action="{base_url}/ecommerce/admin/reviews/{review.id}/reject">
+                            <input type="hidden" name="_token" value="{csrf_token}">
+                            <button type="submit" class="text-xs text-red-600 hover:text-red-700 font-medium">Reject</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {/foreach}
+        </tbody>
+    </table>
+</div>
+
+{if total_pages > 1}
+<div class="mt-4 flex items-center justify-between text-sm text-gray-500">
+    <span>{total} reviews</span>
+    <div class="flex gap-1">
+        {if page > 1}<a href="?page={page - 1}&search={search}&status={status}" class="px-3 py-1.5 border rounded hover:bg-gray-50">←</a>{/if}
+        <span class="px-3 py-1.5 bg-white border rounded text-gray-700">{page} / {total_pages}</span>
+        {if page < total_pages}<a href="?page={page + 1}&search={search}&status={status}" class="px-3 py-1.5 border rounded hover:bg-gray-50">→</a>{/if}
+    </div>
+</div>
+{/if}
+{/block}

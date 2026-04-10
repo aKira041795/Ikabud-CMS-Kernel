@@ -382,6 +382,9 @@ function wmsOrderBridgeEventPayload(int $orderId, ?array $order = null, ?string 
         'status' => $status ?? (string)($order['status'] ?? ''),
         'ecommerce_order_id' => (int)($meta['ecommerce_order_id'] ?? 0),
         'ecommerce_order_number' => (string)($meta['ecommerce_order_number'] ?? ($order['external_reference'] ?? '')),
+        'tracking_number' => (string)($meta['tracking_number'] ?? ''),
+        'tracking_carrier' => (string)($meta['tracking_carrier'] ?? $meta['carrier'] ?? ''),
+        'tracking_url' => (string)($meta['tracking_url'] ?? ''),
         'meta' => $meta,
     ];
 }

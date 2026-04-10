@@ -26,7 +26,10 @@ function ecPublicCheckout(): void
         exit;
     }
 
-    $shippingRates   = ecShippingRates();
+    $shippingDefaults = ['country' => function_exists('ecShippingDefaultCountry') ? ecShippingDefaultCountry() : ''];
+    $shippingQuote   = function_exists('ecShippingQuote')
+        ? ecShippingQuote($cart['items'], $shippingDefaults, (string)($cart['coupon_code'] ?? ''))
+        : ['requires_shipping' => false, 'rates' => [], 'selected_rate_id' => null, 'selected_rate' => null, 'totals' => $cart['totals']];
     $paymentLabel    = (string)ecSettings('payment_method_label');
     $cartHasDigital  = ecCartHasDigitalItems($cart['items']);
     $requireAccount  = (bool)ecSettings('require_account_for_digital');
@@ -36,11 +39,16 @@ function ecPublicCheckout(): void
         'cart'                       => $cart,
         'user'                       => $user,
         'is_customer'                => $isCustomer,
-        'shipping_rates'             => $shippingRates,
+        'shipping_rates'             => $shippingQuote['rates'] ?? [],
+        'shipping_quote'             => $shippingQuote,
+        'shipping_defaults'          => $shippingDefaults,
+        'requires_shipping'          => !empty($shippingQuote['requires_shipping']),
+        'checkout_totals'            => is_array($shippingQuote['totals'] ?? null) ? $shippingQuote['totals'] : $cart['totals'],
         'payment_label'              => $paymentLabel,
         'csrf_token'                 => app()->csrfToken(),
         'cart_has_digital'           => $cartHasDigital,
         'require_account_for_digital' => $requireAccount,
+        'abandoned_cart_enabled'     => ecAbandonedCartEnabled(),
     ]);
 }
 
@@ -93,4 +101,17 @@ function ecPublicOrderConfirm(array $params = []): void
         'order'        => $fullOrder,
         'is_logged_in' => $customerId !== null,
     ]);
+}
+
+function ecPublicRecoverCart(array $params = []): void
+{
+    $token = trim((string)($params['token'] ?? ''));
+    $result = $token !== '' ? ecAbandonedCartRestore($token) : ['ok' => false, 'error' => 'Recovery link is invalid or has expired.'];
+
+    $_SESSION['ec_message'] = !empty($result['ok'])
+        ? ['type' => 'success', 'text' => 'Your saved cart has been restored. Review it below and continue to checkout when ready.']
+        : ['type' => 'error', 'text' => (string)($result['error'] ?? 'Recovery link is invalid or has expired.')];
+
+    header('Location: /ecommerce/cart');
+    exit;
 }

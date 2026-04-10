@@ -67,7 +67,22 @@
         },
         {
             "key": "wms.order.dispatched",
-            "description": "Fired when an order is dispatched."
+            "description": "Fired when an order is dispatched.",
+            "available_vars": [
+                "order_id",
+                "wms_order_id",
+                "order_number",
+                "external_reference",
+                "warehouse_id",
+                "customer_name",
+                "status",
+                "ecommerce_order_id",
+                "ecommerce_order_number",
+                "tracking_number",
+                "tracking_carrier",
+                "tracking_url",
+                "meta"
+            ]
         },
         {
             "key": "wms.order.picked",

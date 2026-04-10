@@ -17,7 +17,6 @@
     <form id="checkout-form" class="native-checkout-layout">
         <section class="native-stack">
             {if cart_has_digital && !is_customer}
-            <!-- Digital product account notice -->
             <div class="native-storefront-panel" style="background:var(--storefront-warning-bg,#fffbeb);border-color:var(--storefront-warning-text,#b45309);">
                 <div style="display:flex;gap:0.75rem;align-items:flex-start;">
                     <svg style="width:1.25rem;height:1.25rem;color:var(--storefront-warning-text,#b45309);flex-shrink:0;margin-top:0.125rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/></svg>
@@ -32,6 +31,7 @@
                 </div>
             </div>
             {/if}
+
             <div class="native-storefront-panel">
                 <h2 class="native-panel-title">Contact and Billing</h2>
                 <div class="native-form-columns">
@@ -69,7 +69,7 @@
                     </div>
                     <div class="native-field">
                         <label for="billing-country">Country</label>
-                        <input id="billing-country" type="text" name="billing[country]" required placeholder="US" class="native-input">
+                        <input id="billing-country" type="text" name="billing[country]" required placeholder="US" value="{shipping_defaults.country | default:''}" class="native-input">
                     </div>
                     <div class="native-field" style="grid-column:1 / -1;">
                         <label for="billing-phone">Phone</label>
@@ -78,22 +78,28 @@
                 </div>
             </div>
 
-            {if shipping_rates | count > 0}
+            {if requires_shipping}
             <div class="native-storefront-panel">
                 <h2 class="native-panel-title">Shipping</h2>
-                <div class="native-radio-list">
-                    {foreach shipping_rates as rate}
+                <p class="native-note" style="margin-bottom:1rem;">Rates update when you change the destination country, state, city, or postal code.</p>
+                <div id="shipping-rate-options" class="native-radio-list">
+                    {if shipping_quote.rates | count > 0}
+                    {foreach shipping_quote.rates as rate}
                     <label class="native-radio-card">
                         <span class="native-inline-actions" style="gap:0.85rem;">
-                            <input type="radio" name="shipping_rate_id" value="{rate.id}" {if loop.first}checked{/if}>
+                            <input type="radio" name="shipping_rate_id" value="{rate.id}" {if shipping_quote.selected_rate_id == rate.id}checked{/if}>
                             <span>
                                 <strong>{rate.name}</strong><br>
-                                <span class="native-note">{if rate.rate == 0}Free shipping{else}{ec_settings.currency_symbol}{rate.rate}{/if}</span>
+                                <span class="native-note">{if rate.rate == 0}Free shipping{else}{rate.rate_fmt}{/if}{if rate.carrier || rate.estimated_days}{if rate.carrier} · {rate.carrier}{/if}{if rate.carrier && rate.estimated_days} · {/if}{if rate.estimated_days}{rate.estimated_days}{/if}{/if}</span>
                             </span>
                         </span>
                     </label>
                     {/foreach}
+                    {else}
+                    <div class="native-note">No shipping rates are available for this destination yet.</div>
+                    {/if}
                 </div>
+                <div id="shipping-rate-error" class="native-note" style="display:none; color:#b91c1c; margin-top:0.75rem;"></div>
             </div>
             {/if}
 
@@ -119,14 +125,15 @@
             </div>
 
             <div class="native-summary-list" style="margin-top:1rem;">
-                <div class="native-summary-row"><span>Subtotal</span><strong>{cart.totals.subtotal_fmt}</strong></div>
-                {if cart.totals.discount > 0}
-                <div class="native-summary-row" style="color:#047857;"><span>Discount</span><strong>-{cart.totals.discount_fmt}</strong></div>
+                <div class="native-summary-row"><span>Subtotal</span><strong>{checkout_totals.subtotal_fmt}</strong></div>
+                {if checkout_totals.discount > 0}
+                <div class="native-summary-row" style="color:#047857;"><span>Discount</span><strong>-{checkout_totals.discount_fmt}</strong></div>
                 {/if}
-                {if cart.totals.tax > 0}
-                <div class="native-summary-row"><span>Tax</span><strong>{cart.totals.tax_fmt}</strong></div>
+                <div id="checkout-tax-row" class="native-summary-row" {if checkout_totals.tax <= 0}style="display:none;"{/if}><span id="checkout-tax-label">{checkout_totals.tax_label | default:'Tax'}</span><strong id="checkout-tax-value">{checkout_totals.tax_fmt}</strong></div>
+                {if requires_shipping}
+                <div id="checkout-shipping-row" class="native-summary-row"><span>Shipping</span><strong id="checkout-shipping-value">{checkout_totals.shipping_fmt}</strong></div>
                 {/if}
-                <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{cart.totals.total_fmt}</strong></div>
+                <div class="native-summary-row native-summary-row--total"><span>Total</span><strong id="checkout-total-value">{checkout_totals.total_fmt}</strong></div>
             </div>
 
             <input type="hidden" name="_token" value="{csrf_token}">
@@ -139,20 +146,15 @@
 </div>
 
 <script>
-async function submitCheckout() {
-    const btn = document.getElementById('place-order-btn');
-    const errEl = document.getElementById('checkout-error');
-    btn.disabled = true;
-    btn.textContent = 'Placing order...';
-    errEl.style.display = 'none';
+const checkoutRequiresShipping = {if requires_shipping}true{else}false{/if};
 
+function collectCheckoutData() {
     const form = document.getElementById('checkout-form');
     const data = {};
     const fd = new FormData(form);
 
     data.billing = {};
     data.shipping = {};
-
     for (const [key, val] of fd.entries()) {
         if (key.startsWith('billing[') && key.endsWith(']')) {
             data.billing[key.slice(8, -1)] = val;
@@ -166,6 +168,142 @@ async function submitCheckout() {
             data._token = val;
         }
     }
+
+    return data;
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function updateCheckoutTotals(totals) {
+    const taxRow = document.getElementById('checkout-tax-row');
+    const taxLabel = document.getElementById('checkout-tax-label');
+    const taxValue = document.getElementById('checkout-tax-value');
+    const shippingValue = document.getElementById('checkout-shipping-value');
+    const totalValue = document.getElementById('checkout-total-value');
+
+    if (taxRow && taxLabel && taxValue) {
+        if ((totals.tax || 0) > 0) {
+            taxRow.style.display = '';
+            taxLabel.textContent = totals.tax_label || 'Tax';
+            taxValue.textContent = totals.tax_fmt || '';
+        } else {
+            taxRow.style.display = 'none';
+        }
+    }
+
+    if (shippingValue && totals.shipping_fmt) {
+        shippingValue.textContent = totals.shipping_fmt;
+    }
+    if (totalValue && totals.total_fmt) {
+        totalValue.textContent = totals.total_fmt;
+    }
+}
+
+function renderShippingRates(quote) {
+    const container = document.getElementById('shipping-rate-options');
+    if (!container) {
+        return;
+    }
+
+    if (!quote.rates || quote.rates.length === 0) {
+        container.innerHTML = '<div class="native-note">No shipping rates are available for this destination yet.</div>';
+        return;
+    }
+
+    container.innerHTML = quote.rates.map((rate) => {
+        const checked = quote.selected_rate_id === rate.id ? ' checked' : '';
+        const noteParts = [];
+        if (Number(rate.rate || 0) === 0) {
+            noteParts.push('Free shipping');
+        } else {
+            noteParts.push(rate.rate_fmt || '');
+        }
+        if (rate.carrier) {
+            noteParts.push(rate.carrier);
+        }
+        if (rate.estimated_days) {
+            noteParts.push(rate.estimated_days);
+        }
+
+        return '<label class="native-radio-card">'
+            + '<span class="native-inline-actions" style="gap:0.85rem;">'
+            + '<input type="radio" name="shipping_rate_id" value="' + escapeHtml(rate.id) + '"' + checked + '>'
+            + '<span><strong>' + escapeHtml(rate.name || rate.label || 'Shipping') + '</strong><br><span class="native-note">' + escapeHtml(noteParts.join(' · ')) + '</span></span>'
+            + '</span>'
+            + '</label>';
+    }).join('');
+}
+
+async function refreshShippingQuote(preserveSelection = true) {
+    if (!checkoutRequiresShipping) {
+        return true;
+    }
+
+    const errorEl = document.getElementById('shipping-rate-error');
+    const data = collectCheckoutData();
+    const params = new URLSearchParams();
+    const selectedRateId = preserveSelection ? data.shipping_rate_id : null;
+
+    Object.entries(data.billing || {}).forEach(([key, value]) => {
+        params.append('address[' + key + ']', value);
+    });
+    if (selectedRateId) {
+        params.append('selected_rate_id', selectedRateId);
+    }
+
+    if (errorEl) {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+    }
+
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/shipping/rates?' + params.toString(), {
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+        });
+        const result = await res.json();
+        if (!result.ok) {
+            throw new Error(result.error || 'Could not refresh shipping rates.');
+        }
+
+        renderShippingRates(result);
+        updateCheckoutTotals(result.totals || {});
+        return !!(result.selected_rate_id || !result.requires_shipping);
+    } catch (error) {
+        if (errorEl) {
+            errorEl.textContent = error && error.message ? error.message : 'Could not refresh shipping rates.';
+            errorEl.style.display = 'block';
+        }
+        return false;
+    }
+}
+
+async function submitCheckout() {
+    const btn = document.getElementById('place-order-btn');
+    const errEl = document.getElementById('checkout-error');
+    btn.disabled = true;
+    btn.textContent = 'Placing order...';
+    errEl.style.display = 'none';
+
+    if (checkoutRequiresShipping) {
+        const quoteOk = await refreshShippingQuote(true);
+        const selectedRate = document.querySelector('input[name="shipping_rate_id"]:checked');
+        if (!quoteOk || !selectedRate) {
+            errEl.textContent = 'Select a valid shipping method before placing the order.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Place Order';
+            return;
+        }
+    }
+
+    const data = collectCheckoutData();
 
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/checkout', {
@@ -189,6 +327,25 @@ async function submitCheckout() {
         btn.disabled = false;
         btn.textContent = 'Place Order';
     }
+}
+
+if (checkoutRequiresShipping) {
+    ['country', 'state', 'city', 'postal_code'].forEach((field) => {
+        const input = document.querySelector('[name="billing[' + field + ']"]');
+        if (!input) {
+            return;
+        }
+        input.addEventListener('change', () => { refreshShippingQuote(false); });
+        input.addEventListener('blur', () => { refreshShippingQuote(false); });
+    });
+
+    document.addEventListener('change', (event) => {
+        if (event.target && event.target.name === 'shipping_rate_id') {
+            refreshShippingQuote(true);
+        }
+    });
+
+    refreshShippingQuote(true);
 }
 </script>
 {/block}

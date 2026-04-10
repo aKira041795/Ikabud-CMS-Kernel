@@ -22,7 +22,7 @@ function ecApiCouponCreate(): void
              VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())",
             [
                 $code,
-                in_array($input['type'] ?? '', ['percent', 'fixed'], true) ? $input['type'] : 'percent',
+                ecCouponNormalizeType((string)($input['type'] ?? 'percent')),
                 max(0, (float)($input['value'] ?? 0)),
                 max(0, (float)($input['min_order_amount'] ?? 0)),
                 ($input['max_uses'] ?? '') !== '' ? (int)$input['max_uses'] : null,
@@ -61,6 +61,14 @@ function ecApiCouponUpdate(array $params = []): void
     if (isset($input['description'])) {
         $fields[]  = 'description = ?';
         $params[]  = trim((string)$input['description']);
+    }
+    if (isset($input['value'])) {
+        $fields[]  = 'value = ?';
+        $params[]  = max(0, (float)$input['value']);
+    }
+    if (isset($input['type'])) {
+        $fields[]  = 'type = ?';
+        $params[]  = ecCouponNormalizeType((string)$input['type']);
     }
 
     if (empty($fields)) {

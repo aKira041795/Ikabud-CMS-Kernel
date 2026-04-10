@@ -39,7 +39,29 @@ function ecApiCheckout(): void
 
     $shippingRateId = isset($input['shipping_rate_id']) ? (int)$input['shipping_rate_id'] : null;
     $couponCode     = $cart['coupon_code'] ?? null;
-    $totals         = ecCalculateTotals($cart['items'], $couponCode, $shippingRateId);
+    $requiresShipping = function_exists('ecCartRequiresShipping') ? ecCartRequiresShipping($cart['items']) : false;
+
+    if ($requiresShipping) {
+        $shippingQuote = function_exists('ecShippingQuote')
+            ? ecShippingQuote($cart['items'], $shipping, $couponCode, $shippingRateId)
+            : null;
+        if (!is_array($shippingQuote) || empty($shippingQuote['rates'])) {
+            ecJsonError('No shipping rates are available for this destination.', 422);
+        }
+
+        $resolvedRateId = isset($shippingQuote['selected_rate_id']) ? (int)$shippingQuote['selected_rate_id'] : 0;
+        if ($shippingRateId !== null && $shippingRateId !== 0 && $resolvedRateId !== $shippingRateId) {
+            ecJsonError('The selected shipping method is no longer available.', 422);
+        }
+
+        $shippingRateId = $resolvedRateId > 0 || $resolvedRateId < 0 ? $resolvedRateId : null;
+        $totals = is_array($shippingQuote['totals'] ?? null)
+            ? $shippingQuote['totals']
+            : ecCalculateTotals($cart['items'], $couponCode, $shippingRateId, $shipping);
+    } else {
+        $shippingRateId = null;
+        $totals = ecCalculateTotals($cart['items'], $couponCode, null, $shipping);
+    }
 
     $user       = app()->user();
     $customerId = ($user && in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true))
@@ -109,6 +131,15 @@ function ecApiCheckout(): void
         'defer_created_event' => true,
     ];
 
+    if (ecAbandonedCartEnabled()) {
+        ecAbandonedCartCaptureLead([
+            'guest_email' => (string)($billing['email'] ?? ''),
+            'guest_name' => trim((string)($billing['first_name'] ?? '') . ' ' . (string)($billing['last_name'] ?? '')),
+            'first_name' => (string)($billing['first_name'] ?? ''),
+            'last_name' => (string)($billing['last_name'] ?? ''),
+        ], $cart);
+    }
+
     try {
         $result = ecOrderCreate($orderData);
     } catch (\Throwable $e) {
@@ -118,6 +149,13 @@ function ecApiCheckout(): void
 
     // Clear cart
     ecCartClear();
+
+    ecAbandonedCartMarkRecovered(
+        (int)$result['order_id'],
+        $customerId,
+        (string)($billing['email'] ?? ''),
+        ecAbandonedCartCurrentRecoveryToken()
+    );
 
     try {
         \Ikabud\Kernel\IntegrationBridge::handle((array)($result['created_event_payload'] ?? []), 'ecommerce.order.created');
@@ -191,6 +229,31 @@ function ecApiCheckout(): void
     }
 
     exit;
+}
+
+function ecApiShippingRates(): void
+{
+    $cart = ecCartGet();
+    $input = ecInput();
+    $address = (array)($input['shipping'] ?? $input['billing'] ?? $input['address'] ?? []);
+    $selectedRateId = isset($input['selected_rate_id']) ? (int)$input['selected_rate_id'] : null;
+    $quote = function_exists('ecShippingQuote')
+        ? ecShippingQuote((array)($cart['items'] ?? []), $address, $cart['coupon_code'] ?? null, $selectedRateId)
+        : [
+            'requires_shipping' => false,
+            'rates' => [],
+            'selected_rate_id' => null,
+            'selected_rate' => null,
+            'totals' => ecCalculateTotals((array)($cart['items'] ?? []), $cart['coupon_code'] ?? null, null, $address),
+        ];
+
+    ecJsonOk([
+        'requires_shipping' => !empty($quote['requires_shipping']),
+        'rates' => array_values((array)($quote['rates'] ?? [])),
+        'selected_rate_id' => $quote['selected_rate_id'] ?? null,
+        'selected_rate' => $quote['selected_rate'] ?? null,
+        'totals' => $quote['totals'] ?? [],
+    ]);
 }
 
 function ecCheckoutApiDeferredEventEnabled(): bool

@@ -7,7 +7,6 @@
     <form id="checkout-form" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-5">
             {if cart_has_digital && !is_customer}
-            <!-- Digital product account notice -->
             <div class="flex gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
                 <svg class="w-5 h-5 text-orange-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/></svg>
                 <div class="text-sm text-orange-800">
@@ -21,7 +20,7 @@
                 </div>
             </div>
             {/if}
-            <!-- Contact -->
+
             <div class="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 class="font-semibold text-gray-900 mb-4">Contact &amp; Billing</h2>
                 <div class="grid grid-cols-2 gap-4">
@@ -64,7 +63,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Country *</label>
-                        <input type="text" name="billing[country]" required placeholder="US"
+                        <input type="text" name="billing[country]" required placeholder="US" value="{shipping_defaults.country | default:''}"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
                     </div>
                     <div class="col-span-2">
@@ -75,25 +74,32 @@
                 </div>
             </div>
 
-            <!-- Shipping -->
-            {if shipping_rates | count > 0}
+            {if requires_shipping}
             <div class="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 class="font-semibold text-gray-900 mb-4">Shipping</h2>
-                <div class="space-y-2">
-                    {foreach shipping_rates as rate}
+                <p class="mb-3 text-sm text-gray-500">Rates update when you change the destination country, state, city, or postal code.</p>
+                <div id="shipping-rate-options" class="space-y-2">
+                    {if shipping_quote.rates | count > 0}
+                    {foreach shipping_quote.rates as rate}
                     <label class="flex items-center gap-3 cursor-pointer rounded-lg border border-gray-200 p-3 hover:border-orange-500 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
-                        <input type="radio" name="shipping_rate_id" value="{rate.id}" class="text-orange-600" {if loop.first}checked{/if}>
-                        <span class="flex-1 text-sm font-medium text-gray-900">{rate.name}</span>
-                        <span class="text-sm font-semibold text-gray-900">
-                            {if rate.rate == 0}Free{else}{ec_settings.currency_symbol}{rate.rate}{/if}
+                        <input type="radio" name="shipping_rate_id" value="{rate.id}" class="text-orange-600" {if shipping_quote.selected_rate_id == rate.id}checked{/if}>
+                        <span class="flex-1 text-sm font-medium text-gray-900">
+                            {rate.name}
+                            {if rate.carrier || rate.estimated_days}
+                            <span class="mt-1 block text-xs font-normal text-gray-500">{if rate.carrier}{rate.carrier}{/if}{if rate.carrier && rate.estimated_days} · {/if}{if rate.estimated_days}{rate.estimated_days}{/if}</span>
+                            {/if}
                         </span>
+                        <span class="text-sm font-semibold text-gray-900">{if rate.rate == 0}Free{else}{rate.rate_fmt}{/if}</span>
                     </label>
                     {/foreach}
+                    {else}
+                    <div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">No shipping rates are available for this destination yet.</div>
+                    {/if}
                 </div>
+                <div id="shipping-rate-error" class="mt-2 hidden text-xs text-red-600"></div>
             </div>
             {/if}
 
-            <!-- Payment -->
             <div class="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 class="font-semibold text-gray-900 mb-3">Payment</h2>
                 <div class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 bg-gray-50">
@@ -108,7 +114,6 @@
             </div>
         </div>
 
-        <!-- Order summary sidebar -->
         <div>
             <div class="bg-white rounded-xl border border-gray-200 p-5 sticky top-24">
                 <h2 class="font-semibold text-gray-900 mb-4">Order Summary</h2>
@@ -121,15 +126,16 @@
                     {/foreach}
                 </div>
                 <div class="border-t border-gray-200 pt-3 space-y-1.5 text-sm">
-                    <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{cart.totals.subtotal_fmt}</span></div>
-                    {if cart.totals.discount > 0}
-                    <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{cart.totals.discount_fmt}</span></div>
+                    <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{checkout_totals.subtotal_fmt}</span></div>
+                    {if checkout_totals.discount > 0}
+                    <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{checkout_totals.discount_fmt}</span></div>
                     {/if}
-                    {if cart.totals.tax > 0}
-                    <div class="flex justify-between text-gray-600"><span>Tax</span><span>{cart.totals.tax_fmt}</span></div>
+                    <div id="checkout-tax-row" class="flex justify-between text-gray-600{if checkout_totals.tax <= 0} hidden{/if}"><span id="checkout-tax-label">{checkout_totals.tax_label | default:'Tax'}</span><span id="checkout-tax-value">{checkout_totals.tax_fmt}</span></div>
+                    {if requires_shipping}
+                    <div id="checkout-shipping-row" class="flex justify-between text-gray-600"><span>Shipping</span><span id="checkout-shipping-value">{checkout_totals.shipping_fmt}</span></div>
                     {/if}
                     <div class="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
-                        <span>Total</span><span>{cart.totals.total_fmt}</span>
+                        <span>Total</span><span id="checkout-total-value">{checkout_totals.total_fmt}</span>
                     </div>
                 </div>
                 <input type="hidden" name="_token" value="{csrf_token}">
@@ -144,17 +150,15 @@
 </div>
 
 <script>
-async function submitCheckout() {
-    const btn = document.getElementById('place-order-btn');
-    const errEl = document.getElementById('checkout-error');
-    btn.disabled = true; btn.textContent = 'Placing order…';
-    errEl.classList.add('hidden');
+const checkoutRequiresShipping = {if requires_shipping}true{else}false{/if};
+const abandonedCartEnabled = {if abandoned_cart_enabled}true{else}false{/if};
+let abandonedCartCaptureTimer = null;
 
+function collectCheckoutData() {
     const form = document.getElementById('checkout-form');
     const data = {};
     const fd = new FormData(form);
 
-    // Build billing object
     data.billing = {};
     data.shipping = {};
     for (const [key, val] of fd.entries()) {
@@ -163,13 +167,169 @@ async function submitCheckout() {
         } else if (key.startsWith('shipping[') && key.endsWith(']')) {
             data.shipping[key.slice(9, -1)] = val;
         } else if (key === 'shipping_rate_id') {
-            data.shipping_rate_id = parseInt(val);
+            data.shipping_rate_id = parseInt(val, 10);
         } else if (key === 'customer_note') {
             data.customer_note = val;
         } else if (key === '_token') {
             data._token = val;
         }
     }
+
+    return data;
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function captureAbandonedCartLead() {
+    if (!abandonedCartEnabled) {
+        return;
+    }
+
+    const data = collectCheckoutData();
+    const billing = data.billing || {};
+    if (!billing.email || !String(billing.email).includes('@')) {
+        return;
+    }
+
+    try {
+        await fetch('{base_url}/api/v1/ecommerce/abandoned-carts/capture', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify(data),
+        });
+    } catch (error) {
+    }
+}
+
+function scheduleAbandonedCartCapture() {
+    if (!abandonedCartEnabled) {
+        return;
+    }
+
+    window.clearTimeout(abandonedCartCaptureTimer);
+    abandonedCartCaptureTimer = window.setTimeout(captureAbandonedCartLead, 600);
+}
+
+function updateCheckoutTotals(totals) {
+    const taxRow = document.getElementById('checkout-tax-row');
+    const taxLabel = document.getElementById('checkout-tax-label');
+    const taxValue = document.getElementById('checkout-tax-value');
+    const shippingValue = document.getElementById('checkout-shipping-value');
+    const totalValue = document.getElementById('checkout-total-value');
+
+    if (taxRow && taxLabel && taxValue) {
+        if ((totals.tax || 0) > 0) {
+            taxRow.classList.remove('hidden');
+            taxLabel.textContent = totals.tax_label || 'Tax';
+            taxValue.textContent = totals.tax_fmt || '';
+        } else {
+            taxRow.classList.add('hidden');
+        }
+    }
+
+    if (shippingValue && totals.shipping_fmt) {
+        shippingValue.textContent = totals.shipping_fmt;
+    }
+    if (totalValue && totals.total_fmt) {
+        totalValue.textContent = totals.total_fmt;
+    }
+}
+
+function renderShippingRates(quote) {
+    const container = document.getElementById('shipping-rate-options');
+    if (!container) {
+        return;
+    }
+
+    if (!quote.rates || quote.rates.length === 0) {
+        container.innerHTML = '<div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">No shipping rates are available for this destination yet.</div>';
+        return;
+    }
+
+    container.innerHTML = quote.rates.map((rate) => {
+        const note = [rate.carrier || '', rate.estimated_days || ''].filter(Boolean).join(' · ');
+        const checked = quote.selected_rate_id === rate.id ? ' checked' : '';
+        const price = Number(rate.rate || 0) === 0 ? 'Free' : escapeHtml(rate.rate_fmt || '');
+        return '<label class="flex items-center gap-3 cursor-pointer rounded-lg border border-gray-200 p-3 hover:border-orange-500 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">'
+            + '<input type="radio" name="shipping_rate_id" value="' + escapeHtml(rate.id) + '" class="text-orange-600"' + checked + '>'
+            + '<span class="flex-1 text-sm font-medium text-gray-900">' + escapeHtml(rate.name || rate.label || 'Shipping')
+            + (note ? '<span class="mt-1 block text-xs font-normal text-gray-500">' + escapeHtml(note) + '</span>' : '')
+            + '</span>'
+            + '<span class="text-sm font-semibold text-gray-900">' + price + '</span>'
+            + '</label>';
+    }).join('');
+}
+
+async function refreshShippingQuote(preserveSelection = true) {
+    if (!checkoutRequiresShipping) {
+        return true;
+    }
+
+    const errorEl = document.getElementById('shipping-rate-error');
+    const data = collectCheckoutData();
+    const params = new URLSearchParams();
+    const selectedRateId = preserveSelection ? data.shipping_rate_id : null;
+
+    Object.entries(data.billing || {}).forEach(([key, value]) => {
+        params.append('address[' + key + ']', value);
+    });
+    if (selectedRateId) {
+        params.append('selected_rate_id', selectedRateId);
+    }
+
+    if (errorEl) {
+        errorEl.classList.add('hidden');
+        errorEl.textContent = '';
+    }
+
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/shipping/rates?' + params.toString(), {
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+        });
+        const result = await res.json();
+        if (!result.ok) {
+            throw new Error(result.error || 'Could not refresh shipping rates.');
+        }
+
+        renderShippingRates(result);
+        updateCheckoutTotals(result.totals || {});
+        return !!(result.selected_rate_id || !result.requires_shipping);
+    } catch (error) {
+        if (errorEl) {
+            errorEl.textContent = error && error.message ? error.message : 'Could not refresh shipping rates.';
+            errorEl.classList.remove('hidden');
+        }
+        return false;
+    }
+}
+
+async function submitCheckout() {
+    const btn = document.getElementById('place-order-btn');
+    const errEl = document.getElementById('checkout-error');
+    btn.disabled = true;
+    btn.textContent = 'Placing order...';
+    errEl.classList.add('hidden');
+
+    if (checkoutRequiresShipping) {
+        const quoteOk = await refreshShippingQuote(true);
+        const selectedRate = document.querySelector('input[name="shipping_rate_id"]:checked');
+        if (!quoteOk || !selectedRate) {
+            errEl.textContent = 'Select a valid shipping method before placing the order.';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Place Order';
+            return;
+        }
+    }
+
+    const data = collectCheckoutData();
 
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/checkout', {
@@ -183,13 +343,43 @@ async function submitCheckout() {
         } else {
             errEl.textContent = result.error || 'Could not place order.';
             errEl.classList.remove('hidden');
-            btn.disabled = false; btn.textContent = 'Place Order';
+            btn.disabled = false;
+            btn.textContent = 'Place Order';
         }
-    } catch(e) {
+    } catch (error) {
         errEl.textContent = 'Network error. Please try again.';
         errEl.classList.remove('hidden');
-        btn.disabled = false; btn.textContent = 'Place Order';
+        btn.disabled = false;
+        btn.textContent = 'Place Order';
     }
+}
+
+if (checkoutRequiresShipping) {
+    ['country', 'state', 'city', 'postal_code'].forEach((field) => {
+        const input = document.querySelector('[name="billing[' + field + ']"]');
+        if (!input) {
+            return;
+        }
+        input.addEventListener('change', () => { refreshShippingQuote(false); });
+        input.addEventListener('blur', () => { refreshShippingQuote(false); });
+    });
+
+    document.addEventListener('change', (event) => {
+        if (event.target && event.target.name === 'shipping_rate_id') {
+            refreshShippingQuote(true);
+        }
+    });
+
+    refreshShippingQuote(true);
+}
+
+document.querySelectorAll('#checkout-form input[name^="billing["]').forEach((input) => {
+    input.addEventListener('blur', scheduleAbandonedCartCapture);
+    input.addEventListener('change', scheduleAbandonedCartCapture);
+});
+
+if (abandonedCartEnabled) {
+    scheduleAbandonedCartCapture();
 }
 </script>
 {/block}

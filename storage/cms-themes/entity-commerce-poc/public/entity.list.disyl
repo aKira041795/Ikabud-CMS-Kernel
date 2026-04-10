@@ -14,6 +14,11 @@
     data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
     data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
     data-storefront-result-total="{storefront.collection.total|default:entity_list_context.result_count|default:0}"
+    data-catalog-api-url="{if public_render_origin == 'ecommerce'}{base_url}/api/v1/ecommerce/catalog{/if}"
+    data-list-base-url="{entity_list_context.base_list_url|default:''}"
+    data-list-search-action-url="{entity_list_context.search_action_url|default:entity_list_context.base_list_url|default:''}"
+    data-list-all-items-url="{entity_list_context.all_items_url|default:entity_list_context.base_list_url|default:''}"
+    data-item-base-url="{entity_list_context.item_base_url|default:'/ecommerce/shop'}"
     data-list-search="{entity_list_context.search|default:''}"
     data-list-category-slug="{entity_list_context.category_slug|default:''}"
     data-list-result-count="{entity_list_context.result_count|default:0}"
@@ -43,6 +48,13 @@
     <div class="poc-entity-list__toolbar">
         <form method="get" action="{entity_list_context.search_action_url|default:entity_list_context.base_list_url}" class="poc-entity-list__search">
             {if entity_list_context.category_id > 0 and entity_list_context.category_slug == ''}<input type="hidden" name="cat" value="{entity_list_context.category_id}">{/if}
+            {if entity_list_context.attribute_filters | count > 0}
+            {foreach entity_list_context.attribute_filters as attrSlug => attrValues}
+            {foreach attrValues as attrValue}
+            <input type="hidden" name="attr[{attrSlug}][]" value="{attrValue}">
+            {/foreach}
+            {/foreach}
+            {/if}
             <input type="text" name="search" value="{entity_list_context.search|default:''}" placeholder="Search products" class="poc-entity-list__search-input">
             <button type="submit" class="poc-entity-list__search-submit">Search</button>
         </form>
@@ -72,6 +84,35 @@
             {/if}
         {/if}
     </div>
+
+    {if entity_list_context.attribute_facets | count > 0}
+    <form method="get" action="{entity_list_context.search_action_url|default:entity_list_context.base_list_url}" class="poc-entity-list__toolbar" style="display:block;">
+        {if entity_list_context.search}<input type="hidden" name="search" value="{entity_list_context.search}">{/if}
+        {if entity_list_context.category_id > 0 and entity_list_context.category_slug == ''}<input type="hidden" name="cat" value="{entity_list_context.category_id}">{/if}
+        <div class="poc-entity-list__filters" style="margin-bottom:1rem;">
+            {foreach entity_list_context.attribute_facets as facet}
+            <div class="poc-entity-list__filter" style="display:block; min-width:200px;">
+                <strong style="display:block; margin-bottom:0.75rem;">{facet.attribute_name}</strong>
+                <div style="display:grid; gap:0.5rem;">
+                    {foreach facet.values as value}
+                    <label style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                        <span style="display:flex; align-items:center; gap:0.5rem;">
+                            <input type="checkbox" name="attr[{facet.attribute_slug}][]" value="{value.value_slug}" {if value.is_selected}checked{/if}>
+                            <span>{value.value_label}</span>
+                        </span>
+                        <span>{value.count}</span>
+                    </label>
+                    {/foreach}
+                </div>
+            </div>
+            {/foreach}
+        </div>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+            <button type="submit" class="poc-entity-list__search-submit">Apply Filters</button>
+            <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="poc-entity-list__category-link">Reset</a>
+        </div>
+    </form>
+    {/if}
     {/if}
 
     {if items}
@@ -136,4 +177,8 @@
     {/if}
 
 </section>
+
+{if public_render_origin == 'ecommerce' and (content_type|default:entity_list_context.content_type) == 'product'}
+{include "modules/cms/public/blocks/ecommerce-catalog-ajax.block.disyl"}
+{/if}
 {/block}

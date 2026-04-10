@@ -26,6 +26,9 @@
         {if entity_view_context.show_header|default:1}
         <header class="cms-entity-header mb-6">
             <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity_view_context.header_title|default:entity.title}</h1>
+            {if public_render_origin == 'ecommerce' and content_type == 'product' and review_summary.has_reviews|default:false}
+            <div class="mb-3 text-sm font-medium text-amber-700">{review_summary.average_rating_formatted}/5 · {review_summary.approved_count} {if review_summary.approved_count == 1}review{else}reviews{/if}</div>
+            {/if}
 
             {if entity_view_context.show_meta|default:1}
             {include "modules/cms/public/blocks/meta.block.disyl"}
@@ -68,6 +71,9 @@
         {if entity_view_context.show_header|default:1}
         <header class="cms-entity-header mb-6">
             <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity_view_context.header_title|default:entity.title}</h1>
+            {if public_render_origin == 'ecommerce' and content_type == 'product' and review_summary.has_reviews|default:false}
+            <div class="mb-3 text-sm font-medium text-amber-700">{review_summary.average_rating_formatted}/5 · {review_summary.approved_count} {if review_summary.approved_count == 1}review{else}reviews{/if}</div>
+            {/if}
 
             {if entity_view_context.show_meta|default:1}
             {include "modules/cms/public/blocks/meta.block.disyl"}
@@ -167,6 +173,10 @@
         {/if}
         {/if}
     {/if}
+
+    {include "modules/cms/public/blocks/ecommerce-reviews.block.disyl"}
+    {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
+    {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
 
     {if entity_view_context.show_taxonomies|default:1}
     {if show_entity_categories or show_entity_tags}

@@ -41,16 +41,16 @@
             </div>
             {/foreach}
 
-            <!-- Coupon -->
+            <!-- Coupon / Gift Card -->
             <div class="bg-white rounded-xl border border-gray-200 p-4">
                 <form id="coupon-form" class="flex gap-2">
-                    <input type="text" id="coupon-code" placeholder="Coupon code" value="{cart.coupon_code}"
+                    <input type="text" id="coupon-code" placeholder="Coupon or gift card code" value="{cart.coupon_code}"
                            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
                     <button type="button" onclick="applyCoupon()" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">Apply</button>
                 </form>
                 {if cart.totals.coupon}
                 <div class="mt-2 text-sm text-emerald-600 font-medium">
-                    Coupon "{cart.coupon_code}" applied — saving {cart.totals.discount_fmt}
+                    {if cart.totals.coupon.type == 'gift_card'}Gift card{else}Coupon{/if} "{cart.coupon_code}" applied — saving {cart.totals.discount_fmt}
                 </div>
                 {/if}
             </div>
@@ -63,10 +63,10 @@
                 <div class="space-y-1.5 text-sm">
                     <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{cart.totals.subtotal_fmt}</span></div>
                     {if cart.totals.discount > 0}
-                    <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{cart.totals.discount_fmt}</span></div>
+                    <div class="flex justify-between text-emerald-600"><span>{cart.totals.discount_label | default:'Discount'}</span><span>−{cart.totals.discount_fmt}</span></div>
                     {/if}
                     {if cart.totals.tax > 0}
-                    <div class="flex justify-between text-gray-600"><span>Tax ({cart.totals.tax_rate}%)</span><span>{cart.totals.tax_fmt}</span></div>
+                    <div class="flex justify-between text-gray-600"><span>{cart.totals.tax_label | default:'Tax'}</span><span>{cart.totals.tax_fmt}</span></div>
                     {/if}
                     <div class="flex justify-between font-bold text-gray-900 text-base border-t border-gray-200 pt-2">
                         <span>Total</span><span>{cart.totals.total_fmt}</span>
@@ -82,6 +82,8 @@
             </div>
         </div>
     </div>
+
+    {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
 
     {/if}
 </div>
@@ -110,7 +112,7 @@ async function applyCoupon() {
         body: JSON.stringify({ code }),
     });
     const data = await res.json();
-    if (data.ok) { location.reload(); } else { alert(data.error || 'Invalid coupon'); }
+    if (data.ok) { location.reload(); } else { alert(data.error || 'Invalid coupon or gift card'); }
 }
 </script>
 {/block}

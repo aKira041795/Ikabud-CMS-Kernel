@@ -56,6 +56,13 @@ function ecAdminProductCreate(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_verify();
         $input = ecInput();
+        $attributeLines = trim((string)($input['attribute_lines'] ?? ''));
+        $attributes = function_exists('ecProductParseAttributeLines') ? ecProductParseAttributeLines($attributeLines) : [];
+        $relationSelections = ecProductRelationSelectionsFromInput($input);
+        $groupedChildren = ecProductGroupedSelectionsFromInput($input);
+        $taxClass = function_exists('ecProductNormalizeTaxClass')
+            ? ecProductNormalizeTaxClass($input['tax_class'] ?? 'standard')
+            : 'standard';
 
         try {
             $featuredImageId = $input['featured_image_id'] ?? null;
@@ -77,6 +84,17 @@ function ecAdminProductCreate(): void
                 'track_stock'      => ($input['track_stock']     ?? 'on') === 'on',
                 'category_id'      => $input['category_id']      ?? null,
                 'featured_image_id' => $featuredImageId,
+                'attributes'       => $attributes,
+                'relations'        => $relationSelections,
+                'grouped_children' => $groupedChildren,
+                'tax_class'        => $taxClass,
+                'is_external_product' => !empty($input['is_external_product']),
+                'external_product_url' => $input['external_product_url'] ?? '',
+                'external_product_button_text' => $input['external_product_button_text'] ?? '',
+                'seo_title'        => $input['seo_title'] ?? '',
+                'seo_description'  => $input['seo_description'] ?? '',
+                'seo_canonical_url'=> $input['seo_canonical_url'] ?? '',
+                'seo_og_image'     => $input['seo_og_image'] ?? '',
             ], (int)$user['id']);
 
             // Save digital license meta (+ optional file upload)
@@ -100,12 +118,21 @@ function ecAdminProductCreate(): void
     $categories = ecDb()->query(
         ecCmsCategorySelectSql('id, name', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    $selectedRelationIds = isset($relationSelections) ? $relationSelections : ecProductDefaultRelationIds();
+    $selectedGroupedChildren = isset($groupedChildren) ? $groupedChildren : [];
 
     $ctx = ecAdminContext($user, 'products', [
         'product'    => null,
         'categories' => $categories,
         'selected_category_id' => 0,
+        'attribute_lines' => $attributeLines ?? '',
+        'selected_tax_class' => $taxClass ?? 'standard',
+        'tax_class_options' => ecProductTaxClassOptions($taxClass ?? 'standard'),
+        'relation_options' => ecProductAdminRelationOptions(0, array_merge($selectedRelationIds, ['grouped_children' => $selectedGroupedChildren])),
+        'selected_relation_ids' => $selectedRelationIds,
+        'selected_grouped_children' => $selectedGroupedChildren,
         'featured_image_url' => '',
+        'seo_defaults' => ecProductSeoDefaults(),
         'error'      => $error ?? null,
         'message'    => $_SESSION['ec_message'] ?? null,
     ]);
@@ -137,6 +164,13 @@ function ecAdminProductEdit(array $params = []): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_verify();
         $input = ecInput();
+        $attributeLines = trim((string)($input['attribute_lines'] ?? ''));
+        $attributes = function_exists('ecProductParseAttributeLines') ? ecProductParseAttributeLines($attributeLines) : [];
+        $relationSelections = ecProductRelationSelectionsFromInput($input, $productId);
+        $groupedChildren = ecProductGroupedSelectionsFromInput($input, $productId);
+        $taxClass = function_exists('ecProductNormalizeTaxClass')
+            ? ecProductNormalizeTaxClass($input['tax_class'] ?? ($product['tax_class'] ?? 'standard'))
+            : 'standard';
 
         try {
             $featuredImageId = array_key_exists('featured_image_id', $input) ? $input['featured_image_id'] : ($product['featured_image_id'] ?? null);
@@ -162,6 +196,17 @@ function ecAdminProductEdit(array $params = []): void
                 'track_stock'      => ($input['track_stock']     ?? 'on') === 'on',
                 'category_id'      => $input['category_id']      ?? null,
                 'featured_image_id' => $featuredImageId,
+                'attributes'       => $attributes,
+                'relations'        => $relationSelections,
+                'grouped_children' => $groupedChildren,
+                'tax_class'        => $taxClass,
+                'is_external_product' => !empty($input['is_external_product']),
+                'external_product_url' => $input['external_product_url'] ?? '',
+                'external_product_button_text' => $input['external_product_button_text'] ?? '',
+                'seo_title'        => $input['seo_title'] ?? '',
+                'seo_description'  => $input['seo_description'] ?? '',
+                'seo_canonical_url'=> $input['seo_canonical_url'] ?? '',
+                'seo_og_image'     => $input['seo_og_image'] ?? '',
             ]);
 
             // Save digital license meta (+ optional file upload / removal)
@@ -187,12 +232,27 @@ function ecAdminProductEdit(array $params = []): void
 
     // Refresh product after save
     $product = ecProductGet($productId);
+    $selectedRelationIds = isset($relationSelections)
+        ? $relationSelections
+        : (is_array($product['relation_ids'] ?? null) ? $product['relation_ids'] : ecProductDefaultRelationIds());
+    $selectedGroupedChildren = isset($groupedChildren)
+        ? $groupedChildren
+        : ecProductGroupedChildSelections($productId);
 
     $ctx = ecAdminContext($user, 'products', [
         'product'    => $product,
         'categories' => $categories,
         'selected_category_id' => (int)($product['categories'][0]['id'] ?? 0),
+        'attribute_lines' => isset($attributeLines)
+            ? $attributeLines
+            : (function_exists('ecProductAttributesToLines') ? ecProductAttributesToLines((array)($product['attributes'] ?? [])) : ''),
+        'selected_tax_class' => isset($taxClass) ? $taxClass : (string)($product['tax_class'] ?? 'standard'),
+        'tax_class_options' => ecProductTaxClassOptions(isset($taxClass) ? $taxClass : (string)($product['tax_class'] ?? 'standard')),
+        'relation_options' => ecProductAdminRelationOptions($productId, array_merge($selectedRelationIds, ['grouped_children' => $selectedGroupedChildren])),
+        'selected_relation_ids' => $selectedRelationIds,
+        'selected_grouped_children' => $selectedGroupedChildren,
         'featured_image_url' => (string)($product['featured_image_url'] ?? ''),
+        'seo_defaults' => ecProductSeoDefaults(),
         'error'      => $error ?? null,
         'message'    => $_SESSION['ec_message'] ?? null,
     ]);

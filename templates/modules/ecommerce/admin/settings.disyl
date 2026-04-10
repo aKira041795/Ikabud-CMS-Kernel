@@ -35,22 +35,6 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.tax_rate.label}</label>
-                    <input type="number" name="tax_rate" value="{settings_map.tax_rate.current_value}"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
-                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_rate.description}</p>
-                </div>
-
-                <div class="flex flex-col justify-center">
-                    <div class="flex items-center gap-2 pt-1">
-                        <input type="checkbox" name="tax_inclusive" id="field_tax_inclusive" value="1"
-                               {if settings_map.tax_inclusive.is_checked}checked{/if} class="rounded">
-                        <label for="field_tax_inclusive" class="text-sm font-medium text-gray-700">{settings_map.tax_inclusive.label}</label>
-                    </div>
-                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_inclusive.description}</p>
-                </div>
-
-                <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.order_number_prefix.label}</label>
                     <input type="text" name="order_number_prefix" value="{settings_map.order_number_prefix.current_value}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">
@@ -64,6 +48,58 @@
                     <p class="mt-1 text-xs text-gray-500">{settings_map.low_stock_threshold.description}</p>
                 </div>
 
+            </div>
+        </div>
+
+        {* ── Section 1a: Tax Rules ──────────────────────────────────── *}
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Tax Rules</h3>
+            </div>
+            <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.tax_default_country.label}</label>
+                    <input type="text" name="tax_default_country" value="{settings_map.tax_default_country.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono uppercase">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_default_country.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.tax_rate.label}</label>
+                    <input type="number" name="tax_rate" value="{settings_map.tax_rate.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_rate.description}</p>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <div class="flex items-center gap-2 pt-1">
+                        <input type="checkbox" name="tax_inclusive" id="field_tax_inclusive" value="1"
+                               {if settings_map.tax_inclusive.is_checked}checked{/if} class="rounded">
+                        <label for="field_tax_inclusive" class="text-sm font-medium text-gray-700">{settings_map.tax_inclusive.label}</label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_inclusive.description}</p>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.tax_standard_rules.label}</label>
+                    <textarea name="tax_standard_rules" rows="4"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">{settings_map.tax_standard_rules.current_value}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_standard_rules.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.tax_reduced_rules.label}</label>
+                    <textarea name="tax_reduced_rules" rows="4"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">{settings_map.tax_reduced_rules.current_value}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_reduced_rules.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.tax_zero_rules.label}</label>
+                    <textarea name="tax_zero_rules" rows="4"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">{settings_map.tax_zero_rules.current_value}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.tax_zero_rules.description}</p>
+                </div>
             </div>
         </div>
 
@@ -130,6 +166,28 @@
             </div>
         </div>
 
+        {* ── Section 2b: Shipping Rules ───────────────────────────── *}
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Shipping Rules</h3>
+            </div>
+            <div class="p-5 grid grid-cols-1 gap-x-6 gap-y-5">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.shipping_default_country.label}</label>
+                    <input type="text" name="shipping_default_country" value="{settings_map.shipping_default_country.current_value}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono uppercase">
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.shipping_default_country.description}</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.shipping_table_rate_rules.label}</label>
+                    <textarea name="shipping_table_rate_rules" rows="6"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">{settings_map.shipping_table_rate_rules.current_value}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.shipping_table_rate_rules.description}</p>
+                </div>
+            </div>
+        </div>
+
         {* ── Section 3: Payment Gateway ─────────────────────────────── *}
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
@@ -170,6 +228,12 @@
                         <input type="text" name="paymongo_allowed_methods" value="{settings_map.paymongo_allowed_methods.current_value}"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">
                         <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_allowed_methods.description}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.stripe_allowed_payment_methods.label}</label>
+                        <input type="text" name="stripe_allowed_payment_methods" value="{settings_map.stripe_allowed_payment_methods.current_value}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">
+                        <p class="mt-1 text-xs text-gray-500">{settings_map.stripe_allowed_payment_methods.description}</p>
                     </div>
                 </div>
 
@@ -229,6 +293,107 @@
                                    placeholder="whsec_…"
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
                             <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_webhook_secret.description}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Stripe API Keys</p>
+
+                    <div class="mb-4 rounded-lg border border-sky-100 bg-sky-50 px-4 py-3">
+                        <p class="text-xs font-semibold text-sky-700 mb-2">How to get your Stripe API keys</p>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-sky-800">
+                            <li>Log in to your Stripe dashboard at <a href="https://dashboard.stripe.com" target="_blank" rel="noopener" class="underline hover:text-sky-900">dashboard.stripe.com</a>.</li>
+                            <li>Open <strong>Developers &rarr; API keys</strong>.</li>
+                            <li>Copy your <strong>Publishable key</strong> (<code class="font-mono bg-sky-100 px-1 rounded">pk_test_…</code> or <code class="font-mono bg-sky-100 px-1 rounded">pk_live_…</code>) and paste it below.</li>
+                            <li>Copy your <strong>Secret key</strong> (<code class="font-mono bg-sky-100 px-1 rounded">sk_test_…</code> or <code class="font-mono bg-sky-100 px-1 rounded">sk_live_…</code>) and paste it below. <strong>Never expose this to clients.</strong></li>
+                        </ol>
+                        <p class="mt-2 text-xs font-semibold text-sky-700 mb-1">How to get your Webhook Secret</p>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-sky-800">
+                            <li>In the Stripe dashboard go to <strong>Developers &rarr; Webhooks</strong>.</li>
+                            <li>Add an endpoint with this URL:</li>
+                        </ol>
+                        <pre class="mt-1.5 mb-2 rounded bg-sky-900/10 px-3 py-2 text-xs font-mono text-sky-900 overflow-x-auto select-all">{base_url}/api/v1/ecommerce/webhooks/stripe</pre>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-sky-800" start="3">
+                            <li>Subscribe to <strong>checkout.session.completed</strong> and <strong>payment_intent.succeeded</strong>.</li>
+                            <li>Copy the endpoint signing secret and paste it below.</li>
+                        </ol>
+                        <p class="mt-2 text-xs text-sky-600">Use test mode while validating the checkout flow, then switch both Stripe and this module to live mode together.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.stripe_publishable_key.label}</label>
+                            <input type="text" name="stripe_publishable_key" value="{settings_map.stripe_publishable_key.current_value}"
+                                   placeholder="pk_test_…"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.stripe_publishable_key.description}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">
+                                {settings_map.stripe_secret_key.label}
+                                <span class="ml-1 font-normal text-red-500">— keep secret</span>
+                            </label>
+                            <input type="text" name="stripe_secret_key" value="{settings_map.stripe_secret_key.current_value}"
+                                   placeholder="sk_test_…"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.stripe_secret_key.description}</p>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.stripe_webhook_secret.label}</label>
+                            <input type="text" name="stripe_webhook_secret" value="{settings_map.stripe_webhook_secret.current_value}"
+                                   placeholder="whsec_…"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.stripe_webhook_secret.description}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">PayPal API Keys</p>
+
+                    <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                        <p class="text-xs font-semibold text-blue-700 mb-2">How to get your PayPal API keys</p>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-blue-800">
+                            <li>Log in to the PayPal developer dashboard at <a href="https://developer.paypal.com" target="_blank" rel="noopener" class="underline hover:text-blue-900">developer.paypal.com</a>.</li>
+                            <li>Open <strong>Apps &amp; Credentials</strong> and create or select your REST app.</li>
+                            <li>Copy the <strong>Client ID</strong> and <strong>Secret</strong> for the current mode and paste them below.</li>
+                        </ol>
+                        <p class="mt-2 text-xs font-semibold text-blue-700 mb-1">Webhook setup</p>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-blue-800">
+                            <li>Create a webhook for this endpoint:</li>
+                        </ol>
+                        <pre class="mt-1.5 mb-2 rounded bg-blue-900/10 px-3 py-2 text-xs font-mono text-blue-900 overflow-x-auto select-all">{base_url}/api/v1/ecommerce/webhooks/paypal</pre>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-blue-800" start="2">
+                            <li>Subscribe to <strong>PAYMENT.CAPTURE.COMPLETED</strong>.</li>
+                            <li>Copy the webhook ID and paste it below.</li>
+                        </ol>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paypal_client_id.label}</label>
+                            <input type="text" name="paypal_client_id" value="{settings_map.paypal_client_id.current_value}"
+                                   placeholder="PayPal client ID"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.paypal_client_id.description}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">
+                                {settings_map.paypal_secret.label}
+                                <span class="ml-1 font-normal text-red-500">— keep secret</span>
+                            </label>
+                            <input type="text" name="paypal_secret" value="{settings_map.paypal_secret.current_value}"
+                                   placeholder="PayPal secret"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.paypal_secret.description}</p>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paypal_webhook_id.label}</label>
+                            <input type="text" name="paypal_webhook_id" value="{settings_map.paypal_webhook_id.current_value}"
+                                   placeholder="Webhook ID"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-gray-500">{settings_map.paypal_webhook_id.description}</p>
                         </div>
                     </div>
                 </div>

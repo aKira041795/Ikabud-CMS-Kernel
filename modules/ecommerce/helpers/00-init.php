@@ -447,6 +447,12 @@ function ecSettingsDefaults(): array
 function ecSettings(?string $key = null, mixed $default = null): mixed
 {
     static $cache = [];
+    static $generation = null;
+    $currentGeneration = (int)($GLOBALS['__ec_settings_cache_generation'] ?? 0);
+    if ($generation !== $currentGeneration) {
+        $cache = [];
+        $generation = $currentGeneration;
+    }
     $tid = app()->tenant()->current();
     if (!array_key_exists($tid, $cache)) {
         $cache[$tid] = array_merge(ecSettingsDefaults(), getModuleSettings('ecommerce'));
@@ -455,6 +461,11 @@ function ecSettings(?string $key = null, mixed $default = null): mixed
         return $cache[$tid];
     }
     return $cache[$tid][$key] ?? $default;
+}
+
+function ecSettingsResetCache(): void
+{
+    $GLOBALS['__ec_settings_cache_generation'] = (int)($GLOBALS['__ec_settings_cache_generation'] ?? 0) + 1;
 }
 
 // ── Auto-page installation ───────────────────────────────────────────

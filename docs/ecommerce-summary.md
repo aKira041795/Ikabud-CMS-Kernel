@@ -9,7 +9,8 @@ This document summarizes the current Ecommerce module, identifies the highest-va
 ### Catalog and Product Model
 
 - Products are implemented as CMS content records with type `product`.
-- Supported product behaviors today: simple products, variants, digital products, categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking.
+- Supported product behaviors today: simple products, variants, digital products, grouped products, and external or affiliate products.
+- Catalog support already includes categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking, product SEO metadata, attributes, and faceted filtering.
 - Storefront rendering is aligned to the CMS entity-view and entity-list contracts rather than a standalone storefront renderer.
 
 ### Cart, Checkout, and Orders
@@ -30,7 +31,7 @@ This document summarizes the current Ecommerce module, identifies the highest-va
 
 - Admin flows already exist for products, orders, categories, coupons, customers, reports, email templates, and settings.
 - Sales and inventory reporting already exist.
-- Coupon management already exists.
+- Coupon management already exists, including gift cards backed by remaining-balance store credit.
 - Customer address storage already exists.
 
 ### Integration and Warehouse Connectivity
@@ -58,24 +59,15 @@ The module is already a solid commerce base. The highest-value gaps relative to 
 - Table-rate shipping
 - Shipment tracking numbers
 - Refund gateway reversal flows
-- Product CSV import and export
-- Outbound webhooks
-- Abandoned cart recovery
-- Product SEO metadata
-- AJAX search and advanced filtering
-- Grouped products
 - Product bundles
 - Subscriptions
-- Gift cards
 - Multi-currency
 
 ### Lower-Priority Gaps
 
-- External and affiliate products
 - Memberships
 - Loyalty points and rewards
 - Product add-ons
-- Recently viewed products
 - Product comparison
 - Bookings and appointments
 - Customer-facing order notes and timeline visibility
@@ -325,17 +317,12 @@ Objective: improve merchant retention, marketing, and interoperability.
 - Abandoned cart recovery
 - Outbound webhooks with signed payloads and delivery logs
 - Product, order, and customer CSV import and export
-- AJAX search and advanced filtering UI
 - Customer-facing order notes and order timeline visibility
-- Gift cards
-- Recently viewed products
 
 ## Phase 5: Advanced Product Types and Revenue Models
 
 Objective: expand the product model without collapsing the current catalog architecture.
 
-- Grouped products
-- External and affiliate products
 - Product bundles
 - Subscriptions
 - Multi-currency

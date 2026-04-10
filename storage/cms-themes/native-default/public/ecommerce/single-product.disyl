@@ -87,7 +87,29 @@
                 {/if}
             </div>
 
-            {if product.inventory.in_stock && !product.inventory.out_of_stock}
+            {if product.is_external_product and product.external_product_url}
+            <div class="native-stack">
+                <div class="native-note">This product is purchased through an external checkout partner.</div>
+                <a href="{product.external_product_url}" target="_blank" rel="noopener noreferrer sponsored" class="button button-primary">{product.external_product_button_text | default:'Buy Externally'}</a>
+            </div>
+            {elseif product.grouped_children | count > 0}
+            <div class="native-stack" id="grouped-products-form">
+                <div>
+                    <h2 class="native-panel-title">Grouped Products</h2>
+                    <p class="native-note">Adjust child quantities and add them to the cart as individual items.</p>
+                </div>
+                {foreach product.grouped_children as child}
+                <div class="native-key-value" data-grouped-child-row data-product-id="{child.id}" style="align-items:center; gap:0.85rem;">
+                    <div style="flex:1 1 auto; min-width:0;">
+                        <div><strong>{child.title}</strong></div>
+                        <div class="native-muted">{child.pricing.formatted | default:'Contact for price'} · {if child.inventory.low_stock}Low stock{elseif child.inventory.in_stock}In stock{else}Out of stock{/if}</div>
+                    </div>
+                    <input type="number" value="{child.grouped_qty}" min="0" class="native-input native-qty-input" data-grouped-child-qty>
+                </div>
+                {/foreach}
+                <button onclick="addGroupedToCart({product.id}, event)" class="button button-primary" type="button">Add Selected Items</button>
+            </div>
+            {elseif product.inventory.in_stock && !product.inventory.out_of_stock}
             <div class="native-inline-actions">
                 <input type="number" id="qty-input" value="1" min="1" {if product.inventory.track_stock}max="{product.inventory.stock_qty}"{/if} class="native-input native-qty-input">
                 <button onclick="addToCart({product.id}, document.getElementById('qty-input').value, event)" class="button button-primary" type="button">Add to Cart</button>
@@ -98,11 +120,15 @@
             </div>
             {/if}
 
+            {if not product.is_external_product}
             <div class="native-actions">
                 <a href="{base_url}/ecommerce/cart" class="button button-secondary" id="view-cart-card">View Cart (<span id="view-cart-card-count">{storefront.cart.count|default:cart_count|default:0}</span>)</a>
             </div>
+            {/if}
         </aside>
     </div>
+
+    {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
 </div>
 
 <script>
@@ -160,6 +186,52 @@ async function addToCart(productId, qty, clickEvent) {
         alert('Error. Please try again.');
         btn.disabled = false;
         btn.textContent = 'Add to Cart';
+    }
+}
+
+async function addGroupedToCart(parentProductId, clickEvent) {
+    const btn = clickEvent && clickEvent.currentTarget ? clickEvent.currentTarget : null;
+    if (!btn) {
+        return;
+    }
+
+    const rows = Array.from(document.querySelectorAll('[data-grouped-child-row]'));
+    const groupedItems = rows.map((row) => ({
+        product_id: parseInt(row.getAttribute('data-product-id') || '0', 10),
+        qty: parseInt((row.querySelector('[data-grouped-child-qty]') || {}).value || '0', 10),
+    })).filter((item) => item.product_id > 0 && item.qty > 0);
+
+    if (groupedItems.length === 0) {
+        alert('Select at least one grouped product quantity.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({ grouped_parent_id: parentProductId, grouped_items: groupedItems }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            btn.textContent = 'Added';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Add Selected Items';
+            }, 1600);
+        } else {
+            alert(data.error || 'Could not add these grouped products to the cart.');
+            btn.disabled = false;
+            btn.textContent = 'Add Selected Items';
+        }
+    } catch (error) {
+        alert('Error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Add Selected Items';
     }
 }
 </script>

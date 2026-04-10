@@ -17,6 +17,11 @@
     data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
     data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
     data-storefront-result-total="{storefront.collection.total|default:entity_list_context.result_count|default:0}"
+    data-catalog-api-url="{if public_render_origin == 'ecommerce'}{base_url}/api/v1/ecommerce/catalog{/if}"
+    data-list-base-url="{entity_list_context.base_list_url|default:''}"
+    data-list-search-action-url="{entity_list_context.search_action_url|default:entity_list_context.base_list_url|default:''}"
+    data-list-all-items-url="{entity_list_context.all_items_url|default:entity_list_context.base_list_url|default:''}"
+    data-item-base-url="{entity_list_context.item_base_url|default:'/ecommerce/shop'}"
     data-list-search="{entity_list_context.search|default:''}"
     data-list-category-slug="{entity_list_context.category_slug|default:''}"
     data-list-result-count="{entity_list_context.result_count|default:0}"
@@ -59,6 +64,13 @@
             {if entity_list_context.search_action_url}
             <form method="get" action="{entity_list_context.search_action_url|default:entity_list_context.base_list_url}" class="native-search native-canonical-search">
                 {if entity_list_context.category_id > 0 and entity_list_context.category_slug == ''}<input type="hidden" name="cat" value="{entity_list_context.category_id}">{/if}
+                {if entity_list_context.attribute_filters | count > 0}
+                {foreach entity_list_context.attribute_filters as attrSlug => attrValues}
+                {foreach attrValues as attrValue}
+                <input type="hidden" name="attr[{attrSlug}][]" value="{attrValue}">
+                {/foreach}
+                {/foreach}
+                {/if}
                 <input
                     type="text"
                     name="search"
@@ -109,6 +121,36 @@
         </div>
         {/if}
     </div>
+
+    {if entity_list_context.attribute_facets | count > 0}
+    <form method="get" action="{entity_list_context.search_action_url|default:entity_list_context.base_list_url}" class="native-storefront-panel" style="margin-bottom:1.5rem;">
+        {if entity_list_context.search}<input type="hidden" name="search" value="{entity_list_context.search}">{/if}
+        {if entity_list_context.category_id > 0 and entity_list_context.category_slug == ''}<input type="hidden" name="cat" value="{entity_list_context.category_id}">{/if}
+        <h2 class="native-panel-title">Filter Products</h2>
+        <div class="native-form-columns" style="margin-top:1rem;">
+            {foreach entity_list_context.attribute_facets as facet}
+            <div>
+                <div class="native-muted" style="font-weight:600; margin-bottom:0.75rem;">{facet.attribute_name}</div>
+                <div class="native-stack" style="gap:0.5rem;">
+                    {foreach facet.values as value}
+                    <label class="native-inline-actions" style="justify-content:space-between; gap:0.75rem;">
+                        <span class="native-inline-actions" style="gap:0.5rem;">
+                            <input type="checkbox" name="attr[{facet.attribute_slug}][]" value="{value.value_slug}" {if value.is_selected}checked{/if}>
+                            <span>{value.value_label}</span>
+                        </span>
+                        <span class="native-muted">{value.count}</span>
+                    </label>
+                    {/foreach}
+                </div>
+            </div>
+            {/foreach}
+        </div>
+        <div class="native-inline-actions" style="margin-top:1rem; gap:0.75rem; flex-wrap:wrap;">
+            <button type="submit" class="button button-primary">Apply Filters</button>
+            <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="button button-secondary">Reset</a>
+        </div>
+    </form>
+    {/if}
     {/if}
 
     {if items}
@@ -186,4 +228,8 @@
     </div>
     {/if}
 </section>
+
+{if public_render_origin == 'ecommerce' and (content_type|default:entity_list_context.content_type) == 'product'}
+{include "modules/cms/public/blocks/ecommerce-catalog-ajax.block.disyl"}
+{/if}
 {/block}

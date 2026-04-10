@@ -23,6 +23,16 @@
         "ec_customer_addresses",
         "ec_order_licenses",
         "ec_order_status_history",
+        "ec_refunds",
+        "ec_refund_items",
+        "ec_abandoned_carts",
+        "ec_outbound_webhooks",
+        "ec_webhook_deliveries",
+        "ec_reviews",
+        "ec_product_relations",
+        "ec_product_group_items",
+        "ec_product_attributes",
+        "ec_product_attribute_values",
         "rate_limits"
     ],
     "reads_tables": [
@@ -49,7 +59,15 @@
         "modules/ecommerce/database/migrations/009_ec_digital_licenses.sql",
         "modules/ecommerce/database/migrations/010_ec_payment_intent_fields.sql",
         "modules/ecommerce/database/migrations/011_ec_digital_license_delivery.sql",
-        "modules/ecommerce/database/migrations/012_ec_order_status_history.sql"
+        "modules/ecommerce/database/migrations/012_ec_order_status_history.sql",
+        "modules/ecommerce/database/migrations/016_ec_refunds.sql",
+        "modules/ecommerce/database/migrations/017_ec_outbound_webhooks.sql",
+        "modules/ecommerce/database/migrations/018_ec_abandoned_carts.sql",
+        "modules/ecommerce/database/migrations/019_ec_gift_card_coupon_type.sql",
+        "modules/ecommerce/database/migrations/020_ec_grouped_products.sql",
+        "modules/ecommerce/database/migrations/013_ec_reviews.sql",
+        "modules/ecommerce/database/migrations/014_ec_product_relations.sql",
+        "modules/ecommerce/database/migrations/015_ec_product_attributes.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -237,6 +255,54 @@
                 }
             },
             {
+                "id": "ecommerce.orders.tracking.sync@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "order_id": {
+                            "type": "integer"
+                        },
+                        "order_number": {
+                            "type": "string"
+                        },
+                        "external_reference": {
+                            "type": "string"
+                        },
+                        "tracking_number": {
+                            "type": "string"
+                        },
+                        "tracking_carrier": {
+                            "type": "string"
+                        },
+                        "tracking_url": {
+                            "type": "string"
+                        },
+                        "source": {
+                            "type": "string"
+                        },
+                        "history_key": {
+                            "type": "string"
+                        },
+                        "note": {
+                            "type": "string"
+                        },
+                        "actor_user_id": {
+                            "type": "integer"
+                        },
+                        "wms_order_id": {
+                            "type": "integer"
+                        },
+                        "event": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
                 "id": "ecommerce.orders.payment.sync@1",
                 "priority": 50,
                 "modes": [
@@ -346,6 +412,13 @@
                         "kernel"
                     ]
                 },
+                "ecommerce.orders.tracking.sync@1": {
+                    "allow_callers": [
+                        "ecommerce",
+                        "wms",
+                        "kernel"
+                    ]
+                },
                 "ecommerce.orders.payment.sync@1": {
                     "allow_callers": [
                         "ecommerce",
@@ -415,11 +488,19 @@
             "description": "Symbol shown before prices."
         },
         {
+            "key": "tax_default_country",
+            "type": "text",
+            "label": "Default Tax Country",
+            "control_class": "font-mono uppercase",
+            "default": "",
+            "description": "Optional ISO country code used for cart previews before a customer enters a destination."
+        },
+        {
             "key": "tax_rate",
             "type": "number",
-            "label": "Tax Rate (%)",
+            "label": "Fallback Tax Rate (%)",
             "default": "0",
-            "description": "Default tax percentage applied at checkout."
+            "description": "Legacy fallback percentage used when no destination-specific tax rule matches."
         },
         {
             "key": "tax_inclusive",
@@ -427,6 +508,30 @@
             "label": "Prices are tax-inclusive",
             "default": false,
             "description": "If checked, displayed prices already include tax."
+        },
+        {
+            "key": "tax_standard_rules",
+            "type": "textarea",
+            "label": "Standard Tax Rules",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "One rule per line using COUNTRY|STATE|CITY|POSTAL|RATE. Use * as a wildcard."
+        },
+        {
+            "key": "tax_reduced_rules",
+            "type": "textarea",
+            "label": "Reduced Tax Rules",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "Destination rules for products assigned to the reduced tax class. Same COUNTRY|STATE|CITY|POSTAL|RATE format."
+        },
+        {
+            "key": "tax_zero_rules",
+            "type": "textarea",
+            "label": "Zero Tax Rules",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "Optional destination rules for products assigned to the zero tax class. Leave blank for always-zero fallback."
         },
         {
             "key": "order_number_prefix",
@@ -458,13 +563,43 @@
             "description": "When a cart contains digital products, guests are automatically registered as customers so they can access downloads from their account. Disable to allow guest digital purchases (licenses emailed only, no account dashboard access)."
         },
         {
+            "key": "abandoned_cart_enabled",
+            "type": "checkbox",
+            "label": "Enable Abandoned Cart Recovery",
+            "default": false,
+            "description": "Track checkout leads with saved carts and send staged recovery emails until the cart converts or closes."
+        },
+        {
+            "key": "abandoned_cart_first_delay_hours",
+            "type": "number",
+            "label": "First Recovery Delay (Hours)",
+            "default": "1",
+            "description": "Hours of inactivity before the first abandoned-cart reminder is sent."
+        },
+        {
+            "key": "abandoned_cart_second_delay_hours",
+            "type": "number",
+            "label": "Second Recovery Delay (Hours)",
+            "default": "24",
+            "description": "Hours of inactivity before the second reminder is sent."
+        },
+        {
+            "key": "abandoned_cart_third_delay_hours",
+            "type": "number",
+            "label": "Third Recovery Delay (Hours)",
+            "default": "72",
+            "description": "Hours of inactivity before the final reminder is sent."
+        },
+        {
             "key": "payment_gateway",
             "type": "select",
             "label": "Payment Gateway",
             "default": "manual",
             "options": [
                 "manual",
-                "paymongo"
+                "paymongo",
+                "stripe",
+                "paypal"
             ],
             "description": "Active payment gateway. 'manual' uses cash-on-delivery / bank transfer."
         },
@@ -534,6 +669,55 @@
             "description": "Comma-separated payment methods: card, gcash, maya, grab_pay, dob."
         },
         {
+            "key": "stripe_publishable_key",
+            "type": "text",
+            "label": "Stripe Publishable Key",
+            "default": "",
+            "description": "Stripe publishable API key (pk_test_xxx or pk_live_xxx)."
+        },
+        {
+            "key": "stripe_secret_key",
+            "type": "text",
+            "label": "Stripe Secret Key",
+            "default": "",
+            "description": "Stripe secret API key (sk_test_xxx or sk_live_xxx). Never expose to frontend."
+        },
+        {
+            "key": "stripe_webhook_secret",
+            "type": "text",
+            "label": "Stripe Webhook Secret",
+            "default": "",
+            "description": "Webhook signing secret from the Stripe dashboard for signature verification."
+        },
+        {
+            "key": "stripe_allowed_payment_methods",
+            "type": "text",
+            "label": "Stripe Allowed Methods",
+            "default": "card",
+            "description": "Comma-separated Stripe Checkout payment methods. Use card to enable cards plus Apple Pay and Google Pay where supported."
+        },
+        {
+            "key": "paypal_client_id",
+            "type": "text",
+            "label": "PayPal Client ID",
+            "default": "",
+            "description": "PayPal REST app client ID for sandbox or live mode."
+        },
+        {
+            "key": "paypal_secret",
+            "type": "text",
+            "label": "PayPal Secret",
+            "default": "",
+            "description": "PayPal REST app secret for sandbox or live mode. Never expose to frontend."
+        },
+        {
+            "key": "paypal_webhook_id",
+            "type": "text",
+            "label": "PayPal Webhook ID",
+            "default": "",
+            "description": "Webhook ID from the PayPal developer dashboard used when verifying webhook signatures."
+        },
+        {
             "key": "license_private_key_pem",
             "type": "textarea",
             "label": "License Signing Key (Private, PEM)",
@@ -562,6 +746,22 @@
             "label": "Products Per Page",
             "default": "12",
             "description": "How many products to show per page in the shop."
+        },
+        {
+            "key": "shipping_default_country",
+            "type": "text",
+            "label": "Default Shipping Country",
+            "control_class": "font-mono uppercase",
+            "default": "",
+            "description": "Optional ISO country code used to quote shipping before a customer enters a destination. Falls back to the tax default country when blank."
+        },
+        {
+            "key": "shipping_table_rate_rules",
+            "type": "textarea",
+            "label": "Table Rate Shipping Rules",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "One rule per line: COUNTRY|STATE|CITY|POSTAL|MIN_SUBTOTAL|MAX_SUBTOTAL|MIN_ITEMS|MAX_ITEMS|RATE|LABEL|CARRIER|ETA. Leave fields blank or use * for wildcards. When a table-rate rule matches, it overrides the flat database rates for that quote."
         },
         {
             "key": "wms_fulfillment_bridge_enabled",
@@ -629,7 +829,31 @@
             "available_vars": [
                 "order_id",
                 "order_number",
-                "tracking_number"
+                "tracking_number",
+                "tracking_carrier",
+                "tracking_url"
+            ]
+        },
+        {
+            "key": "ecommerce.order.refunded",
+            "description": "Fired when a refund is created for an order",
+            "available_vars": [
+                "order_id",
+                "order_number",
+                "actor_user_id",
+                "idempotency_key",
+                "order",
+                "order.id",
+                "order.order_number",
+                "order.customer_email",
+                "order.warehouse_id",
+                "order.items",
+                "refund",
+                "refund.id",
+                "refund.refund_number",
+                "refund.refunded_amount",
+                "refund.gateway_refund_id",
+                "refund.release_items"
             ]
         },
         {

@@ -1,0 +1,144 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+    <div class="space-y-6">
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-base font-semibold text-gray-900">Configured Endpoints</h2>
+                    <p class="mt-1 text-sm text-gray-500">Signed JSON payloads are delivered for matching ecommerce events and every attempt is recorded below.</p>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                {if webhooks | count == 0}
+                <div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-5 text-sm text-gray-500">No outbound webhooks configured yet.</div>
+                {/if}
+
+                {foreach webhooks as webhook}
+                <div class="rounded-lg border border-gray-200 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-semibold text-gray-900">{webhook.name}</h3>
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold {if webhook.is_active}bg-emerald-50 text-emerald-700{else}bg-gray-100 text-gray-600{/if}">{if webhook.is_active}Active{else}Disabled{/if}</span>
+                            </div>
+                            <div class="mt-1 break-all text-xs text-gray-500">{webhook.target_url}</div>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                {foreach webhook.event_patterns as pattern}
+                                <span class="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700">{pattern}</span>
+                                {/foreach}
+                            </div>
+                            <div class="mt-3 text-xs text-gray-400">Last delivery: {if webhook.last_delivery_at}{webhook.last_delivery_at} · {webhook.last_delivery_status|default:'unknown'}{else}Never{/if}</div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <a href="{base_url}/ecommerce/admin/webhooks?edit={webhook.id}" class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">Edit</a>
+                            <form method="post" action="" class="inline-flex">
+                                <input type="hidden" name="_token" value="{csrf_token}">
+                                <input type="hidden" name="action" value="test">
+                                <input type="hidden" name="webhook_id" value="{webhook.id}">
+                                <button type="submit" class="inline-flex items-center rounded-lg border border-sky-200 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50">Send Test</button>
+                            </form>
+                            <form method="post" action="" class="inline-flex" onsubmit="return confirm('Delete this webhook endpoint?');">
+                                <input type="hidden" name="_token" value="{csrf_token}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="webhook_id" value="{webhook.id}">
+                                <button type="submit" class="inline-flex items-center rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-base font-semibold text-gray-900">Recent Deliveries</h2>
+                    <p class="mt-1 text-sm text-gray-500">Latest webhook attempts across all configured endpoints.</p>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
+                        <tr>
+                            <th class="px-4 py-3">Webhook</th>
+                            <th class="px-4 py-3">Event</th>
+                            <th class="px-4 py-3">Result</th>
+                            <th class="px-4 py-3">Response</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {if recent_deliveries | count == 0}
+                        <tr><td colspan="4" class="px-4 py-8 text-center text-sm text-gray-400">No deliveries recorded yet.</td></tr>
+                        {/if}
+                        {foreach recent_deliveries as delivery}
+                        <tr>
+                            <td class="px-4 py-3 align-top">
+                                <div class="font-medium text-gray-900">{delivery.webhook_name}</div>
+                                <div class="mt-1 text-xs text-gray-400">{delivery.created_at}</div>
+                            </td>
+                            <td class="px-4 py-3 align-top font-mono text-xs text-gray-600">{delivery.event_name}</td>
+                            <td class="px-4 py-3 align-top">
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold {if delivery.status == 'delivered'}bg-emerald-50 text-emerald-700{else}bg-red-50 text-red-700{/if}">{delivery.status}</span>
+                                <div class="mt-1 text-xs text-gray-400">HTTP {delivery.http_status}</div>
+                            </td>
+                            <td class="px-4 py-3 align-top">
+                                <div class="max-w-md whitespace-pre-wrap break-words text-xs text-gray-500">{delivery.response_body|default:'(empty response)'}</div>
+                            </td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <div class="bg-white rounded-lg border border-gray-200 p-5 xl:sticky xl:top-6">
+            <h2 class="text-base font-semibold text-gray-900">{if edit_webhook.id > 0}Edit Webhook{else}Create Webhook{/if}</h2>
+            <p class="mt-1 text-sm text-gray-500">Use exact event names or wildcard patterns like <span class="font-mono">ecommerce.order.*</span>.</p>
+
+            <form method="post" action="" class="mt-5 space-y-4">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <input type="hidden" name="action" value="save">
+                <input type="hidden" name="webhook_id" value="{edit_webhook.id}">
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Name</label>
+                    <input type="text" name="name" value="{edit_webhook.name}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="Operations webhook">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Target URL</label>
+                    <input type="url" name="target_url" value="{edit_webhook.target_url}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none" placeholder="https://example.com/webhooks/ecommerce">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Signing Secret</label>
+                    <textarea name="signing_secret" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">{edit_webhook.signing_secret}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">Payloads are signed as <span class="font-mono">sha256=&lt;hmac&gt;</span> in the <span class="font-mono">X-Ecommerce-Signature</span> header.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Event Patterns</label>
+                    <textarea name="event_patterns" rows="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none" placeholder="ecommerce.order.created&#10;ecommerce.order.refunded&#10;ecommerce.product.*">{edit_webhook.event_patterns_text}</textarea>
+                </div>
+
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="is_active" value="1" class="rounded" {if edit_webhook.is_active}checked{/if}>
+                    <span>Endpoint is active</span>
+                </label>
+
+                <div class="flex flex-wrap items-center gap-2 pt-2">
+                    <button type="submit" class="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">{if edit_webhook.id > 0}Save Changes{else}Create Webhook{/if}</button>
+                    <a href="{base_url}/ecommerce/admin/webhooks" class="inline-flex items-center rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{/block}

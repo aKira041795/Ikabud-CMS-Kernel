@@ -56,11 +56,47 @@
                 {if order.shipping_amount > 0}
                 <div class="flex justify-between text-gray-600"><span>Shipping</span><span>{currency_symbol}{order.shipping_amount}</span></div>
                 {/if}
+                {if refund_summary.has_refunds}
+                <div class="flex justify-between text-red-600"><span>Refunded</span><span>−{refund_summary.total_refunded_amount_fmt}</span></div>
+                {/if}
                 <div class="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
                     <span>Total</span><span>{currency_symbol}{order.total}</span>
                 </div>
             </div>
         </div>
+
+        {if refunds | count > 0}
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-700">Refund History</h3>
+                <span class="text-xs text-gray-400">{refund_summary.total_refunded_amount_fmt} refunded</span>
+            </div>
+            <div class="space-y-3">
+                {foreach refunds as refund}
+                <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <div class="font-semibold text-gray-900">{refund.refund_number}</div>
+                            <div class="text-xs text-gray-500 mt-1">{refund.created_at}{if refund.created_by_name} · {refund.created_by_name}{/if}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-semibold text-red-600">−{currency_symbol}{refund.refunded_amount}</div>
+                            <div class="text-xs text-gray-500">{refund.status}</div>
+                        </div>
+                    </div>
+                    {if refund.reason}<p class="mt-2 text-gray-700">{refund.reason}</p>{/if}
+                    {if refund.items | count > 0}
+                    <div class="mt-3 space-y-1.5 text-xs text-gray-600">
+                        {foreach refund.items as item}
+                        <div class="flex justify-between gap-3"><span>{item.product_title} × {item.qty_refunded}</span><span>{if item.restock_qty > 0}Restocked {item.restock_qty}{else}No restock{/if}</span></div>
+                        {/foreach}
+                    </div>
+                    {/if}
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/if}
 
         <!-- Addresses -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -88,6 +124,17 @@
                 </address>
             </div>
         </div>
+
+        {if order.shipment_tracking.has_tracking}
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Shipment Tracking</h3>
+            <div class="space-y-2 text-sm text-gray-700">
+                {if order.shipment_tracking.carrier}<div class="flex justify-between gap-4"><span class="text-gray-500">Carrier</span><span class="font-medium text-right">{order.shipment_tracking.carrier}</span></div>{/if}
+                {if order.shipment_tracking.tracking_number}<div class="flex justify-between gap-4"><span class="text-gray-500">Tracking Number</span><span class="font-medium text-right">{order.shipment_tracking.tracking_number}</span></div>{/if}
+                {if order.shipment_tracking.tracking_url}<div class="flex justify-between gap-4"><span class="text-gray-500">Tracking Link</span><a href="{order.shipment_tracking.tracking_url}" target="_blank" rel="noopener" class="font-medium text-orange-600 hover:underline text-right">Open tracking</a></div>{/if}
+            </div>
+        </div>
+        {/if}
     </div>
 
     <!-- Sidebar -->
@@ -104,12 +151,37 @@
                     <option value="{s}">{s}</option>
                     {/foreach}
                 </select>
+                  <input type="text" name="tracking_carrier" value="{order.shipment_tracking.carrier | default:''}" placeholder="Carrier (for shipped orders)"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <input type="text" name="tracking_number" value="{order.shipment_tracking.tracking_number | default:''}" placeholder="Tracking number"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <input type="url" name="tracking_url" value="{order.shipment_tracking.tracking_url | default:''}" placeholder="Tracking URL"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 <input type="text" name="note" placeholder="Note (optional)"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 <button type="submit" class="w-full px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Update Status</button>
             </form>
         </div>
         {/if}
+
+             {if order.status == 'shipped' || order.status == 'delivered'}
+             <div class="bg-white rounded-lg border border-gray-200 p-5">
+                 <h3 class="text-sm font-semibold text-gray-700 mb-3">Update Tracking</h3>
+                 <form method="post" action="" class="space-y-3">
+                  <input type="hidden" name="_token" value="{csrf_token}">
+                  <input type="hidden" name="action" value="update_tracking">
+                  <input type="text" name="tracking_carrier" value="{order.shipment_tracking.carrier | default:''}" placeholder="Carrier"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <input type="text" name="tracking_number" value="{order.shipment_tracking.tracking_number | default:''}" placeholder="Tracking number"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <input type="url" name="tracking_url" value="{order.shipment_tracking.tracking_url | default:''}" placeholder="Tracking URL"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <input type="text" name="tracking_note" placeholder="Note (optional)"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <button type="submit" class="w-full px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">Save Tracking</button>
+                 </form>
+             </div>
+             {/if}
 
         <!-- Payment -->
         <div class="bg-white rounded-lg border border-gray-200 p-5">
@@ -122,6 +194,10 @@
                 {if order.payment}
                 <div class="flex justify-between"><span>Method</span><span>{order.payment.gateway}</span></div>
                 {/if}
+                {if refund_summary.has_refunds}
+                <div class="flex justify-between"><span>Refunded</span><span class="font-semibold text-red-600">{refund_summary.total_refunded_amount_fmt}</span></div>
+                <div class="flex justify-between"><span>Still refundable</span><span>{refund_summary.refundable_amount_fmt}</span></div>
+                {/if}
             </div>
             {if order.payment_status == 'pending'}
             <form method="post" action="" class="mt-3">
@@ -131,6 +207,50 @@
             </form>
             {/if}
         </div>
+
+        {if refund_summary.refundable_amount > 0 and order.payment_status == 'paid'}
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Create Refund</h3>
+            <form method="post" action="" class="space-y-3">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <input type="hidden" name="action" value="create_refund">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Refund Amount</label>
+                    <input type="number" name="refund_amount" step="0.01" min="0.01" max="{refund_summary.refundable_amount}" value="{refund_summary.refundable_amount}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-400">Up to {refund_summary.refundable_amount_fmt} can still be refunded.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Reason</label>
+                    <textarea name="refund_reason" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Explain why this refund is being issued."></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Internal Note</label>
+                    <textarea name="refund_note" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Optional note for staff."></textarea>
+                </div>
+                <div class="space-y-2">
+                    <div class="text-xs font-semibold text-gray-600 uppercase tracking-wider">Refundable Item Quantities</div>
+                    {foreach order.items as item}
+                    {if item.refundable_qty > 0}
+                    <label class="flex items-center justify-between gap-3 text-sm text-gray-700">
+                        <span class="min-w-0">
+                            <span class="block font-medium text-gray-900">{item.product_title}</span>
+                            <span class="block text-xs text-gray-400">Ordered {item.qty}{if item.refunded_qty > 0} · Already refunded {item.refunded_qty}{/if}</span>
+                        </span>
+                        <input type="number" name="refund_qty[{item.id}]" min="0" max="{item.refundable_qty}" value="0"
+                               class="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right">
+                    </label>
+                    {/if}
+                    {/foreach}
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="restock_inventory" value="1" class="rounded">
+                    <span>Restock selected quantities</span>
+                </label>
+                <button type="submit" class="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700">Create Refund</button>
+            </form>
+        </div>
+        {/if}
 
         <!-- Customer note -->
         {if order.customer_note}

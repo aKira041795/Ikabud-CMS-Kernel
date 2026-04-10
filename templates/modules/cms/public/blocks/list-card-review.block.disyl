@@ -1,0 +1,7 @@
+{if entity.review_summary.has_reviews|default:false}
+<div class="mt-2 flex items-center gap-2 text-xs text-amber-700">
+    <span class="font-semibold">{entity.review_summary.average_rating_formatted}/5</span>
+    <span class="text-gray-400">·</span>
+    <span>{entity.review_summary.approved_count} {if entity.review_summary.approved_count == 1}review{else}reviews{/if}</span>
+</div>
+{/if}

@@ -86,13 +86,14 @@ function ecPublicShop(): void
 {
     $search     = trim((string)(ecInput()['search'] ?? ''));
     $categoryId = (int)(ecInput()['cat'] ?? 0);
+    $attributeFilters = function_exists('ecProductAttributeFiltersFromInput') ? ecProductAttributeFiltersFromInput(ecInput()) : [];
     $perPage    = (int)ecSettings('products_per_page');
     $routeContext = [
         'public_render_origin' => 'ecommerce',
         'public_route_kind' => 'shop_index',
     ];
 
-    ecWithPublicThemeRouteContext($routeContext, static function () use ($search, $categoryId, $perPage, $routeContext): void {
+    ecWithPublicThemeRouteContext($routeContext, static function () use ($search, $categoryId, $attributeFilters, $perPage, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_index', $routeContext);
 
         $availableCategories = ecPublicStorefrontCategories($categoryId);
@@ -119,6 +120,7 @@ function ecPublicShop(): void
             'item_base_url' => '/ecommerce/shop',
             'list_title' => trim((string)ecSettings('shop_page_title')),
             'available_categories' => $availableCategories,
+            'attribute_filters' => $attributeFilters,
             'all_items_url' => '/ecommerce/shop',
             'search_action_url' => '/ecommerce/shop',
             'public_render_origin' => 'ecommerce',
@@ -130,9 +132,18 @@ function ecPublicShop(): void
 
         $page = max(1, (int)(ecInput()['page'] ?? 1));
         $offset = ($page - 1) * $perPage;
+        $attributeFacets = function_exists('ecProductAttributeFacetSummary')
+            ? ecProductAttributeFacetSummary([
+                'search' => $search,
+                'category_id' => $categoryId ?: null,
+                'status' => 'published',
+                'attribute_filters' => $attributeFilters,
+            ])
+            : [];
         $productResult = ecProductList([
             'search' => $search,
             'category_id' => $categoryId ?: null,
+            'attribute_filters' => $attributeFilters,
             'status' => 'published',
             'limit' => $perPage,
             'offset' => $offset,
@@ -143,17 +154,20 @@ function ecPublicShop(): void
         $paginationFirstUrl = ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
             'search' => $search,
             'cat' => $categoryId,
+            'attr' => $attributeFilters,
         ]);
         $paginationPrevUrl = $page > 1
             ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page - 1, [
                 'search' => $search,
                 'cat' => $categoryId,
+                'attr' => $attributeFilters,
             ])
             : '';
         $paginationNextUrl = $page < $totalPages
             ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page + 1, [
                 'search' => $search,
                 'cat' => $categoryId,
+                'attr' => $attributeFilters,
             ])
             : '';
         $storefront = ecBuildStorefrontCatalogContext($products, [
@@ -164,6 +178,8 @@ function ecPublicShop(): void
             'categories' => $availableCategories,
             'search' => $search,
             'category_id' => $categoryId,
+            'attribute_filters' => $attributeFilters,
+            'attribute_facets' => $attributeFacets,
             'search_action_url' => '/ecommerce/shop',
             'all_items_url' => '/ecommerce/shop',
             'base_list_url' => '/ecommerce/shop',
@@ -188,6 +204,8 @@ function ecPublicShop(): void
             'current_cat' => $currentCategory,
             'search' => $search,
             'category_id' => $categoryId,
+            'attribute_filters' => $attributeFilters,
+            'attribute_facets' => $attributeFacets,
             'page' => $page,
             'per_page' => $perPage,
             'total_pages' => $totalPages,
@@ -214,6 +232,7 @@ function ecPublicCategory(array $params = []): void
 {
     $slug = (string)($params['slug'] ?? '');
     $search = trim((string)(ecInput()['search'] ?? ''));
+    $attributeFilters = function_exists('ecProductAttributeFiltersFromInput') ? ecProductAttributeFiltersFromInput(ecInput()) : [];
     if (!$slug) {
         header('Location: /ecommerce/shop');
         exit;
@@ -224,7 +243,7 @@ function ecPublicCategory(array $params = []): void
         'public_route_kind' => 'shop_category',
     ];
 
-    ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $routeContext): void {
+    ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $attributeFilters, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_category', $routeContext);
         $search = trim((string)(ecInput()['search'] ?? ''));
         $perPage = (int)ecSettings('products_per_page');
@@ -239,6 +258,7 @@ function ecPublicCategory(array $params = []): void
                 'all_items_url' => '/ecommerce/shop',
                 'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
                 'available_categories' => ecPublicStorefrontCategories(),
+                'attribute_filters' => $attributeFilters,
                 'public_render_origin' => 'ecommerce',
                 'public_route_kind' => 'shop_category',
             ], $routeContext)) {
@@ -261,10 +281,19 @@ function ecPublicCategory(array $params = []): void
         $page    = max(1, (int)(ecInput()['page'] ?? 1));
         $offset  = ($page - 1) * $perPage;
         $availableCategories = ecPublicStorefrontCategories((int)$cat['id']);
+        $attributeFacets = function_exists('ecProductAttributeFacetSummary')
+            ? ecProductAttributeFacetSummary([
+                'category_id' => (int)$cat['id'],
+                'search' => $search,
+                'status' => 'published',
+                'attribute_filters' => $attributeFilters,
+            ])
+            : [];
 
         $productResult = ecProductList([
             'category_id' => (int)$cat['id'],
             'search'      => $search,
+            'attribute_filters' => $attributeFilters,
             'status'      => 'published',
             'limit'       => $perPage,
             'offset'      => $offset,
@@ -275,15 +304,18 @@ function ecPublicCategory(array $params = []): void
         $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
         $paginationFirstUrl = ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), 1, [
             'search' => $search,
+            'attr' => $attributeFilters,
         ]);
         $paginationPrevUrl = $page > 1
             ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page - 1, [
                 'search' => $search,
+                'attr' => $attributeFilters,
             ])
             : '';
         $paginationNextUrl = $page < $totalPages
             ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page + 1, [
                 'search' => $search,
+                'attr' => $attributeFilters,
             ])
             : '';
         $storefront = ecBuildStorefrontCatalogContext($products, [
@@ -295,6 +327,8 @@ function ecPublicCategory(array $params = []): void
             'search' => $search,
             'category_id' => (int)($cat['id'] ?? 0),
             'category_slug' => $slug,
+            'attribute_filters' => $attributeFilters,
+            'attribute_facets' => $attributeFacets,
             'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
             'all_items_url' => '/ecommerce/shop',
             'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
@@ -319,6 +353,8 @@ function ecPublicCategory(array $params = []): void
             'current_cat' => $cat,
             'search'      => $search,
             'category_id' => (int)$cat['id'],
+            'attribute_filters' => $attributeFilters,
+            'attribute_facets' => $attributeFacets,
             'page'        => $page,
             'per_page'    => $perPage,
             'total_pages' => $totalPages,
@@ -351,15 +387,6 @@ function ecPublicProduct(array $params = []): void
     ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('product_detail', $routeContext);
 
-        if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView', [
-                'type' => 'product',
-                'slug' => $slug,
-                'public_render_origin' => 'ecommerce',
-                'public_route_kind' => 'product_detail',
-            ], $routeContext)) {
-            return;
-        }
-
         $product = ecProductGetBySlug($slug);
 
         if (!$product || $product['status'] !== 'published') {
@@ -368,11 +395,50 @@ function ecPublicProduct(array $params = []): void
             return;
         }
 
+        if (function_exists('ecRecentlyViewedRememberProduct')) {
+            ecRecentlyViewedRememberProduct((int)($product['id'] ?? 0));
+        }
+
         $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
+        $reviewSummary = function_exists('ecReviewSummary') ? ecReviewSummary((int)($product['id'] ?? 0)) : ecReviewDefaultSummary();
+        $reviews = function_exists('ecReviewList')
+            ? (ecReviewList([
+                'product_id' => (int)($product['id'] ?? 0),
+                'status' => 'approved',
+                'limit' => 10,
+                'offset' => 0,
+            ])['items'] ?? [])
+            : [];
+        $relationSections = function_exists('ecProductRecommendationSectionsForProduct')
+            ? ecProductRecommendationSectionsForProduct((int)($product['id'] ?? 0))
+            : [];
+        $recentlyViewedItems = function_exists('ecRecentlyViewedCatalogItems')
+            ? ecRecentlyViewedCatalogItems((int)($product['id'] ?? 0), 4, ['item_base_url' => '/ecommerce/shop'])
+            : [];
+        $seoContent = function_exists('ecProductSeoContent') ? ecProductSeoContent($product) : [];
+        $headCode = function_exists('cmsGetPublicHeadHtml') ? cmsGetPublicHeadHtml($seoContent) : '';
+        $seoPageTitle = function_exists('cmsResolveSeoTitle') ? cmsResolveSeoTitle($seoContent) : (string)($product['seo_title'] ?? $product['title'] ?? '');
+
+        if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView', [
+                'type' => 'product',
+                'slug' => $slug,
+            'disable_cache' => true,
+                'public_render_origin' => 'ecommerce',
+                'public_route_kind' => 'product_detail',
+                'template_context' => [
+                    'review_summary' => $reviewSummary,
+                    'reviews' => $reviews,
+                    'relation_sections' => $relationSections,
+                    'recently_viewed_items' => $recentlyViewedItems,
+                ],
+            ], $routeContext)) {
+            return;
+        }
+
         $storefront = ecBuildStorefrontDetailContext($product, [
             'route_kind' => 'product_detail',
             'presentation_mode' => $presentationMode,
-            'page_title' => (string)($product['title'] ?? ''),
+            'page_title' => $seoPageTitle,
             'shop_url' => '/ecommerce/shop',
             'all_items_url' => '/ecommerce/shop',
             'item_base_url' => '/ecommerce/shop',
@@ -380,9 +446,14 @@ function ecPublicProduct(array $params = []): void
         ]);
 
         ecRender('modules/ecommerce/public/product.disyl', [
-            'page_title'  => $product['title'],
+            'page_title'  => $seoPageTitle,
             'product'     => $product,
+            'review_summary' => $reviewSummary,
+            'reviews' => $reviews,
+            'relation_sections' => $relationSections,
+            'recently_viewed_items' => $recentlyViewedItems,
             'cart_count'  => $cartCount,
+            'head_code' => $headCode,
             'storefront' => $storefront,
             'public_route_kind' => 'product_detail',
             'public_presentation_mode' => $presentationMode,

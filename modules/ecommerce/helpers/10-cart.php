@@ -54,11 +54,7 @@ function ecCartGet(): array
     return ['items' => $items, 'totals' => $totals, 'coupon_code' => $couponCode];
 }
 
-/**
- * Add a product to the cart.
- * Validates stock, snapshots price.
- */
-function ecCartAdd(int $productId, int $qty = 1, ?int $variantId = null): array
+function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null): array
 {
     if ($qty < 1) {
         return ['ok' => false, 'error' => 'Invalid quantity'];
@@ -68,11 +64,13 @@ function ecCartAdd(int $productId, int $qty = 1, ?int $variantId = null): array
     if (!$product) {
         return ['ok' => false, 'error' => 'Product not found'];
     }
+    if (!empty($product['is_external_product'])) {
+        return ['ok' => false, 'error' => 'This product must be purchased through an external checkout'];
+    }
 
     $pricing   = $product['pricing'];
     $inventory = $product['inventory'];
 
-    // Stock check
     if ($inventory['track_stock'] && !$inventory['in_stock']) {
         return ['ok' => false, 'error' => 'Product is out of stock'];
     }
@@ -91,37 +89,115 @@ function ecCartAdd(int $productId, int $qty = 1, ?int $variantId = null): array
         $price = (float)($pricing['active_price'] ?? $pricing['price'] ?? 0);
     }
 
-    $item = [
-        'product_id'     => $productId,
-        'variant_id'     => $variantId,
-        'qty'            => $qty,
-        'price_snapshot' => $price,
-        'product_title'  => $product['title'],
-        'sku'            => $sku,
+    return [
+        'ok' => true,
+        'item' => [
+            'product_id' => $productId,
+            'variant_id' => $variantId,
+            'qty' => $qty,
+            'price_snapshot' => $price,
+            'product_title' => $product['title'],
+            'sku' => $sku,
+        ],
     ];
+}
 
+function ecCartPersistItem(array $item): void
+{
     $user   = app()->user();
     $userId = ($user && ($user['source'] ?? '') === 'cms') ? (int)$user['id'] : 0;
 
     if ($userId) {
         ecDbCartAdd($userId, $item);
-    } else {
-        $items = ecSessionCartGet();
-        // Merge if same product+variant already in cart
-        $found = false;
-        foreach ($items as &$existing) {
-            if ($existing['product_id'] === $productId && $existing['variant_id'] === $variantId) {
-                $existing['qty'] += $qty;
-                $found = true;
-                break;
-            }
-        }
-        unset($existing);
-        if (!$found) {
-            $items[] = $item;
-        }
-        ecSessionCartSave($items);
+        return;
     }
+
+    $items = ecSessionCartGet();
+    $found = false;
+    foreach ($items as &$existing) {
+        if ($existing['product_id'] === $item['product_id'] && $existing['variant_id'] === $item['variant_id']) {
+            $existing['qty'] += (int)$item['qty'];
+            $found = true;
+            break;
+        }
+    }
+    unset($existing);
+
+    if (!$found) {
+        $items[] = $item;
+    }
+
+    ecSessionCartSave($items);
+}
+
+function ecCartNormalizeGroupedItems(mixed $groupedItems): array
+{
+    if (!is_array($groupedItems)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($groupedItems as $groupedItem) {
+        if (!is_array($groupedItem)) {
+            continue;
+        }
+
+        $productId = (int)($groupedItem['product_id'] ?? $groupedItem['entity_id'] ?? 0);
+        $qty = (int)($groupedItem['qty'] ?? 0);
+        $variantId = isset($groupedItem['variant_id']) && $groupedItem['variant_id'] !== ''
+            ? (int)$groupedItem['variant_id']
+            : null;
+
+        if ($productId < 1 || $qty < 1) {
+            continue;
+        }
+
+        $normalized[] = [
+            'product_id' => $productId,
+            'qty' => $qty,
+            'variant_id' => $variantId,
+        ];
+    }
+
+    return $normalized;
+}
+
+function ecCartAddGroupedItems(array $groupedItems): array
+{
+    $normalizedItems = ecCartNormalizeGroupedItems($groupedItems);
+    if ($normalizedItems === []) {
+        return ['ok' => false, 'error' => 'Select at least one grouped product'];
+    }
+
+    $preparedItems = [];
+    foreach ($normalizedItems as $groupedItem) {
+        $prepared = ecCartPrepareItem((int)$groupedItem['product_id'], (int)$groupedItem['qty'], $groupedItem['variant_id']);
+        if (!$prepared['ok']) {
+            return $prepared;
+        }
+
+        $preparedItems[] = $prepared['item'];
+    }
+
+    foreach ($preparedItems as $item) {
+        ecCartPersistItem($item);
+    }
+
+    return ['ok' => true, 'cart' => ecCartGet()];
+}
+
+/**
+ * Add a product to the cart.
+ * Validates stock, snapshots price.
+ */
+function ecCartAdd(int $productId, int $qty = 1, ?int $variantId = null): array
+{
+    $prepared = ecCartPrepareItem($productId, $qty, $variantId);
+    if (!$prepared['ok']) {
+        return $prepared;
+    }
+
+    ecCartPersistItem($prepared['item']);
 
     return ['ok' => true, 'cart' => ecCartGet()];
 }
@@ -362,4 +438,42 @@ function ecCartHasDigitalItems(array $cartItems): bool
     } catch (\Throwable $e) {
         return false;
     }
+}
+
+function ecCartRequiresShipping(array $cartItems): bool
+{
+    if (empty($cartItems)) {
+        return false;
+    }
+
+    $productIds = array_unique(array_map('intval', array_column($cartItems, 'product_id')));
+    $productIds = array_values(array_filter($productIds));
+    if ($productIds === []) {
+        return false;
+    }
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+        $rows = ecDb()->query(
+            "SELECT content_id FROM cms_content_meta
+             WHERE meta_key = '_is_digital' AND meta_value = '1'
+               AND content_id IN ($placeholders)",
+            $productIds
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return true;
+    }
+
+    $digitalLookup = [];
+    foreach ($rows as $row) {
+        $digitalLookup[(int)($row['content_id'] ?? 0)] = true;
+    }
+
+    foreach ($productIds as $productId) {
+        if (!isset($digitalLookup[$productId])) {
+            return true;
+        }
+    }
+
+    return false;
 }

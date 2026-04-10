@@ -39,6 +39,70 @@ function ecWithKernelDbUnguarded(callable $callback): mixed
     }
 }
 
+function ecRefundStorageAvailable(): bool
+{
+    static $ready = null;
+    if ($ready !== null) {
+        return $ready;
+    }
+
+    try {
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (?, ?)' 
+        );
+        $stmt->execute(['ec_refunds', 'ec_refund_items']);
+        $ready = (int)$stmt->fetchColumn() === 2;
+    } catch (\Throwable $e) {
+        $ready = false;
+    }
+
+    if ($ready) {
+        return true;
+    }
+
+    $migrationPath = BASE_PATH . '/modules/ecommerce/database/migrations/016_ec_refunds.sql';
+    if (!is_file($migrationPath)) {
+        return false;
+    }
+
+    try {
+        $sql = (string)file_get_contents($migrationPath);
+        if (trim($sql) !== '') {
+            app()->db()->exec($sql);
+        }
+    } catch (\Throwable $e) {
+        write_log('ecRefundStorageAvailable migration fallback failed: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
+    }
+
+    try {
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (?, ?)' 
+        );
+        $stmt->execute(['ec_refunds', 'ec_refund_items']);
+        $ready = (int)$stmt->fetchColumn() === 2;
+    } catch (\Throwable $e) {
+        $ready = false;
+    }
+
+    return $ready;
+}
+
+function ecRefundGenerateNumber(): string
+{
+    $year = date('Y');
+
+    try {
+        $count = (int)ecDb()->query(
+            'SELECT COUNT(*) FROM ec_refunds WHERE YEAR(created_at) = ?',
+            [$year]
+        )->fetchColumn();
+    } catch (\Throwable $e) {
+        $count = 0;
+    }
+
+    return 'RF-' . $year . '-' . str_pad((string)($count + 1), 4, '0', STR_PAD_LEFT);
+}
+
 function ecActiveIntegrationMode(bool $refresh = false): string
 {
     if (!$refresh) {
@@ -112,12 +176,40 @@ function ecWmsFulfillmentManagedBridgeNames(): array
         'ecommerce_wms_reserve',
         'ecommerce_wms_order_create',
         'ecommerce_wms_release',
+        'ecommerce_wms_refund_release',
         'ecommerce_wms_cancel_order',
         'wms_ecommerce_processing',
         'wms_ecommerce_shipped',
+        'wms_ecommerce_tracking_sync',
         'wms_ecommerce_delivered',
         'wms_ecommerce_manual_payment_complete',
     ];
+}
+
+function ecOrderRefundBridgeItems(array $order, array $refund): array
+{
+    $warehouseId = (int)($order['warehouse_id'] ?? 0);
+    $bridgeItems = [];
+    foreach ((array)($refund['items'] ?? []) as $item) {
+        $qty = (float)($item['restock_qty'] ?? 0);
+        if ($qty <= 0) {
+            continue;
+        }
+
+        $productId = (int)($item['product_id'] ?? 0);
+        if ($productId < 1) {
+            continue;
+        }
+
+        $bridgeItems[] = [
+            'product_id' => $productId,
+            'warehouse_id' => $warehouseId,
+            'qty' => $qty,
+            'sku' => (string)($item['sku'] ?? ''),
+        ];
+    }
+
+    return $bridgeItems;
 }
 
 function ecWmsFulfillmentBridgeDefinitions(): array
@@ -167,6 +259,19 @@ function ecWmsFulfillmentBridgeDefinitions(): array
             ],
         ],
         [
+            'name' => 'ecommerce_wms_refund_release',
+            'trigger_event' => 'ecommerce.order.refunded',
+            'target_capability' => 'wms.stock.release@1',
+            'mapping' => [
+                'reference_type' => 'order_refund',
+                'reference_id' => '{{order.id}}',
+                'warehouse_id' => '{{order.warehouse_id}}',
+                'items' => '{{refund.release_items}}',
+                'idempotency_key' => '{{idempotency_key}}',
+                'actor_user_id' => '{{actor_user_id}}',
+            ],
+        ],
+        [
             'name' => 'ecommerce_wms_cancel_order',
             'trigger_event' => 'ecommerce.order.cancelled',
             'target_capability' => 'wms.order.cancel@1',
@@ -203,6 +308,23 @@ function ecWmsFulfillmentBridgeDefinitions(): array
                 'wms_order_id' => '{{wms_order_id}}',
                 'history_key' => 'wms:{{wms_order_id}}:dispatched',
                 'note' => 'WMS marked the order as dispatched.',
+            ],
+        ],
+        [
+            'name' => 'wms_ecommerce_tracking_sync',
+            'trigger_event' => 'wms.order.dispatched',
+            'target_capability' => 'ecommerce.orders.tracking.sync@1',
+            'mapping' => [
+                'order_id' => '{{ecommerce_order_id}}',
+                'external_reference' => '{{external_reference}}',
+                'source' => 'wms_bridge',
+                'event' => 'wms.order.dispatched',
+                'wms_order_id' => '{{wms_order_id}}',
+                'history_key' => 'wms:{{wms_order_id}}:tracking',
+                'note' => 'WMS provided shipment tracking.',
+                'tracking_number' => '{{tracking_number}}',
+                'tracking_carrier' => '{{tracking_carrier}}',
+                'tracking_url' => '{{tracking_url}}',
             ],
         ],
         [
@@ -316,7 +438,7 @@ function ecWmsProductBridgeDefinitions(string $mode): array
                     'name' => '{{title}}',
                     'description' => '{{excerpt}}',
                     'is_active' => '{{is_active}}',
-                    'product_type' => 'physical',
+                    'product_type' => '{{product_type}}',
                 ],
             ],
             [
@@ -328,7 +450,7 @@ function ecWmsProductBridgeDefinitions(string $mode): array
                     'name' => '{{title}}',
                     'description' => '{{excerpt}}',
                     'is_active' => '{{is_active}}',
-                    'product_type' => 'physical',
+                    'product_type' => '{{product_type}}',
                 ],
             ],
         ];
@@ -532,7 +654,7 @@ function ecOrderCreate(array $data): array
 
         // Increment coupon uses
         if (!empty($data['coupon_code'])) {
-            ecCouponUse((string)$data['coupon_code']);
+            ecCouponUse((string)$data['coupon_code'], (float)($data['discount_amount'] ?? 0));
         }
 
         $db->commit();
@@ -815,8 +937,23 @@ function ecOrderHydrateData(array $order): array
     $order['shipping_amount'] = (float)($order['shipping_amount'] ?? 0);
     $order['billing'] = $billing;
     $order['shipping'] = $shipping;
+    $order['shipment_tracking'] = ecOrderShipmentTrackingFromMeta($meta);
     $order['customer_email'] = $billing['email'] !== '' ? $billing['email'] : (string)($order['guest_email'] ?? '');
     $order['customer_name'] = trim($billing['first_name'] . ' ' . $billing['last_name']);
+    $order['refunds'] = is_array($order['refunds'] ?? null) ? $order['refunds'] : [];
+    $order['refund_summary'] = is_array($order['refund_summary'] ?? null)
+        ? $order['refund_summary']
+        : ecOrderRefundSummary($order, $order['refunds']);
+
+    $refundedItemQuantities = ecOrderRefundedItemQuantities($order['refunds']);
+    $order['items'] = is_array($order['items'] ?? null) ? $order['items'] : [];
+    foreach ($order['items'] as &$item) {
+        $orderItemId = (int)($item['id'] ?? 0);
+        $refundedQty = (int)($refundedItemQuantities[$orderItemId] ?? 0);
+        $item['refunded_qty'] = $refundedQty;
+        $item['refundable_qty'] = max(0, (int)($item['qty'] ?? 0) - $refundedQty);
+    }
+    unset($item);
 
     if (!empty($order['items']) && !empty($order['licenses'])) {
         $licensesByItem = [];
@@ -857,6 +994,48 @@ function ecOrderHydrateData(array $order): array
     }
 
     return $order;
+}
+
+function ecOrderNormalizeShipmentTracking(array $tracking): array
+{
+    return [
+        'tracking_number' => trim((string)($tracking['tracking_number'] ?? '')),
+        'carrier' => trim((string)($tracking['carrier'] ?? $tracking['shipping_carrier'] ?? '')),
+        'tracking_url' => trim((string)($tracking['tracking_url'] ?? '')),
+    ];
+}
+
+function ecOrderShipmentTrackingFromMeta(array $meta): array
+{
+    $tracking = ecOrderNormalizeShipmentTracking([
+        'tracking_number' => $meta['tracking_number'] ?? '',
+        'carrier' => $meta['shipping_carrier'] ?? '',
+        'tracking_url' => $meta['tracking_url'] ?? '',
+    ]);
+    $tracking['has_tracking'] = $tracking['tracking_number'] !== '' || $tracking['tracking_url'] !== '' || $tracking['carrier'] !== '';
+
+    return $tracking;
+}
+
+function ecOrderSaveShipmentTracking(int $orderId, array $tracking): array
+{
+    $normalized = ecOrderNormalizeShipmentTracking($tracking);
+
+    foreach ([
+        'tracking_number' => $normalized['tracking_number'],
+        'shipping_carrier' => $normalized['carrier'],
+        'tracking_url' => $normalized['tracking_url'],
+    ] as $key => $value) {
+        ecDb()->execute(
+            "INSERT INTO ec_order_meta (order_id, meta_key, meta_value) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+            [$orderId, $key, $value]
+        );
+    }
+
+    $normalized['has_tracking'] = $normalized['tracking_number'] !== '' || $normalized['tracking_url'] !== '' || $normalized['carrier'] !== '';
+
+    return $normalized;
 }
 
 /**
@@ -959,6 +1138,9 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
             ];
         }, $historyRows);
 
+        $order['refunds'] = ecOrderGetRefunds($id);
+        $order['refund_summary'] = ecOrderRefundSummary($order, $order['refunds']);
+
         return ecOrderHydrateData($order);
     } catch (\Throwable $e) {
         write_log('ecOrderGet error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
@@ -1047,12 +1229,24 @@ function ecOrderUpdateStatusWithOptions(int $orderId, string $newStatus, ?string
     $historyKey = trim((string)($options['history_key'] ?? ''));
     $actorUserId = isset($options['actor_user_id']) && (int)$options['actor_user_id'] > 0 ? (int)$options['actor_user_id'] : null;
     $meta = is_array($options['meta'] ?? null) ? $options['meta'] : [];
+    $trackingInput = is_array($options['tracking'] ?? null) ? $options['tracking'] : [];
+    $tracking = ecOrderNormalizeShipmentTracking($trackingInput);
+    $hasTrackingInput = $tracking['tracking_number'] !== '' || $tracking['carrier'] !== '' || $tracking['tracking_url'] !== '';
+
+    if ($hasTrackingInput) {
+        ecOrderSaveShipmentTracking($orderId, $tracking);
+        $meta = array_merge($meta, array_filter([
+            'tracking_number' => $tracking['tracking_number'],
+            'tracking_carrier' => $tracking['carrier'],
+            'tracking_url' => $tracking['tracking_url'],
+        ], static fn(mixed $value): bool => $value !== ''));
+    }
 
     if ($current === $newStatus) {
-        if ($historyKey !== '') {
+        if ($historyKey !== '' || $hasTrackingInput) {
             ecOrderRecordStatusHistory($orderId, $newStatus, [
                 'source' => $source,
-                'note' => $note,
+                'note' => $note ?? ($hasTrackingInput ? 'Shipment tracking updated.' : null),
                 'actor_user_id' => $actorUserId,
                 'history_key' => $historyKey,
                 'meta' => $meta,
@@ -1101,6 +1295,13 @@ function ecOrderUpdateStatusWithOptions(int $orderId, string $newStatus, ?string
                 $eventPayload['source'] = (string)($bridgeSnapshot['source'] ?? $order['source'] ?? 'web');
                 $eventPayload['actor_user_id'] = $bridgeSnapshot['actor_user_id'] ?? null;
                 $eventPayload['order'] = $bridgeSnapshot;
+            } elseif ($newStatus === 'shipped') {
+                $shipmentTracking = $hasTrackingInput
+                    ? $tracking
+                    : ecOrderShipmentTrackingFromMeta((array)($order['meta'] ?? []));
+                $eventPayload['tracking_number'] = (string)($shipmentTracking['tracking_number'] ?? '');
+                $eventPayload['tracking_carrier'] = (string)($shipmentTracking['carrier'] ?? '');
+                $eventPayload['tracking_url'] = (string)($shipmentTracking['tracking_url'] ?? '');
             }
             app()->events()->fire($eventKey, $eventPayload);
         } catch (\Throwable $e) {}
@@ -1283,6 +1484,56 @@ function ec_cap_orders_payment_sync_1(mixed $payload, string $capabilityId = '',
     ];
 }
 
+function ec_cap_orders_tracking_sync_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
+    }
+
+    $order = ecCapResolveOrderForStatusSync($payload);
+    if ($order === null) {
+        return ['ok' => false, 'error' => 'Order not found for tracking sync.'];
+    }
+
+    $tracking = ecOrderNormalizeShipmentTracking([
+        'tracking_number' => $payload['tracking_number'] ?? '',
+        'carrier' => $payload['tracking_carrier'] ?? $payload['carrier'] ?? '',
+        'tracking_url' => $payload['tracking_url'] ?? '',
+    ]);
+    if ($tracking['tracking_number'] === '' && $tracking['carrier'] === '' && $tracking['tracking_url'] === '') {
+        return [
+            'ok' => true,
+            'ignored' => true,
+            'reason' => 'no_tracking',
+            'order_id' => (int)$order['id'],
+        ];
+    }
+
+    $updated = ecOrderUpdateStatusWithOptions((int)$order['id'], (string)($order['status'] ?? 'pending'), isset($payload['note']) ? (string)$payload['note'] : null, [
+        'source' => trim((string)($payload['source'] ?? 'wms_bridge')) ?: 'wms_bridge',
+        'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
+        'history_key' => trim((string)($payload['history_key'] ?? '')),
+        'tracking' => $tracking,
+        'meta' => [
+            'event' => (string)($payload['event'] ?? ''),
+            'wms_order_id' => (int)($payload['wms_order_id'] ?? 0),
+            'external_reference' => (string)($payload['external_reference'] ?? ''),
+        ],
+    ]);
+
+    if (!$updated) {
+        return ['ok' => false, 'error' => 'Tracking sync failed.', 'order_id' => (int)$order['id']];
+    }
+
+    return [
+        'ok' => true,
+        'order_id' => (int)$order['id'],
+        'tracking_number' => $tracking['tracking_number'],
+        'tracking_carrier' => $tracking['carrier'],
+        'tracking_url' => $tracking['tracking_url'],
+    ];
+}
+
 /**
  * Update payment status (e.g. manual mark-as-paid).
  * Idempotent: if the order is already paid the event is not re-fired,
@@ -1340,6 +1591,388 @@ function ecOrderMarkPaid(int $orderId, array $options = []): void
             ]);
         } catch (\Throwable $e) {}
     }
+}
+
+function ecOrderGetRefunds(int $orderId): array
+{
+    if ($orderId <= 0 || !ecRefundStorageAvailable()) {
+        return [];
+    }
+
+    try {
+        $refundRows = ecDb()->query(
+            'SELECT r.*, u.display_name AS created_by_name
+             FROM ec_refunds r
+             LEFT JOIN cms_users u ON u.id = r.created_by_user_id
+             WHERE r.order_id = ?
+             ORDER BY r.created_at DESC, r.id DESC',
+            [$orderId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    if ($refundRows === []) {
+        return [];
+    }
+
+    $refundIds = array_values(array_filter(array_map(
+        static fn(array $row): int => (int)($row['id'] ?? 0),
+        $refundRows
+    )));
+
+    $itemsByRefundId = [];
+    if ($refundIds !== []) {
+        $placeholders = implode(', ', array_fill(0, count($refundIds), '?'));
+        try {
+            $itemRows = ecDb()->query(
+                'SELECT ri.*, oi.product_title, oi.sku, oi.unit_price, oi.qty AS ordered_qty
+                 FROM ec_refund_items ri
+                 INNER JOIN ec_order_items oi ON oi.id = ri.order_item_id
+                 WHERE ri.refund_id IN (' . $placeholders . ')
+                 ORDER BY ri.id ASC',
+                $refundIds
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            $itemRows = [];
+        }
+
+        foreach ($itemRows as $row) {
+            $refundId = (int)($row['refund_id'] ?? 0);
+            if ($refundId < 1) {
+                continue;
+            }
+            $itemsByRefundId[$refundId][] = [
+                'id' => (int)($row['id'] ?? 0),
+                'order_item_id' => (int)($row['order_item_id'] ?? 0),
+                'product_id' => (int)($row['product_id'] ?? 0),
+                'product_title' => (string)($row['product_title'] ?? ''),
+                'sku' => (string)($row['sku'] ?? ''),
+                'unit_price' => (float)($row['unit_price'] ?? 0),
+                'ordered_qty' => (int)($row['ordered_qty'] ?? 0),
+                'qty_refunded' => (int)($row['qty_refunded'] ?? 0),
+                'line_amount' => (float)($row['line_amount'] ?? 0),
+                'restock_qty' => (int)($row['restock_qty'] ?? 0),
+            ];
+        }
+    }
+
+    $refunds = [];
+    foreach ($refundRows as $row) {
+        $refundId = (int)($row['id'] ?? 0);
+        $meta = [];
+        if (!empty($row['meta'])) {
+            $decoded = json_decode((string)$row['meta'], true);
+            if (is_array($decoded)) {
+                $meta = $decoded;
+            }
+        }
+        $refunds[] = [
+            'id' => $refundId,
+            'refund_number' => (string)($row['refund_number'] ?? ''),
+            'status' => (string)($row['status'] ?? 'completed'),
+            'refunded_amount' => (float)($row['refunded_amount'] ?? 0),
+            'currency' => (string)($row['currency'] ?? ''),
+            'reason' => (string)($row['reason'] ?? ''),
+            'admin_note' => (string)($row['admin_note'] ?? ''),
+            'restock_inventory' => !empty($row['restock_inventory']),
+            'created_by_user_id' => isset($row['created_by_user_id']) ? (int)$row['created_by_user_id'] : null,
+            'created_by_name' => (string)($row['created_by_name'] ?? ''),
+            'gateway_refund_id' => (string)($row['gateway_refund_id'] ?? ''),
+            'created_at' => (string)($row['created_at'] ?? ''),
+            'items' => $itemsByRefundId[$refundId] ?? [],
+            'meta' => $meta,
+        ];
+    }
+
+    return $refunds;
+}
+
+function ecOrderRefundSummary(array $order, array $refunds): array
+{
+    $totalRefundedAmount = 0.0;
+    $totalRefundedQty = 0;
+    foreach ($refunds as $refund) {
+        if ((string)($refund['status'] ?? 'completed') === 'failed') {
+            continue;
+        }
+        $totalRefundedAmount += (float)($refund['refunded_amount'] ?? 0);
+        foreach ((array)($refund['items'] ?? []) as $item) {
+            $totalRefundedQty += (int)($item['qty_refunded'] ?? 0);
+        }
+    }
+
+    $currencySymbol = (string)($order['currency_symbol'] ?? ecSettings('currency_symbol'));
+    $orderTotal = (float)($order['total'] ?? $order['total_amount'] ?? 0);
+    $refundableAmount = max(0.0, round($orderTotal - $totalRefundedAmount, 2));
+
+    return [
+        'has_refunds' => $totalRefundedAmount > 0,
+        'refund_count' => count($refunds),
+        'total_refunded_amount' => round($totalRefundedAmount, 2),
+        'total_refunded_amount_fmt' => $currencySymbol . number_format($totalRefundedAmount, 2),
+        'refundable_amount' => $refundableAmount,
+        'refundable_amount_fmt' => $currencySymbol . number_format($refundableAmount, 2),
+        'total_refunded_qty' => $totalRefundedQty,
+        'is_fully_refunded' => $refundableAmount <= 0.009,
+    ];
+}
+
+function ecOrderRefundedItemQuantities(array $refunds): array
+{
+    $quantities = [];
+    foreach ($refunds as $refund) {
+        if ((string)($refund['status'] ?? 'completed') === 'failed') {
+            continue;
+        }
+        foreach ((array)($refund['items'] ?? []) as $item) {
+            $orderItemId = (int)($item['order_item_id'] ?? 0);
+            if ($orderItemId < 1) {
+                continue;
+            }
+            $quantities[$orderItemId] = (int)($quantities[$orderItemId] ?? 0) + (int)($item['qty_refunded'] ?? 0);
+        }
+    }
+
+    return $quantities;
+}
+
+function ecOrderCreateRefund(int $orderId, array $refundItems, array $options = []): array
+{
+    if (!ecRefundStorageAvailable()) {
+        throw new \RuntimeException('Refund storage is unavailable.');
+    }
+
+    $order = ecOrderGet($orderId);
+    if (!$order) {
+        throw new \InvalidArgumentException('Order not found.');
+    }
+    if ((string)($order['status'] ?? '') === 'cancelled') {
+        throw new \InvalidArgumentException('Cancelled orders cannot be refunded.');
+    }
+    if (!in_array((string)($order['payment_status'] ?? ''), ['paid', 'refunded'], true)) {
+        throw new \InvalidArgumentException('Only paid orders can be refunded.');
+    }
+
+    $reason = trim((string)($options['reason'] ?? ''));
+    if ($reason === '') {
+        throw new \InvalidArgumentException('Refund reason is required.');
+    }
+
+    $amount = round((float)($options['amount'] ?? 0), 2);
+    if ($amount <= 0) {
+        throw new \InvalidArgumentException('Refund amount must be greater than zero.');
+    }
+
+    $restockInventory = !empty($options['restock_inventory']);
+    $adminNote = trim((string)($options['admin_note'] ?? ''));
+    $createdByUserId = isset($options['created_by_user_id']) && (int)($options['created_by_user_id'] ?? 0) > 0
+        ? (int)$options['created_by_user_id']
+        : null;
+    $paymentGateway = trim((string)($order['payment']['gateway'] ?? ''));
+    $gatewayRefundId = trim((string)($options['gateway_refund_id'] ?? ''));
+    $gatewayRefundResult = null;
+
+    $refunds = ecOrderGetRefunds($orderId);
+    $refundSummary = ecOrderRefundSummary($order, $refunds);
+    if ($amount > (float)($refundSummary['refundable_amount'] ?? 0)) {
+        throw new \InvalidArgumentException('Refund amount exceeds the remaining refundable total.');
+    }
+
+    $orderItemsById = [];
+    foreach ((array)($order['items'] ?? []) as $item) {
+        $orderItemsById[(int)($item['id'] ?? 0)] = $item;
+    }
+    $existingRefundedQuantities = ecOrderRefundedItemQuantities($refunds);
+
+    $normalizedRefundItems = [];
+    foreach ($refundItems as $orderItemId => $qtyValue) {
+        $normalizedOrderItemId = (int)$orderItemId;
+        $qtyRefunded = max(0, (int)$qtyValue);
+        if ($normalizedOrderItemId < 1 || $qtyRefunded < 1) {
+            continue;
+        }
+        $orderItem = $orderItemsById[$normalizedOrderItemId] ?? null;
+        if (!is_array($orderItem)) {
+            throw new \InvalidArgumentException('Refund item could not be matched to the order.');
+        }
+
+        $alreadyRefundedQty = (int)($existingRefundedQuantities[$normalizedOrderItemId] ?? 0);
+        $maxRefundableQty = max(0, (int)($orderItem['qty'] ?? 0) - $alreadyRefundedQty);
+        if ($qtyRefunded > $maxRefundableQty) {
+            throw new \InvalidArgumentException('Refund quantity exceeds the remaining refundable quantity for an item.');
+        }
+
+        $normalizedRefundItems[] = [
+            'order_item_id' => $normalizedOrderItemId,
+            'product_id' => (int)($orderItem['product_id'] ?? 0),
+            'qty_refunded' => $qtyRefunded,
+            'line_amount' => round((float)($orderItem['unit_price'] ?? 0) * $qtyRefunded, 2),
+            'restock_qty' => $restockInventory ? $qtyRefunded : 0,
+        ];
+    }
+
+    if ($restockInventory && $normalizedRefundItems === []) {
+        throw new \InvalidArgumentException('Select at least one order item quantity when restocking inventory.');
+    }
+
+    $shouldProcessGatewayRefund = empty($options['skip_gateway_refund']);
+    if ($shouldProcessGatewayRefund && $gatewayRefundId === '' && in_array($paymentGateway, ['stripe', 'paypal'], true)) {
+        $gatewayRefundResult = ecPaymentGatewayRefund($orderId, $amount, (string)($order['currency'] ?? ecSettings('currency')), [
+            'gateway' => $paymentGateway,
+            'reason' => $reason,
+            'payment_intent_id' => (string)($order['payment']['payment_intent_id'] ?? ''),
+            'capture_id' => (string)($order['payment']['gateway_txn_id'] ?? ''),
+        ]);
+        if (!($gatewayRefundResult['ok'] ?? false)) {
+            throw new \InvalidArgumentException('Gateway refund failed: ' . (string)($gatewayRefundResult['error'] ?? 'unknown error'));
+        }
+        $gatewayRefundId = trim((string)($gatewayRefundResult['refund_id'] ?? ''));
+    }
+
+    $db = ecDb();
+    $db->beginTransaction();
+
+    try {
+        $refundNumber = ecRefundGenerateNumber();
+        $remainingRefundableAmount = round((float)($refundSummary['refundable_amount'] ?? 0) - $amount, 2);
+        $refundMeta = [
+            'payment_gateway' => $paymentGateway,
+            'partial' => $remainingRefundableAmount > 0.009,
+            'wms_stock_authority' => ecUsesWmsStockAuthority(),
+            'gateway_refund_id' => $gatewayRefundId,
+            'gateway_refund_status' => (string)($gatewayRefundResult['status'] ?? ''),
+        ];
+
+        $db->execute(
+            'INSERT INTO ec_refunds (
+                order_id, refund_number, created_by_user_id, refunded_amount, currency,
+                reason, admin_note, restock_inventory, status, gateway_refund_id, meta, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+            [
+                $orderId,
+                $refundNumber,
+                $createdByUserId,
+                $amount,
+                (string)($order['currency'] ?? ecSettings('currency')),
+                $reason,
+                $adminNote !== '' ? $adminNote : null,
+                $restockInventory ? 1 : 0,
+                'completed',
+                $gatewayRefundId !== '' ? $gatewayRefundId : null,
+                json_encode($refundMeta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ]
+        );
+        $refundId = (int)$db->lastInsertId();
+
+        foreach ($normalizedRefundItems as $refundItem) {
+            $db->execute(
+                'INSERT INTO ec_refund_items (
+                    refund_id, order_item_id, product_id, qty_refunded, line_amount, restock_qty, created_at, updated_at
+                 ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())',
+                [
+                    $refundId,
+                    $refundItem['order_item_id'],
+                    $refundItem['product_id'],
+                    $refundItem['qty_refunded'],
+                    $refundItem['line_amount'],
+                    $refundItem['restock_qty'],
+                ]
+            );
+
+            if ($restockInventory && !ecUsesWmsStockAuthority()) {
+                ecProductIncrementStock((int)$refundItem['product_id'], (int)$refundItem['restock_qty']);
+            }
+        }
+
+        $db->execute(
+            'INSERT INTO ec_payment_transactions (order_id, gateway, gateway_txn_id, amount, currency, status, gateway_response, notes, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+            [
+                $orderId,
+                $paymentGateway !== '' ? $paymentGateway : 'manual',
+                $gatewayRefundId !== '' ? $gatewayRefundId : null,
+                $amount,
+                (string)($order['currency'] ?? ecSettings('currency')),
+                'refunded',
+                !empty($gatewayRefundResult['raw']) ? json_encode($gatewayRefundResult['raw'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                json_encode([
+                    'refund_id' => $refundId,
+                    'refund_number' => $refundNumber,
+                    'reason' => $reason,
+                    'restock_inventory' => $restockInventory,
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ]
+        );
+
+        if ($remainingRefundableAmount <= 0.009) {
+            $db->execute("UPDATE ec_orders SET payment_status = 'refunded', updated_at = NOW() WHERE id = ?", [$orderId]);
+        }
+
+        $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        throw $e;
+    }
+
+    $historyNote = 'Refund ' . $refundNumber . ' issued for ' . (string)($order['currency_symbol'] ?? ecSettings('currency_symbol')) . number_format($amount, 2) . '. ' . $reason;
+    $historyMeta = [
+        'refund_id' => $refundId,
+        'refund_number' => $refundNumber,
+        'refund_amount' => $amount,
+        'restock_inventory' => $restockInventory,
+        'item_count' => count($normalizedRefundItems),
+        'partial' => $remainingRefundableAmount > 0.009,
+        'gateway_refund_id' => $gatewayRefundId,
+    ];
+
+    if ($remainingRefundableAmount <= 0.009 && (string)($order['status'] ?? '') !== 'refunded') {
+        ecOrderUpdateStatusWithOptions($orderId, 'refunded', $historyNote, [
+            'source' => 'ecommerce_refund',
+            'actor_user_id' => $createdByUserId,
+            'history_key' => 'refund:' . $refundId,
+            'meta' => $historyMeta,
+        ]);
+    } else {
+        ecOrderRecordStatusHistory($orderId, 'refunded', [
+            'source' => 'ecommerce_refund',
+            'note' => $historyNote,
+            'actor_user_id' => $createdByUserId,
+            'history_key' => 'refund:' . $refundId,
+            'meta' => $historyMeta,
+        ]);
+    }
+
+    $updatedOrder = ecOrderGet($orderId) ?: $order;
+    $refundRecord = null;
+    foreach (ecOrderGetRefunds($orderId) as $refund) {
+        if ((int)($refund['id'] ?? 0) === $refundId) {
+            $refundRecord = $refund;
+            break;
+        }
+    }
+    if ($refundRecord === null) {
+        throw new \RuntimeException('Refund record could not be reloaded.');
+    }
+
+    $refundRecord['release_items'] = ecOrderRefundBridgeItems($updatedOrder, $refundRecord);
+
+    try {
+        app()->events()->fire('ecommerce.order.refunded', [
+            'order_id' => $orderId,
+            'order_number' => (string)($updatedOrder['order_number'] ?? ''),
+            'actor_user_id' => $createdByUserId,
+            'idempotency_key' => 'refund_' . $refundId,
+            'order' => ecOrderBridgeSnapshot($updatedOrder),
+            'refund' => $refundRecord,
+        ]);
+    } catch (\Throwable $e) {
+    }
+
+    return [
+        'refund' => $refundRecord,
+        'order' => $updatedOrder,
+    ];
 }
 
 /**

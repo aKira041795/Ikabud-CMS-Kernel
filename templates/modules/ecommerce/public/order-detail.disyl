@@ -52,6 +52,22 @@
                     </div>
                     {/foreach}
                 </div>
+
+                {if order.refund_summary.has_refunds}
+                <div class="mt-5 rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                    <div class="font-semibold">Refunded: {order.refund_summary.total_refunded_amount_fmt}</div>
+                    <div class="mt-1">{order.refund_summary.refund_count} refund {if order.refund_summary.refund_count == 1}record{else}records{/if} on this order.</div>
+                </div>
+                {/if}
+
+                {if order.shipment_tracking.has_tracking}
+                <div class="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+                    <div class="font-semibold">Shipment Tracking</div>
+                    {if order.shipment_tracking.carrier}<div class="mt-1">Carrier: {order.shipment_tracking.carrier}</div>{/if}
+                    {if order.shipment_tracking.tracking_number}<div class="mt-1">Tracking Number: {order.shipment_tracking.tracking_number}</div>{/if}
+                    {if order.shipment_tracking.tracking_url}<div class="mt-2"><a href="{order.shipment_tracking.tracking_url}" target="_blank" rel="noopener" class="font-semibold text-blue-700 hover:underline">Track Shipment</a></div>{/if}
+                </div>
+                {/if}
             </div>
 
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -110,6 +126,12 @@
                             <td class="px-5 py-2 text-sm text-right text-gray-700">{order.currency_symbol | default:ec_settings.currency_symbol}{order.shipping_amount}</td>
                         </tr>
                         {/if}
+                        {if order.refund_summary.has_refunds}
+                        <tr>
+                            <td colspan="3" class="px-5 py-2 text-sm text-red-700">Refunded</td>
+                            <td class="px-5 py-2 text-sm text-right text-red-700">−{order.refund_summary.total_refunded_amount_fmt}</td>
+                        </tr>
+                        {/if}
                         <tr>
                             <td colspan="3" class="px-5 py-3 font-bold text-gray-900">Total</td>
                             <td class="px-5 py-3 text-right font-bold text-gray-900">{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</td>
@@ -117,6 +139,33 @@
                     </tfoot>
                 </table>
             </div>
+
+            {if order.refunds | count > 0}
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 class="font-semibold text-gray-900 mb-3">Refund Activity</h2>
+                <div class="space-y-3">
+                    {foreach order.refunds as refund}
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-gray-900">{refund.refund_number}</div>
+                                <div class="mt-1 text-xs text-gray-500">{refund.created_at}</div>
+                            </div>
+                            <div class="font-semibold text-red-600">−{order.currency_symbol | default:ec_settings.currency_symbol}{refund.refunded_amount}</div>
+                        </div>
+                        {if refund.reason}<p class="mt-2 text-gray-700">{refund.reason}</p>{/if}
+                        {if refund.items | count > 0}
+                        <div class="mt-3 space-y-1 text-xs text-gray-500">
+                            {foreach refund.items as item}
+                            <div>{item.product_title} × {item.qty_refunded}{if item.restock_qty > 0} · Restocked{/if}</div>
+                            {/foreach}
+                        </div>
+                        {/if}
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
 
             {if order.customer_note}
             <div class="bg-white rounded-xl border border-gray-200 p-5">
@@ -196,6 +245,8 @@
                 <div class="flex justify-between py-1"><span>Payment Status</span><span class="font-semibold">{order.payment_status}</span></div>
                 <div class="flex justify-between py-1"><span>Order Status</span><span class="font-semibold">{order.status}</span></div>
                 {if order.payment}<div class="flex justify-between py-1"><span>Payment Method</span><span class="font-semibold">{order.payment.gateway}</span></div>{/if}
+                {if order.shipment_tracking.tracking_number}<div class="flex justify-between py-1"><span>Tracking Number</span><span class="font-semibold">{order.shipment_tracking.tracking_number}</span></div>{/if}
+                {if order.refund_summary.has_refunds}<div class="flex justify-between py-1"><span>Refunded</span><span class="font-semibold text-red-600">{order.refund_summary.total_refunded_amount_fmt}</span></div>{/if}
             </div>
         </div>
     </div>

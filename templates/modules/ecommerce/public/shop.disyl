@@ -18,6 +18,37 @@
             <a href="{if cat.url}{cat.url}{else}{base_url}/ecommerce/shop/category/{cat.slug}{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if cat.is_active or storefront.filters.category_id|default:category_id == cat.id}font-semibold text-orange-600{else}text-gray-700{/if}">{cat.name}</a>
             {/foreach}
         </nav>
+
+        {if storefront.filters.attribute_facets | count > 0}
+        <form method="get" action="{if storefront.navigation.search_action_url}{storefront.navigation.search_action_url}{else}{base_url}/ecommerce/shop{/if}" class="mt-6 space-y-4">
+            {if storefront.filters.search}<input type="hidden" name="search" value="{storefront.filters.search}">{/if}
+            <div>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Filter</h3>
+                <div class="space-y-4">
+                    {foreach storefront.filters.attribute_facets as facet}
+                    <div>
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{facet.attribute_name}</div>
+                        <div class="space-y-1.5">
+                            {foreach facet.values as value}
+                            <label class="flex items-center justify-between gap-2 text-sm text-gray-700">
+                                <span class="flex items-center gap-2">
+                                    <input type="checkbox" name="attr[{facet.attribute_slug}][]" value="{value.value_slug}" class="rounded border-gray-300" {if value.is_selected}checked{/if}>
+                                    <span>{value.value_label}</span>
+                                </span>
+                                <span class="text-xs text-gray-400">{value.count}</span>
+                            </label>
+                            {/foreach}
+                        </div>
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+            <div class="flex flex-col gap-2">
+                <button type="submit" class="px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Apply Filters</button>
+                <a href="{if storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="text-xs text-gray-500 hover:text-gray-700">Reset filters</a>
+            </div>
+        </form>
+        {/if}
     </aside>
     {elseif categories | count > 0}
     <aside class="w-44 shrink-0 hidden md:block">
@@ -42,6 +73,13 @@
             </div>
             <form method="get" action="{if storefront.navigation.search_action_url}{storefront.navigation.search_action_url}{else}{base_url}/ecommerce/shop{/if}" class="flex gap-2">
                 {if storefront.filters.category_id|default:category_id > 0}<input type="hidden" name="cat" value="{storefront.filters.category_id|default:category_id}">{/if}
+                {if storefront.filters.attribute_filters | count > 0}
+                {foreach storefront.filters.attribute_filters as attrSlug => attrValues}
+                {foreach attrValues as attrValue}
+                <input type="hidden" name="attr[{attrSlug}][]" value="{attrValue}">
+                {/foreach}
+                {/foreach}
+                {/if}
                 <input type="text" name="search" value="{storefront.filters.search|default:search}" placeholder="Search…"
                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Search</button>
@@ -68,6 +106,9 @@
                         <span class="font-bold text-gray-900">{p.pricing.formatted|default:'—'}</span>
                         {/if}
                     </div>
+                    {if p.review_summary.has_reviews|default:false}
+                    <div class="mt-1 text-xs text-amber-700 font-medium">{p.review_summary.average_rating_formatted}/5 · {p.review_summary.approved_count} {if p.review_summary.approved_count == 1}review{else}reviews{/if}</div>
+                    {/if}
                     {if p.inventory.badge.label|default:p.inventory_badge_text}
                     <div class="mt-1 text-xs font-medium {if p.inventory.badge.tone|default:p.inventory_badge_tone == 'danger'}text-red-500{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'warning'}text-amber-600{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'success'}text-emerald-600{else}text-gray-500{/if}">{p.inventory.badge.label|default:p.inventory_badge_text}</div>
                     {elseif p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
@@ -98,6 +139,9 @@
                         <span class="font-bold text-gray-900">{p.pricing.formatted|default:'—'}</span>
                         {/if}
                     </div>
+                    {if p.review_summary.has_reviews|default:false}
+                    <div class="mt-1 text-xs text-amber-700 font-medium">{p.review_summary.average_rating_formatted}/5 · {p.review_summary.approved_count} {if p.review_summary.approved_count == 1}review{else}reviews{/if}</div>
+                    {/if}
                     {if p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
                     <div class="mt-1 text-xs text-red-500 font-medium">Out of stock</div>
                     {elseif p.inventory.track_stock && p.inventory.low_stock}

@@ -11,6 +11,7 @@ return [
         '/ecommerce/shop/{slug}'            => 'ecommerce:ecPublicProduct',
         '/ecommerce/cart'                   => 'ecommerce:ecPublicCart',
         '/ecommerce/checkout'               => 'ecommerce:ecPublicCheckout',
+        '/ecommerce/recover-cart/{token}'   => 'ecommerce:ecPublicRecoverCart',
         '/ecommerce/order/{token}'          => 'ecommerce:ecPublicOrderConfirm',
         '/ecommerce/my-orders'              => 'ecommerce:ecPublicMyOrders',
         '/ecommerce/my-orders/{id}'         => 'ecommerce:ecPublicOrderDetail',
@@ -31,14 +32,21 @@ return [
         '/ecommerce/admin/coupons'                => 'ecommerce:ecAdminCoupons',
         '/ecommerce/admin/reports'                => 'ecommerce:ecAdminReports',
         '/ecommerce/admin/email-templates'        => 'ecommerce:ecAdminEmailTemplates',
+        '/ecommerce/admin/webhooks'               => 'ecommerce:ecAdminWebhooks',
+        '/ecommerce/admin/abandoned-carts'        => 'ecommerce:ecAdminAbandonedCarts',
+        '/ecommerce/admin/reviews'                => 'ecommerce:ecAdminReviews',
         '/ecommerce/admin/customers'              => 'ecommerce:ecAdminCustomers',
         '/ecommerce/admin/customers/{id}/edit'    => 'ecommerce:ecAdminCustomerEdit',
+        '/ecommerce/admin/import-export'          => 'ecommerce:ecAdminImportExport',
+        '/ecommerce/admin/import-export/{resource}' => 'ecommerce:ecAdminExportCsv',
         '/ecommerce/admin/settings'               => 'ecommerce:ecAdminSettings',
         '/ecommerce/pos'                          => 'ecommerce:ecPosTerminal',
 
         // ── REST API (GET) ───────────────────────────────────────────
         '/api/v1/ecommerce/products'              => 'ecommerce:ecApiProductsList',
         '/api/v1/ecommerce/products/{id}'         => 'ecommerce:ecApiProductGet',
+        '/api/v1/ecommerce/products/{id}/reviews' => 'ecommerce:ecApiProductReviewsList',
+        '/api/v1/ecommerce/catalog'               => 'ecommerce:ecApiCatalogSearch',
         '/api/v1/ecommerce/categories'            => 'ecommerce:ecApiCategoryList',
         '/api/v1/cms/cart/add'                    => 'ecommerce:ecApiCartAdd',
         '/api/v1/ecommerce/cart'                  => 'ecommerce:ecApiCartGet',
@@ -64,13 +72,18 @@ return [
         '/ecommerce/admin/categories'               => 'ecommerce:ecAdminCategories',
         '/ecommerce/admin/coupons'                  => 'ecommerce:ecAdminCoupons',
         '/ecommerce/admin/email-templates'          => 'ecommerce:ecAdminEmailTemplates',
+        '/ecommerce/admin/abandoned-carts'          => 'ecommerce:ecAdminAbandonedCarts',
+        '/ecommerce/admin/webhooks'                 => 'ecommerce:ecAdminWebhooks',
+        '/ecommerce/admin/reviews/{id}/{action}'    => 'ecommerce:ecAdminReviewAction',
         '/ecommerce/admin/customers/{id}/edit'      => 'ecommerce:ecAdminCustomerEdit',
+        '/ecommerce/admin/import-export'            => 'ecommerce:ecAdminImportExport',
         '/ecommerce/admin/settings'                 => 'ecommerce:ecAdminSettings',
 
         // ── REST API — Products ──────────────────────────────────────
         '/api/v1/ecommerce/products'                 => 'ecommerce:ecApiProductCreate',
         '/api/v1/ecommerce/products/{id}'            => 'ecommerce:ecApiProductUpdate',
         '/api/v1/ecommerce/products/{id}/delete'     => 'ecommerce:ecApiProductDelete',
+        '/api/v1/ecommerce/products/{id}/reviews'    => 'ecommerce:ecApiProductReviewSubmit',
 
         // ── REST API — Categories ────────────────────────────────────
         '/api/v1/ecommerce/categories'               => 'ecommerce:ecApiCategoryCreate',
@@ -84,6 +97,7 @@ return [
         '/api/v1/ecommerce/cart/remove'              => 'ecommerce:ecApiCartRemove',
         '/api/v1/ecommerce/cart/coupon'              => 'ecommerce:ecApiCartApplyCoupon',
         '/api/v1/ecommerce/cart/clear'               => 'ecommerce:ecApiCartClear',
+        '/api/v1/ecommerce/abandoned-carts/capture'  => 'ecommerce:ecApiAbandonedCartCapture',
 
         // ── REST API — Checkout ──────────────────────────────────────
         '/api/v1/ecommerce/checkout'                 => 'ecommerce:ecApiCheckout',
@@ -91,6 +105,7 @@ return [
         // ── REST API — Orders ────────────────────────────────────────
         '/api/v1/ecommerce/orders/{id}/status'       => 'ecommerce:ecApiOrderStatus',
         '/api/v1/ecommerce/orders/{id}/note'         => 'ecommerce:ecApiOrderNote',
+        '/api/v1/ecommerce/orders/{id}/refund'       => 'ecommerce:ecApiOrderRefund',
 
         // ── REST API — Coupons ───────────────────────────────────────
         '/api/v1/ecommerce/coupons'                  => 'ecommerce:ecApiCouponCreate',
@@ -102,5 +117,7 @@ return [
 
         // ── Payment Gateway Webhooks ──────────────────────────────────
         '/api/v1/ecommerce/webhooks/paymongo'        => 'ecommerce:ecPaymongoWebhook',
+        '/api/v1/ecommerce/webhooks/stripe'          => 'ecommerce:ecStripeWebhook',
+        '/api/v1/ecommerce/webhooks/paypal'          => 'ecommerce:ecPaypalWebhook',
     ],
 ];

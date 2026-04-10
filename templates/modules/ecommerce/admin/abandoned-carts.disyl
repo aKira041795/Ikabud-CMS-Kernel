@@ -1,0 +1,110 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">Active</div>
+            <div class="mt-2 text-3xl font-bold text-amber-900">{abandoned_cart_metrics.active_count}</div>
+            <div class="mt-1 text-sm text-amber-700">{abandoned_cart_metrics.revenue_at_risk_fmt} at risk</div>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Recovered</div>
+            <div class="mt-2 text-3xl font-bold text-emerald-900">{abandoned_cart_metrics.recovered_count}</div>
+            <div class="mt-1 text-sm text-emerald-700">{abandoned_cart_metrics.recovered_revenue_fmt} recovered</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">Closed</div>
+            <div class="mt-2 text-3xl font-bold text-slate-900">{abandoned_cart_metrics.closed_count}</div>
+            <div class="mt-1 text-sm text-slate-600">Expired or cleared</div>
+        </div>
+        <div class="rounded-xl border border-sky-200 bg-sky-50 p-5">
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">Templates</div>
+            <div class="mt-2 text-sm font-semibold text-sky-900">Recovery email content</div>
+            <a href="{abandoned_cart_email_templates_url}" class="mt-2 inline-flex text-sm font-medium text-sky-700 hover:text-sky-900">Edit email templates →</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+        <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h2 class="text-base font-semibold text-gray-900">Tracked Carts</h2>
+                <p class="mt-1 text-sm text-gray-500">A cart is tracked once checkout has a valid email and remains open until it converts, is cleared, or is closed manually by lifecycle rules.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
+                        <tr>
+                            <th class="px-4 py-3">Customer</th>
+                            <th class="px-4 py-3">Cart</th>
+                            <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3">Reminders</th>
+                            <th class="px-4 py-3">Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {if abandoned_carts | count == 0}
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">No abandoned carts tracked yet.</td></tr>
+                        {/if}
+                        {foreach abandoned_carts as cart}
+                        <tr>
+                            <td class="px-4 py-3 align-top">
+                                <div class="font-medium text-gray-900">{if cart.guest_name}{cart.guest_name}{else}Customer{/if}</div>
+                                <div class="mt-1 text-xs text-gray-500">{cart.guest_email}</div>
+                            </td>
+                            <td class="px-4 py-3 align-top">
+                                <div class="font-medium text-gray-900">{cart.item_count} item(s)</div>
+                                <div class="mt-1 text-xs text-gray-500">{cart.total_fmt}</div>
+                            </td>
+                            <td class="px-4 py-3 align-top">
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold {if cart.status == 'recovered'}bg-emerald-50 text-emerald-700{elseif cart.status == 'closed'}bg-slate-100 text-slate-700{else}bg-amber-50 text-amber-700{/if}">{cart.status}</span>
+                                {if cart.recovered_order_id}<div class="mt-1 text-xs text-gray-400">Order #{cart.recovered_order_id}</div>{/if}
+                            </td>
+                            <td class="px-4 py-3 align-top text-xs text-gray-500">
+                                <div>{if cart.recovery_email_1_sent_at}1st: {cart.recovery_email_1_sent_at}{else}1st pending{/if}</div>
+                                <div>{if cart.recovery_email_2_sent_at}2nd: {cart.recovery_email_2_sent_at}{else}2nd pending{/if}</div>
+                                <div>{if cart.recovery_email_3_sent_at}3rd: {cart.recovery_email_3_sent_at}{else}3rd pending{/if}</div>
+                            </td>
+                            <td class="px-4 py-3 align-top text-xs text-gray-500">{cart.updated_at | default:cart.last_activity_at}</td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <h2 class="text-base font-semibold text-gray-900">Recovery Timing</h2>
+            <p class="mt-1 text-sm text-gray-500">The cron script sends reminders when a tracked cart remains inactive past each threshold.</p>
+
+            <form method="post" action="" class="mt-5 space-y-4">
+                <input type="hidden" name="_token" value="{csrf_token}">
+
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="abandoned_cart_enabled" value="1" class="rounded" {if abandoned_cart_settings.enabled}checked{/if}>
+                    <span>Enable abandoned cart recovery</span>
+                </label>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">First reminder after</label>
+                    <input type="number" min="1" name="abandoned_cart_first_delay_hours" value="{abandoned_cart_settings.first_delay_hours}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Second reminder after</label>
+                    <input type="number" min="1" name="abandoned_cart_second_delay_hours" value="{abandoned_cart_settings.second_delay_hours}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Third reminder after</label>
+                    <input type="number" min="1" name="abandoned_cart_third_delay_hours" value="{abandoned_cart_settings.third_delay_hours}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                </div>
+
+                <div class="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-xs text-sky-800">
+                    Run <span class="font-mono">php modules/ecommerce/cli/check-abandoned-carts.php</span> from cron to deliver due reminders.
+                </div>
+
+                <button type="submit" class="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Save Settings</button>
+            </form>
+        </div>
+    </div>
+</div>
+{/block}

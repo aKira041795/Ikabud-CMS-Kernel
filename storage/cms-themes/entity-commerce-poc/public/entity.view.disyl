@@ -72,6 +72,9 @@
         {include "modules/cms/public/blocks/lessons.block.disyl"}
     {/if}
 
+    {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
+    {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
+
     {else}
 
     {* ── Default / content layout ─────────────────────────────────── *}
@@ -127,6 +130,9 @@
     {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
         {if action_block_html}{action_block_html | raw}{else}{include "modules/cms/public/blocks/action.block.disyl"}{/if}
     {/if}
+
+    {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
+    {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
 
     {/if}
 

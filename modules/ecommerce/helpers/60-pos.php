@@ -75,7 +75,7 @@ function ecPosSale(array $items, array $options = []): array
     $couponCode    = $options['coupon_code'] ?? null;
     $shippingRateId = null; // POS sales: no shipping
 
-    $totals = ecCalculateTotals($items, $couponCode, $shippingRateId);
+    $totals = ecCalculateTotals($items, $couponCode, $shippingRateId, (array)($options['tax_address'] ?? []));
 
     $orderData = [
         'cart_items'       => $items,

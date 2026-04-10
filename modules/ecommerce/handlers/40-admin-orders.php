@@ -62,11 +62,48 @@ function ecAdminOrderDetail(array $params = []): void
         $action = $input['action'] ?? '';
 
         if ($action === 'update_status') {
-            $updated = ecOrderUpdateStatus($orderId, (string)($input['status'] ?? ''), $input['note'] ?? null);
+            $updated = ecOrderUpdateStatusWithOptions($orderId, (string)($input['status'] ?? ''), $input['note'] ?? null, [
+                'source' => 'ecommerce_admin',
+                'actor_user_id' => (int)($user['id'] ?? 0),
+                'tracking' => [
+                    'tracking_number' => $input['tracking_number'] ?? '',
+                    'carrier' => $input['tracking_carrier'] ?? '',
+                    'tracking_url' => $input['tracking_url'] ?? '',
+                ],
+            ]);
             $msg = $updated
                 ? ['type' => 'success', 'text' => 'Status updated.']
                 : ['type' => 'error', 'text'   => 'Invalid status transition.'];
             $_SESSION['ec_message'] = $msg;
+        } elseif ($action === 'update_tracking') {
+            $updated = ecOrderUpdateStatusWithOptions($orderId, (string)($order['status'] ?? 'pending'), $input['tracking_note'] ?? null, [
+                'source' => 'ecommerce_admin',
+                'actor_user_id' => (int)($user['id'] ?? 0),
+                'tracking' => [
+                    'tracking_number' => $input['tracking_number'] ?? '',
+                    'carrier' => $input['tracking_carrier'] ?? '',
+                    'tracking_url' => $input['tracking_url'] ?? '',
+                ],
+            ]);
+            $_SESSION['ec_message'] = $updated
+                ? ['type' => 'success', 'text' => 'Shipment tracking updated.']
+                : ['type' => 'error', 'text' => 'Shipment tracking could not be updated.'];
+        } elseif ($action === 'create_refund') {
+            try {
+                $result = ecOrderCreateRefund($orderId, (array)($input['refund_qty'] ?? []), [
+                    'amount' => $input['refund_amount'] ?? 0,
+                    'reason' => $input['refund_reason'] ?? '',
+                    'admin_note' => $input['refund_note'] ?? '',
+                    'restock_inventory' => !empty($input['restock_inventory']),
+                    'created_by_user_id' => (int)($user['id'] ?? 0),
+                ]);
+                $_SESSION['ec_message'] = [
+                    'type' => 'success',
+                    'text' => 'Refund created: ' . (string)($result['refund']['refund_number'] ?? ''),
+                ];
+            } catch (\Throwable $e) {
+                $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Refund failed: ' . $e->getMessage()];
+            }
         } elseif ($action === 'mark_paid') {
             ecOrderMarkPaid($orderId);
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Order marked as paid.'];
@@ -90,6 +127,8 @@ function ecAdminOrderDetail(array $params = []): void
         'order'           => $order,
         'allowed_statuses' => $allowedStatuses,
         'currency_symbol' => $symbol,
+        'refunds'         => $order['refunds'] ?? [],
+        'refund_summary'  => $order['refund_summary'] ?? [],
         'message'         => $_SESSION['ec_message'] ?? null,
     ]);
     unset($_SESSION['ec_message']);

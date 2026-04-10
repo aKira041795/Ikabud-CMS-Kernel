@@ -13,6 +13,10 @@ function ecEmailTemplateDefaults(): array
             'subject' => 'Order Confirmation #{order_number}',
             'message' => "Hi {customer_greeting},\n\nThank you for your order. We have received it and are processing it now.\n\nYour order summary is included below for your records.",
         ],
+        'abandoned_cart_recovery' => [
+            'subject' => 'You left something in your cart',
+            'message' => "Hi {customer_greeting},\n\nYou still have {cart_item_count} item(s) waiting in your cart. Use the secure link below to return to checkout and finish your order.",
+        ],
     ];
 }
 
@@ -27,6 +31,10 @@ function ecEmailTemplateSettingMap(): array
             'subject' => 'email_tpl_customer_order_subject',
             'message' => 'email_tpl_customer_order_message',
         ],
+        'abandoned_cart_recovery' => [
+            'subject' => 'email_tpl_abandoned_cart_subject',
+            'message' => 'email_tpl_abandoned_cart_message',
+        ],
     ];
 }
 
@@ -35,6 +43,7 @@ function ecLegacyEmailTemplateBodySettingMap(): array
     return [
         'admin_order_notification' => 'email_tpl_admin_order_body',
         'customer_order_confirmation' => 'email_tpl_customer_order_body',
+        'abandoned_cart_recovery' => 'email_tpl_abandoned_cart_body',
     ];
 }
 

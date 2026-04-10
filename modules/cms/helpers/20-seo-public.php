@@ -37,6 +37,39 @@ function cmsSeoAbsoluteUploadUrl(string $path, string $appUrl): string
     return $resolved;
 }
 
+function cmsResolveSeoTitle(array $content = []): string
+{
+    $title = trim((string)($content['title'] ?? ''));
+    $meta = is_array($content['meta'] ?? null) ? $content['meta'] : [];
+
+    $builderSeo = [];
+    $rawBuilderSeo = $meta['_builder_seo_settings'] ?? '';
+    if (is_string($rawBuilderSeo) && trim($rawBuilderSeo) !== '') {
+        $decoded = json_decode($rawBuilderSeo, true);
+        if (is_array($decoded)) {
+            $builderSeo = $decoded;
+        }
+    }
+
+    $cmsSettings = readCmsSettings();
+    $seoSeparator = trim((string)($cmsSettings['seo_title_separator'] ?? '|'));
+    $siteTitle = trim((string)($cmsSettings['site_title'] ?? ''));
+
+    $seoTitle = trim((string)($builderSeo['metaTitle'] ?? ''));
+    if ($seoTitle === '') {
+        $seoTitle = trim((string)($meta['seo_title'] ?? ''));
+    }
+    if ($seoTitle === '') {
+        $seoTitle = $title;
+    }
+
+    if ($siteTitle !== '' && $seoTitle !== '' && $seoTitle !== $siteTitle) {
+        return $seoTitle . ' ' . $seoSeparator . ' ' . $siteTitle;
+    }
+
+    return $seoTitle;
+}
+
 /**
  * Build default SEO head HTML for a public CMS content page.
  *
@@ -77,6 +110,8 @@ function cmsDefaultSeoHeadHtml(array $content = []): string
         $path = '/cms/blog/' . $slug;
     } elseif ($type === 'page' && $slug !== '') {
         $path = '/cms/page/' . $slug;
+    } elseif ($type === 'product' && $slug !== '') {
+        $path = '/ecommerce/shop/' . $slug;
     }
     $canonical = trim((string)($builderSeo['canonicalUrl'] ?? ''));
     if ($canonical === '' && $appUrl !== '' && $path !== '') {
@@ -87,10 +122,7 @@ function cmsDefaultSeoHeadHtml(array $content = []): string
     $seoTitle = trim((string)($builderSeo['metaTitle'] ?? ''));
     if ($seoTitle === '') $seoTitle = trim((string)($meta['seo_title'] ?? ''));
     if ($seoTitle === '') $seoTitle = $title;
-    $fullTitle = $seoTitle;
-    if ($siteTitle !== '' && $seoTitle !== '' && $seoTitle !== $siteTitle) {
-        $fullTitle = $seoTitle . ' ' . $seoSeparator . ' ' . $siteTitle;
-    }
+    $fullTitle = cmsResolveSeoTitle($content);
 
     // Description: builder meta → content meta → excerpt → site default
     $seoDesc = trim((string)($builderSeo['metaDescription'] ?? ''));
@@ -145,9 +177,10 @@ function cmsDefaultSeoHeadHtml(array $content = []): string
         $out[] = '<link rel="canonical" href="' . cmsSeoEscape($canonical) . '">';
         $out[] = '<meta property="og:url" content="' . cmsSeoEscape($canonical) . '">';
     }
-    if ($type === 'post' || $type === 'page') {
+    if ($type === 'post' || $type === 'page' || $type === 'product') {
         $ogType = trim((string)($builderSeo['ogType'] ?? ''));
-        $out[] = '<meta property="og:type" content="' . cmsSeoEscape($ogType !== '' ? $ogType : 'article') . '">';
+        $defaultOgType = $type === 'product' ? 'product' : 'article';
+        $out[] = '<meta property="og:type" content="' . cmsSeoEscape($ogType !== '' ? $ogType : $defaultOgType) . '">';
     }
     if ($ogImage !== '') {
         $out[] = '<meta property="og:image" content="' . cmsSeoEscape($ogImage) . '">';
@@ -253,6 +286,8 @@ function cmsStructuredDataJsonLd(array $content): string
         $path = '/cms/blog/' . $slug;
     } elseif ($type === 'page' && $slug !== '') {
         $path = '/cms/page/' . $slug;
+    } elseif ($type === 'product' && $slug !== '') {
+        $path = '/ecommerce/shop/' . $slug;
     }
     $canonical = ($appUrl !== '' && $path !== '') ? $appUrl . $path : '';
 

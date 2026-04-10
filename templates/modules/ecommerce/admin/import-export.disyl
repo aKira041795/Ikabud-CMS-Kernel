@@ -1,0 +1,110 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+    <section class="space-y-4">
+        <div class="bg-white border border-gray-200 rounded-2xl p-6">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Download CSV Exports</h2>
+                    <p class="mt-1 text-sm text-gray-500">Export the current catalog, orders, or customer accounts without leaving ecommerce admin.</p>
+                </div>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-3">
+                {foreach export_resources as resource}
+                <div class="rounded-xl border border-gray-200 p-4 bg-gray-50">
+                    <div class="text-sm font-semibold text-gray-900">{resource.label}</div>
+                    <p class="mt-1 text-sm text-gray-500">{resource.description}</p>
+                    <a href="{resource.download_url}" class="mt-4 inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16V4m0 12l4-4m-4 4l-4-4M4 20h16"/></svg>
+                        Download {resource.label} CSV
+                    </a>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-2xl p-6">
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Import Products CSV</h2>
+                <p class="mt-1 text-sm text-gray-500">This first pass only imports products. Order and customer exports are read-only.</p>
+            </div>
+
+            <form method="post" action="" enctype="multipart/form-data" class="space-y-4">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <input type="hidden" name="action" value="import_products">
+
+                <div>
+                    <label for="products_csv" class="block text-sm font-medium text-gray-700 mb-2">Products CSV file</label>
+                    <input id="products_csv" type="file" name="products_csv" accept=".csv,text/csv"
+                           class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-orange-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-orange-700 hover:file:bg-orange-100">
+                </div>
+
+                <div class="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                    Match updates by <span class="font-semibold">id</span> or <span class="font-semibold">sku</span>. Blank optional cells leave existing values unchanged on updates, except <span class="font-semibold">sale_price</span>, which clears an existing sale price. Use the <span class="font-semibold">attributes</span> column format <span class="font-semibold">Color: Red, Blue | Size: M</span>.
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v8"/></svg>
+                        Import Products CSV
+                    </button>
+                    <a href="{base_url}/ecommerce/admin/import-export/products" class="text-sm text-gray-500 hover:text-gray-700">Download a fresh products export first</a>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <aside class="space-y-4">
+        <div class="bg-white border border-gray-200 rounded-2xl p-6">
+            <h2 class="text-lg font-semibold text-gray-900">Supported Product Columns</h2>
+            <div class="mt-4 flex flex-wrap gap-2">
+                {foreach product_import_headers as header}
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">{header}</span>
+                {/foreach}
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-2xl p-6">
+            <h2 class="text-lg font-semibold text-gray-900">Import Notes</h2>
+            <div class="mt-3 space-y-3 text-sm text-gray-600">
+                <p>Use existing category ids, slugs, or names. Imports do not create categories automatically.</p>
+                <p>Exports include every current column supported by the first-pass product importer, so export-edit-import is the safest workflow.</p>
+                <p>Orders and customers are export-only in this slice to avoid destructive operational imports.</p>
+            </div>
+        </div>
+
+        {if import_result}
+        <div class="bg-white border border-gray-200 rounded-2xl p-6">
+            <h2 class="text-lg font-semibold text-gray-900">Last Import Result</h2>
+            <div class="mt-4 grid grid-cols-3 gap-3 text-sm">
+                <div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-3">
+                    <div class="text-emerald-700 font-semibold">Created</div>
+                    <div class="mt-1 text-2xl font-bold text-emerald-900">{import_result.created}</div>
+                </div>
+                <div class="rounded-xl bg-sky-50 border border-sky-200 px-3 py-3">
+                    <div class="text-sky-700 font-semibold">Updated</div>
+                    <div class="mt-1 text-2xl font-bold text-sky-900">{import_result.updated}</div>
+                </div>
+                <div class="rounded-xl bg-amber-50 border border-amber-200 px-3 py-3">
+                    <div class="text-amber-700 font-semibold">Errors</div>
+                    <div class="mt-1 text-2xl font-bold text-amber-900">{import_result.errors | count}</div>
+                </div>
+            </div>
+
+            {if import_result.errors | count > 0}
+            <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <div class="text-sm font-semibold text-red-900 mb-2">Row errors</div>
+                <div class="space-y-2">
+                    {foreach import_result.errors as error}
+                    <div class="text-sm text-red-800">Line {error.line}: {error.message}</div>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
+        </div>
+        {/if}
+    </aside>
+</div>
+{/block}

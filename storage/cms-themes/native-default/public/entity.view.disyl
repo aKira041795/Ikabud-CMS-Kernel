@@ -212,6 +212,9 @@
         {/if}
         {/if}
 
+        {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
+        {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
+
         {if entity_back_link_url and entity_view_context.show_back_link|default:entity_presentation_settings.single_show_nav}
         <div class="native-canonical-view__back">
             <a href="{entity_back_link_url}" class="native-canonical-view__back-link">&larr; {entity_back_link_label|default:'Back'}</a>

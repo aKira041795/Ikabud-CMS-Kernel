@@ -53,13 +53,13 @@
             {/foreach}
 
             <section class="native-storefront-panel">
-                <h2 class="native-panel-title">Coupon</h2>
+                <h2 class="native-panel-title">Coupon or Gift Card</h2>
                 <div class="native-inline-actions">
-                    <input type="text" id="coupon-code" value="{cart.coupon_code}" placeholder="Coupon code" class="native-input">
+                    <input type="text" id="coupon-code" value="{cart.coupon_code}" placeholder="Coupon or gift card code" class="native-input">
                     <button type="button" class="button button-primary" onclick="applyCoupon()">Apply</button>
                 </div>
                 {if cart.totals.coupon}
-                <p class="native-note" style="margin-top:0.75rem; color:#047857;">Coupon "{cart.coupon_code}" applied - saving {cart.totals.discount_fmt}</p>
+                <p class="native-note" style="margin-top:0.75rem; color:#047857;">{if cart.totals.coupon.type == 'gift_card'}Gift card{else}Coupon{/if} "{cart.coupon_code}" applied - saving {cart.totals.discount_fmt}</p>
                 {/if}
             </section>
         </section>
@@ -69,10 +69,10 @@
             <div class="native-summary-list">
                 <div class="native-summary-row"><span>Subtotal</span><strong>{cart.totals.subtotal_fmt}</strong></div>
                 {if cart.totals.discount > 0}
-                <div class="native-summary-row" style="color:#047857;"><span>Discount</span><strong>-{cart.totals.discount_fmt}</strong></div>
+                <div class="native-summary-row" style="color:#047857;"><span>{cart.totals.discount_label | default:'Discount'}</span><strong>-{cart.totals.discount_fmt}</strong></div>
                 {/if}
                 {if cart.totals.tax > 0}
-                <div class="native-summary-row"><span>Tax ({cart.totals.tax_rate}%)</span><strong>{cart.totals.tax_fmt}</strong></div>
+                <div class="native-summary-row"><span>{cart.totals.tax_label | default:'Tax'}</span><strong>{cart.totals.tax_fmt}</strong></div>
                 {/if}
                 <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{cart.totals.total_fmt}</strong></div>
             </div>
@@ -117,7 +117,7 @@ async function applyCoupon() {
         location.reload();
         return;
     }
-    alert(data.error || 'Invalid coupon');
+    alert(data.error || 'Invalid coupon or gift card');
 }
 </script>
 {/block}

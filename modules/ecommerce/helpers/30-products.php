@@ -43,6 +43,8 @@ function ecProductList(array $filters = []): array
 
     $where  = ["c.type = 'product'", 'c.deleted_at IS NULL'];
     $params = [];
+    $joinParts = [];
+    $joinParams = [];
 
     if ($status !== '') {
         $where[]  = 'c.status = ?';
@@ -55,12 +57,22 @@ function ecProductList(array $filters = []): array
         $params[] = '%' . $search . '%';
     }
 
-    $join = '';
     if (!empty($categoryIds)) {
         $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
-        $join     = "INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id IN ($placeholders)";
-        $params   = array_merge($categoryIds, $params);
+        $joinParts[] = "INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id IN ($placeholders)";
+        $joinParams = array_merge($joinParams, $categoryIds);
     }
+
+    $attributeFilterSql = function_exists('ecProductAttributeFilterSql')
+        ? ecProductAttributeFilterSql($filters['attribute_filters'] ?? $filters['attributes'] ?? [])
+        : ['join' => '', 'params' => []];
+    if (($attributeFilterSql['join'] ?? '') !== '') {
+        $joinParts[] = (string)$attributeFilterSql['join'];
+        $joinParams = array_merge($joinParams, (array)($attributeFilterSql['params'] ?? []));
+    }
+
+    $join = implode(' ', $joinParts);
+    $params = array_merge($joinParams, $params);
 
     $whereClause = implode(' AND ', $where);
     $pricingJoin = '';
@@ -99,11 +111,15 @@ function ecProductList(array $filters = []): array
         )));
         
         $galleryMap = ecProductGalleryImagesForProducts($productIds);
+        $reviewSummaryMap = function_exists('ecReviewSummaryForProducts')
+            ? ecReviewSummaryForProducts($productIds)
+            : [];
 
         // Batch load capabilities and digital meta
         $pricingMap = [];
         $inventoryMap = [];
         $digitalMap = [];
+        $externalMetaMap = [];
         
         if (!empty($productIds)) {
             $idsCsv = implode(',', array_fill(0, count($productIds), '?'));
@@ -133,6 +149,24 @@ function ecProductList(array $filters = []): array
             )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
             foreach ($digitalRows as $dr) {
                 $digitalMap[(int)$dr['content_id']] = ($dr['meta_value'] ?? '') === '1';
+            }
+
+            $externalRows = $db->query(
+                "SELECT content_id, meta_key, meta_value
+                 FROM cms_content_meta
+                 WHERE meta_key IN ('_is_external_product','_external_product_url','_external_product_button_text')
+                   AND content_id IN ($idsCsv)",
+                $productIds
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            foreach ($externalRows as $externalRow) {
+                $contentId = (int)($externalRow['content_id'] ?? 0);
+                if ($contentId < 1) {
+                    continue;
+                }
+                if (!isset($externalMetaMap[$contentId])) {
+                    $externalMetaMap[$contentId] = [];
+                }
+                $externalMetaMap[$contentId][(string)($externalRow['meta_key'] ?? '')] = (string)($externalRow['meta_value'] ?? '');
             }
         }
 
@@ -175,6 +209,12 @@ function ecProductList(array $filters = []): array
                 (bool)($digitalMap[$id] ?? false),
                 $lowStockThreshold
             );
+            $external = ecProductExternalMetaFromMetaMap($externalMetaMap[$id] ?? []);
+            $row['is_external_product'] = $external['is_external_product'];
+            $row['external_product_url'] = $external['external_product_url'];
+            $row['external_product_button_text'] = $external['external_product_button_text'];
+            $row['product_type'] = $external['product_type'];
+            $row['review_summary'] = $reviewSummaryMap[$id] ?? ecReviewDefaultSummary();
         }
         unset($row);
 
@@ -188,7 +228,7 @@ function ecProductList(array $filters = []): array
 /**
  * Get a single product by ID with all context.
  */
-function ecProductGet(int $id): ?array
+function ecProductGet(int $id, bool $includeRelations = true): ?array
 {
     $db = ecDb();
     try {
@@ -217,12 +257,47 @@ function ecProductGet(int $id): ?array
         $row['categories'] = ecProductCategories($id);
         $row['variants']   = ecProductVariants($id);
         $row['badges']     = ['sale' => ($row['pricing']['on_sale'] ?? false) ? 'Sale' : ''];
+        $row['review_summary'] = function_exists('ecReviewSummary') ? ecReviewSummary($id) : ecReviewDefaultSummary();
+        $row['reviews'] = function_exists('ecReviewList')
+            ? (ecReviewList([
+                'product_id' => $id,
+                'status' => 'approved',
+                'limit' => 10,
+                'offset' => 0,
+            ])['items'] ?? [])
+            : [];
+        $row['attributes'] = function_exists('ecProductAttributes') ? ecProductAttributes($id) : [];
+        $row['relation_ids'] = ecProductRelationIds($id);
+        $row['grouped_children'] = $includeRelations ? ecProductGroupedChildren($id, ['published_only' => false]) : [];
+        $row['related_products'] = [];
+        $row['upsell_products'] = [];
+        $row['cross_sell_products'] = [];
+        $row['relation_sections'] = [];
+
+        if ($includeRelations) {
+            $row['related_products'] = ecProductRecommendationCatalogItems([$id], 'related', [
+                'exclude_ids' => [$id],
+                'limit' => 4,
+            ]);
+            $row['upsell_products'] = ecProductRecommendationCatalogItems([$id], 'upsell', [
+                'exclude_ids' => [$id],
+                'limit' => 4,
+            ]);
+            $row['cross_sell_products'] = ecProductRecommendationCatalogItems([$id], 'cross_sell', [
+                'exclude_ids' => [$id],
+                'limit' => 4,
+            ]);
+            $row['relation_sections'] = ecProductBuildRecommendationSections([
+                'upsell' => $row['upsell_products'],
+                'related' => $row['related_products'],
+            ], ['upsell', 'related']);
+        }
 
         // Digital license meta
         try {
             $metaStmt = $db->query(
                 "SELECT meta_key, meta_value FROM cms_content_meta
-                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days','_download_file_path','_download_file_name')",
+                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days','_download_file_path','_download_file_name','_tax_class','seo_title','seo_description','_builder_seo_settings','_is_external_product','_external_product_url','_external_product_button_text')",
                 [$id]
             );
             $metaRows = $metaStmt ? $metaStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
@@ -239,6 +314,18 @@ function ecProductGet(int $id): ?array
         $row['license_duration_days'] = (int)($metaMap['_license_duration_days'] ?? 365);
         $row['download_file_path']    = (string)($metaMap['_download_file_path'] ?? '');
         $row['download_file_name']    = (string)($metaMap['_download_file_name'] ?? '');
+        $row['tax_class']             = ecProductNormalizeTaxClass((string)($metaMap['_tax_class'] ?? 'standard'));
+        $external = ecProductExternalMetaFromMetaMap($metaMap);
+        $row['is_external_product']   = $external['is_external_product'];
+        $row['external_product_url']  = $external['external_product_url'];
+        $row['external_product_button_text'] = $external['external_product_button_text'];
+        $row['product_type']          = $external['product_type'];
+        $seo = ecProductSeoFromMetaMap($metaMap);
+        $row['seo_title']             = $seo['seo_title'];
+        $row['seo_description']       = $seo['seo_description'];
+        $row['seo_canonical_url']     = $seo['seo_canonical_url'];
+        $row['seo_og_image']          = $seo['seo_og_image'];
+        $row['seo_builder_settings']  = $seo['seo_builder_settings'];
 
         return $row;
     } catch (\Throwable $e) {
@@ -250,7 +337,7 @@ function ecProductGet(int $id): ?array
 /**
  * Get a product by slug.
  */
-function ecProductGetBySlug(string $slug): ?array
+function ecProductGetBySlug(string $slug, bool $includeRelations = true): ?array
 {
     $db = ecDb();
     try {
@@ -259,10 +346,494 @@ function ecProductGetBySlug(string $slug): ?array
             [$slug]
         )->fetch(\PDO::FETCH_ASSOC);
 
-        return $row ? ecProductGet((int)$row['id']) : null;
+        return $row ? ecProductGet((int)$row['id'], $includeRelations) : null;
     } catch (\Throwable $e) {
         return null;
     }
+}
+
+function ecProductDefaultRelationIds(): array
+{
+    return [
+        'related' => [],
+        'upsell' => [],
+        'cross_sell' => [],
+    ];
+}
+
+function ecProductRelationMetadata(): array
+{
+    return [
+        'upsell' => [
+            'title' => 'You may also like',
+            'description' => 'Higher-value suggestions that fit this product.',
+        ],
+        'related' => [
+            'title' => 'Related products',
+            'description' => 'Similar items customers browse next.',
+        ],
+        'cross_sell' => [
+            'title' => 'Pair with your cart',
+            'description' => 'Complementary products for the current cart.',
+        ],
+    ];
+}
+
+function ecProductNormalizeRelationType(string $relationType): ?string
+{
+    $relationType = trim($relationType);
+    return array_key_exists($relationType, ecProductRelationMetadata()) ? $relationType : null;
+}
+
+function ecProductNormalizeRelationIds(mixed $ids, int $excludeId = 0): array
+{
+    if (!is_array($ids)) {
+        $ids = $ids === null || $ids === '' ? [] : [$ids];
+    }
+
+    $normalized = [];
+    foreach ($ids as $id) {
+        $value = (int)$id;
+        if ($value < 1 || $value === $excludeId || in_array($value, $normalized, true)) {
+            continue;
+        }
+        $normalized[] = $value;
+    }
+
+    return $normalized;
+}
+
+function ecProductRelationTableExistsDirect(): bool
+{
+    static $exists = null;
+    if ($exists !== null) {
+        return $exists;
+    }
+
+    try {
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?'
+        );
+        $stmt->execute(['ec_product_relations']);
+        $count = (int)$stmt->fetchColumn();
+        $exists = $count > 0;
+    } catch (\Throwable $e) {
+        $exists = false;
+    }
+
+    return $exists;
+}
+
+function ecProductRelationStorageAvailable(): bool
+{
+    return ecProductRelationTableExistsDirect();
+}
+
+function ecProductRelationSelectionsFromInput(array $input, int $excludeProductId = 0): array
+{
+    return [
+        'related' => ecProductNormalizeRelationIds($input['related_product_ids'] ?? [], $excludeProductId),
+        'upsell' => ecProductNormalizeRelationIds($input['upsell_product_ids'] ?? [], $excludeProductId),
+        'cross_sell' => ecProductNormalizeRelationIds($input['cross_sell_product_ids'] ?? [], $excludeProductId),
+    ];
+}
+
+function ecProductGroupedTableExistsDirect(): bool
+{
+    static $exists = null;
+    if ($exists !== null) {
+        return $exists;
+    }
+
+    try {
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?'
+        );
+        $stmt->execute(['ec_product_group_items']);
+        $exists = (int)$stmt->fetchColumn() > 0;
+    } catch (\Throwable $e) {
+        $exists = false;
+    }
+
+    return $exists;
+}
+
+function ecProductGroupedStorageAvailable(): bool
+{
+    return ecProductGroupedTableExistsDirect();
+}
+
+function ecProductNormalizeGroupedChildren(mixed $selectedIds, mixed $qtyByProduct = [], int $excludeProductId = 0): array
+{
+    $normalizedIds = ecProductNormalizeRelationIds($selectedIds, $excludeProductId);
+    $qtyByProduct = is_array($qtyByProduct) ? $qtyByProduct : [];
+    $children = [];
+
+    foreach ($normalizedIds as $sortOrder => $productId) {
+        $children[] = [
+            'product_id' => $productId,
+            'qty' => max(1, (int)($qtyByProduct[$productId] ?? 1)),
+            'sort_order' => $sortOrder,
+        ];
+    }
+
+    return $children;
+}
+
+function ecProductGroupedSelectionsFromInput(array $input, int $excludeProductId = 0): array
+{
+    return ecProductNormalizeGroupedChildren(
+        $input['grouped_product_ids'] ?? [],
+        $input['grouped_product_qty'] ?? [],
+        $excludeProductId
+    );
+}
+
+function ecProductGroupedSelectionLookup(array $children): array
+{
+    $lookup = [];
+    foreach ($children as $child) {
+        $productId = (int)($child['product_id'] ?? 0);
+        if ($productId < 1) {
+            continue;
+        }
+
+        $lookup[$productId] = max(1, (int)($child['qty'] ?? 1));
+    }
+
+    return $lookup;
+}
+
+function ecProductGroupedChildSelections(int $productId): array
+{
+    if ($productId < 1 || !ecProductGroupedStorageAvailable()) {
+        return [];
+    }
+
+    try {
+        $rows = ecDb()->query(
+            'SELECT child_product_id, child_qty, sort_order FROM ec_product_group_items WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
+            [$productId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $children = [];
+    foreach ($rows as $row) {
+        $childProductId = (int)($row['child_product_id'] ?? 0);
+        if ($childProductId < 1) {
+            continue;
+        }
+
+        $children[] = [
+            'product_id' => $childProductId,
+            'qty' => max(1, (int)($row['child_qty'] ?? 1)),
+            'sort_order' => max(0, (int)($row['sort_order'] ?? 0)),
+        ];
+    }
+
+    return $children;
+}
+
+function ecProductGroupedChildren(int $productId, array $options = []): array
+{
+    $children = ecProductGroupedChildSelections($productId);
+    if ($children === []) {
+        return [];
+    }
+
+    $publishedOnly = !array_key_exists('published_only', $options) || (bool)$options['published_only'];
+    $resolved = [];
+
+    foreach ($children as $child) {
+        $childProduct = ecProductGet((int)$child['product_id'], false);
+        if (!is_array($childProduct)) {
+            continue;
+        }
+        if ($publishedOnly && (string)($childProduct['status'] ?? '') !== 'published') {
+            continue;
+        }
+
+        $childProduct['grouped_qty'] = max(1, (int)($child['qty'] ?? 1));
+        $childProduct['grouped_parent_id'] = $productId;
+        $resolved[] = $childProduct;
+    }
+
+    return $resolved;
+}
+
+function ecProductSaveGroupedChildren(int $productId, array $children): void
+{
+    if ($productId < 1 || !ecProductGroupedStorageAvailable()) {
+        return;
+    }
+
+    $qtyByProduct = [];
+    $selectedIds = [];
+    foreach ($children as $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+
+        $childProductId = (int)($child['product_id'] ?? 0);
+        if ($childProductId < 1) {
+            continue;
+        }
+
+        $selectedIds[] = $childProductId;
+        $qtyByProduct[$childProductId] = max(1, (int)($child['qty'] ?? 1));
+    }
+
+    $normalized = ecProductNormalizeGroupedChildren($selectedIds, $qtyByProduct, $productId);
+    $db = ecDb();
+    $db->execute('DELETE FROM ec_product_group_items WHERE product_id = ?', [$productId]);
+
+    foreach ($normalized as $sortOrder => $child) {
+        $db->execute(
+            'INSERT INTO ec_product_group_items (product_id, child_product_id, child_qty, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
+            [$productId, (int)$child['product_id'], max(1, (int)$child['qty']), $sortOrder]
+        );
+    }
+}
+
+function ecProductRelationIds(int $productId): array
+{
+    $relations = ecProductDefaultRelationIds();
+    if ($productId < 1 || !ecProductRelationStorageAvailable()) {
+        return $relations;
+    }
+
+    try {
+        $rows = ecDb()->query(
+            'SELECT relation_type, related_product_id FROM ec_product_relations WHERE product_id = ? ORDER BY relation_type ASC, sort_order ASC, id ASC',
+            [$productId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return $relations;
+    }
+
+    foreach ($rows as $row) {
+        $relationType = ecProductNormalizeRelationType((string)($row['relation_type'] ?? ''));
+        $relatedProductId = (int)($row['related_product_id'] ?? 0);
+        if ($relationType === null || $relatedProductId < 1) {
+            continue;
+        }
+        $relations[$relationType][] = $relatedProductId;
+    }
+
+    return $relations;
+}
+
+function ecProductSaveRelations(int $productId, array $relations): void
+{
+    if ($productId < 1 || !ecProductRelationStorageAvailable()) {
+        return;
+    }
+
+    $db = ecDb();
+    $normalized = ecProductDefaultRelationIds();
+    foreach ($normalized as $relationType => $_unused) {
+        $normalized[$relationType] = ecProductNormalizeRelationIds($relations[$relationType] ?? [], $productId);
+    }
+
+    foreach ($normalized as $relationType => $relationIds) {
+        $db->execute(
+            'DELETE FROM ec_product_relations WHERE product_id = ? AND relation_type = ?',
+            [$productId, $relationType]
+        );
+
+        foreach ($relationIds as $sortOrder => $relatedProductId) {
+            $db->execute(
+                'INSERT INTO ec_product_relations (product_id, related_product_id, relation_type, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
+                [$productId, $relatedProductId, $relationType, $sortOrder]
+            );
+        }
+    }
+}
+
+function ecProductRecommendationCatalogItems(array $sourceProductIds, string $relationType, array $options = []): array
+{
+    $normalizedType = ecProductNormalizeRelationType($relationType);
+    $sourceProductIds = ecProductNormalizeRelationIds($sourceProductIds);
+    if ($normalizedType === null || $sourceProductIds === [] || !ecProductRelationStorageAvailable()) {
+        return [];
+    }
+
+    $limit = min(12, max(1, (int)($options['limit'] ?? 4)));
+    $excludeIds = ecProductNormalizeRelationIds($options['exclude_ids'] ?? []);
+    $publishedOnly = !array_key_exists('published_only', $options) || (bool)$options['published_only'];
+    $itemBaseUrl = trim((string)($options['item_base_url'] ?? '/ecommerce/shop'));
+
+    $params = $sourceProductIds;
+    $where = [
+        'r.product_id IN (' . implode(',', array_fill(0, count($sourceProductIds), '?')) . ')',
+        'r.relation_type = ?',
+        "c.type = 'product'",
+        'c.deleted_at IS NULL',
+    ];
+    $params[] = $normalizedType;
+
+    if ($publishedOnly) {
+        $where[] = "c.status = 'published'";
+    }
+    if ($excludeIds !== []) {
+        $where[] = 'r.related_product_id NOT IN (' . implode(',', array_fill(0, count($excludeIds), '?')) . ')';
+        $params = array_merge($params, $excludeIds);
+    }
+
+    try {
+        $rows = ecDb()->query(
+            'SELECT r.related_product_id FROM ec_product_relations r '
+            . 'INNER JOIN cms_content c ON c.id = r.related_product_id '
+            . 'WHERE ' . implode(' AND ', $where) . ' '
+            . 'ORDER BY r.sort_order ASC, r.id ASC',
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $relatedIds = [];
+    foreach ($rows as $row) {
+        $relatedProductId = (int)($row['related_product_id'] ?? 0);
+        if ($relatedProductId < 1 || in_array($relatedProductId, $relatedIds, true)) {
+            continue;
+        }
+        $relatedIds[] = $relatedProductId;
+        if (count($relatedIds) >= $limit) {
+            break;
+        }
+    }
+
+    $items = [];
+    foreach ($relatedIds as $relatedProductId) {
+        $product = ecProductGet($relatedProductId, false);
+        if (!is_array($product)) {
+            continue;
+        }
+        if ($publishedOnly && ($product['status'] ?? 'draft') !== 'published') {
+            continue;
+        }
+        $items[] = ecBuildStorefrontCatalogItem($product, ['item_base_url' => $itemBaseUrl]);
+    }
+
+    return $items;
+}
+
+function ecProductBuildRecommendationSections(array $groups, array $orderedTypes = []): array
+{
+    $metadata = ecProductRelationMetadata();
+    $orderedTypes = $orderedTypes !== [] ? $orderedTypes : array_keys($metadata);
+    $sections = [];
+
+    foreach ($orderedTypes as $relationType) {
+        $normalizedType = ecProductNormalizeRelationType((string)$relationType);
+        if ($normalizedType === null) {
+            continue;
+        }
+        $items = is_array($groups[$normalizedType] ?? null) ? $groups[$normalizedType] : [];
+        if ($items === []) {
+            continue;
+        }
+
+        $sections[] = [
+            'type' => $normalizedType,
+            'title' => $metadata[$normalizedType]['title'],
+            'description' => $metadata[$normalizedType]['description'],
+            'items' => $items,
+        ];
+    }
+
+    return $sections;
+}
+
+function ecProductRecommendationSectionsForProduct(int $productId): array
+{
+    if ($productId < 1) {
+        return [];
+    }
+
+    return ecProductBuildRecommendationSections([
+        'upsell' => ecProductRecommendationCatalogItems([$productId], 'upsell', [
+            'exclude_ids' => [$productId],
+            'limit' => 4,
+        ]),
+        'related' => ecProductRecommendationCatalogItems([$productId], 'related', [
+            'exclude_ids' => [$productId],
+            'limit' => 4,
+        ]),
+    ], ['upsell', 'related']);
+}
+
+function ecCartRecommendationSections(array $cartItems): array
+{
+    $productIds = [];
+    foreach ($cartItems as $item) {
+        $productId = (int)($item['product_id'] ?? 0);
+        if ($productId > 0 && !in_array($productId, $productIds, true)) {
+            $productIds[] = $productId;
+        }
+    }
+
+    if ($productIds === []) {
+        return [];
+    }
+
+    return ecProductBuildRecommendationSections([
+        'cross_sell' => ecProductRecommendationCatalogItems($productIds, 'cross_sell', [
+            'exclude_ids' => $productIds,
+            'limit' => 4,
+        ]),
+    ], ['cross_sell']);
+}
+
+function ecProductAdminRelationOptions(int $excludeProductId = 0, array $selectedIds = []): array
+{
+    $selectedGroupedChildren = is_array($selectedIds['grouped_children'] ?? null) ? $selectedIds['grouped_children'] : [];
+    $selectedIds = array_merge(ecProductDefaultRelationIds(), array_intersect_key($selectedIds, ecProductDefaultRelationIds()));
+    $selectedGroupedLookup = ecProductGroupedSelectionLookup($selectedGroupedChildren);
+    $selectedLookup = [
+        'related' => array_fill_keys(ecProductNormalizeRelationIds($selectedIds['related'] ?? [], $excludeProductId), true),
+        'upsell' => array_fill_keys(ecProductNormalizeRelationIds($selectedIds['upsell'] ?? [], $excludeProductId), true),
+        'cross_sell' => array_fill_keys(ecProductNormalizeRelationIds($selectedIds['cross_sell'] ?? [], $excludeProductId), true),
+    ];
+
+    $params = [];
+    $where = ["type = 'product'", 'deleted_at IS NULL'];
+    if ($excludeProductId > 0) {
+        $where[] = 'id <> ?';
+        $params[] = $excludeProductId;
+    }
+
+    try {
+        $rows = ecDb()->query(
+            'SELECT id, title, slug, status FROM cms_content WHERE ' . implode(' AND ', $where) . ' ORDER BY title ASC, id ASC LIMIT 250',
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $options = [];
+    foreach ($rows as $row) {
+        $productId = (int)($row['id'] ?? 0);
+        if ($productId < 1) {
+            continue;
+        }
+
+        $options[] = [
+            'id' => $productId,
+            'label' => trim((string)($row['title'] ?? 'Product')) . ' (' . trim((string)($row['status'] ?? 'draft')) . ')',
+            'selected_related' => !empty($selectedLookup['related'][$productId]),
+            'selected_upsell' => !empty($selectedLookup['upsell'][$productId]),
+            'selected_cross_sell' => !empty($selectedLookup['cross_sell'][$productId]),
+            'selected_grouped' => array_key_exists($productId, $selectedGroupedLookup),
+            'selected_grouped_qty' => (int)($selectedGroupedLookup[$productId] ?? 1),
+        ];
+    }
+
+    return $options;
 }
 
 function ecProductBridgeEventPayload(int $productId): array
@@ -288,6 +859,7 @@ function ecProductBridgeEventPayload(int $productId): array
         'status' => $status,
         'is_active' => $status === 'published' ? 1 : 0,
         'sku' => trim((string)($inventory['sku'] ?? '')),
+        'product_type' => trim((string)($product['product_type'] ?? 'physical')),
         'track_stock' => (bool)($inventory['track_stock'] ?? false),
         'stock_qty' => array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : null,
         'price' => array_key_exists('price', $pricing) && $pricing['price'] !== null ? (float)$pricing['price'] : null,
@@ -734,7 +1306,14 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
             'sale' => $saleBadgeText,
             'inventory' => $inventoryBadge,
         ],
+        'product_type' => trim((string)($product['product_type'] ?? 'physical')),
+        'is_external_product' => !empty($product['is_external_product']),
+        'external_product_url' => trim((string)($product['external_product_url'] ?? '')),
+        'external_product_button_text' => trim((string)($product['external_product_button_text'] ?? '')),
         'categories' => ecStorefrontNormalizeCategories(is_array($product['categories'] ?? null) ? $product['categories'] : []),
+        'review_summary' => is_array($product['review_summary'] ?? null)
+            ? ecReviewNormalizeSummary($product['review_summary'])
+            : ecReviewDefaultSummary(),
     ];
 }
 
@@ -833,6 +1412,10 @@ function ecBuildStorefrontCatalogContext(array $products, array $options = []): 
             'category_id' => $categoryId,
             'category_slug' => $categorySlug,
             'active_category' => $activeCategory,
+            'attribute_filters' => function_exists('ecProductNormalizeAttributeFilters')
+                ? ecProductNormalizeAttributeFilters($options['attribute_filters'] ?? [])
+                : [],
+            'attribute_facets' => is_array($options['attribute_facets'] ?? null) ? $options['attribute_facets'] : [],
         ],
         'collection' => [
             'total' => max(0, (int)($options['total'] ?? count($items))),
@@ -889,11 +1472,26 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
             'category_id' => (int)($activeCategory['id'] ?? 0),
             'category_slug' => trim((string)($activeCategory['slug'] ?? '')),
             'active_category' => $activeCategory,
+            'attribute_filters' => function_exists('ecProductNormalizeAttributeFilters')
+                ? ecProductNormalizeAttributeFilters($options['attribute_filters'] ?? [])
+                : [],
+            'attribute_facets' => is_array($options['attribute_facets'] ?? null) ? $options['attribute_facets'] : [],
         ],
         'product' => array_merge($catalogItem, [
             'body' => (string)($product['body'] ?? ''),
             'gallery_images' => $galleryImages,
             'categories' => $categories,
+            'attributes' => is_array($product['attributes'] ?? null) ? $product['attributes'] : [],
+            'reviews' => is_array($product['reviews'] ?? null) ? $product['reviews'] : [],
+            'grouped_children' => array_map(static function (array $child): array {
+                $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
+                $storefrontChild['grouped_qty'] = max(1, (int)($child['grouped_qty'] ?? 1));
+                return $storefrontChild;
+            }, is_array($product['grouped_children'] ?? null) ? $product['grouped_children'] : []),
+            'related_products' => is_array($product['related_products'] ?? null) ? $product['related_products'] : [],
+            'upsell_products' => is_array($product['upsell_products'] ?? null) ? $product['upsell_products'] : [],
+            'cross_sell_products' => is_array($product['cross_sell_products'] ?? null) ? $product['cross_sell_products'] : [],
+            'relation_sections' => is_array($product['relation_sections'] ?? null) ? $product['relation_sections'] : [],
         ]),
         'cart' => [
             'count' => ecStorefrontCurrentCartCount(isset($options['cart_count']) ? (int)$options['cart_count'] : null),
@@ -956,6 +1554,28 @@ function ecProductCreate(array $data, int $authorId = 0): int
     if (array_key_exists('category_id', $data)) {
         ecProductAssignCategory($productId, (int)($data['category_id'] ?? 0));
     }
+
+    if (is_array($data['attributes'] ?? null) && function_exists('ecProductSaveAttributes')) {
+        ecProductSaveAttributes($productId, $data['attributes']);
+    }
+
+    if (is_array($data['relations'] ?? null)) {
+        ecProductSaveRelations($productId, $data['relations']);
+    }
+
+    if (is_array($data['grouped_children'] ?? null)) {
+        ecProductSaveGroupedChildren($productId, $data['grouped_children']);
+    }
+
+    ecProductSaveTaxClass($productId, $data['tax_class'] ?? 'standard');
+    if (
+        array_key_exists('is_external_product', $data)
+        || array_key_exists('external_product_url', $data)
+        || array_key_exists('external_product_button_text', $data)
+    ) {
+        ecProductSaveExternalMeta($productId, $data);
+    }
+    ecProductSaveSeoMeta($productId, $data);
 
     if (function_exists('cmsSyncMediaUsage')) {
         moduleWithContext('cms', static function () use ($productId, $featuredImageId): void {
@@ -1026,6 +1646,39 @@ function ecProductUpdate(int $id, array $data): void
         ecProductAssignCategory($id, (int)$data['category_id']);
     }
 
+    if (array_key_exists('attributes', $data) && is_array($data['attributes'] ?? null) && function_exists('ecProductSaveAttributes')) {
+        ecProductSaveAttributes($id, $data['attributes']);
+    }
+
+    if (is_array($data['relations'] ?? null)) {
+        ecProductSaveRelations($id, $data['relations']);
+    }
+
+    if (is_array($data['grouped_children'] ?? null)) {
+        ecProductSaveGroupedChildren($id, $data['grouped_children']);
+    }
+
+    if (array_key_exists('tax_class', $data)) {
+        ecProductSaveTaxClass($id, $data['tax_class']);
+    }
+
+    if (
+        array_key_exists('is_external_product', $data)
+        || array_key_exists('external_product_url', $data)
+        || array_key_exists('external_product_button_text', $data)
+    ) {
+        ecProductSaveExternalMeta($id, $data);
+    }
+
+    if (
+        array_key_exists('seo_title', $data)
+        || array_key_exists('seo_description', $data)
+        || array_key_exists('seo_canonical_url', $data)
+        || array_key_exists('seo_og_image', $data)
+    ) {
+        ecProductSaveSeoMeta($id, $data);
+    }
+
     if (array_key_exists('featured_image_id', $data) && function_exists('cmsSyncMediaUsage')) {
         moduleWithContext('cms', static function () use ($id, $data): void {
             cmsSyncMediaUsage($id, ['featured_image_id' => $data['featured_image_id'] ?? null], null);
@@ -1080,6 +1733,240 @@ function ecProductSaveDigitalMeta(int $productId, array $input): void
     } catch (\Throwable $e) {
         write_log('ecProductSaveDigitalMeta error: ' . $e->getMessage(), 'error', [
             'module'     => 'ecommerce',
+            'product_id' => $productId,
+        ]);
+    }
+}
+
+function ecProductExternalDefaults(): array
+{
+    return [
+        'is_external_product' => false,
+        'external_product_url' => '',
+        'external_product_button_text' => 'Buy Externally',
+        'product_type' => 'physical',
+    ];
+}
+
+function ecProductExternalMetaFromMetaMap(array $metaMap): array
+{
+    $defaults = ecProductExternalDefaults();
+    $isExternal = ($metaMap['_is_external_product'] ?? '0') === '1';
+    $externalUrl = trim((string)($metaMap['_external_product_url'] ?? ''));
+    $buttonText = trim((string)($metaMap['_external_product_button_text'] ?? ''));
+
+    return [
+        'is_external_product' => $isExternal && $externalUrl !== '',
+        'external_product_url' => $externalUrl,
+        'external_product_button_text' => $buttonText !== '' ? $buttonText : $defaults['external_product_button_text'],
+        'product_type' => ($isExternal && $externalUrl !== '') ? 'external' : 'physical',
+    ];
+}
+
+function ecProductSaveExternalMeta(int $productId, array $input): void
+{
+    $externalUrl = trim((string)($input['external_product_url'] ?? ''));
+    $isExternal = !empty($input['is_external_product']) && $externalUrl !== '';
+    $buttonText = trim((string)($input['external_product_button_text'] ?? ''));
+    if ($buttonText === '') {
+        $buttonText = (string)ecProductExternalDefaults()['external_product_button_text'];
+    }
+
+    $meta = [
+        '_is_external_product' => $isExternal ? '1' : '0',
+        '_external_product_url' => $externalUrl,
+        '_external_product_button_text' => $buttonText,
+    ];
+
+    try {
+        moduleWithContext('cms', static function () use ($productId, $meta): void {
+            $db = cmsDb();
+            foreach ($meta as $key => $value) {
+                $db->execute(
+                    "INSERT INTO cms_content_meta (content_id, meta_key, meta_value)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+                    [$productId, $key, $value]
+                );
+            }
+        });
+    } catch (\Throwable $e) {
+        write_log('ecProductSaveExternalMeta error: ' . $e->getMessage(), 'error', [
+            'module' => 'ecommerce',
+            'product_id' => $productId,
+        ]);
+    }
+}
+
+function ecProductSeoDefaults(): array
+{
+    return [
+        'seo_title' => '',
+        'seo_description' => '',
+        'seo_canonical_url' => '',
+        'seo_og_image' => '',
+    ];
+}
+
+function ecProductSeoFromMetaMap(array $metaMap): array
+{
+    $seo = ecProductSeoDefaults();
+    $seo['seo_title'] = trim((string)($metaMap['seo_title'] ?? ''));
+    $seo['seo_description'] = trim((string)($metaMap['seo_description'] ?? ''));
+
+    $builderSeo = [];
+    $rawBuilderSeo = trim((string)($metaMap['_builder_seo_settings'] ?? ''));
+    if ($rawBuilderSeo !== '') {
+        $decoded = json_decode($rawBuilderSeo, true);
+        if (is_array($decoded)) {
+            $builderSeo = $decoded;
+        }
+    }
+
+    if ($seo['seo_title'] === '') {
+        $seo['seo_title'] = trim((string)($builderSeo['metaTitle'] ?? ''));
+    }
+    if ($seo['seo_description'] === '') {
+        $seo['seo_description'] = trim((string)($builderSeo['metaDescription'] ?? ''));
+    }
+
+    $seo['seo_canonical_url'] = trim((string)($builderSeo['canonicalUrl'] ?? ''));
+    $seo['seo_og_image'] = trim((string)($builderSeo['ogImage'] ?? ''));
+    $seo['seo_builder_settings'] = $builderSeo;
+
+    return $seo;
+}
+
+function ecProductSaveSeoMeta(int $productId, array $input): void
+{
+    $seoTitle = trim((string)($input['seo_title'] ?? ''));
+    $seoDescription = trim((string)($input['seo_description'] ?? ''));
+    $seoCanonicalUrl = trim((string)($input['seo_canonical_url'] ?? ''));
+    $seoOgImage = trim((string)($input['seo_og_image'] ?? ''));
+
+    try {
+        moduleWithContext('cms', static function () use ($productId, $seoTitle, $seoDescription, $seoCanonicalUrl, $seoOgImage): void {
+            $db = cmsDb();
+            $existingBuilderSeo = [];
+
+            $existingRow = $db->query(
+                "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_builder_seo_settings' LIMIT 1",
+                [$productId]
+            )->fetch(\PDO::FETCH_ASSOC) ?: [];
+            $rawExisting = trim((string)($existingRow['meta_value'] ?? ''));
+            if ($rawExisting !== '') {
+                $decoded = json_decode($rawExisting, true);
+                if (is_array($decoded)) {
+                    $existingBuilderSeo = $decoded;
+                }
+            }
+
+            $builderSeo = array_merge($existingBuilderSeo, [
+                'metaTitle' => $seoTitle,
+                'metaDescription' => $seoDescription,
+                'canonicalUrl' => $seoCanonicalUrl,
+                'ogImage' => $seoOgImage,
+            ]);
+
+            foreach ([
+                'seo_title' => $seoTitle,
+                'seo_description' => $seoDescription,
+                '_builder_seo_settings' => json_encode($builderSeo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ] as $key => $value) {
+                $db->execute(
+                    "INSERT INTO cms_content_meta (content_id, meta_key, meta_value)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+                    [$productId, $key, $value]
+                );
+            }
+        });
+    } catch (\Throwable $e) {
+        write_log('ecProductSaveSeoMeta error: ' . $e->getMessage(), 'error', [
+            'module' => 'ecommerce',
+            'product_id' => $productId,
+        ]);
+    }
+}
+
+function ecProductSeoContent(array $product): array
+{
+    $builderSeo = is_array($product['seo_builder_settings'] ?? null) ? $product['seo_builder_settings'] : [];
+
+    return [
+        'type' => 'product',
+        'slug' => trim((string)($product['slug'] ?? '')),
+        'title' => trim((string)($product['title'] ?? '')),
+        'excerpt' => trim((string)($product['excerpt'] ?? '')),
+        'featured_image' => trim((string)($product['featured_image'] ?? '')),
+        'featured_image_path' => trim((string)($product['featured_image'] ?? '')),
+        'meta' => [
+            'seo_title' => trim((string)($product['seo_title'] ?? '')),
+            'seo_description' => trim((string)($product['seo_description'] ?? '')),
+            '_builder_seo_settings' => json_encode($builderSeo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ],
+    ];
+}
+
+function ecProductTaxClassLabels(): array
+{
+    return [
+        'standard' => 'Standard rate',
+        'reduced' => 'Reduced rate',
+        'zero' => 'Zero rate',
+    ];
+}
+
+function ecProductNormalizeTaxClass(mixed $taxClass): string
+{
+    $normalized = strtolower(trim((string)$taxClass));
+    return array_key_exists($normalized, ecProductTaxClassLabels()) ? $normalized : 'standard';
+}
+
+function ecProductTaxClassOptions(?string $selectedTaxClass = null): array
+{
+    $selectedTaxClass = ecProductNormalizeTaxClass($selectedTaxClass ?? 'standard');
+    $options = [];
+    foreach (ecProductTaxClassLabels() as $value => $label) {
+        $options[] = [
+            'value' => $value,
+            'label' => $label,
+            'selected' => $value === $selectedTaxClass,
+        ];
+    }
+
+    return $options;
+}
+
+function ecProductTaxClass(int $productId): string
+{
+    try {
+        $row = ecDb()->query(
+            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_tax_class' LIMIT 1",
+            [$productId]
+        )->fetch(\PDO::FETCH_ASSOC) ?: [];
+        return ecProductNormalizeTaxClass((string)($row['meta_value'] ?? 'standard'));
+    } catch (\Throwable $e) {
+        return 'standard';
+    }
+}
+
+function ecProductSaveTaxClass(int $productId, mixed $taxClass): void
+{
+    $normalizedTaxClass = ecProductNormalizeTaxClass($taxClass);
+
+    try {
+        moduleWithContext('cms', static function () use ($productId, $normalizedTaxClass): void {
+            cmsDb()->execute(
+                "INSERT INTO cms_content_meta (content_id, meta_key, meta_value)
+                 VALUES (?, '_tax_class', ?)
+                 ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+                [$productId, $normalizedTaxClass]
+            );
+        });
+    } catch (\Throwable $e) {
+        write_log('ecProductSaveTaxClass error: ' . $e->getMessage(), 'error', [
+            'module' => 'ecommerce',
             'product_id' => $productId,
         ]);
     }
@@ -1205,11 +2092,21 @@ function ecProductUpdatePricing(int $productId, array $data): void
         return;
     }
     $existing = ecProductPricing($productId);
+    $hasPrice = array_key_exists('price', $data);
+    $hasSalePrice = array_key_exists('sale_price', $data);
+
+    $priceValue = $hasPrice
+        ? (($data['price'] === '' || $data['price'] === null) ? null : (float)$data['price'])
+        : ($existing['price'] ?? null);
+    $salePriceValue = $hasSalePrice
+        ? (($data['sale_price'] === '' || $data['sale_price'] === null || (float)$data['sale_price'] <= 0) ? null : (float)$data['sale_price'])
+        : ($existing['sale_price'] ?? null);
+
     $config = array_filter([
-        'price'      => isset($data['price'])      ? (float)$data['price']      : ($existing['price']      ?? null),
-        'currency'   => $data['currency']           ?? ($existing['currency']     ?? ecSettings('currency')),
-        'sale_price' => isset($data['sale_price']) && (float)$data['sale_price'] > 0 ? (float)$data['sale_price'] : ($existing['sale_price'] ?? null),
-    ], fn($v) => $v !== null);
+        'price' => $priceValue,
+        'currency' => $data['currency'] ?? ($existing['currency'] ?? ecSettings('currency')),
+        'sale_price' => $salePriceValue,
+    ], static fn($value) => $value !== null);
 
     ecAttachCmsEntityCapability($productId, 'pricing', $config);
 }
@@ -1279,6 +2176,47 @@ function ecProductDecrementStock(int $productId, int $qty): void
             'sku'           => $config['sku']    ?? '',
         ]);
     }
+}
+
+function ecProductIncrementStock(int $productId, int $qty): void
+{
+    if ($qty < 1) {
+        return;
+    }
+
+    $db = ecDb();
+
+    $digitalMeta = $db->query(
+        "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_is_digital' LIMIT 1",
+        [$productId]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (($digitalMeta['meta_value'] ?? '') === '1') {
+        return;
+    }
+
+    $row = $db->query(
+        "SELECT id, config FROM cms_entity_capabilities WHERE entity_id = ? AND capability_id = 'inventory' LIMIT 1",
+        [$productId]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        return;
+    }
+
+    $config = (array)json_decode($row['config'] ?? '{}', true);
+    $trackStock = (bool)($config['track_stock'] ?? true);
+    if (!$trackStock) {
+        return;
+    }
+
+    $config['stock_qty'] = max(0, (int)($config['stock_qty'] ?? 0) + $qty);
+
+    moduleWithContext('cms', static function () use ($config, $row): void {
+        cmsDb()->execute(
+            "UPDATE cms_entity_capabilities SET config = ?, updated_at = NOW() WHERE id = ?",
+            [json_encode($config), (int)$row['id']]
+        );
+    });
 }
 
 function ecProductCategories(int $productId): array

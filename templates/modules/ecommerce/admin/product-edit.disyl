@@ -71,6 +71,31 @@
                                value="{product.pricing.sale_price | default:''}"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
                     </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Tax Class</label>
+                        <select name="tax_class" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            {foreach tax_class_options as opt}
+                            <option value="{opt.value}" {if opt.selected}selected{/if}>{opt.label}</option>
+                            {/foreach}
+                        </select>
+                        <p class="mt-1 text-xs text-gray-400">Choose which destination tax rules apply to this product at checkout.</p>
+                    </div>
+                    <div class="pt-2 border-t border-gray-100">
+                        <label class="flex items-center gap-2 text-xs font-medium text-gray-700 mb-2">
+                            <input type="checkbox" name="is_external_product" value="1" class="rounded"
+                                   {if product.is_external_product}checked{/if}>
+                            <span>External or affiliate product</span>
+                        </label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">External Checkout URL</label>
+                        <input type="url" name="external_product_url" value="{product.external_product_url | default:''}"
+                               placeholder="https://partner.example.com/product"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        <label class="block text-xs font-semibold text-gray-600 mt-3 mb-1">Button Label</label>
+                        <input type="text" name="external_product_button_text" value="{product.external_product_button_text | default:'Buy Externally'}"
+                               placeholder="Buy on Partner Site"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        <p class="mt-2 text-xs text-gray-400">When enabled, storefront product pages replace add-to-cart with an outbound partner checkout button. Local cart, checkout, and stock reservation are bypassed.</p>
+                    </div>
                 </div>
             </div>
 
@@ -122,6 +147,97 @@
                     <option value="{cat.id}" {if selected_category_id == cat.id}selected{/if}>{cat.name}</option>
                     {/foreach}
                 </select>
+            </div>
+
+            <div class="bg-white rounded-lg border border-gray-200 p-5">
+                <h3 class="font-semibold text-sm text-gray-700 mb-3">Product Attributes</h3>
+                <textarea name="attribute_lines" rows="6"
+                          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none"
+                          placeholder="Color: Red, Blue&#10;Size: Small, Medium">{attribute_lines | default:''}</textarea>
+                <p class="mt-2 text-xs text-gray-400">One attribute per line using <span class="font-mono">Name: Value, Value</span>. These values drive storefront filters and product facets.</p>
+            </div>
+
+            <div class="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
+                <div>
+                    <h3 class="font-semibold text-sm text-gray-700">Product Relations</h3>
+                    <p class="mt-1 text-xs text-gray-400">Assign manual recommendations for the product page and cart. Hold Ctrl or Cmd to select more than one item.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-2">Grouped Products</label>
+                    <div class="max-h-72 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                        {foreach relation_options as option}
+                        <label class="flex items-center gap-3 px-3 py-2 text-sm">
+                            <input type="checkbox" name="grouped_product_ids[]" value="{option.id}" class="rounded"
+                                   {if option.selected_grouped}checked{/if}>
+                            <span class="flex-1 text-gray-700">{option.label}</span>
+                            <span class="text-xs text-gray-400">Default qty</span>
+                            <input type="number" name="grouped_product_qty[{option.id}]" value="{option.selected_grouped_qty}" min="1"
+                                   class="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:border-orange-500 outline-none">
+                        </label>
+                        {/foreach}
+                    </div>
+                    <p class="mt-2 text-xs text-gray-400">Grouped products render each selected child on the product page and add them to the cart as normal individual line items.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Upsells</label>
+                    <select name="upsell_product_ids[]" multiple size="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        {foreach relation_options as option}
+                        <option value="{option.id}" {if option.selected_upsell}selected{/if}>{option.label}</option>
+                        {/foreach}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Related Products</label>
+                    <select name="related_product_ids[]" multiple size="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        {foreach relation_options as option}
+                        <option value="{option.id}" {if option.selected_related}selected{/if}>{option.label}</option>
+                        {/foreach}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Cross-sells</label>
+                    <select name="cross_sell_product_ids[]" multiple size="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        {foreach relation_options as option}
+                        <option value="{option.id}" {if option.selected_cross_sell}selected{/if}>{option.label}</option>
+                        {/foreach}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-400">Cross-sells are shown on the cart page when this product is in the cart.</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
+                <div>
+                    <h3 class="font-semibold text-sm text-gray-700">SEO</h3>
+                    <p class="mt-1 text-xs text-gray-400">These fields feed the shared CMS SEO head output used by canonical product pages.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">SEO Title</label>
+                    <input type="text" name="seo_title" value="{product.seo_title | default:seo_defaults.seo_title}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                           placeholder="Override meta title">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Meta Description</label>
+                    <textarea name="seo_description" rows="3"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none resize-none"
+                              placeholder="Describe this product for search and social previews">{product.seo_description | default:seo_defaults.seo_description}</textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Canonical URL Override</label>
+                    <input type="url" name="seo_canonical_url" value="{product.seo_canonical_url | default:seo_defaults.seo_canonical_url}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                           placeholder="https://example.com/products/canonical-slug">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Open Graph Image URL</label>
+                    <input type="url" name="seo_og_image" value="{product.seo_og_image | default:seo_defaults.seo_og_image}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                           placeholder="https://example.com/images/share-card.jpg">
+                </div>
             </div>
 
             <!-- Digital License -->
