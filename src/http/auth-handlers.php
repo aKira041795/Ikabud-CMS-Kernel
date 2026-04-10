@@ -153,12 +153,35 @@ function kernelHandleAuthRefresh(): void
 
     $tokenHash = hash('sha256', $refreshToken);
     try {
+        // Atomically revoke the presented token only if it is still valid.
+        // This closes the TOCTOU race: if two concurrent requests arrive with
+        // the same token only the one that wins the UPDATE (rowCount == 1)
+        // proceeds; the loser sees 0 affected rows and gets a 401.
+        $revokeStmt = app()->db()->prepare(
+            'UPDATE refresh_tokens
+             SET    revoked = 1
+             WHERE  token_hash = :token_hash
+               AND  revoked    = 0
+               AND  expires_at > :now'
+        );
+        $revokeStmt->execute([
+            ':token_hash' => $tokenHash,
+            ':now'        => date('Y-m-d H:i:s'),
+        ]);
+
+        if ($revokeStmt->rowCount() === 0) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => 'Invalid refresh token.']);
+            exit;
+        }
+
+        // Token was valid and is now revoked; fetch live user data.
         $stmt = app()->db()->prepare(
-            'SELECT rt.id, rt.user_id, rt.expires_at, rt.revoked,
+            'SELECT rt.user_id,
                     u.username, u.full_name, u.role, u.is_active
-             FROM refresh_tokens rt
+             FROM   refresh_tokens rt
              INNER JOIN users u ON u.id = rt.user_id
-             WHERE rt.token_hash = :token_hash
+             WHERE  rt.token_hash = :token_hash
              LIMIT 1'
         );
         $stmt->execute([':token_hash' => $tokenHash]);
@@ -169,21 +192,13 @@ function kernelHandleAuthRefresh(): void
         exit;
     }
 
-    if (!is_array($rtRow)) {
-        http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => 'Invalid refresh token.']);
-        exit;
-    }
-
-    if ($rtRow['revoked'] || $rtRow['expires_at'] <= date('Y-m-d H:i:s') || !$rtRow['is_active']) {
+    if (!is_array($rtRow) || !$rtRow['is_active']) {
+        // Row missing (shouldn't happen) or account deactivated since the token
+        // was issued.  Token is already revoked above so no cleanup needed.
         http_response_code(401);
         echo json_encode(['ok' => false, 'error' => 'Refresh token expired or revoked.']);
         exit;
     }
-
-    // Revoke old refresh token (rotation)
-    $revokeStmt = app()->db()->prepare('UPDATE refresh_tokens SET revoked = 1 WHERE id = :id');
-    $revokeStmt->execute([':id' => (int) $rtRow['id']]);
 
     // Issue new JWT
     $payload = [
