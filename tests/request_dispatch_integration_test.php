@@ -801,6 +801,157 @@ PHP,
     $dispatchDb->prepare('DELETE FROM kernel_integrations WHERE name IN (' . implode(', ', array_fill(0, count($managedModeBridgeNames), '?')) . ')')->execute($managedModeBridgeNames);
 }
 
+$checkoutSurvivalSuffix = bin2hex(random_bytes(4));
+$checkoutSurvivalBridgeName = 'request_dispatch_checkout_survival_' . $checkoutSurvivalSuffix;
+$checkoutOriginalHost = $_SERVER['HTTP_HOST'] ?? null;
+$checkoutCustomerId = 920000 + random_int(100, 999);
+$checkoutProductId = 930000 + random_int(100, 999);
+$checkoutOrderId = 0;
+$checkoutCartId = 0;
+$wmsManifestBeforeDisable = discoverModules()['wms'] ?? [];
+$wmsWasEnabledBeforeDisable = !empty($wmsManifestBeforeDisable['_enabled']);
+
+try {
+    $dispatchDb->prepare(
+        'INSERT INTO kernel_integrations (name, trigger_event, target_capability, mapping_json, is_active, event_source, version_lock, integration_mode, created_at, updated_at) '
+        . 'VALUES (?, ?, ?, ?, 1, ?, ?, ?, NOW(), NOW())'
+    )->execute([
+        $checkoutSurvivalBridgeName,
+        'ecommerce.order.created',
+        'wms.stock.reserve@1',
+        json_encode([
+            'reference_type' => 'order',
+            'reference_id' => '{{order.id}}',
+            'items' => '{{order.items}}',
+            'idempotency_key' => '{{idempotency_key}}',
+        ], JSON_UNESCAPED_SLASHES),
+        'eventbus',
+        'wms.stock.reserve@1',
+        null,
+    ]);
+
+    $dispatchDb->prepare(
+        'INSERT INTO cms_content_meta (content_id, meta_key, meta_value) VALUES (?, ?, ?) '
+        . 'ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)'
+    )->execute([$checkoutProductId, '_is_digital', '1']);
+
+    $dispatchDb->prepare('INSERT INTO ec_carts (user_id, created_at, updated_at) VALUES (?, NOW(), NOW())')
+        ->execute([$checkoutCustomerId]);
+    $checkoutCartId = (int)$dispatchDb->lastInsertId();
+    $dispatchDb->prepare(
+        'INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, currency, product_title, sku, options_json, created_at, updated_at) '
+        . 'VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL, NOW(), NOW())'
+    )->execute([$checkoutCartId, $checkoutProductId, 1, 1499.00, 'PHP', 'Checkout Survival Fixture', 'CHK-' . strtoupper($checkoutSurvivalSuffix)]);
+
+    unset($_SERVER['HTTP_HOST']);
+    disableModule('wms');
+    if ($checkoutOriginalHost !== null && $checkoutOriginalHost !== '') {
+        $_SERVER['HTTP_HOST'] = $checkoutOriginalHost;
+    }
+
+    $checkoutWithoutWms = runRequestThroughEntrypoint(
+        [
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/v1/ecommerce/checkout',
+            'HTTP_HOST' => 'applicationos.test',
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+        ],
+        [
+            'id' => $checkoutCustomerId,
+            'username' => 'checkout.fixture',
+            'name' => 'Checkout Fixture',
+            'role' => 'customer',
+            'source' => 'cms',
+        ],
+        <<<'PHP'
+$_SERVER['HTTP_X_CSRF_TOKEN'] = app()->csrfToken();
+$_POST = [
+    'billing' => [
+        'first_name' => 'Checkout',
+        'last_name' => 'Fixture',
+        'email' => 'checkout-fixture@example.com',
+        'address_line1' => '123 Checkout Street',
+        'city' => 'Manila',
+        'country' => 'PH',
+    ],
+    'shipping' => [
+        'first_name' => 'Checkout',
+        'last_name' => 'Fixture',
+        'address_line1' => '123 Checkout Street',
+        'city' => 'Manila',
+        'country' => 'PH',
+    ],
+];
+$_REQUEST = array_merge($_REQUEST ?? [], $_POST);
+PHP
+    );
+    $checkoutWithoutWmsPayload = json_decode((string)($checkoutWithoutWms['body'] ?? ''), true);
+    $checkoutOrderId = (int)($checkoutWithoutWmsPayload['order_id'] ?? 0);
+
+    t(
+        'ecommerce checkout still creates an order when WMS is disabled but stale WMS bridges remain active',
+        is_array($checkoutWithoutWmsPayload)
+            && ($checkoutWithoutWmsPayload['ok'] ?? false) === true
+            && $checkoutOrderId > 0
+            && ($checkoutWithoutWms['exit_code'] ?? 1) === 0,
+        $checkoutWithoutWms['raw']
+    );
+
+    $createdOrderStmt = $dispatchDb->prepare('SELECT id, status, customer_id FROM ec_orders WHERE id = ? LIMIT 1');
+    $createdOrderStmt->execute([$checkoutOrderId]);
+    $createdOrder = $createdOrderStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    t(
+        'ecommerce checkout persists the order while WMS is disabled',
+        is_array($createdOrder)
+            && (int)($createdOrder['id'] ?? 0) === $checkoutOrderId
+            && (string)($createdOrder['status'] ?? '') === 'pending'
+            && (int)($createdOrder['customer_id'] ?? 0) === $checkoutCustomerId,
+        json_encode($createdOrder, JSON_UNESCAPED_SLASHES)
+    );
+} finally {
+    unset($_SERVER['HTTP_HOST']);
+    if ($wmsWasEnabledBeforeDisable) {
+        enableModule('wms');
+    } else {
+        disableModule('wms');
+    }
+    if ($checkoutOriginalHost !== null && $checkoutOriginalHost !== '') {
+        $_SERVER['HTTP_HOST'] = $checkoutOriginalHost;
+    }
+
+    if ($checkoutOrderId > 0) {
+        foreach ([
+            'DELETE FROM ec_payment_transactions WHERE order_id = ?',
+            'DELETE FROM ec_order_status_history WHERE order_id = ?',
+            'DELETE FROM ec_order_meta WHERE order_id = ?',
+            'DELETE FROM ec_order_items WHERE order_id = ?',
+            'DELETE FROM ec_orders WHERE id = ?',
+        ] as $sql) {
+            $dispatchDb->prepare($sql)->execute([$checkoutOrderId]);
+        }
+    }
+
+    if ($checkoutCartId > 0) {
+        $dispatchDb->prepare('DELETE FROM ec_cart_items WHERE cart_id = ?')->execute([$checkoutCartId]);
+        $dispatchDb->prepare('DELETE FROM ec_carts WHERE id = ?')->execute([$checkoutCartId]);
+    } else {
+        $dispatchDb->prepare('DELETE FROM ec_cart_items WHERE cart_id IN (SELECT id FROM ec_carts WHERE user_id = ?)')->execute([$checkoutCustomerId]);
+        $dispatchDb->prepare('DELETE FROM ec_carts WHERE user_id = ?')->execute([$checkoutCustomerId]);
+    }
+
+    $dispatchDb->prepare('DELETE FROM cms_content_meta WHERE content_id = ? AND meta_key = ?')->execute([$checkoutProductId, '_is_digital']);
+
+    $checkoutBridgeIdsStmt = $dispatchDb->prepare('SELECT id FROM kernel_integrations WHERE name = ?');
+    $checkoutBridgeIdsStmt->execute([$checkoutSurvivalBridgeName]);
+    $checkoutBridgeIds = array_map('intval', $checkoutBridgeIdsStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    if ($checkoutBridgeIds !== []) {
+        $placeholders = implode(', ', array_fill(0, count($checkoutBridgeIds), '?'));
+        $dispatchDb->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (' . $placeholders . ')')->execute($checkoutBridgeIds);
+    }
+    $dispatchDb->prepare('DELETE FROM kernel_integrations WHERE name = ?')->execute([$checkoutSurvivalBridgeName]);
+}
+
 $customerFixture = seedCustomerOrderTimelineFixture(bin2hex(random_bytes(4)));
 
 try {
