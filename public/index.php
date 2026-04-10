@@ -11,6 +11,7 @@ require_once __DIR__ . '/../src/http/request-bootstrap.php';
 require_once __DIR__ . '/../src/http/capability-cache.php';
 require_once __DIR__ . '/../src/http/admin-view-cache.php';
 require_once __DIR__ . '/../src/http/tenant-entry-modules.php';
+require_once __DIR__ . '/../src/http/core-routes.php';
 
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -232,82 +233,7 @@ if (!empty($_SERVER['IK_FAST_404'])) {
     exit;
 }
 
-$routes = [
-    'GET' => [
-        '/' => 'pageHome',
-        '/login' => 'pageLogin',
-        '/auth/logout' => 'authLogout',
-        '/api/v1/auth/logout' => 'authLogout',
-        '/api/v1/health' => 'apiHealth',
-        '/api/v1/platform' => 'apiPlatform',
-        '/api/v1/me' => 'apiMe',
-        '/api/v1/audit-log' => 'apiAuditLog',
-        '/admin/profile' => 'pageAdminProfile',
-        '/admin/users' => 'pageAdminUsers',
-        '/admin/modules' => 'pageAdminModules',
-        '/admin/tenants' => 'pageAdminTenants',
-        '/admin/kernel/triggers' => 'pageAdminKernelTriggers',
-        '/admin/platform' => 'pageAdminPlatform',
-        '/admin/ai' => 'pageAdminAi',
-        '/superadmin/settings' => 'pageSuperadminSettings',
-        '/kernel/integrations' => 'pageKernelIntegrations',
-        '/api/v1/kernel/integrations' => 'apiKernelIntegrations',
-        '/superadmin/perf' => 'pageSuperadminPerf',
-        '/api/v1/superadmin/modules' => 'apiSuperadminModules',
-        '/api/v1/superadmin/perf' => 'apiSuperadminPerf',
-        '/api/v1/admin/modules' => 'apiListModules',
-        '/api/v1/admin/modules/health' => 'apiModulesHealth',
-        '/api/v1/admin/capabilities' => 'apiListCapabilities',
-        '/api/v1/admin/capabilities/metrics' => 'apiCapabilityMetrics',
-        '/api/v1/admin/capabilities/breakers' => 'apiCapabilityBreakers',
-        '/api/v1/admin/cache/health' => 'apiCacheHealth',
-        '/api/v1/admin/kernel/events' => 'apiKernelEventsList',
-        '/api/v1/admin/kernel/triggers' => 'apiKernelTriggersList',
-        '/api/v1/admin/kernel/trigger-executions' => 'apiKernelTriggerExecutionsList',
-        '/api/v1/admin/ai/settings' => 'apiAiSettingsGet',
-        '/api/v1/admin/tenants' => 'apiTenantsList',
-    ],
-    'POST' => [
-        '/auth/login' => 'authLogin',
-        '/api/v1/auth/login' => 'authLogin',
-        '/api/v1/auth/refresh' => 'authRefresh',
-        '/api/v1/kernel/integrations' => 'apiKernelIntegrations',
-        '/api/v1/admin/modules/install' => 'apiInstallModule',
-        '/api/v1/admin/modules/enable' => 'apiEnableModule',
-        '/api/v1/admin/modules/disable' => 'apiDisableModule',
-        '/api/v1/admin/modules/settings' => 'apiUpdateModuleSettings',
-        '/api/v1/superadmin/modules/access-request' => 'apiSuperadminReviewModuleAccessRequest',
-        '/api/v1/superadmin/modules/catalog' => 'apiSuperadminUpdateModuleCatalog',
-        '/api/v1/superadmin/modules/settings' => 'apiSuperadminUpdateModuleSettings',
-        '/api/v1/superadmin/modules/entitlement' => 'apiSuperadminSetModuleEntitlement',
-        '/api/v1/superadmin/modules/toggle' => 'apiSuperadminToggleModule',
-        '/api/v1/admin/ai/settings' => 'apiAiSettingsSave',
-        '/api/v1/admin/cache/clear' => 'apiCacheClear',
-        '/api/v1/admin/updates/check' => 'apiAdminCheckUpdates',
-        '/api/v1/admin/profile/update' => 'apiAdminUpdateProfile',
-        '/api/v1/admin/users' => 'apiAdminCreateUser',
-        '/api/v1/admin/users/update' => 'apiAdminUpdateUser',
-        '/api/v1/admin/capabilities/breakers/reset' => 'apiCapabilityBreakersReset',
-        '/api/v1/admin/capabilities/policy' => 'apiUpdateCapabilityPolicy',
-        '/api/v1/admin/modules/depends' => 'apiUpdateModuleDepends',
-        '/api/v1/admin/kernel/triggers/save' => 'apiKernelTriggerSave',
-        '/api/v1/admin/kernel/triggers/delete' => 'apiKernelTriggerDelete',
-        '/api/v1/admin/kernel/triggers/suggest' => 'apiKernelTriggersSuggest',
-        '/api/v1/admin/tenants/create' => 'apiTenantCreate',
-        '/api/v1/admin/tenants/entry-module' => 'apiTenantEntryModuleSet',
-        '/api/v1/admin/tenants/domain/add' => 'apiTenantDomainAdd',
-        '/api/v1/admin/tenants/domain/remove' => 'apiTenantDomainRemove',
-        '/api/v1/admin/tenants/canonical-domain' => 'apiTenantCanonicalDomainSet',
-        '/api/v1/admin/tenants/db/upsert' => 'apiTenantDbUpsert',
-        '/api/v1/admin/tenants/status' => 'apiTenantStatusSet',
-        '/api/v1/admin/tenants/delete' => 'apiTenantDelete',
-        '/api/v1/admin/tenants/admin-email' => 'apiTenantAdminEmailPush',
-    ],
-    'PUT' => [],
-    'DELETE' => [
-        '/api/v1/kernel/integrations' => 'apiKernelIntegrations',
-    ],
-];
+$routes = kernelCoreRoutes();
 
 // Batch-load all tenant module settings in 1 query (avoids N+1 per module)
 try {
