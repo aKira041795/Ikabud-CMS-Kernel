@@ -10,6 +10,7 @@ require_once __DIR__ . '/helpers/05-render-contracts.php';
 require_once __DIR__ . '/helpers/08-currency.php';
 require_once __DIR__ . '/helpers/10-cart.php';
 require_once __DIR__ . '/helpers/20-orders.php';
+require_once __DIR__ . '/helpers/22-returns.php';
 require_once __DIR__ . '/helpers/30-products.php';
 require_once __DIR__ . '/helpers/32-attributes.php';
 require_once __DIR__ . '/helpers/33-recently-viewed.php';

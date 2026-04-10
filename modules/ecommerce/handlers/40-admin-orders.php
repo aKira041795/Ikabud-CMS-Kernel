@@ -104,6 +104,21 @@ function ecAdminOrderDetail(array $params = []): void
             } catch (\Throwable $e) {
                 $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Refund failed: ' . $e->getMessage()];
             }
+        } elseif ($action === 'review_return_request') {
+            try {
+                $result = ecReturnRequestReview(
+                    (int)($input['return_request_id'] ?? 0),
+                    (string)($input['review_status'] ?? ''),
+                    [
+                        'admin_note' => $input['return_admin_note'] ?? '',
+                        'reviewed_by_user_id' => (int)($user['id'] ?? 0),
+                    ]
+                );
+                $status = (string)($result['request']['status'] ?? 'updated');
+                $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Return request ' . $status . '.'];
+            } catch (\Throwable $e) {
+                $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Return request review failed: ' . $e->getMessage()];
+            }
         } elseif ($action === 'mark_paid') {
             ecOrderMarkPaid($orderId);
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Order marked as paid.'];
@@ -138,6 +153,28 @@ function ecAdminOrderDetail(array $params = []): void
     if (function_exists('releaseSessionAfterRender')) {
         releaseSessionAfterRender();
     }
+}
+
+function ecAdminReturns(): void
+{
+    $user = ecRequireAdmin();
+    $input = ecInput();
+    $filters = [
+        'status' => trim((string)($input['status'] ?? '')),
+        'limit' => 75,
+        'offset' => 0,
+    ];
+    $result = ecReturnRequestList($filters);
+
+    $ctx = ecAdminContext($user, 'returns', [
+        'page_title' => 'Ecommerce — Return Requests',
+        'return_requests' => $result['items'],
+        'filters' => $filters,
+        'message' => $_SESSION['ec_message'] ?? null,
+    ]);
+    unset($_SESSION['ec_message']);
+
+    ecRender('modules/ecommerce/admin/returns.disyl', $ctx);
 }
 
 /**

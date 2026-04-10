@@ -744,6 +744,111 @@ function wms_cap_wms_order_cancel_1(mixed $payload, string $capabilityId = '', s
     }
 }
 
+function wms_cap_wms_return_create_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload. Array expected.'];
+    }
+
+    $referenceNumber = trim((string)($payload['reference_number'] ?? ''));
+    if ($referenceNumber === '') {
+        return ['ok' => false, 'error' => 'Reference number is required.'];
+    }
+
+    $existing = wmsFetchOne('SELECT id, reference_number FROM wms_returns WHERE reference_number = ? AND deleted_at IS NULL LIMIT 1', [$referenceNumber]);
+    if ($existing !== null) {
+        return [
+            'ok' => true,
+            'existing' => true,
+            'return_id' => (int)($existing['id'] ?? 0),
+            'reference_number' => (string)($existing['reference_number'] ?? $referenceNumber),
+        ];
+    }
+
+    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+    if ($warehouseId <= 0) {
+        return ['ok' => false, 'error' => 'Warehouse ID is required.'];
+    }
+
+    $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
+    if ($items === []) {
+        return ['ok' => false, 'error' => 'At least one return item is required.'];
+    }
+
+    $db = wmsDb();
+    $db->beginTransaction();
+    try {
+        $db->execute(
+            'INSERT INTO wms_returns (reference_number, order_id, customer_name, warehouse_id, status, reason, received_at, notes, meta, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, NOW(), NOW())',
+            [
+                $referenceNumber,
+                isset($payload['order_id']) && (int)($payload['order_id'] ?? 0) > 0 ? (int)$payload['order_id'] : null,
+                trim((string)($payload['customer_name'] ?? '')) !== '' ? trim((string)$payload['customer_name']) : null,
+                $warehouseId,
+                'pending',
+                trim((string)($payload['reason'] ?? '')) !== '' ? trim((string)$payload['reason']) : null,
+                trim((string)($payload['notes'] ?? '')) !== '' ? trim((string)$payload['notes']) : null,
+                ($meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : []) !== []
+                    ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : null,
+                isset($payload['actor_user_id']) && (int)($payload['actor_user_id'] ?? 0) > 0 ? (int)$payload['actor_user_id'] : null,
+            ]
+        );
+        $returnId = (int)$db->lastInsertId();
+
+        foreach ($items as $index => $item) {
+            $item = is_array($item) ? wmsBridgeNormalizeStockItem($item, $payload, $index) : [];
+            $productId = (int)($item['product_id'] ?? 0);
+            $qtyReturned = wmsNormalizeDecimal($item['qty_returned'] ?? $item['qty'] ?? 0);
+            if ($productId <= 0 || $qtyReturned <= 0) {
+                throw new RuntimeException('Each return item requires a resolvable product and positive quantity.');
+            }
+
+            $locationId = isset($item['location_id']) ? (int)$item['location_id'] : 0;
+            if ($locationId <= 0) {
+                $locationId = (int)(wmsResolveQuarantineLocation($warehouseId)['id'] ?? 0);
+            }
+            if ($locationId <= 0) {
+                throw new RuntimeException('No quarantine location is available for warehouse #' . $warehouseId . '.');
+            }
+
+            $condition = in_array((string)($item['condition'] ?? ''), ['good', 'damaged', 'expired', 'unknown'], true)
+                ? (string)$item['condition']
+                : 'unknown';
+
+            $db->execute(
+                'INSERT INTO wms_return_items (return_id, product_id, location_id, batch_id, qty_returned, qty_restocked, `condition`, notes, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, NOW(), NOW())',
+                [
+                    $returnId,
+                    $productId,
+                    $locationId,
+                    isset($item['batch_id']) && (int)($item['batch_id'] ?? 0) > 0 ? (int)$item['batch_id'] : null,
+                    $qtyReturned,
+                    $condition,
+                    trim((string)($item['notes'] ?? '')) !== '' ? trim((string)$item['notes']) : null,
+                ]
+            );
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+
+    wmsAudit('wms.return.created', 'wms_returns', (string)$returnId, null, ['reference_number' => $referenceNumber]);
+
+    return [
+        'ok' => true,
+        'return_id' => $returnId,
+        'reference_number' => $referenceNumber,
+    ];
+}
+
 /**
  * Capability: wms.product.upsert@1
  * Upserts a product from an external source (like Ecommerce) into WMS.

@@ -18,6 +18,7 @@ This document summarizes the current Ecommerce module, identifies the highest-va
 - Cart supports guest sessions and registered customer persistence.
 - Checkout supports guest checkout, shipping, tax calculation, coupon application, manual or gateway payment selection, and subscription-aware cart validation for recurring products.
 - Order lifecycle supports pending, processing, shipped, delivered, cancelled, and refunded states.
+- Customer returns now support order-level return requests with admin approval and optional WMS return intake.
 - Order history, order detail, and guest confirmation flows already exist.
 
 ### Payments and Fulfillment

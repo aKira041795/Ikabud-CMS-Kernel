@@ -33,6 +33,8 @@
         "ec_product_group_items",
         "ec_product_bundle_items",
         "ec_subscriptions",
+        "ec_return_requests",
+        "ec_return_request_items",
         "ec_product_attributes",
         "ec_product_attribute_values",
         "rate_limits"
@@ -72,7 +74,8 @@
         "modules/ecommerce/database/migrations/015_ec_product_attributes.sql",
         "modules/ecommerce/database/migrations/021_ec_product_bundles.sql",
         "modules/ecommerce/database/migrations/022_ec_subscriptions.sql",
-        "modules/ecommerce/database/migrations/023_ec_cart_item_currency.sql"
+        "modules/ecommerce/database/migrations/023_ec_cart_item_currency.sql",
+        "modules/ecommerce/database/migrations/024_ec_return_requests.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -875,6 +878,54 @@
                 "refund.refunded_amount",
                 "refund.gateway_refund_id",
                 "refund.release_items"
+            ]
+        },
+        {
+            "key": "ecommerce.return.requested",
+            "description": "Fired when a customer submits a return request for an order",
+            "available_vars": [
+                "order_id",
+                "order_number",
+                "customer_id",
+                "order",
+                "return_request",
+                "return_request.id",
+                "return_request.request_number",
+                "return_request.status",
+                "return_request.reason",
+                "return_request.items"
+            ]
+        },
+        {
+            "key": "ecommerce.return.approved",
+            "description": "Fired when an admin approves a customer return request",
+            "available_vars": [
+                "order_id",
+                "order_number",
+                "actor_user_id",
+                "order",
+                "return_request",
+                "return_request.id",
+                "return_request.request_number",
+                "return_request.status",
+                "return_request.reason",
+                "return_request.wms_return_id",
+                "return_request.wms_reference_number"
+            ]
+        },
+        {
+            "key": "ecommerce.return.rejected",
+            "description": "Fired when an admin rejects a customer return request",
+            "available_vars": [
+                "order_id",
+                "order_number",
+                "actor_user_id",
+                "order",
+                "return_request",
+                "return_request.id",
+                "return_request.request_number",
+                "return_request.status",
+                "return_request.reason"
             ]
         },
         {

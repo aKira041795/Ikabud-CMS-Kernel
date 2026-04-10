@@ -52,11 +52,35 @@ function ecPublicOrderDetail(array $params = []): void
         return;
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        $input = ecInput();
+        $action = (string)($input['action'] ?? '');
+
+        if ($action === 'request_return') {
+            try {
+                ecReturnRequestCreate($orderId, (int)$user['id'], (array)($input['return_qty'] ?? []), [
+                    'reason' => $input['return_reason'] ?? '',
+                    'condition' => $input['return_condition'] ?? 'unknown',
+                    'customer_note' => $input['return_note'] ?? '',
+                ]);
+                $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Return request submitted.'];
+            } catch (\Throwable $e) {
+                $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Return request failed: ' . $e->getMessage()];
+            }
+        }
+
+        header('Location: /ecommerce/my-orders/' . $orderId);
+        exit;
+    }
+
     ecRender('modules/ecommerce/public/order-detail.disyl', [
         'page_title' => 'Order ' . $order['order_number'],
         'order'      => $order,
         'user'       => $user,
+        'message'    => $_SESSION['ec_message'] ?? null,
     ]);
+    unset($_SESSION['ec_message']);
 }
 
 /**

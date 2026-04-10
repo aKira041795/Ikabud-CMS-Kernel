@@ -212,6 +212,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "wms.return.create@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [],

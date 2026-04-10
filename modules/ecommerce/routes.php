@@ -27,6 +27,7 @@ return [
         '/ecommerce/admin/products/{id}/edit'     => 'ecommerce:ecAdminProductEdit',
         '/ecommerce/admin/orders'                 => 'ecommerce:ecAdminOrders',
         '/ecommerce/admin/orders/{id}'            => 'ecommerce:ecAdminOrderDetail',
+        '/ecommerce/admin/returns'                => 'ecommerce:ecAdminReturns',
         '/ecommerce/admin/licenses/{id}/download' => 'ecommerce:ecAdminLicenseDownload',
         '/ecommerce/admin/categories'             => 'ecommerce:ecAdminCategories',
         '/ecommerce/admin/coupons'                => 'ecommerce:ecAdminCoupons',
@@ -64,6 +65,7 @@ return [
         // ── Public Checkout ──────────────────────────────────────────
         '/ecommerce/cart/add'                       => 'ecommerce:ecPublicCartAdd',
         '/ecommerce/checkout'                        => 'ecommerce:ecPublicCheckoutProcess',
+        '/ecommerce/my-orders/{id}'                  => 'ecommerce:ecPublicOrderDetail',
 
         // ── Admin Pages (form submissions) ──────────────────────────
         '/ecommerce/admin/products/create'          => 'ecommerce:ecAdminProductCreate',

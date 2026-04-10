@@ -1007,6 +1007,10 @@ function ecOrderHydrateData(array $order): array
         unset($itm);
     }
 
+    if (function_exists('ecOrderHydrateReturnRequests')) {
+        $order = ecOrderHydrateReturnRequests($order);
+    }
+
     if (empty($order['status_history'])) {
         $order['status_history'] = [[
             'status' => 'pending',
@@ -1041,7 +1045,6 @@ function ecOrderNormalizeShipmentTracking(array $tracking): array
         'tracking_url' => trim((string)($tracking['tracking_url'] ?? '')),
     ];
 }
-
 function ecOrderShipmentTrackingFromMeta(array $meta): array
 {
     $tracking = ecOrderNormalizeShipmentTracking([
@@ -2086,11 +2089,19 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
                     $ids
                 )->fetchAll(\PDO::FETCH_COLUMN) ?: [])
                 : [];
+            $returnRequestOrderIds = ecReturnRequestStorageAvailable()
+                ? (ecDb()->query(
+                    "SELECT DISTINCT order_id FROM ec_return_requests WHERE order_id IN ($placeholders)",
+                    $ids
+                )->fetchAll(\PDO::FETCH_COLUMN) ?: [])
+                : [];
             $licenseSet = array_flip((array)$licenseOrderIds);
             $subscriptionSet = array_flip((array)$subscriptionOrderIds);
+            $returnRequestSet = array_flip((array)$returnRequestOrderIds);
             foreach ($items as &$item) {
                 $item['has_licenses'] = isset($licenseSet[$item['id']]);
                 $item['has_subscriptions'] = isset($subscriptionSet[$item['id']]);
+                $item['has_return_requests'] = isset($returnRequestSet[$item['id']]);
             }
             unset($item);
         }

@@ -1,0 +1,73 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-5">
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Return Requests</h2>
+                <p class="mt-1 text-sm text-gray-500">Review customer return authorizations and jump into the linked order for refund or fulfillment follow-up.</p>
+            </div>
+            <form method="get" action="" class="flex items-center gap-3">
+                <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">All statuses</option>
+                    <option value="pending" {if filters.status == 'pending'}selected{/if}>Pending</option>
+                    <option value="approved" {if filters.status == 'approved'}selected{/if}>Approved</option>
+                    <option value="rejected" {if filters.status == 'rejected'}selected{/if}>Rejected</option>
+                    <option value="cancelled" {if filters.status == 'cancelled'}selected{/if}>Cancelled</option>
+                </select>
+                <button type="submit" class="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Filter</button>
+            </form>
+        </div>
+    </div>
+
+    {if message}
+    <div class="rounded-lg border px-4 py-3 text-sm {if message.type == 'success'}border-emerald-200 bg-emerald-50 text-emerald-800{else}border-red-200 bg-red-50 text-red-700{/if}">{message.text}</div>
+    {/if}
+
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {if return_requests | count == 0}
+        <div class="px-5 py-12 text-center text-sm text-gray-500">No return requests match the current filter.</div>
+        {else}
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                    <th class="px-4 py-3 text-left">Request</th>
+                    <th class="px-4 py-3 text-left">Order</th>
+                    <th class="px-4 py-3 text-left">Customer</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Created</th>
+                    <th class="px-4 py-3 text-right"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {foreach return_requests as request}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3">
+                        <div class="font-semibold text-gray-900">{request.request_number}</div>
+                        <div class="mt-1 text-xs text-gray-500">{request.total_qty_requested} item{if request.total_qty_requested == 1}{else}s{/if} · {request.reason}</div>
+                    </td>
+                    <td class="px-4 py-3 text-gray-700">
+                        <div>#{request.order_number}</div>
+                        <div class="mt-1 text-xs text-gray-400">{request.order_status}</div>
+                    </td>
+                    <td class="px-4 py-3 text-gray-700">{request.customer_name | default:request.created_by_name | default:'Customer'}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+                            {if request.status == 'pending'}bg-amber-100 text-amber-800
+                            {elseif request.status == 'approved'}bg-emerald-100 text-emerald-800
+                            {elseif request.status == 'rejected'}bg-red-100 text-red-700
+                            {else}bg-gray-100 text-gray-600{/if}">{request.status}</span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-500">{request.created_at | date:'M j, Y g:i A'}</td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{base_url}/ecommerce/admin/orders/{request.order_id}" class="text-orange-600 hover:text-orange-700 font-medium">Open Order</a>
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+        {/if}
+    </div>
+</div>
+{/block}
