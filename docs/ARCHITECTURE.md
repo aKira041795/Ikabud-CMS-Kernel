@@ -8,6 +8,12 @@ Ikabud is an **application-kernel modular infrastructure framework** — a PHP r
 **Runtime:** PHP 8.2+ / MySQL 8+ / Apache with mod_rewrite  
 **Template Engine:** DiSyL (Declarative Ikabud Syntax Language)
 
+Contributor workflow and refactor guardrails are documented in:
+
+- `docs/contributor-workflows.md`
+- `docs/kernel-stable-contracts.md`
+- `docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md`
+
 ---
 
 ## Technology Stack

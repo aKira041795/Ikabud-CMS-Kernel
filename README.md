@@ -15,7 +15,7 @@ A multi-tenant application kernel and CMS platform powered by the DiSyL templati
 
 ## Requirements
 
-- PHP 8.1+
+- PHP 8.2+
 - MySQL 8.0+
 - Apache with `mod_rewrite`
 - Composer
@@ -55,12 +55,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full Kernel OS architec
 |---|---|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Kernel OS system architecture |
 | [installation.md](docs/installation.md) | Installation & deployment guide |
+| [contributor-workflows.md](docs/contributor-workflows.md) | Local setup, testing, logs, and refactor guardrails |
 | [api-reference.md](docs/api-reference.md) | REST API reference |
 | [module-development-guide.md](docs/module-development-guide.md) | Guide for building new modules |
+| [kernel-stable-contracts.md](docs/kernel-stable-contracts.md) | Stable kernel extension points versus refactorable internals |
 | [cms-module.md](docs/cms-module.md) | CMS module documentation |
 | [wms-module.md](docs/wms-module.md) | WMS module documentation |
 | [cms-architecture.md](docs/cms-architecture.md) | CMS module architecture |
 | [page-builder-technical-spec.md](docs/page-builder-technical-spec.md) | Visual page builder spec |
+| [evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md](docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md) | Baseline metrics and required regression gates for kernel refactors |
 | [roadmap.md](docs/roadmap.md) | Project roadmap |
 
 ## License
