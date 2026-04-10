@@ -242,13 +242,29 @@ class App
 
             try {
                 $stmt = $this->db()->prepare(
-                    "SELECT id, username, password_hash, full_name, role, COALESCE(token_version, 0) AS token_version\n                     FROM users\n                     WHERE username = :username AND is_active = 1\n                     LIMIT 1"
+                    "SELECT id, username, password_hash, full_name, role\n                     FROM users\n                     WHERE username = :username AND is_active = 1\n                     LIMIT 1"
                 );
                 $stmt->execute([':username' => $username]);
                 $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-                if (is_array($row) && in_array(($row['role'] ?? null), ['admin', 'superadmin'], true) && password_verify($password, (string)$row['password_hash'])) {
-                    return ['user' => $row, 'source' => 'kernel'];
+                if (!is_array($row) || !in_array(($row['role'] ?? null), ['admin', 'superadmin'], true) || !password_verify($password, (string)$row['password_hash'])) {
+                    return null;
                 }
+                // Fetch token_version separately: the column was added in migration 015.
+                // If the migration has not yet run, default to 0 rather than blocking login.
+                $row['token_version'] = 0;
+                try {
+                    $tvStmt = $this->db()->prepare(
+                        'SELECT COALESCE(token_version, 0) AS token_version FROM users WHERE id = :id LIMIT 1'
+                    );
+                    $tvStmt->execute([':id' => (int)$row['id']]);
+                    $tvRow = $tvStmt->fetch(\PDO::FETCH_ASSOC);
+                    if (is_array($tvRow)) {
+                        $row['token_version'] = (int)$tvRow['token_version'];
+                    }
+                } catch (\Throwable $tvEx) {
+                    // token_version column not yet available — degrade to version 0.
+                }
+                return ['user' => $row, 'source' => 'kernel'];
             } catch (\Throwable $e) {
                 // Non-fatal: auth provider returns null and lets pipeline continue.
                 return null;
