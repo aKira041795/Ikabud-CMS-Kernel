@@ -25,6 +25,7 @@
         <a href="{if storefront.navigation.shop_url}{storefront.navigation.shop_url}{else}{base_url}/ecommerce/shop{/if}" class="font-bold text-xl text-gray-900">Shop</a>
         <nav class="hidden md:flex items-center gap-6 text-sm">
             <a href="{if storefront.navigation.shop_url}{storefront.navigation.shop_url}{else}{base_url}/ecommerce/shop{/if}" class="text-gray-600 hover:text-gray-900">Products</a>
+            <a href="{base_url}/ecommerce/compare" class="text-gray-600 hover:text-gray-900">Compare</a>
             <a href="{base_url}/ecommerce/my-orders" class="text-gray-600 hover:text-gray-900">My Orders</a>
         </nav>
         {if ec_currency.selector_enabled}
@@ -37,6 +38,12 @@
             </select>
         </label>
         {/if}
+        <div class="flex items-center gap-2">
+        <a href="{base_url}/ecommerce/compare" class="relative inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17H7A2 2 0 015 15V5a2 2 0 012-2h2m6 14h2a2 2 0 002-2V5a2 2 0 00-2-2h-2m-6 14h6M9 7h6"/></svg>
+            Compare
+            <span class="ml-1 {if storefront.compare.count|default:compare_count|default:0 > 0}inline-flex{else}hidden{/if} items-center justify-center min-w-[1.25rem] h-5 px-1 bg-gray-900 text-white text-xs font-bold rounded-full">{storefront.compare.count|default:compare_count|default:0}</span>
+        </a>
         <a href="{base_url}/ecommerce/cart" class="relative inline-flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
             Cart
@@ -46,6 +53,7 @@
             <span id="cart-count-badge" class="ml-1 {if cart_count > 0}inline-flex{else}hidden{/if} items-center justify-center w-5 h-5 bg-white text-orange-600 text-xs font-bold rounded-full">{cart_count}</span>
             {/if}
         </a>
+        </div>
     </div>
 </header>
 {/if}

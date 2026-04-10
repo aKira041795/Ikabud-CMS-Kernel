@@ -74,6 +74,7 @@ function ecPublicDecorateCatalogProducts(array $products): array
         $product['sale_badge_text'] = (string)($storefrontItem['badges']['sale'] ?? '');
         $product['inventory_badge_text'] = (string)($storefrontItem['inventory']['badge']['label'] ?? '');
         $product['inventory_badge_tone'] = (string)($storefrontItem['inventory']['badge']['tone'] ?? 'muted');
+        $product['is_compared'] = !empty($storefrontItem['is_compared']);
 
         $resolved[] = $product;
     }
@@ -220,6 +221,8 @@ function ecPublicShop(): void
             'pagination_prev_url' => $paginationPrevUrl,
             'pagination_next_url' => $paginationNextUrl,
             'cart_count' => $cartCount,
+            'compare_count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
+            'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? '/ecommerce/shop'),
             'storefront' => $storefront,
             'public_route_kind' => 'shop_index',
             'public_presentation_mode' => $presentationMode,
@@ -369,6 +372,8 @@ function ecPublicCategory(array $params = []): void
             'pagination_prev_url' => $paginationPrevUrl,
             'pagination_next_url' => $paginationNextUrl,
             'cart_count'  => $cartCount,
+            'compare_count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
+            'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ('/ecommerce/shop/category/' . rawurlencode($slug))),
             'storefront' => $storefront,
             'public_route_kind' => 'shop_category',
             'public_presentation_mode' => $presentationMode,
@@ -418,6 +423,8 @@ function ecPublicProduct(array $params = []): void
         $recentlyViewedItems = function_exists('ecRecentlyViewedCatalogItems')
             ? ecRecentlyViewedCatalogItems((int)($product['id'] ?? 0), 4, ['item_base_url' => '/ecommerce/shop'])
             : [];
+        $compareCount = function_exists('ecCompareCount') ? ecCompareCount() : 0;
+        $compareSelected = function_exists('ecCompareContains') ? ecCompareContains((int)($product['id'] ?? 0)) : false;
         $seoContent = function_exists('ecProductSeoContent') ? ecProductSeoContent($product) : [];
         $headCode = function_exists('cmsGetPublicHeadHtml') ? cmsGetPublicHeadHtml($seoContent) : '';
         $seoPageTitle = function_exists('cmsResolveSeoTitle') ? cmsResolveSeoTitle($seoContent) : (string)($product['seo_title'] ?? $product['title'] ?? '');
@@ -433,6 +440,9 @@ function ecPublicProduct(array $params = []): void
                     'reviews' => $reviews,
                     'relation_sections' => $relationSections,
                     'recently_viewed_items' => $recentlyViewedItems,
+                    'compare_count' => $compareCount,
+                    'compare_product_is_selected' => $compareSelected,
+                    'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ('/ecommerce/shop/' . rawurlencode($slug))),
                 ],
             ], $routeContext)) {
             return;
@@ -459,6 +469,9 @@ function ecPublicProduct(array $params = []): void
             'relation_sections' => $relationSections,
             'recently_viewed_items' => $recentlyViewedItems,
             'cart_count'  => $cartCount,
+            'compare_count' => $compareCount,
+            'compare_product_is_selected' => $compareSelected,
+            'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ('/ecommerce/shop/' . rawurlencode($slug))),
             'head_code' => $headCode,
             'storefront' => $storefront,
             'public_route_kind' => 'product_detail',

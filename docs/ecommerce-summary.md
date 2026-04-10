@@ -20,6 +20,7 @@ This document summarizes the current Ecommerce module, identifies the highest-va
 - Order lifecycle supports pending, processing, shipped, delivered, cancelled, and refunded states.
 - Customer returns now support order-level return requests with admin approval and optional WMS return intake.
 - Order history, order detail, and guest confirmation flows already exist.
+- Customers can build a short comparison shortlist and review products side by side from the storefront.
 
 ### Payments and Fulfillment
 
@@ -329,10 +330,15 @@ Objective: expand the product model without collapsing the current catalog archi
 
 Objective: add strategic extensions after the core stack is stable.
 
+Implemented in this phase so far:
+
+- Product comparison
+
+Remaining phase 6 scope:
+
 - Memberships and gated access
 - Loyalty points and rewards
 - Product add-ons
-- Product comparison
 - Bookings and appointments
 
 ## Recommended Build Order

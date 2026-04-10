@@ -1523,6 +1523,7 @@ function ecStorefrontHydrateProduct(array $product): array
 function ecBuildStorefrontCatalogItem(array $product, array $options = []): array
 {
     $product = ecStorefrontHydrateProduct($product);
+    $productId = (int)($product['id'] ?? 0);
     $slug = trim((string)($product['slug'] ?? ''));
     $itemBaseUrl = rtrim((string)($options['item_base_url'] ?? '/ecommerce/shop'), '/');
     $detailUrl = trim((string)($product['detail_url'] ?? $product['url'] ?? ''));
@@ -1558,7 +1559,7 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
     }
 
     return [
-        'id' => (int)($product['id'] ?? 0),
+        'id' => $productId,
         'slug' => $slug,
         'title' => trim((string)($product['title'] ?? '')),
         'excerpt' => trim((string)($product['excerpt'] ?? '')),
@@ -1581,6 +1582,7 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
         'review_summary' => is_array($product['review_summary'] ?? null)
             ? ecReviewNormalizeSummary($product['review_summary'])
             : ecReviewDefaultSummary(),
+        'is_compared' => function_exists('ecCompareContains') ? ecCompareContains($productId) : false,
     ];
 }
 
@@ -1694,6 +1696,10 @@ function ecBuildStorefrontCatalogContext(array $products, array $options = []): 
         'cart' => [
             'count' => ecStorefrontCurrentCartCount(isset($options['cart_count']) ? (int)$options['cart_count'] : null),
         ],
+        'compare' => [
+            'count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
+            'url' => '/ecommerce/compare',
+        ],
     ];
 }
 
@@ -1768,6 +1774,10 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
         ]),
         'cart' => [
             'count' => ecStorefrontCurrentCartCount(isset($options['cart_count']) ? (int)$options['cart_count'] : null),
+        ],
+        'compare' => [
+            'count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
+            'url' => '/ecommerce/compare',
         ],
     ];
 }

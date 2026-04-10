@@ -1,0 +1,17 @@
+<div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4" data-ecommerce-section="compare-actions">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="text-sm font-semibold text-slate-900">Compare Products</h2>
+            <p class="mt-1 text-sm text-slate-600">Keep a short shortlist and review products side by side before you buy.</p>
+        </div>
+        <a href="{base_url}/ecommerce/compare" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Open Compare {if compare_count|default:storefront.compare.count|default:0 > 0}({compare_count|default:storefront.compare.count|default:0}){/if}</a>
+    </div>
+    <form method="post" action="{base_url}/ecommerce/compare" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input type="hidden" name="_token" value="{csrf_token}">
+        <input type="hidden" name="action" value="{if compare_product_is_selected}remove{else}add{/if}">
+        <input type="hidden" name="product_id" value="{storefront.product.id|default:product.id|default:entity.id}">
+        <input type="hidden" name="return_to" value="{current_request_uri|default:'/ecommerce/compare'}">
+        <button type="submit" class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold {if compare_product_is_selected}bg-slate-200 text-slate-800 hover:bg-slate-300{else}bg-slate-900 text-white hover:bg-slate-800{/if}">{if compare_product_is_selected}Remove From Compare{else}Add to Compare{/if}</button>
+        <span class="text-xs text-slate-500">Compare up to 4 products in the current session.</span>
+    </form>
+</div>

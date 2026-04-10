@@ -329,6 +329,7 @@
             </div>
             {/if}
 
+            {include "modules/cms/public/blocks/ecommerce-product-compare.block.disyl"}
             {include "modules/cms/public/blocks/ecommerce-reviews.block.disyl"}
             {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
             {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}

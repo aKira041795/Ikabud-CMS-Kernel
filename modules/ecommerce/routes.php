@@ -9,6 +9,7 @@ return [
         '/ecommerce/shop'                   => 'ecommerce:ecPublicShop',
         '/ecommerce/shop/category/{slug}'   => 'ecommerce:ecPublicCategory',
         '/ecommerce/shop/{slug}'            => 'ecommerce:ecPublicProduct',
+        '/ecommerce/compare'                => 'ecommerce:ecPublicCompare',
         '/ecommerce/cart'                   => 'ecommerce:ecPublicCart',
         '/ecommerce/checkout'               => 'ecommerce:ecPublicCheckout',
         '/ecommerce/recover-cart/{token}'   => 'ecommerce:ecPublicRecoverCart',
@@ -64,6 +65,7 @@ return [
 
         // ── Public Checkout ──────────────────────────────────────────
         '/ecommerce/cart/add'                       => 'ecommerce:ecPublicCartAdd',
+        '/ecommerce/compare'                        => 'ecommerce:ecPublicCompareAction',
         '/ecommerce/checkout'                        => 'ecommerce:ecPublicCheckoutProcess',
         '/ecommerce/my-orders/{id}'                  => 'ecommerce:ecPublicOrderDetail',
 

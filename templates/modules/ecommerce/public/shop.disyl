@@ -89,7 +89,8 @@
         {if storefront.collection.items | count > 0}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
             {foreach storefront.collection.items as p}
-            <a href="{if p.url}{p.url}{else}{base_url}/ecommerce/shop/{p.slug}{/if}" class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow no-underline bg-white">
+            <article class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow bg-white">
+                <a href="{if p.url}{p.url}{else}{base_url}/ecommerce/shop/{p.slug}{/if}" class="no-underline block">
                 <div class="aspect-square overflow-hidden bg-gray-100">
                     <img src="{if p.primary_image_url|default:p.featured_image_url}{p.primary_image_url|default:p.featured_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{p.title}"
                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
@@ -117,13 +118,24 @@
                     <div class="mt-1 text-xs text-amber-600 font-medium">Low stock - only {p.inventory.stock_qty} left</div>
                     {/if}
                 </div>
-            </a>
+                </a>
+                <div class="px-4 pb-4">
+                    <form method="post" action="{base_url}/ecommerce/compare">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <input type="hidden" name="action" value="{if p.is_compared}remove{else}add{/if}">
+                        <input type="hidden" name="product_id" value="{p.id}">
+                        <input type="hidden" name="return_to" value="{current_request_uri|default:'/ecommerce/shop'}">
+                        <button type="submit" class="w-full rounded-lg border px-3 py-2 text-sm font-medium {if p.is_compared}border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200{else}border-slate-900 bg-slate-900 text-white hover:bg-slate-800{/if}">{if p.is_compared}Remove From Compare{else}Add to Compare{/if}</button>
+                    </form>
+                </div>
+            </article>
             {/foreach}
         </div>
         {elseif products | count > 0}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
             {foreach products as p}
-            <a href="{base_url}/ecommerce/shop/{p.slug}" class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow no-underline bg-white">
+            <article class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow bg-white">
+                <a href="{base_url}/ecommerce/shop/{p.slug}" class="no-underline block">
                 <div class="aspect-square overflow-hidden bg-gray-100">
                     <img src="{if p.primary_image_url}{p.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{p.title}"
                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
@@ -148,7 +160,17 @@
                     <div class="mt-1 text-xs text-amber-600 font-medium">Low stock - only {p.inventory.stock_qty} left</div>
                     {/if}
                 </div>
-            </a>
+                </a>
+                <div class="px-4 pb-4">
+                    <form method="post" action="{base_url}/ecommerce/compare">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <input type="hidden" name="action" value="{if p.is_compared}remove{else}add{/if}">
+                        <input type="hidden" name="product_id" value="{p.id}">
+                        <input type="hidden" name="return_to" value="{current_request_uri|default:'/ecommerce/shop'}">
+                        <button type="submit" class="w-full rounded-lg border px-3 py-2 text-sm font-medium {if p.is_compared}border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200{else}border-slate-900 bg-slate-900 text-white hover:bg-slate-800{/if}">{if p.is_compared}Remove From Compare{else}Add to Compare{/if}</button>
+                    </form>
+                </div>
+            </article>
             {/foreach}
         </div>
 
