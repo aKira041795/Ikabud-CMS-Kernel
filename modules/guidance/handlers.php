@@ -1524,13 +1524,13 @@ function guidanceIssueOtpCode(string $email, string $purpose, int $ttlSeconds = 
     }
 
     $db = guidanceDb();
-    $db->prepare('DELETE FROM gm_otp_codes WHERE expires_at <= NOW() OR verified_at IS NOT NULL')->execute();
+    $db->prepare('DELETE FROM gm_otp_codes WHERE expires_at <= ? OR verified_at IS NOT NULL')->execute([date('Y-m-d H:i:s')]);
     $db->prepare('DELETE FROM gm_otp_codes WHERE email = ? AND purpose = ?')->execute([$normalizedEmail, $purpose]);
 
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $db->prepare(
-        'INSERT INTO gm_otp_codes (email, code, purpose, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))'
-    )->execute([$normalizedEmail, $code, $purpose, $ttlSeconds]);
+        'INSERT INTO gm_otp_codes (email, code, purpose, expires_at) VALUES (?, ?, ?, ?)'
+    )->execute([$normalizedEmail, $code, $purpose, date('Y-m-d H:i:s', time() + $ttlSeconds)]);
 
     $otpId = (int)$db->lastInsertId();
 
