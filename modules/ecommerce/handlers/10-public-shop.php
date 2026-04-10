@@ -395,6 +395,22 @@ function ecPublicProduct(array $params = []): void
     ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('product_detail', $routeContext);
 
+        // Delegate to canonical entity-view before loading the product — the CMS
+        // handler self-loads review_summary, relation_sections, and other ecommerce
+        // extras so there is no need to preload them here.
+        if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView', [
+                'type' => 'product',
+                'slug' => $slug,
+                'disable_cache' => true,
+                'public_render_origin' => 'ecommerce',
+                'public_route_kind' => 'product_detail',
+                'template_context' => [
+                    'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ('/ecommerce/shop/' . rawurlencode($slug))),
+                ],
+            ], $routeContext)) {
+            return;
+        }
+
         $product = ecProductGetBySlug($slug);
 
         if (!$product || $product['status'] !== 'published') {
@@ -428,25 +444,6 @@ function ecPublicProduct(array $params = []): void
         $seoContent = function_exists('ecProductSeoContent') ? ecProductSeoContent($product) : [];
         $headCode = function_exists('cmsGetPublicHeadHtml') ? cmsGetPublicHeadHtml($seoContent) : '';
         $seoPageTitle = function_exists('cmsResolveSeoTitle') ? cmsResolveSeoTitle($seoContent) : (string)($product['seo_title'] ?? $product['title'] ?? '');
-
-        if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView', [
-                'type' => 'product',
-                'slug' => $slug,
-            'disable_cache' => true,
-                'public_render_origin' => 'ecommerce',
-                'public_route_kind' => 'product_detail',
-                'template_context' => [
-                    'review_summary' => $reviewSummary,
-                    'reviews' => $reviews,
-                    'relation_sections' => $relationSections,
-                    'recently_viewed_items' => $recentlyViewedItems,
-                    'compare_count' => $compareCount,
-                    'compare_product_is_selected' => $compareSelected,
-                    'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ('/ecommerce/shop/' . rawurlencode($slug))),
-                ],
-            ], $routeContext)) {
-            return;
-        }
 
         $storefront = ecBuildStorefrontDetailContext($product, [
             'route_kind' => 'product_detail',
