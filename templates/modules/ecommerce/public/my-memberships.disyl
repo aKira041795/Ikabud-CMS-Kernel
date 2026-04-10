@@ -1,0 +1,47 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">My Memberships</h1>
+            <p class="mt-1 text-sm text-gray-500">Active and past membership access purchased through the storefront.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="{base_url}/ecommerce/my-orders" class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-gray-700 hover:bg-gray-50">Orders</a>
+            <a href="{base_url}/ecommerce/rewards" class="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-700 hover:bg-orange-100">Rewards</a>
+            <a href="{base_url}/ecommerce/my-bookings" class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-indigo-700 hover:bg-indigo-100">Bookings</a>
+        </div>
+    </div>
+
+    {if memberships | count == 0}
+    <div class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
+        <div class="text-lg font-semibold text-gray-900">No memberships yet</div>
+        <p class="mt-2 text-sm text-gray-500">Membership products you purchase will appear here once payment is completed.</p>
+        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Browse Products</a>
+    </div>
+    {else}
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {foreach memberships as membership}
+        <div class="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <div class="text-xs font-semibold uppercase tracking-[0.14em] text-sky-600">{membership.tier_label}</div>
+                    <div class="mt-2 text-lg font-semibold text-gray-900">{membership.product_title}</div>
+                </div>
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {if membership.is_active}bg-emerald-100 text-emerald-700{else}bg-gray-100 text-gray-600{/if}">{if membership.is_active}Active{else}{membership.status}{/if}</span>
+            </div>
+            <dl class="mt-4 space-y-2 text-sm text-gray-600">
+                <div class="flex justify-between gap-3"><dt>Started</dt><dd>{if membership.starts_at}{membership.starts_at | date:'M j, Y g:i A'}{else}Pending{/if}</dd></div>
+                <div class="flex justify-between gap-3"><dt>Ends</dt><dd>{if membership.ends_at}{membership.ends_at | date:'M j, Y g:i A'}{else}Open-ended{/if}</dd></div>
+                <div class="flex justify-between gap-3"><dt>Duration</dt><dd>{membership.duration_days} days</dd></div>
+            </dl>
+            {if membership.order_id}
+            <div class="mt-4 text-xs font-semibold text-sky-700"><a href="{base_url}/ecommerce/my-orders/{membership.order_id}" class="hover:underline">View originating order</a></div>
+            {/if}
+        </div>
+        {/foreach}
+    </div>
+    {/if}
+</div>
+{/block}

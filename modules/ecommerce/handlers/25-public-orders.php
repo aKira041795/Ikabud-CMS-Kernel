@@ -83,6 +83,68 @@ function ecPublicOrderDetail(array $params = []): void
     unset($_SESSION['ec_message']);
 }
 
+function ecPublicMemberships(): void
+{
+    $user = app()->user();
+    if (!$user || !in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true)) {
+        header('Location: /cms/login?redirect=' . urlencode('/ecommerce/my-memberships'));
+        exit;
+    }
+
+    $memberships = function_exists('ecMembershipsForCustomer')
+        ? ecMembershipsForCustomer((int)$user['id'], (string)($user['email'] ?? ''))
+        : [];
+
+    ecRender('modules/ecommerce/public/my-memberships.disyl', [
+        'page_title' => 'My Memberships',
+        'memberships' => $memberships,
+        'user' => $user,
+    ]);
+}
+
+function ecPublicBookings(): void
+{
+    $user = app()->user();
+    if (!$user || !in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true)) {
+        header('Location: /cms/login?redirect=' . urlencode('/ecommerce/my-bookings'));
+        exit;
+    }
+
+    $bookings = function_exists('ecBookingsForCustomer')
+        ? ecBookingsForCustomer((int)$user['id'], 50)
+        : [];
+
+    ecRender('modules/ecommerce/public/my-bookings.disyl', [
+        'page_title' => 'My Bookings',
+        'bookings' => $bookings,
+        'user' => $user,
+    ]);
+}
+
+function ecPublicRewards(): void
+{
+    $user = app()->user();
+    if (!$user || !in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true)) {
+        header('Location: /cms/login?redirect=' . urlencode('/ecommerce/rewards'));
+        exit;
+    }
+
+    $entries = function_exists('ecLoyaltyEntriesForCustomer')
+        ? ecLoyaltyEntriesForCustomer((int)$user['id'], 50)
+        : [];
+    $balance = function_exists('ecCustomerLoyaltyPointsBalance')
+        ? ecCustomerLoyaltyPointsBalance((int)$user['id'])
+        : 0;
+
+    ecRender('modules/ecommerce/public/rewards.disyl', [
+        'page_title' => 'Rewards',
+        'entries' => $entries,
+        'balance' => $balance,
+        'balance_discount_fmt' => function_exists('ecLoyaltyCurrencyDiscount') ? ecCurrencyFormatAmount(ecLoyaltyCurrencyDiscount((int)$balance), (string)ecSettings('currency')) : '',
+        'user' => $user,
+    ]);
+}
+
 /**
  * Token-based digital product download.
  *

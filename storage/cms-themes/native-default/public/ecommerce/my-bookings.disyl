@@ -1,0 +1,50 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront" data-native-ecommerce-template="my-bookings">
+    <header class="native-storefront-hero">
+        <div>
+            <p class="native-storefront-kicker">Account</p>
+            <h1>My Bookings</h1>
+            <p class="native-storefront-subtitle">Appointments reserved through bookable products.</p>
+        </div>
+        <div class="native-actions">
+            <a href="{base_url}/ecommerce/my-orders" class="button button-secondary">Orders</a>
+            <a href="{base_url}/ecommerce/my-memberships" class="button button-secondary">Memberships</a>
+        </div>
+    </header>
+
+    {if bookings | count == 0}
+    <div class="native-empty-state">
+        <h2>No bookings yet</h2>
+        <p class="native-note">Bookable services will show up here after checkout.</p>
+    </div>
+    {else}
+    <div class="native-stack">
+        {foreach bookings as booking}
+        <section class="native-storefront-panel">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                <div>
+                    <h2 class="native-panel-title">{booking.product_title}</h2>
+                    <p class="native-note">{booking.scheduled_for | date:'M j, Y g:i A'}</p>
+                </div>
+                <span class="native-pill {if booking.status == 'confirmed'}native-pill--success{elseif booking.status == 'pending'}native-pill--warning{else}native-pill--muted{/if}">{booking.status}</span>
+            </div>
+            <div class="native-summary-list" style="margin-top:1rem;">
+                <div class="native-summary-row"><span>Duration</span><strong>{booking.duration_minutes} minutes</strong></div>
+                <div class="native-summary-row"><span>Ends</span><strong>{if booking.ends_at}{booking.ends_at | date:'M j, Y g:i A'}{else}TBD{/if}</strong></div>
+                <div class="native-summary-row"><span>Order</span><strong>{if booking.order_id}<a href="{base_url}/ecommerce/my-orders/{booking.order_id}" class="native-text-link">#{booking.order_id}</a>{else}N/A{/if}</strong></div>
+            </div>
+            {if booking.notes}
+            <p class="native-panel-copy" style="margin-top:1rem;">{booking.notes}</p>
+            {/if}
+        </section>
+        {/foreach}
+    </div>
+    {/if}
+</div>
+{/block}

@@ -86,6 +86,9 @@
                                     <strong>{item.product_title}</strong>
                                     {if item.variant_label}<div class="native-note">{item.variant_label}</div>{/if}
                                     {if item.sku}<div class="native-note">SKU: {item.sku}</div>{/if}
+                                    {if item.selected_addons | count > 0}<div class="native-note">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</div>{/if}
+                                    {if item.booking.has_booking}<div class="native-note" style="color:#1d4ed8;">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</div>{/if}
+                                    {if item.memberships | count > 0}<div class="native-note" style="color:#0369a1;">Membership: {foreach item.memberships as membership}{membership.tier_label}{if !loop.last}, {/if}{/foreach}</div>{/if}
                                     {if item.license_key}
                                         <div class="native-note" style="margin-top: 6px; padding: 8px 10px; background: #eff6ff; border-radius: 4px; color: #1d4ed8; display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; word-break: break-word;">
                                             <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #1e3a8a; margin-bottom: 4px;">Key</div>
@@ -115,19 +118,53 @@
             <section class="native-storefront-panel">
                 <h2 class="native-panel-title">Summary</h2>
                 <div class="native-summary-list">
-                    <div class="native-summary-row"><span>Subtotal</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.subtotal_amount | default:order.subtotal}</strong></div>
-                    {if order.discount_amount > 0}
-                    <div class="native-summary-row"><span>Discount</span><strong>-{order.currency_symbol | default:ec_settings.currency_symbol}{order.discount_amount}</strong></div>
+                    <div class="native-summary-row"><span>Subtotal</span><strong>{order.subtotal_amount_fmt}</strong></div>
+                    {if order.non_loyalty_discount_amount > 0}
+                    <div class="native-summary-row"><span>Discount</span><strong>-{order.non_loyalty_discount_amount_fmt}</strong></div>
+                    {/if}
+                    {if order.loyalty_points_redeemed > 0}
+                    <div class="native-summary-row"><span>Loyalty ({order.loyalty_points_redeemed} pts)</span><strong>-{order.loyalty_discount_amount_fmt}</strong></div>
                     {/if}
                     {if order.tax_amount > 0}
-                    <div class="native-summary-row"><span>Tax</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.tax_amount}</strong></div>
+                    <div class="native-summary-row"><span>Tax</span><strong>{order.tax_amount_fmt}</strong></div>
                     {/if}
                     {if order.shipping_amount > 0}
-                    <div class="native-summary-row"><span>Shipping</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.shipping_amount}</strong></div>
+                    <div class="native-summary-row"><span>Shipping</span><strong>{order.shipping_amount_fmt}</strong></div>
                     {/if}
-                    <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</strong></div>
+                    <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{order.total_amount_fmt}</strong></div>
                 </div>
             </section>
+
+            {if order.memberships | count > 0}
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Membership Activations</h2>
+                <div class="native-stack">
+                    {foreach order.memberships as membership}
+                    <div>
+                        <strong>{membership.tier_label}</strong>
+                        <div class="native-note">{membership.status}</div>
+                        {if membership.ends_at}<div class="native-note">Ends {membership.ends_at | date:'M j, Y g:i A'}</div>{/if}
+                    </div>
+                    {/foreach}
+                </div>
+            </section>
+            {/if}
+
+            {if order.bookings | count > 0}
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Booked Appointments</h2>
+                <div class="native-stack">
+                    {foreach order.bookings as booking}
+                    <div>
+                        <strong>{booking.product_title}</strong>
+                        <div class="native-note">{booking.scheduled_for | date:'M j, Y g:i A'}</div>
+                        <div class="native-note">Status: {booking.status}</div>
+                        {if booking.notes}<div class="native-note">{booking.notes}</div>{/if}
+                    </div>
+                    {/foreach}
+                </div>
+            </section>
+            {/if}
 
             <section class="native-storefront-panel">
                 <h2 class="native-panel-title">Payment</h2>

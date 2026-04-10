@@ -39,6 +39,9 @@ function ecApiCheckout(): void
     }
 
     $shipping = (array)($input['shipping'] ?? $billing);
+    $user       = app()->user();
+    $customerId = ($user && in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true))
+        ? (int)$user['id'] : null;
 
     $shippingRateId = isset($input['shipping_rate_id']) ? (int)$input['shipping_rate_id'] : null;
     $couponCode     = $cart['coupon_code'] ?? null;
@@ -46,7 +49,10 @@ function ecApiCheckout(): void
 
     if ($requiresShipping) {
         $shippingQuote = function_exists('ecShippingQuote')
-            ? ecShippingQuote($cart['items'], $shipping, $couponCode, $shippingRateId)
+            ? ecShippingQuote($cart['items'], $shipping, $couponCode, $shippingRateId, [
+                'customer_id' => $customerId > 0 ? $customerId : null,
+                'loyalty_points' => function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0,
+            ])
             : null;
         if (!is_array($shippingQuote) || empty($shippingQuote['rates'])) {
             ecJsonError('No shipping rates are available for this destination.', 422);
@@ -60,15 +66,17 @@ function ecApiCheckout(): void
         $shippingRateId = $resolvedRateId > 0 || $resolvedRateId < 0 ? $resolvedRateId : null;
         $totals = is_array($shippingQuote['totals'] ?? null)
             ? $shippingQuote['totals']
-            : ecCalculateTotals($cart['items'], $couponCode, $shippingRateId, $shipping);
+            : ecCalculateTotals($cart['items'], $couponCode, $shippingRateId, $shipping, [
+                'customer_id' => $customerId > 0 ? $customerId : null,
+                'loyalty_points' => function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0,
+            ]);
     } else {
         $shippingRateId = null;
-        $totals = ecCalculateTotals($cart['items'], $couponCode, null, $shipping);
+        $totals = ecCalculateTotals($cart['items'], $couponCode, null, $shipping, [
+            'customer_id' => $customerId > 0 ? $customerId : null,
+            'loyalty_points' => function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0,
+        ]);
     }
-
-    $user       = app()->user();
-    $customerId = ($user && in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true))
-        ? (int)$user['id'] : null;
 
     // Guest checkout — ensure allowed
     if (!$customerId && !(bool)ecSettings('guest_checkout')) {
@@ -131,6 +139,8 @@ function ecApiCheckout(): void
         'guest_email'      => $customerId ? null : ($billing['email'] ?? null),
         'guest_name'       => $customerId ? null : trim(($billing['first_name'] ?? '') . ' ' . ($billing['last_name'] ?? '')),
         'customer_note'    => trim((string)($input['customer_note'] ?? '')),
+        'loyalty_points_redeemed' => (int)($totals['loyalty_points_applied'] ?? 0),
+        'loyalty_discount_amount' => (float)($totals['loyalty_discount_amount'] ?? 0.0),
         'defer_created_event' => true,
     ];
 
@@ -241,13 +251,19 @@ function ecApiShippingRates(): void
     $address = (array)($input['shipping'] ?? $input['billing'] ?? $input['address'] ?? []);
     $selectedRateId = isset($input['selected_rate_id']) ? (int)$input['selected_rate_id'] : null;
     $quote = function_exists('ecShippingQuote')
-        ? ecShippingQuote((array)($cart['items'] ?? []), $address, $cart['coupon_code'] ?? null, $selectedRateId)
+        ? ecShippingQuote((array)($cart['items'] ?? []), $address, $cart['coupon_code'] ?? null, $selectedRateId, [
+            'customer_id' => (int)(app()->user()['id'] ?? 0),
+            'loyalty_points' => function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0,
+        ])
         : [
             'requires_shipping' => false,
             'rates' => [],
             'selected_rate_id' => null,
             'selected_rate' => null,
-            'totals' => ecCalculateTotals((array)($cart['items'] ?? []), $cart['coupon_code'] ?? null, null, $address),
+            'totals' => ecCalculateTotals((array)($cart['items'] ?? []), $cart['coupon_code'] ?? null, null, $address, [
+                'customer_id' => (int)(app()->user()['id'] ?? 0),
+                'loyalty_points' => function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0,
+            ]),
         ];
 
     ecJsonOk([

@@ -12,7 +12,12 @@
             <h1>My Orders</h1>
             <p class="native-storefront-subtitle">Recent orders rendered through the active native theme rather than the module storefront shell.</p>
         </div>
-        <a href="{base_url}/ecommerce/shop" class="button button-secondary">Return to Shop</a>
+        <div class="native-actions">
+            <a href="{base_url}/ecommerce/rewards" class="button button-secondary">Rewards</a>
+            <a href="{base_url}/ecommerce/my-memberships" class="button button-secondary">Memberships</a>
+            <a href="{base_url}/ecommerce/my-bookings" class="button button-secondary">Bookings</a>
+            <a href="{base_url}/ecommerce/shop" class="button button-secondary">Return to Shop</a>
+        </div>
     </header>
 
     {if orders | count == 0}
@@ -39,7 +44,14 @@
                 <tbody>
                     {foreach orders as o}
                     <tr>
-                        <td><strong>#{o.order_number}</strong></td>
+                        <td>
+                            <strong>#{o.order_number}</strong>
+                            {if o.has_licenses}<span class="native-pill native-pill--sale" style="margin-left:0.4rem;">Digital</span>{/if}
+                            {if o.has_subscriptions}<span class="native-pill native-pill--warning" style="margin-left:0.4rem;">Subscription</span>{/if}
+                            {if o.has_memberships}<span class="native-pill native-pill--muted" style="margin-left:0.4rem;">Membership</span>{/if}
+                            {if o.has_bookings}<span class="native-pill native-pill--success" style="margin-left:0.4rem;">Booking</span>{/if}
+                            {if o.has_return_requests}<span class="native-pill native-pill--warning" style="margin-left:0.4rem;">Return</span>{/if}
+                        </td>
                         <td>{o.created_at | date:'M j, Y'}</td>
                         <td>
                             {if o.status == 'pending'}

@@ -10,7 +10,7 @@ declare(strict_types=1);
 //  - Customer: ec_carts + ec_cart_items DB rows, keyed by user_id
 //
 // Cart item shape:
-//  { product_id, variant_id, qty, price_snapshot, currency, product_title, sku }
+//  { product_id, variant_id, qty, price_snapshot, currency, product_title, sku, options_json }
 // ─────────────────────────────────────────────────────────────────────────
 
 define('EC_SESSION_CART_KEY', 'ec_cart');
@@ -30,7 +30,7 @@ function ecSessionCartSave(array $items): void
 
 function ecSessionCartClear(): void
 {
-    unset($_SESSION[EC_SESSION_CART_KEY], $_SESSION[EC_SESSION_COUPON_KEY]);
+    unset($_SESSION[EC_SESSION_CART_KEY], $_SESSION[EC_SESSION_COUPON_KEY], $_SESSION[defined('EC_SESSION_LOYALTY_KEY') ? EC_SESSION_LOYALTY_KEY : 'ec_cart_loyalty_points']);
 }
 
 // ── Unified cart API ─────────────────────────────────────────────────
@@ -48,11 +48,18 @@ function ecCartGet(): array
     $couponCode = $userId
         ? ecDbCartCoupon($userId)
         : ($_SESSION[EC_SESSION_COUPON_KEY] ?? null);
+    $loyaltyPoints = function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0;
 
-    $totals = ecCalculateTotals($items, $couponCode);
+    $totals = ecCalculateTotals($items, $couponCode, null, [], [
+        'customer_id' => $userId > 0 ? $userId : null,
+        'loyalty_points' => $loyaltyPoints,
+    ]);
     $currencyCode = ecResolveCartItemsCurrencyCode($items);
     $currencySymbol = ecCurrencySymbolFor($currencyCode);
     foreach ($items as &$item) {
+        if (function_exists('ecHydrateLineItemOptions')) {
+            $item = ecHydrateLineItemOptions($item, $currencyCode);
+        }
         $itemCurrency = ecCurrencyNormalizeCode($item['currency'] ?? '') ?: $currencyCode;
         $unitPrice = round((float)($item['price_snapshot'] ?? 0), 2);
         $lineTotal = round($unitPrice * max(1, (int)($item['qty'] ?? 1)), 2);
@@ -72,12 +79,15 @@ function ecCartGet(): array
         'coupon_code' => $couponCode,
         'currency' => $currencyCode,
         'currency_symbol' => $currencySymbol,
+        'loyalty' => function_exists('ecCartLoyaltySummary')
+            ? ecCartLoyaltySummary($userId, $totals, $loyaltyPoints)
+            : ['balance' => 0, 'selected_points' => 0, 'applied_points' => 0, 'discount_amount' => 0.0, 'can_redeem' => false],
         'subscription' => $subscriptionSummary,
         'validation_errors' => (array)($subscriptionSummary['errors'] ?? []),
     ];
 }
 
-function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null): array
+function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null, array $options = []): array
 {
     if ($qty < 1) {
         return ['ok' => false, 'error' => 'Invalid quantity'];
@@ -86,6 +96,12 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null)
     $product = ecProductGet($productId);
     if (!$product) {
         return ['ok' => false, 'error' => 'Product not found'];
+    }
+    if (function_exists('ecMembershipGateForProduct')) {
+        $membershipGate = ecMembershipGateForProduct($product);
+        if (!empty($membershipGate['requires_membership']) && empty($membershipGate['allowed'])) {
+            return ['ok' => false, 'error' => (string)($membershipGate['message'] ?? 'This product requires an active membership.')];
+        }
     }
     if (!empty($product['is_external_product'])) {
         return ['ok' => false, 'error' => 'This product must be purchased through an external checkout'];
@@ -123,17 +139,38 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null)
         $price = (float)($displayPricing['active_price'] ?? $displayPricing['price'] ?? 0);
     }
 
+    if (!empty($product['booking']['enabled']) && $qty !== 1) {
+        return ['ok' => false, 'error' => 'Bookable products can only be added one appointment at a time.'];
+    }
+
+    $extendedData = function_exists('ecCartPrepareExtendedItemData')
+        ? ecCartPrepareExtendedItemData($product, $options)
+        : ['ok' => true, 'price_adjustment' => 0.0, 'selected_addons' => [], 'addon_total' => 0.0, 'booking' => ['has_booking' => false]];
+    if (empty($extendedData['ok'])) {
+        return $extendedData;
+    }
+
+    $price += (float)($extendedData['price_adjustment'] ?? 0.0);
+
+    $item = [
+        'product_id' => $productId,
+        'variant_id' => $variantId,
+        'qty' => $qty,
+        'price_snapshot' => round($price, 2),
+        'base_price_snapshot' => round($price - (float)($extendedData['price_adjustment'] ?? 0.0), 2),
+        'currency' => $targetCurrency,
+        'product_title' => $product['title'],
+        'sku' => $sku,
+        'selected_addons' => is_array($extendedData['selected_addons'] ?? null) ? $extendedData['selected_addons'] : [],
+        'addon_total' => round((float)($extendedData['addon_total'] ?? 0.0), 2),
+        'booking' => is_array($extendedData['booking'] ?? null) ? $extendedData['booking'] : ['has_booking' => false],
+    ];
+    $item['options_json'] = function_exists('ecCartCanonicalOptionsJson') ? ecCartCanonicalOptionsJson($item) : '';
+    $item['options_signature'] = sha1((string)$item['options_json']);
+
     return [
         'ok' => true,
-        'item' => [
-            'product_id' => $productId,
-            'variant_id' => $variantId,
-            'qty' => $qty,
-            'price_snapshot' => $price,
-            'currency' => $targetCurrency,
-            'product_title' => $product['title'],
-            'sku' => $sku,
-        ],
+        'item' => $item,
     ];
 }
 
@@ -154,11 +191,14 @@ function ecCartPersistItem(array $item): void
         $existingPrice = round((float)($existing['price_snapshot'] ?? 0), 4);
         $existingCurrency = ecCurrencyNormalizeCode($existing['currency'] ?? '');
         $targetCurrency = ecCurrencyNormalizeCode($item['currency'] ?? '');
+        $existingSignature = (string)($existing['options_signature'] ?? sha1((string)($existing['options_json'] ?? '')));
+        $targetSignature = (string)($item['options_signature'] ?? sha1((string)($item['options_json'] ?? '')));
         if (
             $existing['product_id'] === $item['product_id']
             && $existing['variant_id'] === $item['variant_id']
             && abs($existingPrice - $targetPrice) < 0.0001
             && $existingCurrency === $targetCurrency
+            && $existingSignature === $targetSignature
         ) {
             $existing['qty'] += (int)$item['qty'];
             $found = true;
@@ -323,14 +363,14 @@ function ecCartAddGroupedItems(array $groupedItems): array
  * Add a product to the cart.
  * Validates stock, snapshots price.
  */
-function ecCartAdd(int $productId, int $qty = 1, ?int $variantId = null): array
+function ecCartAdd(int $productId, int $qty = 1, ?int $variantId = null, array $options = []): array
 {
     $product = ecProductGet($productId);
     if (is_array($product) && !empty($product['bundle_children'])) {
         return ecCartAddBundleProduct($product, $qty);
     }
 
-    $prepared = ecCartPrepareItem($productId, $qty, $variantId);
+    $prepared = ecCartPrepareItem($productId, $qty, $variantId, $options);
     if (!$prepared['ok']) {
         return $prepared;
     }
@@ -477,7 +517,7 @@ function ecDbCartItems(int $userId): array
     try {
         return ecDb()->query(
             "SELECT ci.id as item_db_id, ci.product_id, ci.variant_id, ci.qty,
-                    ci.price_snapshot, ci.currency, ci.product_title, ci.sku
+                    ci.price_snapshot, ci.currency, ci.product_title, ci.sku, ci.options_json
              FROM ec_cart_items ci
              INNER JOIN ec_carts c ON c.id = ci.cart_id
              WHERE c.user_id = ?
@@ -496,17 +536,22 @@ function ecDbCartAdd(int $userId, array $item): void
 
     // Merge if same product+variant
     $existing = $db->query(
-        "SELECT id, qty FROM ec_cart_items WHERE cart_id = ? AND product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL)) AND price_snapshot = ? AND currency = ? LIMIT 1",
-        [$cartId, $item['product_id'], $item['variant_id'], $item['variant_id'], $item['price_snapshot'], $item['currency'] ?? ecStoreBaseCurrencyCode()]
+                "SELECT id, qty FROM ec_cart_items
+                 WHERE cart_id = ? AND product_id = ?
+                     AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))
+                     AND price_snapshot = ? AND currency = ?
+                     AND (options_json = ? OR (options_json IS NULL AND ? = ''))
+                 LIMIT 1",
+                [$cartId, $item['product_id'], $item['variant_id'], $item['variant_id'], $item['price_snapshot'], $item['currency'] ?? ecStoreBaseCurrencyCode(), $item['options_json'] ?? '', $item['options_json'] ?? '']
     )->fetch(\PDO::FETCH_ASSOC);
 
     if ($existing) {
         $db->execute("UPDATE ec_cart_items SET qty = qty + ?, updated_at = NOW() WHERE id = ?", [$item['qty'], $existing['id']]);
     } else {
         $db->execute(
-            "INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, currency, product_title, sku, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
-            [$cartId, $item['product_id'], $item['variant_id'], $item['qty'], $item['price_snapshot'], $item['currency'] ?? ecStoreBaseCurrencyCode(), $item['product_title'], $item['sku']]
+            "INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, currency, product_title, sku, options_json, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+            [$cartId, $item['product_id'], $item['variant_id'], $item['qty'], $item['price_snapshot'], $item['currency'] ?? ecStoreBaseCurrencyCode(), $item['product_title'], $item['sku'], $item['options_json'] ?? null]
         );
     }
 

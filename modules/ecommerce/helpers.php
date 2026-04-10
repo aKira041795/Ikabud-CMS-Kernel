@@ -32,6 +32,8 @@ require_once __DIR__ . '/helpers/71-gateway-paymongo.php';
 require_once __DIR__ . '/helpers/72-gateway-stripe.php';
 require_once __DIR__ . '/helpers/73-gateway-paypal.php';
 require_once __DIR__ . '/helpers/85-subscriptions.php';
+require_once __DIR__ . '/helpers/86-memberships-loyalty.php';
+require_once __DIR__ . '/helpers/87-product-options-bookings.php';
 
 function ecommerce_capability_handlers(): array
 {

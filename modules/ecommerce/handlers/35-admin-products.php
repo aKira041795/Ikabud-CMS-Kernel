@@ -96,6 +96,16 @@ function ecAdminProductCreate(): void
                 'subscription_trial_days' => $input['subscription_trial_days'] ?? 0,
                 'subscription_max_cycles' => $input['subscription_max_cycles'] ?? 0,
                 'subscription_grace_period_days' => $input['subscription_grace_period_days'] ?? 7,
+                'is_membership_product' => !empty($input['is_membership_product']),
+                'membership_tier' => $input['membership_tier'] ?? 'member',
+                'membership_duration_days' => $input['membership_duration_days'] ?? 365,
+                'required_membership_tiers_text' => $input['required_membership_tiers_text'] ?? '',
+                'addon_lines' => $input['addon_lines'] ?? '',
+                'booking_enabled' => !empty($input['booking_enabled']),
+                'booking_duration_minutes' => $input['booking_duration_minutes'] ?? 60,
+                'booking_notice_hours' => $input['booking_notice_hours'] ?? 24,
+                'booking_available_weekdays' => $input['booking_available_weekdays'] ?? [],
+                'booking_time_slots' => $input['booking_time_slots'] ?? '',
                 'is_external_product' => !empty($input['is_external_product']),
                 'external_product_url' => $input['external_product_url'] ?? '',
                 'external_product_button_text' => $input['external_product_button_text'] ?? '',
@@ -142,6 +152,21 @@ function ecAdminProductCreate(): void
         'selected_bundle_children' => $selectedBundleChildren,
         'selected_grouped_children' => $selectedGroupedChildren,
         'featured_image_url' => '',
+        'addon_lines' => $input['addon_lines'] ?? '',
+        'required_membership_tiers_text' => $input['required_membership_tiers_text'] ?? '',
+        'booking_time_slots_text' => $input['booking_time_slots'] ?? '',
+        'selected_booking_weekdays' => array_map('intval', (array)($input['booking_available_weekdays'] ?? [])),
+        'booking_weekday_flags' => (function (array $weekdays): array {
+            return [
+                'sun' => in_array(0, $weekdays, true),
+                'mon' => in_array(1, $weekdays, true),
+                'tue' => in_array(2, $weekdays, true),
+                'wed' => in_array(3, $weekdays, true),
+                'thu' => in_array(4, $weekdays, true),
+                'fri' => in_array(5, $weekdays, true),
+                'sat' => in_array(6, $weekdays, true),
+            ];
+        })(array_map('intval', (array)($input['booking_available_weekdays'] ?? []))),
         'seo_defaults' => ecProductSeoDefaults(),
         'error'      => $error ?? null,
         'message'    => $_SESSION['ec_message'] ?? null,
@@ -218,6 +243,16 @@ function ecAdminProductEdit(array $params = []): void
                 'subscription_trial_days' => $input['subscription_trial_days'] ?? 0,
                 'subscription_max_cycles' => $input['subscription_max_cycles'] ?? 0,
                 'subscription_grace_period_days' => $input['subscription_grace_period_days'] ?? 7,
+                'is_membership_product' => !empty($input['is_membership_product']),
+                'membership_tier' => $input['membership_tier'] ?? 'member',
+                'membership_duration_days' => $input['membership_duration_days'] ?? 365,
+                'required_membership_tiers_text' => $input['required_membership_tiers_text'] ?? '',
+                'addon_lines' => $input['addon_lines'] ?? '',
+                'booking_enabled' => !empty($input['booking_enabled']),
+                'booking_duration_minutes' => $input['booking_duration_minutes'] ?? 60,
+                'booking_notice_hours' => $input['booking_notice_hours'] ?? 24,
+                'booking_available_weekdays' => $input['booking_available_weekdays'] ?? [],
+                'booking_time_slots' => $input['booking_time_slots'] ?? '',
                 'is_external_product' => !empty($input['is_external_product']),
                 'external_product_url' => $input['external_product_url'] ?? '',
                 'external_product_button_text' => $input['external_product_button_text'] ?? '',
@@ -274,6 +309,38 @@ function ecAdminProductEdit(array $params = []): void
         'selected_bundle_children' => $selectedBundleChildren,
         'selected_grouped_children' => $selectedGroupedChildren,
         'featured_image_url' => (string)($product['featured_image_url'] ?? ''),
+        'addon_lines' => isset($input['addon_lines'])
+            ? (string)$input['addon_lines']
+            : implode("\n", array_map(static function (array $addon): string {
+                $parts = [trim((string)($addon['label'] ?? ''))];
+                $parts[] = number_format((float)($addon['price'] ?? 0.0), 2, '.', '');
+                if (trim((string)($addon['description'] ?? '')) !== '') {
+                    $parts[] = trim((string)$addon['description']);
+                }
+                return implode(' | ', $parts);
+            }, is_array($product['addons'] ?? null) ? $product['addons'] : [])),
+        'required_membership_tiers_text' => isset($input['required_membership_tiers_text'])
+            ? (string)$input['required_membership_tiers_text']
+            : implode(', ', is_array($product['required_membership_tiers'] ?? null) ? $product['required_membership_tiers'] : []),
+        'booking_time_slots_text' => isset($input['booking_time_slots'])
+            ? (string)$input['booking_time_slots']
+            : implode("\n", is_array($product['booking']['time_slots'] ?? null) ? $product['booking']['time_slots'] : []),
+        'selected_booking_weekdays' => isset($input['booking_available_weekdays'])
+            ? array_map('intval', (array)$input['booking_available_weekdays'])
+            : array_map('intval', is_array($product['booking']['available_weekdays'] ?? null) ? $product['booking']['available_weekdays'] : []),
+        'booking_weekday_flags' => (function (array $weekdays): array {
+            return [
+                'sun' => in_array(0, $weekdays, true),
+                'mon' => in_array(1, $weekdays, true),
+                'tue' => in_array(2, $weekdays, true),
+                'wed' => in_array(3, $weekdays, true),
+                'thu' => in_array(4, $weekdays, true),
+                'fri' => in_array(5, $weekdays, true),
+                'sat' => in_array(6, $weekdays, true),
+            ];
+        })(isset($input['booking_available_weekdays'])
+            ? array_map('intval', (array)$input['booking_available_weekdays'])
+            : array_map('intval', is_array($product['booking']['available_weekdays'] ?? null) ? $product['booking']['available_weekdays'] : [])),
         'seo_defaults' => ecProductSeoDefaults(),
         'error'      => $error ?? null,
         'message'    => $_SESSION['ec_message'] ?? null,

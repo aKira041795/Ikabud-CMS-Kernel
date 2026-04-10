@@ -74,6 +74,21 @@
             </div>
             {/if}
 
+            {if product.product_type == 'membership'}
+            <div class="native-note" style="background:#ecfdf5;border:1px solid #86efac;color:#166534;padding:0.9rem 1rem;border-radius:0.9rem;">
+                <strong>Membership product.</strong><br>
+                Activates the {product.membership_summary.tier_label | default:'member'} tier for {product.membership_summary.duration_label | default:'365 days access'} after payment.
+            </div>
+            {/if}
+
+            {if product.membership_gate.requires_membership and !product.membership_gate.allowed}
+            <div class="native-note" style="background:#eff6ff;border:1px solid #93c5fd;color:#1d4ed8;padding:0.9rem 1rem;border-radius:0.9rem;">
+                <strong>Members-only access.</strong><br>
+                {product.membership_gate.message}<br>
+                <a href="{if product.membership_gate.login_required}{base_url}/cms/login?redirect=/ecommerce/shop/{product.slug}{else}{base_url}/ecommerce/my-memberships{/if}" class="button button-primary" style="margin-top:0.75rem;">{if product.membership_gate.login_required}Sign In to Unlock{else}View My Memberships{/if}</a>
+            </div>
+            {/if}
+
             <div class="native-stack" style="margin-top:1rem;">
                 {if product.bundle_children | count > 0}
                     {if product.bundle_summary.all_in_stock}
@@ -101,6 +116,54 @@
                 </div>
                 {/if}
             </div>
+
+            {if !product.is_external_product && (!product.membership_gate.requires_membership || product.membership_gate.allowed) && product.bundle_children | count == 0 && product.grouped_children | count == 0}
+                {if product.addons | count > 0}
+            <div class="native-stack">
+                <div>
+                    <h2 class="native-panel-title">Add-ons</h2>
+                    <p class="native-note">Optional extras that are added to the line item total.</p>
+                </div>
+                {foreach product.addons as addon}
+                <label class="native-key-value" style="align-items:flex-start; gap:0.85rem;">
+                    <input type="checkbox" value="{addon.id}" data-product-addon>
+                    <div style="flex:1 1 auto; min-width:0;">
+                        <div><strong>{addon.label}</strong></div>
+                        {if addon.description}<div class="native-muted">{addon.description}</div>{/if}
+                    </div>
+                    <div><strong>+{ec_settings.currency_symbol}{addon.price}</strong></div>
+                </label>
+                {/foreach}
+            </div>
+                {/if}
+                {if product.booking.enabled}
+            <div class="native-stack">
+                <div>
+                    <h2 class="native-panel-title">Book Appointment</h2>
+                    <p class="native-note">{product.booking.summary}</p>
+                </div>
+                <div class="native-form-columns">
+                    <div class="native-field">
+                        <label for="booking-date">Date</label>
+                        <input id="booking-date" type="date" data-booking-date class="native-input">
+                    </div>
+                    <div class="native-field">
+                        <label for="booking-time">Time</label>
+                        <select id="booking-time" data-booking-time class="native-input">
+                            <option value="">Select a time</option>
+                            {foreach product.booking.time_slots as slot}
+                            <option value="{slot}">{slot}</option>
+                            {/foreach}
+                        </select>
+                    </div>
+                    <div class="native-field" style="grid-column:1 / -1;">
+                        <label for="booking-notes">Appointment Notes</label>
+                        <textarea id="booking-notes" data-booking-notes rows="2" class="native-textarea" placeholder="Share anything needed before the appointment."></textarea>
+                    </div>
+                </div>
+            </div>
+                {/if}
+            {/if}
 
             {if product.is_external_product and product.external_product_url}
             <div class="native-stack">
@@ -151,6 +214,10 @@
                 </div>
                 {/foreach}
                 <button onclick="addGroupedToCart({product.id}, event)" class="button button-primary" type="button">Add Selected Items</button>
+            </div>
+            {elseif product.membership_gate.requires_membership and !product.membership_gate.allowed}
+            <div class="native-actions">
+                <button type="button" class="button button-secondary" disabled>Membership Required</button>
             </div>
             {elseif product.inventory.in_stock && !product.inventory.out_of_stock}
             {if product.product_type == 'subscription'}
@@ -205,6 +272,22 @@ function updateCartBadge(count) {
     }
 }
 
+function collectProductPurchaseOptions() {
+    const addOns = Array.from(document.querySelectorAll('[data-product-addon]:checked')).map((input) => input.value);
+    const bookingDate = document.querySelector('[data-booking-date]');
+    const bookingTime = document.querySelector('[data-booking-time]');
+    const bookingNotes = document.querySelector('[data-booking-notes]');
+
+    return {
+        add_ons: addOns,
+        booking: {
+            date: bookingDate ? bookingDate.value : '',
+            time: bookingTime ? bookingTime.value : '',
+            notes: bookingNotes ? bookingNotes.value : '',
+        },
+    };
+}
+
 async function addToCart(productId, qty, clickEvent) {
     const btn = clickEvent && clickEvent.currentTarget ? clickEvent.currentTarget : null;
     if (!btn) {
@@ -213,12 +296,13 @@ async function addToCart(productId, qty, clickEvent) {
 
     btn.disabled = true;
     btn.textContent = 'Adding...';
+    const options = collectProductPurchaseOptions();
 
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-            body: JSON.stringify({ product_id: productId, qty: parseInt(qty, 10) || 1 }),
+            body: JSON.stringify({ product_id: productId, qty: parseInt(qty, 10) || 1, add_ons: options.add_ons, booking: options.booking }),
         });
         const data = await res.json();
         if (data.ok) {

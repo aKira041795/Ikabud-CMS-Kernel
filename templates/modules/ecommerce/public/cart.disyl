@@ -26,6 +26,12 @@
                 <div class="flex-1 min-w-0">
                     <div class="font-medium text-gray-900">{item.product_title}</div>
                     {if item.sku}<div class="text-xs text-gray-400">{item.sku}</div>{/if}
+                    {if item.selected_addons | count > 0}
+                    <div class="mt-1 text-xs text-gray-500">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</div>
+                    {/if}
+                    {if item.booking.has_booking}
+                    <div class="mt-1 text-xs text-sky-700">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</div>
+                    {/if}
                     <div class="text-sm text-orange-600 font-semibold mt-1">{item.unit_price_fmt} each</div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -54,6 +60,30 @@
                 </div>
                 {/if}
             </div>
+
+            {if cart.loyalty.can_redeem}
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                        <div class="text-sm font-semibold text-gray-900">Loyalty Rewards</div>
+                        <div class="text-xs text-gray-500">Balance: {cart.loyalty.balance_fmt} points</div>
+                    </div>
+                    <div class="text-xs text-gray-500">{cart.loyalty.minimum_points} points = {ec_settings.currency_symbol}1.00</div>
+                </div>
+                <div class="flex gap-2">
+                    <input type="number" id="loyalty-points" min="0" step="100" value="{cart.loyalty.selected_points | default:'0'}"
+                           class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                           placeholder="Points to redeem">
+                    <button type="button" onclick="applyLoyalty()" class="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Redeem</button>
+                    {if cart.loyalty.applied_points > 0}
+                    <button type="button" onclick="clearLoyalty()" class="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50">Clear</button>
+                    {/if}
+                </div>
+                {if cart.loyalty.applied_points > 0}
+                <div class="mt-2 text-sm text-emerald-600 font-medium">Redeeming {cart.loyalty.applied_points} points for {cart.loyalty.discount_amount_fmt} off this order.</div>
+                {/if}
+            </div>
+            {/if}
         </div>
 
         <!-- Totals & checkout -->
@@ -62,8 +92,11 @@
                 <h2 class="font-semibold text-gray-900">Order Summary</h2>
                 <div class="space-y-1.5 text-sm">
                     <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{cart.totals.subtotal_fmt}</span></div>
-                    {if cart.totals.discount > 0}
-                    <div class="flex justify-between text-emerald-600"><span>{cart.totals.discount_label | default:'Discount'}</span><span>−{cart.totals.discount_fmt}</span></div>
+                    {if cart.totals.non_loyalty_discount_amount > 0}
+                    <div class="flex justify-between text-emerald-600"><span>{cart.totals.discount_label | default:'Discount'}</span><span>−{cart.totals.non_loyalty_discount_amount_fmt}</span></div>
+                    {/if}
+                    {if cart.totals.loyalty_points_applied > 0}
+                    <div class="flex justify-between text-orange-600"><span>Loyalty ({cart.totals.loyalty_points_applied} pts)</span><span>−{cart.totals.loyalty_discount_amount_fmt}</span></div>
                     {/if}
                     {if cart.totals.tax > 0}
                     <div class="flex justify-between text-gray-600"><span>{cart.totals.tax_label | default:'Tax'}</span><span>{cart.totals.tax_fmt}</span></div>
@@ -113,6 +146,25 @@ async function applyCoupon() {
     });
     const data = await res.json();
     if (data.ok) { location.reload(); } else { alert(data.error || 'Invalid coupon or gift card'); }
+}
+
+async function applyLoyalty() {
+    const points = document.getElementById('loyalty-points').value;
+    const res = await fetch('{base_url}/api/v1/ecommerce/cart/loyalty', {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ points: parseInt(points, 10) || 0 }),
+    });
+    const data = await res.json();
+    if (data.ok) { location.reload(); } else { alert(data.error || 'Could not apply loyalty points'); }
+}
+
+async function clearLoyalty() {
+    const res = await fetch('{base_url}/api/v1/ecommerce/cart/loyalty', {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ points: 0 }),
+    });
+    const data = await res.json();
+    if (data.ok) { location.reload(); } else { alert(data.error || 'Could not clear loyalty points'); }
 }
 </script>
 {/block}

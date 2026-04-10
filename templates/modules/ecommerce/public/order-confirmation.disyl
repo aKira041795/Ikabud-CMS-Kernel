@@ -30,38 +30,70 @@
             <tbody class="divide-y divide-gray-100">
                 {foreach order.items as item}
                 <tr class="px-5">
-                    <td class="px-5 py-3 text-gray-700">{item.product_title}</td>
+                    <td class="px-5 py-3 text-gray-700">
+                        <div>{item.product_title}</div>
+                        {if item.selected_addons | count > 0}<div class="mt-1 text-xs text-gray-400">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</div>{/if}
+                        {if item.booking.has_booking}<div class="mt-1 text-xs text-sky-700">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</div>{/if}
+                        {if item.memberships | count > 0}<div class="mt-1 text-xs text-sky-700">Membership: {foreach item.memberships as membership}{membership.tier_label}{if !loop.last}, {/if}{/foreach}</div>{/if}
+                    </td>
                     <td class="px-5 py-3 text-gray-400 text-center">× {item.qty}</td>
-                    <td class="px-5 py-3 text-gray-900 font-medium text-right">{order.currency_symbol | default:ec_settings.currency_symbol}{item.line_total}</td>
+                    <td class="px-5 py-3 text-gray-900 font-medium text-right">{item.line_total_fmt}</td>
                 </tr>
                 {/foreach}
             </tbody>
             <tfoot class="bg-gray-50">
-                {if order.discount_amount > 0}
+                {if order.non_loyalty_discount_amount > 0}
                 <tr>
                     <td colspan="2" class="px-5 py-2 text-sm text-emerald-700">Discount</td>
-                    <td class="px-5 py-2 text-sm text-emerald-700 text-right">−{order.currency_symbol | default:ec_settings.currency_symbol}{order.discount_amount}</td>
+                    <td class="px-5 py-2 text-sm text-emerald-700 text-right">−{order.non_loyalty_discount_amount_fmt}</td>
+                </tr>
+                {/if}
+                {if order.loyalty_points_redeemed > 0}
+                <tr>
+                    <td colspan="2" class="px-5 py-2 text-sm text-orange-700">Loyalty ({order.loyalty_points_redeemed} pts)</td>
+                    <td class="px-5 py-2 text-sm text-orange-700 text-right">−{order.loyalty_discount_amount_fmt}</td>
                 </tr>
                 {/if}
                 {if order.tax_amount > 0}
                 <tr>
                     <td colspan="2" class="px-5 py-2 text-sm text-gray-600">Tax</td>
-                    <td class="px-5 py-2 text-sm text-gray-600 text-right">{order.currency_symbol | default:ec_settings.currency_symbol}{order.tax_amount}</td>
+                    <td class="px-5 py-2 text-sm text-gray-600 text-right">{order.tax_amount_fmt}</td>
                 </tr>
                 {/if}
                 {if order.shipping_amount > 0}
                 <tr>
                     <td colspan="2" class="px-5 py-2 text-sm text-gray-600">Shipping</td>
-                    <td class="px-5 py-2 text-sm text-gray-600 text-right">{order.currency_symbol | default:ec_settings.currency_symbol}{order.shipping_amount}</td>
+                    <td class="px-5 py-2 text-sm text-gray-600 text-right">{order.shipping_amount_fmt}</td>
                 </tr>
                 {/if}
                 <tr class="border-t border-gray-200">
                     <td colspan="2" class="px-5 py-3 font-bold text-gray-900">Total</td>
-                    <td class="px-5 py-3 font-bold text-gray-900 text-right">{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</td>
+                    <td class="px-5 py-3 font-bold text-gray-900 text-right">{order.total_amount_fmt}</td>
                 </tr>
             </tfoot>
         </table>
     </div>
+
+    {if order.memberships | count > 0 || order.bookings | count > 0}
+    <div class="mt-4 grid grid-cols-1 gap-4 text-left md:grid-cols-2">
+        {if order.memberships | count > 0}
+        <div class="rounded-xl border border-sky-200 bg-sky-50 p-5 text-sm text-sky-900">
+            <div class="font-semibold mb-2">Memberships Activated</div>
+            {foreach order.memberships as membership}
+            <div>{membership.tier_label}{if membership.ends_at} through {membership.ends_at | date:'M j, Y'}{/if}</div>
+            {/foreach}
+        </div>
+        {/if}
+        {if order.bookings | count > 0}
+        <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-5 text-sm text-indigo-900">
+            <div class="font-semibold mb-2">Appointments Scheduled</div>
+            {foreach order.bookings as booking}
+            <div>{booking.product_title}: {booking.scheduled_for | date:'M j, Y g:i A'}</div>
+            {/foreach}
+        </div>
+        {/if}
+    </div>
+    {/if}
 
     <!-- Shipping address -->
     <div class="mt-4 bg-white rounded-xl border border-gray-200 p-5 text-left text-sm text-gray-700">

@@ -39,6 +39,10 @@ function ecPublicCartAdd(): void
     $productId = (int)($input['product_id'] ?? $input['entity_id'] ?? 0);
     $qty       = max(1, (int)($input['qty'] ?? 1));
     $variantId = isset($input['variant_id']) ? (int)$input['variant_id'] : null;
+    $options   = [
+        'add_ons' => is_array($input['add_ons'] ?? null) ? $input['add_ons'] : [],
+        'booking' => is_array($input['booking'] ?? null) ? $input['booking'] : [],
+    ];
 
     if (!$productId) {
         $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Product could not be added to cart.'];
@@ -46,7 +50,7 @@ function ecPublicCartAdd(): void
         exit;
     }
 
-    $result = ecCartAdd($productId, $qty, $variantId);
+    $result = ecCartAdd($productId, $qty, $variantId, $options);
 
     $_SESSION['ec_message'] = $result['ok']
         ? ['type' => 'success', 'text' => 'Item added to cart.']

@@ -469,7 +469,7 @@ function ecShippingAvailableRates(array $items, array $address = [], ?string $co
     return ecShippingDbRates($address, $couponCode, $items);
 }
 
-function ecShippingQuote(array $items, array $address = [], ?string $couponCode = null, ?int $selectedRateId = null): array
+function ecShippingQuote(array $items, array $address = [], ?string $couponCode = null, ?int $selectedRateId = null, array $options = []): array
 {
     $requiresShipping = ecCartRequiresShipping($items);
     $location = ecShippingNormalizeLocation($address);
@@ -497,11 +497,11 @@ function ecShippingQuote(array $items, array $address = [], ?string $couponCode 
         'rates' => $rates,
         'selected_rate_id' => $resolvedRateId,
         'selected_rate' => $selectedRate,
-        'totals' => ecCalculateTotals($items, $couponCode, $resolvedRateId, $location),
+        'totals' => ecCalculateTotals($items, $couponCode, $resolvedRateId, $location, $options),
     ];
 }
 
-function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shippingRateId = null, array $taxAddress = []): array
+function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shippingRateId = null, array $taxAddress = [], array $options = []): array
 {
     $subtotal = 0.00;
     $currencyCode = ecResolveCartItemsCurrencyCode($items);
@@ -513,6 +513,7 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
     $discount    = 0.00;
     $giftCardCredit = 0.00;
     $couponData  = [];
+    $couponDiscount = 0.00;
     if ($couponCode !== null) {
         $validation = ecCouponValidate($couponCode, $subtotal, $currencyCode);
         if ($validation['valid']) {
@@ -520,10 +521,26 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
             if (($validation['type'] ?? '') === 'gift_card') {
                 $couponData['applies_to'] = 'total';
             } else {
-                $discount = (float)($validation['discount_amount'] ?? 0.0);
+                $couponDiscount = (float)($validation['discount_amount'] ?? 0.0);
+                $discount = $couponDiscount;
                 $couponData['applies_to'] = 'subtotal';
             }
         }
+    }
+
+    $loyaltyData = [
+        'requested_points' => 0,
+        'applied_points' => 0,
+        'discount_amount' => 0.0,
+        'balance' => 0,
+        'remaining_balance' => 0,
+    ];
+    $customerId = isset($options['customer_id']) ? (int)$options['customer_id'] : 0;
+    $requestedLoyaltyPoints = isset($options['loyalty_points']) ? max(0, (int)$options['loyalty_points']) : 0;
+    if ($customerId > 0 && $requestedLoyaltyPoints > 0 && function_exists('ecLoyaltyNormalizeRedemption')) {
+        $eligibleAmount = max(0.0, $subtotal - $couponDiscount);
+        $loyaltyData = ecLoyaltyNormalizeRedemption($customerId, $eligibleAmount, $requestedLoyaltyPoints, $currencyCode);
+        $discount += (float)($loyaltyData['discount_amount'] ?? 0.0);
     }
 
     // Tax
@@ -599,6 +616,7 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
 
     $total = max(0.0, $subtotal - $discount + ($taxInclusive ? 0 : $tax) + $shipping - $giftCardCredit);
     $displayDiscount = round($discount + $giftCardCredit, 2);
+    $nonLoyaltyDiscount = round($couponDiscount + $giftCardCredit, 2);
     $discountLabel = ($couponData['type'] ?? '') === 'gift_card' ? 'Gift Card' : 'Discount';
 
     $sym = ecCurrencySymbolFor($currencyCode);
@@ -621,6 +639,16 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
         'discount'       => $displayDiscount,
         'discount_fmt'   => $sym . number_format($displayDiscount, 2),
         'discount_label' => $discountLabel,
+        'non_loyalty_discount_amount' => $nonLoyaltyDiscount,
+        'non_loyalty_discount_amount_fmt' => $sym . number_format($nonLoyaltyDiscount, 2),
+        'coupon_discount_amount' => round($couponDiscount, 2),
+        'coupon_discount_amount_fmt' => $sym . number_format($couponDiscount, 2),
+        'loyalty_discount_amount' => round((float)($loyaltyData['discount_amount'] ?? 0.0), 2),
+        'loyalty_discount_amount_fmt' => $sym . number_format((float)($loyaltyData['discount_amount'] ?? 0.0), 2),
+        'loyalty_points_requested' => (int)($loyaltyData['requested_points'] ?? 0),
+        'loyalty_points_applied' => (int)($loyaltyData['applied_points'] ?? 0),
+        'loyalty_points_balance' => (int)($loyaltyData['balance'] ?? 0),
+        'loyalty_points_remaining_balance' => (int)($loyaltyData['remaining_balance'] ?? 0),
         'gift_card_amount' => round($giftCardCredit, 2),
         'gift_card_amount_fmt' => $sym . number_format($giftCardCredit, 2),
         'tax'            => round($tax, 2),

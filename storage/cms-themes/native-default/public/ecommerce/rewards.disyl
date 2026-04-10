@@ -1,0 +1,59 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront" data-native-ecommerce-template="rewards">
+    <header class="native-storefront-hero">
+        <div>
+            <p class="native-storefront-kicker">Account</p>
+            <h1>Rewards</h1>
+            <p class="native-storefront-subtitle">Loyalty activity across your ecommerce orders.</p>
+        </div>
+        <div class="native-actions">
+            <a href="{base_url}/ecommerce/my-orders" class="button button-secondary">Orders</a>
+            <a href="{base_url}/ecommerce/my-bookings" class="button button-secondary">Bookings</a>
+        </div>
+    </header>
+
+    <section class="native-storefront-panel">
+        <p class="native-storefront-kicker" style="margin:0;">Current Balance</p>
+        <h2 class="native-panel-title" style="margin-top:0.35rem;">{balance} points</h2>
+        <p class="native-note">Approximate storefront value: {balance_discount_fmt}</p>
+    </section>
+
+    {if entries | count == 0}
+    <div class="native-empty-state">
+        <h2>No rewards activity yet</h2>
+        <p class="native-note">Points appear here once orders begin earning or redeeming rewards.</p>
+    </div>
+    {else}
+    <section class="native-storefront-panel">
+        <div class="native-table-wrap">
+            <table class="native-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Activity</th>
+                        <th>Description</th>
+                        <th style="text-align:right;">Points</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach entries as entry}
+                    <tr>
+                        <td>{entry.created_at | date:'M j, Y g:i A'}</td>
+                        <td><strong>{entry.entry_type}</strong></td>
+                        <td>{entry.description | default:'Reward activity'}</td>
+                        <td style="text-align:right; color:{if entry.points >= 0}#047857{else}#c2410c{/if}; font-weight:700;">{if entry.points > 0}+{/if}{entry.points}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {/if}
+</div>
+{/block}

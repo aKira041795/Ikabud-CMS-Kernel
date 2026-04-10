@@ -94,6 +94,15 @@
                                 <div class="font-medium text-gray-900">{item.product_title}</div>
                                 {if item.variant_label}<div class="text-xs text-gray-500 mt-1">{item.variant_label}</div>{/if}
                                 {if item.sku}<div class="text-xs text-gray-400 mt-1">SKU: {item.sku}</div>{/if}
+                                {if item.selected_addons | count > 0}
+                                <div class="mt-2 text-xs text-gray-500">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</div>
+                                {/if}
+                                {if item.booking.has_booking}
+                                <div class="mt-2 text-xs text-sky-700">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</div>
+                                {/if}
+                                {if item.memberships | count > 0}
+                                <div class="mt-2 text-xs text-sky-700">Membership: {foreach item.memberships as membership}{membership.tier_label}{if !loop.last}, {/if}{/foreach}</div>
+                                {/if}
                                 {if item.license_key}
                                 <div class="mt-2 w-full max-w-full rounded bg-blue-50 px-2 py-2 text-xs text-blue-700">
                                     <div class="font-semibold uppercase tracking-wide text-[10px] text-blue-800">Key</div>
@@ -110,24 +119,30 @@
                     <tfoot class="bg-gray-50 border-t border-gray-200">
                         <tr>
                             <td colspan="3" class="px-5 py-2 text-sm text-gray-600">Subtotal</td>
-                            <td class="px-5 py-2 text-sm text-right text-gray-700">{order.currency_symbol | default:ec_settings.currency_symbol}{order.subtotal_amount | default:order.subtotal}</td>
+                            <td class="px-5 py-2 text-sm text-right text-gray-700">{order.subtotal_amount_fmt}</td>
                         </tr>
-                        {if order.discount_amount > 0}
+                        {if order.non_loyalty_discount_amount > 0}
                         <tr>
                             <td colspan="3" class="px-5 py-2 text-sm text-emerald-700">Discount</td>
-                            <td class="px-5 py-2 text-sm text-right text-emerald-700">−{order.currency_symbol | default:ec_settings.currency_symbol}{order.discount_amount}</td>
+                            <td class="px-5 py-2 text-sm text-right text-emerald-700">−{order.non_loyalty_discount_amount_fmt}</td>
+                        </tr>
+                        {/if}
+                        {if order.loyalty_points_redeemed > 0}
+                        <tr>
+                            <td colspan="3" class="px-5 py-2 text-sm text-orange-700">Loyalty ({order.loyalty_points_redeemed} pts)</td>
+                            <td class="px-5 py-2 text-sm text-right text-orange-700">−{order.loyalty_discount_amount_fmt}</td>
                         </tr>
                         {/if}
                         {if order.tax_amount > 0}
                         <tr>
                             <td colspan="3" class="px-5 py-2 text-sm text-gray-600">Tax</td>
-                            <td class="px-5 py-2 text-sm text-right text-gray-700">{order.currency_symbol | default:ec_settings.currency_symbol}{order.tax_amount}</td>
+                            <td class="px-5 py-2 text-sm text-right text-gray-700">{order.tax_amount_fmt}</td>
                         </tr>
                         {/if}
                         {if order.shipping_amount > 0}
                         <tr>
                             <td colspan="3" class="px-5 py-2 text-sm text-gray-600">Shipping</td>
-                            <td class="px-5 py-2 text-sm text-right text-gray-700">{order.currency_symbol | default:ec_settings.currency_symbol}{order.shipping_amount}</td>
+                            <td class="px-5 py-2 text-sm text-right text-gray-700">{order.shipping_amount_fmt}</td>
                         </tr>
                         {/if}
                         {if order.refund_summary.has_refunds}
@@ -138,11 +153,47 @@
                         {/if}
                         <tr>
                             <td colspan="3" class="px-5 py-3 font-bold text-gray-900">Total</td>
-                            <td class="px-5 py-3 text-right font-bold text-gray-900">{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</td>
+                            <td class="px-5 py-3 text-right font-bold text-gray-900">{order.total_amount_fmt}</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
+
+            {if order.memberships | count > 0 || order.bookings | count > 0}
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {if order.memberships | count > 0}
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h2 class="font-semibold text-gray-900 mb-3">Membership Activations</h2>
+                    <div class="space-y-3">
+                        {foreach order.memberships as membership}
+                        <div class="rounded-xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900">
+                            <div class="font-semibold">{membership.tier_label}</div>
+                            <div class="mt-1">Status: {membership.status}</div>
+                            {if membership.starts_at}<div class="mt-1 text-xs text-sky-700">Starts {membership.starts_at | date:'M j, Y g:i A'}</div>{/if}
+                            {if membership.ends_at}<div class="mt-1 text-xs text-sky-700">Ends {membership.ends_at | date:'M j, Y g:i A'}</div>{/if}
+                        </div>
+                        {/foreach}
+                    </div>
+                </div>
+                {/if}
+
+                {if order.bookings | count > 0}
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h2 class="font-semibold text-gray-900 mb-3">Booked Appointments</h2>
+                    <div class="space-y-3">
+                        {foreach order.bookings as booking}
+                        <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
+                            <div class="font-semibold">{booking.product_title}</div>
+                            <div class="mt-1">{booking.scheduled_for | date:'M j, Y g:i A'}</div>
+                            <div class="mt-1 text-xs text-indigo-700">Status: {booking.status}</div>
+                            {if booking.notes}<div class="mt-2 text-xs text-indigo-700">Notes: {booking.notes}</div>{/if}
+                        </div>
+                        {/foreach}
+                    </div>
+                </div>
+                {/if}
+            </div>
+            {/if}
 
             {if order.refunds | count > 0}
             <div class="bg-white rounded-xl border border-gray-200 p-5">

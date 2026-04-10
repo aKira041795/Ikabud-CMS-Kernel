@@ -37,6 +37,9 @@
         "ec_return_request_items",
         "ec_product_attributes",
         "ec_product_attribute_values",
+        "ec_memberships",
+        "ec_loyalty_ledger",
+        "ec_bookings",
         "rate_limits"
     ],
     "reads_tables": [
@@ -75,7 +78,8 @@
         "modules/ecommerce/database/migrations/021_ec_product_bundles.sql",
         "modules/ecommerce/database/migrations/022_ec_subscriptions.sql",
         "modules/ecommerce/database/migrations/023_ec_cart_item_currency.sql",
-        "modules/ecommerce/database/migrations/024_ec_return_requests.sql"
+        "modules/ecommerce/database/migrations/024_ec_return_requests.sql",
+        "modules/ecommerce/database/migrations/025_ec_phase6_product_options_and_loyalty.sql"
     ],
     "capabilities": {
         "exposes": [

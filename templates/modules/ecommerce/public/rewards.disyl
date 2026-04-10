@@ -1,0 +1,53 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Rewards</h1>
+            <p class="mt-1 text-sm text-gray-500">Track earned and redeemed loyalty points from your ecommerce orders.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="{base_url}/ecommerce/my-orders" class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-gray-700 hover:bg-gray-50">Orders</a>
+            <a href="{base_url}/ecommerce/my-memberships" class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-700 hover:bg-sky-100">Memberships</a>
+            <a href="{base_url}/ecommerce/my-bookings" class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-indigo-700 hover:bg-indigo-100">Bookings</a>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 p-6">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Current Balance</div>
+        <div class="mt-2 text-3xl font-bold text-gray-900">{balance}</div>
+        <div class="mt-1 text-sm text-gray-600">Approximate storefront value: {balance_discount_fmt}</div>
+    </div>
+
+    {if entries | count == 0}
+    <div class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
+        <div class="text-lg font-semibold text-gray-900">No rewards activity yet</div>
+        <p class="mt-2 text-sm text-gray-500">Points appear here after paid orders start earning or redeeming rewards.</p>
+    </div>
+    {else}
+    <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                    <th class="px-4 py-3 text-left">Date</th>
+                    <th class="px-4 py-3 text-left">Activity</th>
+                    <th class="px-4 py-3 text-left">Description</th>
+                    <th class="px-4 py-3 text-right">Points</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {foreach entries as entry}
+                <tr>
+                    <td class="px-4 py-3 text-gray-500">{entry.created_at | date:'M j, Y g:i A'}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900">{entry.entry_type}</td>
+                    <td class="px-4 py-3 text-gray-600">{entry.description | default:'Reward activity'}</td>
+                    <td class="px-4 py-3 text-right font-semibold {if entry.points >= 0}text-emerald-700{else}text-orange-700{/if}">{if entry.points > 0}+{/if}{entry.points}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+    {/if}
+</div>
+{/block}

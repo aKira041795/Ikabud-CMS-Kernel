@@ -558,8 +558,9 @@ function ecOrderCreate(array $data): array
             foreach ($data['cart_items'] as $item) {
                 $unitPrice = (float)($item['price_snapshot'] ?? 0);
                 $qty       = max(1, (int)($item['qty'] ?? 1));
+                $snapshotJson = trim((string)($item['options_json'] ?? (function_exists('ecCartCanonicalOptionsJson') ? ecCartCanonicalOptionsJson($item) : '')));
 
-                $itemValues[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                $itemValues[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
                 array_push(
                     $itemParams,
                     $orderId,
@@ -570,7 +571,8 @@ function ecOrderCreate(array $data): array
                     $unitPrice,
                     $qty,
                     round($unitPrice * $qty, 2),
-                    $item['variant_label'] ?? null
+                    $item['variant_label'] ?? null,
+                    $snapshotJson !== '' ? $snapshotJson : null
                 );
                 // WMS becomes the stock authority once the order-created bridge is active.
                 if (!$wmsAuthorityActive) {
@@ -579,7 +581,7 @@ function ecOrderCreate(array $data): array
             }
             if ($itemValues) {
                 $db->execute(
-                    "INSERT INTO ec_order_items (order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label) VALUES " . implode(', ', $itemValues),
+                    "INSERT INTO ec_order_items (order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label, snapshot_json) VALUES " . implode(', ', $itemValues),
                     $itemParams
                 );
             }
@@ -609,6 +611,12 @@ function ecOrderCreate(array $data): array
         }
         if (!empty($data['shipping_rate_id'])) {
             $meta['shipping_rate_id'] = $data['shipping_rate_id'];
+        }
+        if (!empty($data['loyalty_points_redeemed'])) {
+            $meta['loyalty_points_redeemed'] = (string)((int)$data['loyalty_points_redeemed']);
+        }
+        if (!empty($data['loyalty_discount_amount'])) {
+            $meta['loyalty_discount_amount'] = (string)round((float)$data['loyalty_discount_amount'], 2);
         }
         if ($paymentGateway === 'manual') {
             $meta['payment_manual_mode'] = $manualPaymentMode;
@@ -666,6 +674,14 @@ function ecOrderCreate(array $data): array
             'trace'  => $e->getTraceAsString(),
         ]);
         throw $e;
+    }
+
+    if (function_exists('ecBookingCreatePendingRecordsForOrder')) {
+        try {
+            ecBookingCreatePendingRecordsForOrder($orderId);
+        } catch (\Throwable $e) {
+            write_log('ecBookingCreatePendingRecordsForOrder failed: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce', 'order_id' => $orderId]);
+        }
     }
 
     $createdEventPayload = ecBuildOrderCreatedEventPayload($orderId, $orderNumber, $data, $source, $bridgeSnapshot);
@@ -948,9 +964,14 @@ function ecOrderHydrateData(array $order): array
     $order['discount_amount'] = (float)($order['discount_amount'] ?? 0);
     $order['tax_amount'] = (float)($order['tax_amount'] ?? 0);
     $order['shipping_amount'] = (float)($order['shipping_amount'] ?? 0);
+    $order['loyalty_points_redeemed'] = max(0, (int)($meta['loyalty_points_redeemed'] ?? 0));
+    $order['loyalty_discount_amount'] = max(0.0, (float)($meta['loyalty_discount_amount'] ?? 0.0));
+    $order['non_loyalty_discount_amount'] = max(0.0, round((float)$order['discount_amount'] - (float)$order['loyalty_discount_amount'], 2));
     $order['total_amount_fmt'] = ecCurrencyFormatAmount((float)$order['total_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
     $order['subtotal_amount_fmt'] = ecCurrencyFormatAmount((float)$order['subtotal_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
     $order['discount_amount_fmt'] = ecCurrencyFormatAmount((float)$order['discount_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
+    $order['non_loyalty_discount_amount_fmt'] = ecCurrencyFormatAmount((float)$order['non_loyalty_discount_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
+    $order['loyalty_discount_amount_fmt'] = ecCurrencyFormatAmount((float)$order['loyalty_discount_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
     $order['tax_amount_fmt'] = ecCurrencyFormatAmount((float)$order['tax_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
     $order['shipping_amount_fmt'] = ecCurrencyFormatAmount((float)$order['shipping_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
     $order['billing'] = $billing;
@@ -972,6 +993,9 @@ function ecOrderHydrateData(array $order): array
         $item['refundable_qty'] = max(0, (int)($item['qty'] ?? 0) - $refundedQty);
         $item['currency'] = (string)$order['currency'];
         $item['currency_symbol'] = (string)$order['currency_symbol'];
+        if (function_exists('ecHydrateLineItemOptions')) {
+            $item = ecHydrateLineItemOptions($item, (string)$order['currency']);
+        }
         $item['unit_price_fmt'] = ecCurrencyFormatAmount((float)($item['unit_price'] ?? 0), (string)$order['currency'], (string)$order['currency_symbol']);
         $item['line_total_fmt'] = ecCurrencyFormatAmount((float)($item['line_total'] ?? 0), (string)$order['currency'], (string)$order['currency_symbol']);
     }
@@ -1002,6 +1026,38 @@ function ecOrderHydrateData(array $order): array
             if (isset($subscriptionsByItem[$iid])) {
                 $itm['subscriptions'] = $subscriptionsByItem[$iid];
                 $itm['subscription'] = $subscriptionsByItem[$iid][0] ?? null;
+            }
+        }
+        unset($itm);
+    }
+
+    if (!empty($order['items']) && !empty($order['memberships'])) {
+        $membershipsByItem = [];
+        foreach ($order['memberships'] as $membership) {
+            $membershipsByItem[(int)($membership['order_item_id'] ?? 0)][] = function_exists('ecMembershipNormalizeRow')
+                ? ecMembershipNormalizeRow($membership)
+                : $membership;
+        }
+        foreach ($order['items'] as &$itm) {
+            $iid = (int)($itm['id'] ?? 0);
+            if (isset($membershipsByItem[$iid])) {
+                $itm['memberships'] = $membershipsByItem[$iid];
+                $itm['membership'] = $membershipsByItem[$iid][0] ?? null;
+            }
+        }
+        unset($itm);
+    }
+
+    if (!empty($order['items']) && !empty($order['bookings'])) {
+        $bookingsByItem = [];
+        foreach ($order['bookings'] as $booking) {
+            $bookingsByItem[(int)($booking['order_item_id'] ?? 0)][] = $booking;
+        }
+        foreach ($order['items'] as &$itm) {
+            $iid = (int)($itm['id'] ?? 0);
+            if (isset($bookingsByItem[$iid])) {
+                $itm['bookings'] = $bookingsByItem[$iid];
+                $itm['booking_record'] = $bookingsByItem[$iid][0] ?? null;
             }
         }
         unset($itm);
@@ -1150,6 +1206,12 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         $order['subscriptions'] = function_exists('ecSubscriptionsForOrder')
             ? ecSubscriptionsForOrder($id)
+            : [];
+        $order['memberships'] = function_exists('ecMembershipStorageAvailable') && ecMembershipStorageAvailable()
+            ? (ecDb()->query('SELECT * FROM ec_memberships WHERE order_id = ? ORDER BY id ASC', [$id])->fetchAll(\PDO::FETCH_ASSOC) ?: [])
+            : [];
+        $order['bookings'] = function_exists('ecBookingsForOrder')
+            ? ecBookingsForOrder($id)
             : [];
 
         try {
@@ -2089,6 +2151,18 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
                     $ids
                 )->fetchAll(\PDO::FETCH_COLUMN) ?: [])
                 : [];
+            $membershipOrderIds = function_exists('ecMembershipStorageAvailable') && ecMembershipStorageAvailable()
+                ? (ecDb()->query(
+                    "SELECT DISTINCT order_id FROM ec_memberships WHERE order_id IN ($placeholders)",
+                    $ids
+                )->fetchAll(\PDO::FETCH_COLUMN) ?: [])
+                : [];
+            $bookingOrderIds = function_exists('ecBookingStorageAvailable') && ecBookingStorageAvailable()
+                ? (ecDb()->query(
+                    "SELECT DISTINCT order_id FROM ec_bookings WHERE order_id IN ($placeholders)",
+                    $ids
+                )->fetchAll(\PDO::FETCH_COLUMN) ?: [])
+                : [];
             $returnRequestOrderIds = ecReturnRequestStorageAvailable()
                 ? (ecDb()->query(
                     "SELECT DISTINCT order_id FROM ec_return_requests WHERE order_id IN ($placeholders)",
@@ -2097,10 +2171,14 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
                 : [];
             $licenseSet = array_flip((array)$licenseOrderIds);
             $subscriptionSet = array_flip((array)$subscriptionOrderIds);
+            $membershipSet = array_flip((array)$membershipOrderIds);
+            $bookingSet = array_flip((array)$bookingOrderIds);
             $returnRequestSet = array_flip((array)$returnRequestOrderIds);
             foreach ($items as &$item) {
                 $item['has_licenses'] = isset($licenseSet[$item['id']]);
                 $item['has_subscriptions'] = isset($subscriptionSet[$item['id']]);
+                $item['has_memberships'] = isset($membershipSet[$item['id']]);
+                $item['has_bookings'] = isset($bookingSet[$item['id']]);
                 $item['has_return_requests'] = isset($returnRequestSet[$item['id']]);
             }
             unset($item);

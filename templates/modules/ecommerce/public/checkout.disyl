@@ -143,15 +143,22 @@
                 <div class="space-y-2 text-sm mb-4">
                     {foreach cart.items as item}
                     <div class="flex justify-between">
-                        <span class="text-gray-600 truncate mr-2">{item.product_title} × {item.qty}</span>
+                        <span class="text-gray-600 truncate mr-2">
+                            {item.product_title} × {item.qty}
+                            {if item.selected_addons | count > 0}<span class="block text-xs text-gray-400">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</span>{/if}
+                            {if item.booking.has_booking}<span class="block text-xs text-sky-700">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</span>{/if}
+                        </span>
                         <span class="text-gray-900 font-medium shrink-0">{item.line_total_fmt}</span>
                     </div>
                     {/foreach}
                 </div>
                 <div class="border-t border-gray-200 pt-3 space-y-1.5 text-sm">
                     <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{checkout_totals.subtotal_fmt}</span></div>
-                    {if checkout_totals.discount > 0}
-                    <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{checkout_totals.discount_fmt}</span></div>
+                    {if checkout_totals.non_loyalty_discount_amount > 0}
+                    <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{checkout_totals.non_loyalty_discount_amount_fmt}</span></div>
+                    {/if}
+                    {if checkout_totals.loyalty_points_applied > 0}
+                    <div class="flex justify-between text-orange-600"><span>Loyalty ({checkout_totals.loyalty_points_applied} pts)</span><span>−{checkout_totals.loyalty_discount_amount_fmt}</span></div>
                     {/if}
                     <div id="checkout-tax-row" class="flex justify-between text-gray-600{if checkout_totals.tax <= 0} hidden{/if}"><span id="checkout-tax-label">{checkout_totals.tax_label | default:'Tax'}</span><span id="checkout-tax-value">{checkout_totals.tax_fmt}</span></div>
                     {if requires_shipping}

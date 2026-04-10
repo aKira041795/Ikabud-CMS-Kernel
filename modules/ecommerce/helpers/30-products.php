@@ -328,7 +328,7 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
         try {
             $metaStmt = $db->query(
                 "SELECT meta_key, meta_value FROM cms_content_meta
-                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days','_download_file_path','_download_file_name','_tax_class','seo_title','seo_description','_builder_seo_settings','_is_external_product','_external_product_url','_external_product_button_text','_is_subscription','_subscription_interval_unit','_subscription_interval_count','_subscription_trial_days','_subscription_max_cycles','_subscription_grace_period_days')",
+                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days','_download_file_path','_download_file_name','_tax_class','seo_title','seo_description','_builder_seo_settings','_is_external_product','_external_product_url','_external_product_button_text','_is_subscription','_subscription_interval_unit','_subscription_interval_count','_subscription_trial_days','_subscription_max_cycles','_subscription_grace_period_days','_is_membership_product','_membership_tier','_membership_duration_days','_required_membership_tiers','_product_addons','_booking_enabled','_booking_duration_minutes','_booking_notice_hours','_booking_available_weekdays','_booking_time_slots')",
                 [$id]
             );
             $metaRows = $metaStmt ? $metaStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
@@ -348,6 +348,15 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
         $row['tax_class']             = ecProductNormalizeTaxClass((string)($metaMap['_tax_class'] ?? 'standard'));
         $external = ecProductExternalMetaFromMetaMap($metaMap);
         $subscription = ecProductSubscriptionMetaFromMetaMap($metaMap, $row['pricing']);
+        $membership = function_exists('ecProductMembershipMetaFromMetaMap')
+            ? ecProductMembershipMetaFromMetaMap($metaMap)
+            : ['is_membership_product' => false, 'membership_tier' => '', 'membership_duration_days' => 365, 'required_membership_tiers' => [], 'membership_summary' => []];
+        $addons = function_exists('ecProductAddonConfigFromMetaMap')
+            ? ecProductAddonConfigFromMetaMap($metaMap)
+            : [];
+        $booking = function_exists('ecProductBookingConfigFromMetaMap')
+            ? ecProductBookingConfigFromMetaMap($metaMap)
+            : ['enabled' => false];
         $row['is_external_product']   = $external['is_external_product'];
         $row['external_product_url']  = $external['external_product_url'];
         $row['external_product_button_text'] = $external['external_product_button_text'];
@@ -359,8 +368,17 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
         $row['subscription_max_cycles'] = $subscription['subscription_max_cycles'];
         $row['subscription_grace_period_days'] = $subscription['subscription_grace_period_days'];
         $row['subscription_summary']   = $subscription['subscription_summary'];
+        $row['is_membership_product'] = $membership['is_membership_product'];
+        $row['membership_tier'] = $membership['membership_tier'];
+        $row['membership_duration_days'] = $membership['membership_duration_days'];
+        $row['required_membership_tiers'] = $membership['required_membership_tiers'];
+        $row['membership_summary'] = $membership['membership_summary'];
+        $row['addons'] = $addons;
+        $row['booking'] = $booking;
         if (!$row['is_external_product'] && is_array($row['bundle_children'] ?? null) && $row['bundle_children'] !== []) {
             $row['product_type'] = 'bundle';
+        } elseif (!$row['is_external_product'] && $row['is_membership_product']) {
+            $row['product_type'] = 'membership';
         } elseif (!$row['is_external_product'] && $row['is_subscription']) {
             $row['product_type'] = 'subscription';
         }
@@ -1118,6 +1136,11 @@ function ecProductBridgeEventPayload(int $productId): array
         'is_active' => $status === 'published' ? 1 : 0,
         'sku' => trim((string)($inventory['sku'] ?? '')),
         'product_type' => trim((string)($product['product_type'] ?? 'physical')),
+        'is_membership_product' => !empty($product['is_membership_product']),
+        'membership_tier' => trim((string)($product['membership_tier'] ?? '')),
+        'required_membership_tiers' => is_array($product['required_membership_tiers'] ?? null) ? array_values($product['required_membership_tiers']) : [],
+        'booking_enabled' => !empty($product['booking']['enabled']),
+        'addon_count' => is_array($product['addons'] ?? null) ? count($product['addons']) : 0,
         'track_stock' => (bool)($inventory['track_stock'] ?? false),
         'stock_qty' => array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : null,
         'price' => array_key_exists('price', $pricing) && $pricing['price'] !== null ? (float)$pricing['price'] : null,
@@ -1507,6 +1530,18 @@ function ecStorefrontHydrateProduct(array $product): array
     if (!is_array($product['gallery_images'] ?? null)) {
         $product['gallery_images'] = [];
     }
+    if (!is_array($product['addons'] ?? null)) {
+        $product['addons'] = [];
+    }
+    if (!is_array($product['booking'] ?? null)) {
+        $product['booking'] = function_exists('ecProductBookingDefaults') ? ecProductBookingDefaults() : ['enabled' => false];
+    }
+    if (!is_array($product['required_membership_tiers'] ?? null)) {
+        $product['required_membership_tiers'] = [];
+    }
+    if (!is_array($product['membership_summary'] ?? null)) {
+        $product['membership_summary'] = function_exists('ecProductMembershipDefaults') ? ecProductMembershipDefaults()['membership_summary'] : [];
+    }
 
     $featuredImageUrl = trim((string)($product['featured_image_url'] ?? ''));
     if ($featuredImageUrl === '' && !empty($product['featured_image'])) {
@@ -1557,6 +1592,9 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
     if ($saleBadgeText === '') {
         $saleBadgeText = ecStorefrontSaleBadgeText($pricing);
     }
+    $membershipGate = function_exists('ecMembershipGateForProduct')
+        ? ecMembershipGateForProduct($product)
+        : ['allowed' => true, 'requires_membership' => false, 'login_required' => false, 'required_tiers' => [], 'active_tiers' => [], 'message' => ''];
 
     return [
         'id' => $productId,
@@ -1576,6 +1614,13 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
         'is_external_product' => !empty($product['is_external_product']),
         'external_product_url' => trim((string)($product['external_product_url'] ?? '')),
         'external_product_button_text' => trim((string)($product['external_product_button_text'] ?? '')),
+        'is_membership_product' => !empty($product['is_membership_product']),
+        'membership_tier' => trim((string)($product['membership_tier'] ?? '')),
+        'membership_summary' => is_array($product['membership_summary'] ?? null) ? $product['membership_summary'] : [],
+        'required_membership_tiers' => is_array($product['required_membership_tiers'] ?? null) ? array_values($product['required_membership_tiers']) : [],
+        'membership_gate' => $membershipGate,
+        'addons' => is_array($product['addons'] ?? null) ? array_values($product['addons']) : [],
+        'booking' => is_array($product['booking'] ?? null) ? $product['booking'] : ['enabled' => false],
         'bundle_summary' => $bundleSummary,
         'subscription_summary' => $subscriptionSummary,
         'categories' => ecStorefrontNormalizeCategories(is_array($product['categories'] ?? null) ? $product['categories'] : []),
@@ -1755,6 +1800,9 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
             'gallery_images' => $galleryImages,
             'categories' => $categories,
             'attributes' => is_array($product['attributes'] ?? null) ? $product['attributes'] : [],
+            'addons' => is_array($product['addons'] ?? null) ? array_values($product['addons']) : [],
+            'booking' => is_array($product['booking'] ?? null) ? $product['booking'] : ['enabled' => false],
+            'membership_gate' => is_array($catalogItem['membership_gate'] ?? null) ? $catalogItem['membership_gate'] : ['allowed' => true],
             'reviews' => is_array($product['reviews'] ?? null) ? $product['reviews'] : [],
             'bundle_children' => array_map(static function (array $child): array {
                 $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
@@ -1872,6 +1920,27 @@ function ecProductCreate(array $data, int $authorId = 0): int
     ) {
         ecProductSaveSubscriptionMeta($productId, $data);
     }
+    if (
+        array_key_exists('is_membership_product', $data)
+        || array_key_exists('membership_tier', $data)
+        || array_key_exists('membership_duration_days', $data)
+        || array_key_exists('required_membership_tiers', $data)
+        || array_key_exists('required_membership_tiers_text', $data)
+    ) {
+        ecProductSaveMembershipMeta($productId, $data);
+    }
+    if (array_key_exists('addon_lines', $data)) {
+        ecProductSaveAddonMeta($productId, $data);
+    }
+    if (
+        array_key_exists('booking_enabled', $data)
+        || array_key_exists('booking_duration_minutes', $data)
+        || array_key_exists('booking_notice_hours', $data)
+        || array_key_exists('booking_available_weekdays', $data)
+        || array_key_exists('booking_time_slots', $data)
+    ) {
+        ecProductSaveBookingMeta($productId, $data);
+    }
     ecProductSaveSeoMeta($productId, $data);
 
     if (function_exists('cmsSyncMediaUsage')) {
@@ -1972,6 +2041,27 @@ function ecProductUpdate(int $id, array $data): void
         || array_key_exists('subscription_grace_period_days', $data)
     ) {
         ecProductSaveSubscriptionMeta($id, $data);
+    }
+    if (
+        array_key_exists('is_membership_product', $data)
+        || array_key_exists('membership_tier', $data)
+        || array_key_exists('membership_duration_days', $data)
+        || array_key_exists('required_membership_tiers', $data)
+        || array_key_exists('required_membership_tiers_text', $data)
+    ) {
+        ecProductSaveMembershipMeta($id, $data);
+    }
+    if (array_key_exists('addon_lines', $data)) {
+        ecProductSaveAddonMeta($id, $data);
+    }
+    if (
+        array_key_exists('booking_enabled', $data)
+        || array_key_exists('booking_duration_minutes', $data)
+        || array_key_exists('booking_notice_hours', $data)
+        || array_key_exists('booking_available_weekdays', $data)
+        || array_key_exists('booking_time_slots', $data)
+    ) {
+        ecProductSaveBookingMeta($id, $data);
     }
 
     if (

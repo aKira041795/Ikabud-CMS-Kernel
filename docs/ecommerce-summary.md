@@ -2,74 +2,78 @@
 
 ## Purpose
 
-This document summarizes the current Ecommerce module, identifies the highest-value feature gaps against WooCommerce core plus key extensions, and turns that gap analysis into an execution plan that can be implemented incrementally without breaking the existing CMS, Integration Bridge, or WMS boundaries.
+This document summarizes the current Ecommerce module, records the WooCommerce-style expansion work now shipped through Phase 6, and captures the narrower follow-on gaps that remain after the main roadmap closeout.
 
 ## Current Ecommerce Feature Set
 
 ### Catalog and Product Model
 
 - Products are implemented as CMS content records with type `product`.
-- Supported product behaviors today: simple products, variants, digital products, grouped products, bundle products, subscription products, and external or affiliate products.
-- Catalog support already includes categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking, product SEO metadata, attributes, and faceted filtering.
+- Supported product behaviors today: simple products, variants, digital products, grouped products, bundle products, subscription products, membership products, bookable service products, and external or affiliate products.
+- Catalog support already includes categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking, product SEO metadata, attributes, faceted filtering, related products, upsells, cross-sells, comparison, recently viewed products, and fixed-price product add-ons.
+- Membership-gated product access and membership activation products now live on the same CMS content model instead of a parallel product system.
 - Storefront rendering is aligned to the CMS entity-view and entity-list contracts rather than a standalone storefront renderer.
 
 ### Cart, Checkout, and Orders
 
 - Cart supports guest sessions and registered customer persistence.
-- Checkout supports guest checkout, shipping, tax calculation, coupon application, manual or gateway payment selection, and subscription-aware cart validation for recurring products.
+- Checkout supports guest checkout, shipping, tax calculation, coupon and gift card application, loyalty point redemption, manual or gateway payment selection, subscription-aware cart validation for recurring products, fixed-price add-ons, and bookable appointment selections.
 - Order lifecycle supports pending, processing, shipped, delivered, cancelled, and refunded states.
 - Customer returns now support order-level return requests with admin approval and optional WMS return intake.
-- Order history, order detail, and guest confirmation flows already exist.
+- Order history, order detail, shipment tracking, and guest confirmation flows already exist.
+- Customers now have dedicated account surfaces for rewards, memberships, bookings, returns, and comparison-aware order history badges.
 - Customers can build a short comparison shortlist and review products side by side from the storefront.
 
 ### Payments and Fulfillment
 
 - Manual payments are supported, including pay-on-delivery style flows.
-- PayMongo is implemented as the primary gateway for card and wallet methods.
+- PayMongo, Stripe, and PayPal are implemented for hosted gateway flows, webhook verification, and refund-aware payment handling.
 - POS flows exist for in-store transactions.
 - Digital product license issuance and download delivery are already implemented.
+- Shipment tracking and refund-side gateway reversal support already exist.
 
 ### Merchant Operations
 
-- Admin flows already exist for products, orders, categories, coupons, customers, reports, email templates, and settings.
+- Admin flows already exist for products, orders, categories, coupons and gift cards, customers, reports, email templates, webhooks, abandoned carts, import/export, and settings.
 - Sales and inventory reporting already exist.
 - Coupon management already exists, including gift cards backed by remaining-balance store credit.
 - Customer address storage already exists.
 
 ### Integration and Warehouse Connectivity
 
-- Integration Bridge support already exists for ecommerce to WMS order reservation, order creation, cancellation, release, status sync, and payment sync.
+- Integration Bridge support already exists for ecommerce to WMS order reservation, order creation, cancellation, release, refund release, status sync, shipment tracking sync, and payment sync.
 - Product authority modes already exist for WMS-authoritative or ecommerce-authoritative sync.
 - WMS can already act as stock authority when the relevant bridges are active.
 
+## Roadmap Status Snapshot
+
+- Phase 1 is complete: reviews, product relations, attributes and filtering, tax classes, refund infrastructure, and product SEO are all shipped.
+- Phase 2 is complete: Stripe, PayPal, table-rate shipping, shipment tracking, and gateway-aware refunds are shipped.
+- Phase 3 is complete for the intended bridge seams: refund release, shipment tracking sync, and the related WMS order/payment lifecycle bridges are active.
+- Phase 4 is complete for the planned scope: abandoned carts, outbound webhooks, import/export, gift cards, customer-facing order note visibility, and recently viewed merchandising are shipped.
+- Phase 5 is complete: grouped products, bundles, subscriptions, and multi-currency are shipped.
+- Phase 6 is complete: comparison, memberships, loyalty, add-ons, and bookings are shipped.
+
 ## Benchmark Gap Analysis
 
-The module is already a solid commerce base. The highest-value gaps relative to WooCommerce core plus key extensions are below.
+The original six-phase WooCommerce benchmark captured in this document is now effectively complete. The remaining work is no longer about missing whole feature families; it is about depth, polish, and adjacent merchant tooling.
 
-### High-Priority Gaps
+### High-Priority Follow-On Gaps
 
-- Product reviews and ratings
-- Related products, upsells, and cross-sells
-- Product attributes and faceted filtering
-- Multi-region tax rules and tax classes
-- Stripe gateway
-- PayPal gateway
-- Partial and full refund infrastructure with gateway reversal support
+- Deeper booking operations: reschedule and cancel windows, reminder notifications, and capacity-aware calendar controls
+- Broader membership reach beyond catalog gating, if entitlement checks need to extend into CMS pages, posts, or tenant capabilities
 
-### Medium-Priority Gaps
+### Medium-Priority Follow-On Gaps
 
-- Table-rate shipping
-- Shipment tracking numbers
-- Refund gateway reversal flows
+- Customer segmentation and tier-based pricing
+- Back-in-stock notifications and richer inventory alerting
+- Variant image mapping and richer merchandising media rules
 
-### Lower-Priority Gaps
+### Lower-Priority Follow-On Gaps
 
-- Memberships
-- Loyalty points and rewards
-- Product add-ons
-- Product comparison
-- Bookings and appointments
-- Customer-facing order notes and timeline visibility
+- Referral and affiliate programs
+- Accounting and finance export adapters
+- Live carrier quote integrations beyond the current table-rate and configured shipping rules
 
 ## Constraints and Design Rules
 
@@ -79,9 +83,9 @@ The module is already a solid commerce base. The highest-value gaps relative to 
 - Do not force WMS integration into phase 1 features. Design the contracts early and wire the bridges only after the core ecommerce capability exists.
 - Preserve module boundaries: Ecommerce owns catalog, checkout, and order intent; WMS owns warehouse execution and stock operations when configured as authority.
 
-## Actionable Implementation Plan
+## Historical Roadmap and Status
 
-## Phase 1: Core Commerce Hardening
+## Phase 1: Core Commerce Hardening (Complete)
 
 Objective: close the most visible WooCommerce core gaps without destabilizing checkout.
 
@@ -206,7 +210,7 @@ Acceptance criteria:
 
 - Product pages expose the configured metadata in page output.
 
-## Phase 2: Payments and Shipping Expansion
+## Phase 2: Payments and Shipping Expansion (Complete)
 
 Objective: make the checkout stack commercially viable for a broader set of merchants.
 
@@ -273,7 +277,7 @@ Primary touchpoints:
 - `modules/ecommerce/helpers/70-payment-gateways.php`
 - Refund helper and order admin refund flow
 
-## Phase 3: Integration Bridge and WMS Wiring
+## Phase 3: Integration Bridge and WMS Wiring (Complete)
 
 Objective: wire the new ecommerce features into warehouse and integration flows after the ecommerce-side contracts are stable.
 
@@ -309,16 +313,17 @@ Deliverables:
 - Extend authoritative product sync payloads to include attributes relevant to storefront filtering and shipping.
 - Use WMS-originated weight data when WMS is active as stock and fulfillment authority.
 
-## Phase 4: Conversion and Operational Features
+## Phase 4: Conversion and Operational Features (Complete)
 
 Objective: improve merchant retention, marketing, and interoperability.
 
 - Abandoned cart recovery
 - Outbound webhooks with signed payloads and delivery logs
 - Product, order, and customer CSV import and export
+- Recently viewed products
 - Customer-facing order notes and order timeline visibility
 
-## Phase 5: Advanced Product Types and Revenue Models
+## Phase 5: Advanced Product Types and Revenue Models (Complete)
 
 Objective: expand the product model without collapsing the current catalog architecture.
 
@@ -326,56 +331,50 @@ Objective: expand the product model without collapsing the current catalog archi
 - Subscription products
 - Multi-currency storefront pricing, checkout, and order snapshots
 
-## Phase 6: Loyalty and Extended Commerce Features
+## Phase 6: Loyalty and Extended Commerce Features (Complete)
 
 Objective: add strategic extensions after the core stack is stable.
 
-Implemented in this phase so far:
+Implemented in this phase:
 
 - Product comparison
+- Membership products and membership-gated catalog access
+- Loyalty earning and redemption with cart, checkout, order, and account visibility
+- Fixed-price product add-ons persisted through cart and order snapshots
+- Bookings and appointments with product configuration, cart validation, pending order records, and paid-order confirmation
+- Shared and native theme account surfaces for memberships, bookings, and rewards
 
-Remaining phase 6 scope:
+Residual follow-on gaps after phase 6 closeout:
 
-- Memberships and gated access
-- Loyalty points and rewards
-- Product add-ons
-- Bookings and appointments
+- Booking depth is still intentionally lightweight; reminder emails, staff or resource scheduling, and richer calendar management are not part of the current implementation.
+- Membership breadth is currently ecommerce-focused; extending the same entitlement model into general CMS content gating would be a separate follow-on slice.
+- Validation for this closeout now includes `tests/ecommerce_phase6_features_test.php` plus regression coverage for subscriptions and comparison flows.
 
-## Recommended Build Order
+## Next Recommended Build Order
 
-Implement in this order:
+With the main roadmap complete, implement the remaining follow-on work in this order:
 
-1. Reviews and ratings
-2. Product relations
-3. Attributes and filtering
-4. Tax engine replacement
-5. Refund infrastructure
-6. Stripe gateway
-7. PayPal gateway
-8. Table-rate shipping
-9. Shipment tracking
-10. Bridge and WMS wiring for refunds, tracking, and weight-driven shipping
-11. Conversion features
-12. Advanced product types and loyalty features
+1. Booking reminders and reschedule or cancel workflows
+2. CMS-wide membership or entitlement gating, if needed outside the storefront
+3. Customer segmentation and tier pricing
+4. Back-in-stock notifications
+5. Variant-aware merchandising refinements such as variant image mapping
 
-## First Execution Slice
+## Next Execution Slice
 
-The first build slice should be Reviews and Ratings because it is high-value, low-risk, and mostly isolated from payment and order flows.
+The next build slice should be booking reminders and reschedule or cancel workflows because bookings now exist end to end, and operational depth is the most meaningful remaining gap in the shipped storefront experience.
 
-Definition of done for the first slice:
+Definition of done for that slice:
 
-- Migration created
-- Review helper added to loader
-- Review handler added to loader
-- Routes added for submit, list, moderate, approve, reject
-- Product detail flow renders approved reviews and aggregate rating
-- Admin moderation path exists
+- Booking records support merchant-controlled reminder timing and customer-visible reschedule or cancel rules
+- Account and order-detail surfaces expose the new booking actions without breaking existing purchase flows
+- Shared and native theme output stay in parity
 - Integration-style test added
 - Application and PHP error logs checked after test execution
 
 ## Success Criteria
 
-- The ecommerce module closes the major WooCommerce parity gaps without abandoning the CMS entity-view model.
+- The ecommerce module has closed the major WooCommerce parity gaps in this roadmap without abandoning the CMS entity-view model.
 - New payment, shipping, and refund capabilities stay compatible with the existing Integration Bridge architecture.
 - WMS integration remains staggered and explicit rather than embedded into early-phase catalog or checkout changes.
-- Each phase is independently shippable and testable.
+- Remaining follow-on slices stay independently shippable and testable.

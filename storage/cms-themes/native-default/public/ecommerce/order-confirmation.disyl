@@ -31,9 +31,14 @@
                     <tbody>
                         {foreach order.items as item}
                         <tr>
-                            <td>{item.product_title}</td>
+                            <td>
+                                {item.product_title}
+                                {if item.selected_addons | count > 0}<div class="native-note">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</div>{/if}
+                                {if item.booking.has_booking}<div class="native-note" style="color:#1d4ed8;">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</div>{/if}
+                                {if item.memberships | count > 0}<div class="native-note" style="color:#0369a1;">Membership: {foreach item.memberships as membership}{membership.tier_label}{if !loop.last}, {/if}{/foreach}</div>{/if}
+                            </td>
                             <td style="text-align:center;">{item.qty}</td>
-                            <td style="text-align:right;"><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{item.line_total}</strong></td>
+                            <td style="text-align:right;"><strong>{item.line_total_fmt}</strong></td>
                         </tr>
                         {/foreach}
                     </tbody>
@@ -45,18 +50,35 @@
             <section class="native-storefront-panel">
                 <h2 class="native-panel-title">Summary</h2>
                 <div class="native-summary-list">
-                    {if order.discount_amount > 0}
-                    <div class="native-summary-row"><span>Discount</span><strong>-{order.currency_symbol | default:ec_settings.currency_symbol}{order.discount_amount}</strong></div>
+                    {if order.non_loyalty_discount_amount > 0}
+                    <div class="native-summary-row"><span>Discount</span><strong>-{order.non_loyalty_discount_amount_fmt}</strong></div>
+                    {/if}
+                    {if order.loyalty_points_redeemed > 0}
+                    <div class="native-summary-row"><span>Loyalty ({order.loyalty_points_redeemed} pts)</span><strong>-{order.loyalty_discount_amount_fmt}</strong></div>
                     {/if}
                     {if order.tax_amount > 0}
-                    <div class="native-summary-row"><span>Tax</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.tax_amount}</strong></div>
+                    <div class="native-summary-row"><span>Tax</span><strong>{order.tax_amount_fmt}</strong></div>
                     {/if}
                     {if order.shipping_amount > 0}
-                    <div class="native-summary-row"><span>Shipping</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.shipping_amount}</strong></div>
+                    <div class="native-summary-row"><span>Shipping</span><strong>{order.shipping_amount_fmt}</strong></div>
                     {/if}
-                    <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</strong></div>
+                    <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{order.total_amount_fmt}</strong></div>
                 </div>
             </section>
+
+            {if order.memberships | count > 0 || order.bookings | count > 0}
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">What Was Activated</h2>
+                <div class="native-stack">
+                    {foreach order.memberships as membership}
+                    <div><strong>Membership:</strong> {membership.tier_label}{if membership.ends_at} through {membership.ends_at | date:'M j, Y'}{/if}</div>
+                    {/foreach}
+                    {foreach order.bookings as booking}
+                    <div><strong>Appointment:</strong> {booking.product_title} on {booking.scheduled_for | date:'M j, Y g:i A'}</div>
+                    {/foreach}
+                </div>
+            </section>
+            {/if}
 
             <section class="native-storefront-panel">
                 <h2 class="native-panel-title">Shipping To</h2>

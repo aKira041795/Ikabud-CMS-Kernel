@@ -38,6 +38,8 @@
                     <div>
                         <h2 class="native-panel-title" style="margin-bottom:0.35rem;">{item.product_title}</h2>
                         {if item.sku}<p class="native-note">SKU: {item.sku}</p>{/if}
+                        {if item.selected_addons | count > 0}<p class="native-note">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</p>{/if}
+                        {if item.booking.has_booking}<p class="native-note" style="color:#1d4ed8;">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</p>{/if}
                         <p class="native-note">{item.unit_price_fmt} each</p>
                     </div>
                     <div style="text-align:right;">
@@ -62,14 +64,34 @@
                 <p class="native-note" style="margin-top:0.75rem; color:#047857;">{if cart.totals.coupon.type == 'gift_card'}Gift card{else}Coupon{/if} "{cart.coupon_code}" applied - saving {cart.totals.discount_fmt}</p>
                 {/if}
             </section>
+
+            {if cart.loyalty.can_redeem}
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Loyalty Rewards</h2>
+                <p class="native-note">Balance: {cart.loyalty.balance_fmt} points. {cart.loyalty.minimum_points} points = {ec_settings.currency_symbol}1.00</p>
+                <div class="native-inline-actions">
+                    <input type="number" id="loyalty-points" min="0" step="100" value="{cart.loyalty.selected_points | default:'0'}" class="native-input">
+                    <button type="button" class="button button-primary" onclick="applyLoyalty()">Redeem</button>
+                    {if cart.loyalty.applied_points > 0}
+                    <button type="button" class="button button-secondary" onclick="clearLoyalty()">Clear</button>
+                    {/if}
+                </div>
+                {if cart.loyalty.applied_points > 0}
+                <p class="native-note" style="margin-top:0.75rem; color:#047857;">Redeeming {cart.loyalty.applied_points} points for {cart.loyalty.discount_amount_fmt} off this order.</p>
+                {/if}
+            </section>
+            {/if}
         </section>
 
         <aside class="native-storefront-panel">
             <h2 class="native-panel-title">Order Summary</h2>
             <div class="native-summary-list">
                 <div class="native-summary-row"><span>Subtotal</span><strong>{cart.totals.subtotal_fmt}</strong></div>
-                {if cart.totals.discount > 0}
-                <div class="native-summary-row" style="color:#047857;"><span>{cart.totals.discount_label | default:'Discount'}</span><strong>-{cart.totals.discount_fmt}</strong></div>
+                {if cart.totals.non_loyalty_discount_amount > 0}
+                <div class="native-summary-row" style="color:#047857;"><span>{cart.totals.discount_label | default:'Discount'}</span><strong>-{cart.totals.non_loyalty_discount_amount_fmt}</strong></div>
+                {/if}
+                {if cart.totals.loyalty_points_applied > 0}
+                <div class="native-summary-row" style="color:#ea580c;"><span>Loyalty ({cart.totals.loyalty_points_applied} pts)</span><strong>-{cart.totals.loyalty_discount_amount_fmt}</strong></div>
                 {/if}
                 {if cart.totals.tax > 0}
                 <div class="native-summary-row"><span>{cart.totals.tax_label | default:'Tax'}</span><strong>{cart.totals.tax_fmt}</strong></div>
@@ -118,6 +140,35 @@ async function applyCoupon() {
         return;
     }
     alert(data.error || 'Invalid coupon or gift card');
+}
+
+async function applyLoyalty() {
+    const points = document.getElementById('loyalty-points').value;
+    const res = await fetch('{base_url}/api/v1/ecommerce/cart/loyalty', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ points: parseInt(points, 10) || 0 }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        location.reload();
+        return;
+    }
+    alert(data.error || 'Could not apply loyalty points');
+}
+
+async function clearLoyalty() {
+    const res = await fetch('{base_url}/api/v1/ecommerce/cart/loyalty', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ points: 0 }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        location.reload();
+        return;
+    }
+    alert(data.error || 'Could not clear loyalty points');
 }
 </script>
 {/block}

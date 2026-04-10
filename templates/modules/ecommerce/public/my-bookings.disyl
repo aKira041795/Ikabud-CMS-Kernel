@@ -1,0 +1,46 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">My Bookings</h1>
+            <p class="mt-1 text-sm text-gray-500">Appointments and services reserved through bookable ecommerce products.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="{base_url}/ecommerce/my-orders" class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-gray-700 hover:bg-gray-50">Orders</a>
+            <a href="{base_url}/ecommerce/my-memberships" class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-700 hover:bg-sky-100">Memberships</a>
+            <a href="{base_url}/ecommerce/rewards" class="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-700 hover:bg-orange-100">Rewards</a>
+        </div>
+    </div>
+
+    {if bookings | count == 0}
+    <div class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
+        <div class="text-lg font-semibold text-gray-900">No bookings yet</div>
+        <p class="mt-2 text-sm text-gray-500">Appointments appear here after you purchase a bookable product.</p>
+    </div>
+    {else}
+    <div class="space-y-4">
+        {foreach bookings as booking}
+        <div class="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <div class="text-lg font-semibold text-gray-900">{booking.product_title}</div>
+                    <div class="mt-1 text-sm text-indigo-700">{booking.scheduled_for | date:'M j, Y g:i A'}</div>
+                </div>
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {if booking.status == 'confirmed'}bg-emerald-100 text-emerald-700{elseif booking.status == 'pending'}bg-amber-100 text-amber-700{else}bg-gray-100 text-gray-600{/if}">{booking.status}</span>
+            </div>
+            <dl class="mt-4 grid grid-cols-1 gap-2 text-sm text-gray-600 md:grid-cols-3">
+                <div><dt class="text-xs uppercase tracking-[0.14em] text-gray-400">Duration</dt><dd class="mt-1">{booking.duration_minutes} minutes</dd></div>
+                <div><dt class="text-xs uppercase tracking-[0.14em] text-gray-400">Ends</dt><dd class="mt-1">{if booking.ends_at}{booking.ends_at | date:'M j, Y g:i A'}{else}TBD{/if}</dd></div>
+                <div><dt class="text-xs uppercase tracking-[0.14em] text-gray-400">Order</dt><dd class="mt-1">{if booking.order_id}<a href="{base_url}/ecommerce/my-orders/{booking.order_id}" class="text-indigo-700 hover:underline">#{booking.order_id}</a>{else}N/A{/if}</dd></div>
+            </dl>
+            {if booking.notes}
+            <div class="mt-4 rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900">{booking.notes}</div>
+            {/if}
+        </div>
+        {/foreach}
+    </div>
+    {/if}
+</div>
+{/block}

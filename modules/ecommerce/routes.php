@@ -16,6 +16,9 @@ return [
         '/ecommerce/order/{token}'          => 'ecommerce:ecPublicOrderConfirm',
         '/ecommerce/my-orders'              => 'ecommerce:ecPublicMyOrders',
         '/ecommerce/my-orders/{id}'         => 'ecommerce:ecPublicOrderDetail',
+        '/ecommerce/my-memberships'         => 'ecommerce:ecPublicMemberships',
+        '/ecommerce/my-bookings'            => 'ecommerce:ecPublicBookings',
+        '/ecommerce/rewards'                => 'ecommerce:ecPublicRewards',
         '/ecommerce/download/{token}'       => 'ecommerce:ecPublicDownloadLicense',
 
         // ── Payment Gateway Return ────────────────────────────────────
@@ -100,6 +103,7 @@ return [
         '/api/v1/ecommerce/cart/update'              => 'ecommerce:ecApiCartUpdate',
         '/api/v1/ecommerce/cart/remove'              => 'ecommerce:ecApiCartRemove',
         '/api/v1/ecommerce/cart/coupon'              => 'ecommerce:ecApiCartApplyCoupon',
+        '/api/v1/ecommerce/cart/loyalty'             => 'ecommerce:ecApiCartApplyLoyalty',
         '/api/v1/ecommerce/cart/clear'               => 'ecommerce:ecApiCartClear',
         '/api/v1/ecommerce/abandoned-carts/capture'  => 'ecommerce:ecApiAbandonedCartCapture',
 

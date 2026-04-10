@@ -122,7 +122,11 @@
             <div class="native-stack">
                 {foreach cart.items as item}
                 <div class="native-summary-row">
-                    <span>{item.product_title} x {item.qty}</span>
+                    <span>
+                        {item.product_title} x {item.qty}
+                        {if item.selected_addons | count > 0}<span class="native-note" style="display:block;">Add-ons: {foreach item.selected_addons as addon}{addon.label}{if !loop.last}, {/if}{/foreach}</span>{/if}
+                        {if item.booking.has_booking}<span class="native-note" style="display:block; color:#1d4ed8;">Appointment: {item.booking.scheduled_date} at {item.booking.scheduled_time}</span>{/if}
+                    </span>
                     <strong>{item.line_total_fmt}</strong>
                 </div>
                 {/foreach}
@@ -130,8 +134,11 @@
 
             <div class="native-summary-list" style="margin-top:1rem;">
                 <div class="native-summary-row"><span>Subtotal</span><strong>{checkout_totals.subtotal_fmt}</strong></div>
-                {if checkout_totals.discount > 0}
-                <div class="native-summary-row" style="color:#047857;"><span>Discount</span><strong>-{checkout_totals.discount_fmt}</strong></div>
+                {if checkout_totals.non_loyalty_discount_amount > 0}
+                <div class="native-summary-row" style="color:#047857;"><span>Discount</span><strong>-{checkout_totals.non_loyalty_discount_amount_fmt}</strong></div>
+                {/if}
+                {if checkout_totals.loyalty_points_applied > 0}
+                <div class="native-summary-row" style="color:#ea580c;"><span>Loyalty ({checkout_totals.loyalty_points_applied} pts)</span><strong>-{checkout_totals.loyalty_discount_amount_fmt}</strong></div>
                 {/if}
                 <div id="checkout-tax-row" class="native-summary-row" {if checkout_totals.tax <= 0}style="display:none;"{/if}><span id="checkout-tax-label">{checkout_totals.tax_label | default:'Tax'}</span><strong id="checkout-tax-value">{checkout_totals.tax_fmt}</strong></div>
                 {if requires_shipping}

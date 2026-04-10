@@ -20,6 +20,7 @@ function ecPublicCheckout(): void
     $user            = app()->user();
     $isCustomer      = $user && in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true);
     $guestAllowed    = (bool)ecSettings('guest_checkout');
+    $loyaltyPoints = function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0;
 
     if (!$isCustomer && !$guestAllowed) {
         header('Location: /cms/login?redirect=' . urlencode('/ecommerce/checkout'));
@@ -28,7 +29,10 @@ function ecPublicCheckout(): void
 
     $shippingDefaults = ['country' => function_exists('ecShippingDefaultCountry') ? ecShippingDefaultCountry() : ''];
     $shippingQuote   = function_exists('ecShippingQuote')
-        ? ecShippingQuote($cart['items'], $shippingDefaults, (string)($cart['coupon_code'] ?? ''))
+        ? ecShippingQuote($cart['items'], $shippingDefaults, (string)($cart['coupon_code'] ?? ''), null, [
+            'customer_id' => $isCustomer ? (int)($user['id'] ?? 0) : null,
+            'loyalty_points' => $loyaltyPoints,
+        ])
         : ['requires_shipping' => false, 'rates' => [], 'selected_rate_id' => null, 'selected_rate' => null, 'totals' => $cart['totals']];
     $paymentLabel    = (string)ecSettings('payment_method_label');
     $cartHasDigital  = ecCartHasDigitalItems($cart['items']);

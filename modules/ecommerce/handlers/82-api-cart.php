@@ -28,12 +28,16 @@ function ecApiCartAdd(): void
     $productId = (int)($input['product_id'] ?? $input['entity_id'] ?? 0);
     $qty       = max(1, (int)($input['qty'] ?? 1));
     $variantId = isset($input['variant_id']) ? (int)$input['variant_id'] : null;
+    $options   = [
+        'add_ons' => is_array($input['add_ons'] ?? null) ? $input['add_ons'] : (is_array($input['addons'] ?? null) ? $input['addons'] : []),
+        'booking' => is_array($input['booking'] ?? null) ? $input['booking'] : [],
+    ];
 
     if (!$productId) {
         ecJsonError('product_id required', 422);
     }
 
-    $result = ecCartAdd($productId, $qty, $variantId);
+    $result = ecCartAdd($productId, $qty, $variantId, $options);
     if (!$result['ok']) {
         ecJsonError($result['error'], 422);
     }
@@ -92,4 +96,20 @@ function ecApiCartClear(): void
 {
     ecCartClear();
     ecJsonOk(['cart' => ecCartGet()]);
+}
+
+function ecApiCartApplyLoyalty(): void
+{
+    $input = ecInput();
+    $points = max(0, (int)($input['points'] ?? 0));
+
+    $result = $points > 0
+        ? (function_exists('ecCartApplyLoyalty') ? ecCartApplyLoyalty($points) : ['ok' => false, 'error' => 'Loyalty rewards are unavailable.'])
+        : (function_exists('ecCartClearLoyalty') ? ecCartClearLoyalty() : ['ok' => true, 'cart' => ecCartGet()]);
+
+    if (empty($result['ok'])) {
+        ecJsonError((string)($result['error'] ?? 'Could not apply loyalty points.'), 422);
+    }
+
+    ecJsonOk($result);
 }
