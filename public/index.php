@@ -13,6 +13,7 @@ require_once __DIR__ . '/../src/http/admin-view-cache.php';
 require_once __DIR__ . '/../src/http/tenant-entry-modules.php';
 require_once __DIR__ . '/../src/http/core-routes.php';
 require_once __DIR__ . '/../src/http/admin-handlers.php';
+require_once __DIR__ . '/../src/http/page-handlers.php';
 
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -391,23 +392,7 @@ switch ($handler) {
         exit;
 
     case 'pageLogin':
-        $loginUser = app()->user();
-        if ($loginUser) {
-            $loginHome = kernelResolveAuthenticatedHomeRedirect($loginUser, true) ?? '/';
-            app()->redirect($loginHome);
-            exit;
-        }
-        $loginContext = [
-            'page_title' => 'Sign In',
-        ];
-        $loginTenantId = app()->tenant()->current();
-        if ($loginTenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
-            $entryModuleId = tenantEntryModuleIdForTenant((int)$loginTenantId);
-            if ($entryModuleId === 'wms' && function_exists('wmsLoginPageContext')) {
-                $loginContext = wmsLoginPageContext();
-            }
-        }
-        echo app()->render('pages/login.disyl', $loginContext);
+        kernelHandlePageLogin();
         break;
 
     case 'pageSuperadminPerf':
