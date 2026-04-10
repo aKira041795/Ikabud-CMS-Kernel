@@ -559,3 +559,129 @@ if (!function_exists('kernelHandleApiTenantDelete')) {
         }
     }
 }
+
+if (!function_exists('kernelHandleApiAiSettingsGet')) {
+    function kernelHandleApiAiSettingsGet(): void
+    {
+        if (!kernelPrepareTenantAdminJsonRequest(false)) {
+            return;
+        }
+
+        $settings = getModuleSettings('ai');
+        if (!is_array($settings)) {
+            $settings = [];
+        }
+
+        $apiKey = trim((string)($settings['openai_api_key'] ?? ''));
+        $maskedApiKey = $apiKey !== '' ? ('***' . substr($apiKey, -4)) : '';
+
+        $groqKey = trim((string)($settings['groq_api_key'] ?? ''));
+        $maskedGroqKey = $groqKey !== '' ? ('***' . substr($groqKey, -4)) : '';
+
+        $searchKey = trim((string)($settings['search_grounding_api_key'] ?? ''));
+        $maskedSearchKey = $searchKey !== '' ? ('***' . substr($searchKey, -4)) : '';
+
+        echo json_encode([
+            'ok' => true,
+            'settings' => [
+                'provider' => (string)($settings['provider'] ?? 'openai'),
+                'tier' => (string)($settings['tier'] ?? 'free'),
+                'openai_model_free' => (string)($settings['openai_model_free'] ?? 'gpt-4o-mini'),
+                'openai_model_paid' => (string)($settings['openai_model_paid'] ?? 'gpt-4o'),
+                'openai_model' => (string)($settings['openai_model'] ?? ''),
+                'ollama_base_url' => (string)($settings['ollama_base_url'] ?? 'http://localhost:11434'),
+                'ollama_model_free' => (string)($settings['ollama_model_free'] ?? 'llama3.2:3b'),
+                'ollama_model_paid' => (string)($settings['ollama_model_paid'] ?? 'llama3.1:8b'),
+                'ollama_model' => (string)($settings['ollama_model'] ?? ''),
+                'groq_model_free' => (string)($settings['groq_model_free'] ?? 'llama-3.1-8b-instant'),
+                'groq_model_paid' => (string)($settings['groq_model_paid'] ?? 'llama-3.3-70b-versatile'),
+                'groq_model' => (string)($settings['groq_model'] ?? ''),
+                'openai_api_key_masked' => $maskedApiKey,
+                'openai_api_key_set' => $apiKey !== '',
+                'groq_api_key_masked' => $maskedGroqKey,
+                'groq_api_key_set' => $groqKey !== '',
+                'search_grounding_provider' => (string)($settings['search_grounding_provider'] ?? ''),
+                'search_grounding_key_masked' => $maskedSearchKey,
+                'search_grounding_key_set' => $searchKey !== '',
+                'search_grounding_max_results' => max(1, min(10, (int)($settings['search_grounding_max_results'] ?? 5))),
+            ],
+        ]);
+    }
+}
+
+if (!function_exists('kernelHandleApiAiSettingsSave')) {
+    function kernelHandleApiAiSettingsSave(): void
+    {
+        if (!kernelPrepareTenantAdminJsonRequest(true)) {
+            return;
+        }
+
+        $input = app()->input();
+        $settingsIn = $input['settings'] ?? null;
+        if (!is_array($settingsIn)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'settings is required']);
+            return;
+        }
+
+        $oldSettings = getModuleSettings('ai');
+        if (!is_array($oldSettings)) {
+            $oldSettings = [];
+        }
+        $newSettings = $oldSettings;
+
+        if (array_key_exists('provider', $settingsIn)) {
+            $provider = trim((string)$settingsIn['provider']);
+            if (in_array($provider, ['openai', 'ollama', 'groq'], true)) {
+                $newSettings['provider'] = $provider;
+            }
+        }
+        if (array_key_exists('tier', $settingsIn)) {
+            $tier = trim((string)$settingsIn['tier']);
+            if (in_array($tier, ['free', 'paid', 'custom'], true)) {
+                $newSettings['tier'] = $tier;
+            }
+        }
+
+        foreach (['openai_model_free', 'openai_model_paid', 'openai_model', 'ollama_base_url', 'ollama_model_free', 'ollama_model_paid', 'ollama_model', 'groq_model_free', 'groq_model_paid', 'groq_model'] as $key) {
+            if (array_key_exists($key, $settingsIn)) {
+                $newSettings[$key] = trim((string)$settingsIn[$key]);
+            }
+        }
+
+        if (array_key_exists('openai_api_key', $settingsIn)) {
+            $openAiApiKey = trim((string)$settingsIn['openai_api_key']);
+            if ($openAiApiKey !== '') {
+                $newSettings['openai_api_key'] = $openAiApiKey;
+            }
+        }
+
+        if (array_key_exists('groq_api_key', $settingsIn)) {
+            $groqApiKey = trim((string)$settingsIn['groq_api_key']);
+            if ($groqApiKey !== '') {
+                $newSettings['groq_api_key'] = $groqApiKey;
+            }
+        }
+
+        if (array_key_exists('search_grounding_provider', $settingsIn)) {
+            $searchProvider = trim((string)$settingsIn['search_grounding_provider']);
+            if (in_array($searchProvider, ['', 'brave', 'tavily', 'serper'], true)) {
+                $newSettings['search_grounding_provider'] = $searchProvider;
+            }
+        }
+        if (array_key_exists('search_grounding_api_key', $settingsIn)) {
+            $searchKey = trim((string)$settingsIn['search_grounding_api_key']);
+            if ($searchKey !== '') {
+                $newSettings['search_grounding_api_key'] = $searchKey;
+            }
+        }
+        if (array_key_exists('search_grounding_max_results', $settingsIn)) {
+            $newSettings['search_grounding_max_results'] = max(1, min(10, (int)$settingsIn['search_grounding_max_results']));
+        }
+
+        saveModuleSettings('ai', $newSettings);
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform']);
+
+        echo json_encode(['ok' => true]);
+    }
+}
