@@ -31,6 +31,8 @@
         "ec_reviews",
         "ec_product_relations",
         "ec_product_group_items",
+        "ec_product_bundle_items",
+        "ec_subscriptions",
         "ec_product_attributes",
         "ec_product_attribute_values",
         "rate_limits"
@@ -67,7 +69,10 @@
         "modules/ecommerce/database/migrations/020_ec_grouped_products.sql",
         "modules/ecommerce/database/migrations/013_ec_reviews.sql",
         "modules/ecommerce/database/migrations/014_ec_product_relations.sql",
-        "modules/ecommerce/database/migrations/015_ec_product_attributes.sql"
+        "modules/ecommerce/database/migrations/015_ec_product_attributes.sql",
+        "modules/ecommerce/database/migrations/021_ec_product_bundles.sql",
+        "modules/ecommerce/database/migrations/022_ec_subscriptions.sql",
+        "modules/ecommerce/database/migrations/023_ec_cart_item_currency.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -486,6 +491,22 @@
             "control_class": "font-mono",
             "default": "$",
             "description": "Symbol shown before prices."
+        },
+        {
+            "key": "enabled_currencies",
+            "type": "text",
+            "label": "Enabled Currencies",
+            "control_class": "font-mono uppercase",
+            "default": "USD",
+            "description": "Comma-separated ISO currency codes available on the storefront. The base currency above is always enabled."
+        },
+        {
+            "key": "currency_exchange_rates",
+            "type": "textarea",
+            "label": "Currency Exchange Rates",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "One currency per line using CODE|RATE, where RATE is the amount of that currency for 1 base-currency unit. Example: EUR|0.92"
         },
         {
             "key": "tax_default_country",

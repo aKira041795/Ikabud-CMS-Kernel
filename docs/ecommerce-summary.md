@@ -9,14 +9,14 @@ This document summarizes the current Ecommerce module, identifies the highest-va
 ### Catalog and Product Model
 
 - Products are implemented as CMS content records with type `product`.
-- Supported product behaviors today: simple products, variants, digital products, grouped products, and external or affiliate products.
+- Supported product behaviors today: simple products, variants, digital products, grouped products, bundle products, subscription products, and external or affiliate products.
 - Catalog support already includes categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking, product SEO metadata, attributes, and faceted filtering.
 - Storefront rendering is aligned to the CMS entity-view and entity-list contracts rather than a standalone storefront renderer.
 
 ### Cart, Checkout, and Orders
 
 - Cart supports guest sessions and registered customer persistence.
-- Checkout supports guest checkout, shipping, tax calculation, coupon application, and manual or gateway payment selection.
+- Checkout supports guest checkout, shipping, tax calculation, coupon application, manual or gateway payment selection, and subscription-aware cart validation for recurring products.
 - Order lifecycle supports pending, processing, shipped, delivered, cancelled, and refunded states.
 - Order history, order detail, and guest confirmation flows already exist.
 
@@ -59,9 +59,6 @@ The module is already a solid commerce base. The highest-value gaps relative to 
 - Table-rate shipping
 - Shipment tracking numbers
 - Refund gateway reversal flows
-- Product bundles
-- Subscriptions
-- Multi-currency
 
 ### Lower-Priority Gaps
 
@@ -324,8 +321,8 @@ Objective: improve merchant retention, marketing, and interoperability.
 Objective: expand the product model without collapsing the current catalog architecture.
 
 - Product bundles
-- Subscriptions
-- Multi-currency
+- Subscription products
+- Multi-currency storefront pricing, checkout, and order snapshots
 
 ## Phase 6: Loyalty and Extended Commerce Features
 

@@ -18,6 +18,9 @@ function ecApiCheckout(): void
     if (empty($cart['items'])) {
         ecJsonError('Cart is empty', 422);
     }
+    if (!empty($cart['subscription']) && empty($cart['subscription']['is_valid'])) {
+        ecJsonError((string)($cart['subscription']['errors'][0] ?? 'Your cart contains an invalid subscription combination.'), 422);
+    }
 
     $input = ecInput();
 

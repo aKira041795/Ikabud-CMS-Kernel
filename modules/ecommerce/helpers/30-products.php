@@ -120,6 +120,7 @@ function ecProductList(array $filters = []): array
         $inventoryMap = [];
         $digitalMap = [];
         $externalMetaMap = [];
+        $subscriptionMetaMap = [];
         
         if (!empty($productIds)) {
             $idsCsv = implode(',', array_fill(0, count($productIds), '?'));
@@ -168,6 +169,24 @@ function ecProductList(array $filters = []): array
                 }
                 $externalMetaMap[$contentId][(string)($externalRow['meta_key'] ?? '')] = (string)($externalRow['meta_value'] ?? '');
             }
+
+            $subscriptionRows = $db->query(
+                "SELECT content_id, meta_key, meta_value
+                   FROM cms_content_meta
+                  WHERE meta_key IN ('_is_subscription','_subscription_interval_unit','_subscription_interval_count','_subscription_trial_days','_subscription_max_cycles','_subscription_grace_period_days')
+                    AND content_id IN ($idsCsv)",
+                $productIds
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            foreach ($subscriptionRows as $subscriptionRow) {
+                $contentId = (int)($subscriptionRow['content_id'] ?? 0);
+                if ($contentId < 1) {
+                    continue;
+                }
+                if (!isset($subscriptionMetaMap[$contentId])) {
+                    $subscriptionMetaMap[$contentId] = [];
+                }
+                $subscriptionMetaMap[$contentId][(string)($subscriptionRow['meta_key'] ?? '')] = (string)($subscriptionRow['meta_value'] ?? '');
+            }
         }
 
         // Read settings once before loop
@@ -210,10 +229,21 @@ function ecProductList(array $filters = []): array
                 $lowStockThreshold
             );
             $external = ecProductExternalMetaFromMetaMap($externalMetaMap[$id] ?? []);
+            $subscription = ecProductSubscriptionMetaFromMetaMap($subscriptionMetaMap[$id] ?? [], $row['pricing']);
             $row['is_external_product'] = $external['is_external_product'];
             $row['external_product_url'] = $external['external_product_url'];
             $row['external_product_button_text'] = $external['external_product_button_text'];
             $row['product_type'] = $external['product_type'];
+            $row['is_subscription'] = $subscription['is_subscription'];
+            $row['subscription_interval_unit'] = $subscription['subscription_interval_unit'];
+            $row['subscription_interval_count'] = $subscription['subscription_interval_count'];
+            $row['subscription_trial_days'] = $subscription['subscription_trial_days'];
+            $row['subscription_max_cycles'] = $subscription['subscription_max_cycles'];
+            $row['subscription_grace_period_days'] = $subscription['subscription_grace_period_days'];
+            $row['subscription_summary'] = $subscription['subscription_summary'];
+            if (!$row['is_external_product'] && $subscription['is_subscription']) {
+                $row['product_type'] = 'subscription';
+            }
             $row['review_summary'] = $reviewSummaryMap[$id] ?? ecReviewDefaultSummary();
         }
         unset($row);
@@ -268,6 +298,7 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
             : [];
         $row['attributes'] = function_exists('ecProductAttributes') ? ecProductAttributes($id) : [];
         $row['relation_ids'] = ecProductRelationIds($id);
+        $row['bundle_children'] = $includeRelations ? ecProductBundleChildren($id, ['published_only' => false]) : [];
         $row['grouped_children'] = $includeRelations ? ecProductGroupedChildren($id, ['published_only' => false]) : [];
         $row['related_products'] = [];
         $row['upsell_products'] = [];
@@ -297,7 +328,7 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
         try {
             $metaStmt = $db->query(
                 "SELECT meta_key, meta_value FROM cms_content_meta
-                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days','_download_file_path','_download_file_name','_tax_class','seo_title','seo_description','_builder_seo_settings','_is_external_product','_external_product_url','_external_product_button_text')",
+                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days','_download_file_path','_download_file_name','_tax_class','seo_title','seo_description','_builder_seo_settings','_is_external_product','_external_product_url','_external_product_button_text','_is_subscription','_subscription_interval_unit','_subscription_interval_count','_subscription_trial_days','_subscription_max_cycles','_subscription_grace_period_days')",
                 [$id]
             );
             $metaRows = $metaStmt ? $metaStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
@@ -316,10 +347,24 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
         $row['download_file_name']    = (string)($metaMap['_download_file_name'] ?? '');
         $row['tax_class']             = ecProductNormalizeTaxClass((string)($metaMap['_tax_class'] ?? 'standard'));
         $external = ecProductExternalMetaFromMetaMap($metaMap);
+        $subscription = ecProductSubscriptionMetaFromMetaMap($metaMap, $row['pricing']);
         $row['is_external_product']   = $external['is_external_product'];
         $row['external_product_url']  = $external['external_product_url'];
         $row['external_product_button_text'] = $external['external_product_button_text'];
         $row['product_type']          = $external['product_type'];
+        $row['is_subscription']       = $subscription['is_subscription'];
+        $row['subscription_interval_unit'] = $subscription['subscription_interval_unit'];
+        $row['subscription_interval_count'] = $subscription['subscription_interval_count'];
+        $row['subscription_trial_days'] = $subscription['subscription_trial_days'];
+        $row['subscription_max_cycles'] = $subscription['subscription_max_cycles'];
+        $row['subscription_grace_period_days'] = $subscription['subscription_grace_period_days'];
+        $row['subscription_summary']   = $subscription['subscription_summary'];
+        if (!$row['is_external_product'] && is_array($row['bundle_children'] ?? null) && $row['bundle_children'] !== []) {
+            $row['product_type'] = 'bundle';
+        } elseif (!$row['is_external_product'] && $row['is_subscription']) {
+            $row['product_type'] = 'subscription';
+        }
+        $row['bundle_summary']        = ecProductBundleSummary($row);
         $seo = ecProductSeoFromMetaMap($metaMap);
         $row['seo_title']             = $seo['seo_title'];
         $row['seo_description']       = $seo['seo_description'];
@@ -597,6 +642,215 @@ function ecProductSaveGroupedChildren(int $productId, array $children): void
     }
 }
 
+function ecProductBundleTableExistsDirect(): bool
+{
+    static $exists = null;
+    if ($exists !== null) {
+        return $exists;
+    }
+
+    try {
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?'
+        );
+        $stmt->execute(['ec_product_bundle_items']);
+        $exists = (int)$stmt->fetchColumn() > 0;
+    } catch (\Throwable $e) {
+        $exists = false;
+    }
+
+    return $exists;
+}
+
+function ecProductBundleStorageAvailable(): bool
+{
+    return ecProductBundleTableExistsDirect();
+}
+
+function ecProductNormalizeBundleChildren(mixed $selectedIds, mixed $qtyByProduct = [], int $excludeProductId = 0): array
+{
+    $normalizedIds = ecProductNormalizeRelationIds($selectedIds, $excludeProductId);
+    $qtyByProduct = is_array($qtyByProduct) ? $qtyByProduct : [];
+    $children = [];
+
+    foreach ($normalizedIds as $sortOrder => $productId) {
+        $children[] = [
+            'product_id' => $productId,
+            'qty' => max(1, (int)($qtyByProduct[$productId] ?? 1)),
+            'sort_order' => $sortOrder,
+        ];
+    }
+
+    return $children;
+}
+
+function ecProductBundleSelectionsFromInput(array $input, int $excludeProductId = 0): array
+{
+    return ecProductNormalizeBundleChildren(
+        $input['bundle_product_ids'] ?? [],
+        $input['bundle_product_qty'] ?? [],
+        $excludeProductId
+    );
+}
+
+function ecProductBundleSelectionLookup(array $children): array
+{
+    $lookup = [];
+    foreach ($children as $child) {
+        $productId = (int)($child['product_id'] ?? 0);
+        if ($productId < 1) {
+            continue;
+        }
+
+        $lookup[$productId] = max(1, (int)($child['qty'] ?? 1));
+    }
+
+    return $lookup;
+}
+
+function ecProductBundleChildSelections(int $productId): array
+{
+    if ($productId < 1 || !ecProductBundleStorageAvailable()) {
+        return [];
+    }
+
+    try {
+        $rows = ecDb()->query(
+            'SELECT child_product_id, child_qty, sort_order FROM ec_product_bundle_items WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
+            [$productId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $children = [];
+    foreach ($rows as $row) {
+        $childProductId = (int)($row['child_product_id'] ?? 0);
+        if ($childProductId < 1) {
+            continue;
+        }
+
+        $children[] = [
+            'product_id' => $childProductId,
+            'qty' => max(1, (int)($row['child_qty'] ?? 1)),
+            'sort_order' => max(0, (int)($row['sort_order'] ?? 0)),
+        ];
+    }
+
+    return $children;
+}
+
+function ecProductBundleChildren(int $productId, array $options = []): array
+{
+    $children = ecProductBundleChildSelections($productId);
+    if ($children === []) {
+        return [];
+    }
+
+    $publishedOnly = !array_key_exists('published_only', $options) || (bool)$options['published_only'];
+    $resolved = [];
+
+    foreach ($children as $child) {
+        $childProduct = ecProductGet((int)$child['product_id'], false);
+        if (!is_array($childProduct)) {
+            continue;
+        }
+        if ($publishedOnly && (string)($childProduct['status'] ?? '') !== 'published') {
+            continue;
+        }
+
+        $childProduct['bundle_qty'] = max(1, (int)($child['qty'] ?? 1));
+        $childProduct['bundle_parent_id'] = $productId;
+        $resolved[] = $childProduct;
+    }
+
+    return $resolved;
+}
+
+function ecProductSaveBundleChildren(int $productId, array $children): void
+{
+    if ($productId < 1 || !ecProductBundleStorageAvailable()) {
+        return;
+    }
+
+    $qtyByProduct = [];
+    $selectedIds = [];
+    foreach ($children as $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+
+        $childProductId = (int)($child['product_id'] ?? 0);
+        if ($childProductId < 1) {
+            continue;
+        }
+
+        $selectedIds[] = $childProductId;
+        $qtyByProduct[$childProductId] = max(1, (int)($child['qty'] ?? 1));
+    }
+
+    $normalized = ecProductNormalizeBundleChildren($selectedIds, $qtyByProduct, $productId);
+    $db = ecDb();
+    $db->execute('DELETE FROM ec_product_bundle_items WHERE product_id = ?', [$productId]);
+
+    foreach ($normalized as $sortOrder => $child) {
+        $db->execute(
+            'INSERT INTO ec_product_bundle_items (product_id, child_product_id, child_qty, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
+            [$productId, (int)$child['product_id'], max(1, (int)$child['qty']), $sortOrder]
+        );
+    }
+}
+
+function ecProductBundleSummary(array $product): array
+{
+    $currencySymbol = (string)ecSettings('currency_symbol');
+    $children = is_array($product['bundle_children'] ?? null) ? $product['bundle_children'] : [];
+    $childSubtotal = 0.0;
+    $itemCount = 0;
+    $unavailableCount = 0;
+
+    foreach ($children as $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+
+        $childQty = max(1, (int)($child['bundle_qty'] ?? $child['qty'] ?? 1));
+        $pricing = is_array($child['pricing'] ?? null) ? $child['pricing'] : [];
+        $inventory = is_array($child['inventory'] ?? null) ? $child['inventory'] : [];
+        $activePrice = (float)($pricing['active_price'] ?? $pricing['price'] ?? 0);
+        $childSubtotal += $activePrice * $childQty;
+        $itemCount += $childQty;
+
+        if (!empty($inventory['out_of_stock']) || (array_key_exists('in_stock', $inventory) && empty($inventory['in_stock']))) {
+            $unavailableCount++;
+        }
+    }
+
+    $childSubtotal = round($childSubtotal, 2);
+    $pricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+    $bundleTotal = (float)($pricing['active_price'] ?? $pricing['price'] ?? 0);
+    if ($bundleTotal <= 0 || ($childSubtotal > 0 && $bundleTotal > $childSubtotal)) {
+        $bundleTotal = $childSubtotal;
+    }
+
+    $bundleTotal = round($bundleTotal, 2);
+    $savings = max(0.0, round($childSubtotal - $bundleTotal, 2));
+
+    return [
+        'child_count' => count($children),
+        'item_count' => $itemCount,
+        'child_subtotal' => $childSubtotal,
+        'child_subtotal_fmt' => $currencySymbol . number_format($childSubtotal, 2),
+        'bundle_total' => $bundleTotal,
+        'bundle_total_fmt' => $currencySymbol . number_format($bundleTotal, 2),
+        'savings' => $savings,
+        'savings_fmt' => $currencySymbol . number_format($savings, 2),
+        'has_savings' => $savings > 0,
+        'unavailable_count' => $unavailableCount,
+        'all_in_stock' => count($children) > 0 && $unavailableCount === 0,
+    ];
+}
+
 function ecProductRelationIds(int $productId): array
 {
     $relations = ecProductDefaultRelationIds();
@@ -790,8 +1044,10 @@ function ecCartRecommendationSections(array $cartItems): array
 
 function ecProductAdminRelationOptions(int $excludeProductId = 0, array $selectedIds = []): array
 {
+    $selectedBundleChildren = is_array($selectedIds['bundle_children'] ?? null) ? $selectedIds['bundle_children'] : [];
     $selectedGroupedChildren = is_array($selectedIds['grouped_children'] ?? null) ? $selectedIds['grouped_children'] : [];
     $selectedIds = array_merge(ecProductDefaultRelationIds(), array_intersect_key($selectedIds, ecProductDefaultRelationIds()));
+    $selectedBundleLookup = ecProductBundleSelectionLookup($selectedBundleChildren);
     $selectedGroupedLookup = ecProductGroupedSelectionLookup($selectedGroupedChildren);
     $selectedLookup = [
         'related' => array_fill_keys(ecProductNormalizeRelationIds($selectedIds['related'] ?? [], $excludeProductId), true),
@@ -825,6 +1081,8 @@ function ecProductAdminRelationOptions(int $excludeProductId = 0, array $selecte
         $options[] = [
             'id' => $productId,
             'label' => trim((string)($row['title'] ?? 'Product')) . ' (' . trim((string)($row['status'] ?? 'draft')) . ')',
+            'selected_bundle' => array_key_exists($productId, $selectedBundleLookup),
+            'selected_bundle_qty' => (int)($selectedBundleLookup[$productId] ?? 1),
             'selected_related' => !empty($selectedLookup['related'][$productId]),
             'selected_upsell' => !empty($selectedLookup['upsell'][$productId]),
             'selected_cross_sell' => !empty($selectedLookup['cross_sell'][$productId]),
@@ -1014,35 +1272,25 @@ function ecStorefrontCurrentCartCount(?int $cartCount = null): int
 
 function ecStorefrontNormalizePricing(array $pricing): array
 {
-    $price = isset($pricing['price']) ? (float)$pricing['price'] : null;
-    $salePrice = isset($pricing['sale_price']) ? (float)$pricing['sale_price'] : null;
-    $onSale = array_key_exists('on_sale', $pricing)
-        ? (bool)$pricing['on_sale']
-        : ($price !== null && $salePrice !== null && $salePrice > 0 && $salePrice < $price);
-    $activePrice = isset($pricing['active_price'])
-        ? (float)$pricing['active_price']
-        : ($onSale && $salePrice !== null ? $salePrice : $price);
+    return ecCurrencyPresentPricing($pricing);
+}
 
-    $symbol = (string)ecSettings('currency_symbol');
-    $formatted = trim((string)($pricing['formatted'] ?? ''));
-    if ($formatted === '' && $activePrice !== null) {
-        $formatted = $symbol . number_format($activePrice, 2);
-    }
+function ecStorefrontNormalizeBundleSummary(array $summary, ?string $currencyCode = null): array
+{
+    $currencyCode = ecCurrencyNormalizeCode($currencyCode ?? ecCurrentCurrencyCode()) ?: ecStoreBaseCurrencyCode();
+    $symbol = ecCurrencySymbolFor($currencyCode);
+    $childSubtotal = ecCurrencyConvertAmount((float)($summary['child_subtotal'] ?? 0), ecStoreBaseCurrencyCode(), $currencyCode);
+    $bundleTotal = ecCurrencyConvertAmount((float)($summary['bundle_total'] ?? 0), ecStoreBaseCurrencyCode(), $currencyCode);
+    $savings = ecCurrencyConvertAmount((float)($summary['savings'] ?? 0), ecStoreBaseCurrencyCode(), $currencyCode);
 
-    $regularFormatted = trim((string)($pricing['regular_fmt'] ?? ''));
-    if ($regularFormatted === '' && $price !== null) {
-        $regularFormatted = $symbol . number_format($price, 2);
-    }
+    $summary['child_subtotal'] = $childSubtotal;
+    $summary['child_subtotal_fmt'] = ecCurrencyFormatAmount($childSubtotal, $currencyCode, $symbol);
+    $summary['bundle_total'] = $bundleTotal;
+    $summary['bundle_total_fmt'] = ecCurrencyFormatAmount($bundleTotal, $currencyCode, $symbol);
+    $summary['savings'] = $savings;
+    $summary['savings_fmt'] = ecCurrencyFormatAmount($savings, $currencyCode, $symbol);
 
-    return [
-        'price' => $price,
-        'sale_price' => $salePrice,
-        'active_price' => $activePrice,
-        'currency' => trim((string)($pricing['currency'] ?? ecSettings('currency'))),
-        'on_sale' => $onSale,
-        'formatted' => $formatted !== '' ? $formatted : null,
-        'regular_fmt' => $regularFormatted !== '' ? $regularFormatted : null,
-    ];
+    return $summary;
 }
 
 function ecStorefrontNormalizeInventory(array $inventory): array
@@ -1287,6 +1535,23 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
     $pricing = ecStorefrontNormalizePricing(is_array($product['pricing'] ?? null) ? $product['pricing'] : []);
     $inventory = ecStorefrontNormalizeInventory(is_array($product['inventory'] ?? null) ? $product['inventory'] : []);
     $inventoryBadge = ecStorefrontInventoryBadge($inventory);
+    $bundleSummary = is_array($product['bundle_summary'] ?? null)
+        ? $product['bundle_summary']
+        : ecProductBundleSummary($product);
+    $bundleSummary = ecStorefrontNormalizeBundleSummary($bundleSummary, (string)($pricing['currency'] ?? ecCurrentCurrencyCode()));
+    $subscriptionSummary = is_array($product['subscription_summary'] ?? null)
+        ? $product['subscription_summary']
+        : ecProductSubscriptionDefaults()['subscription_summary'];
+    if (!empty($product['is_subscription'])) {
+        $subscriptionSummary = ecProductSubscriptionMetaFromMetaMap([
+            '_is_subscription' => '1',
+            '_subscription_interval_unit' => (string)($product['subscription_interval_unit'] ?? 'month'),
+            '_subscription_interval_count' => (string)($product['subscription_interval_count'] ?? 1),
+            '_subscription_trial_days' => (string)($product['subscription_trial_days'] ?? 0),
+            '_subscription_max_cycles' => (string)($product['subscription_max_cycles'] ?? 0),
+            '_subscription_grace_period_days' => (string)($product['subscription_grace_period_days'] ?? 7),
+        ], $pricing)['subscription_summary'];
+    }
     $saleBadgeText = trim((string)($product['sale_badge_text'] ?? ''));
     if ($saleBadgeText === '') {
         $saleBadgeText = ecStorefrontSaleBadgeText($pricing);
@@ -1310,6 +1575,8 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
         'is_external_product' => !empty($product['is_external_product']),
         'external_product_url' => trim((string)($product['external_product_url'] ?? '')),
         'external_product_button_text' => trim((string)($product['external_product_button_text'] ?? '')),
+        'bundle_summary' => $bundleSummary,
+        'subscription_summary' => $subscriptionSummary,
         'categories' => ecStorefrontNormalizeCategories(is_array($product['categories'] ?? null) ? $product['categories'] : []),
         'review_summary' => is_array($product['review_summary'] ?? null)
             ? ecReviewNormalizeSummary($product['review_summary'])
@@ -1483,6 +1750,12 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
             'categories' => $categories,
             'attributes' => is_array($product['attributes'] ?? null) ? $product['attributes'] : [],
             'reviews' => is_array($product['reviews'] ?? null) ? $product['reviews'] : [],
+            'bundle_children' => array_map(static function (array $child): array {
+                $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
+                $storefrontChild['bundle_qty'] = max(1, (int)($child['bundle_qty'] ?? 1));
+                return $storefrontChild;
+            }, is_array($product['bundle_children'] ?? null) ? $product['bundle_children'] : []),
+            'bundle_summary' => is_array($product['bundle_summary'] ?? null) ? $product['bundle_summary'] : ecProductBundleSummary($product),
             'grouped_children' => array_map(static function (array $child): array {
                 $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
                 $storefrontChild['grouped_qty'] = max(1, (int)($child['grouped_qty'] ?? 1));
@@ -1563,6 +1836,10 @@ function ecProductCreate(array $data, int $authorId = 0): int
         ecProductSaveRelations($productId, $data['relations']);
     }
 
+    if (is_array($data['bundle_children'] ?? null)) {
+        ecProductSaveBundleChildren($productId, $data['bundle_children']);
+    }
+
     if (is_array($data['grouped_children'] ?? null)) {
         ecProductSaveGroupedChildren($productId, $data['grouped_children']);
     }
@@ -1574,6 +1851,16 @@ function ecProductCreate(array $data, int $authorId = 0): int
         || array_key_exists('external_product_button_text', $data)
     ) {
         ecProductSaveExternalMeta($productId, $data);
+    }
+    if (
+        array_key_exists('is_subscription', $data)
+        || array_key_exists('subscription_interval_unit', $data)
+        || array_key_exists('subscription_interval_count', $data)
+        || array_key_exists('subscription_trial_days', $data)
+        || array_key_exists('subscription_max_cycles', $data)
+        || array_key_exists('subscription_grace_period_days', $data)
+    ) {
+        ecProductSaveSubscriptionMeta($productId, $data);
     }
     ecProductSaveSeoMeta($productId, $data);
 
@@ -1654,12 +1941,27 @@ function ecProductUpdate(int $id, array $data): void
         ecProductSaveRelations($id, $data['relations']);
     }
 
+    if (is_array($data['bundle_children'] ?? null)) {
+        ecProductSaveBundleChildren($id, $data['bundle_children']);
+    }
+
     if (is_array($data['grouped_children'] ?? null)) {
         ecProductSaveGroupedChildren($id, $data['grouped_children']);
     }
 
     if (array_key_exists('tax_class', $data)) {
         ecProductSaveTaxClass($id, $data['tax_class']);
+    }
+
+    if (
+        array_key_exists('is_subscription', $data)
+        || array_key_exists('subscription_interval_unit', $data)
+        || array_key_exists('subscription_interval_count', $data)
+        || array_key_exists('subscription_trial_days', $data)
+        || array_key_exists('subscription_max_cycles', $data)
+        || array_key_exists('subscription_grace_period_days', $data)
+    ) {
+        ecProductSaveSubscriptionMeta($id, $data);
     }
 
     if (

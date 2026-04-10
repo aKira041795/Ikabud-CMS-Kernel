@@ -207,6 +207,7 @@ function ecShippingCartMetrics(array $items, ?string $couponCode = null): array
 {
     $subtotal = 0.0;
     $itemCount = 0;
+    $currencyCode = ecResolveCartItemsCurrencyCode($items);
     foreach ($items as $item) {
         $qty = max(1, (int)($item['qty'] ?? 1));
         $subtotal += (float)($item['price_snapshot'] ?? 0) * $qty;
@@ -215,13 +216,14 @@ function ecShippingCartMetrics(array $items, ?string $couponCode = null): array
 
     $discount = 0.0;
     if ($couponCode !== null && trim($couponCode) !== '') {
-        $coupon = ecCouponValidate($couponCode, $subtotal);
+        $coupon = ecCouponValidate($couponCode, $subtotal, $currencyCode);
         if (!empty($coupon['valid']) && ($coupon['type'] ?? '') !== 'gift_card') {
             $discount = (float)($coupon['discount_amount'] ?? 0.0);
         }
     }
 
     return [
+        'currency' => $currencyCode,
         'subtotal' => round($subtotal, 2),
         'discount' => round($discount, 2),
         'chargeable_subtotal' => round(max(0.0, $subtotal - $discount), 2),
@@ -232,19 +234,21 @@ function ecShippingCartMetrics(array $items, ?string $couponCode = null): array
 function ecShippingNormalizeRate(array $rate, array $metrics = []): array
 {
     $subtotal = (float)($metrics['chargeable_subtotal'] ?? $metrics['subtotal'] ?? 0.0);
-    $baseRate = round((float)($rate['rate'] ?? 0.0), 2);
+    $currencyCode = ecCurrencyNormalizeCode($metrics['currency'] ?? '') ?: ecCurrentCurrencyCode();
+    $baseRate = ecCurrencyConvertAmount((float)($rate['rate'] ?? 0.0), ecStoreBaseCurrencyCode(), $currencyCode);
     $freeAbove = isset($rate['free_above']) && $rate['free_above'] !== null && $rate['free_above'] !== ''
-        ? round((float)$rate['free_above'], 2)
+        ? ecCurrencyConvertAmount((float)$rate['free_above'], ecStoreBaseCurrencyCode(), $currencyCode)
         : null;
     $resolvedRate = ($freeAbove !== null && $subtotal >= $freeAbove) ? 0.0 : $baseRate;
     $label = trim((string)($rate['label'] ?? $rate['name'] ?? 'Shipping'));
-    $sym = (string)ecSettings('currency_symbol');
+    $sym = ecCurrencySymbolFor($currencyCode);
 
     return [
         'id' => (int)($rate['id'] ?? 0),
         'label' => $label,
         'name' => $label,
         'carrier' => trim((string)($rate['carrier'] ?? '')),
+        'currency' => $currencyCode,
         'rate' => $resolvedRate,
         'rate_fmt' => $sym . number_format($resolvedRate, 2),
         'free_above' => $freeAbove,
@@ -500,6 +504,7 @@ function ecShippingQuote(array $items, array $address = [], ?string $couponCode 
 function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shippingRateId = null, array $taxAddress = []): array
 {
     $subtotal = 0.00;
+    $currencyCode = ecResolveCartItemsCurrencyCode($items);
     foreach ($items as $item) {
         $subtotal += (float)($item['price_snapshot'] ?? 0) * max(1, (int)($item['qty'] ?? 1));
     }
@@ -509,7 +514,7 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
     $giftCardCredit = 0.00;
     $couponData  = [];
     if ($couponCode !== null) {
-        $validation = ecCouponValidate($couponCode, $subtotal);
+        $validation = ecCouponValidate($couponCode, $subtotal, $currencyCode);
         if ($validation['valid']) {
             $couponData = $validation;
             if (($validation['type'] ?? '') === 'gift_card') {
@@ -596,7 +601,7 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
     $displayDiscount = round($discount + $giftCardCredit, 2);
     $discountLabel = ($couponData['type'] ?? '') === 'gift_card' ? 'Gift Card' : 'Discount';
 
-    $sym = (string)ecSettings('currency_symbol');
+    $sym = ecCurrencySymbolFor($currencyCode);
     $taxBreakdown = array_values(array_map(static function (array $entry) use ($sym): array {
         $entry['amount_fmt'] = $sym . number_format((float)$entry['amount'], 2);
         return $entry;
@@ -609,6 +614,8 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
     $resolvedTaxRate = count($uniqueRates) === 1 ? (float)$uniqueRates[0] : 0.0;
 
     return [
+        'currency' => $currencyCode,
+        'currency_symbol' => $sym,
         'subtotal'       => round($subtotal, 2),
         'subtotal_fmt'   => $sym . number_format($subtotal, 2),
         'discount'       => $displayDiscount,
@@ -636,11 +643,13 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
  * Validate a coupon code against a given subtotal.
  * Returns ['valid' => bool, 'error' => string|null, 'discount_amount' => float]
  */
-function ecCouponValidate(string $code, float $subtotal): array
+function ecCouponValidate(string $code, float $subtotal, ?string $currencyCode = null): array
 {
     if (trim($code) === '') {
         return ['valid' => false, 'error' => 'No coupon code provided'];
     }
+
+    $currencyCode = ecCurrencyNormalizeCode($currencyCode ?? ecStoreBaseCurrencyCode()) ?: ecStoreBaseCurrencyCode();
 
     try {
         $row = ecDb()->query(
@@ -663,7 +672,8 @@ function ecCouponValidate(string $code, float $subtotal): array
     if ($row['max_uses'] !== null && $row['uses_count'] >= $row['max_uses']) {
         return ['valid' => false, 'error' => 'Coupon usage limit reached'];
     }
-    if ($row['min_order_amount'] > 0 && $subtotal < (float)$row['min_order_amount']) {
+    $minimumAmount = ecCurrencyConvertAmount((float)($row['min_order_amount'] ?? 0), ecStoreBaseCurrencyCode(), $currencyCode);
+    if ($minimumAmount > 0 && $subtotal < $minimumAmount) {
         return ['valid' => false, 'error' => 'Order minimum not met for this coupon'];
     }
 
@@ -673,7 +683,8 @@ function ecCouponValidate(string $code, float $subtotal): array
     if ($type === 'percent') {
         $discount = $subtotal * ((float)$row['value'] / 100);
     } else {
-        $discount = min((float)$row['value'], $subtotal);
+        $convertedValue = ecCurrencyConvertAmount((float)$row['value'], ecStoreBaseCurrencyCode(), $currencyCode);
+        $discount = min($convertedValue, $subtotal);
     }
 
     return [
@@ -681,9 +692,14 @@ function ecCouponValidate(string $code, float $subtotal): array
         'error'           => null,
         'code'            => $row['code'],
         'type'            => $type,
-        'value'           => (float)$row['value'],
+        'currency'        => $currencyCode,
+        'value'           => $type === 'percent'
+            ? (float)$row['value']
+            : ecCurrencyConvertAmount((float)$row['value'], ecStoreBaseCurrencyCode(), $currencyCode),
         'discount_amount' => round($discount, 2),
-        'remaining_balance' => $type === 'gift_card' ? round((float)$row['value'], 2) : null,
+        'remaining_balance' => $type === 'gift_card'
+            ? ecCurrencyConvertAmount((float)$row['value'], ecStoreBaseCurrencyCode(), $currencyCode)
+            : null,
         'description'     => $row['description'] ?? '',
     ];
 }

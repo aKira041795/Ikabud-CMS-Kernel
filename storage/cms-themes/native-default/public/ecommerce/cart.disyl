@@ -38,10 +38,10 @@
                     <div>
                         <h2 class="native-panel-title" style="margin-bottom:0.35rem;">{item.product_title}</h2>
                         {if item.sku}<p class="native-note">SKU: {item.sku}</p>{/if}
-                        <p class="native-note">{ec_settings.currency_symbol}{item.price_snapshot} each</p>
+                        <p class="native-note">{item.unit_price_fmt} each</p>
                     </div>
                     <div style="text-align:right;">
-                        <strong>{ec_settings.currency_symbol}{item.qty * item.price_snapshot}</strong>
+                        <strong>{item.line_total_fmt}</strong>
                     </div>
                 </div>
 

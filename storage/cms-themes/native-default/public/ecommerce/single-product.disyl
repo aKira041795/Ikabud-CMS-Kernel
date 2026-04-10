@@ -65,8 +65,23 @@
             <p class="native-storefront-subtitle">{product.excerpt}</p>
             {/if}
 
+            {if product.product_type == 'subscription'}
+            <div class="native-note" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:0.9rem 1rem;border-radius:0.9rem;">
+                <strong>Subscription product.</strong><br>
+                {product.subscription_summary.recurring_label}
+                {if product.subscription_summary.trial_label}<br>{product.subscription_summary.trial_label}{/if}
+                <br>Subscriptions must be purchased separately from one-time products.
+            </div>
+            {/if}
+
             <div class="native-stack" style="margin-top:1rem;">
-                {if product.inventory.track_stock}
+                {if product.bundle_children | count > 0}
+                    {if product.bundle_summary.all_in_stock}
+                    <div class="native-pill native-pill--success">Bundle includes {product.bundle_summary.item_count} item{if product.bundle_summary.item_count == 1}{else}s{/if}</div>
+                    {else}
+                    <div class="native-pill native-pill--danger">One or more bundle items are unavailable</div>
+                    {/if}
+                {elseif product.inventory.track_stock}
                     {if product.inventory.out_of_stock or not product.inventory.in_stock}
                     <div class="native-pill native-pill--danger">Out of stock</div>
                     {elseif product.inventory.low_stock}
@@ -92,6 +107,34 @@
                 <div class="native-note">This product is purchased through an external checkout partner.</div>
                 <a href="{product.external_product_url}" target="_blank" rel="noopener noreferrer sponsored" class="button button-primary">{product.external_product_button_text | default:'Buy Externally'}</a>
             </div>
+            {elseif product.bundle_children | count > 0}
+            <div class="native-stack" id="bundle-products-form">
+                <div>
+                    <h2 class="native-panel-title">Bundle Includes</h2>
+                    <p class="native-note">Fixed quantities are added together as a single bundle purchase.</p>
+                </div>
+                {foreach product.bundle_children as child}
+                <div class="native-key-value" style="align-items:center; gap:0.85rem;">
+                    <div style="flex:1 1 auto; min-width:0;">
+                        <div><strong>{child.title}</strong></div>
+                        <div class="native-muted">Qty {child.bundle_qty} · {child.pricing.formatted | default:'Contact for price'} · {if child.inventory.low_stock}Low stock{elseif child.inventory.in_stock}In stock{else}Out of stock{/if}</div>
+                    </div>
+                </div>
+                {/foreach}
+                <div class="native-note">
+                    Included items: {product.bundle_summary.child_subtotal_fmt}<br>
+                    Bundle total: {product.bundle_summary.bundle_total_fmt | default:product.pricing.formatted}
+                    {if product.bundle_summary.has_savings}<br>You save: {product.bundle_summary.savings_fmt}{/if}
+                </div>
+                <div class="native-inline-actions">
+                    <input type="number" value="1" min="1" class="native-input native-qty-input" data-bundle-qty-input>
+                    {if product.bundle_summary.all_in_stock}
+                    <button onclick="addBundleToCart({product.id}, event)" class="button button-primary" type="button">Add Bundle to Cart</button>
+                    {else}
+                    <button class="button button-secondary" type="button" disabled>Bundle Unavailable</button>
+                    {/if}
+                </div>
+            </div>
             {elseif product.grouped_children | count > 0}
             <div class="native-stack" id="grouped-products-form">
                 <div>
@@ -110,10 +153,16 @@
                 <button onclick="addGroupedToCart({product.id}, event)" class="button button-primary" type="button">Add Selected Items</button>
             </div>
             {elseif product.inventory.in_stock && !product.inventory.out_of_stock}
+            {if product.product_type == 'subscription'}
+            <div class="native-actions">
+                <button onclick="addToCart({product.id}, 1, event)" class="button button-primary" type="button">Start Subscription</button>
+            </div>
+            {else}
             <div class="native-inline-actions">
                 <input type="number" id="qty-input" value="1" min="1" {if product.inventory.track_stock}max="{product.inventory.stock_qty}"{/if} class="native-input native-qty-input">
                 <button onclick="addToCart({product.id}, document.getElementById('qty-input').value, event)" class="button button-primary" type="button">Add to Cart</button>
             </div>
+            {/if}
             {else}
             <div class="native-actions">
                 <button type="button" class="button button-secondary" disabled>Currently unavailable</button>
@@ -186,6 +235,44 @@ async function addToCart(productId, qty, clickEvent) {
         alert('Error. Please try again.');
         btn.disabled = false;
         btn.textContent = 'Add to Cart';
+    }
+}
+
+async function addBundleToCart(productId, clickEvent) {
+    const btn = clickEvent && clickEvent.currentTarget ? clickEvent.currentTarget : null;
+    if (!btn) {
+        return;
+    }
+
+    const qtyInput = document.querySelector('[data-bundle-qty-input]');
+    const qty = qtyInput ? parseInt(qtyInput.value || '1', 10) : 1;
+
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({ product_id: productId, qty: qty > 0 ? qty : 1 }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            btn.textContent = 'Added';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Add Bundle to Cart';
+            }, 1600);
+        } else {
+            alert(data.error || 'Could not add this bundle to the cart.');
+            btn.disabled = false;
+            btn.textContent = 'Add Bundle to Cart';
+        }
+    } catch (error) {
+        alert('Error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Add Bundle to Cart';
     }
 }
 

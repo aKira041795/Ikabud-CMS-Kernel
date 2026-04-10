@@ -345,6 +345,17 @@ function ecRender(string $template, array $context = []): void
 
     $context = ecPublicRenderContext($template, $context);
     $isPublicTemplate = ecIsPublicTemplate($template);
+    if ($isPublicTemplate && function_exists('ecCurrentCurrencyContext')) {
+        $currencyContext = ecCurrentCurrencyContext();
+        $context['ec_currency'] = $currencyContext;
+        $context['currency'] = (string)($currencyContext['code'] ?? '');
+        $context['currency_sym'] = (string)($currencyContext['symbol'] ?? '');
+
+        $settings = is_array($context['ec_settings'] ?? null) ? $context['ec_settings'] : [];
+        $settings['currency'] = (string)($currencyContext['code'] ?? ($settings['currency'] ?? ''));
+        $settings['currency_symbol'] = (string)($currencyContext['symbol'] ?? ($settings['currency_symbol'] ?? ''));
+        $context['ec_settings'] = $settings;
+    }
     
     // Always check presentation modes for traditional-style entity endpoints if cms isn't managing it upstream
     // (cart, checkout etc are exempt as CMS builder has no explicit "cart route" in phase 1)

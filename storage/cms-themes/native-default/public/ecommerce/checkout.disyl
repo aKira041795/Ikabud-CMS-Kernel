@@ -12,6 +12,10 @@
             <h1>Review and Place Order</h1>
             <p class="native-storefront-subtitle">The checkout flow keeps the active native theme shell while preserving the current ecommerce behavior, payment handling, and order summary logic.</p>
         </div>
+        <div class="native-shop-metric">
+            <span>Currency</span>
+            <strong>{ec_settings.currency}</strong>
+        </div>
     </header>
 
     <form id="checkout-form" class="native-checkout-layout">
@@ -119,7 +123,7 @@
                 {foreach cart.items as item}
                 <div class="native-summary-row">
                     <span>{item.product_title} x {item.qty}</span>
-                    <strong>{ec_settings.currency_symbol}{item.qty * item.price_snapshot}</strong>
+                    <strong>{item.line_total_fmt}</strong>
                 </div>
                 {/foreach}
             </div>

@@ -2,7 +2,10 @@
 
 {block content}
 <div class="max-w-4xl mx-auto">
-    <h1 class="text-2xl font-bold text-gray-900 mb-6">Checkout</h1>
+    <div class="mb-6 flex items-center justify-between gap-4">
+        <h1 class="text-2xl font-bold text-gray-900">Checkout</h1>
+        <div class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">{ec_settings.currency}</div>
+    </div>
 
     <form id="checkout-form" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-5">
@@ -18,6 +21,26 @@
                     Your license key and download link will be sent to the email address you enter below.
                     {/if}
                 </div>
+            </div>
+            {/if}
+
+            {if cart.subscription.has_subscription}
+            <div class="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <svg class="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.79-4 4m4-4c2.21 0 4 1.79 4 4m-4-4V3m0 9a4 4 0 100 8 4 4 0 000-8z"/></svg>
+                <div class="text-sm text-amber-900">
+                    <span class="font-semibold">Subscription checkout.</span>
+                    {cart.subscription.primary_item.product_title} renews at {cart.subscription.primary_item.recurring_label}.
+                    {if cart.subscription.primary_item.trial_label}
+                    <span class="block mt-1 text-amber-800">{cart.subscription.primary_item.trial_label}</span>
+                    {/if}
+                    <span class="block mt-1 text-amber-800">Subscriptions must be purchased separately from one-time products.</span>
+                </div>
+            </div>
+            {/if}
+
+            {if cart.validation_errors | count > 0}
+            <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {cart.validation_errors.0}
             </div>
             {/if}
 
@@ -121,7 +144,7 @@
                     {foreach cart.items as item}
                     <div class="flex justify-between">
                         <span class="text-gray-600 truncate mr-2">{item.product_title} × {item.qty}</span>
-                        <span class="text-gray-900 font-medium shrink-0">{ec_settings.currency_symbol}{item.qty * item.price_snapshot}</span>
+                        <span class="text-gray-900 font-medium shrink-0">{item.line_total_fmt}</span>
                     </div>
                     {/foreach}
                 </div>

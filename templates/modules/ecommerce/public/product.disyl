@@ -66,11 +66,55 @@
             <p class="text-gray-600 mb-4">{storefront.page.description|default:storefront.product.excerpt|default:product.excerpt}</p>
             {/if}
 
+            {if storefront.product.product_type == 'subscription'}
+            <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div class="font-semibold">Subscription product</div>
+                <div class="mt-1">{storefront.product.subscription_summary.recurring_label}</div>
+                {if storefront.product.subscription_summary.trial_label}
+                <div class="mt-1 text-amber-800">{storefront.product.subscription_summary.trial_label}</div>
+                {/if}
+                <div class="mt-1 text-amber-800">Subscriptions must be purchased separately from one-time products.</div>
+            </div>
+            {elseif product.product_type == 'subscription'}
+            <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div class="font-semibold">Subscription product</div>
+                <div class="mt-1">{product.subscription_summary.recurring_label}</div>
+                {if product.subscription_summary.trial_label}
+                <div class="mt-1 text-amber-800">{product.subscription_summary.trial_label}</div>
+                {/if}
+                <div class="mt-1 text-amber-800">Subscriptions must be purchased separately from one-time products.</div>
+            </div>
+            {/if}
+
             <!-- Stock -->
             {if storefront.product.id}
+            {if storefront.product.bundle_children | count > 0}
+            <div class="flex items-center gap-2 mb-4">
+                <span class="inline-block w-2 h-2 rounded-full {if storefront.product.bundle_summary.all_in_stock}bg-emerald-400{else}bg-red-400{/if}"></span>
+                <span class="text-sm {if storefront.product.bundle_summary.all_in_stock}text-emerald-700{else}text-red-600 font-medium{/if}">
+                    {if storefront.product.bundle_summary.all_in_stock}
+                    Bundle includes {storefront.product.bundle_summary.item_count} item{if storefront.product.bundle_summary.item_count == 1}{else}s{/if}
+                    {else}
+                    One or more bundle items are unavailable
+                    {/if}
+                </span>
+            </div>
+            {else}
             <div class="flex items-center gap-2 mb-4">
                 <span class="inline-block w-2 h-2 rounded-full {if storefront.product.inventory.badge.tone == 'danger'}bg-red-400{elseif storefront.product.inventory.badge.tone == 'warning'}bg-amber-400{elseif storefront.product.inventory.badge.tone == 'success'}bg-emerald-400{else}bg-gray-400{/if}"></span>
                 <span class="text-sm {if storefront.product.inventory.badge.tone == 'danger'}text-red-600 font-medium{elseif storefront.product.inventory.badge.tone == 'warning'}text-amber-700 font-medium{elseif storefront.product.inventory.badge.tone == 'success'}text-emerald-700{else}text-gray-500{/if}">{storefront.product.inventory.badge.label}</span>
+            </div>
+            {/if}
+            {elseif product.bundle_children | count > 0}
+            <div class="flex items-center gap-2 mb-4">
+                <span class="inline-block w-2 h-2 rounded-full {if product.bundle_summary.all_in_stock}bg-emerald-400{else}bg-red-400{/if}"></span>
+                <span class="text-sm {if product.bundle_summary.all_in_stock}text-emerald-700{else}text-red-600 font-medium{/if}">
+                    {if product.bundle_summary.all_in_stock}
+                    Bundle includes {product.bundle_summary.item_count} item{if product.bundle_summary.item_count == 1}{else}s{/if}
+                    {else}
+                    One or more bundle items are unavailable
+                    {/if}
+                </span>
             </div>
             {elseif product.inventory.track_stock}
             <div class="flex items-center gap-2 mb-4">
@@ -103,6 +147,44 @@
                     {storefront.product.external_product_button_text | default:'Buy Externally'}
                 </a>
             </div>
+                {elseif storefront.product.bundle_children | count > 0}
+            <div class="mb-6 rounded-xl border border-gray-200 p-4" id="bundle-products-form">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold text-gray-900">Bundle Includes</h2>
+                    <span class="text-xs text-gray-500">Fixed quantities</span>
+                </div>
+                <div class="space-y-3">
+                    {foreach storefront.product.bundle_children as child}
+                    <div class="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-3">
+                        <img src="{if child.primary_image_url}{child.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{child.title}" class="w-14 h-14 rounded-lg object-cover bg-gray-100">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-gray-900">{child.title}</div>
+                            <div class="text-sm text-gray-500">Qty {child.bundle_qty} · {child.pricing.formatted | default:'Contact for price'} · {child.inventory.badge.label}</div>
+                        </div>
+                    </div>
+                    {/foreach}
+                </div>
+                <div class="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600 space-y-1.5">
+                    <div class="flex justify-between"><span>Included items</span><span>{storefront.product.bundle_summary.child_subtotal_fmt}</span></div>
+                    <div class="flex justify-between font-semibold text-gray-900"><span>Bundle total</span><span>{storefront.product.bundle_summary.bundle_total_fmt | default:storefront.product.pricing.formatted}</span></div>
+                    {if storefront.product.bundle_summary.has_savings}
+                    <div class="flex justify-between text-emerald-600"><span>You save</span><span>{storefront.product.bundle_summary.savings_fmt}</span></div>
+                    {/if}
+                </div>
+                <div class="mt-4 flex gap-3" id="bundle-add-to-cart-form">
+                    <input type="number" value="1" min="1" class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:border-orange-500 outline-none" data-bundle-qty-input>
+                    {if storefront.product.bundle_summary.all_in_stock}
+                    <button onclick="addBundleToCart({storefront.product.id|default:product.id}, event)"
+                            class="flex-1 px-6 py-2 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
+                        Add Bundle to Cart
+                    </button>
+                    {else}
+                    <button disabled class="flex-1 px-6 py-2 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed">
+                        Bundle Unavailable
+                    </button>
+                    {/if}
+                </div>
+            </div>
                 {elseif storefront.product.grouped_children | count > 0}
             <div class="mb-6 rounded-xl border border-gray-200 p-4" id="grouped-products-form">
                 <div class="flex items-center justify-between mb-3">
@@ -129,6 +211,11 @@
                 {elseif storefront.product.inventory.in_stock}
                     {if storefront.product.inventory.out_of_stock}
             <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
+                    {elseif storefront.product.product_type == 'subscription'}
+            <button onclick="addToCart({storefront.product.id|default:product.id}, 1)"
+                    class="w-full px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 mb-6">
+                Start Subscription
+            </button>
                     {else}
             <div class="flex gap-3 mb-6" id="add-to-cart-form">
                 <input type="number" id="qty-input" value="1" min="1"
@@ -150,6 +237,44 @@
                    class="inline-flex w-full items-center justify-center px-6 py-3 bg-sky-700 text-white font-medium rounded-lg hover:bg-sky-800">
                     {product.external_product_button_text | default:'Buy Externally'}
                 </a>
+            </div>
+            {elseif product.bundle_children | count > 0}
+            <div class="mb-6 rounded-xl border border-gray-200 p-4" id="bundle-products-form">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold text-gray-900">Bundle Includes</h2>
+                    <span class="text-xs text-gray-500">Fixed quantities</span>
+                </div>
+                <div class="space-y-3">
+                    {foreach product.bundle_children as child}
+                    <div class="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-3">
+                        <img src="{if child.primary_image_url}{child.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{child.title}" class="w-14 h-14 rounded-lg object-cover bg-gray-100">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-gray-900">{child.title}</div>
+                            <div class="text-sm text-gray-500">Qty {child.bundle_qty} · {child.pricing.formatted | default:'Contact for price'} · {if child.inventory.low_stock}Low stock{elseif child.inventory.in_stock}In stock{else}Out of stock{/if}</div>
+                        </div>
+                    </div>
+                    {/foreach}
+                </div>
+                <div class="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600 space-y-1.5">
+                    <div class="flex justify-between"><span>Included items</span><span>{product.bundle_summary.child_subtotal_fmt}</span></div>
+                    <div class="flex justify-between font-semibold text-gray-900"><span>Bundle total</span><span>{product.bundle_summary.bundle_total_fmt | default:product.pricing.formatted}</span></div>
+                    {if product.bundle_summary.has_savings}
+                    <div class="flex justify-between text-emerald-600"><span>You save</span><span>{product.bundle_summary.savings_fmt}</span></div>
+                    {/if}
+                </div>
+                <div class="mt-4 flex gap-3" id="bundle-add-to-cart-form">
+                    <input type="number" value="1" min="1" class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:border-orange-500 outline-none" data-bundle-qty-input>
+                    {if product.bundle_summary.all_in_stock}
+                    <button onclick="addBundleToCart({product.id}, event)"
+                            class="flex-1 px-6 py-2 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
+                        Add Bundle to Cart
+                    </button>
+                    {else}
+                    <button disabled class="flex-1 px-6 py-2 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed">
+                        Bundle Unavailable
+                    </button>
+                    {/if}
+                </div>
             </div>
             {elseif product.grouped_children | count > 0}
             <div class="mb-6 rounded-xl border border-gray-200 p-4" id="grouped-products-form">
@@ -177,6 +302,11 @@
             {elseif product.inventory.in_stock}
                 {if product.inventory.out_of_stock}
             <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
+                {elseif product.product_type == 'subscription'}
+            <button onclick="addToCart({product.id}, 1)"
+                    class="w-full px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 mb-6">
+                Start Subscription
+            </button>
                 {else}
             <div class="flex gap-3 mb-6" id="add-to-cart-form">
                 <input type="number" id="qty-input" value="1" min="1"
@@ -256,6 +386,47 @@ async function addToCart(productId, qty) {
         alert('Error. Please try again.');
         btn.disabled = false;
         btn.textContent = 'Add to Cart';
+    }
+}
+
+async function addBundleToCart(productId, clickEvent) {
+    const btn = clickEvent && clickEvent.currentTarget ? clickEvent.currentTarget : null;
+    if (!btn) {
+        return;
+    }
+
+    const qtyInput = document.querySelector('[data-bundle-qty-input]');
+    const qty = qtyInput ? parseInt(qtyInput.value || '1', 10) : 1;
+
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({ product_id: productId, qty: qty > 0 ? qty : 1 }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            btn.textContent = 'Added!';
+            btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+            btn.classList.add('bg-emerald-600');
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Add Bundle to Cart';
+                btn.classList.add('bg-orange-600', 'hover:bg-orange-700');
+                btn.classList.remove('bg-emerald-600');
+            }, 2000);
+        } else {
+            alert(data.error || 'Could not add bundle to cart');
+            btn.disabled = false;
+            btn.textContent = 'Add Bundle to Cart';
+        }
+    } catch (e) {
+        alert('Error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Add Bundle to Cart';
     }
 }
 

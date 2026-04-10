@@ -213,6 +213,29 @@
                 </div>
             </div>
             {/if}
+
+            {if order.subscriptions | count > 0}
+            <div class="bg-white rounded-xl border border-amber-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-amber-200 bg-amber-50">
+                    <h2 class="font-semibold text-amber-900">Subscriptions</h2>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    {foreach order.subscriptions as subscription}
+                    <div class="p-5 space-y-2 text-sm text-gray-700">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="font-semibold text-gray-900">{subscription.product_title}</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">{subscription.status | replace:'_':' ' | title}</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">Every {subscription.interval_label}</span>
+                        </div>
+                        <div>{subscription.recurring_label}</div>
+                        {if subscription.trial_label}<div class="text-amber-700">{subscription.trial_label}</div>{/if}
+                        {if subscription.next_renewal_at}<div class="text-gray-500">Next renewal: {subscription.next_renewal_at | date:'M j, Y g:i A'}</div>{/if}
+                        {if subscription.cancelled_at}<div class="text-red-600">Cancelled {subscription.cancelled_at | date:'M j, Y g:i A'}</div>{/if}
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
         </div>
 
         <div class="space-y-6">

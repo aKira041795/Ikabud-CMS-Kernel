@@ -511,7 +511,7 @@ function ecOrderCreate(array $data): array
     $token        = bin2hex(random_bytes(32));
     $customerId   = isset($data['customer_id']) ? (int)$data['customer_id'] : null;
     $source       = in_array($data['source'] ?? '', ['web', 'pos', 'api'], true) ? $data['source'] : 'web';
-    $currency     = $data['currency'] ?? ecSettings('currency');
+    $currency     = ecCurrencyNormalizeCode($data['currency'] ?? ecResolveCartItemsCurrencyCode((array)($data['cart_items'] ?? []))) ?: ecStoreBaseCurrencyCode();
     $paymentGatewayConfig = function_exists('ecPaymentGatewayConfig') ? ecPaymentGatewayConfig() : ['gateway' => 'manual'];
     $paymentGateway = trim((string)($paymentGatewayConfig['gateway'] ?? 'manual')) ?: 'manual';
     $manualPaymentMode = $paymentGateway === 'manual' ? ecManualPaymentModeSetting() : '';
@@ -775,6 +775,8 @@ function ecBuildOrderCreatedEventPayload(int $orderId, string $orderNumber, arra
         'order_number' => $orderNumber,
         'customer_email' => $data['guest_email'] ?? ($data['billing']['email'] ?? ''),
         'total' => (float)($data['total'] ?? 0),
+        'currency' => ecCurrencyNormalizeCode($data['currency'] ?? '') ?: ecStoreBaseCurrencyCode(),
+        'currency_symbol' => ecCurrencySymbolFor((string)($data['currency'] ?? ecStoreBaseCurrencyCode())),
         'source' => $source,
         'actor_user_id' => isset($data['placed_by_user_id']) ? (int)$data['placed_by_user_id'] : null,
         'idempotency_key' => ecOrderEventIdempotencyKey($orderId, 'created'),
@@ -798,6 +800,8 @@ function ecBuildOrderBridgeSnapshot(int $orderId, string $orderNumber, array $da
         'order_number' => $orderNumber,
         'warehouse_id' => ecResolveOrderWarehouseId($data),
         'items' => ecBuildOrderEventItems($data),
+        'currency' => ecCurrencyNormalizeCode($data['currency'] ?? '') ?: ecStoreBaseCurrencyCode(),
+        'currency_symbol' => ecCurrencySymbolFor((string)($data['currency'] ?? ecStoreBaseCurrencyCode())),
         'source' => $source,
         'created_at' => date('Y-m-d H:i:s'),
         'customer_name' => $customerName,
@@ -827,6 +831,12 @@ function ecOrderBridgeSnapshot(array $order): array
             if (!isset($decoded['source'])) {
                 $decoded['source'] = (string)($order['source'] ?? 'web');
             }
+            if (!isset($decoded['currency'])) {
+                $decoded['currency'] = ecCurrencyNormalizeCode($order['currency'] ?? '') ?: ecStoreBaseCurrencyCode();
+            }
+            if (!isset($decoded['currency_symbol'])) {
+                $decoded['currency_symbol'] = ecCurrencySymbolFor((string)$decoded['currency']);
+            }
             if (!isset($decoded['customer_name'])) {
                 $decoded['customer_name'] = trim((string)($order['billing']['first_name'] ?? '') . ' ' . (string)($order['billing']['last_name'] ?? ''));
             }
@@ -846,6 +856,8 @@ function ecOrderBridgeSnapshot(array $order): array
             'cart_items' => (array)($order['items'] ?? []),
             'warehouse_id' => (int)ecSettings('default_wms_warehouse_id', 0),
         ]),
+        'currency' => ecCurrencyNormalizeCode($order['currency'] ?? '') ?: ecStoreBaseCurrencyCode(),
+        'currency_symbol' => ecCurrencySymbolFor((string)($order['currency'] ?? ecStoreBaseCurrencyCode())),
         'source' => (string)($order['source'] ?? 'web'),
         'created_at' => (string)($order['created_at'] ?? date('Y-m-d H:i:s')),
         'customer_name' => trim((string)($order['billing']['first_name'] ?? '') . ' ' . (string)($order['billing']['last_name'] ?? '')),
@@ -929,12 +941,18 @@ function ecOrderHydrateData(array $order): array
         'country'       => (string)($meta['shipping_country'] ?? $billing['country']),
     ];
 
-    $order['currency_symbol'] = (string)ecSettings('currency_symbol');
+    $order['currency'] = ecCurrencyNormalizeCode($order['currency'] ?? '') ?: ecStoreBaseCurrencyCode();
+    $order['currency_symbol'] = ecCurrencySymbolFor((string)$order['currency']);
     $order['total_amount'] = isset($order['total']) ? (float)$order['total'] : (float)($order['total_amount'] ?? 0);
     $order['subtotal_amount'] = isset($order['subtotal']) ? (float)$order['subtotal'] : (float)($order['subtotal_amount'] ?? 0);
     $order['discount_amount'] = (float)($order['discount_amount'] ?? 0);
     $order['tax_amount'] = (float)($order['tax_amount'] ?? 0);
     $order['shipping_amount'] = (float)($order['shipping_amount'] ?? 0);
+    $order['total_amount_fmt'] = ecCurrencyFormatAmount((float)$order['total_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
+    $order['subtotal_amount_fmt'] = ecCurrencyFormatAmount((float)$order['subtotal_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
+    $order['discount_amount_fmt'] = ecCurrencyFormatAmount((float)$order['discount_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
+    $order['tax_amount_fmt'] = ecCurrencyFormatAmount((float)$order['tax_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
+    $order['shipping_amount_fmt'] = ecCurrencyFormatAmount((float)$order['shipping_amount'], (string)$order['currency'], (string)$order['currency_symbol']);
     $order['billing'] = $billing;
     $order['shipping'] = $shipping;
     $order['shipment_tracking'] = ecOrderShipmentTrackingFromMeta($meta);
@@ -952,6 +970,10 @@ function ecOrderHydrateData(array $order): array
         $refundedQty = (int)($refundedItemQuantities[$orderItemId] ?? 0);
         $item['refunded_qty'] = $refundedQty;
         $item['refundable_qty'] = max(0, (int)($item['qty'] ?? 0) - $refundedQty);
+        $item['currency'] = (string)$order['currency'];
+        $item['currency_symbol'] = (string)$order['currency_symbol'];
+        $item['unit_price_fmt'] = ecCurrencyFormatAmount((float)($item['unit_price'] ?? 0), (string)$order['currency'], (string)$order['currency_symbol']);
+        $item['line_total_fmt'] = ecCurrencyFormatAmount((float)($item['line_total'] ?? 0), (string)$order['currency'], (string)$order['currency_symbol']);
     }
     unset($item);
 
@@ -965,6 +987,21 @@ function ecOrderHydrateData(array $order): array
             if (isset($licensesByItem[$iid])) {
                 $itm['licenses'] = $licensesByItem[$iid];
                 $itm['license_key'] = $licensesByItem[$iid][0]['license_key'] ?? '';
+            }
+        }
+        unset($itm);
+    }
+
+    if (!empty($order['items']) && !empty($order['subscriptions'])) {
+        $subscriptionsByItem = [];
+        foreach ($order['subscriptions'] as $subscription) {
+            $subscriptionsByItem[(int)($subscription['order_item_id'] ?? 0)][] = $subscription;
+        }
+        foreach ($order['items'] as &$itm) {
+            $iid = (int)($itm['id'] ?? 0);
+            if (isset($subscriptionsByItem[$iid])) {
+                $itm['subscriptions'] = $subscriptionsByItem[$iid];
+                $itm['subscription'] = $subscriptionsByItem[$iid][0] ?? null;
             }
         }
         unset($itm);
@@ -1108,6 +1145,9 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
                FROM ec_order_licenses WHERE order_id = ? ORDER BY id ASC",
             [$id]
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $order['subscriptions'] = function_exists('ecSubscriptionsForOrder')
+            ? ecSubscriptionsForOrder($id)
+            : [];
 
         try {
             $historyRows = $db->query(
@@ -1202,6 +1242,15 @@ function ecOrderList(array $filters = []): array
              LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $rows = array_map(static function (array $row): array {
+            $currency = ecCurrencyNormalizeCode($row['currency'] ?? '') ?: ecStoreBaseCurrencyCode();
+            $row['currency'] = $currency;
+            $row['currency_symbol'] = ecCurrencySymbolFor($currency);
+            $row['total_amount'] = (float)($row['total'] ?? 0);
+            $row['total_amount_fmt'] = ecCurrencyFormatAmount((float)$row['total_amount'], $currency, (string)$row['currency_symbol']);
+            return $row;
+        }, $rows);
 
         return ['items' => $rows, 'total' => $total];
     } catch (\Throwable $e) {
@@ -2015,8 +2064,11 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
         $items = array_map(static function (array $row): array {
-            $row['currency_symbol'] = (string)ecSettings('currency_symbol');
+            $currency = ecCurrencyNormalizeCode($row['currency'] ?? '') ?: ecStoreBaseCurrencyCode();
+            $row['currency'] = $currency;
+            $row['currency_symbol'] = ecCurrencySymbolFor($currency);
             $row['total_amount'] = isset($row['total']) ? (float)$row['total'] : 0.0;
+            $row['total_amount_fmt'] = ecCurrencyFormatAmount((float)$row['total_amount'], $currency, (string)$row['currency_symbol']);
             return $row;
         }, $rows);
 
@@ -2028,9 +2080,17 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
                 "SELECT DISTINCT order_id FROM ec_order_licenses WHERE order_id IN ($placeholders)",
                 $ids
             )->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+            $subscriptionOrderIds = ecSubscriptionStorageAvailable()
+                ? (ecDb()->query(
+                    "SELECT DISTINCT order_id FROM ec_subscriptions WHERE order_id IN ($placeholders)",
+                    $ids
+                )->fetchAll(\PDO::FETCH_COLUMN) ?: [])
+                : [];
             $licenseSet = array_flip((array)$licenseOrderIds);
+            $subscriptionSet = array_flip((array)$subscriptionOrderIds);
             foreach ($items as &$item) {
                 $item['has_licenses'] = isset($licenseSet[$item['id']]);
+                $item['has_subscriptions'] = isset($subscriptionSet[$item['id']]);
             }
             unset($item);
         }

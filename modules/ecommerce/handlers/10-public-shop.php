@@ -67,6 +67,9 @@ function ecPublicDecorateCatalogProducts(array $products): array
         }
 
         $storefrontItem = ecBuildStorefrontCatalogItem($product, ['item_base_url' => '/ecommerce/shop']);
+        $product['pricing'] = $storefrontItem['pricing'] ?? (array)($product['pricing'] ?? []);
+        $product['bundle_summary'] = $storefrontItem['bundle_summary'] ?? (array)($product['bundle_summary'] ?? []);
+        $product['subscription_summary'] = $storefrontItem['subscription_summary'] ?? (array)($product['subscription_summary'] ?? []);
         $product['detail_url'] = (string)($storefrontItem['url'] ?? '/ecommerce/shop');
         $product['sale_badge_text'] = (string)($storefrontItem['badges']['sale'] ?? '');
         $product['inventory_badge_text'] = (string)($storefrontItem['inventory']['badge']['label'] ?? '');
@@ -444,6 +447,9 @@ function ecPublicProduct(array $params = []): void
             'item_base_url' => '/ecommerce/shop',
             'cart_count' => $cartCount,
         ]);
+        $product['pricing'] = (array)($storefront['product']['pricing'] ?? $product['pricing'] ?? []);
+        $product['bundle_summary'] = (array)($storefront['product']['bundle_summary'] ?? $product['bundle_summary'] ?? []);
+        $product['subscription_summary'] = (array)($storefront['product']['subscription_summary'] ?? $product['subscription_summary'] ?? []);
 
         ecRender('modules/ecommerce/public/product.disyl', [
             'page_title'  => $seoPageTitle,

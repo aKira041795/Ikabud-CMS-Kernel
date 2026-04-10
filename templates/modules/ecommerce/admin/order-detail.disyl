@@ -312,6 +312,27 @@
             </div>
         </div>
         {/if}
+
+        {if order.subscriptions | count > 0}
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Subscriptions</h3>
+            <div class="space-y-3">
+                {foreach order.subscriptions as subscription}
+                <div class="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs space-y-1.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-gray-900">{subscription.product_title}</span>
+                        <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">{subscription.status | replace:'_':' ' | title}</span>
+                        <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-white text-gray-700">Every {subscription.interval_label}</span>
+                    </div>
+                    <div class="text-gray-700">{subscription.recurring_label}</div>
+                    {if subscription.trial_label}<div class="text-amber-700">{subscription.trial_label}</div>{/if}
+                    {if subscription.next_renewal_at}<div class="text-gray-500">Next renewal: {subscription.next_renewal_at}</div>{/if}
+                    {if subscription.cancelled_at}<div class="text-red-600">Cancelled: {subscription.cancelled_at}</div>{/if}
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/if}
     </div>
 </div>
 {/block}

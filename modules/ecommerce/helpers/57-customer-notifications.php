@@ -34,7 +34,8 @@ function ecSendCustomerOrderConfirmation(array $payload): void
         $customerName   = trim((string)($order['customer_name'] ?? $order['guest_name'] ?? ''));
         $orderNumber    = (string)($order['order_number'] ?? $payload['order_number'] ?? '');
         $total          = (float)($order['total'] ?? $payload['total'] ?? 0);
-        $currencySymbol = (string)ecSettings('currency_symbol');
+        $currencyCode   = ecCurrencyNormalizeCode($order['currency'] ?? $payload['currency'] ?? '') ?: ecStoreBaseCurrencyCode();
+        $currencySymbol = (string)($order['currency_symbol'] ?? $payload['currency_symbol'] ?? ecCurrencySymbolFor($currencyCode));
         
         $formattedTotal = $currencySymbol . number_format($total, 2);
 

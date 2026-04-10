@@ -91,6 +91,16 @@
                     <div class="site-branding">
                         <a href="{base_url}/cms" class="site-logo">{site_title|default:gui.app_name|default:"Blog"}</a>
                     </div>
+                    {if ec_currency.selector_enabled}
+                    <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto; margin-right:1rem;">
+                        <label for="ec-native-currency-switcher" style="font-size:0.72rem; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:#64748b;">Currency</label>
+                        <select id="ec-native-currency-switcher" style="border:1px solid #cbd5e1; border-radius:0.6rem; background:#fff; padding:0.45rem 0.65rem; font-size:0.8rem; font-weight:600; color:#334155;">
+                            {foreach ec_currency.available as option}
+                            <option value="{option.code}" {if option.is_current}selected{/if}>{option.code}</option>
+                            {/foreach}
+                        </select>
+                    </div>
+                    {/if}
                     <button class="mobile-menu-toggle" aria-label="Toggle menu">
                         <span></span><span></span><span></span>
                     </button>
@@ -196,6 +206,19 @@
             } else {
                 revealCmsContent();
             }
+        })();
+
+        (function () {
+            var switcher = document.getElementById('ec-native-currency-switcher');
+            if (!switcher) {
+                return;
+            }
+
+            switcher.addEventListener('change', function () {
+                var url = new URL(window.location.href);
+                url.searchParams.set('currency', switcher.value);
+                window.location.href = url.toString();
+            });
         })();
     </script>
     {if theme_script_url}<script src="{theme_script_url}" defer></script>{/if}

@@ -52,6 +52,9 @@ function ecApiCartUpdate(): void
     }
 
     $result = ecCartUpdate($itemIndex, $qty);
+    if (!$result['ok']) {
+        ecJsonError((string)($result['error'] ?? 'Could not update cart item'), 422);
+    }
     ecJsonOk($result);
 }
 

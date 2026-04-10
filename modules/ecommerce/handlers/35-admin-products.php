@@ -59,6 +59,7 @@ function ecAdminProductCreate(): void
         $attributeLines = trim((string)($input['attribute_lines'] ?? ''));
         $attributes = function_exists('ecProductParseAttributeLines') ? ecProductParseAttributeLines($attributeLines) : [];
         $relationSelections = ecProductRelationSelectionsFromInput($input);
+        $bundleChildren = ecProductBundleSelectionsFromInput($input);
         $groupedChildren = ecProductGroupedSelectionsFromInput($input);
         $taxClass = function_exists('ecProductNormalizeTaxClass')
             ? ecProductNormalizeTaxClass($input['tax_class'] ?? 'standard')
@@ -86,8 +87,15 @@ function ecAdminProductCreate(): void
                 'featured_image_id' => $featuredImageId,
                 'attributes'       => $attributes,
                 'relations'        => $relationSelections,
+                'bundle_children'  => $bundleChildren,
                 'grouped_children' => $groupedChildren,
                 'tax_class'        => $taxClass,
+                'is_subscription'  => !empty($input['is_subscription']),
+                'subscription_interval_unit' => $input['subscription_interval_unit'] ?? 'month',
+                'subscription_interval_count' => $input['subscription_interval_count'] ?? 1,
+                'subscription_trial_days' => $input['subscription_trial_days'] ?? 0,
+                'subscription_max_cycles' => $input['subscription_max_cycles'] ?? 0,
+                'subscription_grace_period_days' => $input['subscription_grace_period_days'] ?? 7,
                 'is_external_product' => !empty($input['is_external_product']),
                 'external_product_url' => $input['external_product_url'] ?? '',
                 'external_product_button_text' => $input['external_product_button_text'] ?? '',
@@ -119,6 +127,7 @@ function ecAdminProductCreate(): void
         ecCmsCategorySelectSql('id, name', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     $selectedRelationIds = isset($relationSelections) ? $relationSelections : ecProductDefaultRelationIds();
+    $selectedBundleChildren = isset($bundleChildren) ? $bundleChildren : [];
     $selectedGroupedChildren = isset($groupedChildren) ? $groupedChildren : [];
 
     $ctx = ecAdminContext($user, 'products', [
@@ -128,8 +137,9 @@ function ecAdminProductCreate(): void
         'attribute_lines' => $attributeLines ?? '',
         'selected_tax_class' => $taxClass ?? 'standard',
         'tax_class_options' => ecProductTaxClassOptions($taxClass ?? 'standard'),
-        'relation_options' => ecProductAdminRelationOptions(0, array_merge($selectedRelationIds, ['grouped_children' => $selectedGroupedChildren])),
+        'relation_options' => ecProductAdminRelationOptions(0, array_merge($selectedRelationIds, ['bundle_children' => $selectedBundleChildren, 'grouped_children' => $selectedGroupedChildren])),
         'selected_relation_ids' => $selectedRelationIds,
+        'selected_bundle_children' => $selectedBundleChildren,
         'selected_grouped_children' => $selectedGroupedChildren,
         'featured_image_url' => '',
         'seo_defaults' => ecProductSeoDefaults(),
@@ -167,6 +177,7 @@ function ecAdminProductEdit(array $params = []): void
         $attributeLines = trim((string)($input['attribute_lines'] ?? ''));
         $attributes = function_exists('ecProductParseAttributeLines') ? ecProductParseAttributeLines($attributeLines) : [];
         $relationSelections = ecProductRelationSelectionsFromInput($input, $productId);
+        $bundleChildren = ecProductBundleSelectionsFromInput($input, $productId);
         $groupedChildren = ecProductGroupedSelectionsFromInput($input, $productId);
         $taxClass = function_exists('ecProductNormalizeTaxClass')
             ? ecProductNormalizeTaxClass($input['tax_class'] ?? ($product['tax_class'] ?? 'standard'))
@@ -198,8 +209,15 @@ function ecAdminProductEdit(array $params = []): void
                 'featured_image_id' => $featuredImageId,
                 'attributes'       => $attributes,
                 'relations'        => $relationSelections,
+                'bundle_children'  => $bundleChildren,
                 'grouped_children' => $groupedChildren,
                 'tax_class'        => $taxClass,
+                'is_subscription'  => !empty($input['is_subscription']),
+                'subscription_interval_unit' => $input['subscription_interval_unit'] ?? 'month',
+                'subscription_interval_count' => $input['subscription_interval_count'] ?? 1,
+                'subscription_trial_days' => $input['subscription_trial_days'] ?? 0,
+                'subscription_max_cycles' => $input['subscription_max_cycles'] ?? 0,
+                'subscription_grace_period_days' => $input['subscription_grace_period_days'] ?? 7,
                 'is_external_product' => !empty($input['is_external_product']),
                 'external_product_url' => $input['external_product_url'] ?? '',
                 'external_product_button_text' => $input['external_product_button_text'] ?? '',
@@ -235,6 +253,9 @@ function ecAdminProductEdit(array $params = []): void
     $selectedRelationIds = isset($relationSelections)
         ? $relationSelections
         : (is_array($product['relation_ids'] ?? null) ? $product['relation_ids'] : ecProductDefaultRelationIds());
+    $selectedBundleChildren = isset($bundleChildren)
+        ? $bundleChildren
+        : ecProductBundleChildSelections($productId);
     $selectedGroupedChildren = isset($groupedChildren)
         ? $groupedChildren
         : ecProductGroupedChildSelections($productId);
@@ -248,8 +269,9 @@ function ecAdminProductEdit(array $params = []): void
             : (function_exists('ecProductAttributesToLines') ? ecProductAttributesToLines((array)($product['attributes'] ?? [])) : ''),
         'selected_tax_class' => isset($taxClass) ? $taxClass : (string)($product['tax_class'] ?? 'standard'),
         'tax_class_options' => ecProductTaxClassOptions(isset($taxClass) ? $taxClass : (string)($product['tax_class'] ?? 'standard')),
-        'relation_options' => ecProductAdminRelationOptions($productId, array_merge($selectedRelationIds, ['grouped_children' => $selectedGroupedChildren])),
+        'relation_options' => ecProductAdminRelationOptions($productId, array_merge($selectedRelationIds, ['bundle_children' => $selectedBundleChildren, 'grouped_children' => $selectedGroupedChildren])),
         'selected_relation_ids' => $selectedRelationIds,
+        'selected_bundle_children' => $selectedBundleChildren,
         'selected_grouped_children' => $selectedGroupedChildren,
         'featured_image_url' => (string)($product['featured_image_url'] ?? ''),
         'seo_defaults' => ecProductSeoDefaults(),
