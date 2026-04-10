@@ -2689,7 +2689,24 @@ function cmsRenderWidget_html_embed(array $props, array $style, array $attrs, st
     if ($html === '') {
         return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . ' style="padding:16px;border:1px dashed #d1d5db;border-radius:6px;color:#6b7280;font-size:13px">HTML embed is empty.</div>';
     }
-    // Output raw — no escaping. The user intentionally embedded this HTML.
+
+    // F9 Security: Only admin/superadmin users may render raw embedded HTML.
+    // Any other caller gets a sanitized version with dangerous tags stripped.
+    $user = function_exists('app') ? app()->user() : null;
+    $role = is_array($user) ? (string)($user['role'] ?? '') : '';
+    $trustedRoles = ['admin', 'superadmin'];
+    $isTrusted = in_array($role, $trustedRoles, true);
+
+    if (!$isTrusted) {
+        // Strip all script, style, and event-handler attributes; allow only safe structural tags.
+        $allowedTags = '<p><br><span><div><a><strong><em><ul><ol><li><h1><h2><h3><h4><h5><h6><table><thead><tbody><tr><th><td><img><figure><figcaption><blockquote><pre><code>';
+        $html = strip_tags($html, $allowedTags);
+        // Remove on* event attributes and javascript: hrefs
+        $html = preg_replace('/\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)/i', '', (string)$html);
+        $html = preg_replace('/href\s*=\s*["\']?\s*javascript:/i', 'href="javascript:void(0)"', (string)$html);
+    }
+
+    // Output HTML — trusted users get raw; others get sanitized.
     return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . $html . '</div>';
 }
 

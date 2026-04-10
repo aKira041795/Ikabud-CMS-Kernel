@@ -250,6 +250,50 @@ function cmsGenerateMediaFilename(string $originalName): string
 }
 
 /**
+ * Sanitize SVG content to remove XSS vectors.
+ *
+ * Strips:
+ *  - <script> elements and their content
+ *  - on* event handler attributes (onclick, onload, etc.)
+ *  - <foreignObject> elements (can embed arbitrary HTML)
+ *  - xlink:href / href pointing to data: URIs on <use> elements
+ *  - Processing instructions (xml-stylesheet PIs, etc.)
+ *
+ * This is a defence-in-depth measure. For maximum safety, consider
+ * serving SVGs with Content-Disposition: attachment or a separate
+ * sandbox origin.
+ *
+ * @param string $svg Raw SVG content
+ * @return string Sanitized SVG content
+ */
+function cmsSanitizeSvgContent(string $svg): string
+{
+    if (trim($svg) === '') {
+        return $svg;
+    }
+
+    // Strip <script> blocks (with content)
+    $svg = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $svg) ?? $svg;
+
+    // Strip <foreignObject> elements (can contain arbitrary HTML)
+    $svg = preg_replace('/<foreignObject\b[^>]*>.*?<\/foreignObject>/is', '', $svg) ?? $svg;
+
+    // Strip on* event attributes
+    $svg = preg_replace('/\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)/i', '', $svg) ?? $svg;
+
+    // Strip javascript: in href and xlink:href attributes
+    $svg = preg_replace('/(\s+(?:xlink:)?href\s*=\s*["\'])\s*javascript:/i', '$1javascript:void(0)', $svg) ?? $svg;
+
+    // Strip data: URIs in <use xlink:href="data:..."> or <use href="data:...">
+    $svg = preg_replace('/(<use\b[^>]*\s+(?:xlink:)?href\s*=\s*["\'])data:[^"\']*(["\'])/i', '$1#removed$2', $svg) ?? $svg;
+
+    // Strip XML processing instructions (e.g. xml-stylesheet PI, etc.)
+    $svg = preg_replace('/<\?(?!xml\s)[^?]*\?>/i', '', $svg) ?? $svg;
+
+    return $svg;
+}
+
+/**
  * Validate an uploadable media file using the shared CMS policy.
  * Returns ['ok' => true, 'mime_type' => ..., 'file_size' => ...] on success.
  */

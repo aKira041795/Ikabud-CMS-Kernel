@@ -7,9 +7,11 @@ namespace Ikabud\Kernel\Capabilities;
 final class CapabilityRegistry
 {
     /**
-     * @var array<string, array<int, array{cap: string, provider: string, priority: int, modes: string[], handler: callable, meta: array}>>
+     * @var array<string, array<int, array{cap: string, provider: string, priority: int, modes: string[], handler: callable, meta: array, registration_order: int}>>
      */
     private array $providers = [];
+
+    private int $registrationCounter = 0;
 
     public function register(
         string $capabilityId,
@@ -28,6 +30,7 @@ final class CapabilityRegistry
             'modes' => $modes,
             'handler' => $handler,
             'meta' => $meta,
+            'registration_order' => $this->registrationCounter++,
         ];
 
         $this->sortProviders($capabilityId);
@@ -139,8 +142,8 @@ final class CapabilityRegistry
             // priority DESC
             $p = ($b['priority'] ?? 0) <=> ($a['priority'] ?? 0);
             if ($p !== 0) return $p;
-            // provider ASC tie-breaker
-            return strcmp((string)($a['provider'] ?? ''), (string)($b['provider'] ?? ''));
+            // FIFO tiebreaker: earlier registration wins (lower order = higher precedence)
+            return ($a['registration_order'] ?? 0) <=> ($b['registration_order'] ?? 0);
         });
     }
 

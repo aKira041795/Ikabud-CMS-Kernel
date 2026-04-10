@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ikabud\Kernel;
 
 use Throwable;
+use Ikabud\Kernel\Database\KernelPDO;
 
 class IntegrationBridge
 {
@@ -12,13 +13,12 @@ class IntegrationBridge
 
     private static function withKernelDbUnguarded(callable $callback): mixed
     {
-        $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-        kernel_request_context_set('_kernel_db_unguarded', true);
+        KernelPDO::kernelEscalationEnter();
 
         try {
             return $callback();
         } finally {
-            kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+            KernelPDO::kernelEscalationLeave();
         }
     }
 
@@ -99,10 +99,13 @@ class IntegrationBridge
             }
         }
 
+        // F21: Do not leak internal event variable names to API responses in production.
+        $isProduction = in_array(strtolower((string)($_ENV['APP_ENV'] ?? $_ENV['IKABUD_ENV'] ?? '')), ['production', 'prod'], true);
+
         return [
             'ok' => $errors === [],
             'errors' => $errors,
-            'available_vars' => $availableVars,
+            'available_vars' => $isProduction ? [] : $availableVars,
             'mapping_vars' => $mappingVars,
             'resolved_capability' => $resolvedCapability,
             'normalized' => [
@@ -228,8 +231,7 @@ class IntegrationBridge
         }
 
         self::$activeDepth++;
-        $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-        kernel_request_context_set('_kernel_db_unguarded', true);
+        KernelPDO::kernelEscalationEnter();
 
         try {
             $app = app();
@@ -304,7 +306,7 @@ class IntegrationBridge
                 );
             }
         } finally {
-            kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+            KernelPDO::kernelEscalationLeave();
             self::$activeDepth = max(0, self::$activeDepth - 1);
         }
     }
@@ -712,8 +714,16 @@ class IntegrationBridge
         return null;
     }
 
-    private static function validateMappingAgainstSchema(mixed $value, array $schema, string $path, array &$errors): void
+    private const MAX_SCHEMA_DEPTH = 20;
+
+    private static function validateMappingAgainstSchema(mixed $value, array $schema, string $path, array &$errors, int $depth = 0): void
     {
+        // F20: Guard against deeply-nested schema bombs.
+        if ($depth > self::MAX_SCHEMA_DEPTH) {
+            $errors[] = $path . ' exceeds maximum schema nesting depth.';
+            return;
+        }
+
         if (self::isExactPlaceholder($value)) {
             return;
         }
@@ -750,7 +760,7 @@ class IntegrationBridge
             $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
             foreach ($properties as $property => $propertySchema) {
                 if (is_string($property) && is_array($propertySchema) && array_key_exists($property, $value)) {
-                    self::validateMappingAgainstSchema($value[$property], $propertySchema, $path . '.' . $property, $errors);
+                    self::validateMappingAgainstSchema($value[$property], $propertySchema, $path . '.' . $property, $errors, $depth + 1);
                 }
             }
         }
@@ -759,7 +769,7 @@ class IntegrationBridge
             $itemSchema = is_array($schema['items'] ?? null) ? $schema['items'] : null;
             if ($itemSchema !== null) {
                 foreach ($value as $index => $item) {
-                    self::validateMappingAgainstSchema($item, $itemSchema, $path . '[' . $index . ']', $errors);
+                    self::validateMappingAgainstSchema($item, $itemSchema, $path . '[' . $index . ']', $errors, $depth + 1);
                 }
             }
         }

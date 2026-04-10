@@ -283,8 +283,7 @@ function preloadAllTenantModuleSettings(): void
         return;
     }
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     try {
         $db = app()->db();
         if (!moduleTenantSettingsEnsureTable($db)) {
@@ -316,7 +315,7 @@ function preloadAllTenantModuleSettings(): void
     } catch (Throwable $e) {
         kernel_request_context_set($cacheKey, []);
     } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 }
 
@@ -334,8 +333,7 @@ function invalidateTenantModuleSettingsCache(): void
  */
 function _readTenantModuleSettingsSingle(string $moduleId, int $tenantId, ?PDO $dbOverride = null): array
 {
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     try {
         $db = $dbOverride ?? app()->db();
         if (!moduleTenantSettingsEnsureTable($db)) {
@@ -367,7 +365,7 @@ function _readTenantModuleSettingsSingle(string $moduleId, int $tenantId, ?PDO $
     } catch (Throwable $e) {
         return [];
     } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 }
 
@@ -383,8 +381,7 @@ function saveTenantModuleSettings(string $moduleId, array $settings): bool
 
     // Kernel-level operation: bypass ModuleDB enforcement so any module
     // can persist its own settings without declaring tenant_module_settings.
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     try {
         $db = app()->db();
         if (!moduleTenantSettingsEnsureTable($db)) {
@@ -414,7 +411,7 @@ function saveTenantModuleSettings(string $moduleId, array $settings): bool
     } catch (Throwable $e) {
         return false;
     } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
         invalidateTenantModuleSettingsCache();
     }
 }
@@ -447,8 +444,7 @@ function saveTenantModuleSettingsForTenant(string $moduleId, int $tenantId, arra
         return false;
     }
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     try {
         $db = app()->dbForTenant($tenantId);
         if ($db === null || !moduleTenantSettingsEnsureTable($db)) {
@@ -478,7 +474,7 @@ function saveTenantModuleSettingsForTenant(string $moduleId, int $tenantId, arra
     } catch (Throwable $e) {
         return false;
     } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 }
 

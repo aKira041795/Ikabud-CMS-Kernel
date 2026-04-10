@@ -36,7 +36,16 @@ class ModuleDB implements DatabaseContract
     private bool $unrestricted = false;
 
     /** @var string[] DDL keywords that are always forbidden */
-    private const FORBIDDEN_KEYWORDS = ['CREATE', 'DROP', 'ALTER', 'TRUNCATE', 'RENAME', 'GRANT', 'REVOKE'];
+    private const FORBIDDEN_KEYWORDS = [
+        'CREATE', 'DROP', 'ALTER', 'TRUNCATE', 'RENAME', 'GRANT', 'REVOKE',
+        'FLUSH', 'LOAD', 'OUTFILE', 'DUMPFILE', 'SHOW', 'DESCRIBE', 'EXPLAIN',
+        'CALL', 'EXECUTE', 'PREPARE',
+    ];
+
+    /** @var string[] System schema names that should never be accessible from modules */
+    private const FORBIDDEN_SCHEMAS = [
+        'information_schema', 'performance_schema', 'mysql', 'sys',
+    ];
 
     public function __construct(PDO $pdo, string $moduleId, array $ownsTables, array $readsTables)
     {
@@ -146,11 +155,47 @@ class ModuleDB implements DatabaseContract
 
         $normalized = $this->normalizeSql($sql);
 
-        // Block all DDL
+        // Block multi-statement injection (semicolon followed by more SQL after stripping string literals).
+        // A trailing ';' at the very end is allowed (common in migration scripts run via execute()).
+        $stripped = preg_replace('/\'[^\']*\'|"[^"]*"/', "''", $normalized) ?? $normalized;
+        $stripped = preg_replace('/--.*$/m', '', $stripped);
+        $stripped = preg_replace('/\/\*.*?\*\//s', '', $stripped) ?? $stripped;
+        // Only deny if there is meaningful SQL content after a semicolon.
+        if (preg_match('/;\s*\S/', $stripped)) {
+            $this->deny("Multi-statement queries are forbidden for modules", $sql);
+        }
+
+        // Block DDL/DCL keywords.
+        // Special carve-out: allow 'SHOW TABLES' (used for table existence checks) but block other SHOW variants.
         foreach (self::FORBIDDEN_KEYWORDS as $keyword) {
-            if (preg_match('/\b' . $keyword . '\b/i', $normalized)) {
-                $this->deny("DDL statement '{$keyword}' is forbidden for modules", $sql);
+            if (preg_match('/\b' . $keyword . '\b/i', $stripped)) {
+                if (strtoupper($keyword) === 'SHOW' && preg_match('/\bSHOW\s+TABLES\b/i', $stripped)) {
+                    continue; // Allow SHOW TABLES LIKE / SHOW TABLES only
+                }
+                $this->deny("DDL/DCL statement '{$keyword}' is forbidden for modules", $sql);
             }
+        }
+
+        // Block access to internal system schemas (schema.table notation).
+        // Special carve-out: allow information_schema.tables for SELECT COUNT(*)/EXISTS table-existence probes.
+        $isInformationSchemaTablesProbe = false;
+        foreach (self::FORBIDDEN_SCHEMAS as $schema) {
+            if (preg_match('/\b' . preg_quote($schema, '/') . '\s*\.\s*\w+/i', $stripped)) {
+                if (strtolower($schema) === 'information_schema'
+                    && preg_match('/\bSELECT\b/i', $stripped)
+                    && preg_match('/\binformation_schema\s*\.\s*tables\b/i', $stripped)
+                    && !preg_match('/\binformation_schema\s*\.\s*(?!tables\b)\w+/i', $stripped)
+                ) {
+                    $isInformationSchemaTablesProbe = true;
+                    continue; // Allow SELECT ... FROM information_schema.tables for existence checks only
+                }
+                $this->deny("Access to system schema '{$schema}' is forbidden for modules", $sql);
+            }
+        }
+
+        // Allow information_schema.tables probes to pass without further table enforcement.
+        if ($isInformationSchemaTablesProbe) {
+            return;
         }
 
         // Determine query type

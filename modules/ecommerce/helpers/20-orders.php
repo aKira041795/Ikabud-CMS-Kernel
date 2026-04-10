@@ -527,8 +527,8 @@ function ecOrderCreate(array $data): array
                 order_number, customer_id, guest_email, guest_name, source,
                 status, payment_status, subtotal, discount_amount, tax_amount,
                 shipping_amount, total, currency, coupon_code, customer_note,
-                confirmation_token, placed_by_user_id, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                confirmation_token, placed_by_user_id, token_expires_at, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 90 DAY), NOW(), NOW())",
             [
                 $orderNumber,
                 $customerId,
@@ -1151,7 +1151,8 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
             $params[] = $customerId;
             $params[] = $token ?? '';
         } elseif ($token !== null) {
-            $where  .= ' AND o.confirmation_token = ?';
+            // F18: Only accept non-expired confirmation tokens.
+            $where  .= ' AND o.confirmation_token = ? AND (o.token_expires_at IS NULL OR o.token_expires_at > NOW())';
             $params[] = $token;
         }
 

@@ -313,24 +313,56 @@ function is_https(): bool
         return true;
     }
 
-    $proto = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-    if ($proto === 'https') {
-        return true;
-    }
+    // Only trust X-Forwarded-* headers from configured trusted proxy IPs/CIDRs.
+    // Set TRUSTED_PROXIES env var as a comma-separated list (e.g. "127.0.0.1,10.0.0.0/8").
+    // If not set, proxy headers are IGNORED to prevent spoofing (fail-safe default).
+    $trustedProxies = trim((string)($_ENV['TRUSTED_PROXIES'] ?? ''));
+    if ($trustedProxies !== '') {
+        $remoteAddr = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+        $isFromTrustedProxy = false;
 
-    $ssl = strtolower((string)($_SERVER['HTTP_X_FORWARDED_SSL'] ?? ''));
-    if ($ssl === 'on') {
-        return true;
-    }
+        foreach (array_map('trim', explode(',', $trustedProxies)) as $entry) {
+            if ($entry === '') {
+                continue;
+            }
+            if (str_contains($entry, '/')) {
+                // CIDR notation — do a simple IP-in-subnet check
+                [$subnet, $bits] = explode('/', $entry, 2);
+                $bits = (int)$bits;
+                if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $mask = $bits > 0 ? (~0 << (32 - $bits)) & 0xFFFFFFFF : 0;
+                    if ((ip2long($remoteAddr) & $mask) === (ip2long($subnet) & $mask)) {
+                        $isFromTrustedProxy = true;
+                        break;
+                    }
+                }
+            } elseif ($entry === $remoteAddr) {
+                $isFromTrustedProxy = true;
+                break;
+            }
+        }
 
-    $port = (string)($_SERVER['HTTP_X_FORWARDED_PORT'] ?? '');
-    if ($port === '443') {
-        return true;
-    }
+        if ($isFromTrustedProxy) {
+            $proto = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+            if ($proto === 'https') {
+                return true;
+            }
 
-    $cfVisitor = (string)($_SERVER['HTTP_CF_VISITOR'] ?? '');
-    if ($cfVisitor !== '' && str_contains($cfVisitor, 'https')) {
-        return true;
+            $ssl = strtolower((string)($_SERVER['HTTP_X_FORWARDED_SSL'] ?? ''));
+            if ($ssl === 'on') {
+                return true;
+            }
+
+            $port = (string)($_SERVER['HTTP_X_FORWARDED_PORT'] ?? '');
+            if ($port === '443') {
+                return true;
+            }
+
+            $cfVisitor = (string)($_SERVER['HTTP_CF_VISITOR'] ?? '');
+            if ($cfVisitor !== '' && str_contains($cfVisitor, 'https')) {
+                return true;
+            }
+        }
     }
 
     return false;
@@ -613,7 +645,7 @@ function kernelLoginRateLimitMaxAttempts(): int
         $configured = config('auth.login_rate_limit_max', null);
     }
 
-    $raw = $_ENV['AUTH_LOGIN_RATE_LIMIT_MAX'] ?? $configured ?? 10;
+    $raw = $_ENV['AUTH_LOGIN_RATE_LIMIT_MAX'] ?? $configured ?? 5;
     return max(1, (int)$raw);
 }
 

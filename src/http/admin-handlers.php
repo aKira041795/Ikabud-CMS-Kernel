@@ -2040,7 +2040,7 @@ function kernelHandleApiAdminUpdateUser(): void
         $bind = [':name' => $fullName, ':role' => $role, ':active' => $isActive, ':id' => $editId];
 
         if ($password !== '') {
-            $sql .= ', password_hash = :pass';
+            $sql .= ', password_hash = :pass, token_version = COALESCE(token_version, 0) + 1';
             $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
         }
         $sql .= ' WHERE id = :id';
@@ -2088,7 +2088,7 @@ function kernelHandleApiAdminUpdateProfile(): void
         $sql = 'UPDATE users SET full_name = :name';
         $bind = [':name' => $fullName, ':id' => $editId];
         if ($password !== '') {
-            $sql .= ', password_hash = :pass';
+            $sql .= ', password_hash = :pass, token_version = COALESCE(token_version, 0) + 1';
             $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
         }
         $sql .= ' WHERE id = :id AND role = \'admin\'';

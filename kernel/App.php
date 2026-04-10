@@ -242,7 +242,7 @@ class App
 
             try {
                 $stmt = $this->db()->prepare(
-                    "SELECT id, username, password_hash, full_name, role\n                     FROM users\n                     WHERE username = :username AND is_active = 1\n                     LIMIT 1"
+                    "SELECT id, username, password_hash, full_name, role, COALESCE(token_version, 0) AS token_version\n                     FROM users\n                     WHERE username = :username AND is_active = 1\n                     LIMIT 1"
                 );
                 $stmt->execute([':username' => $username]);
                 $row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -1039,8 +1039,30 @@ class App
                     }
                 }
 
+                // token_version check: reject tokens issued before the last password change.
+                // Only applies to kernel-source users (source = 'kernel') with a numeric id.
+                if ($this->currentUser !== null
+                    && ($this->currentUser['source'] ?? '') === 'kernel'
+                    && isset($this->currentUser['token_version'])
+                ) {
+                    $userId = (int)($this->currentUser['id'] ?? 0);
+                    if ($userId > 0) {
+                        try {
+                            $tvRow = $this->db()->query(
+                                'SELECT COALESCE(token_version, 0) AS token_version FROM users WHERE id = ' . $userId . ' LIMIT 1'
+                            )->fetch(\PDO::FETCH_ASSOC);
+                            if (is_array($tvRow) && (int)$tvRow['token_version'] !== (int)$this->currentUser['token_version']) {
+                                $this->currentUser = null;
+                                return null;
+                            }
+                        } catch (\Throwable $ignored) {
+                            // Non-fatal: column may not exist yet (pre-migration). Continue.
+                        }
+                    }
+                }
+
                 return $this->currentUser;
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 return null;
             }
         } finally {
@@ -1095,6 +1117,12 @@ class App
         $user = $this->requireAuth();
         
         if (($user['role'] ?? '') !== $role) {
+            $this->log('auth.access_denied', 'warning', [
+                'required_role' => $role,
+                'user_role' => $user['role'] ?? '',
+                'user_id' => $user['id'] ?? null,
+                'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            ]);
             if ($this->isHtmx()) {
                 http_response_code(403);
                 echo '<div class="p-4 text-red-600">Access denied</div>';
@@ -1114,6 +1142,12 @@ class App
         $user = $this->requireAuth();
         
         if (!in_array($user['role'] ?? '', $roles, true)) {
+            $this->log('auth.access_denied', 'warning', [
+                'required_roles' => $roles,
+                'user_role' => $user['role'] ?? '',
+                'user_id' => $user['id'] ?? null,
+                'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            ]);
             if ($this->isHtmx()) {
                 http_response_code(403);
                 echo '<div class="p-4 text-red-600">Access denied</div>';
@@ -1202,7 +1236,7 @@ class App
                 if ($raw === false || strlen($raw) > self::MAX_INPUT_SIZE) {
                     $input = []; // reject oversized payloads silently
                 } else {
-                    $decoded = json_decode($raw, true, 64);
+                    $decoded = json_decode($raw, true, 32);
                     if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
                         // JSON parse failed — return structured error so callers
                         // (especially the page-builder save handler) never

@@ -268,10 +268,17 @@ class TenantResolver
         }
 
         // Strategy 2: HTTP header
+        // Only accept X-Tenant header from superadmin (kernel-authenticated) callers.
+        // This prevents low-privilege requests from overriding their own tenant context.
         if ($this->strategy === 'header' || $this->strategy === 'auto') {
             $headerKey = 'HTTP_' . strtoupper(str_replace('-', '_', $this->header));
             if (!empty($_SERVER[$headerKey])) {
-                return (int) $_SERVER[$headerKey];
+                $isSuperadmin = is_array($user)
+                    && ($user['role'] ?? '') === 'superadmin'
+                    && ($user['source'] ?? '') === 'kernel';
+                if ($isSuperadmin) {
+                    return (int) $_SERVER[$headerKey];
+                }
             }
         }
 

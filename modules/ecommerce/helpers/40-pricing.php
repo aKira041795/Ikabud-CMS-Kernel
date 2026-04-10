@@ -501,8 +501,137 @@ function ecShippingQuote(array $items, array $address = [], ?string $couponCode 
     ];
 }
 
+/**
+ * Re-fetch authoritative product prices from the database and override
+ * the price_snapshot in each cart item. This prevents session-based
+ * price manipulation attacks where an attacker lowers price_snapshot
+ * before checkout.
+ *
+ * Logic:
+ *  - Items with a product_id get their base price replaced with the
+ *    current DB active_price (considering sale prices).
+ *  - Add-on adjustments (addon_total) are preserved since they come
+ *    from DB-backed configurations at add-time.
+ *  - Variant price_overrides are also fetched and applied.
+ *  - Items without a product_id (custom/manual line items) are untouched.
+ *  - Discrepancies are logged for auditing purposes.
+ *
+ * @param array $items Cart items with price_snapshot, product_id, variant_id, addon_total
+ * @return array Items with price_snapshot overridden to authoritative DB prices
+ */
+function ecEnforceCurrentPrices(array $items): array
+{
+    if (empty($items)) {
+        return $items;
+    }
+
+    // Collect product IDs needing a fresh price lookup.
+    $productIds = [];
+    foreach ($items as $item) {
+        $pid = (int)($item['product_id'] ?? 0);
+        if ($pid > 0) {
+            $productIds[$pid] = true;
+        }
+    }
+
+    if (empty($productIds)) {
+        return $items; // No product-linked items—custom line items only.
+    }
+
+    // Batch-fetch base prices from cms_entity_capabilities (pricing capability).
+    $livePrices = [];
+    $db = null;
+    try {
+        $db = function_exists('ecDb') ? ecDb() : null;
+        if ($db !== null) {
+            $idList = implode(',', array_map('intval', array_keys($productIds)));
+            $rows = $db->query(
+                "SELECT entity_id, config FROM cms_entity_capabilities WHERE entity_id IN ($idList) AND capability_id = 'pricing'"
+            )->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($rows as $row) {
+                $config    = (array)json_decode((string)($row['config'] ?? '{}'), true);
+                $price     = isset($config['price']) ? (float)$config['price'] : null;
+                $salePrice = isset($config['sale_price']) ? (float)$config['sale_price'] : null;
+                $onSale    = $price !== null && $salePrice !== null && $salePrice > 0 && $salePrice < $price;
+                $active    = $onSale ? $salePrice : $price;
+                if ($active !== null) {
+                    $livePrices[(int)$row['entity_id']] = round($active, 2);
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        // Non-fatal: if DB is unavailable, fall back to stored snapshot.
+        if (function_exists('write_log')) {
+            write_log('ecEnforceCurrentPrices: DB price fetch failed, using snapshots', 'warning', ['error' => $e->getMessage()]);
+        }
+        return $items;
+    }
+
+    // Fetch variant price overrides for items that have variant_id.
+    $variantPrices = [];
+    $variantIds    = [];
+    foreach ($items as $item) {
+        $vid = (int)($item['variant_id'] ?? 0);
+        if ($vid > 0 && (int)($item['product_id'] ?? 0) > 0) {
+            $variantIds[] = $vid;
+        }
+    }
+    if (!empty($variantIds) && $db !== null) {
+        try {
+            $vIdList = implode(',', array_map('intval', array_unique($variantIds)));
+            $vRows = $db->query(
+                "SELECT id, price_override FROM ec_product_variants WHERE id IN ($vIdList) AND is_active = 1"
+            )->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($vRows as $vRow) {
+                $po = $vRow['price_override'];
+                if ($po !== null && $po !== '') {
+                    $variantPrices[(int)$vRow['id']] = round((float)$po, 2);
+                }
+            }
+        } catch (\Throwable $ignored) {}
+    }
+
+    // Override price_snapshot with authoritative DB price.
+    foreach ($items as &$item) {
+        $pid = (int)($item['product_id'] ?? 0);
+        if ($pid <= 0 || !array_key_exists($pid, $livePrices)) {
+            continue;
+        }
+
+        $vid         = (int)($item['variant_id'] ?? 0);
+        $dbBasePrice = ($vid > 0 && array_key_exists($vid, $variantPrices))
+            ? $variantPrices[$vid]
+            : $livePrices[$pid];
+
+        $addonTotal   = round((float)($item['addon_total'] ?? 0.0), 2);
+        $authoritative = round($dbBasePrice + $addonTotal, 2);
+        $stored        = round((float)($item['price_snapshot'] ?? 0), 2);
+
+        if (abs($authoritative - $stored) > 0.01) {
+            if (function_exists('write_log')) {
+                write_log('ecEnforceCurrentPrices: price_snapshot mismatch', 'warning', [
+                    'product_id'    => $pid,
+                    'variant_id'    => $vid ?: null,
+                    'stored'        => $stored,
+                    'authoritative' => $authoritative,
+                ]);
+            }
+            $item['price_snapshot']      = $authoritative;
+            $item['base_price_snapshot'] = $dbBasePrice;
+        }
+    }
+    unset($item);
+
+    return $items;
+}
+
 function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shippingRateId = null, array $taxAddress = [], array $options = []): array
 {
+    // F3 Security: Re-fetch authoritative prices from DB to prevent cart price manipulation.
+    // price_snapshot is stored in session/DB and could be tampered with. We replace the base
+    // product price with the current DB price while preserving legitimate add-on adjustments.
+    $items = ecEnforceCurrentPrices($items);
+
     $subtotal = 0.00;
     $currencyCode = ecResolveCartItemsCurrencyCode($items);
     foreach ($items as $item) {

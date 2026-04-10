@@ -69,6 +69,15 @@ function cmsApiMediaUpload(array $params = []): void
         exit;
     }
 
+    // F13 Security: Sanitize SVG uploads to remove XSS vectors.
+    if ($mimeType === 'image/svg+xml' && is_file($destPath)) {
+        $svgContent = (string)file_get_contents($destPath);
+        $sanitized = cmsSanitizeSvgContent($svgContent);
+        if ($sanitized !== $svgContent) {
+            file_put_contents($destPath, $sanitized);
+        }
+    }
+
     $relPath = $subDir . '/' . $filename;
     $authorId = (int)($user['id'] ?? 0);
 

@@ -116,21 +116,29 @@ class ModuleContext implements AuthContract, LogContract
         if ($actorId !== null && $actorId <= 0) {
             $actorId = null;
         }
+        // F22: Record module-level user identity and actor source for cross-system audit trails.
+        $actorModuleUserId = ($user && $source === 'cms') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
+        if ($actorModuleUserId !== null && $actorModuleUserId <= 0) {
+            $actorModuleUserId = null;
+        }
+        $actorSource = $source !== '' ? $source : null;
 
         try {
             $stmt = $this->app->db()->prepare(
-                'INSERT INTO audit_logs (module, actor_user_id, branch_id, action, entity_type, entity_id, old_data, new_data) '
-                . 'VALUES (:module, :actor, :branch, :action, :etype, :eid, :old, :new)'
+                'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
+                . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
             );
             $stmt->execute([
-                ':module'  => $this->moduleId, // always use the scoped module ID, not the passed one
-                ':actor'   => $actorId,
-                ':branch'  => $branchId,
-                ':action'  => $action,
-                ':etype'   => $entityType,
-                ':eid'     => $entityId,
-                ':old'     => $oldData !== null ? json_encode($oldData) : null,
-                ':new'     => $newData !== null ? json_encode($newData) : null,
+                ':module'     => $this->moduleId, // always use the scoped module ID, not the passed one
+                ':actor'      => $actorId,
+                ':actor_mod'  => $actorModuleUserId,
+                ':actor_src'  => $actorSource,
+                ':branch'     => $branchId,
+                ':action'     => $action,
+                ':etype'      => $entityType,
+                ':eid'        => $entityId,
+                ':old'        => $oldData !== null ? json_encode($oldData) : null,
+                ':new'        => $newData !== null ? json_encode($newData) : null,
             ]);
         } catch (\Throwable $e) {
             // Non-fatal — log but don't crash

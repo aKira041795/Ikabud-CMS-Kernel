@@ -450,6 +450,21 @@ final class CapabilityBus
                 'user' => $caller['user'] ?? null,
                 'request_id' => $caller['request_id'] ?? null,
             ]);
+
+            // F11: Arm pcntl_alarm so SIGALRM interrupts blocking handlers that exceed timeout_ms.
+            $timeoutSeconds = (int)ceil((int)$settings['timeout_ms'] / 1000);
+            $pcntlAvailable = $timeoutSeconds > 0
+                && \function_exists('pcntl_alarm')
+                && \function_exists('pcntl_signal')
+                && \function_exists('pcntl_async_signals');
+            if ($pcntlAvailable) {
+                \pcntl_async_signals(true);
+                \pcntl_signal(\SIGALRM, static function () use ($capabilityId, $providerId): void {
+                    throw new CapabilityCallException('Capability timeout (SIGALRM)', $capabilityId, $providerId);
+                });
+                \pcntl_alarm($timeoutSeconds);
+            }
+
             try {
                 if ($providerId !== '' && $providerId !== 'kernel' && \function_exists('moduleWithContext')) {
                     $result = \moduleWithContext($providerId, static function () use ($provider, $payload, $capabilityId, $providerId): mixed {
@@ -481,6 +496,10 @@ final class CapabilityBus
                     usleep((int)$settings['retry_delay_ms'] * 1000);
                 }
             } finally {
+                // F11: Cancel the alarm to avoid spurious SIGALRM on the next attempt or caller.
+                if ($pcntlAvailable) {
+                    \pcntl_alarm(0);
+                }
                 if ($previousContext === null) {
                     \kernel_request_context_delete('_capability_call_context');
                 } else {

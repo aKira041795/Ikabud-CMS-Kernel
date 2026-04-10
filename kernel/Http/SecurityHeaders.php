@@ -72,6 +72,9 @@ class SecurityHeaders
      */
     public function apply(): bool
     {
+        // F24: Activate PHP session security settings before any session_start().
+        $this->applyPHPSettings();
+
         $headers = $this->headers();
         if ($headers === []) {
             return false;
@@ -150,6 +153,11 @@ class SecurityHeaders
      */
     public function applyPHPSettings(): void
     {
+        // Only effective before session_start(); skip silently if session is already active.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            return;
+        }
+
         ini_set('session.cookie_httponly', '1');
         
         if ($this->isHttps()) {

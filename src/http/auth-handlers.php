@@ -72,6 +72,7 @@ function kernelHandleAuthLogin(): void
         'email' => $authRow['email'] ?? '',
         'role' => $role,
         'source' => $authSource,
+        'token_version' => (int)($authRow['token_version'] ?? 0),
     ];
 
     // Bind JWT to current tenant when multi-tenancy is active

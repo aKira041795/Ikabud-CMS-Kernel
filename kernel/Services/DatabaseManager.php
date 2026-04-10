@@ -44,12 +44,21 @@ class DatabaseManager
 
     private function buildDsn(array $dbConfig): string
     {
+        $dbName = (string)($dbConfig['database'] ?? '');
+
+        // F17: Validate DB name to prevent DSN injection via manipulated tenant config.
+        if ($dbName !== '' && !preg_match('/^[a-zA-Z0-9_]{1,64}$/', $dbName)) {
+            throw new \InvalidArgumentException(
+                'Tenant database name contains invalid characters. Only alphanumeric and underscore characters (up to 64) are allowed.'
+            );
+        }
+
         return sprintf(
             '%s:host=%s;port=%s;dbname=%s;charset=%s',
             $dbConfig['driver'] ?? 'mysql',
             $dbConfig['host'] ?? 'localhost',
             $dbConfig['port'] ?? '3306',
-            $dbConfig['database'] ?? '',
+            $dbName,
             $dbConfig['charset'] ?? 'utf8mb4'
         );
     }
@@ -93,6 +102,14 @@ class DatabaseManager
         $iv = (string)($row['db_pass_iv'] ?? '');
         $tag = (string)($row['db_pass_tag'] ?? '');
         if ($cipher === '' || $iv === '' || $tag === '') {
+            // F6: Log a critical warning when tenant DB credentials are stored in plaintext.
+            if ($password !== '') {
+                ($this->logger)(
+                    'Tenant DB credentials stored in plaintext. Migrate to encrypted storage via the superadmin tenant settings.',
+                    'critical',
+                    ['tenant_id' => $tenantId]
+                );
+            }
             return $password;
         }
 
@@ -171,8 +188,7 @@ class DatabaseManager
             return null;
         }
 
-        $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-        kernel_request_context_set('_kernel_db_unguarded', true);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         try {
             $stmt = $this->controlDb()->prepare(
                 'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
@@ -205,7 +221,7 @@ class DatabaseManager
             );
             throw new \RuntimeException('Tenant database configuration could not be resolved for tenant ' . $tenantId, 0, $e);
         } finally {
-            kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
         }
     }
 
@@ -323,8 +339,7 @@ class DatabaseManager
             return $pooled;
         }
 
-        $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-        kernel_request_context_set('_kernel_db_unguarded', true);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         try {
             $stmt = $this->controlDb()->prepare(
                 'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
@@ -374,7 +389,7 @@ class DatabaseManager
             );
             return null;
         } finally {
-            kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
         }
     }
 
