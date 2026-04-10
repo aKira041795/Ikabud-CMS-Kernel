@@ -4,4 +4,4 @@
 -- an older version are rejected in App::user().
 
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS token_version INT UNSIGNED NOT NULL DEFAULT 0;
+    ADD COLUMN token_version INT UNSIGNED NOT NULL DEFAULT 0;

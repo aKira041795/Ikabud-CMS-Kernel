@@ -3,7 +3,7 @@
 -- expire after 90 days to limit their exposure window.
 
 ALTER TABLE ec_orders
-    ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP NULL DEFAULT NULL;
+    ADD COLUMN token_expires_at TIMESTAMP NULL DEFAULT NULL;
 
 -- Back-fill expiry for existing orders (90 days from creation)
 UPDATE ec_orders
