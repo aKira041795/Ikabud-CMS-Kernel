@@ -7,6 +7,10 @@ require_once __DIR__ . '/../src/helpers/security.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../src/helpers/email.php';
 require_once __DIR__ . '/../src/helpers/updates.php';
+require_once __DIR__ . '/../src/http/request-bootstrap.php';
+require_once __DIR__ . '/../src/http/capability-cache.php';
+require_once __DIR__ . '/../src/http/admin-view-cache.php';
+require_once __DIR__ . '/../src/http/tenant-entry-modules.php';
 
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -21,161 +25,6 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 register_shutdown_function('kernelFireShutdownHooks');
-
-/**
- * Release PHP session write lock for safe GET/HEAD requests after render.
- * This allows concurrent subsequent requests to proceed instead of being blocked.
- * Mutating requests (POST/PUT/DELETE) keep the lock until exit/redirect.
- */
-function releaseSessionAfterRender(): void
-{
-    if (PHP_SAPI === 'cli') {
-        return;
-    }
-    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-    if ($method === 'GET' || $method === 'HEAD') {
-        release_session_lock_if_active();
-    }
-}
-
-function capability_cache_path(string $filename): string
-{
-    return rtrim(defined('STORAGE_PATH') ? STORAGE_PATH : __DIR__, '/') . '/cache/' . ltrim($filename, '/');
-}
-
-function load_capability_cache(string $filename): array
-{
-    $path = capability_cache_path($filename);
-    if (!is_file($path)) {
-        return [];
-    }
-    $raw = @file_get_contents($path);
-    $decoded = $raw ? json_decode($raw, true) : null;
-    return is_array($decoded) ? $decoded : [];
-}
-
-function save_capability_cache(string $filename, array $data): void
-{
-    $path = capability_cache_path($filename);
-    $dir = dirname($path);
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0775, true);
-    }
-    @file_put_contents($path, json_encode($data), LOCK_EX);
-}
-
-function adminViewCacheTtl(): int
-{
-    return max(0, (int)($_ENV['ADMIN_VIEW_CACHE_TTL'] ?? 20));
-}
-
-function adminViewCacheInstance(): string
-{
-    $tid = app()->tenant()->current();
-    return 'admin_view_t' . ($tid ?? 0);
-}
-
-function adminViewCacheScopedKey(string $key, ?array $user = null): string
-{
-    $role = (string)($user['role'] ?? 'guest');
-    $source = (string)($user['source'] ?? 'none');
-    return $key . '|role:' . $role . '|source:' . $source;
-}
-
-function adminViewCacheGet(string $key, ?array $user = null): ?array
-{
-    if (adminViewCacheTtl() <= 0) {
-        return null;
-    }
-
-    $scopedKey = adminViewCacheScopedKey($key, $user);
-    $hit = app()->cache()->get(adminViewCacheInstance(), $scopedKey);
-    if (!is_array($hit)) {
-        return null;
-    }
-
-    $payload = $hit['payload'] ?? null;
-    return is_array($payload) ? $payload : null;
-}
-
-function adminViewCacheSet(string $key, array $payload, array $tags = [], ?array $user = null): void
-{
-    $ttl = adminViewCacheTtl();
-    if ($ttl <= 0) {
-        return;
-    }
-
-    $scopedKey = adminViewCacheScopedKey($key, $user);
-    app()->cache()->setWithTags(
-        adminViewCacheInstance(),
-        $scopedKey,
-        ['payload' => $payload],
-        $tags,
-        $ttl
-    );
-}
-
-function adminViewCacheInvalidate(array $tags): void
-{
-    if (empty($tags)) {
-        return;
-    }
-    app()->cache()->clearByTags(adminViewCacheInstance(), array_values(array_unique($tags)));
-}
-
-function listTenantEntryModuleOptions(): array
-{
-    $modules = discoverModules();
-    $enabled = getEnabledModules();
-    $options = [];
-    foreach ($modules as $module) {
-        if (!is_array($module)) {
-            continue;
-        }
-        $moduleId = trim((string)($module['id'] ?? ''));
-        if ($moduleId === '') {
-            continue;
-        }
-        $options[] = [
-            'id' => $moduleId,
-            'name' => (string)($module['name'] ?? $moduleId),
-            'enabled' => !empty($module['_enabled']),
-            'loadable' => isset($enabled[$moduleId]),
-        ];
-    }
-
-    usort($options, static function (array $left, array $right): int {
-        return strcmp($left['name'], $right['name']);
-    });
-
-    return $options;
-}
-
-function normalizeTenantEntryModuleId($value, bool $requireLoadable = false): array
-{
-    $entryModuleId = trim((string)$value);
-    if ($entryModuleId === '') {
-        return ['ok' => true, 'value' => null, 'error' => null];
-    }
-
-    $optionsById = [];
-    foreach (listTenantEntryModuleOptions() as $option) {
-        $optionId = (string)($option['id'] ?? '');
-        if ($optionId === '') {
-            continue;
-        }
-        $optionsById[$optionId] = $option;
-    }
-
-    if (!isset($optionsById[$entryModuleId])) {
-        return ['ok' => false, 'value' => null, 'error' => 'invalid_entry_module_id'];
-    }
-    if ($requireLoadable && empty($optionsById[$entryModuleId]['loadable'])) {
-        return ['ok' => false, 'value' => null, 'error' => 'entry_module_not_loadable'];
-    }
-
-    return ['ok' => true, 'value' => $entryModuleId, 'error' => null];
-}
 
 if (should_enforce_https() && !is_https()) {
     $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
