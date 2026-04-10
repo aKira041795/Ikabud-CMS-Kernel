@@ -67,15 +67,18 @@ $bridgeName = 'test_inventory_authority_' . strtolower($suffix);
 $warehouseCode = 'IAW-' . $suffix;
 $locationCode = 'IAL-' . $suffix;
 $sku = 'IA-SKU-' . $suffix;
+$secondSku = 'IA-SKU-2-' . $suffix;
 $originalEcommerceSettings = getModuleSettings('ecommerce');
 saveModuleSettings('ecommerce', array_merge(
     is_array($originalEcommerceSettings) ? $originalEcommerceSettings : [],
     ['low_stock_threshold' => 10]
 ));
 $productId = 0;
+$secondProductId = 0;
 $warehouseId = 0;
 $locationId = 0;
 $wmsProductId = 0;
+$secondWmsProductId = 0;
 
 try {
     \Ikabud\Kernel\IntegrationBridge::deleteBridgesByNames([$bridgeName]);
@@ -87,6 +90,13 @@ try {
     $db->prepare('INSERT INTO wms_warehouses (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())')
         ->execute([$warehouseCode, 'Inventory Authority Warehouse ' . $suffix]);
     $warehouseId = (int)$db->lastInsertId();
+    saveModuleSettings('ecommerce', array_merge(
+        is_array($originalEcommerceSettings) ? $originalEcommerceSettings : [],
+        [
+            'low_stock_threshold' => 10,
+            'default_wms_warehouse_id' => $warehouseId,
+        ]
+    ));
 
     $db->prepare(
         'INSERT INTO wms_locations (warehouse_id, parent_id, code, name, type, capacity, capacity_unit, sort_order, is_active, created_at, updated_at) '
@@ -101,9 +111,20 @@ try {
     $wmsProductId = (int)$db->lastInsertId();
 
     $db->prepare(
+        'INSERT INTO wms_products (sku, barcode, name, unit, product_type, is_batch_tracked, is_active, created_at, updated_at) '
+        . 'VALUES (?, ?, ?, ?, ?, 0, 1, NOW(), NOW())'
+    )->execute([$secondSku, $secondSku, 'Inventory Authority Product Two ' . $suffix, 'pcs', 'physical']);
+    $secondWmsProductId = (int)$db->lastInsertId();
+
+    $db->prepare(
         'INSERT INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
         . 'VALUES (?, ?, ?, NULL, ?, ?, ?, NOW())'
     )->execute([$wmsProductId, $warehouseId, $locationId, 10, 3, 0]);
+
+    $db->prepare(
+        'INSERT INTO wms_stocks (product_id, warehouse_id, location_id, batch_id, qty_on_hand, qty_reserved, qty_staged, updated_at) '
+        . 'VALUES (?, ?, ?, NULL, ?, ?, ?, NOW())'
+    )->execute([$secondWmsProductId, $warehouseId, $locationId, 5, 3, 0]);
 
     $productId = ecProductCreate([
         'title' => 'Inventory Authority Product ' . $suffix,
@@ -111,6 +132,14 @@ try {
         'status' => 'published',
         'track_stock' => true,
         'stock_qty' => 99,
+    ], ecommerceWmsInventoryTestUserId());
+
+    $secondProductId = ecProductCreate([
+        'title' => 'Inventory Authority Product Two ' . $suffix,
+        'sku' => $secondSku,
+        'status' => 'published',
+        'track_stock' => true,
+        'stock_qty' => 88,
     ], ecommerceWmsInventoryTestUserId());
 
     ecActiveIntegrationMode(true);
@@ -153,15 +182,21 @@ try {
     t('WMS-authoritative mode overlays ecommerce stock quantity with WMS available qty', (int)($authoritativeInventory['stock_qty'] ?? -1) === 7, json_encode($authoritativeInventory, JSON_UNESCAPED_SLASHES));
     t('WMS-authoritative mode exposes qty_on_hand from WMS', abs((float)($authoritativeInventory['qty_on_hand'] ?? -1) - 10.0) < 0.0001, json_encode($authoritativeInventory, JSON_UNESCAPED_SLASHES));
     t('WMS-authoritative mode exposes qty_reserved from WMS', abs((float)($authoritativeInventory['qty_reserved'] ?? -1) - 3.0) < 0.0001, json_encode($authoritativeInventory, JSON_UNESCAPED_SLASHES));
+    $batchedSnapshots = ecWmsInventorySnapshotMapForSkus([$sku, $secondSku]);
+    t('batched WMS inventory snapshot lookup returns exact results for multiple SKUs', (int)($batchedSnapshots[$sku]['stock_qty'] ?? -1) === 7 && (int)($batchedSnapshots[$secondSku]['stock_qty'] ?? -1) === 2, json_encode($batchedSnapshots, JSON_UNESCAPED_SLASHES));
     $authoritativeList = ecProductList(['status' => 'published', 'limit' => 100, 'offset' => 0]);
     $authoritativeListItem = null;
+    $authoritativeSecondListItem = null;
     foreach (($authoritativeList['items'] ?? []) as $row) {
         if ((int)($row['id'] ?? 0) === $productId) {
             $authoritativeListItem = $row;
-            break;
+        }
+        if ((int)($row['id'] ?? 0) === $secondProductId) {
+            $authoritativeSecondListItem = $row;
         }
     }
     t('product list reflects WMS-authoritative stock quantities', (int)($authoritativeListItem['inventory']['stock_qty'] ?? -1) === 7 && (string)($authoritativeListItem['inventory']['source'] ?? '') === 'wms', json_encode($authoritativeListItem, JSON_UNESCAPED_SLASHES));
+    t('product list overlays batched WMS-authoritative stock for the second SKU', (int)($authoritativeSecondListItem['inventory']['stock_qty'] ?? -1) === 2 && (string)($authoritativeSecondListItem['inventory']['source'] ?? '') === 'wms', json_encode($authoritativeSecondListItem, JSON_UNESCAPED_SLASHES));
 
     $providerInventory = ec_cap_inventory_data_1([
         'entity' => ['id' => $productId, 'type' => 'product'],
@@ -194,13 +229,17 @@ try {
     t('inventory falls back to ecommerce capability data after managed mode bridge removal', (int)($fallbackInventory['stock_qty'] ?? -1) === 99, json_encode($fallbackInventory, JSON_UNESCAPED_SLASHES));
     $fallbackList = ecProductList(['status' => 'published', 'limit' => 100, 'offset' => 0]);
     $fallbackListItem = null;
+    $fallbackSecondListItem = null;
     foreach (($fallbackList['items'] ?? []) as $row) {
         if ((int)($row['id'] ?? 0) === $productId) {
             $fallbackListItem = $row;
-            break;
+        }
+        if ((int)($row['id'] ?? 0) === $secondProductId) {
+            $fallbackSecondListItem = $row;
         }
     }
     t('product list falls back to ecommerce inventory data after managed mode bridge removal', (int)($fallbackListItem['inventory']['stock_qty'] ?? -1) === 99, json_encode($fallbackListItem, JSON_UNESCAPED_SLASHES));
+    t('second product list row falls back to ecommerce inventory data after managed mode bridge removal', (int)($fallbackSecondListItem['inventory']['stock_qty'] ?? -1) === 88, json_encode($fallbackSecondListItem, JSON_UNESCAPED_SLASHES));
     $fallbackReport = ecReportInventory();
     t('low-stock report falls back to ecommerce inventory data after managed mode bridge removal', count(array_filter($fallbackReport['items'] ?? [], static fn(array $row): bool => (int)($row['id'] ?? 0) === $productId)) === 0, json_encode($fallbackReport, JSON_UNESCAPED_SLASHES));
 } finally {
@@ -209,10 +248,19 @@ try {
     $db->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (SELECT id FROM kernel_integrations WHERE name = ?)')->execute([$bridgeName]);
     $db->prepare('DELETE FROM kernel_integrations WHERE name = ?')->execute([$bridgeName]);
 
+    if ($secondProductId > 0) {
+        $db->prepare('DELETE FROM cms_content_meta WHERE content_id = ?')->execute([$secondProductId]);
+        $db->prepare('DELETE FROM cms_entity_capabilities WHERE entity_id = ?')->execute([$secondProductId]);
+        $db->prepare('DELETE FROM cms_content WHERE id = ?')->execute([$secondProductId]);
+    }
     if ($productId > 0) {
         $db->prepare('DELETE FROM cms_content_meta WHERE content_id = ?')->execute([$productId]);
         $db->prepare('DELETE FROM cms_entity_capabilities WHERE entity_id = ?')->execute([$productId]);
         $db->prepare('DELETE FROM cms_content WHERE id = ?')->execute([$productId]);
+    }
+    if ($secondWmsProductId > 0) {
+        $db->prepare('DELETE FROM wms_stocks WHERE product_id = ?')->execute([$secondWmsProductId]);
+        $db->prepare('DELETE FROM wms_products WHERE id = ?')->execute([$secondWmsProductId]);
     }
     if ($wmsProductId > 0) {
         $db->prepare('DELETE FROM wms_stocks WHERE product_id = ?')->execute([$wmsProductId]);

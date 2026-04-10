@@ -77,6 +77,8 @@ function ecRecentlyViewedCatalogItems(int $excludeProductId = 0, int $limit = 4,
     $itemBaseUrl = (string)($options['item_base_url'] ?? '/ecommerce/shop');
     $items = [];
 
+    ecWmsInventoryWarmProductCollection($products);
+
     foreach ($products as $product) {
         $items[] = ecBuildStorefrontCatalogItem($product, ['item_base_url' => $itemBaseUrl]);
     }

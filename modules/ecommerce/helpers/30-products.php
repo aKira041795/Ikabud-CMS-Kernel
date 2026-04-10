@@ -193,6 +193,10 @@ function ecProductList(array $filters = []): array
         $currencySetting = ecSettings('currency');
         $currencySymbol = (string)ecSettings('currency_symbol');
         $lowStockThreshold = (int)ecSettings('low_stock_threshold');
+        ecWmsInventorySnapshotMapForSkus(array_map(
+            static fn(array $config): string => (string)($config['sku'] ?? ''),
+            $inventoryMap
+        ));
 
         // Attach pricing + inventory capability data to each product
         foreach ($rows as &$row) {
@@ -978,7 +982,7 @@ function ecProductRecommendationCatalogItems(array $sourceProductIds, string $re
         }
     }
 
-    $items = [];
+    $products = [];
     foreach ($relatedIds as $relatedProductId) {
         $product = ecProductGet($relatedProductId, false);
         if (!is_array($product)) {
@@ -987,6 +991,13 @@ function ecProductRecommendationCatalogItems(array $sourceProductIds, string $re
         if ($publishedOnly && ($product['status'] ?? 'draft') !== 'published') {
             continue;
         }
+        $products[] = $product;
+    }
+
+    ecWmsInventoryWarmProductCollection($products);
+
+    $items = [];
+    foreach ($products as $product) {
         $items[] = ecBuildStorefrontCatalogItem($product, ['item_base_url' => $itemBaseUrl]);
     }
 
@@ -1381,17 +1392,22 @@ function ecProductInventoryStateFromConfig(array $config, bool $isDigital, int $
         'low_stock' => $trackStock && $stockQty > 0 && $stockQty <= $lowStockThreshold,
     ];
 
+    return ecProductApplyWmsInventorySnapshot($inventory);
+}
+
+function ecProductApplyWmsInventorySnapshot(array $inventory): array
+{
     $wmsSnapshot = ecWmsInventorySnapshotForSku((string)($inventory['sku'] ?? ''));
-    if ($wmsSnapshot !== []) {
-        $inventory = array_merge($inventory, $wmsSnapshot, [
-            'badge' => [
-                'label' => !empty($wmsSnapshot['out_of_stock']) ? 'Out of stock' : '',
-                'tone' => !empty($wmsSnapshot['out_of_stock']) ? 'negative' : '',
-            ],
-        ]);
+    if ($wmsSnapshot === []) {
+        return $inventory;
     }
 
-    return $inventory;
+    return array_merge($inventory, $wmsSnapshot, [
+        'badge' => [
+            'label' => !empty($wmsSnapshot['out_of_stock']) ? 'Out of stock' : '',
+            'tone' => !empty($wmsSnapshot['out_of_stock']) ? 'negative' : '',
+        ],
+    ]);
 }
 
 function ecStorefrontSaleBadgeText(array $pricing): string
@@ -1631,6 +1647,29 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
     ];
 }
 
+function ecWmsInventoryWarmProductCollection(array $products): void
+{
+    $skus = [];
+    foreach ($products as $product) {
+        if (!is_array($product)) {
+            continue;
+        }
+
+        foreach ([
+            (string)($product['sku'] ?? ''),
+            (string)($product['inventory']['sku'] ?? ''),
+            (string)($product['capability_data']['inventory']['sku'] ?? ''),
+        ] as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate !== '') {
+                $skus[] = $candidate;
+            }
+        }
+    }
+
+    ecWmsInventorySnapshotMapForSkus($skus);
+}
+
 function ecBuildStorefrontCatalogContext(array $products, array $options = []): array
 {
     $routeKind = trim((string)($options['route_kind'] ?? 'shop_index'));
@@ -1669,6 +1708,7 @@ function ecBuildStorefrontCatalogContext(array $products, array $options = []): 
     }
 
     $items = [];
+    ecWmsInventoryWarmProductCollection($products);
     foreach ($products as $product) {
         if (!is_array($product)) {
             continue;
@@ -1764,6 +1804,10 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
     $categories = ecStorefrontNormalizeCategories(is_array($product['categories'] ?? null) ? $product['categories'] : []);
     $activeCategory = $categories[0] ?? null;
     $galleryImages = ecProductNormalizeGalleryImages(is_array($product['gallery_images'] ?? null) ? $product['gallery_images'] : []);
+    $bundleChildren = is_array($product['bundle_children'] ?? null) ? $product['bundle_children'] : [];
+    $groupedChildren = is_array($product['grouped_children'] ?? null) ? $product['grouped_children'] : [];
+    ecWmsInventoryWarmProductCollection($bundleChildren);
+    ecWmsInventoryWarmProductCollection($groupedChildren);
     $catalogItem = ecBuildStorefrontCatalogItem($product, [
         'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
     ]);
@@ -1808,13 +1852,13 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
                 $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
                 $storefrontChild['bundle_qty'] = max(1, (int)($child['bundle_qty'] ?? 1));
                 return $storefrontChild;
-            }, is_array($product['bundle_children'] ?? null) ? $product['bundle_children'] : []),
+            }, $bundleChildren),
             'bundle_summary' => is_array($product['bundle_summary'] ?? null) ? $product['bundle_summary'] : ecProductBundleSummary($product),
             'grouped_children' => array_map(static function (array $child): array {
                 $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
                 $storefrontChild['grouped_qty'] = max(1, (int)($child['grouped_qty'] ?? 1));
                 return $storefrontChild;
-            }, is_array($product['grouped_children'] ?? null) ? $product['grouped_children'] : []),
+            }, $groupedChildren),
             'related_products' => is_array($product['related_products'] ?? null) ? $product['related_products'] : [],
             'upsell_products' => is_array($product['upsell_products'] ?? null) ? $product['upsell_products'] : [],
             'cross_sell_products' => is_array($product['cross_sell_products'] ?? null) ? $product['cross_sell_products'] : [],
@@ -2756,72 +2800,134 @@ function ecProductFindIdBySku(string $sku): int
     return $existing !== false ? (int)$existing : 0;
 }
 
-function ecWmsInventorySnapshotForSku(string $sku): array
+function ecWmsInventorySnapshotFromRows(array $rows, int $threshold): array
 {
-    $normalizedSku = strtoupper(trim($sku));
-    if ($normalizedSku === '' || ecActiveIntegrationMode() !== 'wms_authoritative_products') {
+    if ($rows === []) {
+        return [];
+    }
+
+    $qtyOnHand = 0.0;
+    $qtyReserved = 0.0;
+    $qtyStaged = 0.0;
+    $qtyAvailable = 0.0;
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $qtyOnHand += (float)($row['qty_on_hand'] ?? 0);
+        $qtyReserved += (float)($row['qty_reserved'] ?? 0);
+        $qtyStaged += (float)($row['qty_staged'] ?? 0);
+        $qtyAvailable += (float)($row['qty_available'] ?? 0);
+    }
+
+    return [
+        'track_stock' => true,
+        'stock_qty' => (int)round($qtyAvailable),
+        'qty_on_hand' => $qtyOnHand,
+        'qty_reserved' => $qtyReserved,
+        'qty_staged' => $qtyStaged,
+        'qty_available' => $qtyAvailable,
+        'in_stock' => $qtyAvailable > 0,
+        'out_of_stock' => $qtyAvailable <= 0,
+        'low_stock' => $qtyAvailable > 0 && $qtyAvailable <= $threshold,
+        'source' => 'wms',
+    ];
+}
+
+function ecWmsInventorySnapshotMapForSkus(array $skus): array
+{
+    static $cache = [];
+
+    $normalizedSkus = array_values(array_unique(array_filter(array_map(
+        static fn(mixed $value): string => strtoupper(trim((string)$value)),
+        $skus
+    ), static fn(string $value): bool => $value !== '')));
+    if ($normalizedSkus === []) {
+        return [];
+    }
+
+    $integrationMode = ecActiveIntegrationMode();
+    if ($integrationMode !== 'wms_authoritative_products') {
+        $integrationMode = ecActiveIntegrationMode(true);
+    }
+    if ($integrationMode !== 'wms_authoritative_products') {
         return [];
     }
 
     $warehouseId = max(0, (int)ecSettings('default_wms_warehouse_id'));
-    $cacheKey = $warehouseId . ':' . $normalizedSku;
-    static $cache = [];
-    if (array_key_exists($cacheKey, $cache)) {
-        return $cache[$cacheKey];
+    $threshold = (int)ecSettings('low_stock_threshold');
+    $warehouseKey = (string)$warehouseId;
+    if (!isset($cache[$warehouseKey]) || !is_array($cache[$warehouseKey])) {
+        $cache[$warehouseKey] = [];
     }
 
-    try {
-        if (!function_exists('wms_cap_wms_stock_query_1')) {
-            $cache[$cacheKey] = [];
-            return [];
+    $missingSkus = [];
+    foreach ($normalizedSkus as $normalizedSku) {
+        if (!array_key_exists($normalizedSku, $cache[$warehouseKey])) {
+            $missingSkus[] = $normalizedSku;
         }
+    }
 
-        $result = moduleWithContext('wms', static function () use ($normalizedSku, $warehouseId): array {
-            return wms_cap_wms_stock_query_1([
-                'warehouse_id' => $warehouseId,
-                'filters' => ['q' => $normalizedSku],
-            ]);
-        });
-        $rows = is_array($result['data'] ?? null) ? $result['data'] : [];
-        $matchingRows = array_values(array_filter($rows, static function (mixed $row) use ($normalizedSku): bool {
-            return is_array($row) && strtoupper(trim((string)($row['sku'] ?? ''))) === $normalizedSku;
-        }));
-        if ($matchingRows === []) {
-            $cache[$cacheKey] = [];
-            return [];
+    if ($missingSkus !== []) {
+        try {
+            if (!function_exists('wms_cap_wms_stock_query_1')) {
+                foreach ($missingSkus as $missingSku) {
+                    $cache[$warehouseKey][$missingSku] = [];
+                }
+            } else {
+                $result = moduleWithContext('wms', static function () use ($missingSkus, $warehouseId): array {
+                    return wms_cap_wms_stock_query_1([
+                        'warehouse_id' => $warehouseId,
+                        'filters' => ['skus' => $missingSkus],
+                    ]);
+                });
+                $rows = is_array($result['data'] ?? null) ? $result['data'] : [];
+                $groupedRows = [];
+                foreach ($rows as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+
+                    $rowSku = strtoupper(trim((string)($row['sku'] ?? '')));
+                    if ($rowSku === '' || !in_array($rowSku, $missingSkus, true)) {
+                        continue;
+                    }
+
+                    if (!isset($groupedRows[$rowSku])) {
+                        $groupedRows[$rowSku] = [];
+                    }
+                    $groupedRows[$rowSku][] = $row;
+                }
+
+                foreach ($missingSkus as $missingSku) {
+                    $cache[$warehouseKey][$missingSku] = ecWmsInventorySnapshotFromRows($groupedRows[$missingSku] ?? [], $threshold);
+                }
+            }
+        } catch (\Throwable $e) {
+            foreach ($missingSkus as $missingSku) {
+                $cache[$warehouseKey][$missingSku] = [];
+            }
         }
+    }
 
-        $qtyOnHand = 0.0;
-        $qtyReserved = 0.0;
-        $qtyStaged = 0.0;
-        $qtyAvailable = 0.0;
-        foreach ($matchingRows as $row) {
-            $qtyOnHand += (float)($row['qty_on_hand'] ?? 0);
-            $qtyReserved += (float)($row['qty_reserved'] ?? 0);
-            $qtyStaged += (float)($row['qty_staged'] ?? 0);
-            $qtyAvailable += (float)($row['qty_available'] ?? 0);
-        }
+    $snapshots = [];
+    foreach ($normalizedSkus as $normalizedSku) {
+        $snapshots[$normalizedSku] = $cache[$warehouseKey][$normalizedSku] ?? [];
+    }
 
-        $threshold = (int)ecSettings('low_stock_threshold');
-        $stockQty = (int)round($qtyAvailable);
-        $cache[$cacheKey] = [
-            'track_stock' => true,
-            'stock_qty' => $stockQty,
-            'qty_on_hand' => $qtyOnHand,
-            'qty_reserved' => $qtyReserved,
-            'qty_staged' => $qtyStaged,
-            'qty_available' => $qtyAvailable,
-            'in_stock' => $qtyAvailable > 0,
-            'out_of_stock' => $qtyAvailable <= 0,
-            'low_stock' => $qtyAvailable > 0 && $qtyAvailable <= $threshold,
-            'source' => 'wms',
-        ];
+    return $snapshots;
+}
 
-        return $cache[$cacheKey];
-    } catch (\Throwable $e) {
-        $cache[$cacheKey] = [];
+function ecWmsInventorySnapshotForSku(string $sku): array
+{
+    $normalizedSku = strtoupper(trim($sku));
+    if ($normalizedSku === '') {
         return [];
     }
+
+    $snapshots = ecWmsInventorySnapshotMapForSkus([$normalizedSku]);
+    return $snapshots[$normalizedSku] ?? [];
 }
 
 function ecProductDefaultAuthorId(): int

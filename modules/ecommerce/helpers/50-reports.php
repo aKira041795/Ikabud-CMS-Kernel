@@ -97,13 +97,21 @@ function ecReportInventory(): array
 
     try {
         $candidates = ecDb()->query(
-            "SELECT c.id, c.title, c.slug
+            "SELECT c.id, c.title, c.slug,
+                    ec.config AS inventory_config,
+                    COALESCE(dm.meta_value, '0') AS is_digital
              FROM cms_content c
              INNER JOIN cms_entity_capabilities ec ON ec.entity_id = c.id AND ec.capability_id = 'inventory'
+             LEFT JOIN cms_content_meta dm ON dm.content_id = c.id AND dm.meta_key = '_is_digital'
              WHERE c.type = 'product'
                AND c.deleted_at IS NULL
              ORDER BY c.title ASC",
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        ecWmsInventorySnapshotMapForSkus(array_map(static function (array $candidate): string {
+            $config = (array)json_decode((string)($candidate['inventory_config'] ?? '{}'), true);
+            return (string)($config['sku'] ?? '');
+        }, $candidates));
 
         $rows = [];
         foreach ($candidates as $candidate) {
@@ -116,7 +124,11 @@ function ecReportInventory(): array
                 continue;
             }
 
-            $inventory = ecProductInventory($productId);
+            $inventory = ecProductInventoryStateFromConfig(
+                (array)json_decode((string)($candidate['inventory_config'] ?? '{}'), true),
+                (string)($candidate['is_digital'] ?? '0') === '1',
+                $threshold
+            );
             if (empty($inventory['track_stock'])) {
                 continue;
             }

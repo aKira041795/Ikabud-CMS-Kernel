@@ -124,7 +124,9 @@ function ecCompareCatalogItems(int $limit = EC_COMPARE_MAX_ITEMS, array $options
 {
     $itemBaseUrl = (string)($options['item_base_url'] ?? '/ecommerce/shop');
     $items = [];
-    foreach (ecCompareProducts($limit) as $product) {
+    $products = ecCompareProducts($limit);
+    ecWmsInventoryWarmProductCollection($products);
+    foreach ($products as $product) {
         $items[] = ecBuildStorefrontCatalogItem($product, ['item_base_url' => $itemBaseUrl]);
     }
 
@@ -199,6 +201,7 @@ function ecCompareProductAttributeSummary(array $product): string
 function ecCompareTableRows(array $products): array
 {
     $catalogItems = [];
+    ecWmsInventoryWarmProductCollection($products);
     foreach ($products as $product) {
         $catalogItems[] = ecBuildStorefrontCatalogItem($product, ['item_base_url' => '/ecommerce/shop']);
     }

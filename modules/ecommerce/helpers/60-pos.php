@@ -30,11 +30,14 @@ function ecPosProductSearch(string $query, int $limit = 20): array
         // Also search by SKU via cms_entity_capabilities JSON
         $rows = $db->query(
             "SELECT DISTINCT c.id, c.title, c.slug,
+                    inv.config AS inventory_config,
                     JSON_UNQUOTE(JSON_EXTRACT(inv.config, '$.sku')) as sku,
                     CAST(JSON_EXTRACT(inv.config, '$.stock_qty') AS SIGNED) as stock_qty,
-                    JSON_EXTRACT(inv.config, '$.track_stock') as track_stock
+                    JSON_EXTRACT(inv.config, '$.track_stock') as track_stock,
+                    COALESCE(dm.meta_value, '0') AS is_digital
              FROM cms_content c
              LEFT JOIN cms_entity_capabilities inv ON inv.entity_id = c.id AND inv.capability_id = 'inventory'
+             LEFT JOIN cms_content_meta dm ON dm.content_id = c.id AND dm.meta_key = '_is_digital'
              WHERE c.type = 'product'
                AND c.status = 'published'
                AND c.deleted_at IS NULL
@@ -43,9 +46,16 @@ function ecPosProductSearch(string $query, int $limit = 20): array
             [$q, $q, $limit]
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
+        ecWmsInventorySnapshotMapForSkus(array_map(static fn(array $row): string => (string)($row['sku'] ?? ''), $rows));
+
         foreach ($rows as &$row) {
+            $inventoryConfig = (array)json_decode((string)($row['inventory_config'] ?? '{}'), true);
             $row['pricing']   = ecProductPricing((int)$row['id']);
-            $row['inventory'] = ecProductInventory((int)$row['id']);
+            $row['inventory'] = ecProductInventoryStateFromConfig(
+                $inventoryConfig,
+                (string)($row['is_digital'] ?? '0') === '1',
+                (int)ecSettings('low_stock_threshold')
+            );
             $row['sku'] = (string)($row['inventory']['sku'] ?? $row['sku'] ?? '');
             $row['stock_qty'] = $row['inventory']['stock_qty'] ?? ($row['stock_qty'] ?? null);
             $row['track_stock'] = $row['inventory']['track_stock'] ?? ($row['track_stock'] ?? false);

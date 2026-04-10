@@ -78,6 +78,15 @@ function wmsStockSnapshot(int $warehouseId = 0, array $filters = []): array
         $params[] = $locationId;
     }
 
+    $skus = array_values(array_unique(array_filter(array_map(
+        static fn(mixed $value): string => strtoupper(trim((string)$value)),
+        is_array($filters['skus'] ?? null) ? $filters['skus'] : []
+    ), static fn(string $value): bool => $value !== '')));
+    if ($skus !== []) {
+        $where[] = 'UPPER(p.sku) IN (' . implode(',', array_fill(0, count($skus), '?')) . ')';
+        $params = array_merge($params, $skus);
+    }
+
     $q = trim((string)($filters['q'] ?? ''));
     if ($q !== '') {
         $where[] = '(p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)';
