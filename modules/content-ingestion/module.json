@@ -92,7 +92,9 @@
         },
         "source_adapter": {
             "type": "select",
-            "options": ["wordpress"],
+            "options": [
+                "wordpress"
+            ],
             "default": "wordpress",
             "label": "Source Platform",
             "description": "The CMS platform being ingested from. Determines available sync tools and normalization pipeline. Only WordPress is available in Phase 1."
@@ -123,9 +125,20 @@
             "label": "Source Platform",
             "description": "The CMS platform you are migrating content from.",
             "options": [
-                {"value": "wordpress", "label": "WordPress"},
-                {"value": "joomla",    "label": "Joomla",    "available": false},
-                {"value": "rest-api",  "label": "REST API",  "available": false}
+                {
+                    "value": "wordpress",
+                    "label": "WordPress"
+                },
+                {
+                    "value": "joomla",
+                    "label": "Joomla",
+                    "available": false
+                },
+                {
+                    "value": "rest-api",
+                    "label": "REST API",
+                    "available": false
+                }
             ]
         },
         {

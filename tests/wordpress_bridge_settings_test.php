@@ -345,52 +345,64 @@ t('companion plugin escapes source name (addslashes)', !str_contains($pluginInje
 echo "\n";
 
 // ═════════════════════════════════════════════════════════════════════════
-// TEST GROUP 9: Nav registration (bridge_enabled gates nav items)
+// TEST GROUP 9: Nav registration — Settings always shows, Dashboard gated
 // ═════════════════════════════════════════════════════════════════════════
-echo "── Test Group 9: Nav items gated by bridge_enabled ──\n";
+echo "── Test Group 9: Nav items — Settings always visible, Dashboard gated ──\n";
 
-// Disable bridge → nav hook should return items unchanged
+$baseItems = [['label' => 'Content', 'url' => '/cms/admin/content', 'active_key' => 'content']];
+
+// ── bridge_enabled=false: section appears but only Settings child, no Dashboard ──
 $sNav1 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $sNav1['bridge_enabled'] = false;
 saveModuleSettings('content-ingestion', $sNav1);
 
-// Fire the hook manually to see what it returns
-$baseItems = [['label' => 'Content', 'url' => '/cms/admin/content', 'active_key' => 'content']];
 $navResult = app()->hooks()->filter('cms.admin.nav_items', $baseItems);
 
-// Count how many items have the wordpress_bridge active_key (or are WP sections)
-$hasWpSection = false;
+$hasSectionDisabled  = false;
+$hasSettingsDisabled = false;
+$hasDashboardDisabled = false;
 foreach ($navResult as $item) {
-    if (isset($item['section']) && $item['section']) {
+    if (isset($item['section']) && $item['section'] && ($item['label'] ?? '') === 'Content Ingestion') {
+        $hasSectionDisabled = true;
         foreach ((array)($item['children'] ?? []) as $child) {
+            if (($child['active_key'] ?? '') === 'wordpress_bridge_settings') {
+                $hasSettingsDisabled = true;
+            }
             if (($child['active_key'] ?? '') === 'wordpress_bridge') {
-                $hasWpSection = true;
+                $hasDashboardDisabled = true;
             }
         }
     }
 }
-t('bridge_enabled=false: no wordpress_bridge section in nav', !$hasWpSection);
+t('bridge_enabled=false: Content Ingestion section still appears in nav', $hasSectionDisabled);
+t('bridge_enabled=false: Settings child appears even when disabled',      $hasSettingsDisabled);
+t('bridge_enabled=false: Dashboard child is absent when disabled',        !$hasDashboardDisabled);
 
-// Enable bridge → nav hook should inject the section
+// ── bridge_enabled=true: section has both Dashboard and Settings ──
 $sNav2 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $sNav2['bridge_enabled'] = true;
 saveModuleSettings('content-ingestion', $sNav2);
 
 $navResult2 = app()->hooks()->filter('cms.admin.nav_items', $baseItems);
-$hasWpSection2 = false;
-$hasSettingsChild = false;
+$hasSectionEnabled   = false;
+$hasSettingsEnabled  = false;
+$hasDashboardEnabled = false;
 foreach ($navResult2 as $item) {
     if (isset($item['section']) && $item['section'] && ($item['label'] ?? '') === 'Content Ingestion') {
-        $hasWpSection2 = true;
+        $hasSectionEnabled = true;
         foreach ((array)($item['children'] ?? []) as $child) {
             if (($child['active_key'] ?? '') === 'wordpress_bridge_settings') {
-                $hasSettingsChild = true;
+                $hasSettingsEnabled = true;
+            }
+            if (($child['active_key'] ?? '') === 'wordpress_bridge') {
+                $hasDashboardEnabled = true;
             }
         }
     }
 }
-t('bridge_enabled=true: Content Ingestion section appears in nav', $hasWpSection2);
-t('bridge_enabled=true: Settings child appears in nav section',   $hasSettingsChild);
+t('bridge_enabled=true: Content Ingestion section appears in nav', $hasSectionEnabled);
+t('bridge_enabled=true: Settings child appears in nav section',    $hasSettingsEnabled);
+t('bridge_enabled=true: Dashboard child appears in nav section',   $hasDashboardEnabled);
 
 echo "\n";
 

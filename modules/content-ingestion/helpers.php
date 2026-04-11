@@ -214,27 +214,34 @@ function wpBridgeHasConflict(array $existing, array $provenance): bool
 
 app()->hooks()->on('cms.admin.nav_items', static function (array $items): array {
     $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
-    if (empty($settings['bridge_enabled'])) {
-        return $items;
+    $enabled  = !empty($settings['bridge_enabled']);
+    $baseUrl  = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+
+    // Settings always appears so the user can reach it to enable the bridge.
+    // Dashboard only appears once bridge_enabled is true.
+    $children = [];
+
+    if ($enabled) {
+        $children[] = [
+            'label'      => 'Dashboard',
+            'url'        => $baseUrl . '/cms/admin/bridge',
+            'icon'       => '📊',
+            'active_key' => 'wordpress_bridge',
+        ];
     }
-    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+
+    $children[] = [
+        'label'      => 'Settings',
+        'url'        => $baseUrl . '/cms/admin/bridge/settings',
+        'icon'       => '⚙️',
+        'active_key' => 'wordpress_bridge_settings',
+    ];
+
     $items[] = [
         'label'    => 'Content Ingestion',
         'section'  => true,
-        'children' => [
-            [
-                'label'      => 'Dashboard',
-                'url'        => $baseUrl . '/cms/admin/bridge',
-                'icon'       => '📊',
-                'active_key' => 'wordpress_bridge',
-            ],
-            [
-                'label'      => 'Settings',
-                'url'        => $baseUrl . '/cms/admin/bridge/settings',
-                'icon'       => '⚙️',
-                'active_key' => 'wordpress_bridge_settings',
-            ],
-        ],
+        'children' => $children,
     ];
+
     return $items;
 });
