@@ -379,6 +379,150 @@ These are explicitly out of scope for the migration bridge:
 
 ---
 
+## Configuration
+
+All bridge settings are stored per-tenant in the module settings registry (`getModuleSettings('wordpress-bridge')` / `saveModuleSettings('wordpress-bridge', ...)`). They are configurable via **CMS Admin → WordPress Bridge → Settings**.
+
+### Settings Reference
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `bridge_enabled` | boolean | `false` | Master on/off switch. Controls CMS sidebar visibility and ingestion API access. |
+| `bridge_state` | select | `active` | Operational mode: `active` (ingestion open), `read-only` (blocks new ingestion), `archived` / `disabled` (fully locked). Managed from the Bridge Dashboard. |
+| `source_site_url` | text | `""` | Base URL of the source WordPress site (e.g. `https://myblog.com`). Used for SSRF allowlisting during media fetch and for URL rewriting in migrated content bodies. |
+| `source_name` | text | `""` | Human-readable label for this WordPress source (e.g. "Marketing Blog"). Appears in the ingestion log and bridge dashboard. |
+| `bridge_api_token` | text | `""` | Auto-generated 64-character hex bearer token. Used by the WP companion plugin to authenticate `POST /api/v1/bridge/ingest` requests. Never entered manually — generated on first settings access and rotatable via the API. |
+
+### bridge_enabled vs bridge_state
+
+These are two separate control planes:
+
+- **`bridge_enabled`** — master on/off. When `false`, the WordPress Bridge section disappears from the CMS sidebar and the ingest endpoint returns `503`. Use this to suppress the feature entirely for a tenant that has not set it up yet.
+- **`bridge_state`** — operational lifecycle mode. Governs what the bridge allows when it is enabled. Transitions:  
+  `active` → `read-only` → `archived` → `disabled`
+
+---
+
+## API Token & Live Sync
+
+### How the Token Works
+
+The `bridge_api_token` is a 64-character hex string (`bin2hex(random_bytes(32))`). It is compared using `hash_equals()` (constant-time comparison) to prevent timing attacks.
+
+Requests authenticated via bearer token are treated as a system actor and bypass CSRF enforcement. Only the ingest endpoint (`POST /api/v1/bridge/ingest`) supports bearer token authentication. All other bridge admin routes require a valid CMS session.
+
+### Token Lifecycle
+
+1. **Auto-generated**: `wpBridgeEnsureApiToken()` generates the token on first settings page access if one does not exist.
+2. **Displayed (masked)**: Only the last 6 characters are shown in the UI (e.g. `••••••••…abc123`). The full token is never rendered.
+3. **Rotated**: `POST /api/v1/bridge/token/rotate` generates a new token and immediately invalidates the old one. Update the companion plugin after rotation.
+4. **Downloaded with companion plugin**: `GET /api/v1/bridge/companion/download` embeds the current token into the companion plugin PHP file. Re-download after rotation.
+
+### Bearer Token Auth Flow (Ingestion Endpoint)
+
+```
+POST /api/v1/bridge/ingest
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "event": "cms.migration.content.upserted", "source": "...", ... }
+```
+
+When `Authorization: Bearer` is present, the endpoint:
+1. Checks `bridge_enabled` (503 if false)
+2. Reads `bridge_api_token` from settings
+3. Compares via `hash_equals()` — 401 if no match
+4. Proceeds with ingestion as a system actor (no CSRF required)
+
+When no bearer token is present (admin-triggered import), the endpoint falls back to `cmsRequireCap('import_export.manage')` + CSRF enforcement.
+
+---
+
+## WP Companion Plugin
+
+The companion plugin provides **live sync** from WordPress to ApplicationOS. It hooks into WordPress's `save_post` and `delete_post` actions and POSTs a normalized envelope to the bridge ingest endpoint on every publish or update.
+
+### Installation
+
+1. Go to **CMS Admin → WordPress Bridge → Settings**
+2. Fill in **WordPress Site URL** and **Source Name**, then **Save Settings**
+3. Click **Download Companion Plugin** — the downloaded file has your endpoint URL and token pre-embedded
+4. Upload `applicationos-bridge-connector.php` to `wp-content/plugins/` on your WordPress site
+5. Activate the plugin via **WordPress Admin → Plugins → Installed Plugins**
+6. Publish or update a post in WordPress — confirm it appears in the Bridge Dashboard **Recent Activity** log
+
+### Re-download After Token Rotation
+
+After rotating the token via Settings → Rotate Token:
+1. Click **Download Companion Plugin** again
+2. Replace the old plugin file on your WordPress site with the new download
+3. Deactivate and reactivate the plugin if necessary
+
+### Non-Blocking Mode
+
+By default the companion plugin waits for a response from ApplicationOS (blocking HTTP). To fire-and-forget (non-blocking), define `APPLOS_BRIDGE_NONBLOCKING` as `true` in the plugin file after downloading.
+
+### Companion Plugin Security
+
+- The downloaded file contains the full API token in plaintext. Treat it as a credential.
+- Do not commit the companion plugin to public version control.
+- If the token is exposed, rotate it immediately and re-download.
+
+---
+
+## API Reference (Bridge Module)
+
+All routes require `import_export.manage` capability unless noted.
+
+| Method | Route | Handler | Auth |
+|---|---|---|---|
+| `GET` | `/cms/admin/bridge` | `wpBridgeAdminDashboard` | CMS session |
+| `GET` | `/cms/admin/bridge/settings` | `wpBridgeAdminSettings` | CMS session |
+| `POST` | `/cms/admin/bridge/settings` | `wpBridgeAdminSettings` | CMS session + CSRF |
+| `GET` | `/api/v1/bridge/status` | `wpBridgeApiStatus` | CMS session |
+| `GET` | `/api/v1/bridge/health` | `wpBridgeApiHealth` | CMS session |
+| `GET` | `/api/v1/bridge/content` | `wpBridgeApiContentList` | CMS session |
+| `POST` | `/api/v1/bridge/ingest` | `wpBridgeApiIngest` | CMS session + CSRF **or** Bearer token |
+| `POST` | `/api/v1/bridge/import/wxr` | `wpBridgeApiImportWxr` | CMS session + CSRF |
+| `POST` | `/api/v1/bridge/token/rotate` | `wpBridgeApiTokenRotate` | CMS session + CSRF |
+| `GET` | `/api/v1/bridge/companion/download` | `wpBridgeApiCompanionDownload` | CMS session |
+| `PATCH` | `/api/v1/bridge/state` | `wpBridgeApiSetState` | CMS session + CSRF |
+| `PATCH` | `/api/v1/bridge/content/{id}/claim` | `wpBridgeApiContentClaim` | CMS session + CSRF |
+| `PATCH` | `/api/v1/bridge/content/{id}/resolve` | `wpBridgeApiContentResolve` | CMS session + CSRF |
+
+### `GET /api/v1/bridge/health`
+
+Returns a summary of bridge configuration status.
+
+```json
+{
+  "ok": true,
+  "bridge_enabled": true,
+  "bridge_state": "active",
+  "source_site_url": "https://myblog.com",
+  "source_name": "Marketing Blog",
+  "token_configured": true,
+  "last_ingested_at": "2026-04-11 12:34:56",
+  "last_outcome": "processed"
+}
+```
+
+### `POST /api/v1/bridge/token/rotate`
+
+Generates a new API token and invalidates the old one.
+
+**Request:** Any (CSRF token required in session-based calls)  
+**Response:**
+```json
+{
+  "ok": true,
+  "token_masked": "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••abc123",
+  "message": "Token rotated. Update your WP companion plugin configuration."
+}
+```
+
+---
+
 ## Suggested Implementation Phases
 
 ### Phase 1: Import-Only Bridge (with event + idempotency foundation)

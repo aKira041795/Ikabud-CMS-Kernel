@@ -1,0 +1,238 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div
+    x-data="wpBridgeSettings({ apiBase: '{api_base}', tokenMasked: '{token_masked}', tokenSet: {if token_set}true{else}false{/if} })"
+    class="max-w-3xl"
+>
+
+    {* ═══════════ Page Header ═══════════ *}
+    <div class="mb-6">
+        <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded bg-blue-600 text-white text-xs font-bold">WP</span>
+            WordPress Bridge — Settings
+        </h1>
+        <p class="text-sm text-gray-500 mt-0.5">Configure the source WordPress site and API credentials for live sync.</p>
+    </div>
+
+    {* ═══════════ Flash Message ═══════════ *}
+    {if message}
+    <div class="mb-5 px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">
+        {message.text}
+    </div>
+    {/if}
+
+    <form method="post" action="" class="space-y-6">
+        <input type="hidden" name="_token" value="{csrf_token}">
+
+        {* ═══════════ Section 1: Source Connection ═══════════ *}
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Source Connection</h3>
+            </div>
+            <div class="p-5 space-y-5">
+
+                {* bridge_enabled *}
+                <div class="flex items-start gap-3">
+                    <input
+                        type="checkbox"
+                        name="bridge_enabled"
+                        id="field_bridge_enabled"
+                        value="1"
+                        {if bridge_enabled}checked{/if}
+                        class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    >
+                    <div>
+                        <label for="field_bridge_enabled" class="block text-sm font-semibold text-gray-700">Enable WordPress Bridge</label>
+                        <p class="text-xs text-gray-500 mt-0.5">Shows the Bridge section in the CMS admin sidebar and enables the ingestion API for this tenant.</p>
+                    </div>
+                </div>
+
+                {* source_site_url *}
+                <div>
+                    <label for="field_source_site_url" class="block text-xs font-semibold text-gray-600 mb-1">WordPress Site URL</label>
+                    <input
+                        type="url"
+                        name="source_site_url"
+                        id="field_source_site_url"
+                        value="{source_site_url}"
+                        placeholder="https://myblog.com"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 outline-none font-mono"
+                    >
+                    <p class="mt-1 text-xs text-gray-500">Base URL of the WordPress site being migrated. Used for SSRF allowlisting during media fetch and URL rewriting in migrated content.</p>
+                </div>
+
+                {* source_name *}
+                <div>
+                    <label for="field_source_name" class="block text-xs font-semibold text-gray-600 mb-1">Source Name</label>
+                    <input
+                        type="text"
+                        name="source_name"
+                        id="field_source_name"
+                        value="{source_name}"
+                        placeholder="e.g. Marketing Blog"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                    >
+                    <p class="mt-1 text-xs text-gray-500">Human-readable label for this source. Appears in the ingestion log and bridge dashboard.</p>
+                </div>
+
+            </div>
+        </div>
+
+        {* ═══════════ Save Button ═══════════ *}
+        <div class="flex items-center gap-3">
+            <button
+                type="submit"
+                class="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+            >Save Settings</button>
+            <a href="/cms/admin/bridge" class="text-sm text-gray-500 hover:text-gray-700">← Back to Dashboard</a>
+        </div>
+
+    </form>
+
+    {* ═══════════ Section 2: API Token ═══════════ *}
+    <div class="mt-8 bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Bridge API Token</h3>
+        </div>
+        <div class="p-5 space-y-4">
+            <p class="text-xs text-gray-500">
+                This bearer token authenticates requests from the WordPress companion plugin. It is never shown in full — only the last 6 characters are visible.
+                <strong class="text-gray-700">Rotating the token immediately invalidates the old one.</strong> Reconfigure your companion plugin after rotating.
+            </p>
+
+            {* Token display *}
+            <div class="flex items-center gap-3">
+                <code
+                    class="flex-1 bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono text-gray-700 tracking-wider"
+                    x-text="tokenDisplay"
+                ></code>
+                <button
+                    @click="rotateToken()"
+                    :disabled="rotating"
+                    class="px-4 py-2 border border-red-300 text-red-700 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span x-show="!rotating">Rotate Token</span>
+                    <span x-show="rotating">Rotating…</span>
+                </button>
+            </div>
+
+            {* Rotate result *}
+            <template x-if="rotateResult">
+                <div
+                    class="rounded-lg px-3 py-2.5 text-xs"
+                    :class="rotateResult.ok ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-red-50 border border-red-200 text-red-800'"
+                    x-text="rotateResult.message || (rotateResult.ok ? 'Token rotated.' : 'Rotation failed.')"
+                ></div>
+            </template>
+        </div>
+    </div>
+
+    {* ═══════════ Section 3: Setup Instructions ═══════════ *}
+    <div class="mt-6 bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-blue-50/50">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Live Sync Setup (WP Companion Plugin)
+            </h3>
+        </div>
+        <div class="p-5 space-y-5">
+            <p class="text-sm text-gray-600">
+                To enable real-time content sync from WordPress to ApplicationOS, install the companion plugin on your WordPress site.
+                The downloaded file has your endpoint URL and API token pre-embedded — no manual configuration needed.
+            </p>
+
+            <ol class="space-y-3 text-sm text-gray-700">
+                <li class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <span>Save your settings above and ensure <strong>WordPress Site URL</strong> is filled in (used for SSRF allowlisting).</span>
+                </li>
+                <li class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <span>Click <strong>Download Companion Plugin</strong> below. The downloaded file is named <code class="bg-gray-100 rounded px-1 font-mono text-xs">applicationos-bridge-connector.php</code>.</span>
+                </li>
+                <li class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+                    <span>Upload the file to your WordPress site's <code class="bg-gray-100 rounded px-1 font-mono text-xs">wp-content/plugins/</code> directory.</span>
+                </li>
+                <li class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">4</span>
+                    <span>Activate the plugin in the WordPress admin panel under <strong>Plugins → Installed Plugins</strong>.</span>
+                </li>
+                <li class="flex gap-3">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">5</span>
+                    <span>Save or publish any post in WordPress — confirm it appears in the <a href="/cms/admin/bridge" class="text-blue-600 underline hover:text-blue-800">Bridge Dashboard</a> Recent Activity log.</span>
+                </li>
+            </ol>
+
+            <div class="flex items-center gap-3 pt-1">
+                <a
+                    href="{api_base}/bridge/companion/download"
+                    class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Download Companion Plugin
+                </a>
+                <span class="text-xs text-gray-400">Regenerate after rotating the token</span>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800">
+                <strong>Security note:</strong> The downloaded file contains your API token in plaintext. Treat it as a credential — do not commit it to public version control.
+                If the token is compromised, rotate it above and re-download the companion plugin.
+            </div>
+        </div>
+    </div>
+
+    {* ═══════════ Section 4: One-Shot Import ═══════════ *}
+    <div class="mt-6 bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
+        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">One-Shot WXR Import</h3>
+        </div>
+        <div class="p-5">
+            <p class="text-sm text-gray-600">
+                For a single historical content import, use the <strong>WXR file import</strong> on the
+                <a href="/cms/admin/bridge" class="text-blue-600 underline hover:text-blue-800">Bridge Dashboard</a>. 
+                No companion plugin required — just export your WordPress content
+                (<em>Tools → Export → All content</em>) and upload the XML file.
+            </p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function wpBridgeSettings(init) {
+    return {
+        apiBase:      init.apiBase,
+        tokenDisplay: init.tokenMasked,
+        tokenSet:     init.tokenSet,
+        rotating:     false,
+        rotateResult: null,
+
+        async rotateToken() {
+            if (!confirm('Rotate the API token? The old token will stop working immediately.')) {
+                return;
+            }
+            this.rotating     = true;
+            this.rotateResult = null;
+            try {
+                const res  = await fetch(this.apiBase + '/bridge/token/rotate', {
+                    method:  'POST',
+                    headers: { 'X-CSRF-Token': document.querySelector('input[name="_token"]')?.value ?? '' },
+                });
+                const data = await res.json();
+                this.rotateResult = data;
+                if (data.ok && data.token_masked) {
+                    this.tokenDisplay = data.token_masked;
+                    this.tokenSet     = true;
+                }
+            } catch (e) {
+                this.rotateResult = { ok: false, message: 'Request failed: ' + e.message };
+            } finally {
+                this.rotating = false;
+            }
+        },
+    };
+}
+</script>
+{/block}

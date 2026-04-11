@@ -21,9 +21,41 @@ function wpBridgeApiIngest(array $params = []): void
 {
     header('Content-Type: application/json');
 
-    // Auth: require CMS import capability
-    $user = cmsRequireCap('import_export.manage');
-    app()->csrfEnforce();
+    // ── bridge_enabled gate ──────────────────────────────────────────
+    // bridge_enabled is the master on/off switch. If it is not set,
+    // the ingest endpoint is closed regardless of bridge_state.
+    $bridgeSettings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    if (empty($bridgeSettings['bridge_enabled'])) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'WordPress Bridge is not enabled for this tenant.']);
+        exit;
+    }
+
+    // ── Auth: session cap OR bearer token ───────────────────────────
+    // The WordPress companion plugin authenticates via bearer token (no
+    // browser session). Fall back to session cap check when no bearer
+    // token is present (WXR import triggered from the admin UI).
+    $user         = null;
+    $authHeader   = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $usingToken   = false;
+
+    if (str_starts_with($authHeader, 'Bearer ')) {
+        $providedToken = substr($authHeader, 7);
+        $storedToken   = (string)($bridgeSettings['bridge_api_token'] ?? '');
+
+        if ($storedToken === '' || !hash_equals($storedToken, $providedToken)) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => 'Invalid or missing bridge API token.']);
+            exit;
+        }
+        $usingToken = true;
+        // Token-authenticated requests act as an anonymous system actor (id=0)
+        $user = ['id' => 0, 'role' => 'bridge-token'];
+    } else {
+        // Session-based: require the CMS import cap and enforce CSRF
+        $user = cmsRequireCap('import_export.manage');
+        app()->csrfEnforce();
+    }
 
     // Read input
     $rawBody = file_get_contents('php://input');

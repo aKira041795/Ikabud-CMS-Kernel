@@ -89,7 +89,45 @@
             "default": "active",
             "label": "Bridge State",
             "description": "Controls whether content ingestion is allowed. active=open; read-only=page renders only; archived/disabled=fully locked."
+        },
+        "source_site_url": {
+            "type": "text",
+            "default": "",
+            "label": "WordPress Site URL",
+            "description": "The base URL of the WordPress site being migrated (e.g. https://myblog.com). Used for SSRF allowlisting and media URL rewriting."
+        },
+        "source_name": {
+            "type": "text",
+            "default": "",
+            "label": "Source Name",
+            "description": "A human-readable label for this WordPress source (e.g. \"Marketing Blog\"). Used to identify the source in the ingestion log."
+        },
+        "bridge_api_token": {
+            "type": "text",
+            "default": "",
+            "label": "Bridge API Token",
+            "description": "Auto-generated bearer token used by the WP companion plugin to authenticate ingestion requests. Rotate via the Bridge Settings page."
         }
     },
+    "settings_fields": [
+        {
+            "key": "bridge_enabled",
+            "type": "checkbox",
+            "label": "Enable WordPress Bridge",
+            "description": "Enable CMS admin navigation and ingestion API for this bridge."
+        },
+        {
+            "key": "source_site_url",
+            "type": "text",
+            "label": "WordPress Site URL",
+            "description": "Base URL of the source WordPress site (e.g. https://myblog.com). Used for SSRF allowlisting during media fetch and for URL rewriting in migrated content."
+        },
+        {
+            "key": "source_name",
+            "type": "text",
+            "label": "Source Name",
+            "description": "Human-readable label for this WordPress source. Appears in the ingestion log and bridge dashboard."
+        }
+    ],
     "nav": []
 }

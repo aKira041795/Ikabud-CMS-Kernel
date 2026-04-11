@@ -217,12 +217,24 @@ app()->hooks()->on('cms.admin.nav_items', static function (array $items): array 
     if (empty($settings['bridge_enabled'])) {
         return $items;
     }
-    $baseUrl  = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-    $items[]  = [
-        'label'      => 'Bridge',
-        'url'        => $baseUrl . '/cms/admin/bridge',
-        'icon'       => 'WP',
-        'active_key' => 'wordpress_bridge',
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $items[] = [
+        'label'    => 'WordPress Bridge',
+        'section'  => true,
+        'children' => [
+            [
+                'label'      => 'Dashboard',
+                'url'        => $baseUrl . '/cms/admin/bridge',
+                'icon'       => '📊',
+                'active_key' => 'wordpress_bridge',
+            ],
+            [
+                'label'      => 'Settings',
+                'url'        => $baseUrl . '/cms/admin/bridge/settings',
+                'icon'       => '⚙️',
+                'active_key' => 'wordpress_bridge_settings',
+            ],
+        ],
     ];
     return $items;
 });
