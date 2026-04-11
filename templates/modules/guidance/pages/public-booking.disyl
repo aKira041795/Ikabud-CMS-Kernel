@@ -11,6 +11,7 @@
     <script>
         var APP_BASE = '{base_url}';
         var APP_COOKIE = '{cookie_name}';
+        var APP_CSRF_TOKEN = '{csrf_token}';
         document.addEventListener('htmx:configRequest', function(evt) {
             var path = evt.detail.path;
             if (path && path.charAt(0) === '/' && path.indexOf(APP_BASE) !== 0) {
@@ -47,6 +48,7 @@
         {!-- Booking Form --}
         <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">
             <form id="booking-form">
+                {csrf_field | raw}
                 
                 {!-- Step 1: Personal Info (Dynamic from Form Settings) --}
                 <div id="step1" class="step-content">
@@ -179,6 +181,7 @@
                 <p class="text-sm text-indigo-800">Enter the 6-digit code sent to <span id="booking-otp-email" class="font-semibold"></span> to finish submitting your booking request.</p>
 
                 <form id="booking-otp-form" class="mt-5 space-y-4">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="ticket" id="booking-otp-ticket">
 
                     <div>
@@ -510,6 +513,19 @@
             container.appendChild(toast);
             setTimeout(() => toast.remove(), 5000);
         }
+
+        function csrfFetch(url, options = {}) {
+            const fetchOptions = options || {};
+            const headers = new Headers(fetchOptions.headers || {});
+            if (APP_CSRF_TOKEN) {
+                headers.set('X-CSRF-Token', APP_CSRF_TOKEN);
+            }
+
+            return fetch(url, {
+                ...fetchOptions,
+                headers
+            });
+        }
         
         // Load slots when date changes
         document.getElementById('date-select').addEventListener('change', function() {
@@ -561,7 +577,7 @@
             setBookingSubmitState(true);
 
             try {
-                const resp = await fetch(APP_BASE + '/book/api/booking', {
+                const resp = await csrfFetch(APP_BASE + '/book/api/booking', {
                     method: 'POST',
                     body: new FormData(bookingForm)
                 });
@@ -589,7 +605,7 @@
             setBookingOtpState(true);
 
             try {
-                const resp = await fetch(APP_BASE + '/book/api/verify-otp', {
+                const resp = await csrfFetch(APP_BASE + '/book/api/verify-otp', {
                     method: 'POST',
                     body: new FormData(bookingOtpForm)
                 });
@@ -618,8 +634,11 @@
             try {
                 const formData = new FormData();
                 formData.append('ticket', activeBookingOtpTicket);
+                if (APP_CSRF_TOKEN) {
+                    formData.append('_token', APP_CSRF_TOKEN);
+                }
 
-                const resp = await fetch(APP_BASE + '/book/api/resend-otp', {
+                const resp = await csrfFetch(APP_BASE + '/book/api/resend-otp', {
                     method: 'POST',
                     body: formData
                 });
