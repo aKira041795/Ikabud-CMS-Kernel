@@ -175,12 +175,14 @@ function wpBridgeHandleContentUpserted(array $envelope): array
     }
 
     // ── 2. Normalize payload ─────────────────────────────────────────
-    $title   = trim((string)($payload['title'] ?? ''));
-    $slug    = trim((string)($payload['slug'] ?? ''));
-    $body    = (string)($payload['body'] ?? '');
-    $excerpt = trim((string)($payload['excerpt'] ?? ''));
-    $type    = trim((string)($payload['type'] ?? 'post')) ?: 'post';
-    $status  = wordpressImporterNormalizeStatus((string)($payload['status'] ?? 'draft'));
+    $title              = trim((string)($payload['title'] ?? ''));
+    $slug               = trim((string)($payload['slug'] ?? ''));
+    $body               = (string)($payload['body'] ?? '');
+    $excerpt            = trim((string)($payload['excerpt'] ?? ''));
+    $type               = trim((string)($payload['type'] ?? 'post')) ?: 'post';
+    $status             = wordpressImporterNormalizeStatus((string)($payload['status'] ?? 'draft'));
+    $featuredImageUrl   = trim((string)($payload['featured_image_url'] ?? ''));
+    $featuredImageAlt   = trim((string)($payload['featured_image_alt'] ?? ''));
 
     if ($title === '') {
         wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'failed', null, $payload, 'title is required');
@@ -198,8 +200,11 @@ function wpBridgeHandleContentUpserted(array $envelope): array
         $excerpt = strtr($excerpt, $urlMap);
     }
 
-    // Sanitize HTML
-    $body = cmsEditorSanitizeHtml(cmsEditorNormalizeHtml($body, 'cms.content'), 'cms.content');
+    // Bridge content is trusted for HTML richness (preserves Gutenberg block markers and
+    // all structural elements), but we still strip executable tags for XSS safety.
+    $body = preg_replace('~<script\b[^>]*>.*?</script>~isu', '', $body) ?? $body;
+    $body = preg_replace('~<style\b[^>]*>.*?</style>~isu', '', $body) ?? $body;
+    $body = cmsEditorNormalizeHtml($body, 'cms.content');
 
     // Resolve author
     $resolvedAuthorId = wordpressImporterResolveAuthorId($authorId);
@@ -252,6 +257,10 @@ function wpBridgeHandleContentUpserted(array $envelope): array
             if (isset($payload['published_at'])) {
                 $updatePayload['published_at'] = $payload['published_at'];
             }
+            if ($featuredImageUrl !== '') {
+                $updatePayload['featured_image_url'] = $featuredImageUrl;
+                $updatePayload['featured_image_alt'] = $featuredImageAlt;
+            }
 
             $updateResult = app()->cap()->call('cms.content.update@1', $updatePayload);
             if (empty($updateResult['ok'])) {
@@ -276,6 +285,10 @@ function wpBridgeHandleContentUpserted(array $envelope): array
 
             if (isset($payload['published_at'])) {
                 $capPayload['published_at'] = $payload['published_at'];
+            }
+            if ($featuredImageUrl !== '') {
+                $capPayload['featured_image_url'] = $featuredImageUrl;
+                $capPayload['featured_image_alt'] = $featuredImageAlt;
             }
 
             $capResult = app()->cap()->call('cms.content.create@1', $capPayload);

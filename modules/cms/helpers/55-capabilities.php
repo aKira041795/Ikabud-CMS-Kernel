@@ -96,6 +96,118 @@ function cms_cap_cms_content_list_1(mixed $payload, string $capabilityId, string
     }
 }
 
+/**
+ * Download an image from an external URL and store it in cms_media.
+ * Uses a deterministic filename (URL hash) to avoid duplicate downloads.
+ * Best-effort: returns null on any failure without throwing.
+ *
+ * @param \Ikabud\Kernel\Contracts\ModuleDB $db  CMS module DB (owns cms_media)
+ */
+function cmsImportMediaFromUrl(string $url, string $altText, int $uploadedBy, \Ikabud\Kernel\Contracts\ModuleDB $db): ?int
+{
+    $data = null;
+    $mimeType = 'image/jpeg';
+    $basename = 'image.jpg';
+
+    if (preg_match('/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i', $url, $matches)) {
+        $mimeType = strtolower((string)$matches[1]);
+        $extMap = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+        $ext = $extMap[$mimeType] ?? 'jpg';
+        $basename = 'inline-image.' . $ext;
+        $data = base64_decode((string)$matches[2], true);
+        if (!is_string($data) || $data === '') {
+            return null;
+        }
+    } else {
+        if (!preg_match('/^https?:\/\//i', $url)) {
+            return null;
+        }
+
+        $basename = basename(parse_url($url, PHP_URL_PATH) ?: 'image.jpg');
+        $ext      = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+            $ext = 'jpg';
+        }
+        $basename = $basename !== '' ? $basename : ('image.' . $ext);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_BUFFERSIZE     => 1024,
+        ]);
+        $data = curl_exec($ch);
+        curl_close($ch);
+
+        if (!is_string($data) || $data === '' || strlen($data) > 5 * 1024 * 1024) {
+            return null;
+        }
+
+        $finfo    = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_buffer($finfo, $data) ?: 'image/jpeg';
+        finfo_close($finfo);
+    }
+
+    // Deterministic filename from URL hash — enables fast dedup on re-import
+    $hash     = md5($url);
+    $filename = 'bridge-' . $hash . '.' . $ext;
+    $fileKey  = 'bridge/' . $filename;
+
+    // Return existing record if already imported
+    $checkStmt = $db->prepare("SELECT id FROM cms_media WHERE filename = ? LIMIT 1");
+    $checkStmt->execute([$filename]);
+    $existingId = $checkStmt->fetchColumn();
+    if ($existingId !== false) {
+        return (int)$existingId;
+    }
+
+    if (!is_string($data) || $data === '' || strlen($data) > 5 * 1024 * 1024) {
+        return null;
+    }
+
+    // Validate MIME type
+    if (!str_starts_with($mimeType, 'image/')) {
+        return null;
+    }
+
+    // Save to local uploads storage
+    $storagePath = cmsUploadsPath() . '/' . $fileKey;
+    if (!is_dir(dirname($storagePath))) {
+        @mkdir(dirname($storagePath), 0755, true);
+    }
+    if (@file_put_contents($storagePath, $data) === false) {
+        return null;
+    }
+
+    try {
+        $insertStmt = $db->prepare(
+            "INSERT INTO cms_media (filename, original_name, mime_type, file_size, file_path, alt_text, title, uploaded_by, created_at)
+             VALUES (:fname, :oname, :mime, :size, :fpath, :alt, :title, :upby, NOW())"
+        );
+        $insertStmt->execute([
+            ':fname' => $filename,
+            ':oname' => $basename,
+            ':mime'  => $mimeType,
+            ':size'  => strlen($data),
+            ':fpath' => $fileKey,
+            ':alt'   => $altText,
+            ':title' => $basename,
+            ':upby'  => $uploadedBy,
+        ]);
+        return (int)$db->lastInsertId();
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
 function cms_cap_cms_content_create_1(mixed $payload, string $capabilityId, string $providerId): array
 {
     if (!is_array($payload)) {
@@ -150,20 +262,30 @@ function cms_cap_cms_content_create_1(mixed $payload, string $capabilityId, stri
 
     try {
         $db = $ctx->db();
+
+        // Download + store featured image (best-effort, does not fail the content create)
+        $featuredImageUrl = trim((string)($payload['featured_image_url'] ?? ''));
+        $featuredImageAlt = trim((string)($payload['featured_image_alt'] ?? ''));
+        $featuredImageId  = null;
+        if ($featuredImageUrl !== '') {
+            $featuredImageId = cmsImportMediaFromUrl($featuredImageUrl, $featuredImageAlt, $authorId, $db);
+        }
+
         $stmt = $db->prepare(
-            "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, published_at, created_at)
-             VALUES (:uuid, :title, :slug, :body, :excerpt, :type, :status, :author_id, :pub, NOW())"
+            "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, featured_image_id, published_at, created_at)
+             VALUES (:uuid, :title, :slug, :body, :excerpt, :type, :status, :author_id, :fimg, :pub, NOW())"
         );
         $stmt->execute([
-            ':uuid' => $uuid,
-            ':title' => $title,
-            ':slug' => $slug,
-            ':body' => $body,
-            ':excerpt' => $excerpt,
-            ':type' => $type,
-            ':status' => $status,
+            ':uuid'     => $uuid,
+            ':title'    => $title,
+            ':slug'     => $slug,
+            ':body'     => $body,
+            ':excerpt'  => $excerpt,
+            ':type'     => $type,
+            ':status'   => $status,
             ':author_id' => $authorId,
-            ':pub' => $publishedAt,
+            ':fimg'     => $featuredImageId,
+            ':pub'      => $publishedAt,
         ]);
         $id = (int)$db->lastInsertId();
 
@@ -210,7 +332,7 @@ function cms_cap_cms_content_update_1(mixed $payload, string $capabilityId, stri
     $db = $ctx->db();
 
     // Verify content exists
-    $existing = $db->prepare("SELECT id, slug, type FROM cms_content WHERE id = ? LIMIT 1");
+    $existing = $db->prepare("SELECT id, slug, type, author_id FROM cms_content WHERE id = ? LIMIT 1");
     $existing->execute([$id]);
     $row = $existing->fetch(\PDO::FETCH_ASSOC);
     if (!$row) {
@@ -224,6 +346,16 @@ function cms_cap_cms_content_update_1(mixed $payload, string $capabilityId, stri
     $slug    = trim((string)($payload['slug'] ?? '')) ?: (string)$row['slug'];
     $type    = (string)$row['type'];
 
+    // If the incoming slug differs from the current slug, check for collision with another row.
+    // If a collision exists, keep the content's existing slug to avoid a unique constraint error.
+    if ($slug !== (string)$row['slug']) {
+        $collision = $db->prepare("SELECT id FROM cms_content WHERE type = ? AND slug = ? AND id != ? LIMIT 1");
+        $collision->execute([$type, $slug, $id]);
+        if ($collision->fetchColumn() !== false) {
+            $slug = (string)$row['slug']; // keep existing slug
+        }
+    }
+
     if (!in_array($status, ['draft', 'published', 'scheduled', 'private', 'trash'], true)) {
         $status = 'draft';
     }
@@ -234,19 +366,23 @@ function cms_cap_cms_content_update_1(mixed $payload, string $capabilityId, stri
     }
 
     try {
-        $db->prepare(
-            "UPDATE cms_content SET title = :title, slug = :slug, body = :body, excerpt = :excerpt,
-                    status = :status, published_at = :pub, updated_at = NOW()
-             WHERE id = :id"
-        )->execute([
-            ':title'   => $title,
-            ':slug'    => $slug,
-            ':body'    => $body,
-            ':excerpt' => $excerpt,
-            ':status'  => $status,
-            ':pub'     => $publishedAt,
-            ':id'      => $id,
-        ]);
+        // Download + store featured image (best-effort, does not fail the content update)
+        $featuredImageUrl = trim((string)($payload['featured_image_url'] ?? ''));
+        $featuredImageAlt = trim((string)($payload['featured_image_alt'] ?? ''));
+        $uploadedBy       = (int)($row['author_id'] ?? 0);
+        $featuredImageId  = null;
+        if ($featuredImageUrl !== '' && $uploadedBy > 0) {
+            $featuredImageId = cmsImportMediaFromUrl($featuredImageUrl, $featuredImageAlt, $uploadedBy, $db);
+        }
+
+        $setSql  = "title = :title, slug = :slug, body = :body, excerpt = :excerpt, status = :status, published_at = :pub, updated_at = NOW()";
+        $binds   = [':title' => $title, ':slug' => $slug, ':body' => $body, ':excerpt' => $excerpt,
+                    ':status' => $status, ':pub' => $publishedAt, ':id' => $id];
+        if ($featuredImageId !== null) {
+            $setSql         .= ', featured_image_id = :fimg';
+            $binds[':fimg']  = $featuredImageId;
+        }
+        $db->prepare("UPDATE cms_content SET {$setSql} WHERE id = :id")->execute($binds);
 
         // Sync categories and tags within CMS module context
         $categories = is_array($payload['categories'] ?? null) ? $payload['categories'] : [];
