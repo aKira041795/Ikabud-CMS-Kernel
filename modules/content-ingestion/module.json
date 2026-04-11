@@ -160,5 +160,12 @@
             "description": "Human-readable label for this WordPress source. Appears in the ingestion log and bridge dashboard."
         }
     ],
+    "hooks": [
+        "cms.admin.nav_items"
+    ],
+    "migrations": [
+        "database/migrations/001_bridge_ingestion_log.sql",
+        "database/migrations/002_bridge_media_log.sql"
+    ],
     "nav": []
 }
