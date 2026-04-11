@@ -5,6 +5,7 @@
     x-data="wpBridge({
         apiBase:      '{api_base}',
         bridgeState:  '{bridge_state}',
+        sourceUrl:    '{source_site_url}',
         statsTotal:   {stats_total},
         statsExt:     {stats_external},
         statsReview:  {stats_review},
@@ -76,6 +77,63 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+        <!-- ═══════════ Connected Source Sync ═══════════ -->
+        <div class="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-emerald-100 bg-emerald-50/60">
+                <h2 class="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 015.164 15m14.255 0H15"/></svg>
+                    Sync Connected WordPress Site
+                </h2>
+            </div>
+            <div class="p-5 space-y-4">
+                <p class="text-sm text-gray-600">Resend all WordPress posts and pages through the live bridge without exporting WXR or manually resaving content.</p>
+
+                <template x-if="!sourceUrl">
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+                        Add the WordPress Site URL on the bridge settings page before using one-click sync.
+                    </div>
+                </template>
+
+                <template x-if="bridgeState !== 'active'">
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+                        One-click sync is disabled while the bridge is <strong x-text="bridgeState"></strong>.
+                    </div>
+                </template>
+
+                <template x-if="sourceUrl">
+                    <p class="text-xs text-gray-500">Source: <span class="font-mono" x-text="sourceUrl"></span></p>
+                </template>
+
+                <button
+                    @click="syncSource()"
+                    :disabled="syncRunning || !sourceUrl || bridgeState !== 'active'"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span x-show="syncRunning" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span x-text="syncRunning ? 'Syncing…' : 'Sync Posts + Pages Now'"></span>
+                </button>
+
+                <template x-if="syncResult">
+                    <div
+                        class="rounded-lg px-3 py-2.5 text-xs"
+                        :class="syncResult.ok ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-red-50 border border-red-200 text-red-800'"
+                    >
+                        <template x-if="syncResult.ok">
+                            <div class="space-y-0.5">
+                                <p class="font-semibold">WordPress sync completed</p>
+                                <p>Total considered: <strong x-text="syncResult.total ?? '–'"></strong></p>
+                                <p>Processed: <strong x-text="syncResult.processed ?? '–'"></strong></p>
+                                <p>Failed: <strong x-text="syncResult.failed ?? '–'"></strong></p>
+                            </div>
+                        </template>
+                        <template x-if="!syncResult.ok">
+                            <p><strong>Error:</strong> <span x-text="syncResult.error"></span></p>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
 
         <!-- ═══════════ WXR Import ═══════════ -->
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -351,6 +409,7 @@ function wpBridge(init) {
         // ── Initialised props ─────────────────────────────────────────
         apiBase:      init.apiBase,
         bridgeState:  init.bridgeState,
+        sourceUrl:    init.sourceUrl,
         statsTotal:   init.statsTotal,
         statsExt:     init.statsExt,
         statsReview:  init.statsReview,
@@ -364,6 +423,10 @@ function wpBridge(init) {
         wxrMode:      'merge',
         wxrImporting: false,
         wxrResult:    null,
+
+        // ── Remote source sync ───────────────────────────────────────
+        syncRunning:  false,
+        syncResult:   null,
 
         // ── State management ──────────────────────────────────────────
         stateChanging: false,
@@ -391,7 +454,10 @@ function wpBridge(init) {
                 const resp = await fetch(this.apiBase + '/bridge/import/wxr', {
                     method: 'POST',
                     body: fd,
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': CMS_CSRF,
+                    },
                 });
                 this.wxrResult = await resp.json();
             } catch (e) {
@@ -405,6 +471,51 @@ function wpBridge(init) {
             }
         },
 
+        async syncSource() {
+            if (!this.sourceUrl || this.bridgeState !== 'active') return;
+            this.syncRunning = true;
+            this.syncResult = null;
+            try {
+                const resp = await fetch(this.apiBase + '/bridge/source/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': CMS_CSRF,
+                    },
+                    body: JSON.stringify({ post_types: ['post', 'page'] }),
+                });
+                this.syncResult = await resp.json();
+            } catch (e) {
+                this.syncResult = { ok: false, error: 'Network error: ' + e.message };
+            } finally {
+                this.syncRunning = false;
+                if (this.syncResult && this.syncResult.ok) {
+                    const stats = this.syncResult.stats || null;
+                    if (stats) {
+                        this.statsTotal   = stats.total || 0;
+                        this.statsExt     = stats['external-managed'] || 0;
+                        this.statsReview  = stats['review-required'] || 0;
+                        this.statsCms     = stats['cms-managed'] || 0;
+                        this.statsRetired = stats.retired || 0;
+                        this.statsMedia   = stats.media_fetched || 0;
+                        this.statsFailed  = stats.ingestion_failed || 0;
+                    }
+
+                    // If the backend stats are still zero but the sync processed content,
+                    // reflect that immediately in the cards so the dashboard stays responsive
+                    // for one-click manual tests.
+                    if ((this.statsTotal || 0) === 0 && (this.syncResult.processed || 0) > 0) {
+                        this.statsTotal = this.syncResult.processed || 0;
+                        this.statsExt = this.syncResult.processed || 0;
+                    }
+
+                    await this.refreshStats();
+                    await this.loadActivity();
+                }
+            }
+        },
+
         async setState(newState) {
             this.stateChanging = true;
             this.stateError    = null;
@@ -412,7 +523,11 @@ function wpBridge(init) {
             try {
                 const resp = await fetch(this.apiBase + '/bridge/state', {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': CMS_CSRF,
+                    },
                     body: JSON.stringify({ state: newState }),
                 });
                 const data = await resp.json();
@@ -451,7 +566,7 @@ function wpBridge(init) {
             try {
                 const resp = await fetch(this.apiBase + '/bridge/content/' + id + '/claim', {
                     method: 'PATCH',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CMS_CSRF },
                 });
                 const data = await resp.json();
                 if (data.ok) {
@@ -466,7 +581,11 @@ function wpBridge(init) {
             try {
                 const resp = await fetch(this.apiBase + '/bridge/content/' + id + '/resolve', {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': CMS_CSRF,
+                    },
                     body: JSON.stringify({ resolution }),
                 });
                 const data = await resp.json();

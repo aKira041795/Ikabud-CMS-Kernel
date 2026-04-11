@@ -328,7 +328,7 @@ function wpBridgeGenerateCompanionPlugin(string $ingestUrl, string $token, strin
  * Description: Pushes WordPress content changes to ApplicationOS via the Bridge API.
  *              Generated automatically — do not edit the APPLOS_* constants manually.
  *              Re-download from ApplicationOS Admin → Content Ingestion → Settings if token changes.
- * Version: 1.0.0
+ * Version: 1.1.0
  */
 
 defined('ABSPATH') || exit;
@@ -347,20 +347,20 @@ add_action('delete_post',       'applos_bridge_on_delete_post', 10, 1);
 add_action('add_attachment',    'applos_bridge_on_attachment', 10, 1);
 add_action('edit_attachment',   'applos_bridge_on_attachment', 10, 1);
 add_action('delete_attachment', 'applos_bridge_on_attachment', 10, 1);
+add_action('rest_api_init',     'applos_bridge_register_rest_routes');
 
-function applos_bridge_on_save_post(int \$post_id, WP_Post \$post, bool \$update): void
+function applos_bridge_is_supported_post(WP_Post \$post): bool
 {
-    // Skip revisions, auto-drafts, and our own syncs
-    if (wp_is_post_revision(\$post_id) || wp_is_post_autosave(\$post_id)) {
-        return;
-    }
-    if (defined('APPLOS_BRIDGE_SYNCING') && APPLOS_BRIDGE_SYNCING) {
-        return;
-    }
+    return in_array(\$post->post_type, ['post', 'page'], true);
+}
 
-    \$supported = ['post', 'page'];
-    if (!in_array(\$post->post_type, \$supported, true)) {
-        return;
+function applos_bridge_build_envelope(int \$post_id, WP_Post \$post, ?string \$sourceOverride = null): ?array
+{
+    if (wp_is_post_revision(\$post_id) || wp_is_post_autosave(\$post_id)) {
+        return null;
+    }
+    if (!applos_bridge_is_supported_post(\$post)) {
+        return null;
     }
 
     \$categories = [];
@@ -373,24 +373,56 @@ function applos_bridge_on_save_post(int \$post_id, WP_Post \$post, bool \$update
         \$tags[] = ['id' => (string)\$tag->term_id, 'name' => \$tag->name, 'slug' => \$tag->slug];
     }
 
-    \$envelope = [
+    \$featured_image_url = '';
+    \$featured_image_alt = '';
+    \$thumbnail_id = get_post_thumbnail_id(\$post_id);
+    if (\$thumbnail_id) {
+        \$featured_image_url = (string)wp_get_attachment_url(\$thumbnail_id);
+        \$featured_image_alt = (string)get_post_meta(\$thumbnail_id, '_wp_attachment_image_alt', true);
+    }
+    if (\$featured_image_url === '') {
+        \$raw_thumbnail = trim((string)get_post_meta(\$post_id, '_thumbnail_id', true));
+        if (preg_match('/^data:image\//i', \$raw_thumbnail)) {
+            \$featured_image_url = \$raw_thumbnail;
+        }
+    }
+
+    \$payload = [
+        'title'        => \$post->post_title,
+        'slug'         => \$post->post_name,
+        'body'         => \$post->post_content,
+        'excerpt'      => \$post->post_excerpt,
+        'type'         => \$post->post_type,
+        'status'       => \$post->post_status,
+        'published_at' => \$post->post_date_gmt,
+        'categories'   => \$categories,
+        'tags'         => \$tags,
+        'author_external_id' => (string)\$post->post_author,
+    ];
+    if (\$featured_image_url !== '') {
+        \$payload['featured_image_url'] = \$featured_image_url;
+        \$payload['featured_image_alt'] = \$featured_image_alt;
+    }
+
+    return [
         'event'             => 'cms.migration.content.upserted',
-        'source'            => APPLOS_BRIDGE_SOURCE,
+        'source'            => \$sourceOverride !== null && \$sourceOverride !== '' ? \$sourceOverride : APPLOS_BRIDGE_SOURCE,
         'external_id'       => (string)\$post_id,
         'external_modified' => \$post->post_modified_gmt,
-        'payload'           => [
-            'title'      => \$post->post_title,
-            'slug'       => \$post->post_name,
-            'body'       => \$post->post_content,
-            'excerpt'    => \$post->post_excerpt,
-            'type'       => \$post->post_type,
-            'status'     => \$post->post_status,
-            'categories' => \$categories,
-            'tags'       => \$tags,
-            'author_external_id' => (string)\$post->post_author,
-        ],
+        'payload'           => \$payload,
     ];
+}
 
+function applos_bridge_on_save_post(int \$post_id, WP_Post \$post, bool \$update): void
+{
+    if (defined('APPLOS_BRIDGE_SYNCING') && APPLOS_BRIDGE_SYNCING) {
+        return;
+    }
+
+    \$envelope = applos_bridge_build_envelope(\$post_id, \$post);
+    if (!is_array(\$envelope)) {
+        return;
+    }
     applos_bridge_send(\$envelope);
 }
 
@@ -416,16 +448,128 @@ function applos_bridge_on_attachment(int \$post_id): void
     applos_bridge_on_save_post(\$post_id, \$post, true);
 }
 
+function applos_bridge_register_rest_routes(): void
+{
+    register_rest_route('applicationos-bridge/v1', '/sync', [
+        'methods'             => 'POST',
+        'callback'            => 'applos_bridge_rest_sync',
+        'permission_callback' => 'applos_bridge_rest_can_sync',
+    ]);
+}
+
+function applos_bridge_get_bearer_token(): string
+{
+    \$header = '';
+    if (!empty(\$_SERVER['HTTP_AUTHORIZATION'])) {
+        \$header = (string)\$_SERVER['HTTP_AUTHORIZATION'];
+    } elseif (function_exists('getallheaders')) {
+        foreach ((array)getallheaders() as \$key => \$value) {
+            if (strcasecmp((string)\$key, 'Authorization') === 0) {
+                \$header = (string)\$value;
+                break;
+            }
+        }
+    }
+
+    if (preg_match('/Bearer\s+(.+)/i', \$header, \$matches)) {
+        return trim((string)\$matches[1]);
+    }
+
+    return '';
+}
+
+function applos_bridge_rest_can_sync(WP_REST_Request \$request)
+{
+    if (applos_bridge_get_bearer_token() === APPLOS_BRIDGE_TOKEN) {
+        return true;
+    }
+
+    return new WP_Error('applos_bridge_forbidden', 'Invalid bridge token', ['status' => 401]);
+}
+
+function applos_bridge_rest_sync(WP_REST_Request \$request): WP_REST_Response
+{
+    \$json = \$request->get_json_params();
+    \$requestedTypes = is_array(\$json['post_types'] ?? null) ? \$json['post_types'] : ['post', 'page'];
+    \$targetIngestUrl = trim((string)(\$json['target_ingest_url'] ?? APPLOS_BRIDGE_INGEST_URL));
+    \$targetToken = trim((string)(\$json['target_token'] ?? APPLOS_BRIDGE_TOKEN));
+    \$targetSource = trim((string)(\$json['target_source'] ?? APPLOS_BRIDGE_SOURCE));
+
+    if (!preg_match('/^https?:\/\//i', \$targetIngestUrl)) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'Invalid target ingest URL'], 422);
+    }
+    if (\$targetToken === '') {
+        return new WP_REST_Response(['ok' => false, 'error' => 'Missing target token'], 422);
+    }
+
+    \$postTypes = array_values(array_filter(array_map(
+        static fn(\$type) => trim((string)\$type),
+        \$requestedTypes
+    ), static fn(\$type) => in_array(\$type, ['post', 'page'], true)));
+    if (\$postTypes === []) {
+        \$postTypes = ['post', 'page'];
+    }
+
+    \$posts = get_posts([
+        'post_type'      => \$postTypes,
+        'post_status'    => ['publish', 'draft', 'trash'],
+        'posts_per_page' => -1,
+        'orderby'        => 'ID',
+        'order'          => 'ASC',
+    ]);
+
+    \$processed = 0;
+    \$failed = 0;
+    \$results = [];
+
+    foreach (\$posts as \$post) {
+        if (!\$post instanceof WP_Post) {
+            continue;
+        }
+
+        \$envelope = applos_bridge_build_envelope((int)\$post->ID, \$post, \$targetSource);
+        if (!is_array(\$envelope)) {
+            continue;
+        }
+
+        \$result = applos_bridge_send(\$envelope, \$targetIngestUrl, \$targetToken);
+        if (!empty(\$result['ok'])) {
+            \$processed++;
+        } else {
+            \$failed++;
+        }
+
+        \$results[] = [
+            'post_id' => (int)\$post->ID,
+            'title'   => (string)\$post->post_title,
+            'ok'      => !empty(\$result['ok']),
+            'error'   => (string)(\$result['error'] ?? ''),
+        ];
+    }
+
+    return new WP_REST_Response([
+        'ok'        => true,
+        'target_ingest_url' => \$targetIngestUrl,
+        'total'     => count(\$results),
+        'processed' => \$processed,
+        'failed'    => \$failed,
+        'results'   => \$results,
+    ], 200);
+}
+
 /**
  * Send an envelope to the ApplicationOS bridge ingest endpoint.
  */
-function applos_bridge_send(array \$envelope): void
+function applos_bridge_send(array \$envelope, ?string \$ingestUrl = null, ?string \$token = null): array
 {
+    \$ingestUrl = \$ingestUrl !== null && \$ingestUrl !== '' ? \$ingestUrl : APPLOS_BRIDGE_INGEST_URL;
+    \$token = \$token !== null && \$token !== '' ? \$token : APPLOS_BRIDGE_TOKEN;
+
     \$args = [
         'method'    => 'POST',
         'headers'   => [
             'Content-Type'  => 'application/json',
-            'Authorization' => 'Bearer ' . APPLOS_BRIDGE_TOKEN,
+            'Authorization' => 'Bearer ' . \$token,
         ],
         'body'      => wp_json_encode(\$envelope),
         'timeout'   => APPLOS_BRIDGE_NONBLOCKING ? 0.01 : 15,
@@ -433,11 +577,28 @@ function applos_bridge_send(array \$envelope): void
         'sslverify' => true,
     ];
 
-    \$response = wp_remote_post(APPLOS_BRIDGE_INGEST_URL, \$args);
+    \$response = wp_remote_post(\$ingestUrl, \$args);
 
-    if (!APPLOS_BRIDGE_NONBLOCKING && is_wp_error(\$response)) {
-        error_log('ApplicationOS Bridge error: ' . \$response->get_error_message());
+    if (is_wp_error(\$response)) {
+        if (!APPLOS_BRIDGE_NONBLOCKING) {
+            error_log('ApplicationOS Bridge error: ' . \$response->get_error_message());
+        }
+        return ['ok' => false, 'error' => \$response->get_error_message()];
     }
+
+    \$statusCode = (int)wp_remote_retrieve_response_code(\$response);
+    \$body = (string)wp_remote_retrieve_body(\$response);
+    \$json = json_decode(\$body, true);
+
+    if (\$statusCode >= 200 && \$statusCode < 300 && (!is_array(\$json) || !array_key_exists('ok', \$json) || !empty(\$json['ok']))) {
+        return ['ok' => true, 'status_code' => \$statusCode, 'body' => \$json];
+    }
+
+    return [
+        'ok' => false,
+        'status_code' => \$statusCode,
+        'error' => (string)(\$json['error'] ?? ('Unexpected HTTP ' . \$statusCode)),
+    ];
 }
 PHP;
 }

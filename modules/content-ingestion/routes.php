@@ -21,6 +21,9 @@ return [
         // Event ingestion endpoint — accepts normalized content events
         '/api/v1/bridge/ingest'              => 'content-ingestion:wpBridgeApiIngest',
 
+        // Trigger remote source sync via the companion plugin
+        '/api/v1/bridge/source/sync'         => 'content-ingestion:wpBridgeApiSyncSource',
+
         // WXR file import (bridge-aware)
         '/api/v1/bridge/import/wxr'          => 'content-ingestion:wpBridgeApiImportWxr',
 

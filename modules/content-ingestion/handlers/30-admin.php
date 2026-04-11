@@ -9,6 +9,7 @@ declare(strict_types=1);
 //   GET  /cms/admin/bridge              → wpBridgeAdminDashboard  (UI page)
 //   GET  /api/v1/bridge/status          → wpBridgeApiStatus        (stats JSON)
 //   GET  /api/v1/bridge/content         → wpBridgeApiContentList   (bridge-managed items)
+//   POST /api/v1/bridge/source/sync     → wpBridgeApiSyncSource    (remote push trigger)
 //   POST /api/v1/bridge/import/wxr      → wpBridgeApiImportWxr     (WXR upload trigger)
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -44,9 +45,151 @@ function wpBridgeAdminDashboard(array $params = []): void
             'stats_retired'        => (int)($stats['retired'] ?? 0),
             'stats_media_fetched'  => (int)($stats['media_fetched'] ?? 0),
             'stats_failed'         => (int)($stats['ingestion_failed'] ?? 0),
+            'source_site_url'      => wpBridgeGetSourceUrl(),
             'api_base'             => $baseUrl . '/api/v1',
         ]
     ));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// POST /api/v1/bridge/source/sync
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Trigger a bulk resend from the connected WordPress companion plugin.
+ *
+ * This gives the dashboard a one-click "Sync now" action without requiring
+ * WXR export/import or manual post resaves in WordPress.
+ */
+function wpBridgeApiSyncSource(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('import_export.manage');
+    app()->csrfEnforce();
+
+    if (!wpBridgeIsActive()) {
+        http_response_code(423);
+        echo json_encode(['ok' => false, 'error' => 'Bridge must be active before sync can run']);
+        exit;
+    }
+
+    $sourceUrl = rtrim(wpBridgeGetSourceUrl(), '/');
+    if ($sourceUrl === '' || !preg_match('#^https?://#i', $sourceUrl)) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Configure a valid source site URL first']);
+        exit;
+    }
+
+    $token = wpBridgeGetApiToken();
+    if ($token === '') {
+        $token = wpBridgeEnsureApiToken();
+    }
+
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    if ($baseUrl === '' || !preg_match('#^https?://#i', $baseUrl)) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Current application base URL is not configured']);
+        exit;
+    }
+    $targetIngestUrl = $baseUrl . '/api/v1/bridge/ingest';
+
+    $body = (string)file_get_contents('php://input');
+    $payload = json_decode($body, true);
+    $postTypes = is_array($payload['post_types'] ?? null) ? $payload['post_types'] : ['post', 'page'];
+    $postTypes = array_values(array_filter(array_map(
+        static fn($type) => trim((string)$type),
+        $postTypes
+    ), static fn($type) => in_array($type, ['post', 'page'], true)));
+    if ($postTypes === []) {
+        $postTypes = ['post', 'page'];
+    }
+
+    $remoteUrl = $sourceUrl . '/wp-json/applicationos-bridge/v1/sync';
+    $requestJson = json_encode([
+        'post_types' => $postTypes,
+        'target_ingest_url' => $targetIngestUrl,
+        'target_token' => $token,
+        'target_source' => (string)($payload['target_source'] ?? ''),
+    ]);
+    if (!is_string($requestJson)) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to prepare sync request']);
+        exit;
+    }
+
+    $ch = curl_init($remoteUrl);
+    if ($ch === false) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to initialize sync request']);
+        exit;
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $requestJson,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'Authorization: Bearer ' . $token,
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 3,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT        => 180,
+    ]);
+
+    $rawResponse = curl_exec($ch);
+    $curlError   = curl_error($ch);
+    $statusCode  = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($rawResponse === false || $curlError !== '') {
+        http_response_code(502);
+        echo json_encode(['ok' => false, 'error' => 'Remote sync request failed: ' . $curlError]);
+        exit;
+    }
+
+    $response = json_decode((string)$rawResponse, true);
+    if (!is_array($response)) {
+        http_response_code(502);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'Connected WordPress plugin returned an invalid response. Re-download and reactivate the companion plugin.',
+        ]);
+        exit;
+    }
+
+    if ($statusCode >= 400 || empty($response['ok'])) {
+        http_response_code($statusCode >= 400 ? $statusCode : 502);
+        echo json_encode([
+            'ok' => false,
+            'error' => (string)($response['error'] ?? 'Connected WordPress site rejected the sync request'),
+        ]);
+        exit;
+    }
+
+    write_log('Bridge source sync triggered successfully', 'info', [
+        'source' => 'content-ingestion',
+        'source_url' => $sourceUrl,
+        'post_types' => $postTypes,
+        'processed' => (int)($response['processed'] ?? 0),
+        'failed' => (int)($response['failed'] ?? 0),
+    ]);
+
+    $localStats = wpBridgeGetStats();
+
+    echo json_encode([
+        'ok' => true,
+        'message' => 'Source sync started successfully',
+        'target_ingest_url' => $targetIngestUrl,
+        'total' => (int)($response['total'] ?? 0),
+        'processed' => (int)($response['processed'] ?? 0),
+        'failed' => (int)($response['failed'] ?? 0),
+        'stats' => $localStats,
+        'results' => is_array($response['results'] ?? null) ? $response['results'] : [],
+    ]);
+    exit;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
