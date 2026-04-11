@@ -95,7 +95,10 @@ function wordpressImporterImportStructuredPayload(array $data, string $mode, int
 {
     $db = cmsDb();
     $resolvedAuthorId = wordpressImporterResolveAuthorId($preferredAuthorId);
-    $stats = ['imported' => 0, 'skipped' => 0, 'updated' => 0, 'errors' => 0, 'categories_imported' => 0, 'tags_imported' => 0, 'category_links' => 0, 'tag_links' => 0];
+    $stats = ['imported' => 0, 'skipped' => 0, 'updated' => 0, 'errors' => 0, 'categories_imported' => 0, 'tags_imported' => 0, 'category_links' => 0, 'tag_links' => 0, 'bridge_processed' => 0, 'bridge_skipped' => 0, 'bridge_failed' => 0, 'media_fetched' => 0];
+
+    // Check if the wordpress-bridge module is active for event-driven ingestion
+    $useBridge = function_exists('wpBridgeHandleContentUpserted');
 
     $categories = is_array($data['categories'] ?? null) ? $data['categories'] : [];
     $tags = is_array($data['tags'] ?? null) ? $data['tags'] : [];
@@ -191,6 +194,18 @@ function wordpressImporterImportStructuredPayload(array $data, string $mode, int
         $contentTagMap[(int)($ct['content_id'] ?? 0)][] = (int)($ct['tag_id'] ?? 0);
     }
 
+    // ── Media pre-fetch (bridge path only, once before the content loop) ────
+    $bridgeUrlMap = [];
+    if ($useBridge && function_exists('wpBridgeFetchAllMedia')) {
+        $bridgeUrlMap = wpBridgeFetchAllMedia(
+            'wordpress',
+            is_array($data['attachments'] ?? null)      ? $data['attachments']      : [],
+            is_array($data['source_base_urls'] ?? null) ? $data['source_base_urls'] : [],
+            $resolvedAuthorId
+        );
+        $stats['media_fetched'] = count(array_filter($bridgeUrlMap, static fn($v) => $v !== null && $v !== ''));
+    }
+
     $findExistingContent = $db->prepare("SELECT id FROM cms_content WHERE slug = :slug AND type = :type AND deleted_at IS NULL LIMIT 1");
     $updateExistingContent = $db->prepare(
         "UPDATE cms_content SET title = :title, body = :body, excerpt = :excerpt, status = :status,
@@ -215,14 +230,106 @@ function wordpressImporterImportStructuredPayload(array $data, string $mode, int
             continue;
         }
 
+        $status = wordpressImporterNormalizeStatus((string)($item['status'] ?? 'draft'));
+        $publishedAt = wordpressImporterNormalizeDate($item['published_at'] ?? null);
+        $oldId = (int)($item['id'] ?? ($index + 1));
+
+        // ── Resolve category names for this item ─────────────────────
+        $resolvedCategoryNames = [];
+        foreach ((array)($item['category_ids'] ?? ($contentCatMap[$oldId] ?? [])) as $oldCatId) {
+            // Reverse-lookup: find category name from catIdMap → original categories
+            foreach ($categories as $ci => $catData) {
+                $catOldId = (int)($catData['id'] ?? ($ci + 1));
+                if ($catOldId === (int)$oldCatId) {
+                    $name = trim((string)($catData['name'] ?? ''));
+                    if ($name !== '') {
+                        $resolvedCategoryNames[] = $name;
+                    }
+                    break;
+                }
+            }
+        }
+        $resolvedCategoryNames = array_values(array_unique($resolvedCategoryNames));
+
+        // ── Resolve tag names for this item ──────────────────────────
+        $resolvedTagNames = [];
+        if (!empty($item['tag_names']) && is_array($item['tag_names'])) {
+            foreach ($item['tag_names'] as $tagName) {
+                $tagName = trim((string)$tagName);
+                if ($tagName !== '') {
+                    $resolvedTagNames[] = $tagName;
+                }
+            }
+        } else {
+            foreach ((array)($contentTagMap[$oldId] ?? []) as $oldTagId) {
+                $tagName = trim((string)($tagNameByOldId[(int)$oldTagId] ?? ''));
+                if ($tagName !== '') {
+                    $resolvedTagNames[] = $tagName;
+                }
+            }
+        }
+        $resolvedTagNames = array_values(array_unique($resolvedTagNames));
+
+        // ── Bridge path: route through event-driven ingestion ────────
+        if ($useBridge) {
+            $externalModified = $publishedAt ?? date('Y-m-d H:i:s');
+            // Use WP post_modified if available, fall back to published_at or now
+            if (!empty($item['modified_at'])) {
+                $normalized = wordpressImporterNormalizeDate($item['modified_at']);
+                if ($normalized !== null) {
+                    $externalModified = $normalized;
+                }
+            }
+
+            $envelope = [
+                'source'            => 'wordpress',
+                'external_id'       => (string)$oldId,
+                'external_modified' => $externalModified,
+                'payload'           => [
+                    'title'        => $title,
+                    'slug'         => $slug,
+                    'body'         => $bodyHtml,
+                    'excerpt'      => (string)($item['excerpt'] ?? ''),
+                    'type'         => $type,
+                    'status'       => $status,
+                    'published_at' => $publishedAt,
+                    'categories'   => $resolvedCategoryNames,
+                    'tags'         => $resolvedTagNames,
+                ],
+                'author_id'         => $resolvedAuthorId,
+                'url_map'           => $bridgeUrlMap,
+            ];
+
+            $bridgeResult = wpBridgeHandleContentUpserted($envelope);
+            $outcome = (string)($bridgeResult['outcome'] ?? 'failed');
+
+            if ($outcome === 'processed') {
+                $action = (string)($bridgeResult['action'] ?? 'create');
+                if ($action === 'create') {
+                    $stats['imported']++;
+                } else {
+                    $stats['updated']++;
+                }
+                $stats['bridge_processed']++;
+                $stats['category_links'] += count($resolvedCategoryNames);
+                $stats['tag_links'] += count($resolvedTagNames);
+            } elseif ($outcome === 'skipped' || $outcome === 'stale' || $outcome === 'conflict') {
+                $stats['skipped']++;
+                $stats['bridge_skipped']++;
+            } else {
+                $stats['errors']++;
+                $stats['bridge_failed']++;
+            }
+
+            continue; // Skip legacy path
+        }
+
+        // ── Legacy path: direct DB writes (when bridge module not active) ──
+
         $blocksJson = null;
         if (!empty($item['blocks_json'])) {
             $blocksJson = is_array($item['blocks_json']) ? json_encode($item['blocks_json']) : (string)$item['blocks_json'];
         }
-
-        $status = wordpressImporterNormalizeStatus((string)($item['status'] ?? 'draft'));
-        $publishedAt = wordpressImporterNormalizeDate($item['published_at'] ?? null);
-        $oldId = (int)($item['id'] ?? ($index + 1));
 
         $findExistingContent->execute([':slug' => $slug, ':type' => $type]);
         $existingRow = $findExistingContent->fetch(PDO::FETCH_ASSOC);
@@ -575,6 +682,7 @@ function wordpressImporterParseWxr(string $raw): array
         }
     }
 
+    $attachments = [];
     $content = [];
     $contentCategories = [];
     $contentTags = [];
@@ -582,6 +690,19 @@ function wordpressImporterParseWxr(string $raw): array
     foreach ($channel->item as $item) {
         $itemWp = $item->children($wpNs);
         $postType = strtolower(trim((string)$itemWp->post_type));
+
+        if ($postType === 'attachment') {
+            $attachmentUrl = trim((string)($itemWp->attachment_url ?? ''));
+            if ($attachmentUrl !== '') {
+                $attachments[] = [
+                    'id'             => (int)$itemWp->post_id,
+                    'attachment_url' => $attachmentUrl,
+                    'title'          => trim((string)$item->title),
+                ];
+            }
+            continue;
+        }
+
         if (!in_array($postType, ['post', 'page'], true)) {
             continue;
         }
@@ -674,10 +795,12 @@ function wordpressImporterParseWxr(string $raw): array
 
     return [
         'cms_export_version' => 'wordpress-wxr-1.0',
-        'content' => $content,
-        'categories' => array_values($categories),
+        'content'          => $content,
+        'categories'       => array_values($categories),
         'content_categories' => array_values($contentCategories),
-        'tags' => array_values($tagsBySlug),
-        'content_tags' => array_values($contentTags),
+        'tags'             => array_values($tagsBySlug),
+        'content_tags'     => array_values($contentTags),
+        'attachments'      => $attachments,
+        'source_base_urls' => $sourceBaseUrls,
     ];
 }

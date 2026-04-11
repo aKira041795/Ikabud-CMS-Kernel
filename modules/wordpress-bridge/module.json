@@ -1,0 +1,95 @@
+{
+    "id": "wordpress-bridge",
+    "name": "WordPress Bridge",
+    "version": "1.0.0",
+    "description": "CMS migration bridge — event-driven content ingestion from WordPress into ApplicationOS CMS.",
+    "author": "Ikabud Kernel Team",
+    "depends": [
+        "cms",
+        "wordpress-importer"
+    ],
+    "owns_tables": [
+        "bridge_ingestion_log",
+        "bridge_media_log"
+    ],
+    "reads_tables": [
+        "cms_content",
+        "cms_content_meta",
+        "cms_users",
+        "cms_categories",
+        "cms_tags",
+        "cms_media"
+    ],
+    "events": [
+        {
+            "key": "cms.migration.content.upserted",
+            "description": "Emitted when normalized WordPress content is ready for CMS ingestion.",
+            "available_vars": [
+                "source",
+                "external_id",
+                "external_modified",
+                "title",
+                "slug",
+                "body",
+                "excerpt",
+                "type",
+                "status",
+                "categories",
+                "tags",
+                "author_external_id"
+            ]
+        },
+        {
+            "key": "cms.migration.media.fetched",
+            "description": "Emitted after the media pipeline completes for a WordPress import run.",
+            "available_vars": [
+                "source",
+                "media_fetched",
+                "media_failed"
+            ]
+        },
+        {
+            "key": "cms.migration.content.completed",
+            "description": "Emitted after CMS ingestion succeeds or fails for a single content item.",
+            "available_vars": [
+                "source",
+                "external_id",
+                "cms_content_id",
+                "status",
+                "outcome"
+            ]
+        },
+        {
+            "key": "cms.migration.bridge.state_changed",
+            "description": "Emitted when the bridge state transitions (active/read-only/archived/disabled).",
+            "available_vars": [
+                "prev_state",
+                "new_state",
+                "changed_by"
+            ]
+        }
+    ],
+    "capabilities": {
+        "exposes": []
+    },
+    "settings": {
+        "bridge_enabled": {
+            "type": "boolean",
+            "default": false,
+            "label": "Enable WordPress Bridge"
+        },
+        "bridge_state": {
+            "type": "select",
+            "options": [
+                "active",
+                "read-only",
+                "archived",
+                "disabled"
+            ],
+            "default": "active",
+            "label": "Bridge State",
+            "description": "Controls whether content ingestion is allowed. active=open; read-only=page renders only; archived/disabled=fully locked."
+        }
+    },
+    "nav": []
+}

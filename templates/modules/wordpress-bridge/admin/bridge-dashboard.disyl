@@ -1,0 +1,516 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div
+    x-data="wpBridge({
+        apiBase:      '{api_base}',
+        bridgeState:  '{bridge_state}',
+        statsTotal:   {stats_total},
+        statsExt:     {stats_external},
+        statsReview:  {stats_review},
+        statsCms:     {stats_cms_managed},
+        statsRetired: {stats_retired},
+        statsMedia:   {stats_media_fetched},
+        statsFailed:  {stats_failed}
+    })"
+    class="max-w-5xl"
+>
+    <!-- ═══════════ Page Header ═══════════ -->
+    <div class="mb-6 flex items-start justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-7 h-7 rounded bg-blue-600 text-white text-xs font-bold">WP</span>
+                WordPress Bridge
+            </h1>
+            <p class="text-sm text-gray-500 mt-0.5">Manage WordPress content migration, conflict resolution, and bridge lifecycle</p>
+        </div>
+
+        <!-- Bridge State Pill -->
+        <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500">Bridge State:</span>
+            <span
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                :class="{
+                    'bg-emerald-100 text-emerald-800': bridgeState === 'active',
+                    'bg-amber-100 text-amber-800':    bridgeState === 'read-only',
+                    'bg-gray-200 text-gray-600':      bridgeState === 'archived',
+                    'bg-red-100 text-red-800':        bridgeState === 'disabled'
+                }"
+                x-text="bridgeState"
+            ></span>
+        </div>
+    </div>
+
+    <!-- ═══════════ Stats Cards ═══════════ -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-xs text-gray-500 mb-1">Total Bridged</p>
+            <p class="text-2xl font-bold text-gray-900" x-text="statsTotal"></p>
+        </div>
+        <div class="bg-white rounded-xl border border-blue-100 shadow-sm p-4">
+            <p class="text-xs text-blue-600 mb-1">External-Managed</p>
+            <p class="text-2xl font-bold text-blue-700" x-text="statsExt"></p>
+        </div>
+        <div class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+            <p class="text-xs text-amber-600 mb-1">Review Required</p>
+            <p class="text-2xl font-bold text-amber-700" x-text="statsReview"></p>
+        </div>
+        <div class="bg-white rounded-xl border border-emerald-100 shadow-sm p-4">
+            <p class="text-xs text-emerald-600 mb-1">CMS-Managed</p>
+            <p class="text-2xl font-bold text-emerald-700" x-text="statsCms"></p>
+        </div>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-xs text-gray-500 mb-1">Retired</p>
+            <p class="text-2xl font-bold text-gray-600" x-text="statsRetired"></p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-xs text-gray-500 mb-1">Media Fetched</p>
+            <p class="text-2xl font-bold text-gray-700" x-text="statsMedia"></p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-xs text-gray-500 mb-1">Ingestion Errors</p>
+            <p class="text-2xl font-bold" :class="statsFailed > 0 ? 'text-red-700' : 'text-gray-700'" x-text="statsFailed"></p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+        <!-- ═══════════ WXR Import ═══════════ -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-blue-50/50">
+                <h2 class="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4 4m0 0l4-4m-4 4V4"/></svg>
+                    Import from WordPress (WXR)
+                </h2>
+            </div>
+            <div class="p-5 space-y-4">
+                <template x-if="bridgeState !== 'active'">
+                    <div class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+                        <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Import is disabled — bridge is in <strong class="mx-1" x-text="bridgeState"></strong> state.
+                    </div>
+                </template>
+
+                <!-- File Drop Zone -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1.5">WXR File (.xml)</label>
+                    <label
+                        class="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                        :class="wxrFile ? 'border-emerald-400 bg-emerald-50/50' : ''"
+                    >
+                        <template x-if="!wxrFile">
+                            <span class="text-sm text-gray-400">Click to select WordPress export (.xml)</span>
+                        </template>
+                        <template x-if="wxrFile">
+                            <span class="text-sm text-emerald-700 font-medium" x-text="wxrFile.name"></span>
+                        </template>
+                        <input type="file" accept=".xml,text/xml,application/xml" @change="wxrFile = $event.target.files[0] || null" class="hidden" :disabled="bridgeState !== 'active'">
+                    </label>
+                </div>
+
+                <!-- Mode -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Duplicate Handling</label>
+                    <div class="flex gap-4">
+                        <label class="inline-flex items-center gap-1.5 text-sm">
+                            <input type="radio" x-model="wxrMode" value="merge" class="border-gray-300 text-blue-600 focus:ring-blue-500"> Skip existing
+                        </label>
+                        <label class="inline-flex items-center gap-1.5 text-sm">
+                            <input type="radio" x-model="wxrMode" value="replace" class="border-gray-300 text-blue-600 focus:ring-blue-500"> Overwrite
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Submit -->
+                <button
+                    @click="doWxrImport()"
+                    :disabled="!wxrFile || wxrImporting || bridgeState !== 'active'"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span x-show="wxrImporting" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span x-text="wxrImporting ? 'Importing…' : 'Start Import'"></span>
+                </button>
+
+                <!-- Result -->
+                <template x-if="wxrResult">
+                    <div
+                        class="rounded-lg px-3 py-2.5 text-xs"
+                        :class="wxrResult.ok ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-red-50 border border-red-200 text-red-800'"
+                    >
+                        <template x-if="wxrResult.ok">
+                            <div>
+                                <p class="font-semibold mb-1">Import complete</p>
+                                <template x-if="wxrResult.stats">
+                                    <div class="space-y-0.5">
+                                        <p>Processed: <strong x-text="wxrResult.stats.total ?? '–'"></strong></p>
+                                        <p>Imported: <strong x-text="wxrResult.stats.imported ?? '–'"></strong></p>
+                                        <p>Skipped: <strong x-text="wxrResult.stats.skipped ?? '–'"></strong></p>
+                                        <p>Errors: <strong x-text="wxrResult.stats.errors ?? '–'"></strong></p>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!wxrResult.ok">
+                            <p><strong>Error:</strong> <span x-text="wxrResult.error"></span></p>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ═══════════ Bridge State Controls ═══════════ -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+                <h2 class="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    Bridge Lifecycle
+                </h2>
+            </div>
+            <div class="p-5 space-y-4">
+                <p class="text-xs text-gray-500">Change the bridge state to control whether new content ingestion is permitted.</p>
+
+                <div class="space-y-2">
+                    <!-- Active -->
+                    <button
+                        @click="setState('active')"
+                        :disabled="bridgeState === 'active' || stateChanging"
+                        class="w-full flex items-center gap-3 px-4 py-3 border rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        :class="bridgeState === 'active' ? 'border-emerald-400 bg-emerald-50 text-emerald-800 font-semibold' : 'border-gray-200 hover:bg-gray-50'"
+                    >
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="bridgeState === 'active' ? 'bg-emerald-500' : 'bg-gray-300'"></span>
+                        <span class="flex-1 text-left">
+                            <span class="font-medium">Active</span>
+                            <span class="text-xs text-gray-400 ml-2">— accepts new ingestion events</span>
+                        </span>
+                        <span x-show="bridgeState === 'active'" class="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Current</span>
+                    </button>
+
+                    <!-- Read-Only -->
+                    <button
+                        @click="setState('read-only')"
+                        :disabled="bridgeState === 'read-only' || stateChanging"
+                        class="w-full flex items-center gap-3 px-4 py-3 border rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        :class="bridgeState === 'read-only' ? 'border-amber-400 bg-amber-50 text-amber-800 font-semibold' : 'border-gray-200 hover:bg-gray-50'"
+                    >
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="bridgeState === 'read-only' ? 'bg-amber-500' : 'bg-gray-300'"></span>
+                        <span class="flex-1 text-left">
+                            <span class="font-medium">Read-Only</span>
+                            <span class="text-xs text-gray-400 ml-2">— blocks new ingestion; existing content still live</span>
+                        </span>
+                        <span x-show="bridgeState === 'read-only'" class="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">Current</span>
+                    </button>
+
+                    <!-- Archived -->
+                    <button
+                        @click="confirmSetState('archived', 'Archive the bridge? Ingestion will stop permanently.')"
+                        :disabled="bridgeState === 'archived' || stateChanging"
+                        class="w-full flex items-center gap-3 px-4 py-3 border rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        :class="bridgeState === 'archived' ? 'border-gray-400 bg-gray-100 text-gray-700 font-semibold' : 'border-gray-200 hover:bg-gray-50'"
+                    >
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="bridgeState === 'archived' ? 'bg-gray-500' : 'bg-gray-300'"></span>
+                        <span class="flex-1 text-left">
+                            <span class="font-medium">Archived</span>
+                            <span class="text-xs text-gray-400 ml-2">— bridge retired; all content now fully CMS-owned</span>
+                        </span>
+                        <span x-show="bridgeState === 'archived'" class="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Current</span>
+                    </button>
+                </div>
+
+                <template x-if="stateError">
+                    <div class="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-800" x-text="stateError"></div>
+                </template>
+                <template x-if="stateSuccess">
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-800">Bridge state updated successfully.</div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ Conflict Review Table ═══════════ -->
+    <div class="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden mb-8" x-show="statsReview > 0">
+        <div class="px-5 py-4 border-b border-amber-100 bg-amber-50/50 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Conflicts Requiring Review
+                <span class="bg-amber-600 text-white text-xs rounded-full px-2 py-0.5" x-text="statsReview"></span>
+            </h2>
+            <button @click="loadConflicts()" class="text-xs text-amber-700 underline hover:text-amber-900">Refresh</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100 text-xs text-gray-500">
+                        <th class="px-4 py-2 text-left font-medium">Title</th>
+                        <th class="px-4 py-2 text-left font-medium">Type</th>
+                        <th class="px-4 py-2 text-left font-medium">Updated</th>
+                        <th class="px-4 py-2 text-right font-medium">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="item in conflicts" :key="item.id">
+                        <tr class="border-b border-gray-50 hover:bg-gray-50">
+                            <td class="px-4 py-2.5 font-medium text-gray-900" x-text="item.title"></td>
+                            <td class="px-4 py-2.5 text-gray-500 text-xs" x-text="item.type"></td>
+                            <td class="px-4 py-2.5 text-gray-400 text-xs" x-text="item.updated_at ?? '—'"></td>
+                            <td class="px-4 py-2.5 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <button
+                                        @click="resolveConflict(item.id, 'cms')"
+                                        class="text-xs px-2.5 py-1 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors"
+                                    >Keep CMS</button>
+                                    <button
+                                        @click="resolveConflict(item.id, 'wp')"
+                                        class="text-xs px-2.5 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                                    >Keep WP</button>
+                                    <button
+                                        @click="claimItem(item.id)"
+                                        class="text-xs px-2.5 py-1 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                                    >Claim</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="conflicts.length === 0 && conflictsLoaded">
+                        <tr>
+                            <td colspan="4" class="px-4 py-6 text-center text-xs text-gray-400">No conflicts found</td>
+                        </tr>
+                    </template>
+                    <template x-if="!conflictsLoaded">
+                        <tr>
+                            <td colspan="4" class="px-4 py-4 text-center text-xs text-gray-400">
+                                <button @click="loadConflicts()" class="underline text-amber-600 hover:text-amber-800">Load conflicts</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══════════ Recent Ingestion Log ═══════════ -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-gray-900">Recent Activity</h2>
+            <button @click="loadActivity()" class="text-xs text-gray-500 underline hover:text-gray-700">Refresh</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100 text-xs text-gray-500">
+                        <th class="px-4 py-2 text-left font-medium">Source / ID</th>
+                        <th class="px-4 py-2 text-left font-medium">Status</th>
+                        <th class="px-4 py-2 text-left font-medium">Outcome</th>
+                        <th class="px-4 py-2 text-left font-medium">Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="row in activity" :key="row.external_id + row.created_at">
+                        <tr class="border-b border-gray-50 hover:bg-gray-50">
+                            <td class="px-4 py-2.5">
+                                <span class="font-mono text-xs text-gray-700" x-text="row.source + ':' + row.external_id"></span>
+                            </td>
+                            <td class="px-4 py-2.5">
+                                <span
+                                    class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium"
+                                    :class="{
+                                        'bg-emerald-100 text-emerald-800': row.status === 'processed',
+                                        'bg-sky-100 text-sky-800':        row.status === 'skipped',
+                                        'bg-red-100 text-red-800':        row.status === 'error',
+                                        'bg-gray-100 text-gray-600':      !['processed','skipped','error'].includes(row.status)
+                                    }"
+                                    x-text="row.status"
+                                ></span>
+                            </td>
+                            <td class="px-4 py-2.5 text-xs text-gray-500" x-text="row.error_message || '—'"></td>
+                            <td class="px-4 py-2.5 text-xs text-gray-400" x-text="row.created_at"></td>
+                        </tr>
+                    </template>
+                    <template x-if="activity.length === 0 && activityLoaded">
+                        <tr>
+                            <td colspan="4" class="px-4 py-6 text-center text-xs text-gray-400">No activity yet</td>
+                        </tr>
+                    </template>
+                    <template x-if="!activityLoaded">
+                        <tr>
+                            <td colspan="4" class="px-4 py-4 text-center text-xs text-gray-400">
+                                <button @click="loadActivity()" class="underline text-gray-500 hover:text-gray-700">Load activity</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function wpBridge(init) {
+    return {
+        // ── Initialised props ─────────────────────────────────────────
+        apiBase:      init.apiBase,
+        bridgeState:  init.bridgeState,
+        statsTotal:   init.statsTotal,
+        statsExt:     init.statsExt,
+        statsReview:  init.statsReview,
+        statsCms:     init.statsCms,
+        statsRetired: init.statsRetired,
+        statsMedia:   init.statsMedia,
+        statsFailed:  init.statsFailed,
+
+        // ── WXR import ────────────────────────────────────────────────
+        wxrFile:      null,
+        wxrMode:      'merge',
+        wxrImporting: false,
+        wxrResult:    null,
+
+        // ── State management ──────────────────────────────────────────
+        stateChanging: false,
+        stateError:    null,
+        stateSuccess:  false,
+
+        // ── Conflicts ─────────────────────────────────────────────────
+        conflicts:      [],
+        conflictsLoaded: false,
+
+        // ── Activity ──────────────────────────────────────────────────
+        activity:      [],
+        activityLoaded: false,
+
+        // ── Methods ───────────────────────────────────────────────────
+
+        async doWxrImport() {
+            if (!this.wxrFile || this.bridgeState !== 'active') return;
+            this.wxrImporting = true;
+            this.wxrResult    = null;
+            try {
+                const fd = new FormData();
+                fd.append('file', this.wxrFile);
+                fd.append('mode', this.wxrMode);
+                const resp = await fetch(this.apiBase + '/bridge/import/wxr', {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                this.wxrResult = await resp.json();
+            } catch (e) {
+                this.wxrResult = { ok: false, error: 'Network error: ' + e.message };
+            } finally {
+                this.wxrImporting = false;
+                if (this.wxrResult && this.wxrResult.ok) {
+                    this.wxrFile = null;
+                    await this.refreshStats();
+                }
+            }
+        },
+
+        async setState(newState) {
+            this.stateChanging = true;
+            this.stateError    = null;
+            this.stateSuccess  = false;
+            try {
+                const resp = await fetch(this.apiBase + '/bridge/state', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ state: newState }),
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    this.bridgeState  = data.state;
+                    this.stateSuccess = true;
+                    setTimeout(() => { this.stateSuccess = false; }, 3000);
+                } else {
+                    this.stateError = data.error || 'Failed to update state';
+                }
+            } catch (e) {
+                this.stateError = 'Network error: ' + e.message;
+            } finally {
+                this.stateChanging = false;
+            }
+        },
+
+        confirmSetState(newState, msg) {
+            if (confirm(msg)) this.setState(newState);
+        },
+
+        async loadConflicts() {
+            try {
+                const resp = await fetch(this.apiBase + '/bridge/content?bridge_status=review-required&per_page=50', {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    this.conflicts      = data.data || [];
+                    this.conflictsLoaded = true;
+                }
+            } catch (_) {}
+        },
+
+        async claimItem(id) {
+            try {
+                const resp = await fetch(this.apiBase + '/bridge/content/' + id + '/claim', {
+                    method: 'PATCH',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    this.conflicts = this.conflicts.filter(c => c.id !== id);
+                    this.statsReview = Math.max(0, this.statsReview - 1);
+                    this.statsCms++;
+                }
+            } catch (_) {}
+        },
+
+        async resolveConflict(id, resolution) {
+            try {
+                const resp = await fetch(this.apiBase + '/bridge/content/' + id + '/resolve', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ resolution }),
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    this.conflicts = this.conflicts.filter(c => c.id !== id);
+                    this.statsReview = Math.max(0, this.statsReview - 1);
+                    if (resolution === 'cms') this.statsCms++;
+                    else this.statsExt++;
+                }
+            } catch (_) {}
+        },
+
+        async loadActivity() {
+            try {
+                const resp = await fetch(this.apiBase + '/bridge/status', {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    this.activity      = data.recent_activity || [];
+                    this.activityLoaded = true;
+                }
+            } catch (_) {}
+        },
+
+        async refreshStats() {
+            try {
+                const resp = await fetch(this.apiBase + '/bridge/status', {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await resp.json();
+                if (data.ok && data.stats) {
+                    const s         = data.stats;
+                    this.statsTotal   = s.total       || 0;
+                    this.statsExt     = s['external-managed'] || 0;
+                    this.statsReview  = s['review-required']  || 0;
+                    this.statsCms     = s['cms-managed']      || 0;
+                    this.statsRetired = s.retired     || 0;
+                    this.statsMedia   = s.media_fetched     || 0;
+                    this.statsFailed  = s.ingestion_failed  || 0;
+                }
+            } catch (_) {}
+        },
+    };
+}
+</script>
+{/block}
