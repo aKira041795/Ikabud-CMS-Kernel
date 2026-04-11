@@ -2376,6 +2376,65 @@ function guidanceQueueCounselorNotification(\Ikabud\Kernel\Contracts\DatabaseCon
     }
 }
 
+function guidanceRenderEmailTemplateString(string $template, array $variables): string
+{
+    if ($template === '' || $variables === []) {
+        return $template;
+    }
+
+    $replacements = [];
+    foreach ($variables as $key => $value) {
+        $replacements['{' . $key . '}'] = (string)$value;
+    }
+
+    return strtr($template, $replacements);
+}
+
+function guidanceRenderEmailTemplateHtml(string $text): string
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+    $normalized = preg_replace("/\n{3,}/", "\n\n", $normalized) ?? $normalized;
+    $normalized = trim($normalized);
+    if ($normalized === '') {
+        return '';
+    }
+
+    $paragraphs = preg_split("/\n{2,}/", $normalized) ?: [];
+    $html = [];
+    foreach ($paragraphs as $paragraph) {
+        $trimmed = trim((string)$paragraph);
+        if ($trimmed === '') {
+            continue;
+        }
+        $html[] = '<p>' . nl2br(htmlspecialchars($trimmed, ENT_QUOTES, 'UTF-8'), false) . '</p>';
+    }
+
+    return implode('', $html);
+}
+
+function guidanceSendAppointmentTemplateEmail(string $templateKey, string $email, array $variables): bool
+{
+    $email = trim($email);
+    if ($email === '' || !function_exists('sendEmail') || !function_exists('buildEmailTemplate')) {
+        return false;
+    }
+
+    $templates = guidanceEmailTemplates();
+    $template = $templates[$templateKey] ?? null;
+    if (!is_array($template)) {
+        return false;
+    }
+
+    $subject = trim(guidanceRenderEmailTemplateString((string)($template['subject'] ?? ''), $variables));
+    $bodyText = guidanceRenderEmailTemplateString((string)($template['body'] ?? ''), $variables);
+    $bodyHtml = guidanceRenderEmailTemplateHtml($bodyText);
+    if ($subject === '' || $bodyHtml === '') {
+        return false;
+    }
+
+    return sendEmail($email, $subject, buildEmailTemplate($subject, $bodyHtml));
+}
+
 function guidanceSendStudentBookingConfirmation(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $appointmentId, array $payload): void
 {
     $email = trim((string)($payload['student_email'] ?? ''));
@@ -2384,14 +2443,14 @@ function guidanceSendStudentBookingConfirmation(\Ikabud\Kernel\Contracts\Databas
     }
 
     try {
-        $content = '<p>Dear ' . htmlspecialchars((string)($payload['student_name'] ?? 'Student')) . ',</p>'
-            . '<p>Your appointment request has been received and is pending approval.</p>'
-            . '<p><strong>Date:</strong> ' . htmlspecialchars(date('F j, Y', strtotime((string)($payload['scheduled_date'] ?? date('Y-m-d'))))) . '<br>'
-            . '<strong>Time:</strong> ' . htmlspecialchars(date('g:i A', strtotime((string)($payload['scheduled_time'] ?? '00:00')))) . '</p>'
-            . '<p>You will receive another email once your appointment is confirmed by a counselor.</p>'
-            . '<p><strong>Reference:</strong> #' . $appointmentId . '</p>';
-        $body = buildEmailTemplate('Appointment Request Received', $content);
-        sendEmail($email, 'Appointment Request Received', $body);
+        guidanceSendAppointmentTemplateEmail('booking_received', $email, [
+            'student_name' => (string)($payload['student_name'] ?? 'Student'),
+            'date' => date('F j, Y', strtotime((string)($payload['scheduled_date'] ?? date('Y-m-d')))),
+            'time' => date('g:i A', strtotime((string)($payload['scheduled_time'] ?? '00:00'))),
+            'location' => (string)($payload['location'] ?? 'Guidance Office'),
+            'reason' => '',
+            'appointment_id' => (string)$appointmentId,
+        ]);
     } catch (Throwable $e) {
         app()->log('Booking: failed to send student confirmation: ' . $e->getMessage(), 'error');
     }
@@ -8858,7 +8917,10 @@ function apiGuidanceApproveAppointment(array $params): void
     }
 
     $db = guidanceDb();
-    $stmt = $db->prepare("SELECT id, counselor_id, status FROM gm_appointments WHERE id = :id LIMIT 1");
+    $stmt = $db->prepare(
+        "SELECT id, counselor_id, status, case_id, student_name, student_email, scheduled_date, scheduled_time, location\n"
+        . "FROM gm_appointments WHERE id = :id LIMIT 1"
+    );
     $stmt->execute([':id' => $apptId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row)) {
@@ -8889,6 +8951,19 @@ function apiGuidanceApproveAppointment(array $params): void
         . "WHERE id = :id"
     );
     $upd->execute([':uid' => $userId, ':id' => $apptId]);
+
+    try {
+        guidanceSendAppointmentTemplateEmail('booking_confirmed', trim((string)($row['student_email'] ?? '')), [
+            'student_name' => (string)($row['student_name'] ?? 'Student'),
+            'date' => date('F j, Y', strtotime((string)($row['scheduled_date'] ?? date('Y-m-d')))),
+            'time' => date('g:i A', strtotime((string)($row['scheduled_time'] ?? '00:00'))),
+            'location' => (string)(trim((string)($row['location'] ?? '')) !== '' ? $row['location'] : 'Guidance Office'),
+            'reason' => '',
+            'appointment_id' => (string)$apptId,
+        ]);
+    } catch (Throwable $e) {
+        app()->log('Appointments approve email error: ' . $e->getMessage(), 'error');
+    }
 
     if (guidanceIsHtmx()) {
         guidanceHtmxResponse([
@@ -8924,7 +8999,10 @@ function apiGuidanceRejectAppointment(array $params): void
     }
 
     $db = guidanceDb();
-    $stmt = $db->prepare("SELECT id, counselor_id, status FROM gm_appointments WHERE id = :id LIMIT 1");
+    $stmt = $db->prepare(
+        "SELECT id, counselor_id, status, case_id, student_name, student_email, scheduled_date, scheduled_time, location\n"
+        . "FROM gm_appointments WHERE id = :id LIMIT 1"
+    );
     $stmt->execute([':id' => $apptId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row)) {
@@ -8955,6 +9033,19 @@ function apiGuidanceRejectAppointment(array $params): void
         . "WHERE id = :id"
     );
     $upd->execute([':uid' => $userId, ':reason' => $reason !== '' ? $reason : null, ':id' => $apptId]);
+
+    try {
+        guidanceSendAppointmentTemplateEmail('booking_rejected', trim((string)($row['student_email'] ?? '')), [
+            'student_name' => (string)($row['student_name'] ?? 'Student'),
+            'date' => date('F j, Y', strtotime((string)($row['scheduled_date'] ?? date('Y-m-d')))),
+            'time' => date('g:i A', strtotime((string)($row['scheduled_time'] ?? '00:00'))),
+            'location' => (string)(trim((string)($row['location'] ?? '')) !== '' ? $row['location'] : 'Guidance Office'),
+            'reason' => $reason !== '' ? ('Reason: ' . $reason) : '',
+            'appointment_id' => (string)$apptId,
+        ]);
+    } catch (Throwable $e) {
+        app()->log('Appointments reject email error: ' . $e->getMessage(), 'error');
+    }
 
     if (guidanceIsHtmx()) {
         guidanceHtmxResponse([
