@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // ─────────────────────────────────────────────────────────────────────────
-// WordPress Bridge — Media Pipeline
+// Content Ingestion — Media Pipeline
 //
 // Fetches, deduplicates, and registers WordPress attachment files into the
 // CMS media library. Returns a URL rewrite map so content bodies can have
@@ -39,7 +39,7 @@ function wpBridgeFetchAllMedia(
     }
 
     if (!ini_get('allow_url_fopen')) {
-        write_log('Bridge media: allow_url_fopen is disabled — skipping media fetch', 'warning', ['source' => 'wordpress-bridge']);
+        write_log('Bridge media: allow_url_fopen is disabled — skipping media fetch', 'warning', ['source' => 'content-ingestion']);
         return [];
     }
 
@@ -81,7 +81,7 @@ function wpBridgeFetchAllMedia(
         $downloadResult = wpBridgeDownloadToTemp($externalUrl);
         if (empty($downloadResult['ok'])) {
             $error = (string)($downloadResult['error'] ?? 'Download failed');
-            write_log("Bridge media: download failed for {$externalUrl} — {$error}", 'warning', ['source' => 'wordpress-bridge']);
+            write_log("Bridge media: download failed for {$externalUrl} — {$error}", 'warning', ['source' => 'content-ingestion']);
             wpBridgeLogMedia($source, $externalUrl, $urlHash, null, null, null, 'failed', $error);
             continue;
         }
@@ -116,7 +116,7 @@ function wpBridgeFetchAllMedia(
 
         if (empty($saveResult['ok'])) {
             $error = (string)($saveResult['error'] ?? 'Save failed');
-            write_log("Bridge media: save failed for {$externalUrl} — {$error}", 'warning', ['source' => 'wordpress-bridge']);
+            write_log("Bridge media: save failed for {$externalUrl} — {$error}", 'warning', ['source' => 'content-ingestion']);
             wpBridgeLogMedia($source, $externalUrl, $urlHash, $fileHash, null, null, 'failed', $error);
             continue;
         }
@@ -126,7 +126,7 @@ function wpBridgeFetchAllMedia(
         wpBridgeLogMedia($source, $externalUrl, $urlHash, $fileHash, $cmsMediaId, $localUrl, 'fetched');
         $urlMap[$externalUrl] = $localUrl;
 
-        write_log("Bridge media: fetched {$externalUrl} → {$localUrl}", 'info', ['source' => 'wordpress-bridge']);
+        write_log("Bridge media: fetched {$externalUrl} → {$localUrl}", 'info', ['source' => 'content-ingestion']);
     }
 
     // ── Expand map to cover domain-swapped URL variants ──────────────────────
@@ -200,7 +200,7 @@ function wpBridgeDownloadToTemp(string $url): array
     $context = stream_context_create([
         'http' => [
             'method'           => 'GET',
-            'header'           => "User-Agent: WordPress-Bridge-Importer/1.0\r\n",
+            'header'           => "User-Agent: Content-Ingestion-Importer/1.0\r\n",
             'timeout'          => 30,
             'follow_location'  => true,
             'max_redirects'    => 3,

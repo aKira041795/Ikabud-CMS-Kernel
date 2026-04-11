@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress Bridge — Ingestion Pipeline Integration Test
+ * Content Ingestion — Ingestion Pipeline Integration Test
  *
  * Tests the core spine: idempotency → normalize → capability write → provenance → log.
  * Uses messy data to validate real-world edge cases.
@@ -21,8 +21,8 @@ require_once __DIR__ . '/../modules/cms/handlers/35-api-content.php';
 require_once __DIR__ . '/../modules/wordpress-importer/handlers/10-wordpress-importer.php';
 
 // Load bridge module helpers + handlers
-require_once __DIR__ . '/../modules/wordpress-bridge/helpers.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/10-ingestion.php';
+require_once __DIR__ . '/../modules/content-ingestion/helpers.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/10-ingestion.php';
 
 // Register CMS capabilities with the capability bus (normally done by module loader)
 $capHandlers = cms_capability_handlers();
@@ -61,7 +61,7 @@ file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 $pdo = app()->db();
 
 // ── Ensure bridge_ingestion_log table exists ─────────────────────────────
-$migrationSql = (string)file_get_contents(BASE_PATH . '/modules/wordpress-bridge/database/migrations/001_bridge_ingestion_log.sql');
+$migrationSql = (string)file_get_contents(BASE_PATH . '/modules/content-ingestion/database/migrations/001_bridge_ingestion_log.sql');
 try {
     $pdo->exec($migrationSql);
 } catch (Throwable $e) {

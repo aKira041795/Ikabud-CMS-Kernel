@@ -8,10 +8,10 @@ Phase 1 is **import-only with event + idempotency foundation**. No WordPress run
 
 ## Build Order (Strict)
 
-### 1. Module Scaffold (`modules/wordpress-bridge/`)
+### 1. Module Scaffold (`modules/content-ingestion/`)
 
 ```
-modules/wordpress-bridge/
+modules/content-ingestion/
   module.json          ← manifest: id, depends, events, owns_tables
   routes.php           ← POST /api/v1/bridge/ingest
   handlers.php         ← loader
@@ -76,7 +76,7 @@ Modify `wordpressImporterImportStructuredPayload()`:
 
 Instead of direct DB writes, emit events per content item:
 ```php
-kernelEmitEvent('cms.migration.content.upserted', $normalizedPayload, 'wordpress-bridge');
+kernelEmitEvent('cms.migration.content.upserted', $normalizedPayload, 'content-ingestion');
 ```
 
 The bridge module's event handler catches these and runs them through the idempotency → capability pipeline.
@@ -124,8 +124,8 @@ After successful ingestion, write:
 
 ```json
 {
-    "id": "wordpress-bridge",
-    "name": "WordPress Bridge",
+    "id": "content-ingestion",
+    "name": "Content Ingestion",
     "version": "1.0.0",
     "description": "CMS migration bridge — event-driven content ingestion from WordPress into ApplicationOS CMS.",
     "author": "Ikabud Kernel Team",
@@ -157,7 +157,7 @@ After successful ingestion, write:
         "bridge_enabled": {
             "type": "boolean",
             "default": false,
-            "label": "Enable WordPress Bridge"
+            "label": "Enable Content Ingestion"
         }
     },
     "nav": []

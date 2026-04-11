@@ -1,5 +1,5 @@
 -- ============================================================
--- WordPress Bridge — Ingestion Log
+-- Content Ingestion — Ingestion Log
 -- Tracks every content ingestion event for idempotency,
 -- audit, debugging, and future replay.
 -- This migration is idempotent and safe to re-run.

@@ -20,7 +20,7 @@
         <div>
             <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <span class="inline-flex items-center justify-center w-7 h-7 rounded bg-blue-600 text-white text-xs font-bold">WP</span>
-                WordPress Bridge
+                Content Ingestion
             </h1>
             <p class="text-sm text-gray-500 mt-0.5">Manage WordPress content migration, conflict resolution, and bridge lifecycle</p>
         </div>

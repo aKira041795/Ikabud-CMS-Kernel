@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress Bridge — Settings Integration Tests
+ * Content Ingestion — Settings Integration Tests
  *
  * Covers:
  *   - wpBridgeEnsureApiToken generates and persists a token
@@ -27,12 +27,12 @@ require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/cms/handlers/35-api-content.php';
 require_once __DIR__ . '/../modules/wordpress-importer/handlers/10-wordpress-importer.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/helpers.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/10-ingestion.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/20-media.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/40-lifecycle.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/30-admin.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/50-settings.php';
+require_once __DIR__ . '/../modules/content-ingestion/helpers.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/10-ingestion.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/20-media.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/40-lifecycle.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/30-admin.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/50-settings.php';
 
 // Register CMS capabilities
 $capHandlers = cms_capability_handlers();
@@ -72,8 +72,8 @@ $pdo = app()->db();
 
 // Apply migrations (idempotent)
 foreach ([
-    BASE_PATH . '/modules/wordpress-bridge/database/migrations/001_bridge_ingestion_log.sql',
-    BASE_PATH . '/modules/wordpress-bridge/database/migrations/002_bridge_media_log.sql',
+    BASE_PATH . '/modules/content-ingestion/database/migrations/001_bridge_ingestion_log.sql',
+    BASE_PATH . '/modules/content-ingestion/database/migrations/002_bridge_media_log.sql',
 ] as $migFile) {
     if (is_file($migFile)) {
         try {
@@ -85,7 +85,7 @@ foreach ([
 }
 
 // ── Snapshot original settings so we can restore ─────────────────────────
-$originalSettings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$originalSettings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 
 echo "\n=== WORDPRESS BRIDGE — SETTINGS TESTS ===\n\n";
 
@@ -95,8 +95,8 @@ echo "\n=== WORDPRESS BRIDGE — SETTINGS TESTS ===\n\n";
 echo "── Test Group 1: Token management helpers ──\n";
 
 // Clear any existing token
-saveModuleSettings('wordpress-bridge', array_merge(
-    function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [],
+saveModuleSettings('content-ingestion', array_merge(
+    function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [],
     ['bridge_api_token' => '']
 ));
 
@@ -142,25 +142,25 @@ echo "── Test Group 3: Settings persistence round-trip ──\n";
 $testUrl  = 'https://test-wp-site.example.com';
 $testName = 'Test WP Blog';
 
-$currentSettings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$currentSettings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $currentSettings['source_site_url'] = $testUrl;
 $currentSettings['source_name']     = $testName;
 $currentSettings['bridge_enabled']  = true;
-saveModuleSettings('wordpress-bridge', $currentSettings);
+saveModuleSettings('content-ingestion', $currentSettings);
 
 $readUrl  = wpBridgeGetSourceUrl();
-$readName = (string)((function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [])['source_name'] ?? '');
-$readEnabled = !empty((function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [])['bridge_enabled']);
+$readName = (string)((function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [])['source_name'] ?? '');
+$readEnabled = !empty((function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [])['bridge_enabled']);
 
 t('source_site_url persists correctly', $readUrl === $testUrl);
 t('source_name persists correctly',     $readName === $testName);
 t('bridge_enabled persists as truthy',  $readEnabled === true);
 
 // Disable and recheck
-$s2 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s2 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s2['bridge_enabled'] = false;
-saveModuleSettings('wordpress-bridge', $s2);
-$readEnabled2 = !empty((function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [])['bridge_enabled']);
+saveModuleSettings('content-ingestion', $s2);
+$readEnabled2 = !empty((function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [])['bridge_enabled']);
 t('bridge_enabled persists as false after clearing', $readEnabled2 === false);
 
 echo "\n";
@@ -171,24 +171,24 @@ echo "\n";
 echo "── Test Group 4: bridge_enabled ingestion gate ──\n";
 
 // Ensure bridge is disabled and has a token
-$s3 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s3 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s3['bridge_enabled']  = false;
 $s3['bridge_state']    = 'active';
 $s3['bridge_api_token'] = bin2hex(random_bytes(32));
 $testToken = $s3['bridge_api_token'];
-saveModuleSettings('wordpress-bridge', $s3);
+saveModuleSettings('content-ingestion', $s3);
 
 // Simulate the bridge_enabled gate logic directly (from wpBridgeApiIngest)
-$settingsForGate = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$settingsForGate = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $gateBlocked = empty($settingsForGate['bridge_enabled']);
 t('bridge_enabled=false: gate blocks ingestion', $gateBlocked === true);
 
 // Enable bridge
-$s4 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s4 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s4['bridge_enabled'] = true;
-saveModuleSettings('wordpress-bridge', $s4);
+saveModuleSettings('content-ingestion', $s4);
 
-$settingsForGate2 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$settingsForGate2 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $gateBlocked2 = empty($settingsForGate2['bridge_enabled']);
 t('bridge_enabled=true: gate allows ingestion', $gateBlocked2 === false);
 
@@ -201,13 +201,13 @@ echo "── Test Group 5: Bearer token authentication logic ──\n";
 
 // Set a known token
 $knownBearer = bin2hex(random_bytes(32));
-$s5 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s5 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s5['bridge_api_token'] = $knownBearer;
 $s5['bridge_enabled']   = true;
-saveModuleSettings('wordpress-bridge', $s5);
+saveModuleSettings('content-ingestion', $s5);
 
 // Simulate auth check logic from wpBridgeApiIngest
-$storedSettings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$storedSettings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $storedToken    = (string)($storedSettings['bridge_api_token'] ?? '');
 
 // Valid token
@@ -220,17 +220,17 @@ $invalidAuth = !($storedToken !== '' && hash_equals($storedToken, $badToken));
 t('invalid bearer token: hash_equals returns false', $invalidAuth === true);
 
 // Empty token in settings → should reject any incoming token
-$s6 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s6 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s6['bridge_api_token'] = '';
-saveModuleSettings('wordpress-bridge', $s6);
-$emptyStored = (string)((function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [])['bridge_api_token'] ?? '');
+saveModuleSettings('content-ingestion', $s6);
+$emptyStored = (string)((function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [])['bridge_api_token'] ?? '');
 $emptyRejects = $emptyStored === '';
 t('empty stored token: treated as unconfigured (rejected)', $emptyRejects === true);
 
 // Restore the known bearer
-$s7 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s7 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s7['bridge_api_token'] = $knownBearer;
-saveModuleSettings('wordpress-bridge', $s7);
+saveModuleSettings('content-ingestion', $s7);
 
 echo "\n";
 
@@ -244,9 +244,9 @@ t('token exists before rotation', $beforeRotate !== '');
 
 // Rotate manually using the same logic as wpBridgeApiTokenRotate
 $rotatedToken = bin2hex(random_bytes(32));
-$sr = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$sr = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $sr['bridge_api_token'] = $rotatedToken;
-saveModuleSettings('wordpress-bridge', $sr);
+saveModuleSettings('content-ingestion', $sr);
 $afterRotate = wpBridgeGetApiToken();
 
 t('rotated token is different from previous', $afterRotate !== $beforeRotate);
@@ -265,16 +265,16 @@ echo "\n";
 echo "── Test Group 7: Health data structure ──\n";
 
 // Set known state for health check
-$sh = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$sh = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $sh['bridge_enabled']   = true;
 $sh['bridge_state']     = 'active';
 $sh['source_site_url']  = 'https://health-test.example.com';
 $sh['source_name']      = 'Health Test Source';
 $sh['bridge_api_token'] = bin2hex(random_bytes(32));
-saveModuleSettings('wordpress-bridge', $sh);
+saveModuleSettings('content-ingestion', $sh);
 
 // Replicate the health data assembly from wpBridgeApiHealth
-$healthSettings      = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$healthSettings      = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $healthState         = wpBridgeGetState();
 $healthEnabled       = !empty($healthSettings['bridge_enabled']);
 $healthSourceUrl     = (string)($healthSettings['source_site_url'] ?? '');
@@ -303,10 +303,10 @@ t('health has last_ingested_at key',                array_key_exists('last_inges
 t('health has last_outcome key',                    array_key_exists('last_outcome', $healthPayload));
 
 // Token not configured
-$shEmpty = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$shEmpty = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $shEmpty['bridge_api_token'] = '';
-saveModuleSettings('wordpress-bridge', $shEmpty);
-$tokenConfiguredFalse = !empty((function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [])['bridge_api_token']);
+saveModuleSettings('content-ingestion', $shEmpty);
+$tokenConfiguredFalse = !empty((function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [])['bridge_api_token']);
 t('health.token_configured is false when token empty', $tokenConfiguredFalse === false);
 
 echo "\n";
@@ -350,9 +350,9 @@ echo "\n";
 echo "── Test Group 9: Nav items gated by bridge_enabled ──\n";
 
 // Disable bridge → nav hook should return items unchanged
-$sNav1 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$sNav1 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $sNav1['bridge_enabled'] = false;
-saveModuleSettings('wordpress-bridge', $sNav1);
+saveModuleSettings('content-ingestion', $sNav1);
 
 // Fire the hook manually to see what it returns
 $baseItems = [['label' => 'Content', 'url' => '/cms/admin/content', 'active_key' => 'content']];
@@ -372,15 +372,15 @@ foreach ($navResult as $item) {
 t('bridge_enabled=false: no wordpress_bridge section in nav', !$hasWpSection);
 
 // Enable bridge → nav hook should inject the section
-$sNav2 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$sNav2 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $sNav2['bridge_enabled'] = true;
-saveModuleSettings('wordpress-bridge', $sNav2);
+saveModuleSettings('content-ingestion', $sNav2);
 
 $navResult2 = app()->hooks()->filter('cms.admin.nav_items', $baseItems);
 $hasWpSection2 = false;
 $hasSettingsChild = false;
 foreach ($navResult2 as $item) {
-    if (isset($item['section']) && $item['section'] && ($item['label'] ?? '') === 'WordPress Bridge') {
+    if (isset($item['section']) && $item['section'] && ($item['label'] ?? '') === 'Content Ingestion') {
         $hasWpSection2 = true;
         foreach ((array)($item['children'] ?? []) as $child) {
             if (($child['active_key'] ?? '') === 'wordpress_bridge_settings') {
@@ -389,7 +389,7 @@ foreach ($navResult2 as $item) {
         }
     }
 }
-t('bridge_enabled=true: WordPress Bridge section appears in nav', $hasWpSection2);
+t('bridge_enabled=true: Content Ingestion section appears in nav', $hasWpSection2);
 t('bridge_enabled=true: Settings child appears in nav section',   $hasSettingsChild);
 
 echo "\n";
@@ -400,22 +400,22 @@ echo "\n";
 echo "── Test Group 10: Helper edge cases ──\n";
 
 // Source URL absent
-$s10 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s10 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s10['source_site_url'] = '';
-saveModuleSettings('wordpress-bridge', $s10);
+saveModuleSettings('content-ingestion', $s10);
 t('wpBridgeGetSourceUrl returns empty string when unset', wpBridgeGetSourceUrl() === '');
 
 // Set URL
-$s11 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s11 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s11['source_site_url'] = 'https://edgecase.example.com';
-saveModuleSettings('wordpress-bridge', $s11);
+saveModuleSettings('content-ingestion', $s11);
 t('wpBridgeGetSourceUrl returns set URL', wpBridgeGetSourceUrl() === 'https://edgecase.example.com');
 
 // EnsureApiToken when already set does not overwrite
 $existingToken = bin2hex(random_bytes(32));
-$s12 = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+$s12 = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 $s12['bridge_api_token'] = $existingToken;
-saveModuleSettings('wordpress-bridge', $s12);
+saveModuleSettings('content-ingestion', $s12);
 $ensuredToken = wpBridgeEnsureApiToken();
 t('wpBridgeEnsureApiToken does not overwrite existing token', $ensuredToken === $existingToken);
 
@@ -425,7 +425,7 @@ echo "\n";
 // TEARDOWN
 // ═════════════════════════════════════════════════════════════════════════
 // Restore original settings
-saveModuleSettings('wordpress-bridge', $originalSettings);
+saveModuleSettings('content-ingestion', $originalSettings);
 
 // ═════════════════════════════════════════════════════════════════════════
 // RESULTS

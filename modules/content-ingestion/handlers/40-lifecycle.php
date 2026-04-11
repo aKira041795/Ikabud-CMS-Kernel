@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // ─────────────────────────────────────────────────────────────────────────
-// WordPress Bridge — Lifecycle Handlers
+// Content Ingestion — Lifecycle Handlers
 //
 // Per-item claim/resolve transitions  +  bridge-state helpers
 //
@@ -27,7 +27,7 @@ declare(strict_types=1);
  */
 function wpBridgeGetState(): string
 {
-    $settings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     $state    = $settings['bridge_state'] ?? 'active';
 
     $allowed = ['active', 'read-only', 'archived', 'disabled'];
@@ -144,7 +144,7 @@ function wpBridgeApiSetState(array $params = []): void
         exit;
     }
 
-    saveModuleSettings('wordpress-bridge', ['bridge_state' => $newState]);
+    saveModuleSettings('content-ingestion', ['bridge_state' => $newState]);
 
     app()->events()->emit('cms.migration.bridge.state_changed', [
         'prev_state' => $prevState,
@@ -155,7 +155,7 @@ function wpBridgeApiSetState(array $params = []): void
     write_log(
         "Bridge state changed from '{$prevState}' to '{$newState}'",
         'info',
-        ['source' => 'wordpress-bridge']
+        ['source' => 'content-ingestion']
     );
 
     echo json_encode(['ok' => true, 'state' => $newState, 'changed' => true]);
@@ -233,7 +233,7 @@ function wpBridgeApiContentClaim(array $params = []): void
     write_log(
         "Bridge content #{$contentId} claimed ('{$currentStatus}' → 'cms-managed')",
         'info',
-        ['source' => 'wordpress-bridge']
+        ['source' => 'content-ingestion']
     );
 
     echo json_encode([
@@ -360,7 +360,7 @@ function wpBridgeApiContentResolve(array $params = []): void
     write_log(
         "Bridge content #{$contentId} conflict resolved via '{$resolution}': '{$currentStatus}' → '{$newStatus}'",
         'info',
-        ['source' => 'wordpress-bridge']
+        ['source' => 'content-ingestion']
     );
 
     echo json_encode([

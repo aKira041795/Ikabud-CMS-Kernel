@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress Bridge — Media Pipeline Integration Test
+ * Content Ingestion — Media Pipeline Integration Test
  *
  * Tests the Phase 2 media pipeline:
  *   - SSRF guard (wpBridgeMediaIsAllowedUrl)
@@ -25,9 +25,9 @@ require_once __DIR__ . '/../modules/cms/handlers/35-api-content.php';
 
 require_once __DIR__ . '/../modules/wordpress-importer/handlers/10-wordpress-importer.php';
 
-require_once __DIR__ . '/../modules/wordpress-bridge/helpers.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/10-ingestion.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/20-media.php';
+require_once __DIR__ . '/../modules/content-ingestion/helpers.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/10-ingestion.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/20-media.php';
 
 // Register CMS capabilities
 $capHandlers = cms_capability_handlers();
@@ -69,7 +69,7 @@ foreach ([
     '001_bridge_ingestion_log.sql',
     '002_bridge_media_log.sql',
 ] as $migFile) {
-    $sql = (string)file_get_contents(BASE_PATH . '/modules/wordpress-bridge/database/migrations/' . $migFile);
+    $sql = (string)file_get_contents(BASE_PATH . '/modules/content-ingestion/database/migrations/' . $migFile);
     try {
         $pdo->exec($sql);
     } catch (Throwable $e) {

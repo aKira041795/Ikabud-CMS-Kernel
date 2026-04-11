@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // ─────────────────────────────────────────────────────────────────────────
-// WordPress Bridge — Settings Handlers
+// Content Ingestion — Settings Handlers
 //
 //   GET  /cms/admin/bridge/settings         → wpBridgeAdminSettings  (UI page)
 //   POST /cms/admin/bridge/settings         → wpBridgeAdminSettings  (form save)
@@ -22,13 +22,13 @@ declare(strict_types=1);
  */
 function wpBridgeEnsureApiToken(): string
 {
-    $settings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     $token    = (string)($settings['bridge_api_token'] ?? '');
 
     if ($token === '') {
         $token = bin2hex(random_bytes(32));
         $settings['bridge_api_token'] = $token;
-        saveModuleSettings('wordpress-bridge', $settings);
+        saveModuleSettings('content-ingestion', $settings);
     }
 
     return $token;
@@ -39,7 +39,7 @@ function wpBridgeEnsureApiToken(): string
  */
 function wpBridgeGetApiToken(): string
 {
-    $settings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     return (string)($settings['bridge_api_token'] ?? '');
 }
 
@@ -48,7 +48,7 @@ function wpBridgeGetApiToken(): string
  */
 function wpBridgeGetSourceUrl(): string
 {
-    $settings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     return (string)($settings['source_site_url'] ?? '');
 }
 
@@ -74,7 +74,7 @@ function wpBridgeAdminSettings(array $params = []): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         app()->csrfEnforce();
 
-        $settings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+        $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
 
         // bridge_enabled — checkbox
         $settings['bridge_enabled'] = !empty($_POST['bridge_enabled']);
@@ -103,9 +103,9 @@ function wpBridgeAdminSettings(array $params = []): void
             $settings['bridge_api_token'] = bin2hex(random_bytes(32));
         }
 
-        saveModuleSettings('wordpress-bridge', $settings);
+        saveModuleSettings('content-ingestion', $settings);
 
-        write_log('Bridge settings saved', 'info', ['source' => 'wordpress-bridge', 'user_id' => (int)($user['id'] ?? 0)]);
+        write_log('Bridge settings saved', 'info', ['source' => 'content-ingestion', 'user_id' => (int)($user['id'] ?? 0)]);
 
         $_SESSION['bridge_message'] = ['type' => 'success', 'text' => 'Bridge settings saved.'];
         header('Location: /cms/admin/bridge/settings');
@@ -115,7 +115,7 @@ function wpBridgeAdminSettings(array $params = []): void
     // GET — ensure token exists before rendering (so the "copy token" section works immediately)
     wpBridgeEnsureApiToken();
 
-    $settings      = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings      = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     $token         = (string)($settings['bridge_api_token'] ?? '');
     $tokenMasked   = wpBridgeMaskToken($token);
     $baseUrl       = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
@@ -125,13 +125,13 @@ function wpBridgeAdminSettings(array $params = []): void
     $message = $_SESSION['bridge_message'] ?? null;
     unset($_SESSION['bridge_message']);
 
-    echo cmsRender('modules/wordpress-bridge/admin/bridge-settings.disyl', array_merge(
+    echo cmsRender('modules/content-ingestion/admin/bridge-settings.disyl', array_merge(
         cmsAdminContext($user, 'wordpress_bridge', [
-            ['label' => 'WordPress Bridge', 'url' => $baseUrl . '/cms/admin/bridge'],
+            ['label' => 'Content Ingestion', 'url' => $baseUrl . '/cms/admin/bridge'],
             ['label' => 'Settings', 'url' => ''],
         ]),
         [
-            'page_title'        => 'WordPress Bridge — Settings',
+            'page_title'        => 'Content Ingestion — Settings',
             'bridge_enabled'    => !empty($settings['bridge_enabled']),
             'source_site_url'   => (string)($settings['source_site_url'] ?? ''),
             'source_name'       => (string)($settings['source_name'] ?? ''),
@@ -178,11 +178,11 @@ function wpBridgeApiTokenRotate(array $params = []): void
 
     $newToken = bin2hex(random_bytes(32));
 
-    $settings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     $settings['bridge_api_token'] = $newToken;
-    saveModuleSettings('wordpress-bridge', $settings);
+    saveModuleSettings('content-ingestion', $settings);
 
-    write_log('Bridge API token rotated', 'info', ['source' => 'wordpress-bridge']);
+    write_log('Bridge API token rotated', 'info', ['source' => 'content-ingestion']);
 
     // Return masked token in the response so the UI can update display
     echo json_encode([
@@ -207,7 +207,7 @@ function wpBridgeApiHealth(array $params = []): void
     header('Content-Type: application/json');
     cmsRequireCap('import_export.manage');
 
-    $settings       = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings       = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     $bridgeState    = wpBridgeGetState();
     $bridgeEnabled  = !empty($settings['bridge_enabled']);
     $sourceSiteUrl  = (string)($settings['source_site_url'] ?? '');
@@ -264,7 +264,7 @@ function wpBridgeApiCompanionDownload(array $params = []): void
 {
     cmsRequireCap('import_export.manage');
 
-    $settings   = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings   = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     $token      = (string)($settings['bridge_api_token'] ?? '');
 
     if ($token === '') {
@@ -321,7 +321,7 @@ function wpBridgeGenerateCompanionPlugin(string $ingestUrl, string $token, strin
  * Plugin Name: ApplicationOS Bridge Connector
  * Description: Pushes WordPress content changes to ApplicationOS via the Bridge API.
  *              Generated automatically — do not edit the APPLOS_* constants manually.
- *              Re-download from ApplicationOS Admin → WordPress Bridge → Settings if token changes.
+ *              Re-download from ApplicationOS Admin → Content Ingestion → Settings if token changes.
  * Version: 1.0.0
  */
 

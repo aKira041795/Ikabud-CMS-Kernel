@@ -1,4 +1,4 @@
--- WordPress Bridge: Media ingestion log
+-- Content Ingestion: Media ingestion log
 -- Tracks every media file downloaded from WordPress, with URL-based and content-based dedup.
 --
 -- Dedup strategy:

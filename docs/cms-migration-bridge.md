@@ -381,7 +381,7 @@ These are explicitly out of scope for the migration bridge:
 
 ## Configuration
 
-All bridge settings are stored per-tenant in the module settings registry (`getModuleSettings('wordpress-bridge')` / `saveModuleSettings('wordpress-bridge', ...)`). They are configurable via **CMS Admin → WordPress Bridge → Settings**.
+All bridge settings are stored per-tenant in the module settings registry (`getModuleSettings('content-ingestion')` / `saveModuleSettings('content-ingestion', ...)`). They are configurable via **CMS Admin → Content Ingestion → Settings**.
 
 ### Settings Reference
 
@@ -397,7 +397,7 @@ All bridge settings are stored per-tenant in the module settings registry (`getM
 
 These are two separate control planes:
 
-- **`bridge_enabled`** — master on/off. When `false`, the WordPress Bridge section disappears from the CMS sidebar and the ingest endpoint returns `503`. Use this to suppress the feature entirely for a tenant that has not set it up yet.
+- **`bridge_enabled`** — master on/off. When `false`, the Content Ingestion section disappears from the CMS sidebar and the ingest endpoint returns `503`. Use this to suppress the feature entirely for a tenant that has not set it up yet.
 - **`bridge_state`** — operational lifecycle mode. Governs what the bridge allows when it is enabled. Transitions:  
   `active` → `read-only` → `archived` → `disabled`
 
@@ -444,7 +444,7 @@ The companion plugin provides **live sync** from WordPress to ApplicationOS. It 
 
 ### Installation
 
-1. Go to **CMS Admin → WordPress Bridge → Settings**
+1. Go to **CMS Admin → Content Ingestion → Settings**
 2. Fill in **WordPress Site URL** and **Source Name**, then **Save Settings**
 3. Click **Download Companion Plugin** — the downloaded file has your endpoint URL and token pre-embedded
 4. Upload `applicationos-bridge-connector.php` to `wp-content/plugins/` on your WordPress site
@@ -558,11 +558,168 @@ Generates a new API token and invalidates the old one.
 - Reuse provenance tracking and lifecycle management from WordPress bridge
 - Reuse the same ingestion pipeline; Joomla is a new **adapter**, not a new pipeline
 
-### Phase 5: Generalized Ingestion Pipeline (Future)
-- Extract WordPress/Joomla-agnostic ingestion core into a shared kernel helper
-- Define adapter interface: `normalize()` → event → capability write → provenance
-- Enable ingestion from POS systems, mobile apps, third-party content APIs
-- The bridge module becomes a thin adapter layer; the pipeline is kernel infrastructure
+### Phase 5: Generalized Ingestion Pipeline — Adapter Interface
+
+The ingestion module (`content-ingestion`) already implements the full pipeline for WordPress. Phase 5 extracts the source-agnostic core and defines a formal adapter contract so that WordPress, Joomla, POS systems, mobile apps, and third-party APIs all plug into the same ingestion infrastructure without custom wiring.
+
+#### Design Principle
+
+> The ingestion pipeline owns normalization, deduplication, conflict detection, provenance, and CMS capability writes.  
+> An adapter owns only **source-specific extraction and envelope construction**.
+
+Adapters are disposable. The pipeline is permanent.
+
+#### Adapter Contract
+
+Every content source implements a single interface — an **Ingestion Adapter**. The adapter is a PHP class (or set of functions) that satisfies this contract:
+
+```php
+interface IngestionAdapter
+{
+    /**
+     * Unique adapter identifier (e.g. 'wordpress', 'joomla', 'pos-api').
+     * Used as `bridge_source` in provenance metadata and event routing.
+     */
+    public function sourceId(): string;
+
+    /**
+     * Human-readable adapter name for UI display (e.g. 'WordPress', 'Joomla 5').
+     */
+    public function sourceName(): string;
+
+    /**
+     * Normalize a raw source payload into the canonical ingestion envelope.
+     *
+     * Input:  Source-specific data (WXR node, Joomla article row, API response body, etc.)
+     * Output: IngestionEnvelope — the universal shape the pipeline understands.
+     *
+     * The adapter does NOT write to the CMS. It only normalizes.
+     */
+    public function normalize(array $rawPayload): IngestionEnvelope;
+
+    /**
+     * Extract media references from the normalized content body.
+     * Returns an array of external URLs that the media pipeline should fetch.
+     */
+    public function extractMediaUrls(IngestionEnvelope $envelope): array;
+
+    /**
+     * Optional: validate the raw payload before normalization.
+     * Return an array of error strings. Empty array = valid.
+     */
+    public function validate(array $rawPayload): array;
+}
+```
+
+#### Canonical Ingestion Envelope
+
+The envelope is the **one shape** that every adapter produces and the pipeline consumes:
+
+```php
+class IngestionEnvelope
+{
+    public string $event;               // e.g. 'cms.migration.content.upserted'
+    public string $source;              // adapter sourceId()
+    public string|int $externalId;      // unique ID in the source system
+    public string $externalModified;    // ISO 8601 timestamp from source
+    public array $payload;              // normalized content fields (see below)
+}
+```
+
+**Payload shape** (matches the existing event schema):
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | yes | Content title |
+| `slug` | string | yes | URL slug (adapter should suggest; pipeline deduplicates) |
+| `body` | string | yes | HTML content body |
+| `excerpt` | string | no | Short summary |
+| `type` | string | yes | Content type: `post`, `page`, or custom |
+| `status` | string | yes | CMS status enum: `published`, `draft`, `pending`, `archived` |
+| `categories` | string[] | no | Category slugs |
+| `tags` | string[] | no | Tag slugs |
+| `author_external_id` | string\|int | no | Author ID in source system (pipeline resolves to CMS user) |
+| `featured_image_external_url` | string | no | Featured image URL in source system |
+| `meta` | array | no | Key-value pairs for `cms_content_meta` |
+
+#### Pipeline Stages (Source-Agnostic)
+
+The pipeline runs the same stages regardless of adapter:
+
+```
+┌──────────┐   ┌───────────┐   ┌──────────────┐   ┌────────────┐   ┌──────────────┐   ┌───────────┐
+│ Adapter  │──►│ Validate  │──►│ Deduplicate  │──►│ Conflict   │──►│ Capability   │──►│ Provenance│
+│ normalize│   │ envelope  │   │ idempotency  │   │ detection  │   │ write (CMS)  │   │ + events  │
+└──────────┘   └───────────┘   └──────────────┘   └────────────┘   └──────────────┘   └───────────┘
+     ↑                                                                      │
+   adapter-                                                           pipeline-owned
+   specific                                                          (shared across all adapters)
+```
+
+1. **Normalize** — Adapter converts source data → `IngestionEnvelope`
+2. **Validate** — Pipeline checks required fields, type constraints
+3. **Deduplicate** — `(source, external_id, external_modified)` lookup → skip if already processed
+4. **Conflict detect** — Compare `cms_content.updated_at` vs `bridge_synced_at` → `review-required` if both modified
+5. **Capability write** — `cms.content.create@1` / update, slug dedup, author resolution, HTML sanitization
+6. **Provenance** — Write `bridge_source`, `bridge_source_id`, `bridge_synced_at` to `cms_content_meta`
+7. **Media pipeline** — Background: fetch external media URLs, hash-dedup, URL rewrite in body
+8. **Event emission** — `cms.migration.content.completed` with outcome + provenance
+
+#### Adapter Registration
+
+Adapters are registered in the module's helpers via a simple registry pattern:
+
+```php
+// In content-ingestion/helpers.php (future)
+function contentIngestionRegisterAdapter(IngestionAdapter $adapter): void;
+function contentIngestionGetAdapter(string $sourceId): ?IngestionAdapter;
+function contentIngestionListAdapters(): array;
+```
+
+Each adapter can optionally declare its own settings fields (source URL, API keys, auth tokens) which the settings UI renders dynamically.
+
+#### Current WordPress Adapter (Already Built)
+
+The existing WordPress-specific code maps cleanly to this interface:
+
+| Adapter method | Current implementation |
+|---|---|
+| `sourceId()` | `'wordpress'` (hardcoded in event payloads) |
+| `sourceName()` | `'WordPress'` |
+| `normalize()` | Logic currently in `wpBridgeApiIngest()` payload extraction |
+| `extractMediaUrls()` | Logic in `wpBridgeProcessContentMedia()` |
+| `validate()` | Title/slug required checks in ingestion handler |
+
+Extracting the WordPress adapter is a refactor of existing code, not new functionality.
+
+#### Planned Adapters
+
+| Adapter | Source | Trigger | Priority |
+|---|---|---|---|
+| `wordpress` | WordPress (WXR import + live sync) | Manual import, companion plugin webhook | **Done (Phase 1)** |
+| `joomla` | Joomla (article export + DB read) | Manual import | Phase 4 |
+| `csv` | CSV/spreadsheet | File upload | Future |
+| `rest-api` | Generic REST API | Webhook or polling | Future |
+| `pos` | Point-of-sale content | Webhook | Future |
+
+#### What This Changes in the Module
+
+Phase 5 execution means:
+
+1. Extract `IngestionAdapter` interface + `IngestionEnvelope` class into `modules/content-ingestion/contracts/`
+2. Refactor existing WordPress ingestion logic into `modules/content-ingestion/adapters/wordpress.php` implementing the interface
+3. Extract the pipeline stages (validate → dedup → conflict → write → provenance → events) into `modules/content-ingestion/pipeline.php` as a reusable function that accepts any `IngestionEnvelope`
+4. Update `wpBridgeApiIngest()` to: receive raw payload → `$adapter->normalize()` → `pipeline->ingest($envelope)`
+5. Add adapter auto-discovery: scan `modules/content-ingestion/adapters/*.php` for classes implementing `IngestionAdapter`
+6. Settings UI: dynamically render adapter-specific settings based on registered adapters
+
+#### What Does NOT Change
+
+- Route paths (`/bridge/...`) — these are stable
+- Function names (`wpBridge*`) — WordPress adapter internals stay WordPress-specific
+- Database schema — `bridge_ingestion_log`, `bridge_media_log` tables are source-agnostic already
+- Provenance model — `bridge_source` / `bridge_source_id` / `bridge_synced_at` work for any adapter
+- Bearer token auth — the ingest endpoint's dual auth model (token vs session) is adapter-agnostic
 
 ---
 

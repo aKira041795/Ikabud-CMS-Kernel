@@ -1,8 +1,8 @@
 {
-    "id": "wordpress-bridge",
-    "name": "WordPress Bridge",
+    "id": "content-ingestion",
+    "name": "Content Ingestion",
     "version": "1.0.0",
-    "description": "CMS migration bridge — event-driven content ingestion from WordPress into ApplicationOS CMS.",
+    "description": "External content ingestion system — event-driven, adapter-based pipeline for ingesting content from WordPress (and future sources) into ApplicationOS CMS.",
     "author": "Ikabud Kernel Team",
     "depends": [
         "cms",
@@ -76,7 +76,7 @@
         "bridge_enabled": {
             "type": "boolean",
             "default": false,
-            "label": "Enable WordPress Bridge"
+            "label": "Enable Content Ingestion"
         },
         "bridge_state": {
             "type": "select",
@@ -113,7 +113,7 @@
         {
             "key": "bridge_enabled",
             "type": "checkbox",
-            "label": "Enable WordPress Bridge",
+            "label": "Enable Content Ingestion",
             "description": "Enable CMS admin navigation and ingestion API for this bridge."
         },
         {

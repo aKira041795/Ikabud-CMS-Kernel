@@ -97,7 +97,7 @@ function wordpressImporterImportStructuredPayload(array $data, string $mode, int
     $resolvedAuthorId = wordpressImporterResolveAuthorId($preferredAuthorId);
     $stats = ['imported' => 0, 'skipped' => 0, 'updated' => 0, 'errors' => 0, 'categories_imported' => 0, 'tags_imported' => 0, 'category_links' => 0, 'tag_links' => 0, 'bridge_processed' => 0, 'bridge_skipped' => 0, 'bridge_failed' => 0, 'media_fetched' => 0];
 
-    // Check if the wordpress-bridge module is active for event-driven ingestion
+    // Check if the content-ingestion module is active for event-driven ingestion
     $useBridge = function_exists('wpBridgeHandleContentUpserted');
 
     $categories = is_array($data['categories'] ?? null) ? $data['categories'] : [];

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // ─────────────────────────────────────────────────────────────────────────
-// WordPress Bridge Module — Helpers
+// Content Ingestion Module — Helpers
 // Idempotency guard, provenance tracking, and bridge utilities.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ declare(strict_types=1);
  */
 function wpBridgeDb(): PDO|\Ikabud\Kernel\Contracts\ModuleDB
 {
-    $ctx = module('wordpress-bridge');
+    $ctx = module('content-ingestion');
     if ($ctx) {
         return $ctx->db();
     }
@@ -213,13 +213,13 @@ function wpBridgeHasConflict(array $existing, array $provenance): bool
 // ─────────────────────────────────────────────────────────────────────────
 
 app()->hooks()->on('cms.admin.nav_items', static function (array $items): array {
-    $settings = function_exists('getModuleSettings') ? getModuleSettings('wordpress-bridge') : [];
+    $settings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
     if (empty($settings['bridge_enabled'])) {
         return $items;
     }
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
     $items[] = [
-        'label'    => 'WordPress Bridge',
+        'label'    => 'Content Ingestion',
         'section'  => true,
         'children' => [
             [

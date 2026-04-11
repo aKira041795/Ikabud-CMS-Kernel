@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // ─────────────────────────────────────────────────────────────────────────
-// WordPress Bridge — Admin UI Handlers
+// Content Ingestion — Admin UI Handlers
 //
 // All admin-facing routes for the bridge:
 //   GET  /cms/admin/bridge              → wpBridgeAdminDashboard  (UI page)
@@ -27,12 +27,12 @@ function wpBridgeAdminDashboard(array $params = []): void
 
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
-    echo cmsRender('modules/wordpress-bridge/admin/bridge-dashboard.disyl', array_merge(
+    echo cmsRender('modules/content-ingestion/admin/bridge-dashboard.disyl', array_merge(
         cmsAdminContext($user, 'wordpress_bridge', [
-            ['label' => 'WordPress Bridge', 'url' => ''],
+            ['label' => 'Content Ingestion', 'url' => ''],
         ]),
         [
-            'page_title'           => 'WordPress Bridge',
+            'page_title'           => 'Content Ingestion',
             'bridge_state'         => $bridgeState,
             'bridge_enabled'       => $bridgeState === 'active',
             'bridge_readonly'      => $bridgeState === 'read-only',
@@ -188,7 +188,7 @@ function wpBridgeApiContentList(array $params = []): void
  *
  * This is the bridge-aware import endpoint. It is equivalent to the
  * wordpress-importer WXR upload but routes all content through the
- * wordpress-bridge ingestion pipeline instead of writing directly.
+ * content-ingestion ingestion pipeline instead of writing directly.
  */
 function wpBridgeApiImportWxr(array $params = []): void
 {
@@ -235,7 +235,7 @@ function wpBridgeApiImportWxr(array $params = []): void
     try {
         $data = wordpressImporterParseWxr($rawXml);
     } catch (Throwable $e) {
-        write_log('Bridge WXR import parse error: ' . $e->getMessage(), 'error', ['source' => 'wordpress-bridge']);
+        write_log('Bridge WXR import parse error: ' . $e->getMessage(), 'error', ['source' => 'content-ingestion']);
         http_response_code(422);
         echo json_encode(['ok' => false, 'error' => 'WXR parse error: ' . $e->getMessage()]);
         exit;
@@ -245,13 +245,13 @@ function wpBridgeApiImportWxr(array $params = []): void
     try {
         $stats = wordpressImporterImportStructuredPayload($data, $mode, (int)($user['id'] ?? 0));
     } catch (Throwable $e) {
-        write_log('Bridge WXR import failed: ' . $e->getMessage(), 'error', ['source' => 'wordpress-bridge']);
+        write_log('Bridge WXR import failed: ' . $e->getMessage(), 'error', ['source' => 'content-ingestion']);
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Import failed: ' . $e->getMessage()]);
         exit;
     }
 
-    write_log('Bridge WXR import completed: ' . json_encode($stats), 'info', ['source' => 'wordpress-bridge']);
+    write_log('Bridge WXR import completed: ' . json_encode($stats), 'info', ['source' => 'content-ingestion']);
 
     echo json_encode([
         'ok'    => true,

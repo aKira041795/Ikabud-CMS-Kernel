@@ -10,7 +10,7 @@
     <div class="mb-6">
         <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
             <span class="inline-flex items-center justify-center w-7 h-7 rounded bg-blue-600 text-white text-xs font-bold">WP</span>
-            WordPress Bridge — Settings
+            Content Ingestion — Settings
         </h1>
         <p class="text-sm text-gray-500 mt-0.5">Configure the source WordPress site and API credentials for live sync.</p>
     </div>
@@ -43,7 +43,7 @@
                         class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     >
                     <div>
-                        <label for="field_bridge_enabled" class="block text-sm font-semibold text-gray-700">Enable WordPress Bridge</label>
+                        <label for="field_bridge_enabled" class="block text-sm font-semibold text-gray-700">Enable Content Ingestion</label>
                         <p class="text-xs text-gray-500 mt-0.5">Shows the Bridge section in the CMS admin sidebar and enables the ingestion API for this tenant.</p>
                     </div>
                 </div>

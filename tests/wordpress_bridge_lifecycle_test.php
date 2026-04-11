@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress Bridge — Lifecycle Integration Tests
+ * Content Ingestion — Lifecycle Integration Tests
  *
  * Phase 3 tests covering:
  *   - Bridge state helpers (wpBridgeGetState, wpBridgeIsActive)
@@ -24,11 +24,11 @@ require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/cms/handlers/35-api-content.php';
 require_once __DIR__ . '/../modules/wordpress-importer/handlers/10-wordpress-importer.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/helpers.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/10-ingestion.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/20-media.php';
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/40-lifecycle.php'; // provides wpBridgeGetState etc.
-require_once __DIR__ . '/../modules/wordpress-bridge/handlers/30-admin.php';     // provides wpBridgeGetStats
+require_once __DIR__ . '/../modules/content-ingestion/helpers.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/10-ingestion.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/20-media.php';
+require_once __DIR__ . '/../modules/content-ingestion/handlers/40-lifecycle.php'; // provides wpBridgeGetState etc.
+require_once __DIR__ . '/../modules/content-ingestion/handlers/30-admin.php';     // provides wpBridgeGetStats
 
 // Register CMS capabilities
 $capHandlers = cms_capability_handlers();
@@ -68,8 +68,8 @@ $pdo = app()->db();
 
 // Ensure migrations are applied
 foreach ([
-    BASE_PATH . '/modules/wordpress-bridge/database/migrations/001_bridge_ingestion_log.sql',
-    BASE_PATH . '/modules/wordpress-bridge/database/migrations/002_bridge_media_log.sql',
+    BASE_PATH . '/modules/content-ingestion/database/migrations/001_bridge_ingestion_log.sql',
+    BASE_PATH . '/modules/content-ingestion/database/migrations/002_bridge_media_log.sql',
 ] as $migFile) {
     if (is_file($migFile)) {
         try {
@@ -111,12 +111,12 @@ $originalState = wpBridgeGetState();
 
 function setBridgeState(string $state): void
 {
-    saveModuleSettings('wordpress-bridge', ['bridge_state' => $state]);
+    saveModuleSettings('content-ingestion', ['bridge_state' => $state]);
 }
 
 function restoreBridgeState(string $state): void
 {
-    saveModuleSettings('wordpress-bridge', ['bridge_state' => $state]);
+    saveModuleSettings('content-ingestion', ['bridge_state' => $state]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -408,7 +408,7 @@ echo "\n";
 echo "── Test Group 10: Invalid state rejected by wpBridgeGetState ──\n";
 
 // Directly poke an invalid value into settings
-saveModuleSettings('wordpress-bridge', ['bridge_state' => 'bananas']);
+saveModuleSettings('content-ingestion', ['bridge_state' => 'bananas']);
 $safeState = wpBridgeGetState();
 t('invalid state falls back to active', $safeState === 'active');
 t('wpBridgeIsActive still true for invalid state', wpBridgeIsActive() === true);
