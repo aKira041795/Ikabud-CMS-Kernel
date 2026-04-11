@@ -93,6 +93,11 @@ function wpBridgeAdminSettings(array $params = []): void
         // source_name — plain text
         $settings['source_name'] = trim((string)($_POST['source_name'] ?? ''));
 
+        // source_adapter — whitelist; only known adapters accepted
+        $allowedAdapters = ['wordpress'];
+        $rawAdapter = (string)($_POST['source_adapter'] ?? 'wordpress');
+        $settings['source_adapter'] = in_array($rawAdapter, $allowedAdapters, true) ? $rawAdapter : 'wordpress';
+
         // Ensure bridge_state stays valid (never whiteout from POST)
         if (empty($settings['bridge_state'])) {
             $settings['bridge_state'] = 'active';
@@ -135,6 +140,7 @@ function wpBridgeAdminSettings(array $params = []): void
             'bridge_enabled'    => !empty($settings['bridge_enabled']),
             'source_site_url'   => (string)($settings['source_site_url'] ?? ''),
             'source_name'       => (string)($settings['source_name'] ?? ''),
+            'source_adapter'    => (string)($settings['source_adapter'] ?? 'wordpress'),
             'token_masked'      => $tokenMasked,
             'token_set'         => $token !== '',
             'ingest_url'        => $ingestUrl,

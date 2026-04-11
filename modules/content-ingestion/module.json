@@ -90,11 +90,18 @@
             "label": "Bridge State",
             "description": "Controls whether content ingestion is allowed. active=open; read-only=page renders only; archived/disabled=fully locked."
         },
+        "source_adapter": {
+            "type": "select",
+            "options": ["wordpress"],
+            "default": "wordpress",
+            "label": "Source Platform",
+            "description": "The CMS platform being ingested from. Determines available sync tools and normalization pipeline. Only WordPress is available in Phase 1."
+        },
         "source_site_url": {
             "type": "text",
             "default": "",
-            "label": "WordPress Site URL",
-            "description": "The base URL of the WordPress site being migrated (e.g. https://myblog.com). Used for SSRF allowlisting and media URL rewriting."
+            "label": "Source Site URL",
+            "description": "The base URL of the site being migrated (e.g. https://myblog.com). Used for SSRF allowlisting and media URL rewriting."
         },
         "source_name": {
             "type": "text",
@@ -110,6 +117,17 @@
         }
     },
     "settings_fields": [
+        {
+            "key": "source_adapter",
+            "type": "select",
+            "label": "Source Platform",
+            "description": "The CMS platform you are migrating content from.",
+            "options": [
+                {"value": "wordpress", "label": "WordPress"},
+                {"value": "joomla",    "label": "Joomla",    "available": false},
+                {"value": "rest-api",  "label": "REST API",  "available": false}
+            ]
+        },
         {
             "key": "bridge_enabled",
             "type": "checkbox",
