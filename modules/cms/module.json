@@ -218,6 +218,7 @@
             "capabilities": {
                 "cms.content.create@1": {
                     "allow_callers": [
+                        "content-ingestion",
                         "media",
                         "search",
                         "users",

@@ -119,42 +119,51 @@ function wpBridgeLogIngestion(
  */
 function wpBridgeWriteProvenance(int $contentId, string $source, string $externalId, string $externalModified, string $bridgeStatus = 'external-managed'): void
 {
-    $db = cmsDb();
-    $meta = [
-        'bridge_source'          => $source,
-        'bridge_source_id'       => $externalId,
-        'bridge_synced_at'       => date('Y-m-d\TH:i:s\Z'),
-        'bridge_source_modified' => $externalModified,
-        'bridge_status'          => $bridgeStatus,
-    ];
-
-    foreach ($meta as $key => $value) {
-        $db->prepare(
-            "INSERT INTO cms_content_meta (content_id, meta_key, meta_value)
-             VALUES (:cid, :k, :v)
-             ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)"
-        )->execute([':cid' => $contentId, ':k' => $key, ':v' => $value]);
-    }
+    $db = wpBridgeDb();
+    $db->prepare(
+        'INSERT INTO bridge_content_map (source, external_id, cms_content_id, bridge_status, synced_at, source_modified)
+         VALUES (:src, :eid, :cid, :status, NOW(), :smod)
+         ON DUPLICATE KEY UPDATE
+             cms_content_id  = VALUES(cms_content_id),
+             bridge_status   = VALUES(bridge_status),
+             synced_at       = NOW(),
+             source_modified = VALUES(source_modified),
+             updated_at      = NOW()'
+    )->execute([
+        ':src'    => $source,
+        ':eid'    => $externalId,
+        ':cid'    => $contentId,
+        ':status' => $bridgeStatus,
+        ':smod'   => $externalModified,
+    ]);
 }
 
 /**
  * Read bridge provenance metadata for a content item.
- * Returns associative array of bridge_* meta keys, or empty array if none.
+ * Returns associative array of bridge_* keys, or empty array if none.
  */
 function wpBridgeReadProvenance(int $contentId): array
 {
-    $db = cmsDb();
+    $db = wpBridgeDb();
     $stmt = $db->prepare(
-        "SELECT meta_key, meta_value FROM cms_content_meta
-         WHERE content_id = :cid AND meta_key LIKE 'bridge_%'"
+        'SELECT source, external_id, source_modified, bridge_status, synced_at
+         FROM bridge_content_map
+         WHERE cms_content_id = :cid
+         ORDER BY updated_at DESC LIMIT 1'
     );
     $stmt->execute([':cid' => $contentId]);
-
-    $meta = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $meta[$row['meta_key']] = $row['meta_value'];
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return [];
     }
-    return $meta;
+    // Normalize to the bridge_* key names used in the rest of the codebase
+    return [
+        'bridge_source'          => $row['source'],
+        'bridge_source_id'       => $row['external_id'],
+        'bridge_source_modified' => $row['source_modified'],
+        'bridge_status'          => $row['bridge_status'],
+        'bridge_synced_at'       => $row['synced_at'],
+    ];
 }
 
 /**
@@ -163,17 +172,28 @@ function wpBridgeReadProvenance(int $contentId): array
  */
 function wpBridgeFindExistingByProvenance(string $source, string $externalId): ?array
 {
-    $db = cmsDb();
-    $stmt = $db->prepare(
-        "SELECT c.* FROM cms_content c
-         INNER JOIN cms_content_meta m1 ON m1.content_id = c.id AND m1.meta_key = 'bridge_source' AND m1.meta_value = :source
-         INNER JOIN cms_content_meta m2 ON m2.content_id = c.id AND m2.meta_key = 'bridge_source_id' AND m2.meta_value = :eid
-         WHERE c.deleted_at IS NULL
-         LIMIT 1"
+    // Look up in bridge_content_map (owned by content-ingestion)
+    $bridgeDb = wpBridgeDb();
+    $stmt = $bridgeDb->prepare(
+        'SELECT cms_content_id FROM bridge_content_map
+         WHERE source = :src AND external_id = :eid
+         LIMIT 1'
     );
-    $stmt->execute([':source' => $source, ':eid' => $externalId]);
+    $stmt->execute([':src' => $source, ':eid' => $externalId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    return is_array($row) ? $row : null;
+    if (!$row) {
+        return null;
+    }
+    $cmsContentId = (int)$row['cms_content_id'];
+
+    // Fetch the CMS content row (read-only access declared in reads_tables)
+    $cmsDb = wpBridgeDb();
+    $stmt2 = $cmsDb->prepare(
+        'SELECT * FROM cms_content WHERE id = :id AND deleted_at IS NULL LIMIT 1'
+    );
+    $stmt2->execute([':id' => $cmsContentId]);
+    $content = $stmt2->fetch(PDO::FETCH_ASSOC);
+    return is_array($content) ? $content : null;
 }
 
 // ── Conflict Detection ──────────────────────────────────────────────────
@@ -203,6 +223,67 @@ function wpBridgeHasConflict(array $existing, array $provenance): bool
 
     // CMS was modified after our last sync → conflict
     return $cmsTime > $syncTime;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WordPress Utility Shims
+//
+// These are local copies of wordpress-importer utility functions needed
+// by the ingestion pipeline. Guarded against redeclaration in case both
+// modules are loaded in the same request.
+// ─────────────────────────────────────────────────────────────────────────
+
+if (!function_exists('wordpressImporterNormalizeStatus')) {
+    function wordpressImporterNormalizeStatus(string $status): string
+    {
+        $status = strtolower(trim($status));
+        return match ($status) {
+            'publish', 'published' => 'published',
+            'future', 'scheduled'  => 'scheduled',
+            'private'              => 'private',
+            default                => 'draft',
+        };
+    }
+}
+
+if (!function_exists('wordpressImporterNormalizeDate')) {
+    function wordpressImporterNormalizeDate(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        if ($value === '' || $value === '0000-00-00 00:00:00') {
+            return null;
+        }
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return null;
+        }
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+}
+
+if (!function_exists('wordpressImporterResolveAuthorId')) {
+    function wordpressImporterResolveAuthorId(int $preferredAuthorId): int
+    {
+        $db = cmsDb();
+        if ($preferredAuthorId > 0) {
+            $stmt = $db->prepare('SELECT id FROM cms_users WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $preferredAuthorId]);
+            $matched = $stmt->fetchColumn();
+            if ($matched) {
+                return (int)$matched;
+            }
+        }
+        $fallback = $db->query(
+            "SELECT id FROM cms_users ORDER BY CASE WHEN role IN ('superadmin','administrator') THEN 0 ELSE 1 END, id ASC LIMIT 1"
+        )->fetchColumn();
+        if ($fallback) {
+            return (int)$fallback;
+        }
+        throw new \InvalidArgumentException('Ingestion failed: no CMS author account is available');
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────

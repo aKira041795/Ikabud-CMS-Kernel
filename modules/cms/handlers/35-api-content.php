@@ -1091,28 +1091,7 @@ function cmsApiContentAutosave(array $params = []): void
 // PUBLIC SEARCH
 // ═══════════════════════════════════════════════════════════════════════
 
-function cmsEnsureUniqueSlug(string $slug, string $type, ?int $excludeId = null): string
-{
-    $db = cmsDb();
-    $base = $slug;
-    $counter = 1;
-
-    while (true) {
-        $sql = "SELECT COUNT(*) FROM cms_content WHERE type = :type AND slug = :slug";
-        $bind = [':type' => $type, ':slug' => $slug];
-        if ($excludeId !== null) {
-            $sql .= " AND id != :eid";
-            $bind[':eid'] = $excludeId;
-        }
-        $stmt = $db->prepare($sql);
-        $stmt->execute($bind);
-        if ((int)$stmt->fetchColumn() === 0) {
-            return $slug;
-        }
-        $slug = $base . '-' . $counter;
-        $counter++;
-    }
-}
+// cmsEnsureUniqueSlug is defined in helpers/15-utils.php and loaded with the module helpers.
 
 function cmsSaveMeta(object $db, int $contentId, array $meta): void
 {

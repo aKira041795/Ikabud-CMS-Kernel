@@ -10,7 +10,8 @@
     ],
     "owns_tables": [
         "bridge_ingestion_log",
-        "bridge_media_log"
+        "bridge_media_log",
+        "bridge_content_map"
     ],
     "reads_tables": [
         "cms_content",
@@ -165,7 +166,8 @@
     ],
     "migrations": [
         "database/migrations/001_bridge_ingestion_log.sql",
-        "database/migrations/002_bridge_media_log.sql"
+        "database/migrations/002_bridge_media_log.sql",
+        "database/migrations/003_bridge_content_map.sql"
     ],
     "nav": []
 }

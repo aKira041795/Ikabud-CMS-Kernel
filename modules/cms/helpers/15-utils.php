@@ -111,6 +111,37 @@ function cmsExternalBaseUrl(): string
 }
 
 /**
+ * Ensure a slug is unique within cms_content for the given type.
+ * If the slug is already taken, appends -2, -3, etc. until unique.
+ *
+ * @param string   $slug      Desired slug
+ * @param string   $type      Content type (post, page, etc.)
+ * @param int|null $excludeId Exclude this content ID from the uniqueness check (for updates)
+ */
+function cmsEnsureUniqueSlug(string $slug, string $type, ?int $excludeId = null): string
+{
+    $db = cmsDb();
+    $base = $slug;
+    $counter = 1;
+
+    while (true) {
+        $sql = 'SELECT COUNT(*) FROM cms_content WHERE type = :type AND slug = :slug';
+        $bind = [':type' => $type, ':slug' => $slug];
+        if ($excludeId !== null) {
+            $sql .= ' AND id != :eid';
+            $bind[':eid'] = $excludeId;
+        }
+        $stmt = $db->prepare($sql);
+        $stmt->execute($bind);
+        if ((int)$stmt->fetchColumn() === 0) {
+            return $slug;
+        }
+        $slug = $base . '-' . $counter;
+        $counter++;
+    }
+}
+
+/**
  * Get the CMS uploads directory path.
  */
 
