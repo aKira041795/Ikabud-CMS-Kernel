@@ -1,19 +1,354 @@
 {extends "modules/wms/layouts/admin.disyl"}
 
 {block content}
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-    <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5">
-        <div class="text-lg font-semibold text-slate-900">Runtime Settings</div>
-        <div class="mt-4 space-y-3 text-sm">
-            <div class="flex items-center justify-between"><span class="text-[#999]">Low stock threshold</span><span class="font-medium text-slate-900">{wms_settings.low_stock_threshold}</span></div>
-            <div class="flex items-center justify-between"><span class="text-[#999]">Picking strategy</span><span class="font-medium text-slate-900 uppercase">{wms_settings.picking_strategy}</span></div>
-        </div>
-    </section>
+<div x-data="wmsSettingsApp()" x-init="init()" class="space-y-6">
 
-    <section class="xl:col-span-2 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+    <!-- Save bar -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-bold text-slate-900">Settings</h2>
+            <p class="text-sm text-[#999]">Configure your warehouse management system.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span x-show="saved" x-transition class="text-sm text-emerald-600 font-medium">Saved!</span>
+            <span x-show="error" x-transition class="text-sm text-red-600 font-medium" x-text="error"></span>
+            <button @click="saveAll()" :disabled="saving"
+                class="px-5 py-2 bg-wms-600 text-white text-sm font-medium rounded-lg hover:bg-wms-700 disabled:opacity-50 transition">
+                <span x-show="!saving">Save Settings</span>
+                <span x-show="saving">Saving…</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+        <!-- General -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-wms-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                General
+            </div>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-slate-600">Warehouse Name</span>
+                    <input type="text" x-model="cfg['general.warehouse_name']"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500"
+                        placeholder="e.g. Main Distribution Center">
+                </label>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Timezone</span>
+                    <select x-model="cfg['general.timezone']"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">America/New_York (EST)</option>
+                        <option value="America/Chicago">America/Chicago (CST)</option>
+                        <option value="America/Denver">America/Denver (MST)</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                        <option value="America/Toronto">America/Toronto</option>
+                        <option value="Europe/London">Europe/London (GMT)</option>
+                        <option value="Europe/Paris">Europe/Paris (CET)</option>
+                        <option value="Europe/Berlin">Europe/Berlin (CET)</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                        <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+                        <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                        <option value="Asia/Manila">Asia/Manila (PHT)</option>
+                        <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Date Format</span>
+                    <select x-model="cfg['general.date_format']"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                        <option value="Y-m-d">2026-04-11 (Y-m-d)</option>
+                        <option value="m/d/Y">04/11/2026 (m/d/Y)</option>
+                        <option value="d/m/Y">11/04/2026 (d/m/Y)</option>
+                        <option value="d-M-Y">11-Apr-2026 (d-M-Y)</option>
+                    </select>
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block">
+                        <span class="text-sm text-slate-600">Weight Unit</span>
+                        <select x-model="cfg['general.weight_unit']"
+                            class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                            <option value="kg">Kilograms (kg)</option>
+                            <option value="lb">Pounds (lb)</option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="text-sm text-slate-600">Dimension Unit</span>
+                        <select x-model="cfg['general.dimension_unit']"
+                            class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                            <option value="cm">Centimeters (cm)</option>
+                            <option value="in">Inches (in)</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+        </section>
+
+        <!-- Inventory -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-wms-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                Inventory
+            </div>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-slate-600">Low Stock Threshold</span>
+                    <input type="number" x-model.number="cfg['low_stock_threshold']" min="0"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500"
+                        placeholder="10">
+                    <span class="text-xs text-[#999]">Items below this quantity trigger low-stock alerts.</span>
+                </label>
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Allow Negative Stock</span>
+                        <p class="text-xs text-[#999]">Permit outbound movements even when on-hand is insufficient.</p>
+                    </div>
+                    <button type="button" @click="cfg['system.allow_negative_stock'] = !cfg['system.allow_negative_stock']"
+                        :class="cfg['system.allow_negative_stock'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['system.allow_negative_stock'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Auto-Replenishment</span>
+                        <p class="text-xs text-[#999]">Generate replenishment tasks when stock falls below reorder points.</p>
+                    </div>
+                    <button type="button" @click="cfg['auto_replenishment.enabled'] = !cfg['auto_replenishment.enabled']"
+                        :class="cfg['auto_replenishment.enabled'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['auto_replenishment.enabled'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Reorder Buffer (%)</span>
+                    <input type="number" x-model.number="cfg['inventory.reorder_point_buffer_pct']" min="0" max="100"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500"
+                        placeholder="20">
+                    <span class="text-xs text-[#999]">Buffer above minimum stock to trigger reorder suggestions.</span>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Cycle Count Frequency (days)</span>
+                    <input type="number" x-model.number="cfg['inventory.cycle_count_frequency_days']" min="1"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500"
+                        placeholder="30">
+                    <span class="text-xs text-[#999]">How often to prompt physical inventory count campaigns.</span>
+                </label>
+            </div>
+        </section>
+
+        <!-- Picking & Fulfillment -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-wms-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                Picking &amp; Fulfillment
+            </div>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-slate-600">Default Picking Strategy</span>
+                    <select x-model="cfg['picking.default_strategy']"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                        <option value="FIFO">FIFO — First In, First Out</option>
+                        <option value="FEFO">FEFO — First Expired, First Out</option>
+                        <option value="LIFO">LIFO — Last In, First Out</option>
+                    </select>
+                    <span class="text-xs text-[#999]">Controls how stock is selected when fulfilling orders.</span>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Wave Batch Size</span>
+                    <input type="number" x-model.number="cfg['picking.wave_batch_size']" min="1" max="200"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500"
+                        placeholder="20">
+                    <span class="text-xs text-[#999]">Maximum orders grouped in a single wave pick run.</span>
+                </label>
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Require Scan Confirmation</span>
+                        <p class="text-xs text-[#999]">Barcode scan required to confirm each pick.</p>
+                    </div>
+                    <button type="button" @click="cfg['picking.require_scan_confirmation'] = !cfg['picking.require_scan_confirmation']"
+                        :class="cfg['picking.require_scan_confirmation'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['picking.require_scan_confirmation'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Auto-Assign Picking Tasks</span>
+                        <p class="text-xs text-[#999]">Automatically assign tasks to available operators.</p>
+                    </div>
+                    <button type="button" @click="cfg['picking.auto_assign_tasks'] = !cfg['picking.auto_assign_tasks']"
+                        :class="cfg['picking.auto_assign_tasks'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['picking.auto_assign_tasks'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Receiving -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-wms-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+                Receiving
+            </div>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Auto-Create Putaway Tasks</span>
+                        <p class="text-xs text-[#999]">Generate putaway tasks automatically when items are received.</p>
+                    </div>
+                    <button type="button" @click="cfg['receiving.auto_create_putaway_tasks'] = !cfg['receiving.auto_create_putaway_tasks']"
+                        :class="cfg['receiving.auto_create_putaway_tasks'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['receiving.auto_create_putaway_tasks'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Require Quality Check</span>
+                        <p class="text-xs text-[#999]">Mandate a quality inspection step on inbound receipts.</p>
+                    </div>
+                    <button type="button" @click="cfg['receiving.require_quality_check'] = !cfg['receiving.require_quality_check']"
+                        :class="cfg['receiving.require_quality_check'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['receiving.require_quality_check'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Over-Receive Tolerance (%)</span>
+                    <input type="number" x-model.number="cfg['receiving.over_receive_tolerance_pct']" min="0" max="100"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500"
+                        placeholder="0">
+                    <span class="text-xs text-[#999]">Allow receiving up to this % above the PO line qty. 0 = exact match.</span>
+                </label>
+            </div>
+        </section>
+
+        <!-- Returns & Quality -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-wms-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                Returns &amp; Quality
+            </div>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-slate-600">Default Quarantine Location</span>
+                    <select x-model="cfg['returns.default_quarantine_location_id']"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                        <option value="">— None —</option>
+                        {foreach locations as loc}
+                        <option value="{loc.id}">{loc.code} — {loc.name}</option>
+                        {/foreach}
+                    </select>
+                    <span class="text-xs text-[#999]">Fallback location for quarantine-routed returns.</span>
+                </label>
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Require Inspection</span>
+                        <p class="text-xs text-[#999]">Require inspection before returned items can be restocked.</p>
+                    </div>
+                    <button type="button" @click="cfg['returns.require_inspection'] = !cfg['returns.require_inspection']"
+                        :class="cfg['returns.require_inspection'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['returns.require_inspection'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Auto-Quarantine Damaged</span>
+                        <p class="text-xs text-[#999]">Automatically route damaged returns to quarantine.</p>
+                    </div>
+                    <button type="button" @click="cfg['returns.auto_quarantine_damaged'] = !cfg['returns.auto_quarantine_damaged']"
+                        :class="cfg['returns.auto_quarantine_damaged'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['returns.auto_quarantine_damaged'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Financial -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-wms-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Financial
+            </div>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-slate-600">Inventory Costing Method</span>
+                    <select x-model="cfg['financial.costing_method']"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                        <option value="FIFO">FIFO — First In, First Out</option>
+                        <option value="MAC">MAC — Moving Average Cost</option>
+                    </select>
+                    <span class="text-xs text-[#999]">Method used for inventory valuation calculations.</span>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Default Currency</span>
+                    <select x-model="cfg['financial.default_currency']"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500">
+                        <option value="USD">USD — US Dollar</option>
+                        <option value="EUR">EUR — Euro</option>
+                        <option value="GBP">GBP — British Pound</option>
+                        <option value="CAD">CAD — Canadian Dollar</option>
+                        <option value="AUD">AUD — Australian Dollar</option>
+                        <option value="JPY">JPY — Japanese Yen</option>
+                        <option value="CNY">CNY — Chinese Yuan</option>
+                        <option value="PHP">PHP — Philippine Peso</option>
+                        <option value="SGD">SGD — Singapore Dollar</option>
+                        <option value="INR">INR — Indian Rupee</option>
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <!-- Notifications -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-wms-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                Notifications
+            </div>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between py-1">
+                    <div>
+                        <span class="text-sm text-slate-600">Low Stock Alerts</span>
+                        <p class="text-xs text-[#999]">Send alerts when stock falls below the low-stock threshold.</p>
+                    </div>
+                    <button type="button" @click="cfg['notifications.low_stock_alerts_enabled'] = !cfg['notifications.low_stock_alerts_enabled']"
+                        :class="cfg['notifications.low_stock_alerts_enabled'] ? 'bg-wms-600' : 'bg-slate-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition">
+                        <span :class="cfg['notifications.low_stock_alerts_enabled'] ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block h-4 w-4 transform bg-white rounded-full transition"></span>
+                    </button>
+                </div>
+                <label class="block">
+                    <span class="text-sm text-slate-600">Task Escalation (hours)</span>
+                    <input type="number" x-model.number="cfg['notifications.task_escalation_hours']" min="1" max="168"
+                        class="mt-1 block w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-wms-500 focus:border-wms-500"
+                        placeholder="4">
+                    <span class="text-xs text-[#999]">Hours before unassigned tasks are flagged for escalation.</span>
+                </label>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Putaway Rules -->
+    <section class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div class="px-5 py-4 border-b border-slate-200">
             <div class="text-lg font-semibold text-slate-900">Putaway Rules</div>
-            <div class="text-sm text-[#999]">Scored rules for location suggestions.</div>
+            <div class="text-sm text-[#999]">Scored rules that determine where inbound items are stored.</div>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -38,12 +373,98 @@
                         <td class="px-4 py-3">{rule.product_type | default:'Any type'}</td>
                         <td class="px-4 py-3">{rule.preferred_zone | default:'-'}</td>
                         <td class="px-4 py-3">{rule.priority}</td>
-                        <td class="px-4 py-3">{if rule.is_active}Yes{else}No{/if}</td>
+                        <td class="px-4 py-3">{if rule.is_active}<span class="text-emerald-600">Yes</span>{else}<span class="text-slate-400">No</span>{/if}</td>
                     </tr>
                     {/foreach}
                 </tbody>
             </table>
         </div>
     </section>
+
 </div>
+
+<script>
+function wmsSettingsApp() {
+    return {
+        cfg: {},
+        saving: false,
+        saved: false,
+        error: '',
+        init() {
+            this.cfg = JSON.parse(document.getElementById('wms-cfg-data').textContent);
+            // Coerce known booleans
+            const boolKeys = [
+                'system.allow_negative_stock',
+                'auto_replenishment.enabled',
+                'picking.require_scan_confirmation',
+                'picking.auto_assign_tasks',
+                'receiving.auto_create_putaway_tasks',
+                'receiving.require_quality_check',
+                'returns.require_inspection',
+                'returns.auto_quarantine_damaged',
+                'notifications.low_stock_alerts_enabled'
+            ];
+            boolKeys.forEach(k => {
+                if (typeof this.cfg[k] === 'string') {
+                    this.cfg[k] = this.cfg[k] === 'true' || this.cfg[k] === '1';
+                }
+                if (typeof this.cfg[k] === 'undefined') {
+                    this.cfg[k] = false;
+                }
+            });
+            // Coerce known numbers
+            const numKeys = [
+                'low_stock_threshold',
+                'inventory.reorder_point_buffer_pct',
+                'inventory.cycle_count_frequency_days',
+                'picking.wave_batch_size',
+                'receiving.over_receive_tolerance_pct',
+                'notifications.task_escalation_hours'
+            ];
+            numKeys.forEach(k => {
+                if (this.cfg[k] !== undefined && this.cfg[k] !== null) {
+                    this.cfg[k] = Number(this.cfg[k]);
+                }
+            });
+            // Coerce quarantine location to string for select binding
+            if (this.cfg['returns.default_quarantine_location_id'] != null) {
+                this.cfg['returns.default_quarantine_location_id'] = String(this.cfg['returns.default_quarantine_location_id']);
+            } else {
+                this.cfg['returns.default_quarantine_location_id'] = '';
+            }
+        },
+        async saveAll() {
+            this.saving = true;
+            this.saved = false;
+            this.error = '';
+            try {
+                // Build payload — convert quarantine location back to int/null
+                const payload = Object.assign({}, this.cfg);
+                const qLoc = payload['returns.default_quarantine_location_id'];
+                payload['returns.default_quarantine_location_id'] = qLoc ? parseInt(qLoc, 10) : null;
+                // Strip internal/onboarding keys that should not be overwritten from settings UI
+                delete payload['onboarding.completed'];
+
+                const res = await fetch('{base_url}/api/v1/wms/configs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{csrf_token}' },
+                    body: JSON.stringify({ configs: payload })
+                });
+                const json = await res.json();
+                if (!json.ok) {
+                    this.error = json.error || 'Save failed';
+                } else {
+                    this.saved = true;
+                    setTimeout(() => this.saved = false, 3000);
+                }
+            } catch (e) {
+                this.error = 'Network error';
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+</script>
+<script type="application/json" id="wms-cfg-data">{configs_json}</script>
 {/block}

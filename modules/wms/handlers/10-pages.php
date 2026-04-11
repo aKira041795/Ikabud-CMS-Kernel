@@ -151,10 +151,26 @@ function wmsPageInventory(array $params = []): void
 function wmsPageSettings(array $params = []): void
 {
     $user = wmsRequireAnyRole('admin', 'supervisor');
+
+    // Fetch all runtime configs from wms_configs table
+    $rawConfigs = wmsFetchAll('SELECT config_key, config_value FROM wms_configs ORDER BY config_key ASC');
+    $configs = [];
+    foreach ($rawConfigs as $row) {
+        $val = json_decode($row['config_value'], true);
+        $configs[$row['config_key']] = (json_last_error() === JSON_ERROR_NONE) ? $val : $row['config_value'];
+    }
+
+    // Locations for quarantine dropdown
+    $locations = wmsFetchAll('SELECT id, warehouse_id, code, name FROM wms_locations WHERE deleted_at IS NULL AND is_active = 1 ORDER BY code ASC LIMIT 500');
+
     echo wmsRender('admin/settings.disyl', wmsAdminContext($user, 'settings', [
         'page_title' => 'WMS Settings',
+        'configs' => $configs,
+        'configs_json' => json_encode($configs, JSON_UNESCAPED_UNICODE),
         'putaway_rules' => wmsFetchAll('SELECT r.*, w.name AS warehouse_name FROM wms_putaway_rules r INNER JOIN wms_warehouses w ON w.id = r.warehouse_id ORDER BY r.priority DESC, r.id DESC'),
         'warehouses' => wmsFetchAll('SELECT id, code, name FROM wms_warehouses WHERE deleted_at IS NULL ORDER BY name ASC'),
+        'locations' => $locations,
+        'is_admin' => ($user['role'] ?? '') === 'admin',
     ]));
 }
 
@@ -188,7 +204,23 @@ function wmsPageUsers(array $params = []): void
     $user = wmsRequireAnyRole('admin');
     echo wmsRender('admin/users.disyl', wmsAdminContext($user, 'users', [
         'page_title' => 'Users',
-        'users' => wmsFetchAll('SELECT id, username, email, full_name, role, is_active, created_at FROM wms_users ORDER BY full_name ASC'),
+        'current_user_id' => (int)($user['id'] ?? 0),
+        'users' => wmsUsersListData(),
+    ]));
+}
+
+function wmsPageAccount(array $params = []): void
+{
+    $user = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
+    $account = wmsUserAccountRecord((int)($user['id'] ?? 0));
+
+    if ($account === null) {
+        throw new RuntimeException('Account not found.');
+    }
+
+    echo wmsRender('admin/account.disyl', wmsAdminContext($user, 'account', [
+        'page_title' => 'My Account',
+        'account' => $account,
     ]));
 }
 

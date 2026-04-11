@@ -4,11 +4,12 @@
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
     <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5">
         <div class="text-lg font-semibold text-slate-900">Add User</div>
-        <div class="text-sm text-[#999] mt-1">Create a new WMS staff account.</div>
-        <form class="mt-5 space-y-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/users', {username: f.get('username'), email: f.get('email'), password: f.get('password'), full_name: f.get('full_name'), role: f.get('role')});">
+        <div class="text-sm text-[#999] mt-1">Create a new WMS staff account with contact and access details.</div>
+        <form class="mt-5 space-y-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/users', {username: f.get('username'), email: f.get('email'), phone: f.get('phone'), password: f.get('password'), full_name: f.get('full_name'), role: f.get('role')});">
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="full_name" placeholder="Full name" required>
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="username" placeholder="Username" required>
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="email" name="email" placeholder="Email address" required>
+            <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="tel" name="phone" placeholder="Phone number">
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="password" name="password" placeholder="Password (min 8 chars)" required minlength="8">
             <select class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" name="role" required>
                 <option value="viewer">Viewer — read only</option>
@@ -22,7 +23,7 @@
     <section class="xl:col-span-2 bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div class="px-5 py-4 border-b border-slate-200">
             <div class="text-lg font-semibold text-slate-900">Staff Accounts</div>
-            <div class="text-sm text-[#999]">{users | count} users in this warehouse.</div>
+            <div class="text-sm text-[#999]">{users | count} users in this warehouse. Use My Account for your own password change.</div>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -31,6 +32,7 @@
                         <th class="px-4 py-3 text-left">Name</th>
                         <th class="px-4 py-3 text-left">Username</th>
                         <th class="px-4 py-3 text-left">Email</th>
+                        <th class="px-4 py-3 text-left">Phone</th>
                         <th class="px-4 py-3 text-left">Role</th>
                         <th class="px-4 py-3 text-left">Status</th>
                         <th class="px-4 py-3 text-left">Joined</th>
@@ -39,13 +41,16 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {if users | count == 0}
-                    <tr><td colspan="7" class="px-4 py-6 text-[#999]">No users found.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-6 text-[#999]">No users found.</td></tr>
                     {/if}
+                </tbody>
                     {foreach users as wmsuser}
+                <tbody x-data="{ open: false }" class="divide-y divide-slate-100">
                     <tr>
                         <td class="px-4 py-3 font-medium text-slate-900">{wmsuser.full_name}</td>
                         <td class="px-4 py-3 font-mono text-xs text-[#999]">@{wmsuser.username}</td>
                         <td class="px-4 py-3 text-[#999]">{wmsuser.email}</td>
+                        <td class="px-4 py-3 text-[#999]">{wmsuser.phone | default:'-'}</td>
                         <td class="px-4 py-3">
                             {if wmsuser.role == 'admin'}
                             <span class="inline-flex items-center rounded-full bg-wms-50 px-2 py-0.5 text-xs font-medium text-wms-700">Admin</span>
@@ -64,13 +69,78 @@
                         </td>
                         <td class="px-4 py-3 text-[#999] text-xs">{wmsuser.created_at}</td>
                         <td class="px-4 py-3">
-                            {if wmsuser.is_active}
-                            <button class="rounded-lg bg-amber-50 text-amber-700 px-3 py-1 text-xs hover:bg-amber-100" onclick="if(confirm('Deactivate {wmsuser.full_name}?')) wmsPost('{base_url}/api/v1/wms/users/{wmsuser.id}/delete', {});">Deactivate</button>
-                            {/if}
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" class="rounded-lg bg-slate-100 text-slate-700 px-3 py-1 text-xs hover:bg-slate-200" @click="open = !open" x-text="open ? 'Close' : 'Edit'"></button>
+                                {if wmsuser.id == current_user_id}
+                                <a href="{base_url}/wms/account" class="rounded-lg bg-blue-50 text-blue-700 px-3 py-1 text-xs hover:bg-blue-100">My Account</a>
+                                <span class="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600">Current account</span>
+                                {elseif wmsuser.is_active}
+                                <button type="button" class="rounded-lg bg-amber-50 text-amber-700 px-3 py-1 text-xs hover:bg-amber-100" onclick="if(confirm('Deactivate {wmsuser.full_name}?')) wmsPost('{base_url}/api/v1/wms/users/{wmsuser.id}/delete', {});">Deactivate</button>
+                                {/if}
+                            </div>
                         </td>
                     </tr>
-                    {/foreach}
+                    <tr x-show="open" x-cloak>
+                        <td colspan="8" class="px-4 py-4 bg-slate-50">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/users/{wmsuser.id}', {full_name: f.get('full_name'), email: f.get('email'), phone: f.get('phone'), role: f.get('role'), is_active: f.get('is_active') ? 1 : 0, password: f.get('password')}, () => window.location.reload());">
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Full Name</label>
+                                    <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="text" name="full_name" value="{wmsuser.full_name}" required>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Email</label>
+                                    <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="email" name="email" value="{wmsuser.email}" required>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Phone</label>
+                                    <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="tel" name="phone" value="{wmsuser.phone | default:''}" placeholder="Phone number">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Username</label>
+                                    <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-500" type="text" value="{wmsuser.username}" readonly>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Role</label>
+                                    {if wmsuser.id == current_user_id}
+                                    <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-500" type="text" value="{wmsuser.role}" readonly>
+                                    <input type="hidden" name="role" value="{wmsuser.role}">
+                                    {else}
+                                    <select class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" name="role" required>
+                                        <option value="viewer" {if wmsuser.role == 'viewer'}selected{/if}>Viewer</option>
+                                        <option value="supervisor" {if wmsuser.role == 'supervisor'}selected{/if}>Supervisor</option>
+                                        <option value="admin" {if wmsuser.role == 'admin'}selected{/if}>Admin</option>
+                                    </select>
+                                    {/if}
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Status</label>
+                                    {if wmsuser.id == current_user_id}
+                                    <div class="flex items-center h-11 rounded-xl border border-slate-200 px-3 text-sm bg-slate-100 text-slate-500">Current account stays active.</div>
+                                    <input type="hidden" name="is_active" value="1">
+                                    {else}
+                                    <label class="flex items-center gap-2 h-11 rounded-xl border border-slate-200 px-3 text-sm bg-white">
+                                        <input type="checkbox" name="is_active" value="1" {if wmsuser.is_active}checked{/if}>
+                                        <span>Active user</span>
+                                    </label>
+                                    {/if}
+                                </div>
+                                <div class="md:col-span-2">
+                                    {if wmsuser.id == current_user_id}
+                                    <div class="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">Use My Account to change your own password.</div>
+                                    <input type="hidden" name="password" value="">
+                                    {else}
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Reset Password</label>
+                                    <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="password" name="password" placeholder="Leave blank to keep current password" minlength="8">
+                                    {/if}
+                                </div>
+                                <div class="md:col-span-2 flex justify-end">
+                                    <button class="rounded-xl bg-wms-600 text-white px-4 py-2 text-sm font-medium" type="submit">Save changes</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
                 </tbody>
+                    {/foreach}
             </table>
         </div>
     </section>

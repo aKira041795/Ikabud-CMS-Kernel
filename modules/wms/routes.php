@@ -13,6 +13,7 @@ return [
         '/wms/picking' => 'wms:wmsPagePicking',
         '/wms/inventory' => 'wms:wmsPageInventory',
         '/wms/settings' => 'wms:wmsPageSettings',
+        '/wms/account' => 'wms:wmsPageAccount',
         '/wms/onboarding' => 'wms:wmsPageOnboarding',
         '/wms/diagnostics' => 'wms:wmsPageDiagnostics',
         '/wms/financial' => 'wms:wmsPageFinancial',
@@ -69,6 +70,7 @@ return [
     'POST' => [
         '/wms/auth/login' => 'wms:wmsAuthLogin',
         '/api/v1/wms/auth/login' => 'wms:wmsAuthLogin',
+        '/api/v1/wms/account/password' => 'wms:wmsApiAccountPasswordUpdate',
         '/api/v1/wms/products' => 'wms:wmsApiProductCreate',
         '/api/v1/wms/products/{id}' => 'wms:wmsApiProductUpdate',
         '/api/v1/wms/products/{id}/delete' => 'wms:wmsApiProductDelete',

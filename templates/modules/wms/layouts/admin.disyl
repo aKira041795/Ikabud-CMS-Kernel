@@ -113,6 +113,10 @@
                     <span>⚙️</span>
                     <span x-show="sidebarOpen" x-cloak>Settings</span>
                 </a>
+                <a href="{base_url}/wms/account" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'account'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
+                    <span>🔐</span>
+                    <span x-show="sidebarOpen" x-cloak>My Account</span>
+                </a>
                 {if user.role == 'admin'}
                 <a href="{base_url}/wms/onboarding" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'onboarding'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
                     <span>🧭</span>
@@ -145,6 +149,7 @@
                 </div>
                 <div class="flex items-center gap-4 text-sm">
                     <div class="text-slate-700">{if user.display_name}{user.display_name}{elseif user.name}{user.name}{else}User{/if}</div>
+                    <a href="{base_url}/wms/account" class="text-slate-600 hover:text-slate-900 font-medium">Account</a>
                     <a href="{base_url}/wms/logout" class="text-wms-600 hover:text-wms-700 font-medium">Logout</a>
                 </div>
             </header>

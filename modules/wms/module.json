@@ -58,7 +58,9 @@
         "database/migrations/017_wms_phase6_financials.sql",
         "database/migrations/018_wms_phase7_task_exceptions.sql",
         "database/migrations/019_wms_phase75_receiving_closure.sql",
-        "database/migrations/020_wms_phase76_exception_dispositions.sql"
+        "database/migrations/020_wms_phase76_exception_dispositions.sql",
+        "database/migrations/021_wms_user_account_security.sql",
+        "database/migrations/022_wms_settings_expansion.sql"
     ],
     "events": [
         {

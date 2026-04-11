@@ -1,0 +1,63 @@
+{extends "modules/wms/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+        <div>
+            <div class="text-lg font-semibold text-slate-900">Account Details</div>
+            <div class="text-sm text-[#999] mt-1">Your active WMS login profile and contact information.</div>
+        </div>
+        <dl class="space-y-3 text-sm">
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-500">Full Name</dt>
+                <dd class="mt-1 font-medium text-slate-900">{account.full_name}</dd>
+            </div>
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-500">Username</dt>
+                <dd class="mt-1 font-mono text-slate-700">@{account.username}</dd>
+            </div>
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-500">Email</dt>
+                <dd class="mt-1 text-slate-700">{account.email}</dd>
+            </div>
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-500">Phone</dt>
+                <dd class="mt-1 text-slate-700">{account.phone | default:'-'}</dd>
+            </div>
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-500">Role</dt>
+                <dd class="mt-1 text-slate-700">{account.role}</dd>
+            </div>
+            <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-500">Joined</dt>
+                <dd class="mt-1 text-slate-700">{account.created_at}</dd>
+            </div>
+        </dl>
+        {if user.role == 'admin'}
+        <a href="{base_url}/wms/users" class="inline-flex items-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">Back to Users</a>
+        {/if}
+    </section>
+
+    <section class="xl:col-span-2 bg-white border border-slate-200 rounded-2xl p-5">
+        <div class="text-lg font-semibold text-slate-900">Change Password</div>
+        <div class="text-sm text-[#999] mt-1">Use your current password to set a new WMS login password.</div>
+        <form class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/account/password', {current_password: f.get('current_password'), new_password: f.get('new_password'), confirm_password: f.get('confirm_password')}, () => { this.reset(); alert('Password updated successfully.'); });">
+            <div class="md:col-span-2">
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Current Password</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="password" name="current_password" autocomplete="current-password" required>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">New Password</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="password" name="new_password" autocomplete="new-password" required minlength="8" placeholder="Minimum 8 characters">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Confirm Password</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="password" name="confirm_password" autocomplete="new-password" required minlength="8" placeholder="Repeat new password">
+            </div>
+            <div class="md:col-span-2 flex justify-end">
+                <button class="rounded-xl bg-wms-600 text-white px-4 py-2 text-sm font-medium" type="submit">Update password</button>
+            </div>
+        </form>
+    </section>
+</div>
+{/block}
