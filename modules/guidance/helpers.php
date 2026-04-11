@@ -87,12 +87,29 @@ function guidanceHtmxResponse(array $headers = []): void
 
 function guidanceFireEvent(string $event, array $payload = []): void
 {
+    if (function_exists('kernelEmitEvent')) {
+        try {
+            kernelEmitEvent($event, $payload, 'guidance');
+        } catch (Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('guidanceFireEvent error: ' . $e->getMessage(), 'warning', ['event' => $event]);
+            }
+        }
+        return;
+    }
+
     $ctx = module('guidance');
     if (!$ctx) {
         return;
     }
 
-    $ctx->fireEvent($event, $payload);
+    try {
+        $ctx->fireEvent($event, $payload);
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('guidanceFireEvent fallback error: ' . $e->getMessage(), 'warning', ['event' => $event]);
+        }
+    }
 }
 
 function guidanceGetSetting(string $key, ?string $default = null): ?string
