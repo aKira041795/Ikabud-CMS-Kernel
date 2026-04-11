@@ -15,6 +15,7 @@ function cms_capability_handlers(): array
         'entity.capability.media_gallery.data@1'      => 'cms_cap_entity_capability_media_gallery_data_1',
         'cms.content.list@1' => 'cms_cap_cms_content_list_1',
         'cms.content.create@1' => 'cms_cap_cms_content_create_1',
+        'cms.content.update@1' => 'cms_cap_cms_content_update_1',
         'kernel.auth.authenticate@1' => 'cms_cap_kernel_auth_authenticate_1',
         'cms.media.list@1' => 'cms_cap_cms_media_list_1',
         'cms.media.upload@1' => 'cms_cap_cms_media_upload_1',
@@ -165,10 +166,145 @@ function cms_cap_cms_content_create_1(mixed $payload, string $capabilityId, stri
             ':pub' => $publishedAt,
         ]);
         $id = (int)$db->lastInsertId();
+
+        // Sync categories and tags within CMS module context
+        if ($id > 0) {
+            $categories = is_array($payload['categories'] ?? null) ? $payload['categories'] : [];
+            $tags       = is_array($payload['tags'] ?? null) ? $payload['tags'] : [];
+            if (!empty($categories)) {
+                $catIds = cms_cap_resolve_category_ids($categories, $db);
+                if (!empty($catIds)) {
+                    cmsSyncContentCategories($id, $catIds);
+                }
+            }
+            if (!empty($tags)) {
+                cmsSyncContentTags($id, array_map(fn($t) => is_array($t) ? (string)($t['name'] ?? '') : (string)$t, $tags));
+            }
+        }
+
         return ['ok' => true, 'id' => $id, 'slug' => $slug];
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => 'Database error'];
     }
+}
+
+/**
+ * cms.content.update@1 — Update existing CMS content (title, body, status, categories, tags).
+ * Called by bridge/importers operating under a non-CMS module context.
+ */
+function cms_cap_cms_content_update_1(mixed $payload, string $capabilityId, string $providerId): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $id = (int)($payload['id'] ?? 0);
+    if ($id <= 0) {
+        return ['ok' => false, 'error' => 'id is required'];
+    }
+
+    $ctx = module('cms');
+    if (!$ctx) {
+        return ['ok' => false, 'error' => 'Module context unavailable'];
+    }
+    $db = $ctx->db();
+
+    // Verify content exists
+    $existing = $db->prepare("SELECT id, slug, type FROM cms_content WHERE id = ? LIMIT 1");
+    $existing->execute([$id]);
+    $row = $existing->fetch(\PDO::FETCH_ASSOC);
+    if (!$row) {
+        return ['ok' => false, 'error' => 'Content not found'];
+    }
+
+    $title   = trim((string)($payload['title'] ?? ''));
+    $body    = (string)($payload['body'] ?? '');
+    $excerpt = trim((string)($payload['excerpt'] ?? ''));
+    $status  = trim((string)($payload['status'] ?? '')) ?: (string)$row['slug'];
+    $slug    = trim((string)($payload['slug'] ?? '')) ?: (string)$row['slug'];
+    $type    = (string)$row['type'];
+
+    if (!in_array($status, ['draft', 'published', 'scheduled', 'private', 'trash'], true)) {
+        $status = 'draft';
+    }
+
+    $publishedAt = cmsNormalizePublishAt($payload['published_at'] ?? null);
+    if ($status === 'published' && $publishedAt === null) {
+        $publishedAt = date('Y-m-d H:i:s');
+    }
+
+    try {
+        $db->prepare(
+            "UPDATE cms_content SET title = :title, slug = :slug, body = :body, excerpt = :excerpt,
+                    status = :status, published_at = :pub, updated_at = NOW()
+             WHERE id = :id"
+        )->execute([
+            ':title'   => $title,
+            ':slug'    => $slug,
+            ':body'    => $body,
+            ':excerpt' => $excerpt,
+            ':status'  => $status,
+            ':pub'     => $publishedAt,
+            ':id'      => $id,
+        ]);
+
+        // Sync categories and tags within CMS module context
+        $categories = is_array($payload['categories'] ?? null) ? $payload['categories'] : [];
+        $tags       = is_array($payload['tags'] ?? null) ? $payload['tags'] : [];
+        if (!empty($categories)) {
+            $catIds = cms_cap_resolve_category_ids($categories, $db);
+            if (!empty($catIds)) {
+                cmsSyncContentCategories($id, $catIds);
+            }
+        }
+        if (!empty($tags)) {
+            cmsSyncContentTags($id, array_map(fn($t) => is_array($t) ? (string)($t['name'] ?? '') : (string)$t, $tags));
+        }
+
+        return ['ok' => true, 'id' => $id];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Database error'];
+    }
+}
+
+/**
+ * Resolve an array of category descriptors [{name, slug}] to CMS category IDs.
+ * Creates categories that don't exist yet. Runs inside CMS module context.
+ *
+ * @param \Ikabud\Kernel\Contracts\ModuleDB $db CMS module's DB
+ */
+function cms_cap_resolve_category_ids(array $categories, \Ikabud\Kernel\Contracts\ModuleDB $db): array
+{
+    $ids = [];
+    foreach ($categories as $cat) {
+        $name = trim(is_array($cat) ? (string)($cat['name'] ?? '') : (string)$cat);
+        $slug = trim(is_array($cat) ? (string)($cat['slug'] ?? '') : '');
+        if ($name === '') {
+            continue;
+        }
+        if ($slug === '') {
+            $slug = cmsSlugify($name);
+        }
+        if ($slug === '') {
+            continue;
+        }
+
+        // Look up by slug
+        $stmt = $db->prepare("SELECT id FROM cms_categories WHERE slug = :slug LIMIT 1");
+        $stmt->execute([':slug' => $slug]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($row) {
+            $ids[] = (int)$row['id'];
+            continue;
+        }
+
+        // Create new category
+        $db->prepare(
+            "INSERT INTO cms_categories (name, slug, description, parent_id, created_at) VALUES (:name, :slug, '', NULL, NOW())"
+        )->execute([':name' => $name, ':slug' => $slug]);
+        $ids[] = (int)$db->lastInsertId();
+    }
+    return array_values(array_unique($ids));
 }
 
 function cms_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId = '', string $providerId = ''): ?array

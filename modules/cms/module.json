@@ -105,6 +105,13 @@
                 ]
             },
             {
+                "id": "cms.content.update@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
                 "id": "kernel.auth.authenticate@1",
                 "priority": 500,
                 "modes": [
@@ -217,6 +224,15 @@
         "policy": {
             "capabilities": {
                 "cms.content.create@1": {
+                    "allow_callers": [
+                        "content-ingestion",
+                        "media",
+                        "search",
+                        "users",
+                        "workflow"
+                    ]
+                },
+                "cms.content.update@1": {
                     "allow_callers": [
                         "content-ingestion",
                         "media",

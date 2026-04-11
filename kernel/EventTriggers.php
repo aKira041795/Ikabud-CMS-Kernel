@@ -454,13 +454,20 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
 
     // Dispatch capability triggers
     try {
-        $stmt = app()->db()->prepare(
-            "SELECT * FROM kernel_event_triggers\n"
-            . "WHERE event_key = ? AND is_enabled = 1\n"
-            . "ORDER BY priority ASC, id ASC"
-        );
-        $stmt->execute([$eventKey]);
-        $triggers = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        // kernel_event_triggers is a kernel-owned table; escalate to bypass
+        // module-level ModuleDB access enforcement for this kernel-internal query.
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $stmt = app()->db()->prepare(
+                "SELECT * FROM kernel_event_triggers\n"
+                . "WHERE event_key = ? AND is_enabled = 1\n"
+                . "ORDER BY priority ASC, id ASC"
+            );
+            $stmt->execute([$eventKey]);
+            $triggers = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
     } catch (Throwable $e) {
         write_log("kernelEmitEvent: trigger lookup failed for '{$eventKey}': " . $e->getMessage(), 'error', [
             'correlation_id' => $correlationId,

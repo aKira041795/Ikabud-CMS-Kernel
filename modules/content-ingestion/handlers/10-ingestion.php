@@ -209,11 +209,14 @@ function wpBridgeHandleContentUpserted(array $envelope): array
     $cmsContentId = null;
     $action = 'create';
 
-    try {
-        $db = cmsDb();
+    // Build shared capability fields (categories + tags passed through so CMS
+    // module handles all cross-table writes in its own module context)
+    $capCategories = is_array($payload['categories'] ?? null) ? $payload['categories'] : [];
+    $capTags       = is_array($payload['tags'] ?? null) ? $payload['tags'] : [];
 
+    try {
         if ($existing) {
-            // ── Update path ──────────────────────────────────────────
+            // ── Update path — via cms.content.update@1 capability ────
             $action = 'update';
             $cmsContentId = (int)$existing['id'];
 
@@ -235,31 +238,40 @@ function wpBridgeHandleContentUpserted(array $envelope): array
                 return ['ok' => true, 'outcome' => 'conflict', 'external_id' => $externalId, 'cms_content_id' => $cmsContentId, 'reason' => 'review-required'];
             }
 
-            // Safe to update
-            $publishedAt = wordpressImporterNormalizeDate($payload['published_at'] ?? null);
-            $db->prepare(
-                "UPDATE cms_content SET title = :title, slug = :slug, body = :body, excerpt = :excerpt,
-                        status = :status, published_at = :pub, updated_at = NOW()
-                 WHERE id = :id"
-            )->execute([
-                ':title'   => $title,
-                ':slug'    => $slug,
-                ':body'    => $body,
-                ':excerpt' => $excerpt,
-                ':status'  => $status,
-                ':pub'     => $publishedAt,
-                ':id'      => $cmsContentId,
-            ]);
+            // Safe to update via CMS capability (handles categories/tags in CMS context)
+            $updatePayload = [
+                'id'      => $cmsContentId,
+                'title'   => $title,
+                'slug'    => $slug,
+                'body'    => $body,
+                'excerpt' => $excerpt,
+                'status'  => $status,
+                'categories' => $capCategories,
+                'tags'       => $capTags,
+            ];
+            if (isset($payload['published_at'])) {
+                $updatePayload['published_at'] = $payload['published_at'];
+            }
+
+            $updateResult = app()->cap()->call('cms.content.update@1', $updatePayload);
+            if (empty($updateResult['ok'])) {
+                $error = (string)($updateResult['error'] ?? 'Update capability failed');
+                wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'failed', $cmsContentId, $payload, $error);
+                write_log("Bridge failed: {$source}/{$externalId} — cms.content.update@1: {$error}", 'error', ['source' => 'content-ingestion']);
+                return ['ok' => false, 'outcome' => 'failed', 'external_id' => $externalId, 'error' => $error];
+            }
         } else {
             // ── Create path (via capability for boundary safety) ─────
             $capPayload = [
-                'title'     => $title,
-                'slug'      => $slug,
-                'body'      => $body,
-                'excerpt'   => $excerpt,
-                'type'      => $type,
-                'status'    => $status,
-                'author_id' => $resolvedAuthorId,
+                'title'      => $title,
+                'slug'       => $slug,
+                'body'       => $body,
+                'excerpt'    => $excerpt,
+                'type'       => $type,
+                'status'     => $status,
+                'author_id'  => $resolvedAuthorId,
+                'categories' => $capCategories,
+                'tags'       => $capTags,
             ];
 
             if (isset($payload['published_at'])) {
@@ -278,32 +290,15 @@ function wpBridgeHandleContentUpserted(array $envelope): array
             $cmsContentId = (int)($capResult['id'] ?? 0);
         }
 
-        // ── 4. Sync categories and tags ──────────────────────────────
-        if ($cmsContentId > 0) {
-            $categories = is_array($payload['categories'] ?? null) ? $payload['categories'] : [];
-            $tags = is_array($payload['tags'] ?? null) ? $payload['tags'] : [];
-
-            if (!empty($categories)) {
-                $catIds = wpBridgeResolveCategoryIds($categories);
-                if (!empty($catIds)) {
-                    cmsSyncContentCategories($cmsContentId, $catIds);
-                }
-            }
-
-            if (!empty($tags)) {
-                cmsSyncContentTags($cmsContentId, $tags);
-            }
-        }
-
-        // ── 5. Write provenance metadata ─────────────────────────────
+        // ── 4. Write provenance metadata ─────────────────────────────
         if ($cmsContentId > 0) {
             wpBridgeWriteProvenance($cmsContentId, $source, $externalId, $externalModified, 'external-managed');
         }
 
-        // ── 6. Log success ───────────────────────────────────────────
+        // ── 5. Log success ───────────────────────────────────────────
         wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'processed', $cmsContentId, $payload);
 
-        // ── 7. Emit result event ─────────────────────────────────────
+        // ── 6. Emit result event ─────────────────────────────────────
         kernelEmitEvent('cms.migration.content.completed', [
             'source'         => $source,
             'external_id'    => $externalId,
@@ -336,7 +331,9 @@ function wpBridgeHandleContentUpserted(array $envelope): array
 
 /**
  * Resolve category names/slugs to CMS category IDs.
- * Creates categories that don't exist yet.
+ * @deprecated Category resolution now happens inside cms.content.create@1 /
+ *             cms.content.update@1 capabilities (CMS module context).
+ *             This function is retained for reference only.
  *
  * @param array $categories Array of category names or slugs
  * @return int[] CMS category IDs

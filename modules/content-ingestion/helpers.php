@@ -36,7 +36,8 @@ function wpBridgeIdempotencyCheck(string $source, string $externalId, string $ex
 {
     $db = wpBridgeDb();
 
-    // Look for any existing ingestion record for this source + external_id
+    // Look for any existing ingestion record for this source + external_id.
+    // Only a 'processed' entry counts as "done" — failed entries allow retry.
     $stmt = $db->prepare(
         "SELECT external_modified, status FROM bridge_ingestion_log
          WHERE source = :source AND external_id = :eid
@@ -49,10 +50,15 @@ function wpBridgeIdempotencyCheck(string $source, string $externalId, string $ex
         return 'process'; // First time seeing this item
     }
 
+    // If the last attempt failed, allow retry regardless of timestamp
+    if ((string)($existing['status'] ?? '') !== 'processed') {
+        return 'process';
+    }
+
     $storedModified = (string)$existing['external_modified'];
 
     if ($storedModified === $externalModified) {
-        return 'skip'; // Exact duplicate
+        return 'skip'; // Exact duplicate of a successful ingest
     }
 
     // Compare timestamps — newer means process, older means stale
