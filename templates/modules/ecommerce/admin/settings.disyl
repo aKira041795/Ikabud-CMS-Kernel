@@ -18,7 +18,8 @@
             {id:'shipping',   label:'Shipping'},
             {id:'notify',     label:'Notifications'},
             {id:'payments',   label:'Payments'},
-            {id:'licenses',   label:'Licenses'}
+            {id:'licenses',   label:'Licenses'},
+            {id:'loyalty',    label:'Loyalty'}
         ]" :key="t.id">
             <button type="button"
                 @click="tab = t.id"
@@ -416,6 +417,39 @@
             </div>
 
         </div>{* /tab payments *}
+
+        {* ══════════════════════════════════════════════════════════════
+           TAB: Loyalty
+           ══════════════════════════════════════════════════════════════ *}
+        <div x-show="tab === 'loyalty'" x-cloak class="space-y-5">
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
+                    <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-widest">Loyalty & Rewards</h3>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.loyalty_earn_rate.label}</label>
+                            <input type="number" name="loyalty_earn_rate" value="{settings_map.loyalty_earn_rate.current_value | default:'1'}" min="1"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-slate-500">{settings_map.loyalty_earn_rate.description}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.loyalty_points_per_currency.label}</label>
+                            <input type="number" name="loyalty_points_per_currency" value="{settings_map.loyalty_points_per_currency.current_value | default:'100'}" min="1"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-slate-500">{settings_map.loyalty_points_per_currency.description}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.loyalty_minimum_redeem.label}</label>
+                            <input type="number" name="loyalty_minimum_redeem" value="{settings_map.loyalty_minimum_redeem.current_value | default:'100'}" min="0"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-slate-500">{settings_map.loyalty_minimum_redeem.description}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         {* ══════════════════════════════════════════════════════════════
            TAB: Licenses

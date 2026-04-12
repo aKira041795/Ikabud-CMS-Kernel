@@ -89,6 +89,8 @@ return [
         '/ecommerce/admin/webhooks'                 => 'ecommerce:ecAdminWebhooks',
         '/ecommerce/admin/reviews/{id}/{action}'    => 'ecommerce:ecAdminReviewAction',
         '/ecommerce/admin/customers/{id}/edit'      => 'ecommerce:ecAdminCustomerEdit',
+        '/ecommerce/admin/memberships'              => 'ecommerce:ecAdminMembershipAction',
+        '/ecommerce/admin/loyalty/adjust'           => 'ecommerce:ecAdminLoyaltyAdjust',
         '/ecommerce/admin/import-export'            => 'ecommerce:ecAdminImportExport',
         '/ecommerce/admin/settings'                 => 'ecommerce:ecAdminSettings',
 

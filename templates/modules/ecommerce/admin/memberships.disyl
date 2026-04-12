@@ -23,6 +23,71 @@
         </div>
     </div>
 
+    <!-- Actions bar -->
+    <div class="flex items-center justify-between">
+        <div class="text-sm text-slate-500">{total | default:'0'} membership{if total != 1}s{/if}</div>
+        <button type="button" onclick="document.getElementById('ec-grant-modal').classList.remove('hidden')"
+                class="px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors">
+            + Grant Membership
+        </button>
+    </div>
+
+    <!-- Grant Membership Modal -->
+    <div id="ec-grant-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md mx-4 p-6">
+            <h2 class="text-base font-semibold text-gray-900 mb-4">Grant Membership</h2>
+            <form method="post" action="" class="space-y-4">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <input type="hidden" name="action" value="grant">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Customer Email</label>
+                    <input type="email" name="customer_email" required placeholder="customer@example.com"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Tier</label>
+                        <input type="text" name="tier" value="member" placeholder="member"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Duration (days)</label>
+                        <input type="number" name="duration_days" value="365" min="1"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">The membership activates immediately from today.</p>
+                <div class="flex gap-3 pt-1">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700">Grant</button>
+                    <button type="button" onclick="document.getElementById('ec-grant-modal').classList.add('hidden')"
+                            class="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Extend Modal -->
+    <div id="ec-extend-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-sm mx-4 p-6">
+            <h2 class="text-base font-semibold text-gray-900 mb-4">Extend Membership</h2>
+            <form method="post" action="" class="space-y-4">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <input type="hidden" name="action" value="extend">
+                <input type="hidden" name="id" id="ec-extend-id" value="">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Extend by (days)</label>
+                    <input type="number" name="extend_days" value="30" min="1"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+                <div class="flex gap-3 pt-1">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700">Extend</button>
+                    <button type="button" onclick="document.getElementById('ec-extend-modal').classList.add('hidden')"
+                            class="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Filters -->
     <div class="bg-white rounded-xl border border-gray-200 p-4">
         <form method="get" action="" class="flex flex-wrap items-end gap-3">
@@ -58,11 +123,12 @@
                         <th class="px-4 py-3">Starts</th>
                         <th class="px-4 py-3">Expires</th>
                         <th class="px-4 py-3">Order</th>
+                        <th class="px-4 py-3">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {if memberships | count == 0}
-                    <tr><td colspan="8" class="px-4 py-10 text-center text-slate-500">No memberships found.</td></tr>
+                    <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">No memberships found.</td></tr>
                     {/if}
                     {foreach memberships as m}
                     <tr class="hover:bg-gray-50/50">
@@ -87,7 +153,20 @@
                         <td class="px-4 py-3 text-slate-600 text-xs">{m.starts_at | default:'—'}</td>
                         <td class="px-4 py-3 text-slate-600 text-xs">{m.ends_at | default:'Never'}</td>
                         <td class="px-4 py-3">
-                            <a href="{base_url}/ecommerce/admin/orders/{m.order_id}" class="text-orange-600 hover:underline text-xs font-medium">#{m.order_id}</a>
+                            {if m.order_id}<a href="{base_url}/ecommerce/admin/orders/{m.order_id}" class="text-orange-600 hover:underline text-xs font-medium">#{m.order_id}</a>{else}—{/if}
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="ecExtendMembership('{m.id}')" class="text-xs text-blue-600 hover:underline font-medium">Extend</button>
+                                {if m.status != 'cancelled'}
+                                <form method="post" action="" class="inline" onsubmit="return confirm('Revoke this membership?')">
+                                    <input type="hidden" name="_token" value="{csrf_token}">
+                                    <input type="hidden" name="action" value="revoke">
+                                    <input type="hidden" name="id" value="{m.id}">
+                                    <button type="submit" class="text-xs text-red-600 hover:underline font-medium">Revoke</button>
+                                </form>
+                                {/if}
+                            </div>
                         </td>
                     </tr>
                     {/foreach}
@@ -107,4 +186,13 @@
     </div>
 
 </div>
+{/block}
+
+{block scripts}
+<script>
+function ecExtendMembership(id) {
+    document.getElementById('ec-extend-id').value = id;
+    document.getElementById('ec-extend-modal').classList.remove('hidden');
+}
+</script>
 {/block}

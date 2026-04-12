@@ -187,6 +187,12 @@ function ecMembershipNormalizeRow(array $row): array
     $row['is_active'] = (string)($row['status'] ?? 'active') === 'active'
         && ((string)($row['ends_at'] ?? '') === '' || strtotime((string)$row['ends_at']) >= time());
 
+    if (!empty($row['ends_at'])) {
+        $row['days_remaining'] = max(0, (int)ceil((strtotime((string)$row['ends_at']) - time()) / 86400));
+    } else {
+        $row['days_remaining'] = null;
+    }
+
     return $row;
 }
 
@@ -363,17 +369,20 @@ function ecLoyaltyStorageAvailable(): bool
 
 function ecLoyaltyEarnRatePerCurrencyUnit(): int
 {
-    return 1;
+    $v = (int)(ecSettings('loyalty_earn_rate') ?: 0);
+    return $v > 0 ? $v : 1;
 }
 
 function ecLoyaltyPointsPerCurrencyUnit(): int
 {
-    return 100;
+    $v = (int)(ecSettings('loyalty_points_per_currency') ?: 0);
+    return $v > 0 ? $v : 100;
 }
 
 function ecLoyaltyMinimumRedeemPoints(): int
 {
-    return 100;
+    $v = (int)(ecSettings('loyalty_minimum_redeem') ?: 0);
+    return $v >= 0 ? $v : 100;
 }
 
 function ecCustomerLoyaltyPointsBalance(int $customerId): int

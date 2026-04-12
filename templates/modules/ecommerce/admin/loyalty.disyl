@@ -23,6 +23,46 @@
         </div>
     </div>
 
+    <!-- Actions bar -->
+    <div class="flex items-center justify-between">
+        <div class="text-sm text-slate-500">{total | default:'0'} entr{if total != 1}ies{else}y{/if}</div>
+        <button type="button" onclick="document.getElementById('ec-adjust-modal').classList.remove('hidden')"
+                class="px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors">
+            Adjust Points
+        </button>
+    </div>
+
+    <!-- Adjust Points Modal -->
+    <div id="ec-adjust-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md mx-4 p-6">
+            <h2 class="text-base font-semibold text-gray-900 mb-4">Adjust Loyalty Points</h2>
+            <form method="post" action="{base_url}/ecommerce/admin/loyalty/adjust" class="space-y-4">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Customer Email</label>
+                    <input type="email" name="customer_email" required placeholder="customer@example.com"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Points</label>
+                    <input type="number" name="points" required placeholder="e.g. 500 or -200"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <p class="mt-1 text-xs text-slate-500">Positive to credit, negative to debit.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Description (optional)</label>
+                    <input type="text" name="description" placeholder="e.g. Promotional bonus"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+                <div class="flex gap-3 pt-1">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700">Apply</button>
+                    <button type="button" onclick="document.getElementById('ec-adjust-modal').classList.add('hidden')"
+                            class="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Filters -->
     <div class="bg-white rounded-xl border border-gray-200 p-4">
         <form method="get" action="" class="flex flex-wrap items-end gap-3">
@@ -72,6 +112,10 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">Earned</span>
                             {elseif e.entry_type == 'redeem'}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700">Redeemed</span>
+                            {elseif e.entry_type == 'admin_credit'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700">Admin Credit</span>
+                            {elseif e.entry_type == 'admin_debit'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700">Admin Debit</span>
                             {else}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600">{e.entry_type}</span>
                             {/if}

@@ -819,6 +819,27 @@
             "label": "Admin Email",
             "default": "",
             "description": "General admin email address for store communications."
+        },
+        {
+            "key": "loyalty_earn_rate",
+            "type": "number",
+            "label": "Loyalty Earn Rate (pts per currency unit)",
+            "default": "1",
+            "description": "Points earned per 1 unit of order subtotal. Default: 1."
+        },
+        {
+            "key": "loyalty_points_per_currency",
+            "type": "number",
+            "label": "Loyalty Redemption Rate (pts per currency unit)",
+            "default": "100",
+            "description": "Points required to redeem 1 currency unit of discount. Default: 100."
+        },
+        {
+            "key": "loyalty_minimum_redeem",
+            "type": "number",
+            "label": "Minimum Points to Redeem",
+            "default": "100",
+            "description": "Minimum loyalty point balance required before a customer can redeem. Set to 0 to disable minimum."
         }
     ],
     "events": [

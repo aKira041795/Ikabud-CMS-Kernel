@@ -94,15 +94,31 @@ function ecAdminCustomerEdit(array $params = []): void
         unset($_SESSION['ec_message']);
     }
 
-    $addresses = ecCustomerAddresses($customerId);
-    $orders    = ecCustomerOrders($customerId, 10);
+    $addresses   = ecCustomerAddresses($customerId);
+    $orders      = ecCustomerOrders($customerId, 10);
+    $memberships = ecMembershipsForCustomer($customerId, (string)($customer['email'] ?? ''));
+    $loyaltyBalance = ecCustomerLoyaltyPointsBalance($customerId);
+    $loyaltyEntries = [];
+    if (ecLoyaltyStorageAvailable()) {
+        try {
+            $loyaltyEntries = ecDb()->query(
+                "SELECT entry_type, points, description, created_at FROM ec_loyalty_ledger WHERE customer_id = ? ORDER BY created_at DESC LIMIT 5",
+                [$customerId]
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            $loyaltyEntries = [];
+        }
+    }
 
     $ctx = ecAdminContext($user, 'customers', [
-        'customer'   => $customer,
-        'addresses'  => $addresses,
-        'orders'     => $orders['items'],
-        'message'    => $msg,
-        'page_title' => 'Edit Customer — ' . htmlspecialchars($customer['display_name'] ?: $customer['email']),
+        'customer'       => $customer,
+        'addresses'      => $addresses,
+        'orders'         => $orders['items'],
+        'memberships'    => $memberships,
+        'loyalty_balance'  => $loyaltyBalance,
+        'loyalty_entries'  => $loyaltyEntries,
+        'message'        => $msg,
+        'page_title'     => 'Edit Customer — ' . htmlspecialchars($customer['display_name'] ?: $customer['email']),
     ]);
 
     ecRender('modules/ecommerce/admin/customer-edit.disyl', $ctx);
