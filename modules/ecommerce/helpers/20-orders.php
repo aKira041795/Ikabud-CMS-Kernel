@@ -1428,6 +1428,10 @@ function ecOrderUpdateStatusWithOptions(int $orderId, string $newStatus, ?string
 
 function ecOrderRecordStatusHistory(int $orderId, string $status, array $options = []): void
 {
+    if (!ecTableExists('ec_order_status_history')) {
+        return;
+    }
+
     $source = trim((string)($options['source'] ?? 'system')) ?: 'system';
     $note = array_key_exists('note', $options) && $options['note'] !== null ? trim((string)$options['note']) : null;
     $actorUserId = isset($options['actor_user_id']) && (int)$options['actor_user_id'] > 0 ? (int)$options['actor_user_id'] : null;
