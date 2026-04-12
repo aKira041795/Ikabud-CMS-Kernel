@@ -1,17 +1,27 @@
-<div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4" data-ecommerce-section="compare-actions">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h2 class="text-sm font-semibold text-slate-900">Compare Products</h2>
-            <p class="mt-1 text-sm text-slate-600">Keep a short shortlist and review products side by side before you buy.</p>
+<div class="mt-6" data-ecommerce-section="compare-actions" style="border-top:1px solid #e2e8f0;padding-top:1.25rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+            <p style="margin:0;font-size:0.8rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:#94a3b8;">Compare</p>
+            <p style="margin:0.2rem 0 0;font-size:0.84rem;color:#64748b;line-height:1.4;">Review products side by side before you buy.</p>
         </div>
-        <a href="{base_url}/ecommerce/compare" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Open Compare {if compare_count|default:storefront.compare.count|default:0 > 0}({compare_count|default:storefront.compare.count|default:0}){/if}</a>
+        <a href="{base_url}/ecommerce/compare" style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 1rem;border-radius:999px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-size:0.82rem;font-weight:700;text-decoration:none;white-space:nowrap;transition:border-color 0.15s,color 0.15s;" onmouseover="this.style.borderColor='#0f172a';this.style.color='#0f172a'" onmouseout="this.style.borderColor='#cbd5e1';this.style.color='#334155'">
+            <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17H7A5 5 0 0 1 7 7h2m6 0h2a5 5 0 0 1 0 10h-2m-6-5h6"/></svg>
+            Open Compare{if compare_count|default:storefront.compare.count|default:0 > 0}&nbsp;({compare_count|default:storefront.compare.count|default:0}){/if}
+        </a>
     </div>
-    <form method="post" action="{base_url}/ecommerce/compare" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+    <form method="post" action="{base_url}/ecommerce/compare" style="margin-top:0.9rem;">
         <input type="hidden" name="_token" value="{csrf_token}">
         <input type="hidden" name="action" value="{if compare_product_is_selected}remove{else}add{/if}">
         <input type="hidden" name="product_id" value="{storefront.product.id|default:product.id|default:entity.id}">
         <input type="hidden" name="return_to" value="{current_request_uri|default:'/ecommerce/compare'}">
-        <button type="submit" class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold {if compare_product_is_selected}bg-slate-200 text-slate-800 hover:bg-slate-300{else}bg-slate-900 text-white hover:bg-slate-800{/if}">{if compare_product_is_selected}Remove From Compare{else}Add to Compare{/if}</button>
-        <span class="text-xs text-slate-500">Compare up to 4 products in the current session.</span>
+        <button type="submit" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.55rem 1.25rem;border-radius:999px;border:none;cursor:pointer;font-size:0.85rem;font-weight:700;letter-spacing:0.01em;transition:background 0.15s,color 0.15s;{if compare_product_is_selected}background:#f1f5f9;color:#475569;{else}background:#0f172a;color:#fff;{/if}">
+            {if compare_product_is_selected}
+            <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            Remove from Compare
+            {else}
+            <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Add to Compare
+            {/if}
+        </button>
     </form>
 </div>

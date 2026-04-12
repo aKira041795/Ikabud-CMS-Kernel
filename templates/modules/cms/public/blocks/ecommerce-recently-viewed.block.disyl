@@ -1,12 +1,37 @@
 {if recently_viewed_items | count > 0}
-<section class="mt-12 space-y-4" data-ecommerce-section="recently-viewed">
-    <div>
-        <h2 class="text-xl font-semibold text-gray-900">Recently Viewed</h2>
-        <p class="mt-1 text-sm text-gray-500">Jump back into products you looked at during this session.</p>
+<section data-ecommerce-section="recently-viewed" style="margin-top:3rem;padding-top:2rem;border-top:1px solid #e2e8f0;">
+    <div style="margin-bottom:1.25rem;">
+        <p style="margin:0 0 0.2rem;font-size:0.78rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:#94a3b8;">Recently Viewed</p>
+        <h2 style="margin:0;font-size:1.25rem;font-weight:700;color:#111827;line-height:1.2;">Back where you left off</h2>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="{if recently_viewed_display_variant == 'horizontal'}{else}grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4{/if}" style="{if recently_viewed_display_variant == 'horizontal'}display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;align-items:stretch;{/if}">
         {foreach recently_viewed_items as item}
+        {if recently_viewed_display_variant == 'horizontal'}
+        <a href="{item.url}" class="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md" style="display:grid;grid-template-columns:136px minmax(0,1fr);gap:1rem;align-items:stretch;padding:0.9rem;text-decoration:none;color:inherit;">
+            <div style="width:136px;min-width:136px;aspect-ratio:1 / 1;overflow:hidden;border-radius:18px;background:#f3f4f6;">
+                <img src="{if item.primary_image_url}{item.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{item.title}" style="display:block;height:100%;width:100%;object-fit:cover;transition:transform 0.3s ease;" class="group-hover:scale-105">
+            </div>
+            <div style="display:flex;min-width:0;flex-direction:column;gap:0.45rem;">
+                <h3 style="margin:0;font-size:1rem;font-weight:700;line-height:1.25;color:#111827;">{item.title}</h3>
+                {if item.review_summary.has_reviews|default:false}
+                <div style="font-size:0.75rem;font-weight:600;color:#b45309;">{item.review_summary.average_rating_formatted}/5 · {item.review_summary.approved_count} {if item.review_summary.approved_count == 1}review{else}reviews{/if}</div>
+                {/if}
+                {if item.excerpt}<p style="margin:0;font-size:0.84rem;line-height:1.45;color:#6b7280;">{item.excerpt}</p>{/if}
+                <div style="margin-top:auto;display:flex;align-items:flex-end;justify-content:space-between;gap:0.85rem;">
+                    <div>
+                        {if item.pricing.on_sale|default:false}
+                        <div style="font-size:0.98rem;font-weight:700;color:#ea580c;">{item.pricing.formatted}</div>
+                        <div style="font-size:0.74rem;color:#9ca3af;text-decoration:line-through;">{item.pricing.regular_fmt}</div>
+                        {else}
+                        <div style="font-size:0.98rem;font-weight:700;color:#111827;">{item.pricing.formatted|default:'View product'}</div>
+                        {/if}
+                    </div>
+                    <span style="font-size:0.75rem;font-weight:700;color:{if item.inventory.out_of_stock|default:false}#dc2626{else}#2563eb{/if};white-space:nowrap;">{if item.inventory.out_of_stock|default:false}Out of stock{else}View again{/if}</span>
+                </div>
+            </div>
+        </a>
+        {else}
         <a href="{item.url}" class="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
             <div class="aspect-[4/3] overflow-hidden bg-gray-100">
                 <img src="{if item.primary_image_url}{item.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{item.title}" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105">
@@ -30,6 +55,7 @@
                 </div>
             </div>
         </a>
+        {/if}
         {/foreach}
     </div>
 </section>

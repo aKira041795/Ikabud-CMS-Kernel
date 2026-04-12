@@ -467,6 +467,10 @@
 
 <script>
 const __ecCsrf = '{csrf_token}';
+const __ecProductTitle = '{storefront.product.title|default:product.title}';
+const __ecProductImage = '{storefront.product.primary_image_url|default:product.primary_image_url}';
+const __ecProductPrice = '{storefront.product.pricing.formatted|default:product.pricing.formatted}';
+const __ecBaseUrl = '{base_url}';
 function updateCartBadge(count) {
     const badge = document.getElementById('cart-count-badge');
     if (!badge) {
@@ -515,7 +519,7 @@ async function addToCart(productId, qty) {
         });
         const data = await res.json();
         if (data.ok) {
-            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            showCartPanel(data);
             btn.textContent = 'Added!';
             btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
             btn.classList.add('bg-emerald-600');
@@ -557,7 +561,7 @@ async function addBundleToCart(productId, clickEvent) {
         });
         const data = await res.json();
         if (data.ok) {
-            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            showCartPanel(data);
             btn.textContent = 'Added!';
             btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
             btn.classList.add('bg-emerald-600');
@@ -607,7 +611,7 @@ async function addGroupedToCart(parentProductId, clickEvent) {
         });
         const data = await res.json();
         if (data.ok) {
-            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            showCartPanel(data);
             btn.textContent = 'Added!';
             btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
             btn.classList.add('bg-emerald-600');
@@ -627,6 +631,74 @@ async function addGroupedToCart(parentProductId, clickEvent) {
         btn.disabled = false;
         btn.textContent = 'Add Selected Items to Cart';
     }
+}
+
+let __ecCartPanelEl = null;
+let __ecCartPanelTimer = null;
+function __ecBuildCartPanel() {
+    if (__ecCartPanelEl) return;
+    const el = document.createElement('div');
+    el.id = 'ec-cart-panel-overlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-start;justify-content:flex-end;padding:1rem;pointer-events:none;';
+    el.innerHTML = `
+        <div id="ec-cart-panel" style="background:#fff;border-radius:20px;box-shadow:0 24px 48px rgba(15,23,42,0.18);width:100%;max-width:380px;pointer-events:auto;transform:translateX(110%);transition:transform 0.28s cubic-bezier(0.22,1,0.36,1);overflow:hidden;">
+            <div style="padding:1.1rem 1.1rem 0;display:flex;align-items:center;justify-content:space-between;gap:0.75rem;">
+                <div style="display:flex;align-items:center;gap:0.55rem;">
+                    <svg style="width:18px;height:18px;color:#16a34a;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+                    <span style="font-size:0.82rem;font-weight:700;color:#16a34a;letter-spacing:0.02em;">Added to cart</span>
+                </div>
+                <button onclick="__ecDismissCartPanel()" aria-label="Close" style="background:none;border:none;cursor:pointer;padding:0.25rem;color:#94a3b8;">
+                    <svg style="width:18px;height:18px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div style="padding:1rem 1.1rem;display:flex;gap:0.85rem;align-items:center;border-bottom:1px solid #f1f5f9;">
+                <div style="width:72px;min-width:72px;height:72px;border-radius:12px;overflow:hidden;background:#f8fafc;">
+                    <img id="ec-cart-panel-img-el" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+                </div>
+                <div style="min-width:0;flex:1;">
+                    <p id="ec-cart-panel-title" style="margin:0 0 0.3rem;font-size:0.92rem;font-weight:700;color:#111827;line-height:1.3;"></p>
+                    <p id="ec-cart-panel-price" style="margin:0;font-size:0.88rem;font-weight:600;color:#ea580c;"></p>
+                </div>
+            </div>
+            <div style="padding:0.75rem 1.1rem;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;">
+                <span id="ec-cart-panel-summary" style="font-size:0.82rem;color:#64748b;"></span>
+                <span id="ec-cart-panel-total" style="font-size:0.9rem;font-weight:700;color:#111827;"></span>
+            </div>
+            <div style="padding:0.9rem 1.1rem 1.1rem;display:flex;flex-direction:column;gap:0.6rem;">
+                <a id="ec-cart-panel-checkout-btn" href="" style="display:block;text-align:center;padding:0.7rem 1rem;border-radius:999px;background:#0f172a;color:#fff;font-size:0.9rem;font-weight:700;text-decoration:none;">Proceed to Checkout</a>
+                <a id="ec-cart-panel-cart-btn" href="" style="display:block;text-align:center;padding:0.65rem 1rem;border-radius:999px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-size:0.86rem;font-weight:600;text-decoration:none;">View Cart</a>
+                <button onclick="__ecDismissCartPanel()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.8rem;padding:0.15rem;text-decoration:underline;">Continue Shopping</button>
+            </div>
+        </div>`;
+    document.body.appendChild(el);
+    __ecCartPanelEl = el;
+    document.getElementById('ec-cart-panel-checkout-btn').href = __ecBaseUrl + '/ecommerce/checkout';
+    document.getElementById('ec-cart-panel-cart-btn').href = __ecBaseUrl + '/ecommerce/cart';
+}
+function showCartPanel(data) {
+    __ecBuildCartPanel();
+    const panel = document.getElementById('ec-cart-panel');
+    const totals = (data && data.cart && data.cart.totals) ? data.cart.totals : {};
+    const count = totals.item_count || 0;
+    document.getElementById('ec-cart-panel-title').textContent = __ecProductTitle || 'Item';
+    const imgEl = document.getElementById('ec-cart-panel-img-el');
+    imgEl.src = __ecProductImage || '';
+    imgEl.style.display = __ecProductImage ? 'block' : 'none';
+    document.getElementById('ec-cart-panel-price').textContent = __ecProductPrice || '';
+    document.getElementById('ec-cart-panel-summary').textContent = count + ' item' + (count === 1 ? '' : 's') + ' in cart';
+    document.getElementById('ec-cart-panel-total').textContent = totals.total_fmt || '';
+    updateCartBadge(count);
+    __ecCartPanelEl.style.pointerEvents = 'auto';
+    requestAnimationFrame(() => { panel.style.transform = 'translateX(0)'; });
+    clearTimeout(__ecCartPanelTimer);
+    __ecCartPanelTimer = setTimeout(__ecDismissCartPanel, 6000);
+}
+function __ecDismissCartPanel() {
+    clearTimeout(__ecCartPanelTimer);
+    if (!__ecCartPanelEl) return;
+    const panel = document.getElementById('ec-cart-panel');
+    if (panel) panel.style.transform = 'translateX(110%)';
+    __ecCartPanelEl.style.pointerEvents = 'none';
 }
 </script>
 {/block}

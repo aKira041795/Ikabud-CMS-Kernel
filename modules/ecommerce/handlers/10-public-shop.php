@@ -465,6 +465,7 @@ function ecPublicProduct(array $params = []): void
             'reviews' => $reviews,
             'relation_sections' => $relationSections,
             'recently_viewed_items' => $recentlyViewedItems,
+            'recently_viewed_display_variant' => 'horizontal',
             'cart_count'  => $cartCount,
             'compare_count' => $compareCount,
             'compare_product_is_selected' => $compareSelected,
