@@ -292,6 +292,161 @@ function guidanceBuildCasePrefillFromAppointment(array $appointment): array
     ];
 }
 
+function guidanceBuildAutoCaseInputFromAppointment(array $appointment): array
+{
+    $appointmentId = (int)($appointment['id'] ?? 0);
+    $presentingIssue = trim((string)($appointment['purpose'] ?? ''));
+
+    return [
+        'student_id' => trim((string)($appointment['student_id'] ?? '')) ?: 'N/A',
+        'student_name' => trim((string)($appointment['student_name'] ?? '')) ?: 'Unknown Student',
+        'student_grade' => trim((string)($appointment['student_year_level'] ?? '')),
+        'student_mobile' => trim((string)($appointment['student_phone'] ?? '')),
+        'student_email' => trim((string)($appointment['student_email'] ?? '')),
+        'college_id' => !empty($appointment['student_college_id']) ? (string)$appointment['student_college_id'] : '',
+        'category' => 'general',
+        'severity' => !empty($appointment['is_urgent']) ? 'high' : 'medium',
+        'presenting_issue' => $presentingIssue !== '' ? $presentingIssue : 'Appointment booking',
+        'background_info' => $appointmentId > 0
+            ? 'Automatically created when appointment #' . $appointmentId . ' was confirmed.'
+            : 'Automatically created when the appointment was confirmed.',
+        'is_urgent' => !empty($appointment['is_urgent']) ? 1 : 0,
+        'is_confidential' => 1,
+        'referral_source' => 'walk-in',
+        'sync_id' => uniqid('sync_', true),
+    ];
+}
+
+function guidanceCaseInsertColumns(bool $hasStudentStatus): array
+{
+    if ($hasStudentStatus) {
+        return [
+            'case_number',
+            'student_id',
+            'student_name',
+            'student_grade',
+            'student_status',
+            'student_section',
+            'date_of_birth',
+            'gender',
+            'nationality',
+            'civil_status',
+            'address',
+            'student_mobile',
+            'student_email',
+            'college_id',
+            'counselor_id',
+            'category',
+            'severity',
+            'presenting_issue',
+            'background_info',
+            'is_urgent',
+            'is_confidential',
+            'parent_guardian_name',
+            'parent_guardian_contact',
+            'emergency_contact_address',
+            'referral_source',
+            'referred_by',
+            'sync_id',
+            'created_by',
+            'last_modified_by',
+        ];
+    }
+
+    return [
+        'case_number',
+        'student_id',
+        'student_name',
+        'student_grade',
+        'student_section',
+        'date_of_birth',
+        'gender',
+        'nationality',
+        'civil_status',
+        'address',
+        'student_mobile',
+        'student_email',
+        'college_id',
+        'counselor_id',
+        'category',
+        'severity',
+        'presenting_issue',
+        'background_info',
+        'is_urgent',
+        'is_confidential',
+        'parent_guardian_name',
+        'parent_guardian_contact',
+        'emergency_contact_address',
+        'referral_source',
+        'referred_by',
+        'sync_id',
+        'created_by',
+        'last_modified_by',
+    ];
+}
+
+function guidanceAutoCreateCaseFromAppointment(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    array $appointment,
+    int $userId
+): array {
+    $appointmentId = (int)($appointment['id'] ?? 0);
+    $counselorId = (int)($appointment['counselor_id'] ?? 0);
+
+    if (!guidanceCounselorExists($db, $counselorId)) {
+        throw new RuntimeException('Assigned counselor is invalid.');
+    }
+
+    $hasStudentStatus = studentStatusCasesColumnExists($db);
+    $caseData = guidanceBuildCaseRecordPayload(
+        guidanceBuildAutoCaseInputFromAppointment($appointment),
+        $counselorId,
+        $userId,
+        $hasStudentStatus
+    );
+
+    $attempts = 0;
+    do {
+        $attempts++;
+        $caseNumber = guidanceGenerateCaseNumber($db);
+
+        try {
+            $columns = guidanceCaseInsertColumns($hasStudentStatus);
+            $values = [$caseNumber];
+            foreach (array_slice($columns, 1) as $column) {
+                $values[] = $caseData[$column] ?? null;
+            }
+
+            $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+            $stmt = $db->prepare(
+                'INSERT INTO gm_cases (' . implode(', ', $columns) . ', created_at, updated_at) VALUES (' . $placeholders . ', NOW(), NOW())'
+            );
+            $stmt->execute($values);
+
+            $caseId = (int)$db->lastInsertId();
+            guidanceInsertCaseStatusHistory($db, $caseId, null, 'open', $userId, 'Case auto-created from confirmed appointment');
+            guidanceLinkAppointmentToCase($db, $caseId, $caseData, $appointment, $userId);
+            guidanceLogAudit($db, 'case.created', 'gm_cases', $caseId, null, [
+                'case_number' => $caseNumber,
+                'appointment_id' => $appointmentId,
+                'auto_created_from_appointment' => true,
+            ], $userId);
+
+            return [
+                'id' => $caseId,
+                'case_number' => $caseNumber,
+                'appointment_id' => $appointmentId,
+            ];
+        } catch (PDOException $e) {
+            if ($attempts >= 3 || stripos($e->getMessage(), 'Duplicate') === false) {
+                throw $e;
+            }
+        }
+    } while ($attempts < 3);
+
+    throw new RuntimeException('Failed to generate unique case number');
+}
+
 function guidanceLinkAppointmentToCase(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $caseId, array $caseData, array $appointment, int $userId): int
 {
     $appointmentId = (int)($appointment['id'] ?? 0);
@@ -381,16 +536,7 @@ function apiGuidanceCreateCase(): void
             $attempts++;
             $caseNumber = guidanceGenerateCaseNumber($db);
             try {
-                $columns = ['case_number'];
-                if ($hasStudentStatus) {
-                    $columns = array_merge($columns, ['student_id', 'student_name', 'student_grade', 'student_status']);
-                    $remainingColumns = ['student_section', 'date_of_birth', 'gender', 'nationality', 'civil_status', 'address', 'student_mobile', 'student_email', 'college_id', 'counselor_id', 'category', 'severity', 'presenting_issue', 'background_info', 'is_urgent', 'is_confidential', 'parent_guardian_name', 'parent_guardian_contact', 'emergency_contact_address', 'referral_source', 'referred_by', 'sync_id', 'created_by', 'last_modified_by'];
-                    $columns = array_merge($columns, $remainingColumns);
-                } else {
-                    $columns = array_merge($columns, ['student_id', 'student_name', 'student_grade']);
-                    $remainingColumns = ['student_section', 'date_of_birth', 'gender', 'nationality', 'civil_status', 'address', 'student_mobile', 'student_email', 'college_id', 'counselor_id', 'category', 'severity', 'presenting_issue', 'background_info', 'is_urgent', 'is_confidential', 'parent_guardian_name', 'parent_guardian_contact', 'emergency_contact_address', 'referral_source', 'referred_by', 'sync_id', 'created_by', 'last_modified_by'];
-                    $columns = array_merge($columns, $remainingColumns);
-                }
+                $columns = guidanceCaseInsertColumns($hasStudentStatus);
 
                 $values = [$caseNumber];
                 foreach (array_slice($columns, 1) as $column) {
@@ -9029,7 +9175,7 @@ function apiGuidanceApproveAppointment(array $params): void
 
     $db = guidanceDb();
     $stmt = $db->prepare(
-        "SELECT id, counselor_id, status, case_id, student_name, student_email, scheduled_date, scheduled_time, location\n"
+        "SELECT id, counselor_id, status, case_id, student_id, student_name, student_email, student_phone, student_college_id, student_year_level, purpose, is_urgent, scheduled_date, scheduled_time, location\n"
         . "FROM gm_appointments WHERE id = :id LIMIT 1"
     );
     $stmt->execute([':id' => $apptId]);
@@ -9056,12 +9202,48 @@ function apiGuidanceApproveAppointment(array $params): void
         return;
     }
 
-    $upd = $db->prepare(
-        "UPDATE gm_appointments\n"
-        . "SET status = 'confirmed', approved_at = NOW(), approved_by = :uid, rejected_at = NULL, rejected_by = NULL, rejection_reason = NULL\n"
-        . "WHERE id = :id"
-    );
-    $upd->execute([':uid' => $userId, ':id' => $apptId]);
+    $caseId = (int)($row['case_id'] ?? 0);
+    $createdCase = null;
+    $startedTransaction = !$db->inTransaction();
+
+    try {
+        if ($startedTransaction) {
+            $db->beginTransaction();
+        }
+
+        if ($caseId < 1) {
+            $createdCase = guidanceAutoCreateCaseFromAppointment($db, $row, $userId);
+            $caseId = (int)($createdCase['id'] ?? 0);
+        }
+
+        $upd = $db->prepare(
+            "UPDATE gm_appointments\n"
+            . "SET status = 'confirmed', approved_at = NOW(), approved_by = :uid, rejected_at = NULL, rejected_by = NULL, rejection_reason = NULL\n"
+            . "WHERE id = :id"
+        );
+        $upd->execute([':uid' => $userId, ':id' => $apptId]);
+
+        if ($startedTransaction) {
+            $db->commit();
+        }
+    } catch (RuntimeException $e) {
+        if ($startedTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        header('Content-Type: application/json');
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+        return;
+    } catch (Throwable $e) {
+        if ($startedTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        app()->log('Appointments approve error: ' . $e->getMessage(), 'error');
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to approve appointment']);
+        return;
+    }
 
     try {
         guidanceSendAppointmentTemplateEmail('booking_confirmed', trim((string)($row['student_email'] ?? '')), [
@@ -9078,7 +9260,11 @@ function apiGuidanceApproveAppointment(array $params): void
 
     if (guidanceIsHtmx()) {
         guidanceHtmxResponse([
-            'trigger' => json_encode(['approvalChanged' => ['id' => $apptId, 'action' => 'approved']]),
+            'trigger' => json_encode([
+                'approvalChanged' => ['id' => $apptId, 'action' => 'approved', 'case_id' => $caseId],
+                'refreshAppointments' => true,
+                'refreshCases' => true,
+            ]),
         ]);
         header('Content-Type: text/plain; charset=utf-8');
         echo '';
@@ -9086,7 +9272,7 @@ function apiGuidanceApproveAppointment(array $params): void
     }
 
     header('Content-Type: application/json');
-    echo json_encode(['ok' => true]);
+    echo json_encode(['ok' => true, 'case_id' => $caseId]);
 }
 
 function apiGuidanceRejectAppointment(array $params): void

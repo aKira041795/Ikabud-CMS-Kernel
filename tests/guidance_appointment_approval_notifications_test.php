@@ -218,6 +218,11 @@ try {
     $appointmentStateStmt = $db->prepare('SELECT status, case_id, approved_by FROM gm_appointments WHERE id = ? LIMIT 1');
     $appointmentStateStmt->execute([$appointmentId]);
     $appointmentState = $appointmentStateStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $linkedCaseId = (int)($appointmentState['case_id'] ?? 0);
+
+    $caseStmt = $db->prepare('SELECT id, case_number, student_name, student_email, counselor_id, presenting_issue FROM gm_cases WHERE id = ? LIMIT 1');
+    $caseStmt->execute([$linkedCaseId]);
+    $caseRow = $caseStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
     $afterCaseCountStmt = $db->prepare('SELECT COUNT(*) FROM gm_cases WHERE student_email = ?');
     $afterCaseCountStmt->execute([$studentEmail]);
@@ -230,7 +235,14 @@ try {
     t('counselor approval returns success payload', is_array($decoded) && !empty($decoded['ok']), $output);
     t('counselor approval confirms the appointment', (string)($appointmentState['status'] ?? '') === 'confirmed', json_encode($appointmentState, JSON_UNESCAPED_SLASHES));
     t('counselor approval records the approving counselor', (int)($appointmentState['approved_by'] ?? 0) === $counselorId, json_encode($appointmentState, JSON_UNESCAPED_SLASHES));
-    t('counselor approval does not auto-create a case', $beforeCaseCount === $afterCaseCount && (int)($appointmentState['case_id'] ?? 0) === 0, json_encode(['before' => $beforeCaseCount, 'after' => $afterCaseCount, 'appointment' => $appointmentState], JSON_UNESCAPED_SLASHES));
+    t('counselor approval auto-creates exactly one linked case', $afterCaseCount === ($beforeCaseCount + 1) && $linkedCaseId > 0, json_encode(['before' => $beforeCaseCount, 'after' => $afterCaseCount, 'appointment' => $appointmentState], JSON_UNESCAPED_SLASHES));
+    t('counselor approval persists the auto-created case with appointment data', is_array($caseRow)
+        && str_starts_with((string)($caseRow['case_number'] ?? ''), 'GC-')
+        && (string)($caseRow['student_name'] ?? '') === 'Approval Student'
+        && (string)($caseRow['student_email'] ?? '') === $studentEmail
+        && (int)($caseRow['counselor_id'] ?? 0) === $counselorId
+        && (string)($caseRow['presenting_issue'] ?? '') === 'Need guidance', json_encode($caseRow, JSON_UNESCAPED_SLASHES));
+    t('counselor approval returns the linked case id', is_array($decoded) && (int)($decoded['case_id'] ?? 0) === $linkedCaseId, $output);
     t('counselor approval sends one client email', is_array($email) && count($capturedEmails) === 1, json_encode($capturedEmails, JSON_UNESCAPED_SLASHES));
     t('counselor approval email targets the client address', is_array($email) && (string)($email['to'] ?? '') === $studentEmail, json_encode($email, JSON_UNESCAPED_SLASHES));
     t('counselor approval email uses the configured confirmation subject', is_array($email) && (string)($email['subject'] ?? '') === 'Approved appointment for Approval Student', json_encode($email, JSON_UNESCAPED_SLASHES));
