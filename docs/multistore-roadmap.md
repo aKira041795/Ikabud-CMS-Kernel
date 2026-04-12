@@ -154,20 +154,196 @@ This avoids adding new meta keys and reuses the existing table.
 
 ```
 Phase 1 (Data)
-    └─► Phase 2 (Storefront filter)
-            └─► Phase 3 (Store pages)
-                    └─► Phase 6 (Branding) — can run in parallel with Phase 4
-
-Phase 1 (Data)
+    ├─► Phase 2 (Storefront filter)
+    │       └─► Phase 3 (Store pages)
+    │               └─► Phase 6 (Branding)
     └─► Phase 4 (Roles)
             └─► Phase 5 (Attribution)
+
+Phase 1 (Data) + Phase 4 (Store admin UI)
+    └─► Phase 7A (per-store WMS inventory)
+            └─► Phase 7B (warehouse on order)
+                    └─► Phase 7C (admin UI in store edit)
+                            └─► Phase 7E (return routing — free)
+                                    └─► Phase 7F (product-store sync, wms_authoritative only)
 ```
 
-**Recommended order:** 1 → 2 → 3 → 4 → 5 → 6
+**Recommended order:** 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 Phases 1–3 are customer-facing value and can be demoed quickly.
 Phases 4–5 are merchant/operations value.
 Phase 6 is polish.
+Phase 7 is infrastructure — run 7A+7B+7C in parallel with Phase 4 (both touch the store edit page).
+
+---
+
+## Phase 7 — WMS × Multi-Store Integration
+**Goal:** Each store draws inventory from its own WMS warehouse. Orders route to the right warehouse automatically. Stock levels shown on storefront are per-store-warehouse accurate.
+
+---
+
+### How the WMS Integration Works Today (Studied)
+
+Before designing the multi-store WMS wiring, here is what the codebase already has:
+
+#### Two Authoritative Modes (`kernel_integrations` table)
+
+| Mode | Who owns products | Who owns stock |
+|---|---|---|
+| `wms_authoritative_products` | WMS pushes product records to ecommerce via bridge | WMS is the only stock source |
+| `ecommerce_authoritative_products` | Ecommerce is master; syncs products to WMS | WMS still tracks physical movements |
+
+Mode is read at runtime via `ecActiveIntegrationMode()` → `kernel_integrations WHERE is_active = 1`.
+
+#### WMS Capabilities (already registered)
+
+| Capability | Direction | What it does |
+|---|---|---|
+| `wms.stock.query@1` | EC → WMS | Fetch qty_on_hand / qty_available / qty_reserved for SKU list at a warehouse |
+| `wms.stock.reserve@1` | EC → WMS | Reserve stock for an order (creates stock_movement record) |
+| `wms.stock.release@1` | EC → WMS | Release reservation (cancel / refund) |
+| `wms.order.create@1` | EC → WMS | Create a pick order in WMS |
+| `wms.order.cancel@1` | EC → WMS | Cancel WMS pick order |
+| `wms.return.create@1` | EC → WMS | Create inbound return in WMS |
+| `wms.product.upsert@1` | EC → WMS | Sync product data to WMS catalog |
+| `ecommerce.product.upsert@1` | WMS → EC | WMS pushes new/updated products to ecommerce catalog |
+| `ecommerce.orders.status.sync@1` | WMS → EC | WMS pushes order status (processing / shipped / delivered) |
+| `ecommerce.orders.tracking.sync@1` | WMS → EC | WMS pushes tracking number after dispatch |
+| `ecommerce.orders.payment.sync@1` | WMS → EC | WMS marks COD order as paid after collection |
+
+#### Integration Bridge Event Flows (already wired via `IntegrationBridge::upsertBridge`)
+
+```
+ecommerce.order.created   →  wms.stock.reserve@1      (reserve items)
+ecommerce.order.created   →  wms.order.create@1       (create pick order)
+ecommerce.order.cancelled →  wms.stock.release@1      (release reservation)
+ecommerce.order.cancelled →  wms.order.cancel@1       (cancel pick order)
+ecommerce.order.refunded  →  wms.stock.release@1      (release refunded items)
+ecommerce.product.created →  wms.product.upsert@1     (sync product, ecommerce_authoritative mode)
+ecommerce.product.updated →  wms.product.upsert@1
+
+wms.order.picked          →  ecommerce.orders.status.sync@1    (→ processing)
+wms.order.dispatched      →  ecommerce.orders.status.sync@1    (→ shipped)
+wms.order.dispatched      →  ecommerce.orders.tracking.sync@1  (tracking number)
+wms.order.delivered       →  ecommerce.orders.status.sync@1    (→ delivered)
+wms.order.payment_collected → ecommerce.orders.payment.sync@1  (COD paid)
+wms.product.created       →  ecommerce.product.upsert@1        (wms_authoritative mode)
+wms.product.updated       →  ecommerce.product.upsert@1
+```
+
+#### The Critical Multi-Store Gap
+
+`ecWmsInventorySnapshotMapForSkus()` (helpers/30-products.php) currently uses:
+```php
+$warehouseId = max(0, (int)ecSettings('default_wms_warehouse_id'));
+```
+**A single global warehouse.** All stores share the same stock level.
+
+The multi-store infrastructure to fix this already exists but is unwired:
+- `ec_store_inventory_sources` table: `store_id` → `source_type (local|wms)` → `warehouse_id`
+- `ecStoreInventorySource(storeId)` helper: returns the active inventory source row for a store
+- `ecStoreResolveContext()` helper: returns the current store
+
+**The wire is missing** — the inventory snapshot function never calls these.
+
+Similarly, `ecWmsFulfillmentBridgeDefinitions()` passes `warehouse_id: '{{order.warehouse_id}}'` to reserve/release calls, but `order.warehouse_id` is only populated if set at checkout. There is no code that resolves `store → warehouse` at checkout time.
+
+---
+
+### Phase 7 Work Items
+
+#### 7A — Per-Store Inventory Snapshot (Stock Levels)
+
+**What to change:** `ecWmsInventorySnapshotMapForSkus()` in `30-products.php`.
+
+**Logic:**
+```
+1. If no store context → use global `default_wms_warehouse_id` (current behavior, preserved)
+2. If store context → look up ec_store_inventory_sources for that store_id
+   - source_type = 'wms'  → use warehouse_id from that row
+   - source_type = 'local' → skip WMS, use ec_products.stock_qty (local mode)
+   - no inventory source  → fall back to global default_wms_warehouse_id
+```
+
+**Impact:** Product cards, catalog list, product detail page all show per-store accurate stock. Store A shows Warehouse A's stock. Store B shows Warehouse B's stock.
+
+#### 7B — Per-Store Warehouse on Order Creation
+
+**What to change:** Checkout order creation (`ecCreateOrder` / checkout handler).
+
+**Logic:**
+```
+1. At checkout, resolve ecStoreResolveContext()
+2. Look up ecStoreInventorySource(store_id) → get warehouse_id
+3. Stamp warehouse_id on the ec_order row
+4. Bridge picks it up via {{order.warehouse_id}} → WMS routes pick to correct warehouse
+```
+
+Without this, all orders go to the global warehouse even if the customer shopped in a store-specific context.
+
+#### 7C — Admin: Inventory Source Configuration per Store
+
+**What to add:** On the Store edit page (`/ecommerce/admin/stores/{id}/edit`), add an "Inventory Source" section:
+- Toggle: `local` (use ecommerce stock_qty) vs `wms` (pull from WMS warehouse)
+- If `wms`: dropdown of available WMS warehouses (from `wms_warehouses` table)
+- Save writes to `ec_store_inventory_sources`
+
+This gives the admin a UI to wire Store A → Warehouse 1, Store B → Warehouse 2.
+
+#### 7D — Multi-Warehouse Stock Query in `wms.stock.query@1`
+
+**What to verify:** `wms_cap_wms_stock_query_1` already accepts `warehouse_id` as payload and queries `wmsStockSnapshot(warehouseId, filters)`. This is already correct — it queries per-warehouse. The fix needed is purely on the ecommerce side (7A) to pass the right `warehouse_id`.
+
+**No changes needed in WMS module** for basic per-store inventory.
+
+#### 7E — Return Routing
+
+**What to change:** When a return is created (`ecWms return.create@1`), include `warehouse_id` from the original order. This ensures the return goes back to the correct warehouse.
+
+Current state: `ecOrderRefundBridgeItems` already reads `$order['warehouse_id']`, so this works automatically once 7B stamps the warehouse on orders.
+
+#### 7F — Product-Store WMS Sync (wms_authoritative mode only)
+
+When WMS creates/updates a product and it syncs to ecommerce (`wms.product.created` → `ecommerce.product.upsert@1`), the ecommerce upsert should optionally set `is_visible = 1` in `ec_store_product_overrides` for the stores served by that warehouse.
+
+**Logic:**
+```
+wms.product.created (warehouse_id = 2) 
+→ ecommerce.product.upsert@1 
+→ also upsert ec_store_product_overrides for stores where inventory_source.warehouse_id = 2
+```
+
+This makes WMS-originated products automatically appear in the right stores.
+
+---
+
+### Phase 7 Sequence
+
+```
+7A (inventory snapshot) — highest impact, customer-visible
+7B (warehouse on order) — required for correct WMS routing
+7C (admin UI)           — makes 7A/7B configurable without code
+7D (verify only)        — no code change needed
+7E (returns)            — free if 7B is done first
+7F (product sync)       — wms_authoritative mode only, optional
+```
+
+**Prerequisite:** Phase 1 (product-store assignment) must be done before 7F.
+**Prerequisite:** Phase 4 (store admin UI) sets up the store edit page that 7C extends.
+
+---
+
+### WMS × Multi-Store: Key Design Decisions
+
+1. **One warehouse per store** (for now) — `ec_store_inventory_sources` supports multiple sources per store with priority ordering, but start with one-to-one. Multi-source can be enabled later by lowering the `priority` column logic.
+
+2. **Local stock and WMS stock are mutually exclusive per store** — a store either uses local `stock_qty` or a WMS warehouse, not both. Mixed mode is confusing and unnecessary.
+
+3. **Global fallback is preserved** — if a store has no inventory source configured, it falls back to `default_wms_warehouse_id` (global setting). Single-store deployments are unaffected.
+
+4. **SKU is the join key** — WMS stock is keyed on SKU, not product ID. This is already how `ecWmsInventorySnapshotMapForSkus` works. As long as ecommerce products have a SKU set, the lookup works.
+
+5. **Integration bridges are store-agnostic** — the bridge definitions do not need to change. They pass `warehouse_id` from the order, which is stamped at checkout (7B). The WMS module routes by warehouse internally.
 
 ---
 
@@ -177,7 +353,7 @@ Phase 6 is polish.
 |---|---|
 | Separate subdomain per store (akira.shop.com) | Adds hosting/SSL complexity — use `/store/akira` path instead |
 | Isolated checkout per store (separate cart) | One unified cart, items from any store — simpler for customers |
-| Vendor payouts / commission ledger | Future Phase 7 if marketplace revenue model is needed |
+| Vendor payouts / commission ledger | Future Phase 8 if marketplace revenue model is needed |
 | Store-level shipping zones | Handled by existing shipping module per order, not per store |
 
 ---
