@@ -16,6 +16,40 @@ declare(strict_types=1);
 define('EC_SESSION_CART_KEY', 'ec_cart');
 define('EC_SESSION_COUPON_KEY', 'ec_cart_coupon');
 
+function ecCartItemsHasColumn(string $column): bool
+{
+    static $cache = [];
+
+    $column = trim($column);
+    if ($column === '') {
+        return false;
+    }
+
+    if (array_key_exists($column, $cache)) {
+        return $cache[$column];
+    }
+
+    try {
+        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_cart_items LIKE ?');
+        $stmt->execute([$column]);
+        $cache[$column] = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $cache[$column] = false;
+    }
+
+    return $cache[$column];
+}
+
+function ecCartItemsHasCurrencyColumn(): bool
+{
+    return ecCartItemsHasColumn('currency');
+}
+
+function ecCartItemsHasOptionsJsonColumn(): bool
+{
+    return ecCartItemsHasColumn('options_json');
+}
+
 // ── Session cart helpers ─────────────────────────────────────────────
 
 function ecSessionCartGet(): array
@@ -515,9 +549,15 @@ function ecDbGetOrCreateCart(int $userId): int
 function ecDbCartItems(int $userId): array
 {
     try {
+        $hasOptionsJsonColumn = ecCartItemsHasOptionsJsonColumn();
+        $currencySelect = ecCartItemsHasCurrencyColumn()
+            ? 'ci.currency'
+            : ('\'' . addslashes(ecStoreBaseCurrencyCode()) . '\' AS currency');
+        $optionsJsonSelect = $hasOptionsJsonColumn ? 'ci.options_json' : 'NULL AS options_json';
+
         return ecDb()->query(
             "SELECT ci.id as item_db_id, ci.product_id, ci.variant_id, ci.qty,
-                    ci.price_snapshot, ci.currency, ci.product_title, ci.sku, ci.options_json
+                    ci.price_snapshot, {$currencySelect}, ci.product_title, ci.sku, {$optionsJsonSelect}
              FROM ec_cart_items ci
              INNER JOIN ec_carts c ON c.id = ci.cart_id
              WHERE c.user_id = ?
@@ -533,26 +573,58 @@ function ecDbCartAdd(int $userId, array $item): void
 {
     $cartId = ecDbGetOrCreateCart($userId);
     $db     = ecDb();
+    $hasCurrencyColumn = ecCartItemsHasCurrencyColumn();
+    $hasOptionsJsonColumn = ecCartItemsHasOptionsJsonColumn();
+    $currencyCode = $item['currency'] ?? ecStoreBaseCurrencyCode();
 
     // Merge if same product+variant
-    $existing = $db->query(
-                "SELECT id, qty FROM ec_cart_items
+    $existingSql = "SELECT id, qty FROM ec_cart_items
                  WHERE cart_id = ? AND product_id = ?
                      AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))
-                     AND price_snapshot = ? AND currency = ?
-                     AND (options_json = ? OR (options_json IS NULL AND ? = ''))
-                 LIMIT 1",
-                [$cartId, $item['product_id'], $item['variant_id'], $item['variant_id'], $item['price_snapshot'], $item['currency'] ?? ecStoreBaseCurrencyCode(), $item['options_json'] ?? '', $item['options_json'] ?? '']
-    )->fetch(\PDO::FETCH_ASSOC);
+                     AND price_snapshot = ?";
+    $existingParams = [$cartId, $item['product_id'], $item['variant_id'], $item['variant_id'], $item['price_snapshot']];
+    if ($hasCurrencyColumn) {
+        $existingSql .= ' AND currency = ?';
+        $existingParams[] = $currencyCode;
+    }
+    if ($hasOptionsJsonColumn) {
+        $existingSql .= "
+                     AND (options_json = ? OR (options_json IS NULL AND ? = ''))";
+        $existingParams[] = $item['options_json'] ?? '';
+        $existingParams[] = $item['options_json'] ?? '';
+    }
+    $existingSql .= ' LIMIT 1';
+
+    $existing = $db->query($existingSql, $existingParams)->fetch(\PDO::FETCH_ASSOC);
 
     if ($existing) {
         $db->execute("UPDATE ec_cart_items SET qty = qty + ?, updated_at = NOW() WHERE id = ?", [$item['qty'], $existing['id']]);
     } else {
-        $db->execute(
-            "INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, currency, product_title, sku, options_json, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
-            [$cartId, $item['product_id'], $item['variant_id'], $item['qty'], $item['price_snapshot'], $item['currency'] ?? ecStoreBaseCurrencyCode(), $item['product_title'], $item['sku'], $item['options_json'] ?? null]
-        );
+        if ($hasCurrencyColumn && $hasOptionsJsonColumn) {
+            $db->execute(
+                "INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, currency, product_title, sku, options_json, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                [$cartId, $item['product_id'], $item['variant_id'], $item['qty'], $item['price_snapshot'], $currencyCode, $item['product_title'], $item['sku'], $item['options_json'] ?? null]
+            );
+        } elseif ($hasCurrencyColumn) {
+            $db->execute(
+                "INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, currency, product_title, sku, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                [$cartId, $item['product_id'], $item['variant_id'], $item['qty'], $item['price_snapshot'], $currencyCode, $item['product_title'], $item['sku']]
+            );
+        } elseif ($hasOptionsJsonColumn) {
+            $db->execute(
+                "INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, product_title, sku, options_json, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                [$cartId, $item['product_id'], $item['variant_id'], $item['qty'], $item['price_snapshot'], $item['product_title'], $item['sku'], $item['options_json'] ?? null]
+            );
+        } else {
+            $db->execute(
+                "INSERT INTO ec_cart_items (cart_id, product_id, variant_id, qty, price_snapshot, product_title, sku, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                [$cartId, $item['product_id'], $item['variant_id'], $item['qty'], $item['price_snapshot'], $item['product_title'], $item['sku']]
+            );
+        }
     }
 
     $db->execute("UPDATE ec_carts SET updated_at = NOW() WHERE id = ?", [$cartId]);

@@ -194,13 +194,15 @@ function ecCurrentCartCurrencyCode(): string
     $userId = ($user && ($user['source'] ?? '') === 'cms') ? (int)$user['id'] : 0;
     if ($userId > 0) {
         try {
-            $currency = ecDb()->query(
-                'SELECT ci.currency FROM ec_cart_items ci INNER JOIN ec_carts c ON c.id = ci.cart_id WHERE c.user_id = ? ORDER BY ci.id ASC LIMIT 1',
-                [$userId]
-            )->fetchColumn();
-            $currency = ecCurrencyNormalizeCode($currency);
-            if ($currency !== '') {
-                return $currency;
+            if (function_exists('ecCartItemsHasCurrencyColumn') && ecCartItemsHasCurrencyColumn()) {
+                $currency = ecDb()->query(
+                    'SELECT ci.currency FROM ec_cart_items ci INNER JOIN ec_carts c ON c.id = ci.cart_id WHERE c.user_id = ? ORDER BY ci.id ASC LIMIT 1',
+                    [$userId]
+                )->fetchColumn();
+                $currency = ecCurrencyNormalizeCode($currency);
+                if ($currency !== '') {
+                    return $currency;
+                }
             }
         } catch (\Throwable $e) {
         }

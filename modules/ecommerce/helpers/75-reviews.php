@@ -14,19 +14,6 @@ function ecReviewDefaultSummary(): array
     ];
 }
 
-function ecReviewTableExistsDirect(): bool
-{
-    try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?'
-        );
-        $stmt->execute(['ec_reviews']);
-        return (int)$stmt->fetchColumn() > 0;
-    } catch (\Throwable $e) {
-        return false;
-    }
-}
-
 function ecReviewStorageAvailable(): bool
 {
     static $ready = null;
@@ -34,26 +21,7 @@ function ecReviewStorageAvailable(): bool
         return $ready;
     }
 
-    $ready = ecReviewTableExistsDirect();
-    if ($ready) {
-        return true;
-    }
-
-    $migrationPath = BASE_PATH . '/modules/ecommerce/database/migrations/013_ec_reviews.sql';
-    if (!is_file($migrationPath)) {
-        return false;
-    }
-
-    try {
-        $sql = (string)file_get_contents($migrationPath);
-        if (trim($sql) !== '') {
-            app()->db()->exec($sql);
-        }
-    } catch (\Throwable $e) {
-        write_log('ecReviewStorageAvailable migration fallback failed: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
-    }
-
-    $ready = ecReviewTableExistsDirect();
+    $ready = ecTableExists('ec_reviews');
     return $ready;
 }
 

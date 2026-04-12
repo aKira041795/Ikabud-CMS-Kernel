@@ -13,7 +13,10 @@ function ecPublicCart(): void
 {
     $cart    = ecCartGet();
     $rates   = ecShippingRates();
-    $message = $_SESSION['ec_message'] ?? ['type' => '', 'text' => ''];
+    $message = $_SESSION['ec_message'] ?? null;
+    if (!is_array($message) || trim((string)($message['text'] ?? '')) === '') {
+        $message = null;
+    }
     $relationSections = function_exists('ecCartRecommendationSections') ? ecCartRecommendationSections((array)($cart['items'] ?? [])) : [];
     unset($_SESSION['ec_message']);
 
@@ -23,6 +26,7 @@ function ecPublicCart(): void
         'shipping_rates' => $rates,
         'message'        => $message,
         'relation_sections' => $relationSections,
+        'relation_display_variant' => 'compact',
     ]);
     
     if (function_exists('releaseSessionAfterRender')) {
@@ -53,8 +57,15 @@ function ecPublicCartAdd(): void
 
     $result = ecCartAdd($productId, $qty, $variantId, $options);
 
+    $cart = is_array($result['cart'] ?? null) ? $result['cart'] : ecCartGet();
+    $itemCount = (int)($cart['totals']['item_count'] ?? 0);
+    $totalFmt = trim((string)($cart['totals']['total_fmt'] ?? ''));
+    $summaryText = $itemCount > 0 && $totalFmt !== ''
+        ? 'Cart now has ' . $itemCount . ' item' . ($itemCount === 1 ? '' : 's') . ' totaling ' . $totalFmt . '.'
+        : 'Item added to cart.';
+
     $_SESSION['ec_message'] = $result['ok']
-        ? ['type' => 'success', 'text' => 'Item added to cart.']
+        ? ['type' => 'success', 'text' => $summaryText]
         : ['type' => 'error', 'text' => (string)($result['error'] ?? 'Could not add item to cart.')];
 
     header('Location: /ecommerce/cart');

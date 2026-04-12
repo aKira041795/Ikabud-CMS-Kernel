@@ -9,44 +9,7 @@ function ecReturnRequestStorageAvailable(): bool
         return $ready;
     }
 
-    try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (?, ?)' 
-        );
-        $stmt->execute(['ec_return_requests', 'ec_return_request_items']);
-        $ready = (int)$stmt->fetchColumn() === 2;
-    } catch (\Throwable $e) {
-        $ready = false;
-    }
-
-    if ($ready) {
-        return true;
-    }
-
-    $migrationPath = BASE_PATH . '/modules/ecommerce/database/migrations/024_ec_return_requests.sql';
-    if (!is_file($migrationPath)) {
-        return false;
-    }
-
-    try {
-        $sql = (string)file_get_contents($migrationPath);
-        if (trim($sql) !== '') {
-            app()->db()->exec($sql);
-        }
-    } catch (\Throwable $e) {
-        write_log('ecReturnRequestStorageAvailable migration fallback failed: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
-    }
-
-    try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (?, ?)' 
-        );
-        $stmt->execute(['ec_return_requests', 'ec_return_request_items']);
-        $ready = (int)$stmt->fetchColumn() === 2;
-    } catch (\Throwable $e) {
-        $ready = false;
-    }
-
+    $ready = ecTableExists('ec_return_requests') && ecTableExists('ec_return_request_items');
     return $ready;
 }
 

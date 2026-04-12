@@ -1153,7 +1153,7 @@ function ecProductBridgeEventPayload(int $productId): array
         'booking_enabled' => !empty($product['booking']['enabled']),
         'addon_count' => is_array($product['addons'] ?? null) ? count($product['addons']) : 0,
         'track_stock' => (bool)($inventory['track_stock'] ?? false),
-        'stock_qty' => array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : null,
+        'stock_qty' => array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : 0,
         'price' => array_key_exists('price', $pricing) && $pricing['price'] !== null ? (float)$pricing['price'] : null,
         'sale_price' => array_key_exists('sale_price', $pricing) && $pricing['sale_price'] !== null ? (float)$pricing['sale_price'] : null,
     ];
@@ -1330,7 +1330,7 @@ function ecStorefrontNormalizeBundleSummary(array $summary, ?string $currencyCod
 function ecStorefrontNormalizeInventory(array $inventory): array
 {
     $trackStock = (bool)($inventory['track_stock'] ?? false);
-    $stockQty = array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : null;
+    $stockQty = array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : 0;
     $inStock = array_key_exists('in_stock', $inventory)
         ? (bool)$inventory['in_stock']
         : (!$trackStock || (($stockQty ?? 0) > 0));
@@ -1358,7 +1358,7 @@ function ecProductInventoryStateFromConfig(array $config, bool $isDigital, int $
             'in_stock' => true,
             'out_of_stock' => false,
             'low_stock' => false,
-            'stock_qty' => null,
+            'stock_qty' => 0,
             'sku' => '',
             'track_stock' => false,
             'badge' => ['label' => '', 'tone' => ''],
@@ -1370,7 +1370,7 @@ function ecProductInventoryStateFromConfig(array $config, bool $isDigital, int $
             'in_stock' => true,
             'out_of_stock' => false,
             'low_stock' => false,
-            'stock_qty' => null,
+            'stock_qty' => 0,
             'sku' => $config['sku'] ?? '',
             'track_stock' => false,
             'badge' => ['label' => '', 'tone' => ''],
@@ -2510,7 +2510,7 @@ function ecProductInventory(int $productId): array
         )->fetch(\PDO::FETCH_ASSOC);
 
         if (!$row) {
-            return ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
+            return ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => 0, 'sku' => '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
         }
 
         $config     = (array)json_decode($row['config'] ?? '{}', true);

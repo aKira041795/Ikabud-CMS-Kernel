@@ -8,9 +8,34 @@
             {if section.description}<p class="mt-1 text-sm text-gray-500">{section.description}</p>{/if}
         </div>
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 {if relation_display_variant == 'compact'}xl:grid-cols-2{else}xl:grid-cols-4{/if}">
             {foreach section.items as item}
-            <a href="{item.url}" class="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+            <a href="{item.url}" class="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md {if relation_display_variant == 'compact'}p-3{/if}">
+                {if relation_display_variant == 'compact'}
+                <div class="flex items-start gap-3">
+                    <div class="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                        <img src="{if item.primary_image_url}{item.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{item.title}" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105">
+                    </div>
+                    <div class="min-w-0 flex-1 space-y-1">
+                        <h3 class="text-sm font-semibold text-gray-900 line-clamp-2">{item.title}</h3>
+                        {if item.review_summary.has_reviews|default:false}
+                        <div class="text-xs font-medium text-amber-700">{item.review_summary.average_rating_formatted}/5 · {item.review_summary.approved_count} {if item.review_summary.approved_count == 1}review{else}reviews{/if}</div>
+                        {/if}
+                        {if item.excerpt}<p class="text-xs text-gray-500 line-clamp-2">{item.excerpt}</p>{/if}
+                        <div class="flex items-center justify-between gap-3 pt-1">
+                            <div>
+                                {if item.pricing.on_sale|default:false}
+                                <div class="text-sm font-semibold text-orange-600">{item.pricing.formatted}</div>
+                                <div class="text-xs text-gray-400 line-through">{item.pricing.regular_fmt}</div>
+                                {else}
+                                <div class="text-sm font-semibold text-gray-900">{item.pricing.formatted|default:'View product'}</div>
+                                {/if}
+                            </div>
+                            <span class="text-xs font-medium {if item.inventory.out_of_stock|default:false}text-red-600{else}text-sky-600{/if}">{if item.inventory.out_of_stock|default:false}Out of stock{else}View{/if}</span>
+                        </div>
+                    </div>
+                </div>
+                {else}
                 <div class="aspect-[4/3] overflow-hidden bg-gray-100">
                     <img src="{if item.primary_image_url}{item.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{item.title}" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105">
                 </div>
@@ -32,6 +57,7 @@
                         <span class="text-xs font-medium {if item.inventory.out_of_stock|default:false}text-red-600{else}text-sky-600{/if}">{if item.inventory.out_of_stock|default:false}Out of stock{else}View{/if}</span>
                     </div>
                 </div>
+                {/if}
             </a>
             {/foreach}
         </div>

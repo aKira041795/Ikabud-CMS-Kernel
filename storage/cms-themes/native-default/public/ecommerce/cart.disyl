@@ -10,7 +10,13 @@
         <div>
             <p class="native-storefront-kicker">Basket</p>
             <h1>Your Cart</h1>
-            <p class="native-storefront-subtitle">A native-theme cart template with the active shell, the shared catalog settings, and the checkout path kept intact.</p>
+            <p class="native-storefront-subtitle">
+                {if cart.totals.item_count > 0}
+                {cart.totals.item_count} item{if cart.totals.item_count != 1}s{/if} in your basket, currently totaling {cart.totals.total_fmt}.
+                {else}
+                Your basket is empty. Add products from the catalog and they will appear here.
+                {/if}
+            </p>
         </div>
         <a href="{base_url}/ecommerce/shop" class="button button-secondary">Continue Shopping</a>
     </header>

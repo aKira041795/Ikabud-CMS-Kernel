@@ -428,14 +428,23 @@ function ecNormalizeCartRenderContext(array $context, string $template, array &$
 
     $context['cart'] = ecNormalizeCartContextShape(is_array($context['cart']) ? $context['cart'] : [], $missingKeys, $typeMismatches);
     $context['shipping_rates'] = ecNormalizeRenderArrayList($context['shipping_rates'], 'shipping_rates', $typeMismatches);
+    $message = is_array($context['message']) ? $context['message'] : [];
+    $messageText = trim((string)($message['text'] ?? ''));
+    if ($messageText === '') {
+        $context['message'] = [];
+        return $context;
+    }
+
     $context['message'] = kernelApplyRenderContextShape(
-        is_array($context['message']) ? $context['message'] : [],
-        ['type' => '', 'text' => ''],
-        ['type', 'text'],
+        $message,
+        ['type' => 'info', 'text' => $messageText],
+        ['text'],
         $missingKeys,
         $typeMismatches,
         'message.'
     );
+    $context['message']['text'] = $messageText;
+    $context['message']['type'] = trim((string)($context['message']['type'] ?? '')) ?: 'info';
 
     return $context;
 }
