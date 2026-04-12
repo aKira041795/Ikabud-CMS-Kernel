@@ -63,7 +63,7 @@ function restoreTenantModuleSetting(string $moduleId, string $key, bool $hadOrig
         return;
     }
 
-    $GLOBALS['_kernel_db_unguarded'] = true;
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     try {
         $db = app()->db();
         $table = moduleTenantSettingsTable();
@@ -85,7 +85,7 @@ function restoreTenantModuleSetting(string $moduleId, string $key, bool $hadOrig
             ':sval' => json_encode($originalValue, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ]);
     } finally {
-        $GLOBALS['_kernel_db_unguarded'] = false;
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
         invalidateTenantModuleSettingsCache();
         $tid = $tenantId ?? 0;
         $GLOBALS['cms_settings_cached_t' . $tid] = false;

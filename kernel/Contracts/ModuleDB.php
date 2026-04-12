@@ -160,6 +160,8 @@ class ModuleDB implements DatabaseContract
         $stripped = preg_replace('/\'[^\']*\'|"[^"]*"/', "''", $normalized) ?? $normalized;
         $stripped = preg_replace('/--.*$/m', '', $stripped);
         $stripped = preg_replace('/\/\*.*?\*\//s', '', $stripped) ?? $stripped;
+        // Strip backticks so that `DROP` or DR`O`P cannot bypass keyword detection.
+        $stripped = str_replace('`', '', $stripped);
         // Only deny if there is meaningful SQL content after a semicolon.
         if (preg_match('/;\s*\S/', $stripped)) {
             $this->deny("Multi-statement queries are forbidden for modules", $sql);
@@ -261,9 +263,24 @@ class ModuleDB implements DatabaseContract
         // Remove ON DUPLICATE KEY UPDATE ... clauses (not table references)
         $clean = preg_replace('/ON\s+DUPLICATE\s+KEY\s+UPDATE\b.*/is', '', $clean);
 
-        // FROM / JOIN clauses: FROM table [alias], LEFT JOIN table [alias]
-        if (preg_match_all('/(?:FROM|JOIN)\s+`?(\w+)`?/i', $clean, $m)) {
-            $tables = array_merge($tables, $m[1]);
+        // FROM / JOIN clauses: FROM table [alias] [, table2 [alias2], ...]
+        // Also handles comma-separated table lists (implicit joins).
+        if (preg_match_all('/(?:FROM|JOIN)\s+`?(\w+)`?(?:\s+(?:AS\s+)?\w+)?(?:\s*,\s*`?(\w+)`?)*/i', $clean, $m, PREG_SET_ORDER)) {
+            foreach ($m as $match) {
+                $tables[] = $match[1];
+            }
+        }
+        // Capture additional comma-separated tables after FROM: FROM t1 [alias], t2 [alias], ...
+        if (preg_match_all('/\bFROM\s+(.*?)(?:\bWHERE\b|\bORDER\b|\bGROUP\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|\bJOIN\b|\bLEFT\b|\bRIGHT\b|\bINNER\b|\bOUTER\b|\bCROSS\b|\bON\b|$)/is', $clean, $fromClauses)) {
+            foreach ($fromClauses[1] as $fromClause) {
+                // Split on commas and extract table names
+                $parts = preg_split('/\s*,\s*/', trim($fromClause));
+                foreach ($parts as $part) {
+                    if (preg_match('/^`?(\w+)`?/i', trim($part), $tm)) {
+                        $tables[] = $tm[1];
+                    }
+                }
+            }
         }
 
         // INSERT INTO table

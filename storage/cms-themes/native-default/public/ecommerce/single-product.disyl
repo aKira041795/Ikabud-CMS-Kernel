@@ -250,6 +250,7 @@
 </div>
 
 <script>
+const __ecCsrf = '{csrf_token}';
 function updateCartBadge(count) {
     const badge = document.getElementById('cart-count-badge');
     const cardCount = document.getElementById('view-cart-card-count');
@@ -301,8 +302,9 @@ async function addToCart(productId, qty, clickEvent) {
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-            body: JSON.stringify({ product_id: productId, qty: parseInt(qty, 10) || 1, add_ons: options.add_ons, booking: options.booking }),
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+            body: JSON.stringify({ _token: __ecCsrf, product_id: productId, qty: parseInt(qty, 10) || 1, add_ons: options.add_ons, booking: options.booking }),
         });
         const data = await res.json();
         if (data.ok) {
@@ -339,8 +341,9 @@ async function addBundleToCart(productId, clickEvent) {
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-            body: JSON.stringify({ product_id: productId, qty: qty > 0 ? qty : 1 }),
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+            body: JSON.stringify({ _token: __ecCsrf, product_id: productId, qty: qty > 0 ? qty : 1 }),
         });
         const data = await res.json();
         if (data.ok) {
@@ -385,8 +388,9 @@ async function addGroupedToCart(parentProductId, clickEvent) {
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-            body: JSON.stringify({ grouped_parent_id: parentProductId, grouped_items: groupedItems }),
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+            body: JSON.stringify({ _token: __ecCsrf, grouped_parent_id: parentProductId, grouped_items: groupedItems }),
         });
         const data = await res.json();
         if (data.ok) {

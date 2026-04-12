@@ -104,6 +104,11 @@ final class KernelPDO extends PDO
         // any call-sites not yet migrated continue to work.  Remove once all
         // callers have been updated to kernelEscalationEnter/Leave.
         if ((bool)\kernel_request_context_get('_kernel_db_unguarded', false)) {
+            \write_log(
+                'Deprecated: _kernel_db_unguarded flag used — migrate to KernelPDO::kernelEscalationEnter/Leave',
+                'warning',
+                ['trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)]
+            );
             return;
         }
 

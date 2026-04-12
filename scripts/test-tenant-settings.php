@@ -61,7 +61,7 @@ if ($writeOk) {
     }
 
     // Clean up test key
-    $GLOBALS['_kernel_db_unguarded'] = true;
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     try {
         $db = app()->db();
         $stmt = $db->prepare(
@@ -72,7 +72,7 @@ if ($writeOk) {
     } catch (Throwable $e) {
         echo "Cleanup note: " . $e->getMessage() . "\n";
     } finally {
-        $GLOBALS['_kernel_db_unguarded'] = false;
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 } else {
     echo "SKIP: Write failed (table may not exist in single-tenant mode)\n";

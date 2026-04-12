@@ -79,7 +79,14 @@ function &kernel_request_context_store(): array
 function kernel_request_context_has(string $key): bool
 {
     $context = &kernel_request_context_store();
-    return array_key_exists($key, $context) || array_key_exists($key, $GLOBALS);
+    if (array_key_exists($key, $context)) {
+        return true;
+    }
+    // Security: never allow modules to spoof _kernel_ internal flags via $GLOBALS.
+    if (str_starts_with($key, '_kernel_')) {
+        return false;
+    }
+    return array_key_exists($key, $GLOBALS);
 }
 
 function kernel_request_context_get(string $key, mixed $default = null): mixed
@@ -87,6 +94,13 @@ function kernel_request_context_get(string $key, mixed $default = null): mixed
     $context = &kernel_request_context_store();
     if (array_key_exists($key, $context)) {
         return $context[$key];
+    }
+
+    // Security: never allow modules to spoof _kernel_ internal flags via $GLOBALS.
+    // These flags must only be set through kernel_request_context_set() which is
+    // controlled by kernel code paths. Direct $GLOBALS writes bypass this control.
+    if (str_starts_with($key, '_kernel_')) {
+        return $default;
     }
 
     if (array_key_exists($key, $GLOBALS)) {
@@ -366,6 +380,68 @@ function is_https(): bool
     }
 
     return false;
+}
+
+/**
+ * Resolve the client IP address with trusted-proxy awareness.
+ *
+ * Only trusts X-Forwarded-For when REMOTE_ADDR is in the TRUSTED_PROXIES
+ * env var (comma-separated IPs/CIDRs, or "*" to trust all).
+ * Without TRUSTED_PROXIES, always returns REMOTE_ADDR.
+ */
+function kernel_client_ip(): string
+{
+    $remoteAddr = (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+    $forwarded  = (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+
+    if ($forwarded === '') {
+        return $remoteAddr;
+    }
+
+    $trustedProxies = trim((string)($_ENV['TRUSTED_PROXIES'] ?? ''));
+    if ($trustedProxies === '') {
+        // No trusted proxies configured — do not trust forwarded headers.
+        return $remoteAddr;
+    }
+
+    // Check if REMOTE_ADDR is a trusted proxy.
+    $isTrusted = false;
+    if ($trustedProxies === '*') {
+        $isTrusted = true;
+    } else {
+        foreach (array_map('trim', explode(',', $trustedProxies)) as $entry) {
+            if ($entry === '') {
+                continue;
+            }
+            if (str_contains($entry, '/')) {
+                [$subnet, $bits] = explode('/', $entry, 2);
+                $bits = (int)$bits;
+                if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $mask = $bits > 0 ? (~0 << (32 - $bits)) & 0xFFFFFFFF : 0;
+                    if ((ip2long($remoteAddr) & $mask) === (ip2long($subnet) & $mask)) {
+                        $isTrusted = true;
+                        break;
+                    }
+                }
+            } elseif ($entry === $remoteAddr) {
+                $isTrusted = true;
+                break;
+            }
+        }
+    }
+
+    if (!$isTrusted) {
+        return $remoteAddr;
+    }
+
+    // Trust the leftmost (client-originating) IP from X-Forwarded-For.
+    $parts = explode(',', $forwarded);
+    $ip = trim($parts[0]);
+    if (filter_var($ip, FILTER_VALIDATE_IP)) {
+        return $ip;
+    }
+
+    return $remoteAddr;
 }
 
 function request_scheme(): string

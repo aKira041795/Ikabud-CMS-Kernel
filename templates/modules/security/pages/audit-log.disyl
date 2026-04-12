@@ -1,0 +1,107 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .sec-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .sec-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .sec-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .sec-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .sec-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .sec-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .badge-critical { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fef2f2; color:#dc2626; }
+    .badge-warning { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fefce8; color:#d97706; }
+    .badge-info { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#eff6ff; color:#2563eb; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+    .pagination { display:flex; gap:4px; margin-top:16px; justify-content:center; }
+    .pagination a { padding:6px 12px; border-radius:6px; border:1px solid var(--border,#e5e7eb); text-decoration:none; font-size:13px; }
+    .pagination a.active { background:var(--primary,#2563eb); color:#fff; border-color:var(--primary,#2563eb); }
+</style>
+{/block}
+
+{block content}
+<div class="sec-header">
+    <div>
+        <h2>&#128274; Security</h2>
+        <span class="text-sm text-muted">Audit Log</span>
+    </div>
+    <button class="btn btn-sm" onclick="clearLog()" style="background:#dc2626;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Prune Old Entries</button>
+</div>
+
+<div class="sec-tabs">
+    <a href="/admin/security">Dashboard</a>
+    <a href="/admin/security/audit-log" class="active">Audit Log</a>
+    <a href="/admin/security/integrity">File Integrity</a>
+    <a href="/admin/security/ip-allowlist">IP Allowlist</a>
+    <a href="/admin/security/settings">Settings</a>
+</div>
+
+<div style="margin-bottom:16px;">
+    <select onchange="location.href='/admin/security/audit-log?filter='+this.value" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border,#e5e7eb);font-size:14px;">
+        <option value="all" {if filter == "all"}selected{/if}>All Events</option>
+        <option value="login_failed" {if filter == "login_failed"}selected{/if}>Login Failed</option>
+        <option value="csrf_blocked" {if filter == "csrf_blocked"}selected{/if}>CSRF Blocked</option>
+        <option value="integrity_mismatch" {if filter == "integrity_mismatch"}selected{/if}>Integrity Mismatch</option>
+        <option value="ip_allowlist_blocked" {if filter == "ip_allowlist_blocked"}selected{/if}>IP Blocked</option>
+        <option value="auto_escalation" {if filter == "auto_escalation"}selected{/if}>Auto-Escalation</option>
+    </select>
+    <span class="text-sm text-muted" style="margin-left:8px;">{total} total entries</span>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding:0;">
+        <table class="table" style="margin:0;">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Event</th>
+                    <th>Severity</th>
+                    <th>IP</th>
+                    <th>User</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for entry in entries}
+                <tr>
+                    <td class="text-sm text-muted">{entry.created_at}</td>
+                    <td><code>{entry.event_type}</code></td>
+                    <td>
+                        {if entry.severity == "critical"}<span class="badge-critical">Critical</span>{/if}
+                        {if entry.severity == "warning"}<span class="badge-warning">Warning</span>{/if}
+                        {if entry.severity == "info"}<span class="badge-info">Info</span>{/if}
+                    </td>
+                    <td class="text-sm">{entry.ip_address}</td>
+                    <td class="text-sm">{entry.user_source}:{entry.user_id}</td>
+                    <td class="text-sm text-muted" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;">{entry.detail_json}</td>
+                </tr>
+                {/for}
+                {if entries|length == 0}
+                <tr><td colspan="6" class="text-muted text-sm" style="text-align:center;padding:20px;">No audit log entries.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{if total_pages > 1}
+<div class="pagination">
+    {if page > 1}<a href="/admin/security/audit-log?page={page - 1}&filter={filter}">Prev</a>{/if}
+    <span class="text-sm text-muted" style="padding:6px 12px;">Page {page} of {total_pages}</span>
+    {if page < total_pages}<a href="/admin/security/audit-log?page={page + 1}&filter={filter}">Next</a>{/if}
+</div>
+{/if}
+
+<script>
+function clearLog() {
+    if (!confirm('Prune audit log entries older than the retention period?')) return;
+    fetch('/api/v1/security/audit-log/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' }
+    })
+    .then(r => r.json())
+    .then(d => { alert('Deleted ' + (d.deleted||0) + ' old entries'); location.reload(); })
+    .catch(e => alert('Error: ' + e.message));
+}
+</script>
+{/block}

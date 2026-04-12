@@ -234,9 +234,9 @@ $chaosTidB     = 99992;
 
 try {
     // Ensure the settings table exists
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     $tableOk = moduleTenantSettingsEnsureTable($db);
-    kernel_request_context_set('_kernel_db_unguarded', false);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
 
     t('tenant module settings table is available', $tableOk);
 
@@ -251,10 +251,10 @@ try {
             . 'ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()'
         );
 
-        kernel_request_context_set('_kernel_db_unguarded', true);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         $stmtIns->execute([':tid' => $chaosTidA, ':mid' => $chaosModuleId, ':skey' => 'color', ':sval' => '"red"']);
         $stmtIns->execute([':tid' => $chaosTidB, ':mid' => $chaosModuleId, ':skey' => 'color', ':sval' => '"blue"']);
-        kernel_request_context_set('_kernel_db_unguarded', false);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
 
         // Read back via the module-manager function (uses tenant_id in WHERE clause)
         $settingsA = _readTenantModuleSettingsSingle($chaosModuleId, $chaosTidA);
@@ -279,13 +279,13 @@ try {
 } finally {
     // Clean up chaos rows
     try {
-        kernel_request_context_set('_kernel_db_unguarded', true);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         $table = moduleTenantSettingsTable();
         $stmtClean = $db->prepare(
             "DELETE FROM {$table} WHERE module_id = :mid AND tenant_id IN (:tA, :tB)"
         );
         $stmtClean->execute([':mid' => $chaosModuleId, ':tA' => $chaosTidA, ':tB' => $chaosTidB]);
-        kernel_request_context_set('_kernel_db_unguarded', false);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     } catch (Throwable) {
         // best effort
     }

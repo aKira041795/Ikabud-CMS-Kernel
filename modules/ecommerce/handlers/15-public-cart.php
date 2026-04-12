@@ -35,11 +35,6 @@ function ecPublicCart(): void
  */
 function ecPublicCartAdd(): void
 {
-    // CSRF check for cookie-authenticated (browser) requests.
-    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    if ($authHeader === '' || !str_starts_with(strtolower($authHeader), 'bearer ')) {
-        app()->csrfEnforce();
-    }
 
     $input     = app()->input();
     $productId = (int)($input['product_id'] ?? $input['entity_id'] ?? 0);

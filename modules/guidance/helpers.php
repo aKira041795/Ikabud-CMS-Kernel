@@ -1565,17 +1565,8 @@ function guidanceSaveCounselorAvailability(\Ikabud\Kernel\Contracts\DatabaseCont
 
 function clientIp(): string
 {
-    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-        return filter_var($_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP) ?: ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
-    }
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ips = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
-        $ip = end($ips);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
-        }
-    }
-    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    // Delegate to kernel-level trusted-proxy-aware IP resolver.
+    return kernel_client_ip();
 }
 
 function rateLimit(string $key, int $maxAttempts = 5, int $windowSeconds = 300): bool

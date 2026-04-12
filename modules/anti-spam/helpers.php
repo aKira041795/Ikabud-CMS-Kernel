@@ -509,16 +509,8 @@ function antispamLog(string $ip, string $checkType, string $result, string $deta
 
 function antispamClientIp(): string
 {
-    // Prefer X-Forwarded-For behind proxies, fall back to REMOTE_ADDR
-    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
-    if ($forwarded !== '') {
-        $parts = explode(',', $forwarded);
-        $ip = trim($parts[0]);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
-        }
-    }
-    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    // Delegate to kernel-level trusted-proxy-aware IP resolver.
+    return kernel_client_ip();
 }
 
 // ── Kernel Integration ───────────────────────────────────────────────────

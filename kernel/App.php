@@ -1056,23 +1056,35 @@ class App
                 }
 
                 // token_version check: reject tokens issued before the last password change.
-                // Only applies to kernel-source users (source = 'kernel') with a numeric id.
+                // Applies to all authenticated sources (kernel + module users).
                 if ($this->currentUser !== null
-                    && ($this->currentUser['source'] ?? '') === 'kernel'
                     && isset($this->currentUser['token_version'])
                 ) {
                     $userId = (int)($this->currentUser['id'] ?? 0);
+                    $source = $this->currentUser['source'] ?? 'kernel';
                     if ($userId > 0) {
-                        try {
-                            $tvRow = $this->db()->query(
-                                'SELECT COALESCE(token_version, 0) AS token_version FROM users WHERE id = ' . $userId . ' LIMIT 1'
-                            )->fetch(\PDO::FETCH_ASSOC);
-                            if (is_array($tvRow) && (int)$tvRow['token_version'] !== (int)$this->currentUser['token_version']) {
-                                $this->currentUser = null;
-                                return null;
+                        // Map JWT source to the user table that holds token_version.
+                        $sourceTableMap = [
+                            'kernel'       => 'users',
+                            'cms'          => 'cms_users',
+                            'guidance'     => 'gm_users',
+                            'daily-ledger' => 'dl_admins',
+                        ];
+                        $userTable = $sourceTableMap[$source] ?? null;
+                        if ($userTable !== null) {
+                            try {
+                                $stmt = $this->db()->prepare(
+                                    'SELECT COALESCE(token_version, 0) AS token_version FROM `' . $userTable . '` WHERE id = ? LIMIT 1'
+                                );
+                                $stmt->execute([$userId]);
+                                $tvRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+                                if (is_array($tvRow) && (int)$tvRow['token_version'] !== (int)$this->currentUser['token_version']) {
+                                    $this->currentUser = null;
+                                    return null;
+                                }
+                            } catch (\Throwable $ignored) {
+                                // Non-fatal: column may not exist yet (pre-migration). Continue.
                             }
-                        } catch (\Throwable $ignored) {
-                            // Non-fatal: column may not exist yet (pre-migration). Continue.
                         }
                     }
                 }

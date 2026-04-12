@@ -1,0 +1,106 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .sec-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .sec-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .sec-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .sec-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .sec-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .sec-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+    .add-form { display:flex; gap:8px; margin-bottom:20px; align-items:center; }
+    .add-form input { padding:8px 12px; border:1px solid var(--border,#e5e7eb); border-radius:6px; font-size:14px; }
+    .badge-active { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#f0fdf4; color:#16a34a; }
+    .badge-inactive { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#f3f4f6; color:#6b7280; }
+</style>
+{/block}
+
+{block content}
+<div class="sec-header">
+    <div>
+        <h2>&#128274; Security</h2>
+        <span class="text-sm text-muted">Admin IP Allowlist</span>
+    </div>
+    <div>
+        {if allowlist_enabled}<span class="badge-active">Enabled</span>{else}<span class="badge-inactive">Disabled</span>{/if}
+    </div>
+</div>
+
+<div class="sec-tabs">
+    <a href="/admin/security">Dashboard</a>
+    <a href="/admin/security/audit-log">Audit Log</a>
+    <a href="/admin/security/integrity">File Integrity</a>
+    <a href="/admin/security/ip-allowlist" class="active">IP Allowlist</a>
+    <a href="/admin/security/settings">Settings</a>
+</div>
+
+{if !allowlist_enabled}
+<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:16px;margin-bottom:20px;" class="text-sm">
+    Admin IP allowlist is currently disabled. Enable it in <a href="/admin/security/settings">Settings</a> to restrict admin access by IP.
+</div>
+{/if}
+
+<div class="add-form">
+    <input type="text" id="new-ip" placeholder="IP Address (e.g. 192.168.1.1)" style="width:220px;">
+    <input type="text" id="new-label" placeholder="Label (optional)" style="width:200px;">
+    <button onclick="addIp()" style="background:var(--primary,#2563eb);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;">Add IP</button>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding:0;">
+        <table class="table" style="margin:0;">
+            <thead>
+                <tr>
+                    <th>IP Address</th>
+                    <th>Label</th>
+                    <th>Added</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for ip in allowlist}
+                <tr>
+                    <td><code>{ip.ip_address}</code></td>
+                    <td class="text-sm">{ip.label}</td>
+                    <td class="text-sm text-muted">{ip.created_at}</td>
+                    <td><button onclick="removeIp('{ip.ip_address}')" style="background:#dc2626;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;">Remove</button></td>
+                </tr>
+                {/for}
+                {if allowlist|length == 0}
+                <tr><td colspan="4" class="text-muted text-sm" style="text-align:center;padding:20px;">No IPs in the allowlist. When the allowlist is empty, all IPs are allowed.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function addIp() {
+    const ip = document.getElementById('new-ip').value.trim();
+    const label = document.getElementById('new-label').value.trim();
+    if (!ip) { alert('Enter an IP address'); return; }
+    fetch('/api/v1/security/ip-allowlist/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' },
+        body: JSON.stringify({ ip_address: ip, label: label })
+    })
+    .then(r => r.json())
+    .then(d => { if (d.error) { alert(d.error); } else { location.reload(); } })
+    .catch(e => alert('Error: ' + e.message));
+}
+
+function removeIp(ip) {
+    if (!confirm('Remove ' + ip + ' from the allowlist?')) return;
+    fetch('/api/v1/security/ip-allowlist/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' },
+        body: JSON.stringify({ ip_address: ip })
+    })
+    .then(r => r.json())
+    .then(d => location.reload())
+    .catch(e => alert('Error: ' + e.message));
+}
+</script>
+{/block}

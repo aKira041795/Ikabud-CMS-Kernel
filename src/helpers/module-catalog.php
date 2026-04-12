@@ -28,6 +28,16 @@ function invalidateModuleCatalogCache(): void
     );
 }
 
+function moduleCatalogWithKernelDbEscalation(callable $callback): mixed
+{
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+    try {
+        return $callback();
+    } finally {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+    }
+}
+
 function moduleControlPlaneEnsureCatalogTables(): bool
 {
     static $ensured = null;
@@ -160,8 +170,7 @@ function moduleCatalogEntryRefresh(string $moduleId): ?array
         return null;
     }
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
     try {
         $stmt = app()->controlDb()->prepare(
             'SELECT module_id, module_name, approved_version, checksum_sha256, install_path, source, '
@@ -189,7 +198,7 @@ function moduleCatalogEntryRefresh(string $moduleId): ?array
     } catch (Throwable $e) {
         return null;
     } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 }
 
@@ -404,60 +413,55 @@ function readTenantModuleEntitlementsForTenant(int $tenantId): array
         return [];
     }
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
-
-    $cacheKey = '_kernel_module_entitlement_cache';
-    $cache = $GLOBALS[$cacheKey] ?? [];
-    if (is_array($cache) && isset($cache[$tenantId]) && is_array($cache[$tenantId])) {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-        return $cache[$tenantId];
-    }
-
-    if (!moduleControlPlaneEnsureCatalogTables()) {
-        if (!isset($GLOBALS[$cacheKey]) || !is_array($GLOBALS[$cacheKey])) {
-            $GLOBALS[$cacheKey] = [];
+    return moduleCatalogWithKernelDbEscalation(static function () use ($tenantId): array {
+        $cacheKey = '_kernel_module_entitlement_cache';
+        $cache = $GLOBALS[$cacheKey] ?? [];
+        if (is_array($cache) && isset($cache[$tenantId]) && is_array($cache[$tenantId])) {
+            return $cache[$tenantId];
         }
-        $GLOBALS[$cacheKey][$tenantId] = [];
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-        return [];
-    }
 
-    try {
-        $stmt = app()->controlDb()->prepare(
-            'SELECT tenant_id, module_id, status, tier, source, granted_by_user_id, expires_at, metadata_json, '
-            . 'granted_at, created_at, updated_at '
-            . 'FROM ' . moduleTenantEntitlementsTable() . ' '
-            . 'WHERE tenant_id = :tenant_id '
-            . 'ORDER BY module_id ASC'
-        );
-        $stmt->execute([':tenant_id' => $tenantId]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $entitlements = [];
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
+        if (!moduleControlPlaneEnsureCatalogTables()) {
+            if (!isset($GLOBALS[$cacheKey]) || !is_array($GLOBALS[$cacheKey])) {
+                $GLOBALS[$cacheKey] = [];
             }
-            $moduleId = trim((string)($row['module_id'] ?? ''));
-            if ($moduleId === '') {
-                continue;
-            }
-            $metadataRaw = (string)($row['metadata_json'] ?? '');
-            $metadata = $metadataRaw !== '' ? json_decode($metadataRaw, true) : null;
-            $row['module_id'] = $moduleId;
-            $row['metadata'] = is_array($metadata) ? $metadata : [];
-            $entitlements[$moduleId] = $row;
+            $GLOBALS[$cacheKey][$tenantId] = [];
+            return [];
         }
-        $cache[$tenantId] = $entitlements;
-        $GLOBALS[$cacheKey] = $cache;
-        return $entitlements;
-    } catch (Throwable $e) {
-        $cache[$tenantId] = [];
-        $GLOBALS[$cacheKey] = $cache;
-        return [];
-    } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-    }
+
+        try {
+            $stmt = app()->controlDb()->prepare(
+                'SELECT tenant_id, module_id, status, tier, source, granted_by_user_id, expires_at, metadata_json, '
+                . 'granted_at, created_at, updated_at '
+                . 'FROM ' . moduleTenantEntitlementsTable() . ' '
+                . 'WHERE tenant_id = :tenant_id '
+                . 'ORDER BY module_id ASC'
+            );
+            $stmt->execute([':tenant_id' => $tenantId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $entitlements = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $moduleId = trim((string)($row['module_id'] ?? ''));
+                if ($moduleId === '') {
+                    continue;
+                }
+                $metadataRaw = (string)($row['metadata_json'] ?? '');
+                $metadata = $metadataRaw !== '' ? json_decode($metadataRaw, true) : null;
+                $row['module_id'] = $moduleId;
+                $row['metadata'] = is_array($metadata) ? $metadata : [];
+                $entitlements[$moduleId] = $row;
+            }
+            $cache[$tenantId] = $entitlements;
+            $GLOBALS[$cacheKey] = $cache;
+            return $entitlements;
+        } catch (Throwable $e) {
+            $cache[$tenantId] = [];
+            $GLOBALS[$cacheKey] = $cache;
+            return [];
+        }
+    });
 }
 
 function moduleTenantEntitlementRow(string $moduleId, int $tenantId): ?array
@@ -498,40 +502,38 @@ function grantModuleEntitlementForTenant(string $moduleId, int $tenantId, array 
         $source = 'superadmin';
     }
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
-    try {
-        $stmt = app()->controlDb()->prepare(
-            'INSERT INTO ' . moduleTenantEntitlementsTable() . ' '
-            . '(tenant_id, module_id, status, tier, source, granted_by_user_id, expires_at, metadata_json, granted_at, created_at, updated_at) '
-            . 'VALUES (:tenant_id, :module_id, :status, :tier, :source, :granted_by_user_id, :expires_at, :metadata_json, NOW(), NOW(), NOW()) '
-            . 'ON DUPLICATE KEY UPDATE '
-            . 'status = VALUES(status), '
-            . 'tier = VALUES(tier), '
-            . 'source = VALUES(source), '
-            . 'granted_by_user_id = VALUES(granted_by_user_id), '
-            . 'expires_at = VALUES(expires_at), '
-            . 'metadata_json = VALUES(metadata_json), '
-            . 'granted_at = VALUES(granted_at), '
-            . 'updated_at = NOW()'
-        );
-        $stmt->execute([
-            ':tenant_id' => $tenantId,
-            ':module_id' => $moduleId,
-            ':status' => $status,
-            ':tier' => $tier,
-            ':source' => $source,
-            ':granted_by_user_id' => $grantedByUserId > 0 ? $grantedByUserId : null,
-            ':expires_at' => $expiresAt !== '' ? $expiresAt : null,
-            ':metadata_json' => $metadataJson !== false ? $metadataJson : null,
-        ]);
-        invalidateModuleCatalogCache();
-        return true;
-    } catch (Throwable $e) {
-        return false;
-    } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-    }
+    return moduleCatalogWithKernelDbEscalation(static function () use ($expiresAt, $grantedByUserId, $metadataJson, $moduleId, $source, $status, $tenantId, $tier): bool {
+        try {
+            $stmt = app()->controlDb()->prepare(
+                'INSERT INTO ' . moduleTenantEntitlementsTable() . ' '
+                . '(tenant_id, module_id, status, tier, source, granted_by_user_id, expires_at, metadata_json, granted_at, created_at, updated_at) '
+                . 'VALUES (:tenant_id, :module_id, :status, :tier, :source, :granted_by_user_id, :expires_at, :metadata_json, NOW(), NOW(), NOW()) '
+                . 'ON DUPLICATE KEY UPDATE '
+                . 'status = VALUES(status), '
+                . 'tier = VALUES(tier), '
+                . 'source = VALUES(source), '
+                . 'granted_by_user_id = VALUES(granted_by_user_id), '
+                . 'expires_at = VALUES(expires_at), '
+                . 'metadata_json = VALUES(metadata_json), '
+                . 'granted_at = VALUES(granted_at), '
+                . 'updated_at = NOW()'
+            );
+            $stmt->execute([
+                ':tenant_id' => $tenantId,
+                ':module_id' => $moduleId,
+                ':status' => $status,
+                ':tier' => $tier,
+                ':source' => $source,
+                ':granted_by_user_id' => $grantedByUserId > 0 ? $grantedByUserId : null,
+                ':expires_at' => $expiresAt !== '' ? $expiresAt : null,
+                ':metadata_json' => $metadataJson !== false ? $metadataJson : null,
+            ]);
+            invalidateModuleCatalogCache();
+            return true;
+        } catch (Throwable $e) {
+            return false;
+        }
+    });
 }
 
 function revokeModuleEntitlementForTenant(string $moduleId, int $tenantId, array $options = []): bool
@@ -777,53 +779,49 @@ function readModuleAccessRequests(): array
         return $GLOBALS[$cacheKey];
     }
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
-
-    if (!moduleControlPlaneEnsureCatalogTables()) {
-        $GLOBALS[$cacheKey] = [];
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-        return [];
-    }
-
-    try {
-        $stmt = app()->controlDb()->query(
-            'SELECT id, tenant_id, module_id, requested_mode, status, request_notes, license_ref, '
-            . 'license_key_ciphertext, license_key_iv, license_key_tag, requested_by_user_id, '
-            . 'reviewed_by_user_id, review_notes, metadata_json, reviewed_at, created_at, updated_at '
-            . 'FROM ' . moduleAccessRequestsTable() . ' '
-            . 'ORDER BY '
-            . "CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 WHEN 'rejected' THEN 2 ELSE 3 END, "
-            . 'updated_at DESC, created_at DESC'
-        );
-        $rows = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
-        $requests = [];
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $row['id'] = (int)($row['id'] ?? 0);
-            $row['tenant_id'] = (int)($row['tenant_id'] ?? 0);
-            $row['requested_by_user_id'] = isset($row['requested_by_user_id']) ? (int)$row['requested_by_user_id'] : null;
-            $row['reviewed_by_user_id'] = isset($row['reviewed_by_user_id']) ? (int)$row['reviewed_by_user_id'] : null;
-
-            $metadataRaw = (string)($row['metadata_json'] ?? '');
-            $metadata = $metadataRaw !== '' ? json_decode($metadataRaw, true) : null;
-            $row['metadata'] = is_array($metadata) ? $metadata : [];
-            $row['has_license_key'] = trim((string)($row['license_key_ciphertext'] ?? '')) !== '';
-
-            $requests[] = $row;
+    return moduleCatalogWithKernelDbEscalation(static function () use ($cacheKey): array {
+        if (!moduleControlPlaneEnsureCatalogTables()) {
+            $GLOBALS[$cacheKey] = [];
+            return [];
         }
 
-        $GLOBALS[$cacheKey] = $requests;
-        return $requests;
-    } catch (Throwable $e) {
-        $GLOBALS[$cacheKey] = [];
-        return [];
-    } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-    }
+        try {
+            $stmt = app()->controlDb()->query(
+                'SELECT id, tenant_id, module_id, requested_mode, status, request_notes, license_ref, '
+                . 'license_key_ciphertext, license_key_iv, license_key_tag, requested_by_user_id, '
+                . 'reviewed_by_user_id, review_notes, metadata_json, reviewed_at, created_at, updated_at '
+                . 'FROM ' . moduleAccessRequestsTable() . ' '
+                . 'ORDER BY '
+                . "CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 WHEN 'rejected' THEN 2 ELSE 3 END, "
+                . 'updated_at DESC, created_at DESC'
+            );
+            $rows = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+            $requests = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $row['id'] = (int)($row['id'] ?? 0);
+                $row['tenant_id'] = (int)($row['tenant_id'] ?? 0);
+                $row['requested_by_user_id'] = isset($row['requested_by_user_id']) ? (int)$row['requested_by_user_id'] : null;
+                $row['reviewed_by_user_id'] = isset($row['reviewed_by_user_id']) ? (int)$row['reviewed_by_user_id'] : null;
+
+                $metadataRaw = (string)($row['metadata_json'] ?? '');
+                $metadata = $metadataRaw !== '' ? json_decode($metadataRaw, true) : null;
+                $row['metadata'] = is_array($metadata) ? $metadata : [];
+                $row['has_license_key'] = trim((string)($row['license_key_ciphertext'] ?? '')) !== '';
+
+                $requests[] = $row;
+            }
+
+            $GLOBALS[$cacheKey] = $requests;
+            return $requests;
+        } catch (Throwable $e) {
+            $GLOBALS[$cacheKey] = [];
+            return [];
+        }
+    });
 }
 
 function moduleAccessRequestById(int $requestId): ?array
@@ -919,55 +917,52 @@ function submitModuleAccessRequestForTenant(string $moduleId, int $tenantId, arr
 
     $metadataJson = json_encode(is_array($metadata) ? $metadata : [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    return moduleCatalogWithKernelDbEscalation(static function () use ($encrypted, $licenseRef, $metadataJson, $moduleId, $requestNotes, $requestedByUserId, $requestedMode, $tenantId): array {
+        try {
+            $stmt = app()->controlDb()->prepare(
+                'INSERT INTO ' . moduleAccessRequestsTable() . ' '
+                . '(tenant_id, module_id, requested_mode, status, request_notes, license_ref, license_key_ciphertext, '
+                . 'license_key_iv, license_key_tag, requested_by_user_id, reviewed_by_user_id, review_notes, metadata_json, reviewed_at, created_at, updated_at) '
+                . 'VALUES (:tenant_id, :module_id, :requested_mode, :status, :request_notes, :license_ref, :license_key_ciphertext, '
+                . ':license_key_iv, :license_key_tag, :requested_by_user_id, NULL, NULL, :metadata_json, NULL, NOW(), NOW()) '
+                . 'ON DUPLICATE KEY UPDATE '
+                . 'requested_mode = VALUES(requested_mode), '
+                . 'status = VALUES(status), '
+                . 'request_notes = VALUES(request_notes), '
+                . 'license_ref = VALUES(license_ref), '
+                . 'license_key_ciphertext = VALUES(license_key_ciphertext), '
+                . 'license_key_iv = VALUES(license_key_iv), '
+                . 'license_key_tag = VALUES(license_key_tag), '
+                . 'requested_by_user_id = VALUES(requested_by_user_id), '
+                . 'reviewed_by_user_id = NULL, '
+                . 'review_notes = NULL, '
+                . 'metadata_json = VALUES(metadata_json), '
+                . 'reviewed_at = NULL, '
+                . 'updated_at = NOW()'
+            );
+            $stmt->execute([
+                ':tenant_id' => $tenantId,
+                ':module_id' => $moduleId,
+                ':requested_mode' => $requestedMode,
+                ':status' => 'pending',
+                ':request_notes' => $requestNotes !== '' ? $requestNotes : null,
+                ':license_ref' => $licenseRef !== '' ? $licenseRef : null,
+                ':license_key_ciphertext' => ($encrypted['ciphertext'] ?? '') !== '' ? $encrypted['ciphertext'] : null,
+                ':license_key_iv' => ($encrypted['iv'] ?? '') !== '' ? $encrypted['iv'] : null,
+                ':license_key_tag' => ($encrypted['tag'] ?? '') !== '' ? $encrypted['tag'] : null,
+                ':requested_by_user_id' => $requestedByUserId > 0 ? $requestedByUserId : null,
+                ':metadata_json' => $metadataJson !== false ? $metadataJson : null,
+            ]);
+            invalidateModuleCatalogCache();
 
-    try {
-        $stmt = app()->controlDb()->prepare(
-            'INSERT INTO ' . moduleAccessRequestsTable() . ' '
-            . '(tenant_id, module_id, requested_mode, status, request_notes, license_ref, license_key_ciphertext, '
-            . 'license_key_iv, license_key_tag, requested_by_user_id, reviewed_by_user_id, review_notes, metadata_json, reviewed_at, created_at, updated_at) '
-            . 'VALUES (:tenant_id, :module_id, :requested_mode, :status, :request_notes, :license_ref, :license_key_ciphertext, '
-            . ':license_key_iv, :license_key_tag, :requested_by_user_id, NULL, NULL, :metadata_json, NULL, NOW(), NOW()) '
-            . 'ON DUPLICATE KEY UPDATE '
-            . 'requested_mode = VALUES(requested_mode), '
-            . 'status = VALUES(status), '
-            . 'request_notes = VALUES(request_notes), '
-            . 'license_ref = VALUES(license_ref), '
-            . 'license_key_ciphertext = VALUES(license_key_ciphertext), '
-            . 'license_key_iv = VALUES(license_key_iv), '
-            . 'license_key_tag = VALUES(license_key_tag), '
-            . 'requested_by_user_id = VALUES(requested_by_user_id), '
-            . 'reviewed_by_user_id = NULL, '
-            . 'review_notes = NULL, '
-            . 'metadata_json = VALUES(metadata_json), '
-            . 'reviewed_at = NULL, '
-            . 'updated_at = NOW()'
-        );
-        $stmt->execute([
-            ':tenant_id' => $tenantId,
-            ':module_id' => $moduleId,
-            ':requested_mode' => $requestedMode,
-            ':status' => 'pending',
-            ':request_notes' => $requestNotes !== '' ? $requestNotes : null,
-            ':license_ref' => $licenseRef !== '' ? $licenseRef : null,
-            ':license_key_ciphertext' => ($encrypted['ciphertext'] ?? '') !== '' ? $encrypted['ciphertext'] : null,
-            ':license_key_iv' => ($encrypted['iv'] ?? '') !== '' ? $encrypted['iv'] : null,
-            ':license_key_tag' => ($encrypted['tag'] ?? '') !== '' ? $encrypted['tag'] : null,
-            ':requested_by_user_id' => $requestedByUserId > 0 ? $requestedByUserId : null,
-            ':metadata_json' => $metadataJson !== false ? $metadataJson : null,
-        ]);
-        invalidateModuleCatalogCache();
-
-        return [
-            'ok' => true,
-            'request' => moduleLatestAccessRequestForTenant($moduleId, $tenantId),
-        ];
-    } catch (Throwable $e) {
-        return ['ok' => false, 'error' => $e->getMessage()];
-    } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-    }
+            return [
+                'ok' => true,
+                'request' => moduleLatestAccessRequestForTenant($moduleId, $tenantId),
+            ];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    });
 }
 
 /**
@@ -1113,34 +1108,32 @@ function reviewModuleAccessRequest(int $requestId, string $status, array $option
     ];
     $metadataJson = json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
-    try {
-        $stmt = app()->controlDb()->prepare(
-            'UPDATE ' . moduleAccessRequestsTable() . ' '
-            . 'SET status = :status, reviewed_by_user_id = :reviewed_by_user_id, review_notes = :review_notes, '
-            . 'metadata_json = :metadata_json, reviewed_at = NOW(), updated_at = NOW() '
-            . 'WHERE id = :id'
-        );
-        $stmt->execute([
-            ':status' => $status,
-            ':reviewed_by_user_id' => $reviewedByUserId > 0 ? $reviewedByUserId : null,
-            ':review_notes' => $reviewNotes !== '' ? $reviewNotes : null,
-            ':metadata_json' => $metadataJson !== false ? $metadataJson : null,
-            ':id' => $requestId,
-        ]);
-        invalidateModuleCatalogCache();
+    return moduleCatalogWithKernelDbEscalation(static function () use ($activationResult, $metadataJson, $moduleId, $requestId, $reviewNotes, $reviewedByUserId, $status, $tenantId): array {
+        try {
+            $stmt = app()->controlDb()->prepare(
+                'UPDATE ' . moduleAccessRequestsTable() . ' '
+                . 'SET status = :status, reviewed_by_user_id = :reviewed_by_user_id, review_notes = :review_notes, '
+                . 'metadata_json = :metadata_json, reviewed_at = NOW(), updated_at = NOW() '
+                . 'WHERE id = :id'
+            );
+            $stmt->execute([
+                ':status' => $status,
+                ':reviewed_by_user_id' => $reviewedByUserId > 0 ? $reviewedByUserId : null,
+                ':review_notes' => $reviewNotes !== '' ? $reviewNotes : null,
+                ':metadata_json' => $metadataJson !== false ? $metadataJson : null,
+                ':id' => $requestId,
+            ]);
+            invalidateModuleCatalogCache();
 
-        return [
-            'ok' => true,
-            'request' => moduleAccessRequestById($requestId),
-            'activation' => $activationResult,
-            'entitlement' => moduleTenantEntitlementStatus($moduleId, $tenantId),
-        ];
-    } catch (Throwable $e) {
-        return ['ok' => false, 'error' => $e->getMessage()];
-    } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
-    }
+            return [
+                'ok' => true,
+                'request' => moduleAccessRequestById($requestId),
+                'activation' => $activationResult,
+                'entitlement' => moduleTenantEntitlementStatus($moduleId, $tenantId),
+            ];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    });
 }
 

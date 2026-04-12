@@ -154,14 +154,13 @@ function myModuleGlobalHelper(): string
 
 #### Bypassing Table Sandboxing (Kernel Contexts Only)
 When developing kernel-level helpers or features that orchestrate module catalogs (e.g. Guidance module settings, module-manager tasks), you may need to bypass the `KernelPDO` sandbox entirely so that the module executing the request is not incorrectly blocked from querying control-plane databases.
-Use the `_kernel_db_unguarded` request context flag to orchestrate these queries safely:
+Use the typed `KernelPDO` escalation API to orchestrate these queries safely:
 ```php
-$previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-kernel_request_context_set('_kernel_db_unguarded', true);
+\Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
 try {
     // Execute control-db queries (e.g. kernel_tenant_module_catalog) safely...
 } finally {
-    kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
 }
 ```
 

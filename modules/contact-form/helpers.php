@@ -1345,8 +1345,7 @@ function contactFormSchemaStatus(bool $refresh = false): array
     if (($gaps['missing_tables'] !== [] || $gaps['missing_columns'] !== []) && function_exists('syncTenantMigrationsForTenant')) {
         $tenantId = app()->tenant()->current();
         if ($tenantId > 0) {
-            $previousUnguarded = (bool) kernel_request_context_get('_kernel_db_unguarded', false);
-            kernel_request_context_set('_kernel_db_unguarded', true);
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
             try {
                 $sync = syncTenantMigrationsForTenant($tenantId);
                 contactFormResetSchemaState();
@@ -1356,7 +1355,7 @@ function contactFormSchemaStatus(bool $refresh = false): array
                     write_log('contact-form: schema sync failed: ' . $e->getMessage(), 'warning');
                 }
             } finally {
-                kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+                \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
             }
         }
     }

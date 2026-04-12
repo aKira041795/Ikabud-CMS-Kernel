@@ -231,6 +231,7 @@ async function captureAbandonedCartLead() {
     try {
         await fetch('{base_url}/api/v1/ecommerce/abandoned-carts/capture', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
             body: JSON.stringify(data),
         });
@@ -364,6 +365,7 @@ async function submitCheckout() {
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/checkout', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
             body: JSON.stringify(data),
         });

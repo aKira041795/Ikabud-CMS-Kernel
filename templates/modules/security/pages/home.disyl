@@ -1,0 +1,103 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .sec-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .sec-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .sec-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .sec-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .sec-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .sec-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .sec-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
+    .sec-stat { background:var(--surface,#fff); border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:20px; }
+    .sec-stat .label { font-size:13px; color:var(--text-muted,#888); margin-bottom:4px; }
+    .sec-stat .value { font-size:28px; font-weight:700; }
+    .sec-stat .value.danger { color:#dc2626; }
+    .sec-stat .value.success { color:#16a34a; }
+    .sec-stat .value.warning { color:#d97706; }
+    .badge-critical { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fef2f2; color:#dc2626; }
+    .badge-warning { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fefce8; color:#d97706; }
+    .badge-info { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#eff6ff; color:#2563eb; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+</style>
+{/block}
+
+{block content}
+<div class="sec-header">
+    <div>
+        <h2>&#128274; Security</h2>
+        <span class="text-sm text-muted">Security dashboard</span>
+    </div>
+</div>
+
+<div class="sec-tabs">
+    <a href="/admin/security" class="active">Dashboard</a>
+    <a href="/admin/security/audit-log">Audit Log</a>
+    <a href="/admin/security/integrity">File Integrity</a>
+    <a href="/admin/security/ip-allowlist">IP Allowlist</a>
+    <a href="/admin/security/settings">Settings</a>
+</div>
+
+<div class="sec-stats">
+    <div class="sec-stat">
+        <div class="label">Audit Events Today</div>
+        <div class="value">{audit_stats.today}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Critical Today</div>
+        <div class="value danger">{audit_stats.critical_today}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Warnings Today</div>
+        <div class="value warning">{audit_stats.warning_today}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Monitored Files</div>
+        <div class="value">{integrity.total_files}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Integrity Mismatches</div>
+        <div class="value {if integrity.mismatches > 0}danger{/if}">{integrity.mismatches}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Allowed IPs</div>
+        <div class="value">{allowlist|length}</div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header" style="font-weight:600;">Recent Security Events</div>
+    <div class="card-body" style="padding:0;">
+        <table class="table" style="margin:0;">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Event</th>
+                    <th>Severity</th>
+                    <th>IP</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for entry in recent_log}
+                <tr>
+                    <td class="text-sm text-muted">{entry.created_at}</td>
+                    <td><code>{entry.event_type}</code></td>
+                    <td>
+                        {if entry.severity == "critical"}<span class="badge-critical">Critical</span>{/if}
+                        {if entry.severity == "warning"}<span class="badge-warning">Warning</span>{/if}
+                        {if entry.severity == "info"}<span class="badge-info">Info</span>{/if}
+                    </td>
+                    <td class="text-sm">{entry.ip_address}</td>
+                    <td class="text-sm text-muted">{entry.detail_json}</td>
+                </tr>
+                {/for}
+                {if recent_log|length == 0}
+                <tr><td colspan="5" class="text-muted text-sm" style="text-align:center;padding:20px;">No security events yet.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}

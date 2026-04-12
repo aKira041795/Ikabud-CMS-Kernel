@@ -1,0 +1,101 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .sec-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .sec-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .sec-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .sec-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .sec-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .sec-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .sec-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+    .sec-stat { background:var(--surface,#fff); border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:20px; }
+    .sec-stat .label { font-size:13px; color:var(--text-muted,#888); margin-bottom:4px; }
+    .sec-stat .value { font-size:28px; font-weight:700; }
+    .sec-stat .value.danger { color:#dc2626; }
+    .sec-stat .value.success { color:#16a34a; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+</style>
+{/block}
+
+{block content}
+<div class="sec-header">
+    <div>
+        <h2>&#128274; Security</h2>
+        <span class="text-sm text-muted">File Integrity Monitoring</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm" onclick="rebuildBaseline()" style="background:var(--primary,#2563eb);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Rebuild Baseline</button>
+        <button class="btn btn-sm" onclick="checkIntegrity()" style="background:#16a34a;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Run Check</button>
+    </div>
+</div>
+
+<div class="sec-tabs">
+    <a href="/admin/security">Dashboard</a>
+    <a href="/admin/security/audit-log">Audit Log</a>
+    <a href="/admin/security/integrity" class="active">File Integrity</a>
+    <a href="/admin/security/ip-allowlist">IP Allowlist</a>
+    <a href="/admin/security/settings">Settings</a>
+</div>
+
+<div class="sec-stats">
+    <div class="sec-stat">
+        <div class="label">Monitored Files</div>
+        <div class="value">{integrity.total_files}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Mismatches</div>
+        <div class="value {if integrity.mismatches > 0}danger{else}success{/if}">{integrity.mismatches}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Last Check</div>
+        <div class="value text-sm" style="font-size:16px;">{integrity.last_check}</div>
+    </div>
+    <div class="sec-stat">
+        <div class="label">Baseline Status</div>
+        <div class="value text-sm" style="font-size:16px;">{if integrity.has_baseline}Active{else}Not Built{/if}</div>
+    </div>
+</div>
+
+<div id="check-results" style="display:none;margin-bottom:24px;" class="card">
+    <div class="card-header" style="font-weight:600;">Integrity Check Results</div>
+    <div class="card-body" id="check-results-body"></div>
+</div>
+
+<script>
+function rebuildBaseline() {
+    if (!confirm('Rebuild the file integrity baseline? This will replace the existing baseline.')) return;
+    fetch('/api/v1/security/integrity-baseline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' }
+    })
+    .then(r => r.json())
+    .then(d => { alert('Baseline rebuilt: ' + d.stored + ' files hashed out of ' + d.scanned + ' scanned'); location.reload(); })
+    .catch(e => alert('Error: ' + e.message));
+}
+
+function checkIntegrity() {
+    fetch('/api/v1/security/integrity-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' }
+    })
+    .then(r => r.json())
+    .then(d => {
+        const el = document.getElementById('check-results');
+        const body = document.getElementById('check-results-body');
+        el.style.display = 'block';
+        if (d.ok) {
+            body.innerHTML = '<p style="color:#16a34a;font-weight:600;">All files match the baseline.</p>';
+        } else {
+            let html = '';
+            if (d.modified && d.modified.length) html += '<h4 style="color:#dc2626;">Modified (' + d.modified.length + ')</h4><ul>' + d.modified.map(f => '<li><code>' + f + '</code></li>').join('') + '</ul>';
+            if (d.added && d.added.length) html += '<h4 style="color:#d97706;">Added (' + d.added.length + ')</h4><ul>' + d.added.map(f => '<li><code>' + f + '</code></li>').join('') + '</ul>';
+            if (d.deleted && d.deleted.length) html += '<h4 style="color:#dc2626;">Deleted (' + d.deleted.length + ')</h4><ul>' + d.deleted.map(f => '<li><code>' + f + '</code></li>').join('') + '</ul>';
+            body.innerHTML = html || '<p>No changes detected.</p>';
+        }
+    })
+    .catch(e => alert('Error: ' + e.message));
+}
+</script>
+{/block}

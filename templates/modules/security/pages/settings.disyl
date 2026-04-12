@@ -1,0 +1,147 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .sec-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .sec-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .sec-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .sec-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .sec-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .sec-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .sec-setting { display:flex; align-items:center; justify-content:space-between; padding:16px 0; border-bottom:1px solid var(--border,#e5e7eb); }
+    .sec-setting:last-child { border-bottom:none; }
+    .sec-setting .info h4 { font-size:15px; font-weight:600; margin-bottom:2px; }
+    .sec-setting .info p { font-size:13px; color:var(--text-muted,#888); margin:0; }
+    .sec-toggle { position:relative; width:44px; height:24px; cursor:pointer; }
+    .sec-toggle input { display:none; }
+    .sec-toggle .slider { position:absolute; inset:0; background:#ccc; border-radius:24px; transition:.2s; }
+    .sec-toggle .slider::before { content:''; position:absolute; width:18px; height:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+    .sec-toggle input:checked + .slider { background:var(--primary,#2563eb); }
+    .sec-toggle input:checked + .slider::before { transform:translateX(20px); }
+    .sec-input { padding:8px 12px; border:1px solid var(--border,#e5e7eb); border-radius:6px; font-size:14px; width:80px; text-align:center; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+</style>
+{/block}
+
+{block content}
+<div class="sec-header">
+    <div>
+        <h2>&#128274; Security</h2>
+        <span class="text-sm text-muted">Settings</span>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveSettings()" style="background:var(--primary,#2563eb);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Save Settings</button>
+</div>
+
+<div class="sec-tabs">
+    <a href="/admin/security">Dashboard</a>
+    <a href="/admin/security/audit-log">Audit Log</a>
+    <a href="/admin/security/integrity">File Integrity</a>
+    <a href="/admin/security/ip-allowlist">IP Allowlist</a>
+    <a href="/admin/security/settings" class="active">Settings</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">General</h3>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Enable Security Module</h4>
+                <p>Master switch for all security features on this tenant.</p>
+            </div>
+            <label class="sec-toggle"><input type="checkbox" id="s-enabled" {if settings.enabled == "1"}checked{/if}><span class="slider"></span></label>
+        </div>
+
+        <h3 style="font-size:16px;font-weight:600;margin:24px 0 16px;">File Integrity</h3>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Enable File Integrity Monitoring</h4>
+                <p>Track SHA-256 hashes of kernel, module, and configuration files.</p>
+            </div>
+            <label class="sec-toggle"><input type="checkbox" id="s-file_integrity_enabled" {if settings.file_integrity_enabled == "1"}checked{/if}><span class="slider"></span></label>
+        </div>
+
+        <h3 style="font-size:16px;font-weight:600;margin:24px 0 16px;">Admin IP Allowlist</h3>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Enable Admin IP Allowlist</h4>
+                <p>Only allow admin access from specific IP addresses. Dormant when the list is empty.</p>
+            </div>
+            <label class="sec-toggle"><input type="checkbox" id="s-admin_ip_allowlist_enabled" {if settings.admin_ip_allowlist_enabled == "1"}checked{/if}><span class="slider"></span></label>
+        </div>
+
+        <h3 style="font-size:16px;font-weight:600;margin:24px 0 16px;">Audit Log</h3>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Enable Audit Log</h4>
+                <p>Log security events (failed logins, CSRF violations, integrity mismatches, etc.).</p>
+            </div>
+            <label class="sec-toggle"><input type="checkbox" id="s-audit_log_enabled" {if settings.audit_log_enabled == "1"}checked{/if}><span class="slider"></span></label>
+        </div>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Audit Log Retention</h4>
+                <p>Number of days to keep audit log entries.</p>
+            </div>
+            <input type="number" class="sec-input" id="s-audit_log_retention_days" value="{settings.audit_log_retention_days}" min="1" max="365">
+        </div>
+
+        <h3 style="font-size:16px;font-weight:600;margin:24px 0 16px;">Auto-Escalation</h3>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Enable Auto-Escalation</h4>
+                <p>Permanently block IPs when anti-spam blocks exceed the threshold.</p>
+            </div>
+            <label class="sec-toggle"><input type="checkbox" id="s-auto_escalation_enabled" {if settings.auto_escalation_enabled == "1"}checked{/if}><span class="slider"></span></label>
+        </div>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Escalation Threshold</h4>
+                <p>Number of anti-spam blocks before permanent IP ban.</p>
+            </div>
+            <input type="number" class="sec-input" id="s-auto_escalation_threshold" value="{settings.auto_escalation_threshold}" min="1" max="1000">
+        </div>
+
+        <div class="sec-setting">
+            <div class="info">
+                <h4>Escalation Window (minutes)</h4>
+                <p>Time window for counting blocks towards escalation.</p>
+            </div>
+            <input type="number" class="sec-input" id="s-auto_escalation_window_minutes" value="{settings.auto_escalation_window_minutes}" min="1" max="1440">
+        </div>
+    </div>
+</div>
+
+<script>
+function saveSettings() {
+    const data = {};
+    document.querySelectorAll('.sec-toggle input[type=checkbox]').forEach(el => {
+        const key = el.id.replace('s-', '');
+        data[key] = el.checked ? '1' : '0';
+    });
+    document.querySelectorAll('.sec-input').forEach(el => {
+        const key = el.id.replace('s-', '');
+        data[key] = el.value;
+    });
+
+    fetch('/api/v1/security/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' },
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) { alert('Settings saved'); location.reload(); }
+        else { alert('Error saving settings'); }
+    })
+    .catch(e => alert('Error: ' + e.message));
+}
+</script>
+{/block}

@@ -319,8 +319,9 @@ async function submitCheckout() {
     try {
         const res = await fetch('{base_url}/api/v1/ecommerce/checkout', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-            body: JSON.stringify(data),
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': '{csrf_token}'},
+            body: JSON.stringify(Object.assign({_token: '{csrf_token}'}, data)),
         });
         const result = await res.json();
         if (result.ok) {

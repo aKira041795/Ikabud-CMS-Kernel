@@ -110,6 +110,18 @@ class DatabaseManager
                     ['tenant_id' => $tenantId]
                 );
             }
+            // When ENFORCE_ENCRYPTED_DB_PASS is enabled, refuse to connect using
+            // plaintext credentials. This is a fail-closed security hardening measure.
+            $enforceEncrypted = filter_var(
+                $_ENV['ENFORCE_ENCRYPTED_DB_PASS'] ?? 'false',
+                FILTER_VALIDATE_BOOLEAN
+            );
+            if ($enforceEncrypted && $password !== '') {
+                throw new \RuntimeException(
+                    'Tenant ' . $tenantId . ' has plaintext DB credentials but ENFORCE_ENCRYPTED_DB_PASS is enabled. '
+                    . 'Encrypt credentials via the superadmin tenant settings before connecting.'
+                );
+            }
             return $password;
         }
 

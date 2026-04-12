@@ -109,11 +109,13 @@
 </div>
 
 <script>
+const __ecCsrf = '{csrf_token}';
 async function updateCartItem(idx, qty) {
     await fetch('{base_url}/api/v1/ecommerce/cart/update', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-        body: JSON.stringify({ item_index: idx, qty: parseInt(qty, 10) }),
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+        body: JSON.stringify({ _token: __ecCsrf, item_index: idx, qty: parseInt(qty, 10) }),
     });
     location.reload();
 }
@@ -121,8 +123,9 @@ async function updateCartItem(idx, qty) {
 async function removeCartItem(idx) {
     await fetch('{base_url}/api/v1/ecommerce/cart/remove', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-        body: JSON.stringify({ item_index: idx }),
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+        body: JSON.stringify({ _token: __ecCsrf, item_index: idx }),
     });
     location.reload();
 }
@@ -131,8 +134,9 @@ async function applyCoupon() {
     const code = document.getElementById('coupon-code').value;
     const res = await fetch('{base_url}/api/v1/ecommerce/cart/coupon', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-        body: JSON.stringify({ code }),
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+        body: JSON.stringify({ _token: __ecCsrf, code }),
     });
     const data = await res.json();
     if (data.ok) {
@@ -146,8 +150,9 @@ async function applyLoyalty() {
     const points = document.getElementById('loyalty-points').value;
     const res = await fetch('{base_url}/api/v1/ecommerce/cart/loyalty', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-        body: JSON.stringify({ points: parseInt(points, 10) || 0 }),
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+        body: JSON.stringify({ _token: __ecCsrf, points: parseInt(points, 10) || 0 }),
     });
     const data = await res.json();
     if (data.ok) {
@@ -160,8 +165,9 @@ async function applyLoyalty() {
 async function clearLoyalty() {
     const res = await fetch('{base_url}/api/v1/ecommerce/cart/loyalty', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-        body: JSON.stringify({ points: 0 }),
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': __ecCsrf},
+        body: JSON.stringify({ _token: __ecCsrf, points: 0 }),
     });
     const data = await res.json();
     if (data.ok) {

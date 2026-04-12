@@ -29,13 +29,12 @@ const EC_ORDER_STATUS_RANK = [
 
 function ecWithKernelDbUnguarded(callable $callback): mixed
 {
-    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
-    kernel_request_context_set('_kernel_db_unguarded', true);
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
 
     try {
         return $callback();
     } finally {
-        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 }
 
