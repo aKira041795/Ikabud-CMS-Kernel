@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document summarizes the current Ecommerce module, records the WooCommerce-style expansion work now shipped through Phase 6, and captures the narrower follow-on gaps that remain after the main roadmap closeout.
+This document summarizes the Ecommerce module as a commerce layer inside the Ikabud business operating system. The six-phase WooCommerce benchmark that originally guided the build is now complete and the module has moved past that frame of reference. This document captures the shipped capability surface, the maturity assessment, and the structural decisions that govern what comes next.
 
 ## Current Ecommerce Feature Set
 
@@ -56,26 +56,42 @@ This document summarizes the current Ecommerce module, records the WooCommerce-s
 - Phase 5 is complete: grouped products, bundles, subscriptions, and multi-currency are shipped.
 - Phase 6 is complete: comparison, memberships, loyalty, add-ons, and bookings are shipped.
 
-## Benchmark Gap Analysis
+## Maturity Assessment
 
-The original six-phase WooCommerce benchmark captured in this document is now effectively complete. The remaining work is no longer about missing whole feature families; it is about depth, polish, and adjacent merchant tooling.
+The ecommerce module has closed the WooCommerce parity benchmark and now exceeds it in several dimensions. The remaining work is no longer about missing feature families; it is about operational depth, merchant intelligence, and controlled structural flexibility.
 
-### High-Priority Follow-On Gaps
+### Architecture — Non-Negotiable Advantage
 
-- Deeper booking operations: reschedule and cancel windows, reminder notifications, and capacity-aware calendar controls
-- Broader membership reach beyond catalog gating, if entitlement checks need to extend into CMS pages, posts, or tenant capabilities
+Products live inside the CMS content model, not a separate ecommerce silo. This keeps rendering unified, makes memberships, SEO, and content blending trivial, and avoids plugin sprawl and data fragmentation. This decision is permanent and must not be reversed.
 
-### Medium-Priority Follow-On Gaps
+### Shipped Capability Surface (Beyond WooCommerce Baseline)
 
-- Customer segmentation and tier-based pricing
+The module now covers: simple, variant, digital, grouped, bundle, subscription, membership, bookable, and external products; faceted filtering and attributes; multi-currency; loyalty earning and redemption; membership-gated access; bookings and appointments; comparison shortlists; customer wishlists; CMS-native rendering with theme override support; and a native WMS bridge for stock authority, order reservation, and fulfillment sync.
+
+This positions the system closer to Shopify (ecosystem breadth), Odoo (modular ERP behavior), and headless CMS patterns than to WooCommerce.
+
+### Current Reality Check
+
+- Core system: **complete**
+- Operational depth: **incomplete** — booking operations are lightweight; no reschedule, cancel, or reminder flows
+- Merchant intelligence: **thin** — no customer segmentation, tier pricing, or back-in-stock alerting
+- Multi-store: **not formalized** — no store context layer, store-aware queries, or store product overrides exist in code
+
+### Remaining Depth Gaps
+
+**Operational depth:**
+- Booking reschedule and cancel windows, reminder notifications, capacity-aware calendar controls
+- Membership entitlement reach beyond catalog gating into CMS pages, posts, or tenant capabilities
+
+**Merchant intelligence:**
+- Customer segmentation and tier-based pricing (unlocks B2B, wholesale, institutional deployments)
 - Back-in-stock notifications and richer inventory alerting
 - Variant image mapping and richer merchandising media rules
 
-### Lower-Priority Follow-On Gaps
-
+**Adjacent tooling:**
 - Referral and affiliate programs
 - Accounting and finance export adapters
-- Live carrier quote integrations beyond the current table-rate and configured shipping rules
+- Live carrier quote integrations beyond table-rate shipping
 
 ## Constraints and Design Rules
 
@@ -352,19 +368,67 @@ Residual follow-on gaps after phase 6 closeout:
 - Membership breadth is currently ecommerce-focused; extending the same entitlement model into general CMS content gating would be a separate follow-on slice.
 - Validation for this closeout now includes `tests/ecommerce_phase6_features_test.php` plus regression coverage for subscriptions and comparison flows.
 
+## Multi-Store Foundation
+
+Multi-store is not a feature. It is a structural decision that affects catalog projection, inventory authority, order ownership, and reporting scope. Building it late means refactoring everything. The correct time to lay the data model is now, before depth features create more surface area to migrate.
+
+### Correct Model: Overlay, Not Duplication
+
+The wrong approach is adding `store_id` everywhere blindly or duplicating catalogs per store. The correct model is projection: products remain global CMS entities, and stores define overrides.
+
+**Layer 1 — Global Catalog (Single Source of Truth)**
+- Products (CMS entities) remain global
+- Attributes, SEO, media remain global
+- Base price remains global with optional store-level override
+
+**Layer 2 — Store Context Layer (Overlay)**
+Each store defines:
+- Price overrides
+- Stock source (WMS location or local ecommerce stock)
+- Product availability (enabled or disabled per store)
+- Shipping rules (optional store override)
+- Tax behavior (optional store override)
+
+**Layer 3 — Inventory Authority (Already Aligned)**
+The existing `wms_authoritative_products` and `ecommerce_authoritative_products` modes already support per-context stock authority. Extending to per-store stock source means mapping each store to a WMS warehouse or location.
+
+**Layer 4 — Order Ownership**
+Each order belongs to a store and a fulfillment path. This affects reporting, payouts, logistics, and taxation.
+
+**Layer 5 — Customer Scope**
+Customers are shared across all stores. One account, unified loyalty, memberships, and order history. This is already the case because `cms_users` is global.
+
+### Minimal Data Model
+
+The multi-store foundation requires only:
+- `ec_stores` — store definitions
+- `ec_store_product_overrides` — price, availability, and visibility overrides per store per product
+- `ec_store_inventory_sources` — maps each store to a WMS warehouse or local stock mode
+- `ec_store_settings` — store-level shipping, tax, and checkout configuration
+
+Products stay in `cms_content`. Always.
+
+### Where Multi-Store Connects to Existing Features
+
+- **Bookings:** store equals location; capacity becomes per-store
+- **Memberships:** global or store-specific access
+- **Loyalty:** global points with store attribution
+- **WMS:** already location-aware by design (381 location references in WMS module); the bridge already supports authority modes
+
 ## Next Recommended Build Order
 
-With the main roadmap complete, implement the remaining follow-on work in this order:
+With the main roadmap complete, the next work is structural stability and controlled depth — not feature dumping.
 
-1. Booking reminders and reschedule or cancel workflows
-2. CMS-wide membership or entitlement gating, if needed outside the storefront
-3. Customer segmentation and tier pricing
-4. Back-in-stock notifications
-5. Variant-aware merchandising refinements such as variant image mapping
+1. **Booking depth** — reschedule and cancel windows, reminder notifications, capacity-aware calendar controls (operational depth; affects real merchant operations and customer UX immediately)
+2. **Multi-store data foundation** — `ec_stores`, `ec_store_product_overrides`, `ec_store_inventory_sources`, `ec_store_settings`, context resolution, and store-aware queries (structural; start now before depth features create more migration surface)
+3. **Customer segmentation and tier pricing** — unlocks B2B, wholesale, and institutional deployment use cases
+4. **Back-in-stock notifications** — merchant intelligence
+5. **Variant-aware merchandising** — variant image mapping and richer media rules
+6. **CMS-wide membership gating** — entitlement checks beyond the storefront, if needed
 
 ## Next Execution Slice
 
-The next build slice should be booking reminders and reschedule or cancel workflows because bookings now exist end to end, and operational depth is the most meaningful remaining gap in the shipped storefront experience.
+The next build slice should be booking depth (reschedule, cancel, reminders) because bookings exist end to end and operational depth is the most meaningful remaining gap in the shipped storefront experience.
 
 Definition of done for that slice:
 
@@ -374,9 +438,13 @@ Definition of done for that slice:
 - Integration-style test added
 - Application and PHP error logs checked after test execution
 
+The slice immediately after should be the multi-store data foundation — data model, context resolution, and store-aware queries only (no multi-store UI yet). This prevents structural debt from accumulating under the depth features.
+
 ## Success Criteria
 
-- The ecommerce module has closed the major WooCommerce parity gaps in this roadmap without abandoning the CMS entity-view model.
-- New payment, shipping, and refund capabilities stay compatible with the existing Integration Bridge architecture.
-- WMS integration remains staggered and explicit rather than embedded into early-phase catalog or checkout changes.
-- Remaining follow-on slices stay independently shippable and testable.
+- The ecommerce module has closed the WooCommerce parity benchmark without abandoning the CMS entity-view model.
+- New payment, shipping, and refund capabilities stay compatible with the Integration Bridge architecture.
+- WMS integration remains staggered and explicit.
+- Multi-store is introduced as a structural layer, not bolted on after the fact.
+- Remaining depth and intelligence slices stay independently shippable and testable.
+- The system is positioned as a commerce layer inside a business operating system, not as an ecommerce plugin.
