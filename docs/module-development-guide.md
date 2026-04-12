@@ -2,6 +2,8 @@
 
 This guide explains how to build, package, and install modules for the Ikabud Kernel OS (Ikabud Kernel + DiSyL).
 
+> **New to module development?** Start with the [Module Quickstart Tutorial](module-quickstart.md) — build a working module in 30 minutes, then come back here for the full reference.
+
 ---
 
 ## Architecture Overview

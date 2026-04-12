@@ -1799,8 +1799,18 @@ switch ($command) {
         // Pretty label
         $label = ucwords(str_replace('-', ' ', $id));
 
+        // Function prefix: daily-ledger → DailyLedger
+        $funcPrefix = str_replace('-', '', ucwords($id, '-'));
+
+        // Short prefix for scoped helpers: daily-ledger → dl, contact-form → cf
+        $shortPrefix = implode('', array_map(fn($w) => $w[0] ?? '', explode('-', $id)));
+
+        // Table prefix: daily-ledger → dl_ (underscore-joined initials)
+        $tablePrefix = $shortPrefix . '_';
+
         $modulePath = BASE_PATH . '/modules/' . $id;
         $templatePath = BASE_PATH . '/templates/modules/' . $id;
+        $testPath = BASE_PATH . '/tests/' . str_replace('-', '_', $id) . '_module_test.php';
 
         if (is_dir($modulePath)) {
             out(red("  ✗ Module '{$id}' already exists at {$modulePath}"));
@@ -1814,8 +1824,7 @@ switch ($command) {
         // Create directories
         $dirs = [
             $modulePath,
-            $modulePath . '/migrations',
-            $modulePath . '/helpers',
+            $modulePath . '/database/migrations',
             $templatePath . '/pages',
             $templatePath . '/partials',
         ];
@@ -1824,19 +1833,26 @@ switch ($command) {
             out('  ' . green('✓') . ' mkdir ' . dim(str_replace(BASE_PATH . '/', '', $dir)));
         }
 
-        // module.json
+        // ── module.json ──────────────────────────────────────────
         $manifest = [
             'id' => $id,
             'name' => $label,
             'version' => '1.0.0',
             'description' => "{$label} module for Ikabud Kernel",
             'author' => '',
-            'requires_tables' => [],
             'owns_tables' => [],
             'reads_tables' => [],
-            'migrations' => [],
-            'settings' => [],
-            'hooks' => [],
+            'migrations' => [
+                "database/migrations/001_initial.sql",
+            ],
+            'capabilities' => [
+                'exposes' => [],
+                'depends' => [
+                    'kernel.auth.user@1',
+                    'kernel.audit.record@1',
+                ],
+            ],
+            'events' => [],
             'nav' => [
                 [
                     'label' => $label,
@@ -1852,97 +1868,165 @@ switch ($command) {
         );
         out('  ' . green('✓') . ' create module.json');
 
-        $funcPrefix = str_replace('-', '', ucwords($id, '-'));
-
-        // routes.php
+        // ── routes.php ───────────────────────────────────────────
         $routesContent = <<<PHP
 <?php
 /**
  * {$label} Module — Routes
+ *
+ * Format: 'METHOD' => [ '/path' => 'module-id:handlerFunction' ]
+ * URL parameters: '/path/{id}' passes \$params['id'] to the handler.
  */
+
+declare(strict_types=1);
 
 return [
     'GET' => [
         '/admin/{$id}' => '{$id}:page{$funcPrefix}Home',
     ],
     'POST' => [
-        // '/api/v1/modules/{$id}/action' => '{$id}:apiAction',
+        // '/api/v1/{$id}/example' => '{$id}:api{$funcPrefix}Example',
     ],
 ];
 PHP;
         file_put_contents($modulePath . '/routes.php', $routesContent . "\n");
         out('  ' . green('✓') . ' create routes.php');
 
-        // handlers.php
+        // ── handlers.php ─────────────────────────────────────────
         $handlersContent = <<<PHP
 <?php
 /**
  * {$label} Module — Handlers
+ *
+ * Each function is a route handler. Signature: function name(array \$params = []): void
+ * Access module context via the scoped helpers in helpers.php (e.g. {$shortPrefix}Ctx(), {$shortPrefix}Db()).
  */
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/helpers.php';
+
 /**
- * GET /admin/{$id} — Main page
+ * GET /admin/{$id} — Main admin page
  */
 function page{$funcPrefix}Home(array \$params = []): void
 {
-    \$ctx = module();
-    if (!\$ctx) {
-        http_response_code(500);
-        echo 'Module context unavailable';
-        return;
-    }
+    {$shortPrefix}Ctx()->requireAnyRole('admin', 'supervisor');
 
-    \$ctx->requireAnyRole('admin', 'supervisor');
-
-    echo \$ctx->render('modules/{$id}/pages/home.disyl', [
+    echo {$shortPrefix}Render('pages/home.disyl', [
         'page_title' => '{$label}',
     ]);
 }
+
+// Example API handler (uncomment route in routes.php):
+//
+// /**
+//  * POST /api/v1/{$id}/example
+//  */
+// function api{$funcPrefix}Example(array \$params = []): void
+// {
+//     header('Content-Type: application/json');
+//     {$shortPrefix}Ctx()->requireAnyRole('admin');
+//
+//     \$input = {$shortPrefix}Input();
+//     \$name = trim((string)(\$input['name'] ?? ''));
+//     if (\$name === '') {
+//         http_response_code(422);
+//         echo json_encode(['ok' => false, 'error' => 'Name is required']);
+//         return;
+//     }
+//
+//     \$db = {$shortPrefix}Db();
+//     \$db->prepare('INSERT INTO {$tablePrefix}items (name) VALUES (:name)')->execute([':name' => \$name]);
+//
+//     app()->events()->fire('{$id}.item.created', [
+//         'id' => (int)\$db->lastInsertId(),
+//         'name' => \$name,
+//     ]);
+//
+//     echo json_encode(['ok' => true, 'id' => (int)\$db->lastInsertId()]);
+// }
 PHP;
         file_put_contents($modulePath . '/handlers.php', $handlersContent . "\n");
         out('  ' . green('✓') . ' create handlers.php');
 
-        // helpers.php (optional, loaded at boot)
+        // ── helpers.php ──────────────────────────────────────────
         $helpersContent = <<<PHP
 <?php
 /**
  * {$label} Module — Helpers
- * 
+ *
  * This file is auto-loaded when the module is enabled.
- * Register event listeners, hook callbacks, and shared functions here.
+ * Scoped helper functions provide isolated access to module context,
+ * database, input, and rendering. Register event listeners here too.
+ *
+ * @see docs/module-development-guide.md
+ * @see docs/module-quickstart.md
  */
 
 declare(strict_types=1);
 
-// Example: listen to inter-module events
+// ── Scoped Context Helpers ───────────────────────────────────────
+
+function {$shortPrefix}Ctx(): \Ikabud\Kernel\Contracts\ModuleContext
+{
+    \$ctx = module('{$id}');
+    if (!\$ctx) {
+        throw new \RuntimeException('{$label} module context unavailable');
+    }
+    return \$ctx;
+}
+
+function {$shortPrefix}Db(): \Ikabud\Kernel\Contracts\ModuleDB
+{
+    return {$shortPrefix}Ctx()->db();
+}
+
+function {$shortPrefix}Input(?string \$key = null, mixed \$default = null): mixed
+{
+    return {$shortPrefix}Ctx()->input(\$key, \$default);
+}
+
+function {$shortPrefix}Render(string \$template, array \$context = []): string
+{
+    \$resolved = str_starts_with(\$template, 'modules/{$id}/')
+        ? \$template
+        : 'modules/{$id}/' . ltrim(\$template, '/');
+
+    return {$shortPrefix}Ctx()->render(\$resolved, kernelPrepareRenderContext(\$resolved, \$context));
+}
+
+// ── Event Listeners ──────────────────────────────────────────────
+// Register inter-module event listeners here. Examples:
+//
 // app()->events()->listen('order.placed', function (array \$payload, string \$event) {
-//     // handle event
+//     // React to events from other modules
 // }, 10, '{$id}');
 PHP;
         file_put_contents($modulePath . '/helpers.php', $helpersContent . "\n");
         out('  ' . green('✓') . ' create helpers.php');
 
-        // Initial migration
+        // ── Initial migration ────────────────────────────────────
         $migrationContent = <<<SQL
 -- {$label} Module — Initial Schema
 -- Created: DATE_PLACEHOLDER
 
 -- Add your tables here. Example:
--- CREATE TABLE IF NOT EXISTS {$id}_items (
+-- CREATE TABLE IF NOT EXISTS {$tablePrefix}items (
 --     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
---     name VARCHAR(100) NOT NULL,
+--     name VARCHAR(255) NOT NULL,
 --     is_active TINYINT(1) NOT NULL DEFAULT 1,
 --     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 --     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
--- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--
+-- Then add '{$tablePrefix}items' to owns_tables in module.json.
 SQL;
         $migrationContent = str_replace('DATE_PLACEHOLDER', date('Y-m-d'), $migrationContent);
-        file_put_contents($modulePath . '/migrations/001_initial.sql', $migrationContent . "\n");
-        out('  ' . green('✓') . ' create migrations/001_initial.sql');
+        file_put_contents($modulePath . '/database/migrations/001_initial.sql', $migrationContent . "\n");
+        out('  ' . green('✓') . ' create database/migrations/001_initial.sql');
 
-        // Template: home page
+        // ── Template: home page ──────────────────────────────────
         $templateContent = <<<DISYL
 {extends "layouts/app.disyl"}
 
@@ -1976,14 +2060,176 @@ DISYL;
         file_put_contents($templatePath . '/pages/home.disyl', $templateContent . "\n");
         out('  ' . green('✓') . ' create templates/pages/home.disyl');
 
+        // ── Test file ────────────────────────────────────────────
+        $testIdUnder = str_replace('-', '_', $id);
+        $testContent = <<<PHP
+<?php
+/**
+ * {$label} Module — Scaffold Test
+ *
+ * Verifies module bootstrap, context availability, and basic contract compliance.
+ * Run: php tests/{$testIdUnder}_module_test.php
+ */
+
+declare(strict_types=1);
+
+\$_SERVER['HTTP_HOST'] = \$_SERVER['HTTP_HOST'] ?? 'localhost';
+\$_SERVER['REQUEST_URI'] = \$_SERVER['REQUEST_URI'] ?? '/';
+
+require __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../src/helpers/module-manager.php';
+
+\$pass = 0;
+\$fail = 0;
+\$errors = [];
+
+function t(string \$label, bool \$ok, string \$detail = ''): void
+{
+    global \$pass, \$fail, \$errors;
+    if (\$ok) {
+        \$pass++;
+        echo "  ✓ {\$label}\n";
+    } else {
+        \$fail++;
+        \$errors[] = \$label . (\$detail ? ": {\$detail}" : '');
+        echo "  ✗ {\$label}" . (\$detail ? " — {\$detail}" : '') . "\n";
+    }
+}
+
+// ── Clear logs ──────────────────────────────────────────────────────
+@file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+@file_put_contents(STORAGE_PATH . '/logs/error.log', '');
+
+echo "\n=== {$label} MODULE TEST ===\n\n";
+
+// ── 1. Manifest ─────────────────────────────────────────────────────
+echo "── Manifest ──\n";
+\$manifestPath = BASE_PATH . '/modules/{$id}/module.json';
+t('module.json exists', is_file(\$manifestPath));
+
+\$manifest = json_decode((string)file_get_contents(\$manifestPath), true);
+t('module.json is valid JSON', is_array(\$manifest));
+t('module id matches', (\$manifest['id'] ?? '') === '{$id}');
+t('module name is set', (\$manifest['name'] ?? '') !== '');
+t('module version is set', (\$manifest['version'] ?? '') !== '');
+
+// ── 2. Discovery ────────────────────────────────────────────────────
+echo "\n── Discovery ──\n";
+\$all = discoverModules();
+t('Module discovered by kernel', isset(\$all['{$id}']));
+
+// ── 3. Capability declarations ──────────────────────────────────────
+echo "\n── Capabilities ──\n";
+\$capCheck = validateModuleCapabilities(\$manifest);
+t('Capability declarations valid', !empty(\$capCheck['ok']), (\$capCheck['error'] ?? ''));
+
+// ── 4. Routes ───────────────────────────────────────────────────────
+echo "\n── Routes ──\n";
+\$routesFile = BASE_PATH . '/modules/{$id}/routes.php';
+t('routes.php exists', is_file(\$routesFile));
+\$routes = require \$routesFile;
+t('routes.php returns array', is_array(\$routes));
+t('GET routes defined', isset(\$routes['GET']) && is_array(\$routes['GET']));
+
+// ── 5. Helpers load ─────────────────────────────────────────────────
+echo "\n── Helpers ──\n";
+\$helpersFile = BASE_PATH . '/modules/{$id}/helpers.php';
+t('helpers.php exists', is_file(\$helpersFile));
+require_once \$helpersFile;
+t('{$shortPrefix}Ctx function exists', function_exists('{$shortPrefix}Ctx'));
+t('{$shortPrefix}Db function exists', function_exists('{$shortPrefix}Db'));
+t('{$shortPrefix}Input function exists', function_exists('{$shortPrefix}Input'));
+t('{$shortPrefix}Render function exists', function_exists('{$shortPrefix}Render'));
+
+// ── 6. Log check ────────────────────────────────────────────────────
+echo "\n── Logs ──\n";
+\$appLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/app.log'));
+\$errLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
+t('No errors in app.log', \$appLog === '' || !str_contains(strtolower(\$appLog), 'error'));
+t('No errors in error.log', \$errLog === '');
+
+// ── Summary ─────────────────────────────────────────────────────────
+echo "\n" . str_repeat('─', 50) . "\n";
+echo "  Result: {\$pass} passed, {\$fail} failed\n";
+if (!empty(\$errors)) {
+    echo "\n  Failures:\n";
+    foreach (\$errors as \$e) {
+        echo "    • {\$e}\n";
+    }
+}
+echo "\n";
+exit(\$fail > 0 ? 1 : 0);
+PHP;
+        file_put_contents($testPath, $testContent . "\n");
+        out('  ' . green('✓') . ' create ' . dim('tests/' . $testIdUnder . '_module_test.php'));
+
+        // ── README.md ────────────────────────────────────────────
+        $readmeContent = <<<MD
+# {$label}
+
+{$manifest['description']}
+
+## Quick Start
+
+```bash
+# 1. Edit your schema
+vim modules/{$id}/database/migrations/001_initial.sql
+
+# 2. Run migrations
+php ikabud migrate {$id}
+
+# 3. Enable the module (if not already)
+php ikabud module:enable {$id}
+
+# 4. Visit the admin page
+open /admin/{$id}
+```
+
+## Structure
+
+| File | Purpose |
+|------|---------|
+| `module.json` | Module manifest — tables, capabilities, events, nav |
+| `routes.php` | Route map: `'METHOD' => ['/path' => '{$id}:handler']` |
+| `handlers.php` | Route handler functions |
+| `helpers.php` | Auto-loaded scoped helpers ({$shortPrefix}Ctx, {$shortPrefix}Db, {$shortPrefix}Render) |
+| `database/migrations/` | Numbered SQL migration files |
+
+## Routes
+
+| Method | Path | Handler |
+|--------|------|---------|
+| GET | `/admin/{$id}` | `page{$funcPrefix}Home` |
+
+## Tables Owned
+
+_(none yet — add tables to `database/migrations/001_initial.sql` and list them in `module.json` `owns_tables`)_
+
+## Testing
+
+```bash
+php tests/{$testIdUnder}_module_test.php
+```
+
+## Further Reading
+
+- [Module Development Guide](../../docs/module-development-guide.md)
+- [Module Quickstart Tutorial](../../docs/module-quickstart.md)
+MD;
+        file_put_contents($modulePath . '/README.md', $readmeContent . "\n");
+        out('  ' . green('✓') . ' create README.md');
+
         out('');
         out('  ' . green('✓') . bold(' Module scaffolded: ') . cyan($id));
         out('');
         out('  Next steps:');
-        out('    1. Edit ' . dim("modules/{$id}/module.json") . ' (settings, nav, roles)');
-        out('    2. Edit ' . dim("modules/{$id}/migrations/001_initial.sql") . ' (schema)');
-        out('    3. Run ' . cyan("php ikabud migrate {$id}"));
-        out('    4. Visit ' . cyan("/admin/{$id}"));
+        out('    1. Edit ' . dim("modules/{$id}/database/migrations/001_initial.sql") . ' (add your tables)');
+        out('    2. Add table names to ' . dim("modules/{$id}/module.json") . ' owns_tables');
+        out('    3. Run  ' . cyan("php ikabud migrate {$id}"));
+        out('    4. Run  ' . cyan("php tests/" . $testIdUnder . "_module_test.php") . dim(' (verify scaffold)'));
+        out('    5. Visit ' . cyan("/admin/{$id}"));
+        out('');
+        out('  Docs: ' . dim('docs/module-quickstart.md') . '  |  ' . dim('docs/module-development-guide.md'));
         out('');
         break;
 
