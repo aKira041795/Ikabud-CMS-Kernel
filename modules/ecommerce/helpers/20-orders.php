@@ -38,6 +38,22 @@ function ecWithKernelDbUnguarded(callable $callback): mixed
     }
 }
 
+function ecOrderItemsHasSnapshotJsonColumn(): bool
+{
+    static $has = null;
+    if ($has !== null) {
+        return $has;
+    }
+    try {
+        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_order_items LIKE ?');
+        $stmt->execute(['snapshot_json']);
+        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $has = false;
+    }
+    return $has;
+}
+
 function ecRefundStorageAvailable(): bool
 {
     static $ready = null;
@@ -517,14 +533,14 @@ function ecOrderCreate(array $data): array
         if (!empty($data['cart_items'])) {
             $itemValues = [];
             $itemParams = [];
+            $hasSnapshotJson = ecOrderItemsHasSnapshotJsonColumn();
             foreach ($data['cart_items'] as $item) {
                 $unitPrice = (float)($item['price_snapshot'] ?? 0);
                 $qty       = max(1, (int)($item['qty'] ?? 1));
                 $snapshotJson = trim((string)($item['options_json'] ?? (function_exists('ecCartCanonicalOptionsJson') ? ecCartCanonicalOptionsJson($item) : '')));
 
-                $itemValues[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-                array_push(
-                    $itemParams,
+                $itemValues[] = $hasSnapshotJson ? '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)' : '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                $rowParams = [
                     $orderId,
                     (int)$item['product_id'],
                     $item['variant_id'] ?? null,
@@ -534,16 +550,22 @@ function ecOrderCreate(array $data): array
                     $qty,
                     round($unitPrice * $qty, 2),
                     $item['variant_label'] ?? null,
-                    $snapshotJson !== '' ? $snapshotJson : null
-                );
+                ];
+                if ($hasSnapshotJson) {
+                    $rowParams[] = $snapshotJson !== '' ? $snapshotJson : null;
+                }
+                array_push($itemParams, ...$rowParams);
                 // WMS becomes the stock authority once the order-created bridge is active.
                 if (!$wmsAuthorityActive) {
                     ecProductDecrementStock((int)$item['product_id'], $qty);
                 }
             }
             if ($itemValues) {
+                $columns = $hasSnapshotJson
+                    ? 'order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label, snapshot_json'
+                    : 'order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label';
                 $db->execute(
-                    "INSERT INTO ec_order_items (order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label, snapshot_json) VALUES " . implode(', ', $itemValues),
+                    "INSERT INTO ec_order_items ({$columns}) VALUES " . implode(', ', $itemValues),
                     $itemParams
                 );
             }
