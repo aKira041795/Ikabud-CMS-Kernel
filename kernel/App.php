@@ -1243,8 +1243,20 @@ class App
     public function input(?string $key = null, $default = null)
     {
         static $input = null;
+        static $inputSignature = null;
+
+        $currentSignature = null;
+        if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
+            $currentSignature = md5(serialize([
+                $_SERVER['REQUEST_METHOD'] ?? 'GET',
+                $_SERVER['REQUEST_URI'] ?? '',
+                $_SERVER['CONTENT_TYPE'] ?? '',
+                $_GET,
+                $_POST,
+            ]));
+        }
         
-        if ($input === null) {
+        if ($input === null || ($currentSignature !== null && $inputSignature !== $currentSignature)) {
             $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
             
             if (strpos($contentType, 'application/json') !== false) {
@@ -1276,6 +1288,7 @@ class App
 
             // Strip null bytes from all string values (prevents path traversal)
             $input = self::sanitizeInput($input);
+            $inputSignature = $currentSignature;
         }
         
         if ($key === null) {

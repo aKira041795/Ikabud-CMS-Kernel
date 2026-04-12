@@ -135,6 +135,12 @@
                     class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition" title="View/Edit">
                 <i class="fas fa-pen text-xs"></i>
             </button>
+            {if row.status_key == 'confirmed' and !row.case_id}
+            <button hx-get="/pages/cases/new?appointment_id={row.id}" hx-target="#modal-container" hx-swap="innerHTML"
+                    class="p-1.5 bg-violet-50 text-violet-600 rounded-lg hover:bg-violet-100 transition" title="Create Case">
+                <i class="fas fa-folder-plus text-xs"></i>
+            </button>
+            {/if}
             <button hx-post="/api/appointments/{row.id}/complete"
                     hx-confirm="Mark as completed?"
                     hx-target="#appointments-list" hx-swap="innerHTML"

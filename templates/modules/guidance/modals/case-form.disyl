@@ -20,6 +20,20 @@
             <form {if case.id}hx-put="/api/cases/{case.id}"{else}hx-post="/api/cases"{/if}
                   hx-swap="none"
                   class="p-6 space-y-6">
+                {if source_appointment.id}
+                <input type="hidden" name="appointment_id" value="{source_appointment.id}">
+                {/if}
+
+                {if source_appointment.id}
+                <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+                    <div class="font-semibold">
+                        <i class="fas fa-link mr-2 text-indigo-500"></i>Creating a case from confirmed appointment #{source_appointment.id}
+                    </div>
+                    <div class="mt-1 text-indigo-800">
+                        This case will be linked to the confirmed appointment on {source_appointment.scheduled_date} at {source_appointment.scheduled_time}. No new initial appointment will be created.
+                    </div>
+                </div>
+                {/if}
                 
                 {!-- Counselor Assignment (admin only) --}
                 {if is_admin}
@@ -45,7 +59,7 @@
                 {dynamic_fields_html | raw}
                 
                 {!-- Initial Appointment (Required for new cases) --}
-                {if !case.id}
+                {if !case.id and !source_appointment.id}
                 <div id="appointment-section">
                     <h3 class="text-lg font-medium text-gray-800 mb-4">
                         <i class="fas fa-calendar-alt mr-2 text-indigo-500"></i> Schedule Initial Appointment *

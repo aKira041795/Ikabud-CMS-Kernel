@@ -243,6 +243,22 @@
                                 <i class="fas fa-arrow-right text-indigo-400 group-hover:text-indigo-600 transition"></i>
                             </a>
                         </div>
+                        {elseif appointment.status == 'confirmed'}
+                        <div class="bg-white border border-gray-200 rounded-xl p-5">
+                            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                                <i class="fas fa-folder-plus mr-2 text-indigo-500"></i>No Linked Case
+                            </h3>
+                            <button hx-get="/pages/cases/new?appointment_id={appointment.id}"
+                                    hx-target="#modal-container"
+                                    hx-swap="innerHTML"
+                                    class="w-full flex items-center justify-between p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition group">
+                                <div class="text-left">
+                                    <p class="text-sm font-bold text-indigo-700">Create Case</p>
+                                    <p class="text-xs text-indigo-500">Link this confirmed appointment to a new case</p>
+                                </div>
+                                <i class="fas fa-arrow-right text-indigo-400 group-hover:text-indigo-600 transition"></i>
+                            </button>
+                        </div>
                         {/if}
                         
                         {!-- Timestamps --}
@@ -291,6 +307,12 @@
                     {/if}
                     
                     {if appointment.status == 'scheduled' or appointment.status == 'confirmed'}
+                        {if appointment.status == 'confirmed' and !appointment.case_id}
+                        <button hx-get="/pages/cases/new?appointment_id={appointment.id}" hx-target="#modal-container" hx-swap="innerHTML"
+                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition">
+                            <i class="fas fa-folder-plus mr-2"></i>Create Case
+                        </button>
+                        {/if}
                         <button hx-post="/api/appointments/{appointment.id}/complete" hx-swap="none"
                                 class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
                             <i class="fas fa-check-double mr-2"></i>Complete

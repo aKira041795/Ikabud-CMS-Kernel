@@ -245,6 +245,80 @@ function guidanceCreateCaseInitialAppointment(\Ikabud\Kernel\Contracts\DatabaseC
     return $appointmentId;
 }
 
+function guidanceResolveCaseSourceAppointment(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $appointmentId, bool $isCounselor, int $userId): ?array
+{
+    if ($appointmentId < 1) {
+        return null;
+    }
+
+    $stmt = $db->prepare(
+        'SELECT id, case_id, counselor_id, status, student_id, student_name, student_email, student_phone, '
+        . 'student_college_id, student_year_level, purpose, scheduled_date, scheduled_time, location '
+        . 'FROM gm_appointments WHERE id = ? LIMIT 1'
+    );
+    $stmt->execute([$appointmentId]);
+    $appointment = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($appointment)) {
+        throw new RuntimeException('Appointment not found.');
+    }
+
+    if ($isCounselor && (int)($appointment['counselor_id'] ?? 0) !== $userId) {
+        throw new RuntimeException('Access denied.');
+    }
+
+    if ((int)($appointment['case_id'] ?? 0) > 0) {
+        throw new RuntimeException('This appointment is already linked to a case.');
+    }
+
+    $status = strtolower(trim((string)($appointment['status'] ?? '')));
+    if ($status !== 'confirmed') {
+        throw new RuntimeException('Only confirmed appointments can be converted into a case.');
+    }
+
+    return $appointment;
+}
+
+function guidanceBuildCasePrefillFromAppointment(array $appointment): array
+{
+    return [
+        'student_id' => trim((string)($appointment['student_id'] ?? '')),
+        'student_name' => trim((string)($appointment['student_name'] ?? '')),
+        'student_email' => trim((string)($appointment['student_email'] ?? '')),
+        'student_mobile' => trim((string)($appointment['student_phone'] ?? '')),
+        'college_id' => (int)($appointment['student_college_id'] ?? 0),
+        'student_grade' => trim((string)($appointment['student_year_level'] ?? '')),
+        'counselor_id' => (int)($appointment['counselor_id'] ?? 0),
+        'presenting_issue' => trim((string)($appointment['purpose'] ?? '')),
+    ];
+}
+
+function guidanceLinkAppointmentToCase(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $caseId, array $caseData, array $appointment, int $userId): int
+{
+    $appointmentId = (int)($appointment['id'] ?? 0);
+    if ($appointmentId < 1) {
+        throw new RuntimeException('Appointment not found.');
+    }
+
+    $stmt = $db->prepare(
+        'UPDATE gm_appointments SET case_id = ?, counselor_id = ?, student_name = ?, student_email = ?, student_phone = ?, '
+        . 'student_college_id = ?, student_year_level = ?, last_modified_by = ?, updated_at = NOW() '
+        . 'WHERE id = ?'
+    );
+    $stmt->execute([
+        $caseId,
+        (int)($caseData['counselor_id'] ?? 0),
+        (string)($caseData['student_name'] ?? ''),
+        (string)($caseData['student_email'] ?? ''),
+        (string)($caseData['student_mobile'] ?? ''),
+        ($caseData['college_id'] ?? null),
+        (string)($caseData['student_grade'] ?? ''),
+        $userId,
+        $appointmentId,
+    ]);
+
+    return $appointmentId;
+}
+
 function apiGuidanceCreateCase(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
@@ -260,10 +334,26 @@ function apiGuidanceCreateCase(): void
         return;
     }
 
+    $db = guidanceDb();
+    $sourceAppointmentId = (int)($input['appointment_id'] ?? 0);
+    $sourceAppointment = null;
+    if ($sourceAppointmentId > 0) {
+        try {
+            $sourceAppointment = guidanceResolveCaseSourceAppointment($db, $sourceAppointmentId, $isCounselor, $userId);
+        } catch (RuntimeException $e) {
+            http_response_code(422);
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $e->getMessage(), 'type' => 'error']]));
+            echo '';
+            return;
+        }
+    }
+
     $validationErrors = guidanceValidateFormInput('case', $input);
-    foreach (['appointment_type_id', 'appointment_date', 'appointment_time'] as $fieldName) {
-        if (!array_key_exists($fieldName, $input) || trim((string)$input[$fieldName]) === '') {
-            $validationErrors[] = ucfirst(str_replace('_', ' ', $fieldName)) . ' is required';
+    if ($sourceAppointment === null) {
+        foreach (['appointment_type_id', 'appointment_date', 'appointment_time'] as $fieldName) {
+            if (!array_key_exists($fieldName, $input) || trim((string)$input[$fieldName]) === '') {
+                $validationErrors[] = ucfirst(str_replace('_', ' ', $fieldName)) . ' is required';
+            }
         }
     }
     if ($validationErrors !== []) {
@@ -273,9 +363,8 @@ function apiGuidanceCreateCase(): void
         return;
     }
 
-    $db = guidanceDb();
     $hasStudentStatus = studentStatusCasesColumnExists($db);
-    $counselorId = $isCounselor ? $userId : (int)($input['counselor_id'] ?? 0);
+    $counselorId = $isCounselor ? $userId : (int)($input['counselor_id'] ?? (int)($sourceAppointment['counselor_id'] ?? 0));
 
     try {
         if (!guidanceCounselorExists($db, $counselorId)) {
@@ -317,7 +406,13 @@ function apiGuidanceCreateCase(): void
 
                 $caseId = (int)$db->lastInsertId();
                 guidanceInsertCaseStatusHistory($db, $caseId, null, 'open', $userId, 'Case created');
-                $appointmentId = guidanceCreateCaseInitialAppointment($db, $caseId, $caseData, $input, $userId);
+                if (is_array($sourceAppointment)) {
+                    $appointmentId = guidanceLinkAppointmentToCase($db, $caseId, $caseData, $sourceAppointment, $userId);
+                    $successMessage = 'Case created successfully and linked to the confirmed appointment';
+                } else {
+                    $appointmentId = guidanceCreateCaseInitialAppointment($db, $caseId, $caseData, $input, $userId);
+                    $successMessage = 'Case created successfully with the initial appointment scheduled';
+                }
                 guidanceLogAudit($db, 'case.created', 'gm_cases', $caseId, null, array_merge($input, [
                     'case_number' => $caseNumber,
                     'appointment_id' => $appointmentId,
@@ -325,9 +420,10 @@ function apiGuidanceCreateCase(): void
                 $db->commit();
 
                 header('HX-Trigger: ' . json_encode([
-                    'showToast' => ['message' => 'Case created successfully with the initial appointment scheduled', 'type' => 'success'],
+                    'showToast' => ['message' => $successMessage, 'type' => 'success'],
                     'closeModal' => true,
                     'refreshCases' => true,
+                    'refreshAppointments' => true,
                 ]));
 
                 if (guidanceIsHtmx()) {
@@ -3152,6 +3248,20 @@ function modalGuidanceCaseNew(): void
     $db = guidanceDb();
     $counselors = [];
     $colleges = [];
+    $sourceAppointment = null;
+    $casePrefill = [];
+
+    $sourceAppointmentId = (int)guidanceInput('appointment_id', 0);
+    if ($sourceAppointmentId > 0) {
+        try {
+            $sourceAppointment = guidanceResolveCaseSourceAppointment($db, $sourceAppointmentId, $role === 'counselor', $userId);
+            $casePrefill = guidanceBuildCasePrefillFromAppointment($sourceAppointment);
+        } catch (RuntimeException $e) {
+            http_response_code(422);
+            echo '<div class="p-4 text-red-600">' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>';
+            return;
+        }
+    }
 
     try {
         $stmt = $db->prepare("SELECT id, first_name, last_name, CONCAT(first_name, ' ', last_name) AS name FROM gm_users WHERE role = 'counselor' AND deleted_at IS NULL AND is_active = 1 ORDER BY first_name, last_name");
@@ -3169,13 +3279,14 @@ function modalGuidanceCaseNew(): void
     }
 
     echo guidanceRender('modules/guidance/modals/case-form.disyl', [
-        'case' => [],
+        'case' => $casePrefill,
         'today' => date('Y-m-d'),
         'is_admin' => $role !== 'counselor',
         'user_role' => $role,
         'user_id' => $userId,
         'counselors' => $counselors,
-        'dynamic_fields_html' => guidanceRenderFormFields('case', [], ['colleges' => $colleges]),
+        'dynamic_fields_html' => guidanceRenderFormFields('case', $casePrefill, ['colleges' => $colleges]),
+        'source_appointment' => $sourceAppointment ?? [],
         'tinymce_assets' => $tinyMceAssets,
         'tinymce_config' => $tinyMceConfig,
     ]);
