@@ -755,6 +755,47 @@ Phase 5 execution means:
 
 If the same ingestion runtime is later required outside CMS migration, the next architectural review can evaluate moving the shared pipeline into a kernel-owned service layer. That is explicitly deferred until the module-level adapter contract and pipeline have been proven in practice.
 
+#### Pending Implementation Roadmap
+
+Now that WordPress ingestion has been proven end to end, the next roadmap should focus on turning the current bridge into a durable ingestion capability without overpromoting it too early.
+
+1. **Stabilize the current WordPress path first**
+  - Harden idempotency edge cases: duplicates, autosaves, partial updates, stale delivery ordering.
+  - Harden malformed input handling: broken HTML, shortcodes, inconsistent encodings, dirty WXR payloads.
+  - Harden tenant-safe slug behavior and source-origin bookkeeping under real migration data.
+  - Treat this as a quality gate: if ingestion fails on messy real-world content, later expansion is premature.
+
+2. **Extract the shared ingestion core inside `content-ingestion`**
+  - Keep the immediate extraction module-level, not kernel-level.
+  - Formalize the runtime as: `Adapter -> Normalize -> Event/Envelope -> Ingestion Core -> Capability -> Storage`.
+  - Refactor WordPress-specific logic behind the adapter contract so the pipeline becomes source-agnostic.
+  - This is the point where the system stops being only a WordPress bridge and becomes reusable ingestion infrastructure.
+
+3. **Add first-class operational visibility and control**
+  - Build an ingestion operations UI, not just table-level logs.
+  - Add replay tools, failed-ingestion review, and event/outcome inspection.
+  - Add source-vs-CMS diff visibility so operators can understand what changed and why the pipeline took a specific action.
+
+4. **Add conflict-resolution UX for non-technical users**
+  - `review-required` must become an actionable workflow, not a terminal holding state.
+  - Provide side-by-side comparison and explicit resolution actions such as using the source version, keeping the CMS version, or resolving manually.
+  - Backend conflict status is necessary but not sufficient for adoption; editors need a human-readable decision surface.
+
+5. **Upgrade media pipeline resilience**
+  - Prioritize retry behavior, timeout handling, broken-URL detection, and fallback rendering.
+  - If media fetches fail silently or inconsistently, users perceive the entire ingestion system as broken even when content records succeed.
+  - Treat media hardening as a core reliability track, not a secondary enhancement.
+
+6. **Keep WordPress admin boot demand-gated**
+  - Do not treat embedded WordPress admin as the default next step.
+  - Only advance the admin-boot/runtime path if real tenant demand justifies the extra security, maintenance, and performance cost.
+  - For many migrations, import plus live sync plus governance is sufficient without embedding WordPress itself.
+
+7. **Revisit kernel extraction only after proof of shared demand**
+  - Kernel promotion remains a later architecture review, not the next implementation step.
+  - Move the ingestion core into a kernel-owned service only when multiple adapters are stable and multiple modules or platform surfaces genuinely need the same runtime.
+  - Until then, `content-ingestion` is the right proving ground.
+
 #### What Does NOT Change
 
 - Route paths (`/bridge/...`) — these are stable
@@ -767,8 +808,15 @@ If the same ingestion runtime is later required outside CMS migration, the next 
 
 ## Recommendation
 
-Start with **Phase 1 (import-only)** because it requires no WordPress runtime and builds directly on the existing `wordpress-importer` module. The provenance and conflict-detection infrastructure established in Phase 1 is prerequisite for all later phases.
+The proposal is directionally correct, but the ordering matters.
 
-Phase 2 (admin boot) should only proceed if real tenant demand justifies the runtime cost of booting WordPress within ApplicationOS. The import-only bridge may be sufficient for most migration scenarios.
+The next implementation roadmap should be:
 
-The strategic outcome is not just "WordPress migration" — it is a **controlled content ingestion pipeline with lifecycle governance** that unifies how ApplicationOS accepts content from any external source. WordPress is the first adapter. The pipeline is the product.
+1. Harden the existing ingestion path until it is trustworthy under messy real data.
+2. Extract the shared ingestion core inside `content-ingestion` and formalize the adapter boundary.
+3. Add operational visibility, replay tooling, and conflict-resolution UX.
+4. Upgrade media resilience as a first-class reliability concern.
+5. Keep WordPress admin boot optional and demand-driven.
+6. Revisit kernel promotion only after the module-level pipeline has proven cross-adapter and cross-consumer value.
+
+That keeps the system moving toward platform capability without prematurely locking it into kernel ownership. The strategic outcome is still the same: not just WordPress migration, but a **controlled content ingestion pipeline with lifecycle governance** that can eventually serve any external source.
