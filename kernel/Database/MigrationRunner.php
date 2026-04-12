@@ -473,11 +473,23 @@ class MigrationRunner
 
     /**
      * Execute multi-statement SQL (handles statements separated by semicolons).
+     *
+     * Resets the session SQL mode to a permissive baseline before execution so
+     * migrations work across MySQL/MariaDB versions that differ in strictness.
+     * In particular, older servers reject `DEFAULT NULL` on TEXT/BLOB/JSON columns
+     * (error 1101) unless the strict blob-default enforcement is lifted.
      */
     private function executeSql(string $sql): void
     {
-        // Split on semicolons, but not those inside quotes/comments
-        // For simplicity, use PDO's exec for multi-statement (MySQL supports it)
+        // Permissive baseline — mirrors what the Bluehost upgrade bundles use.
+        // This suppresses error 1101 (BLOB/TEXT column can't have a default) on
+        // older MySQL/MariaDB and allows the idempotent DDL patterns we rely on.
+        try {
+            $this->pdo->exec("SET SESSION sql_mode = 'NO_AUTO_VALUE_ON_ZERO'");
+        } catch (\Throwable $ignored) {
+            // Non-fatal: if SET SESSION fails (unlikely), proceed anyway.
+        }
+
         $this->pdo->exec($sql);
     }
 }
