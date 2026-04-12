@@ -1594,6 +1594,15 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
     }
     $product['is_visible'] = true;
 
+    // Apply segment / tier pricing when a logged-in customer has active segments
+    $segmentUserId = function_exists('ecSegmentCurrentUserId') ? ecSegmentCurrentUserId() : 0;
+    if ($segmentUserId > 0 && function_exists('ecCustomerActiveSegments') && function_exists('ecSegmentApplyProductPrice')) {
+        $activeSegments = ecCustomerActiveSegments($segmentUserId);
+        if (!empty($activeSegments)) {
+            $product = ecSegmentApplyProductPrice($product, $activeSegments);
+        }
+    }
+
     $pricing = ecStorefrontNormalizePricing(is_array($product['pricing'] ?? null) ? $product['pricing'] : []);
     $inventory = ecStorefrontNormalizeInventory(is_array($product['inventory'] ?? null) ? $product['inventory'] : []);
     $inventoryBadge = ecStorefrontInventoryBadge($inventory);

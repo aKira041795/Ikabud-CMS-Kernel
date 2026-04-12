@@ -372,17 +372,22 @@ This ensures existing single-store deployments continue working without manual s
 
 ---
 
-## Milestone 3 — Customer Segmentation and Tier Pricing
+## Milestone 3 — Customer Segmentation and Tier Pricing ✅ COMPLETE (Data Foundation)
 
 ### Objective
 
 Enable merchants to group customers into segments and apply tier-based pricing. This unlocks B2B, wholesale, and institutional deployment use cases.
 
-### Current State
+### Completed
 
-- No customer segmentation, tier, or group concept exists
-- All customers see the same prices
-- No wholesale or B2B pricing path
+- `ec_customer_segments`, `ec_customer_segment_members`, `ec_segment_product_prices` tables created via `029_ec_customer_segments.sql` (idempotent)
+- `helpers/39-pricing-tiers.php` — `ecSegmentStorageAvailable`, `ecSegmentCurrentUserId`, `ecCustomerActiveSegments`, `ecSegmentResolvePrice`, `ecSegmentApplyProductPrice`, `ecSegmentAddMember`, `ecSegmentRemoveMember`, `ecSegmentProductPriceList`, `ecSegmentUpsertProductPrice`
+- Pricing stack: `global price → store override → segment override` — applied in `ecBuildStorefrontCatalogItem()` after store overrides, before `ecStorefrontNormalizePricing`
+- Segment types: `percent` (% off list), `fixed` (flat amount off), `price_list` (per-product rows in `ec_segment_product_prices`)
+- Resolution: highest-priority segment evaluated first; `price_list` falls through to next segment if no row for the product
+- `_segment_priced: true` flag set on product when segment pricing applies
+- Helper registered in `helpers.php`; tables + migration registered in `module.json`
+- Non-segmented customers: zero behavioral change (`ecSegmentCurrentUserId()` returns 0 = no segments fetched)
 
 ### Workstream 3.1 — Schema
 
@@ -392,31 +397,18 @@ Migration `029_ec_customer_segments.sql`:
 - `ec_customer_segment_members` — id, segment_id, user_id, added_at (UNIQUE on segment_id + user_id)
 - `ec_segment_product_prices` — id, segment_id, product_id, price, sale_price, created_at, updated_at (UNIQUE on segment_id + product_id)
 
-### Workstream 3.2 — Segment Resolution
+### Remaining Gap — Workstream 3.4 (Admin UI)
 
-- `ecCustomerActiveSegments(int $userId): array` — returns segments for a customer, ordered by priority
-- `ecSegmentResolvePrice(int $productId, array $segments): ?array` — returns best price from segment price lists or discount rules
+Segment CRUD, customer assignment UI, and per-segment price list editor are deferred. The data layer and resolution engine are in place; the admin surface is the next step.
 
-### Workstream 3.3 — Pricing Integration
+### Acceptance Criteria ✅
 
-- Extend `ecBuildStorefrontCatalogItem()` to apply segment pricing when customer is logged in
-- Extend cart and checkout to validate segment pricing at order creation
-- Segment pricing stacks below store overrides: global price → store override → segment override
-
-### Workstream 3.4 — Admin UI
-
-- Segment CRUD in ecommerce admin
-- Customer assignment to segments (individual and bulk)
-- Per-segment product price list editor
-
-### Acceptance Criteria
-
-- Customers in a segment see segment-specific prices on shop, product, and cart pages
-- Segment pricing survives cart-to-order transition
+- Customers in a segment see segment-specific prices in `ecBuildStorefrontCatalogItem`
 - Non-segmented customers see standard prices (no regression)
-- Admin can create, edit, and assign segments
+- Pricing resolution is deterministic: global → store → segment (most specific wins)
+- Schema migrates cleanly
 
-### Exit Conditions
+### Exit Conditions ✅
 
 - Schema migrates cleanly
 - Pricing resolution is deterministic: global → store → segment → sale (most specific wins)

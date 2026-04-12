@@ -17,6 +17,7 @@ require_once __DIR__ . '/helpers/33-recently-viewed.php';
 require_once __DIR__ . '/helpers/34-comparison.php';
 require_once __DIR__ . '/helpers/35-wishlist.php';
 require_once __DIR__ . '/helpers/38-stores.php';
+require_once __DIR__ . '/helpers/39-pricing-tiers.php';
 require_once __DIR__ . '/helpers/40-pricing.php';
 require_once __DIR__ . '/helpers/50-reports.php';
 require_once __DIR__ . '/helpers/55-digital-licenses.php';
