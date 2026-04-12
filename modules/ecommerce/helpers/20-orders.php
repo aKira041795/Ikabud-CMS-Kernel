@@ -38,6 +38,22 @@ function ecWithKernelDbUnguarded(callable $callback): mixed
     }
 }
 
+function ecOrdersHasTokenExpiresAtColumn(): bool
+{
+    static $has = null;
+    if ($has !== null) {
+        return $has;
+    }
+    try {
+        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_orders LIKE ?');
+        $stmt->execute(['token_expires_at']);
+        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $has = false;
+    }
+    return $has;
+}
+
 function ecOrderItemsHasSnapshotJsonColumn(): bool
 {
     static $has = null;
@@ -500,13 +516,14 @@ function ecOrderCreate(array $data): array
 
     try {
         // Insert order
-        $db->execute(
-            "INSERT INTO ec_orders (
-                order_number, customer_id, guest_email, guest_name, source,
+        $hasTokenExpiry = ecOrdersHasTokenExpiresAtColumn();
+        $orderCols = 'order_number, customer_id, guest_email, guest_name, source,
                 status, payment_status, subtotal, discount_amount, tax_amount,
                 shipping_amount, total, currency, coupon_code, customer_note,
-                confirmation_token, placed_by_user_id, token_expires_at, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 90 DAY), NOW(), NOW())",
+                confirmation_token, placed_by_user_id' . ($hasTokenExpiry ? ', token_expires_at' : '') . ', created_at, updated_at';
+        $orderPlaceholders = '?, ?, ?, ?, ?, \'pending\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' . ($hasTokenExpiry ? ', DATE_ADD(NOW(), INTERVAL 90 DAY)' : '') . ', NOW(), NOW()';
+        $db->execute(
+            "INSERT INTO ec_orders ({$orderCols}) VALUES ({$orderPlaceholders})",
             [
                 $orderNumber,
                 $customerId,
