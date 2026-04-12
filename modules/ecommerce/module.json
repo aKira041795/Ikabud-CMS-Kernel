@@ -104,6 +104,13 @@
                 ]
             },
             {
+                "id": "ecommerce.membership.content_gate@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
                 "id": "ecommerce.products.list@1",
                 "priority": 50,
                 "modes": [

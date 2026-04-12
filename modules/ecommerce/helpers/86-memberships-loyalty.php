@@ -617,3 +617,171 @@ function ecLoyaltyAdminAdjust(int $customerId, int $points, string $description,
 
     return ['ok' => true, 'points' => $points];
 }
+
+// ── Milestone 6 — CMS-Wide Membership Gating ─────────────────────────────
+
+/**
+ * Simple API: returns true when $userId holds one of the $requiredMembership tiers.
+ * $requiredMembership may be a tier string, a comma-separated list, or a JSON array.
+ *
+ * This is the canonical access-check entry point; callers outside ecommerce should
+ * prefer this over `ecCustomerHasMembershipTier` directly.
+ */
+function ecMembershipUserHasAccess(int $userId, mixed $requiredMembership): bool
+{
+    // Fast path: empty / null / [] means no requirement → always allowed
+    if ($requiredMembership === null || $requiredMembership === '' || $requiredMembership === [] || $requiredMembership === '[]') {
+        return true;
+    }
+    $tiers = ecMembershipNormalizeTierList($requiredMembership);
+    if ($tiers === []) {
+        return true;
+    }
+    if ($userId <= 0 || !ecMembershipStorageAvailable()) {
+        return false;
+    }
+    return ecCustomerHasMembershipTier($userId, '', $tiers);
+}
+
+/**
+ * Returns the required membership tiers stored on a CMS content row (page or post).
+ * Reads `_required_membership_tiers` from cms_content_meta — the same key used for products.
+ *
+ * @return string[]
+ */
+function ecContentMembershipRequiredTiers(int $contentId): array
+{
+    if ($contentId <= 0) {
+        return [];
+    }
+    $result = [];
+    try {
+        moduleWithContext('cms', static function () use ($contentId, &$result): void {
+            $row = cmsDb()->query(
+                "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_required_membership_tiers' LIMIT 1",
+                [$contentId]
+            )->fetch(\PDO::FETCH_ASSOC);
+            if (!is_array($row)) {
+                return;
+            }
+            $value   = $row['meta_value'] ?? '';
+            $decoded = json_decode((string)$value, true);
+            $result  = ecMembershipNormalizeTierList(is_array($decoded) ? $decoded : (string)$value);
+        });
+    } catch (\Throwable $e) {
+        return [];
+    }
+    return $result;
+}
+
+/**
+ * Saves (or clears) required membership tiers on a CMS content row.
+ * Pass an empty array to remove the gate.
+ *
+ * @param string[] $tiers
+ */
+function ecContentSaveMembershipTiers(int $contentId, array $tiers): void
+{
+    if ($contentId <= 0) {
+        return;
+    }
+    $tiers = ecMembershipNormalizeTierList($tiers);
+    $json  = json_encode($tiers, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    try {
+        moduleWithContext('cms', static function () use ($contentId, $tiers, $json): void {
+            $db = cmsDb();
+            if ($tiers === []) {
+                $db->execute(
+                    "DELETE FROM cms_content_meta WHERE content_id = ? AND meta_key = '_required_membership_tiers'",
+                    [$contentId]
+                );
+            } else {
+                $db->execute(
+                    "INSERT INTO cms_content_meta (content_id, meta_key, meta_value)
+                     VALUES (?, '_required_membership_tiers', ?)
+                     ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+                    [$contentId, $json]
+                );
+            }
+        });
+    } catch (\Throwable $e) {
+        write_log('ecContentSaveMembershipTiers failed for content ' . $contentId . ': ' . $e->getMessage(), 'warning', [
+            'module'     => 'ecommerce',
+            'content_id' => $contentId,
+        ]);
+    }
+}
+
+/**
+ * Returns the membership gate result for a CMS page or post — same shape as
+ * ecMembershipGateForProduct, so templates can use identical rendering logic.
+ *
+ * Gate result keys:
+ *   allowed             bool   — whether current user may view the content
+ *   requires_membership bool   — true when at least one tier is required
+ *   login_required      bool   — true when not logged in and a tier is required
+ *   required_tiers      array  — list of required tier slugs
+ *   active_tiers        array  — tiers held by current user
+ *   message             string — human-readable denial reason
+ */
+function ecMembershipGateForContent(int $contentId, ?array $user = null): array
+{
+    $required = ecContentMembershipRequiredTiers($contentId);
+
+    if ($required === []) {
+        return [
+            'allowed'             => true,
+            'requires_membership' => false,
+            'login_required'      => false,
+            'required_tiers'      => [],
+            'active_tiers'        => [],
+            'message'             => '',
+        ];
+    }
+
+    $user          = $user ?? (function_exists('app') ? app()->user() : null);
+    $customerId    = (is_array($user) && ($user['source'] ?? '') === 'cms') ? (int)($user['id'] ?? 0) : 0;
+    $customerEmail = trim((string)(is_array($user) ? ($user['email'] ?? '') : ''));
+    $activeTiers   = ($customerId > 0 || $customerEmail !== '')
+        ? ecCustomerActiveMembershipTiers($customerId, $customerEmail)
+        : [];
+    $allowed       = array_intersect($required, $activeTiers) !== [];
+    $loginRequired = !$allowed && $customerId <= 0;
+
+    return [
+        'allowed'             => $allowed,
+        'requires_membership' => true,
+        'login_required'      => $loginRequired,
+        'required_tiers'      => $required,
+        'active_tiers'        => $activeTiers,
+        'message'             => $allowed
+            ? ''
+            : ($loginRequired
+                ? 'Sign in with an account that has the required membership to access this content.'
+                : 'This content requires an active ' . implode(' or ', array_map('ecMembershipTierLabel', $required)) . ' membership.'),
+    ];
+}
+
+// ── Capability: ecommerce.membership.content_gate@1 ──────────────────────
+// CMS or other modules call this via app()->capabilities()->call(...)
+// Input payload: {content_id: int, user?: array}
+// Returns the same array as ecMembershipGateForContent.
+
+function ecMembershipContentGateCapabilityHandler(array $payload): array
+{
+    $contentId = (int)($payload['content_id'] ?? 0);
+    $user      = is_array($payload['user'] ?? null) ? $payload['user'] : null;
+    return ecMembershipGateForContent($contentId, $user);
+}
+
+try {
+    app()->capabilities()->register(
+        'ecommerce.membership.content_gate@1',
+        'ecommerce',
+        'ecMembershipContentGateCapabilityHandler',
+        50,
+        ['first']
+    );
+} catch (\Throwable $e) {
+}

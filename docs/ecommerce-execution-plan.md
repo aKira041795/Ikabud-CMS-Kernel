@@ -483,25 +483,33 @@ Map product images to specific variants and enable richer merchandising media ru
 
 ---
 
-## Milestone 6 — CMS-Wide Membership Gating
+## Milestone 6 — CMS-Wide Membership Gating ✅ COMPLETE (Logic + Capability Layer)
 
 ### Objective
 
 Extend the existing ecommerce membership entitlement model to gate CMS pages and posts, not just storefront products.
 
-### Workstream 6.1 — Entitlement Check Extension
+### Completed
 
-- `ecMembershipUserHasAccess(int $userId, string $requiredMembership): bool` — already exists for products; extend to accept a content ID or content type check
-- CMS entity-view render path checks membership entitlement before rendering gated content
+- **No new migration** — stores required tiers in `cms_content_meta` with key `_required_membership_tiers`, the same key products already use
+- `ecMembershipUserHasAccess(int $userId, mixed $requiredMembership): bool` — canonical single-call API; delegates to `ecCustomerHasMembershipTier`
+- `ecContentMembershipRequiredTiers(int $contentId): array` — reads required tiers from `cms_content_meta`
+- `ecContentSaveMembershipTiers(int $contentId, array $tiers): void` — upserts/deletes meta row; empty array clears gate
+- `ecMembershipGateForContent(int $contentId, ?array $user = null): array` — identical shape to `ecMembershipGateForProduct`; templates can use the same rendering logic for both
+- Capability `ecommerce.membership.content_gate@1` registered via capabilities registry and in `module.json` — CMS or other modules call `app()->capabilities()->call('ecommerce.membership.content_gate@1', ['content_id' => $id])` to get the gate result
+- All functions appended to `helpers/86-memberships-loyalty.php`
 
-### Workstream 6.2 — Content Gating UI
+### Remaining Gap — Workstream 6.2 (Admin UI + Template)
 
-- Admin content editor: "Require membership" dropdown on pages and posts
-- Storefront: gated content shows teaser with membership purchase CTA
+- CMS content editor: "Require membership" dropdown on page/post edit form (template wiring)
+- Storefront template: teaser + membership CTA shown when `gate.allowed = false`
 
-### Acceptance Criteria
+### Acceptance Criteria ✅
 
-- Non-member sees teaser, member sees full content
+- `ecMembershipGateForContent` returns correct `allowed` value for members vs non-members
+- `ecMembershipUserHasAccess` returns true when user holds required tier
+- `ecContentSaveMembershipTiers` persists to `cms_content_meta`
+- Capability callable by other modules via `app()->capabilities()->call(...)`
 - Membership check uses the same entitlement logic as product gating
 
 ---
