@@ -206,22 +206,6 @@ function ecAdminLoyaltyAdjust(): void
     exit;
 }
 
-/**
- * Manually credit or debit loyalty points for a customer.
- */
-function ecLoyaltyAdminAdjust(int $customerId, int $points, string $description, int $adminUserId): array
-{
-    if (!ecLoyaltyStorageAvailable() || $customerId <= 0 || $points === 0) {
-        return ['ok' => false, 'error' => 'Invalid parameters'];
-    }
-
-    $entryType = $points > 0 ? 'admin_credit' : 'admin_debit';
-    $note      = $description . ' (admin #' . $adminUserId . ')';
-    ecLoyaltyRecordEntry($customerId, 0, $entryType, $points, $note);
-
-    return ['ok' => true, 'points' => $points];
-}
-
 // ── Helper: list memberships for admin ────────────────────────────────────
 
 function ecAdminMembershipList(array $opts = []): array

@@ -600,3 +600,20 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload): void 
         ]);
     }
 });
+
+/**
+ * Manually credit or debit loyalty points for a customer (admin action).
+ * Returns ['ok' => bool, 'points' => int, 'error' => string].
+ */
+function ecLoyaltyAdminAdjust(int $customerId, int $points, string $description, int $adminUserId): array
+{
+    if (!ecLoyaltyStorageAvailable() || $customerId <= 0 || $points === 0) {
+        return ['ok' => false, 'error' => 'Invalid parameters'];
+    }
+
+    $entryType = $points > 0 ? 'admin_credit' : 'admin_debit';
+    $note      = $description . ' (admin #' . $adminUserId . ')';
+    ecLoyaltyRecordEntry($customerId, 0, $entryType, $points, $note);
+
+    return ['ok' => true, 'points' => $points];
+}
