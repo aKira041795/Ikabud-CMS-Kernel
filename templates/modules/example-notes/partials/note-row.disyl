@@ -1,0 +1,8 @@
+<tr>
+    <td><a href="/admin/example-notes/{note.id}">{note.title}</a></td>
+    <td>{note.created_by}</td>
+    <td>{note.created_at}</td>
+    <td style="text-align:right;">
+        <a href="/admin/example-notes/{note.id}" class="btn btn-sm btn-secondary">Edit</a>
+    </td>
+</tr>

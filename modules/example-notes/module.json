@@ -1,0 +1,35 @@
+{
+    "id": "example-notes",
+    "name": "Example Notes",
+    "version": "1.0.0",
+    "description": "Golden reference module demonstrating idiomatic Ikabud module patterns. Not for production use — keep disabled and use as a learning reference.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "en_notes"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": [
+            "kernel.auth.user@1",
+            "kernel.audit.record@1"
+        ]
+    },
+    "events": [
+        "example-notes.note.created",
+        "example-notes.note.deleted"
+    ],
+    "nav": [
+        {
+            "label": "Example Notes",
+            "url": "/admin/example-notes",
+            "icon": "file-text",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

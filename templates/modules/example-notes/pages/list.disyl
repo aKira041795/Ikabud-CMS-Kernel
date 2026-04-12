@@ -1,0 +1,52 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .en-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .en-toolbar h2 { font-size: var(--font-size-h2); font-weight: 700; }
+    .en-table { width: 100%; border-collapse: collapse; }
+    .en-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border-color); font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); }
+    .en-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+    .en-table tr:last-child td { border-bottom: none; }
+    .en-empty { text-align: center; padding: 48px 0; color: var(--text-muted); }
+</style>
+{/block}
+
+{block content}
+<div class="en-toolbar">
+    <div>
+        <h2>{page_title}</h2>
+        <span class="text-sm text-muted">Manage your notes</span>
+    </div>
+    <a href="/admin/example-notes/new" class="btn btn-primary">+ New Note</a>
+</div>
+
+{if flash_error}
+<div class="alert alert-danger">{flash_error}</div>
+{/if}
+
+<div class="card">
+    {if notes}
+    <table class="en-table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Created By</th>
+                <th>Created At</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {each notes as note}
+            {include "modules/example-notes/partials/note-row.disyl" note={note}}
+            {/each}
+        </tbody>
+    </table>
+    {else}
+    <div class="en-empty">
+        <div style="font-size:40px;margin-bottom:8px;">📝</div>
+        <div>No notes yet. <a href="/admin/example-notes/new">Create one</a>.</div>
+    </div>
+    {/if}
+</div>
+{/block}

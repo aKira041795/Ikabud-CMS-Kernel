@@ -130,6 +130,7 @@ switch ($command) {
         out('    ' . green('module:disable') . ' <id>         Disable a module');
         out('    ' . green('module:pack') . ' <id> [zip]     Create an installable module zip');
         out('    ' . green('module:uninstall') . ' <id>       Remove module files and disable it');
+        out('    ' . green('module:validate') . ' <id>         Full compliance check (manifest, capabilities, routes, tables, migrations)');
         out('    ' . green('module:check-boundaries') . '     Validate module boundary rules');
         out('    ' . green('module:graph') . ' [id]           Dependency graph + impact analysis');
         out('');
@@ -1599,52 +1600,175 @@ switch ($command) {
             exit(1);
         }
 
-        if (hasFlag('--with-modules')) {
-            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
-        }
         $mods = discoverModules();
         if (!isset($mods[$moduleId])) {
             out(red("  ✗ Module '{$moduleId}' not found."));
             exit(1);
         }
 
-        $check = validateModuleCapabilities($mods[$moduleId]);
         banner();
         out('  ' . bold('Module Validate: ') . cyan($moduleId));
         out('');
 
+        $manifest = $mods[$moduleId];
+        $modPath = (string)($manifest['_path'] ?? '');
+        $validateFails = 0;
+
+        // ── 1. Manifest completeness ─────────────────────────────
+        out('  ' . bold('Manifest'));
+        $requiredFields = ['id', 'name', 'version', 'description'];
+        foreach ($requiredFields as $field) {
+            $present = isset($manifest[$field]) && $manifest[$field] !== '';
+            out('    ' . ($present ? green('✓') : red('✗')) . ' ' . $field . ($present ? '' : ' — missing or empty'));
+            if (!$present) $validateFails++;
+        }
+        // id must match directory name
+        $idMatch = ($manifest['id'] ?? '') === $moduleId;
+        out('    ' . ($idMatch ? green('✓') : red('✗')) . ' id matches directory' . ($idMatch ? '' : " — manifest id '{$manifest['id']}' ≠ directory '{$moduleId}'"));
+        if (!$idMatch) $validateFails++;
+        // owns_tables / reads_tables must be arrays
+        foreach (['owns_tables', 'reads_tables'] as $tField) {
+            $isArr = isset($manifest[$tField]) && is_array($manifest[$tField]);
+            out('    ' . ($isArr ? green('✓') : red('✗')) . ' ' . $tField . ' is array' . ($isArr ? '' : ' — missing or not an array'));
+            if (!$isArr) $validateFails++;
+        }
+        out('');
+
+        // ── 2. Capability schema + dependency resolution ──────────
+        out('  ' . bold('Capabilities'));
+        $check = validateModuleCapabilities($manifest);
         if (empty($check['ok'])) {
-            out('  ' . red('✗ invalid capabilities manifest') . ' — ' . ($check['error'] ?? 'unknown'));
-            exit(1);
-        }
-
-        $deps = $check['depends'] ?? [];
-        $exposes = $check['exposes'] ?? [];
-
-        out('  ' . bold('exposes') . ': ' . dim((string)count($exposes)));
-        foreach ($exposes as $e) {
-            $id = (string)($e['id'] ?? '');
-            $pri = (int)($e['priority'] ?? 10);
-            $modes = implode(',', (array)($e['modes'] ?? []));
-            out('    - ' . cyan($id) . ' priority=' . $pri . ' modes=' . dim($modes));
+            out('    ' . red('✗') . ' invalid schema — ' . ($check['error'] ?? 'unknown'));
+            $validateFails++;
+        } else {
+            out('    ' . green('✓') . ' schema valid');
+            $deps = $check['depends'] ?? [];
+            $exposes = $check['exposes'] ?? [];
+            if (!empty($exposes)) {
+                out('    ' . dim('exposes:'));
+                foreach ($exposes as $e) {
+                    $cid = (string)($e['id'] ?? '');
+                    out('      ' . green('✓') . ' ' . cyan($cid));
+                }
+            }
+            if (!empty($deps)) {
+                out('    ' . dim('depends:'));
+                foreach ($deps as $d) {
+                    $d = (string)$d;
+                    $capOk = app()->capabilities()->has($d);
+                    out('      ' . ($capOk ? green('✓') : red('✗')) . ' ' . cyan($d) . ($capOk ? '' : ' — NOT satisfied'));
+                    if (!$capOk) $validateFails++;
+                }
+            }
         }
         out('');
 
-        out('  ' . bold('depends') . ': ' . dim((string)count($deps)));
-        $missing = [];
-        foreach ($deps as $d) {
-            $d = (string)$d;
-            $ok = app()->capabilities()->has($d);
-            out('    - ' . ($ok ? green('✓') : red('✗')) . ' ' . cyan($d));
-            if (!$ok) $missing[] = $d;
+        // ── 3. Table ownership consistency ───────────────────────
+        out('  ' . bold('Table Ownership'));
+        $allOwnedTables = [];
+        foreach ($mods as $mid => $m) {
+            foreach ((array)($m['owns_tables'] ?? []) as $tbl) {
+                $allOwnedTables[(string)$tbl][] = $mid;
+            }
+        }
+        $ownedByThis = (array)($manifest['owns_tables'] ?? []);
+        $readsByThis = (array)($manifest['reads_tables'] ?? []);
+        if (empty($ownedByThis) && empty($readsByThis)) {
+            out('    ' . dim('✓ no table declarations'));
+        } else {
+            // Check for conflicts: table owned by multiple modules
+            foreach ($ownedByThis as $tbl) {
+                $tbl = (string)$tbl;
+                $owners = $allOwnedTables[$tbl] ?? [];
+                $conflict = count($owners) > 1;
+                $others = array_filter($owners, fn($o) => $o !== $moduleId);
+                out('    ' . ($conflict ? red('✗') : green('✓')) . ' owns ' . cyan($tbl) . ($conflict ? ' — CONFLICT with ' . implode(', ', $others) : ''));
+                if ($conflict) $validateFails++;
+            }
+            // Check reads_tables: must be owned by some module or note if unclaimed
+            foreach ($readsByThis as $tbl) {
+                $tbl = (string)$tbl;
+                $owners = array_filter($allOwnedTables[$tbl] ?? [], fn($o) => $o !== $moduleId);
+                $claimed = !empty($owners) || isset($allOwnedTables[$tbl]);
+                out('    ' . ($claimed ? green('✓') : yellow('⚠')) . ' reads ' . cyan($tbl) . ($claimed ? '' : ' — no module declares ownership (may be a kernel table)'));
+            }
         }
         out('');
 
-        if (!empty($missing)) {
-            out(red('  ✗ missing required capability providers'));
+        // ── 4. Route handler resolution ───────────────────────────
+        out('  ' . bold('Route Handlers'));
+        $routesFile = $modPath . '/routes.php';
+        $handlersFile = $modPath . '/handlers.php';
+        if (!is_file($routesFile)) {
+            out('    ' . red('✗') . ' routes.php not found');
+            $validateFails++;
+        } elseif (!is_file($handlersFile)) {
+            out('    ' . red('✗') . ' handlers.php not found');
+            $validateFails++;
+        } else {
+            $moduleRoutes = require $routesFile;
+            if (!is_array($moduleRoutes)) {
+                out('    ' . red('✗') . ' routes.php must return an array');
+                $validateFails++;
+            } else {
+                // Collect all handler references
+                $handlerRefs = [];
+                foreach ($moduleRoutes as $method => $routeMap) {
+                    if (!is_array($routeMap)) continue;
+                    foreach ($routeMap as $path => $handler) {
+                        if (is_string($handler)) {
+                            $handlerRefs[$handler] = $method . ' ' . $path;
+                        }
+                    }
+                }
+
+                if (empty($handlerRefs)) {
+                    out('    ' . dim('✓ no routes declared'));
+                } else {
+                    // Load handlers file to discover functions
+                    $fnsBefore = array_flip(get_defined_functions()['user'] ?? []);
+                    @include_once $handlersFile;
+                    $fnsAfter = array_flip(get_defined_functions()['user'] ?? []);
+
+                    // Check each handler reference
+                    foreach ($handlerRefs as $handler => $routeDesc) {
+                        if (!str_contains($handler, ':')) {
+                            out('    ' . red('✗') . ' ' . cyan($handler) . ' — invalid format (expected module-id:functionName)');
+                            $validateFails++;
+                            continue;
+                        }
+                        [, $fnName] = explode(':', $handler, 2);
+                        $fnExists = function_exists($fnName);
+                        out('    ' . ($fnExists ? green('✓') : red('✗')) . ' ' . cyan($handler) . dim(' (' . $routeDesc . ')') . ($fnExists ? '' : ' — function not found'));
+                        if (!$fnExists) $validateFails++;
+                    }
+                }
+            }
+        }
+        out('');
+
+        // ── 5. Migrations declared vs present ─────────────────────
+        out('  ' . bold('Migrations'));
+        $declaredMigrations = (array)($manifest['migrations'] ?? []);
+        if (empty($declaredMigrations)) {
+            out('    ' . dim('✓ no migrations declared'));
+        } else {
+            foreach ($declaredMigrations as $migRel) {
+                $migAbs = $modPath . '/' . ltrim((string)$migRel, '/');
+                $migExists = is_file($migAbs);
+                out('    ' . ($migExists ? green('✓') : red('✗')) . ' ' . $migRel . ($migExists ? '' : ' — file missing'));
+                if (!$migExists) $validateFails++;
+            }
+        }
+        out('');
+
+        // ── Summary ───────────────────────────────────────────────
+        if ($validateFails === 0) {
+            out(green('  ✓ all checks passed'));
+        } else {
+            out(red("  ✗ {$validateFails} check(s) failed"));
             exit(2);
         }
-        out(green('  ✓ ok'));
         break;
 
     // ── module:graph ─────────────────────────────────────────────

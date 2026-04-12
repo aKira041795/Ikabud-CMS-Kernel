@@ -1,0 +1,92 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .en-view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .en-view-header h2 { font-size: var(--font-size-h2); font-weight: 700; }
+    .en-form { max-width: 640px; }
+    .en-form .form-group { margin-bottom: 16px; }
+    .en-form label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+    .en-form input[type="text"],
+    .en-form textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.95rem; }
+    .en-form textarea { min-height: 160px; resize: vertical; }
+    .en-form-actions { display: flex; gap: 8px; margin-top: 24px; }
+    .en-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+</style>
+{/block}
+
+{block content}
+<div class="en-view-header">
+    <div>
+        <h2>{page_title}</h2>
+        <div class="en-meta">
+            Created by {note.created_by} · {note.created_at}
+        </div>
+    </div>
+    <a href="/admin/example-notes" class="text-sm">← Back to notes</a>
+</div>
+
+{if flash_error}
+<div class="alert alert-danger">{flash_error}</div>
+{/if}
+{if flash_success}
+<div class="alert alert-success">{flash_success}</div>
+{/if}
+
+<div class="card">
+    <div class="card-body" style="padding:24px;">
+        <form class="en-form" id="en-view-form">
+            <div class="form-group">
+                <label for="en-title">Title <span class="text-danger">*</span></label>
+                <input type="text" id="en-title" name="title" value="{note.title}" required>
+            </div>
+            <div class="form-group">
+                <label for="en-body">Body</label>
+                <textarea id="en-body" name="body">{note.body}</textarea>
+            </div>
+            <div class="en-form-actions">
+                <button type="submit" class="btn btn-primary">Update Note</button>
+                <button type="button" id="en-delete-btn" class="btn btn-danger">Delete</button>
+                <a href="/admin/example-notes" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const noteId = {note.id};
+
+document.getElementById('en-view-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const res = await fetch('/api/v1/example-notes/notes/' + noteId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window._csrfToken ?? '' },
+        body: JSON.stringify({
+            title: document.getElementById('en-title').value,
+            body:  document.getElementById('en-body').value,
+        }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        window.location.reload();
+    } else {
+        alert(data.error ?? 'Update failed');
+    }
+});
+
+document.getElementById('en-delete-btn').addEventListener('click', async function() {
+    if (!confirm('Delete this note?')) return;
+    const res = await fetch('/api/v1/example-notes/notes/' + noteId + '/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window._csrfToken ?? '' },
+        body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        window.location.href = '/admin/example-notes';
+    } else {
+        alert(data.error ?? 'Delete failed');
+    }
+});
+</script>
+{/block}
