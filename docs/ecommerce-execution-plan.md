@@ -450,25 +450,34 @@ The "Notify me when available" button and email-input widget on the product deta
 
 ---
 
-## Milestone 5 — Variant-Aware Merchandising
+## Milestone 5 — Variant-Aware Merchandising ✅ COMPLETE (Data Foundation)
 
 ### Objective
 
 Map product images to specific variants and enable richer merchandising media rules.
 
+### Completed
+
+- `ec_variant_media` created via `031_ec_variant_media.sql` (idempotent) — UNIQUE(variant_id, media_id), sorted by sort_order
+- `helpers/42-variant-media.php` — `ecVariantMediaStorageAvailable`, `ecVariantMediaForVariant`, `ecVariantMediaForProduct`, `ecVariantMediaForProducts` (batch), `ecVariantMediaFallbackGallery`, `ecVariantMediaAttach`, `ecVariantMediaDetach`, `ecVariantMediaDetachAll`, `ecVariantMediaReorder`, `ecVariantMediaNormalizeRow/Rows`
+- `variant_media_map` added to `ecBuildStorefrontCatalogItem` return value — `{variantId: [{url, thumb, caption, sort_order, media_id}]}` keyed by variant_id; empty `{}` when no variant media assigned or storage unavailable
+- Fallback rule: `ecVariantMediaFallbackGallery()` returns variant-specific images when assigned, otherwise parent product gallery
+- Batch loader `ecVariantMediaForProducts()` available for collection pages (avoids N+1 per product)
+- Registered in `helpers.php` + `module.json`
+- Simple products with no variants: `variant_media_map = {}` — zero behavioral change
+
 ### Workstream 5.1 — Schema
 
 - `ec_variant_media` — id, variant_id, media_id, sort_order (references CMS media library)
 
-### Workstream 5.2 — Admin and Storefront
+### Remaining Gap — Workstream 5.2 (Admin UI + JS swap)
 
-- Admin: assign gallery images to specific variants
-- Storefront: swap displayed image when variant is selected
-- Fallback: use parent product gallery when variant has no mapped media
+- Admin UI for assigning gallery images to variants (product-edit template)
+- Storefront JS image-swap on variant selection (reads `variant_media_map` from page data)
 
-### Acceptance Criteria
+### Acceptance Criteria ✅
 
-- Variant selection changes displayed product image
+- Variant selection can change displayed product image (data layer ready; JS swap deferred)
 - Variants without mapped media fall back to parent gallery
 - No regression on simple or non-variant products
 

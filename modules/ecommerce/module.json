@@ -47,6 +47,7 @@
         "ec_customer_segment_members",
         "ec_segment_product_prices",
         "ec_stock_notifications",
+        "ec_variant_media",
         "rate_limits"
     ],
     "reads_tables": [
@@ -90,7 +91,8 @@
         "modules/ecommerce/database/migrations/027_ec_booking_operations.sql",
         "modules/ecommerce/database/migrations/028_ec_multi_store_foundation.sql",
         "modules/ecommerce/database/migrations/029_ec_customer_segments.sql",
-        "modules/ecommerce/database/migrations/030_ec_stock_notifications.sql"
+        "modules/ecommerce/database/migrations/030_ec_stock_notifications.sql",
+        "modules/ecommerce/database/migrations/031_ec_variant_media.sql"
     ],
     "capabilities": {
         "exposes": [

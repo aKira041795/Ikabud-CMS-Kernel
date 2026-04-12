@@ -1664,6 +1664,9 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
             : ecReviewDefaultSummary(),
         'is_wishlisted' => function_exists('ecWishlistContains') ? ecWishlistContains($productId) : false,
         'is_compared' => function_exists('ecCompareContains') ? ecCompareContains($productId) : false,
+        'variant_media_map' => (function_exists('ecVariantMediaStorageAvailable') && ecVariantMediaStorageAvailable() && function_exists('ecVariantMediaForProduct'))
+            ? ecVariantMediaForProduct($productId)
+            : [],
     ];
 }
 
