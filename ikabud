@@ -136,6 +136,7 @@ switch ($command) {
         out('');
         out('  ' . bold('Capabilities'));
         out('    ' . green('capability:list') . '             List capabilities + providers + origins');
+        out('    ' . green('capability:describe') . ' <id>    Deep-dive: providers, consumers, schema, modes');
         out('    ' . green('capability:call') . ' <id> "<json>"  Call a capability');
         out('    ' . green('capability:validate') . '         Validate versions + schemas');
         out('');
@@ -148,6 +149,7 @@ switch ($command) {
         out('');
         out('  ' . bold('Debug'));
         out('    ' . green('event:list') . '                  List registered event listeners');
+        out('    ' . green('event:trace') . ' <name>          Show listeners, emitters, and flow for an event');
         out('    ' . green('routes') . '                      List all routes');
         out('    ' . green('tinker') . ' "<sql>"              Run a raw SQL query');
         out('');
@@ -1315,6 +1317,99 @@ switch ($command) {
             }
             out('');
         }
+        break;
+
+    // ── capability:describe ──────────────────────────────────────
+    case 'capability:describe':
+        $clean = paramsWithoutFlags($params);
+        $capId = $clean[0] ?? '';
+        if ($capId === '') {
+            out(red('  ✗ Capability id required.'));
+            out('  Usage: php ikabud capability:describe <capabilityId> [--with-modules]');
+            exit(1);
+        }
+
+        if (hasFlag('--with-modules')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+
+        $registry = app()->capabilities();
+        $detail = $registry->inspect($capId);
+
+        if (empty($detail['providers'])) {
+            out(red("  ✗ Capability '{$capId}' is not registered."));
+            out('  Hint: use --with-modules to load module-provided capabilities.');
+            exit(1);
+        }
+
+        banner();
+        out('  ' . bold('Capability: ') . cyan((string)$detail['id']));
+        if (!empty($detail['requested_id']) && $detail['requested_id'] !== $detail['id']) {
+            out('  ' . dim('(resolved from ') . $detail['requested_id'] . dim(')'));
+        }
+        out('');
+
+        // Identity
+        out('  ' . bold('Identity'));
+        out('    base id:  ' . cyan((string)($detail['base_id'] ?? '')));
+        out('    version:  ' . ($detail['major_version'] !== null ? (string)$detail['major_version'] : dim('unversioned')));
+        $isLatest = !empty($detail['is_latest']);
+        out('    latest:   ' . ($isLatest ? green('yes') : yellow('no') . dim(' (latest: ' . ($detail['latest_id'] ?? '') . ')')));
+        if ($detail['effective_schema_mode'] !== null) {
+            out('    schema:   ' . dim((string)$detail['effective_schema_mode']));
+        }
+        out('');
+
+        // Providers
+        $providers = $detail['providers'] ?? [];
+        out('  ' . bold('Providers') . dim(' (' . count($providers) . ')'));
+        foreach ($providers as $p) {
+            $prov = (string)($p['provider'] ?? '');
+            $pri = (int)($p['priority'] ?? 0);
+            $modes = implode(', ', (array)($p['modes'] ?? []));
+            $origin = is_array($p['origin'] ?? null) ? $p['origin'] : [];
+            $originType = trim((string)($origin['type'] ?? ''));
+            $originSymbol = trim((string)($origin['symbol'] ?? ''));
+            $originLabel = $originType . ($originSymbol !== '' ? ':' . $originSymbol : '');
+
+            out('    ' . green($prov));
+            out('      priority: ' . $pri . '  modes: ' . dim($modes));
+            if ($originLabel !== '') {
+                out('      origin: ' . dim($originLabel));
+            }
+            if (!empty($p['schema'])) {
+                out('      schema: ' . dim(json_encode($p['schema'], JSON_UNESCAPED_SLASHES) ?: 'yes'));
+            }
+            if (!empty($p['policy'])) {
+                out('      policy: ' . dim(is_string($p['policy']) ? $p['policy'] : json_encode($p['policy'], JSON_UNESCAPED_SLASHES)));
+            }
+        }
+        out('');
+
+        // Consumers — scan module manifests for depends
+        $mods = discoverModules();
+        $consumers = [];
+        $resolvedId = (string)$detail['id'];
+        $baseId = (string)($detail['base_id'] ?? '');
+        foreach ($mods as $mid => $manifest) {
+            $check = validateModuleCapabilities($manifest);
+            if (empty($check['ok'])) continue;
+            foreach (($check['depends'] ?? []) as $dep) {
+                $dep = (string)$dep;
+                if ($dep === $resolvedId || $dep === $baseId) {
+                    $consumers[] = $mid;
+                }
+            }
+        }
+        out('  ' . bold('Consumers') . dim(' (' . count($consumers) . ')'));
+        if (empty($consumers)) {
+            out('    ' . dim('none declared'));
+        } else {
+            foreach ($consumers as $c) {
+                out('    - ' . cyan($c));
+            }
+        }
+        out('');
         break;
 
     // ── capability:call ──────────────────────────────────────────
@@ -2752,6 +2847,153 @@ MD;
                 $count = app()->events()->listenerCount($event);
                 out('  ' . cyan($event) . dim(" ({$count} listener" . ($count !== 1 ? 's' : '') . ')'));
             }
+        }
+        out('');
+        break;
+
+    // ── event:trace ──────────────────────────────────────────────
+    case 'event:trace':
+        $clean = paramsWithoutFlags($params);
+        $eventName = $clean[0] ?? '';
+        if ($eventName === '') {
+            out(red('  ✗ Event name required.'));
+            out('  Usage: php ikabud event:trace <event-name>');
+            out('  Example: php ikabud event:trace ecommerce.order.paid');
+            exit(1);
+        }
+
+        banner();
+        out('  ' . bold('Event Trace: ') . cyan($eventName));
+        out('');
+
+        // Load module helpers for listener registration
+        foreach (getEnabledModules() as $m) {
+            $helpersFile = ($m['_path'] ?? '') . '/helpers.php';
+            if (is_file($helpersFile)) {
+                require_once $helpersFile;
+            }
+        }
+
+        // ── 1. Listeners ──────────────────────────────────────────
+        out('  ' . bold('Listeners'));
+
+        // Get EventBus internal listeners via reflection
+        $bus = app()->events();
+        $refProp = new ReflectionProperty($bus, 'listeners');
+        $refProp->setAccessible(true);
+        $allListeners = $refProp->getValue($bus);
+
+        $matched = [];
+        // Exact match
+        if (isset($allListeners[$eventName])) {
+            foreach ($allListeners[$eventName] as $entry) {
+                $matched[] = [
+                    'module'   => (string)($entry['module'] ?? ''),
+                    'priority' => (int)($entry['priority'] ?? 10),
+                    'pattern'  => $eventName,
+                ];
+            }
+        }
+        // Wildcard matches
+        foreach ($allListeners as $pattern => $entries) {
+            if (!str_contains($pattern, '*')) continue;
+            $regex = '/^' . str_replace(['.', '*'], ['\\.', '[^.]*'], $pattern) . '$/';
+            if (preg_match($regex, $eventName)) {
+                foreach ($entries as $entry) {
+                    $matched[] = [
+                        'module'   => (string)($entry['module'] ?? ''),
+                        'priority' => (int)($entry['priority'] ?? 10),
+                        'pattern'  => $pattern,
+                    ];
+                }
+            }
+        }
+
+        // Sort by priority DESC
+        usort($matched, fn($a, $b) => $b['priority'] <=> $a['priority']);
+
+        if (empty($matched)) {
+            out('    ' . dim('none'));
+        } else {
+            foreach ($matched as $l) {
+                $modLabel = $l['module'] !== '' ? cyan($l['module']) : dim('(anonymous)');
+                $patLabel = $l['pattern'] !== $eventName ? dim(' via ' . $l['pattern']) : '';
+                out('    ' . green('→') . ' ' . $modLabel . '  priority=' . $l['priority'] . $patLabel);
+            }
+        }
+        out('');
+
+        // ── 2. Emitters ───────────────────────────────────────────
+        out('  ' . bold('Emitters') . dim(' (who fires this event)'));
+
+        // Search module.json events declarations
+        $mods = discoverModules();
+        $declaredEmitters = [];
+        foreach ($mods as $mid => $manifest) {
+            foreach ((array)($manifest['events'] ?? []) as $ev) {
+                if ((string)$ev === $eventName) {
+                    $declaredEmitters[] = $mid;
+                }
+            }
+        }
+
+        // Search code for fire('event-name...) / fireEvent('event-name...) / fireDeferred('event-name...)
+        $codeEmitters = [];
+        $escapedName = preg_quote($eventName, '/');
+        $firePattern = "/(->fire|->fireEvent|->fireDeferred)\(\s*['\"]" . $escapedName . "['\"]/";
+
+        $root = BASE_PATH . '/modules';
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($it as $f) {
+            /** @var SplFileInfo $f */
+            if (!$f->isFile() || strtolower($f->getExtension()) !== 'php') continue;
+            $path = (string)$f->getRealPath();
+            if (str_contains($path, '/vendor/') || str_contains($path, '/node_modules/')) continue;
+            $content = @file_get_contents($path);
+            if (!is_string($content)) continue;
+            if (preg_match($firePattern, $content)) {
+                $rel = str_replace(BASE_PATH . '/', '', $path);
+                $mid = null;
+                if (preg_match('#^modules/([^/]+)/#', $rel, $mm)) {
+                    $mid = $mm[1];
+                }
+                $codeEmitters[] = ['module' => $mid ?? 'unknown', 'file' => $rel];
+            }
+        }
+
+        if (empty($declaredEmitters) && empty($codeEmitters)) {
+            out('    ' . dim('none found'));
+        } else {
+            if (!empty($declaredEmitters)) {
+                out('    ' . dim('declared in module.json:'));
+                foreach ($declaredEmitters as $mid) {
+                    out('      ' . cyan($mid));
+                }
+            }
+            if (!empty($codeEmitters)) {
+                out('    ' . dim('found in code:'));
+                foreach ($codeEmitters as $ce) {
+                    out('      ' . cyan($ce['module']) . '  ' . dim($ce['file']));
+                }
+            }
+        }
+        out('');
+
+        // ── 3. Flow summary ───────────────────────────────────────
+        out('  ' . bold('Flow'));
+        $emitterNames = array_unique(array_merge($declaredEmitters, array_column($codeEmitters, 'module')));
+        if (!empty($emitterNames) && !empty($matched)) {
+            $listenerNames = array_unique(array_column($matched, 'module'));
+            foreach ($emitterNames as $e) {
+                foreach ($listenerNames as $l) {
+                    if ($l === '' || $l === $e) continue;
+                    out('    ' . cyan($e) . dim(' --[') . $eventName . dim(']--> ') . cyan($l));
+                }
+            }
+        } else {
+            out('    ' . dim('incomplete — need both emitters and listeners to draw flow'));
         }
         out('');
         break;

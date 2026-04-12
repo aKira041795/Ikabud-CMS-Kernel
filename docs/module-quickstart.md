@@ -3,6 +3,7 @@
 This is a linear, step-by-step tutorial. Follow it from top to bottom.
 
 For deep-dive reference on every feature, see [Module Development Guide](module-development-guide.md).
+For cross-module integration patterns, see [Cross-Module Interaction Playbook](cross-module-playbook.md).
 
 ---
 
