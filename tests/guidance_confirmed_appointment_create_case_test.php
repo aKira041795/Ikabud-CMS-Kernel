@@ -86,6 +86,16 @@ function resolveGuidanceTenant(): array
     return ['tenant_id' => 0, 'domain' => ''];
 }
 
+function ensureAppointmentBookingSnapshotColumn(PDO $db): void
+{
+    $stmt = $db->query("SHOW COLUMNS FROM gm_appointments LIKE 'booking_snapshot_json'");
+    if ($stmt && $stmt->fetch(PDO::FETCH_ASSOC)) {
+        return;
+    }
+
+    $db->exec("ALTER TABLE gm_appointments ADD COLUMN booking_snapshot_json LONGTEXT DEFAULT NULL AFTER request_message");
+}
+
 function ensureCollegeId(PDO $db, string $stamp): int
 {
     $stmt = $db->query("SELECT id FROM gm_colleges WHERE is_active = 1 ORDER BY sort_order, id LIMIT 1");
@@ -185,6 +195,8 @@ $counselorId = 0;
 $appointmentId = 0;
 
 try {
+    ensureAppointmentBookingSnapshotColumn($db);
+
     $userStmt = $db->prepare(
         'INSERT INTO gm_users (email, password, first_name, last_name, role, is_active, created_at, updated_at) '
         . 'VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())'
@@ -193,16 +205,35 @@ try {
     $counselorId = (int)$db->lastInsertId();
     $collegeId = ensureCollegeId($db, $stamp);
 
+    $bookingSnapshotJson = json_encode([
+        'student_id' => 'SNAP-' . substr($stamp, -6),
+        'student_name' => 'Confirmed Student',
+        'student_email' => $studentEmail,
+        'student_mobile' => '09171234567',
+        'college_id' => $collegeId,
+        'student_grade' => '3',
+        'student_section' => 'Section A',
+        'date_of_birth' => '2005-01-01',
+        'gender' => 'Female',
+        'nationality' => 'Filipino',
+        'civil_status' => 'single',
+        'address' => '123 Test Street',
+        'presenting_issue' => 'Confirmed appointment purpose',
+        'background_info' => 'Ready for case creation',
+        'parent_guardian_name' => 'Guardian Example',
+        'parent_guardian_contact' => '09999999999',
+        'emergency_contact_address' => '456 Emergency Street',
+    ], JSON_UNESCAPED_SLASHES);
+
     $appointmentStmt = $db->prepare(
         "INSERT INTO gm_appointments (\n"
         . " counselor_id, student_id, student_name, student_email, student_phone, student_college_id, student_year_level,\n"
         . " scheduled_date, scheduled_time, duration_minutes, appointment_type_id, purpose, status,\n"
-        . " requested_by_student, request_message, is_urgent, created_by, last_modified_by, created_at, updated_at\n"
-        . ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 30, NULL, ?, 'confirmed', 1, ?, 0, 0, 0, NOW(), NOW())"
+        . " requested_by_student, request_message, booking_snapshot_json, is_urgent, created_by, last_modified_by, created_at, updated_at\n"
+        . ") VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 30, NULL, ?, 'confirmed', 1, ?, ?, 0, 0, 0, NOW(), NOW())"
     );
     $appointmentStmt->execute([
         $counselorId,
-        'STU-' . substr($stamp, -6),
         'Confirmed Student',
         $studentEmail,
         '09171234567',
@@ -212,6 +243,7 @@ try {
         '11:00:00',
         'Confirmed appointment purpose',
         'Ready for case creation',
+        $bookingSnapshotJson,
     ]);
     $appointmentId = (int)$db->lastInsertId();
 
@@ -244,6 +276,9 @@ try {
         return guidanceGetRequiredFormFields('case');
     });
     $input = buildConfirmedAppointmentCaseInput($requiredFields, $appointmentId, $counselorId, $studentEmail, $collegeId, $stamp);
+    foreach (['student_id', 'student_name', 'student_grade', 'student_section', 'date_of_birth', 'gender', 'nationality', 'civil_status', 'address', 'student_mobile', 'student_email', 'presenting_issue', 'background_info', 'parent_guardian_name', 'parent_guardian_contact', 'emergency_contact_address'] as $fieldName) {
+        $input[$fieldName] = '';
+    }
 
     $appointmentCountStmt = $db->query('SELECT COUNT(*) FROM gm_appointments');
     $beforeAppointmentCount = (int)($appointmentCountStmt ? ($appointmentCountStmt->fetchColumn() ?: 0) : 0);
@@ -272,7 +307,9 @@ try {
     $appointmentState = $appointmentStateStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $caseId = (int)($appointmentState['case_id'] ?? 0);
 
-    $caseStmt = $db->prepare('SELECT id, student_name, student_email, counselor_id FROM gm_cases WHERE id = ? LIMIT 1');
+    $caseStmt = $db->prepare(
+        'SELECT id, student_id, student_name, student_grade, student_section, date_of_birth, gender, nationality, civil_status, address, student_mobile, student_email, counselor_id, presenting_issue, background_info, parent_guardian_name, parent_guardian_contact, emergency_contact_address FROM gm_cases WHERE id = ? LIMIT 1'
+    );
     $caseStmt->execute([$caseId]);
     $caseRow = $caseStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -288,9 +325,23 @@ try {
     t('manual create-case flow creates exactly one new case', $afterCaseCount === ($beforeCaseCount + 1), json_encode(['before' => $beforeCaseCount, 'after' => $afterCaseCount], JSON_UNESCAPED_SLASHES));
     t('manual create-case flow does not create an extra appointment', $afterAppointmentCount === $beforeAppointmentCount, json_encode(['before' => $beforeAppointmentCount, 'after' => $afterAppointmentCount], JSON_UNESCAPED_SLASHES));
     t('manual create-case flow persists the case with appointment student data', is_array($caseRow)
+        && (string)($caseRow['student_id'] ?? '') === 'SNAP-' . substr($stamp, -6)
         && (string)($caseRow['student_name'] ?? '') === 'Confirmed Student'
+        && (string)($caseRow['student_grade'] ?? '') === '3'
+        && (string)($caseRow['student_section'] ?? '') === 'Section A'
+        && (string)($caseRow['date_of_birth'] ?? '') === '2005-01-01'
+        && (string)($caseRow['gender'] ?? '') === 'Female'
+        && (string)($caseRow['nationality'] ?? '') === 'Filipino'
+        && (string)($caseRow['civil_status'] ?? '') === 'single'
+        && (string)($caseRow['address'] ?? '') === '123 Test Street'
+        && (string)($caseRow['student_mobile'] ?? '') === '09171234567'
         && (string)($caseRow['student_email'] ?? '') === $studentEmail
-        && (int)($caseRow['counselor_id'] ?? 0) === $counselorId, json_encode($caseRow, JSON_UNESCAPED_SLASHES));
+        && (int)($caseRow['counselor_id'] ?? 0) === $counselorId
+        && (string)($caseRow['presenting_issue'] ?? '') === 'Confirmed appointment purpose'
+        && (string)($caseRow['background_info'] ?? '') === 'Ready for case creation'
+        && (string)($caseRow['parent_guardian_name'] ?? '') === 'Guardian Example'
+        && (string)($caseRow['parent_guardian_contact'] ?? '') === '09999999999'
+        && (string)($caseRow['emergency_contact_address'] ?? '') === '456 Emergency Street', json_encode($caseRow, JSON_UNESCAPED_SLASHES));
     t('manual create-case flow reports the linked appointment id in the response', is_array($decoded) && (int)($decoded['data']['appointment_id'] ?? 0) === $appointmentId, $output);
 
     $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';

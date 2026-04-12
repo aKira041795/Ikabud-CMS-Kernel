@@ -251,16 +251,14 @@ function guidanceResolveCaseSourceAppointment(\Ikabud\Kernel\Contracts\DatabaseC
         return null;
     }
 
-    $stmt = $db->prepare(
-        'SELECT id, case_id, counselor_id, status, student_id, student_name, student_email, student_phone, '
-        . 'student_college_id, student_year_level, purpose, scheduled_date, scheduled_time, location '
-        . 'FROM gm_appointments WHERE id = ? LIMIT 1'
-    );
+    $stmt = $db->prepare('SELECT * FROM gm_appointments WHERE id = ? LIMIT 1');
     $stmt->execute([$appointmentId]);
     $appointment = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!is_array($appointment)) {
         throw new RuntimeException('Appointment not found.');
     }
+
+    $appointment = guidanceMergeAppointmentBookingSnapshot($appointment);
 
     if ($isCounselor && (int)($appointment['counselor_id'] ?? 0) !== $userId) {
         throw new RuntimeException('Access denied.');
@@ -280,41 +278,209 @@ function guidanceResolveCaseSourceAppointment(\Ikabud\Kernel\Contracts\DatabaseC
 
 function guidanceBuildCasePrefillFromAppointment(array $appointment): array
 {
+    $appointment = guidanceMergeAppointmentBookingSnapshot($appointment);
+
     return [
         'student_id' => trim((string)($appointment['student_id'] ?? '')),
         'student_name' => trim((string)($appointment['student_name'] ?? '')),
         'student_email' => trim((string)($appointment['student_email'] ?? '')),
-        'student_mobile' => trim((string)($appointment['student_phone'] ?? '')),
-        'college_id' => (int)($appointment['student_college_id'] ?? 0),
-        'student_grade' => trim((string)($appointment['student_year_level'] ?? '')),
+        'student_mobile' => trim((string)($appointment['student_mobile'] ?? ($appointment['student_phone'] ?? ''))),
+        'college_id' => (int)($appointment['college_id'] ?? ($appointment['student_college_id'] ?? 0)),
+        'student_grade' => trim((string)($appointment['student_grade'] ?? ($appointment['student_year_level'] ?? ''))),
+        'student_section' => trim((string)($appointment['student_section'] ?? '')),
+        'date_of_birth' => trim((string)($appointment['date_of_birth'] ?? '')),
+        'gender' => trim((string)($appointment['gender'] ?? '')),
+        'nationality' => trim((string)($appointment['nationality'] ?? '')),
+        'civil_status' => trim((string)($appointment['civil_status'] ?? '')),
+        'address' => trim((string)($appointment['address'] ?? '')),
         'counselor_id' => (int)($appointment['counselor_id'] ?? 0),
-        'presenting_issue' => trim((string)($appointment['purpose'] ?? '')),
+        'presenting_issue' => trim((string)($appointment['presenting_issue'] ?? ($appointment['purpose'] ?? ''))),
+        'background_info' => trim((string)($appointment['background_info'] ?? ($appointment['request_message'] ?? ''))),
+        'is_urgent' => !empty($appointment['is_urgent']) ? '1' : '0',
+        'parent_guardian_name' => trim((string)($appointment['parent_guardian_name'] ?? '')),
+        'parent_guardian_contact' => trim((string)($appointment['parent_guardian_contact'] ?? '')),
+        'emergency_contact_address' => trim((string)($appointment['emergency_contact_address'] ?? '')),
     ];
+}
+
+function guidanceAppointmentBookingSnapshotColumnExists(\Ikabud\Kernel\Contracts\DatabaseContract $db, bool $refresh = false): bool
+{
+    static $exists = [];
+    $tid = app()->tenant()->current();
+
+    if (!$refresh && array_key_exists($tid, $exists)) {
+        return $exists[$tid];
+    }
+
+    try {
+        $stmt = $db->query("SHOW COLUMNS FROM gm_appointments LIKE 'booking_snapshot_json'");
+        $exists[$tid] = (bool)($stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false);
+    } catch (Throwable $e) {
+        $exists[$tid] = false;
+    }
+
+    return $exists[$tid];
+}
+
+function guidanceEnsureAppointmentBookingSnapshotColumn(\Ikabud\Kernel\Contracts\DatabaseContract $db): bool
+{
+    static $attempted = [];
+    $tid = app()->tenant()->current();
+
+    if (guidanceAppointmentBookingSnapshotColumnExists($db)) {
+        return true;
+    }
+
+    if (!empty($attempted[$tid])) {
+        return false;
+    }
+    $attempted[$tid] = true;
+
+    try {
+        $db->exec("ALTER TABLE gm_appointments ADD COLUMN booking_snapshot_json LONGTEXT DEFAULT NULL AFTER request_message");
+    } catch (Throwable $e) {
+        app()->log('Guidance booking snapshot schema sync failed: ' . $e->getMessage(), 'warning');
+    }
+
+    return guidanceAppointmentBookingSnapshotColumnExists($db, true);
+}
+
+function guidanceBuildAppointmentBookingSnapshot(array $payload): array
+{
+    $snapshot = [
+        'student_id' => trim((string)($payload['student_id'] ?? ($payload['student_id_number'] ?? ''))),
+        'student_name' => trim((string)($payload['student_name'] ?? '')),
+        'student_email' => trim((string)($payload['student_email'] ?? '')),
+        'student_mobile' => trim((string)($payload['student_phone'] ?? ($payload['student_mobile'] ?? ''))),
+        'college_id' => !empty($payload['college_id']) ? (int)$payload['college_id'] : null,
+        'student_grade' => trim((string)($payload['year_level'] ?? ($payload['student_grade'] ?? ''))),
+        'student_section' => trim((string)($payload['student_section'] ?? '')),
+        'date_of_birth' => trim((string)($payload['date_of_birth'] ?? '')),
+        'gender' => trim((string)($payload['gender'] ?? '')),
+        'nationality' => trim((string)($payload['nationality'] ?? '')),
+        'civil_status' => trim((string)($payload['civil_status'] ?? '')),
+        'address' => trim((string)($payload['address'] ?? '')),
+        'presenting_issue' => trim((string)($payload['purpose'] ?? ($payload['presenting_issue'] ?? ''))),
+        'background_info' => trim((string)($payload['message'] ?? ($payload['background_info'] ?? ''))),
+        'is_urgent' => !empty($payload['is_urgent']) ? 1 : 0,
+        'parent_guardian_name' => trim((string)($payload['parent_guardian_name'] ?? '')),
+        'parent_guardian_contact' => trim((string)($payload['parent_guardian_contact'] ?? '')),
+        'emergency_contact_address' => trim((string)($payload['emergency_contact_address'] ?? '')),
+    ];
+
+    return array_filter($snapshot, static function ($value): bool {
+        if ($value === null) {
+            return false;
+        }
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+        return true;
+    });
+}
+
+function guidanceDecodeAppointmentBookingSnapshot(array $appointment): array
+{
+    $raw = $appointment['booking_snapshot_json'] ?? null;
+    if (!is_string($raw) || trim($raw) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function guidanceMergeAppointmentBookingSnapshot(array $appointment): array
+{
+    $snapshot = guidanceDecodeAppointmentBookingSnapshot($appointment);
+    if ($snapshot !== []) {
+        $columnMap = [
+            'student_id' => 'student_id',
+            'student_name' => 'student_name',
+            'student_email' => 'student_email',
+            'student_phone' => 'student_mobile',
+            'student_college_id' => 'college_id',
+            'student_year_level' => 'student_grade',
+            'purpose' => 'presenting_issue',
+            'request_message' => 'background_info',
+            'student_section' => 'student_section',
+            'date_of_birth' => 'date_of_birth',
+            'gender' => 'gender',
+            'nationality' => 'nationality',
+            'civil_status' => 'civil_status',
+            'address' => 'address',
+            'parent_guardian_name' => 'parent_guardian_name',
+            'parent_guardian_contact' => 'parent_guardian_contact',
+            'emergency_contact_address' => 'emergency_contact_address',
+        ];
+
+        foreach ($columnMap as $appointmentKey => $snapshotKey) {
+            $existing = $appointment[$appointmentKey] ?? null;
+            $incoming = $snapshot[$snapshotKey] ?? null;
+            if (($existing === null || $existing === '' || $existing === '0') && $incoming !== null && $incoming !== '') {
+                $appointment[$appointmentKey] = $incoming;
+            }
+        }
+
+        if (!isset($appointment['is_urgent']) || (int)$appointment['is_urgent'] === 0) {
+            $appointment['is_urgent'] = !empty($snapshot['is_urgent']) ? 1 : 0;
+        }
+    }
+
+    $appointment['student_mobile'] = trim((string)($snapshot['student_mobile'] ?? ($appointment['student_phone'] ?? '')));
+    $appointment['college_id'] = !empty($snapshot['college_id'])
+        ? (int)$snapshot['college_id']
+        : (!empty($appointment['student_college_id']) ? (int)$appointment['student_college_id'] : null);
+    $appointment['student_grade'] = trim((string)($snapshot['student_grade'] ?? ($appointment['student_year_level'] ?? '')));
+    $appointment['presenting_issue'] = trim((string)($snapshot['presenting_issue'] ?? ($appointment['purpose'] ?? '')));
+    $appointment['background_info'] = trim((string)($snapshot['background_info'] ?? ($appointment['request_message'] ?? '')));
+
+    return $appointment;
+}
+
+function guidanceMergeCaseInputWithSourceAppointment(array $input, array $appointment): array
+{
+    $prefill = guidanceBuildCasePrefillFromAppointment($appointment);
+
+    foreach ($prefill as $fieldName => $value) {
+        if ($fieldName === 'is_urgent') {
+            if (!array_key_exists($fieldName, $input)) {
+                $input[$fieldName] = $value;
+            }
+            continue;
+        }
+
+        if (!array_key_exists($fieldName, $input) || trim((string)$input[$fieldName]) === '') {
+            $input[$fieldName] = $value;
+        }
+    }
+
+    return $input;
 }
 
 function guidanceBuildAutoCaseInputFromAppointment(array $appointment): array
 {
     $appointmentId = (int)($appointment['id'] ?? 0);
-    $presentingIssue = trim((string)($appointment['purpose'] ?? ''));
+    $prefill = guidanceBuildCasePrefillFromAppointment($appointment);
+    $existingBackground = trim((string)($prefill['background_info'] ?? ''));
+    $sourceNote = $appointmentId > 0
+        ? 'Automatically created when appointment #' . $appointmentId . ' was confirmed.'
+        : 'Automatically created when the appointment was confirmed.';
 
-    return [
-        'student_id' => trim((string)($appointment['student_id'] ?? '')) ?: 'N/A',
-        'student_name' => trim((string)($appointment['student_name'] ?? '')) ?: 'Unknown Student',
-        'student_grade' => trim((string)($appointment['student_year_level'] ?? '')),
-        'student_mobile' => trim((string)($appointment['student_phone'] ?? '')),
-        'student_email' => trim((string)($appointment['student_email'] ?? '')),
-        'college_id' => !empty($appointment['student_college_id']) ? (string)$appointment['student_college_id'] : '',
+    $prefill['background_info'] = $existingBackground !== ''
+        ? $existingBackground . "\n\n" . $sourceNote
+        : $sourceNote;
+
+    return array_merge($prefill, [
+        'student_id' => trim((string)($prefill['student_id'] ?? '')) ?: 'N/A',
+        'student_name' => trim((string)($prefill['student_name'] ?? '')) ?: 'Unknown Student',
         'category' => 'general',
         'severity' => !empty($appointment['is_urgent']) ? 'high' : 'medium',
-        'presenting_issue' => $presentingIssue !== '' ? $presentingIssue : 'Appointment booking',
-        'background_info' => $appointmentId > 0
-            ? 'Automatically created when appointment #' . $appointmentId . ' was confirmed.'
-            : 'Automatically created when the appointment was confirmed.',
         'is_urgent' => !empty($appointment['is_urgent']) ? 1 : 0,
         'is_confidential' => 1,
         'referral_source' => 'walk-in',
         'sync_id' => uniqid('sync_', true),
-    ];
+    ]);
 }
 
 function guidanceCaseInsertColumns(bool $hasStudentStatus): array
@@ -495,6 +661,7 @@ function apiGuidanceCreateCase(): void
     if ($sourceAppointmentId > 0) {
         try {
             $sourceAppointment = guidanceResolveCaseSourceAppointment($db, $sourceAppointmentId, $isCounselor, $userId);
+            $input = guidanceMergeCaseInputWithSourceAppointment($input, $sourceAppointment);
         } catch (RuntimeException $e) {
             http_response_code(422);
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $e->getMessage(), 'type' => 'error']]));
@@ -2359,9 +2526,16 @@ function guidanceResolvePublicBookingPayload(array $input): array
 
     $studentName = trim((string)($input['student_name'] ?? ''));
     $studentEmail = trim((string)($input['student_email'] ?? ''));
+    $studentId = trim((string)($input['student_id'] ?? ($input['student_id_number'] ?? '')));
     $collegeId = (int)($input['college_id'] ?? 0);
     $yearLevel = trim((string)($input['year_level'] ?? ''));
+    $studentSection = trim((string)($input['student_section'] ?? ''));
     $studentPhone = trim((string)($input['student_phone'] ?? ($input['student_mobile'] ?? '')));
+    $dateOfBirth = trim((string)($input['date_of_birth'] ?? ''));
+    $gender = trim((string)($input['gender'] ?? ''));
+    $nationality = trim((string)($input['nationality'] ?? ''));
+    $civilStatus = trim((string)($input['civil_status'] ?? ''));
+    $address = trim((string)($input['address'] ?? ''));
     $scheduledDate = trim((string)($input['scheduled_date'] ?? ''));
     $scheduledTime = trim((string)($input['scheduled_time'] ?? ''));
     $typeId = (int)($input['appointment_type_id'] ?? 0);
@@ -2419,11 +2593,18 @@ function guidanceResolvePublicBookingPayload(array $input): array
     guidanceAssertPublicBookingSlotAvailable($db, $counselorId, $scheduledDate, $scheduledTime, $duration);
 
     return [
+        'student_id' => $studentId,
         'student_name' => $studentName,
         'student_email' => $studentEmail,
         'student_phone' => $studentPhone,
         'college_id' => $collegeId,
         'year_level' => $yearLevel,
+        'student_section' => $studentSection,
+        'date_of_birth' => $dateOfBirth,
+        'gender' => $gender,
+        'nationality' => $nationality,
+        'civil_status' => $civilStatus,
+        'address' => $address,
         'scheduled_date' => $scheduledDate,
         'scheduled_time' => $scheduledTime,
         'appointment_type_id' => $typeId,
@@ -2520,16 +2701,42 @@ function guidanceCreatePublicBookingRecord(array $payload): int
         (int)($payload['duration_minutes'] ?? 30)
     );
 
-    $stmt = $db->prepare(
-        "INSERT INTO gm_appointments (\n"
-        . " counselor_id, student_id, student_name, student_email, student_phone,\n"
-        . " student_college_id, student_year_level, scheduled_date, scheduled_time,\n"
-        . " duration_minutes, appointment_type_id, purpose, status,\n"
-        . " requested_by_student, request_message, is_urgent, created_by, last_modified_by\n"
-        . ") VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, 0, 0)"
-    );
-    $stmt->execute([
+    $bookingSnapshotJson = null;
+    $hasSnapshotColumn = guidanceEnsureAppointmentBookingSnapshotColumn($db);
+    if ($hasSnapshotColumn) {
+        $bookingSnapshot = guidanceBuildAppointmentBookingSnapshot($payload);
+        if ($bookingSnapshot !== []) {
+            $encodedSnapshot = json_encode($bookingSnapshot, JSON_UNESCAPED_SLASHES);
+            if (is_string($encodedSnapshot) && $encodedSnapshot !== '') {
+                $bookingSnapshotJson = $encodedSnapshot;
+            }
+        }
+    }
+
+    $columns = [
+        'counselor_id',
+        'student_id',
+        'student_name',
+        'student_email',
+        'student_phone',
+        'student_college_id',
+        'student_year_level',
+        'scheduled_date',
+        'scheduled_time',
+        'duration_minutes',
+        'appointment_type_id',
+        'purpose',
+        'status',
+        'requested_by_student',
+        'request_message',
+        'is_urgent',
+        'created_by',
+        'last_modified_by',
+    ];
+    $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', "'pending'", '1', '?', '?', '0', '0'];
+    $values = [
         (int)($payload['counselor_id'] ?? 0),
+        (($payload['student_id'] ?? '') !== '' ? (string)$payload['student_id'] : null),
         (string)($payload['student_name'] ?? ''),
         (string)($payload['student_email'] ?? ''),
         (($payload['student_phone'] ?? '') !== '' ? (string)$payload['student_phone'] : null),
@@ -2542,7 +2749,20 @@ function guidanceCreatePublicBookingRecord(array $payload): int
         (($payload['purpose'] ?? '') !== '' ? (string)$payload['purpose'] : null),
         (($payload['message'] ?? '') !== '' ? (string)$payload['message'] : null),
         !empty($payload['is_urgent']) ? 1 : 0,
-    ]);
+    ];
+
+    if ($hasSnapshotColumn) {
+        $columns[] = 'booking_snapshot_json';
+        $placeholders[] = '?';
+        $values[] = $bookingSnapshotJson;
+    }
+
+    $stmt = $db->prepare(
+        "INSERT INTO gm_appointments (\n"
+        . ' ' . implode(', ', $columns) . "\n"
+        . ") VALUES (" . implode(', ', $placeholders) . ')'
+    );
+    $stmt->execute($values);
 
     $appointmentId = (int)$db->lastInsertId();
 
@@ -9174,10 +9394,7 @@ function apiGuidanceApproveAppointment(array $params): void
     }
 
     $db = guidanceDb();
-    $stmt = $db->prepare(
-        "SELECT id, counselor_id, status, case_id, student_id, student_name, student_email, student_phone, student_college_id, student_year_level, purpose, is_urgent, scheduled_date, scheduled_time, location\n"
-        . "FROM gm_appointments WHERE id = :id LIMIT 1"
-    );
+    $stmt = $db->prepare('SELECT * FROM gm_appointments WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $apptId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row)) {
@@ -9186,6 +9403,8 @@ function apiGuidanceApproveAppointment(array $params): void
         echo json_encode(['ok' => false, 'error' => 'Appointment not found']);
         return;
     }
+
+    $row = guidanceMergeAppointmentBookingSnapshot($row);
 
     if ($role === 'counselor' && (int)($row['counselor_id'] ?? 0) !== $userId) {
         header('Content-Type: application/json');

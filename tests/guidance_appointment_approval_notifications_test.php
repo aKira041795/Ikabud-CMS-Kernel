@@ -100,6 +100,16 @@ function resolveGuidanceTenant(): array
     return ['tenant_id' => 0, 'domain' => ''];
 }
 
+function ensureAppointmentBookingSnapshotColumn(PDO $db): void
+{
+    $stmt = $db->query("SHOW COLUMNS FROM gm_appointments LIKE 'booking_snapshot_json'");
+    if ($stmt && $stmt->fetch(PDO::FETCH_ASSOC)) {
+        return;
+    }
+
+    $db->exec("ALTER TABLE gm_appointments ADD COLUMN booking_snapshot_json LONGTEXT DEFAULT NULL AFTER request_message");
+}
+
 $modules = discoverModules();
 $guidance = $modules['guidance'] ?? null;
 if (!is_array($guidance)) {
@@ -141,6 +151,7 @@ $counselorId = 0;
 $appointmentId = 0;
 
 try {
+    ensureAppointmentBookingSnapshotColumn($db);
     $db->beginTransaction();
 
     $userStmt = $db->prepare(
@@ -161,12 +172,31 @@ try {
         ], $counselorId);
     });
 
+    $bookingSnapshotJson = json_encode([
+        'student_id' => 'APPROVAL-' . substr($stamp, -6),
+        'student_mobile' => '09171234567',
+        'college_id' => 0,
+        'student_grade' => '3',
+        'student_section' => 'Section B',
+        'date_of_birth' => '2005-04-20',
+        'gender' => 'Female',
+        'nationality' => 'Filipino',
+        'civil_status' => 'single',
+        'address' => '123 Approval Street',
+        'presenting_issue' => 'Need guidance',
+        'background_info' => 'Initial approval request',
+        'is_urgent' => 1,
+        'parent_guardian_name' => 'Approval Guardian',
+        'parent_guardian_contact' => '09990001111',
+        'emergency_contact_address' => '456 Approval Avenue',
+    ], JSON_UNESCAPED_SLASHES);
+
     $appointmentStmt = $db->prepare(
         "INSERT INTO gm_appointments (\n"
         . " counselor_id, student_id, student_name, student_email, student_phone, student_college_id, student_year_level,\n"
         . " scheduled_date, scheduled_time, duration_minutes, appointment_type_id, purpose, status,\n"
-        . " requested_by_student, request_message, is_urgent, created_by, last_modified_by, created_at, updated_at\n"
-        . ") VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, 0, 0, 0, NOW(), NOW())"
+        . " requested_by_student, request_message, booking_snapshot_json, is_urgent, created_by, last_modified_by, created_at, updated_at\n"
+        . ") VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, 0, 0, 0, NOW(), NOW())"
     );
     $appointmentStmt->execute([
         $counselorId,
@@ -181,6 +211,7 @@ try {
         null,
         'Need guidance',
         'Initial approval request',
+        $bookingSnapshotJson,
     ]);
     $appointmentId = (int)$db->lastInsertId();
 
@@ -220,7 +251,9 @@ try {
     $appointmentState = $appointmentStateStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $linkedCaseId = (int)($appointmentState['case_id'] ?? 0);
 
-    $caseStmt = $db->prepare('SELECT id, case_number, student_name, student_email, counselor_id, presenting_issue FROM gm_cases WHERE id = ? LIMIT 1');
+    $caseStmt = $db->prepare(
+        'SELECT id, case_number, student_id, student_name, student_email, counselor_id, presenting_issue, student_section, date_of_birth, gender, nationality, civil_status, address, parent_guardian_name, parent_guardian_contact, emergency_contact_address, background_info, is_urgent FROM gm_cases WHERE id = ? LIMIT 1'
+    );
     $caseStmt->execute([$linkedCaseId]);
     $caseRow = $caseStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -238,10 +271,22 @@ try {
     t('counselor approval auto-creates exactly one linked case', $afterCaseCount === ($beforeCaseCount + 1) && $linkedCaseId > 0, json_encode(['before' => $beforeCaseCount, 'after' => $afterCaseCount, 'appointment' => $appointmentState], JSON_UNESCAPED_SLASHES));
     t('counselor approval persists the auto-created case with appointment data', is_array($caseRow)
         && str_starts_with((string)($caseRow['case_number'] ?? ''), 'GC-')
+        && (string)($caseRow['student_id'] ?? '') === 'APPROVAL-' . substr($stamp, -6)
         && (string)($caseRow['student_name'] ?? '') === 'Approval Student'
         && (string)($caseRow['student_email'] ?? '') === $studentEmail
         && (int)($caseRow['counselor_id'] ?? 0) === $counselorId
-        && (string)($caseRow['presenting_issue'] ?? '') === 'Need guidance', json_encode($caseRow, JSON_UNESCAPED_SLASHES));
+        && (string)($caseRow['presenting_issue'] ?? '') === 'Need guidance'
+        && (string)($caseRow['student_section'] ?? '') === 'Section B'
+        && (string)($caseRow['date_of_birth'] ?? '') === '2005-04-20'
+        && (string)($caseRow['gender'] ?? '') === 'Female'
+        && (string)($caseRow['nationality'] ?? '') === 'Filipino'
+        && (string)($caseRow['civil_status'] ?? '') === 'single'
+        && (string)($caseRow['address'] ?? '') === '123 Approval Street'
+        && (string)($caseRow['parent_guardian_name'] ?? '') === 'Approval Guardian'
+        && (string)($caseRow['parent_guardian_contact'] ?? '') === '09990001111'
+        && (string)($caseRow['emergency_contact_address'] ?? '') === '456 Approval Avenue'
+        && str_contains((string)($caseRow['background_info'] ?? ''), 'Initial approval request')
+        && (int)($caseRow['is_urgent'] ?? 0) === 1, json_encode($caseRow, JSON_UNESCAPED_SLASHES));
     t('counselor approval returns the linked case id', is_array($decoded) && (int)($decoded['case_id'] ?? 0) === $linkedCaseId, $output);
     t('counselor approval sends one client email', is_array($email) && count($capturedEmails) === 1, json_encode($capturedEmails, JSON_UNESCAPED_SLASHES));
     t('counselor approval email targets the client address', is_array($email) && (string)($email['to'] ?? '') === $studentEmail, json_encode($email, JSON_UNESCAPED_SLASHES));
