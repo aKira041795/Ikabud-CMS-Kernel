@@ -1,0 +1,180 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="max-w-2xl space-y-5">
+
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-sm text-slate-500">
+        <a href="{base_url}/ecommerce/admin/stores" class="hover:text-orange-600 transition-colors">Stores</a>
+        <span>/</span>
+        <span class="text-gray-700 font-medium">{if is_new}New Store{else}{input.name | escape}{/if}</span>
+    </div>
+
+    {if message}
+    <div class="px-4 py-3 rounded-xl border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    <!-- Main form -->
+    <form method="post" action="" class="space-y-5">
+        <input type="hidden" name="_token" value="{csrf_token}">
+        <input type="hidden" name="action" value="save">
+
+        <!-- Identity -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Identity</h2>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Store Name <span class="text-red-500">*</span></label>
+                <input type="text" name="name" value="{input.name | escape}" required
+                       placeholder="e.g. Main Store"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Code <span class="text-red-500">*</span></label>
+                    <input type="text" name="code" value="{input.code | escape}" required
+                           placeholder="main" pattern="[a-z0-9_-]+"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                    <p class="text-xs text-slate-400 mt-1">Lowercase letters, numbers, hyphens.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Slug</label>
+                    <input type="text" name="slug" value="{input.slug | escape}"
+                           placeholder="auto-generated from code"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                    <p class="text-xs text-slate-400 mt-1">Used in <code>?store=slug</code> and headers.</p>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Description</label>
+                <textarea name="description" rows="2" placeholder="Optional store description…"
+                          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:border-orange-500 outline-none">{input.description | escape}</textarea>
+            </div>
+        </div>
+
+        <!-- Flags -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Flags</h2>
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="is_active" value="1" {if input.is_active}checked{/if}
+                       class="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500">
+                <span class="text-sm font-medium text-gray-700">Active</span>
+                <span class="text-xs text-slate-400">Inactive stores are hidden from the storefront.</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="is_default" value="1" {if input.is_default}checked{/if}
+                       class="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500">
+                <span class="text-sm font-medium text-gray-700">Default store</span>
+                <span class="text-xs text-slate-400">Used when no store context is specified. Only one store can be the default.</span>
+            </label>
+        </div>
+
+        <!-- Store-level settings overrides -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store-Level Settings</h2>
+            <p class="text-xs text-slate-500">Leave blank to inherit global settings.</p>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Currency Code</label>
+                    <input type="text" name="setting_currency" value="{input.setting_currency | escape}"
+                           placeholder="e.g. USD"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Currency Symbol</label>
+                    <input type="text" name="setting_currency_symbol" value="{input.setting_currency_symbol | escape}"
+                           placeholder="e.g. $"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Timezone</label>
+                    <input type="text" name="setting_timezone" value="{input.setting_timezone | escape}"
+                           placeholder="e.g. Asia/Manila"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Tax Rate (%)</label>
+                    <input type="text" name="setting_tax_rate" value="{input.setting_tax_rate | escape}"
+                           placeholder="e.g. 12"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Checkout Note</label>
+                <input type="text" name="setting_checkout_note" value="{input.setting_checkout_note | escape}"
+                       placeholder="e.g. Pickup available Mon–Sat 9am–6pm"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+        </div>
+
+        <!-- Save / Cancel -->
+        <div class="flex items-center justify-between pt-1">
+            <a href="{base_url}/ecommerce/admin/stores"
+               class="px-4 py-2 text-sm font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors">
+                {if is_new}Create Store{else}Save Changes{/if}
+            </button>
+        </div>
+    </form>
+
+    <!-- Danger zone (edit only) -->
+    {if !is_new}
+    <div class="bg-white rounded-xl border border-red-200 p-5 space-y-3">
+        <h2 class="text-sm font-bold text-red-700 uppercase tracking-wider">Danger Zone</h2>
+
+        {if input.is_default}
+        <p class="text-sm text-slate-500">This is the default store and cannot be deleted. Assign another store as default first.</p>
+        {else}
+        <p class="text-sm text-slate-500">Deleting a store removes its product overrides and inventory sources. Orders that reference this store retain their <code>store_id</code> for historical records.</p>
+        <form method="post" action="" onsubmit="return confirm('Delete this store? This cannot be undone.')">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <input type="hidden" name="action" value="delete">
+            <button type="submit"
+                    class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors">
+                Delete Store
+            </button>
+        </form>
+        {/if}
+    </div>
+    {/if}
+
+</div>
+
+<script>
+    // Auto-generate slug from code field when slug is empty
+    (function () {
+        var codeInput = document.querySelector('[name=code]');
+        var slugInput = document.querySelector('[name=slug]');
+        if (!codeInput || !slugInput) return;
+        codeInput.addEventListener('input', function () {
+            if (slugInput.value === '' || slugInput.dataset.autoSlug === '1') {
+                slugInput.value = codeInput.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                slugInput.dataset.autoSlug = '1';
+            }
+        });
+        slugInput.addEventListener('input', function () {
+            slugInput.dataset.autoSlug = '';
+        });
+    })();
+
+    // Pre-fill settings from existing settings_json for edit mode
+    (function () {
+        var raw = {if input.settings_json}'{input.settings_json | escape_js}'{else}null{/if};
+        if (!raw) return;
+        try {
+            var s = JSON.parse(raw);
+            ['currency','currency_symbol','timezone','tax_rate','checkout_note'].forEach(function(k){
+                var el = document.querySelector('[name=setting_' + k + ']');
+                if (el && s[k]) el.value = s[k];
+            });
+        } catch(e){}
+    })();
+</script>
+{/block}
