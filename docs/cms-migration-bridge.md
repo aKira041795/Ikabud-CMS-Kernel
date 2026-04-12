@@ -8,6 +8,34 @@ The bridge is **not a permanent embedded CMS runtime**. It exists to ease migrat
 
 Strategically, the bridge is also a **controlled content ingestion pipeline with lifecycle governance** — a pattern that generalizes beyond WordPress. The event schema, provenance tracking, conflict detection, and idempotency guarantees established here are reusable for any external content source (Joomla, POS systems, mobile apps, third-party APIs). WordPress is the first adapter; the ingestion pipeline is the lasting infrastructure.
 
+## What Content Ingestion Means Here
+
+In ApplicationOS, **content ingestion** is a controlled, repeatable pipeline that accepts external content, normalizes it into an ApplicationOS-owned envelope, validates it through module capability boundaries, tracks provenance, and writes it into CMS storage as the system of record.
+
+In the current bridge implementation, that means:
+
+1. An external source changes content.
+2. The source emits or provides a payload.
+3. The bridge normalizes that payload into the canonical ingestion shape.
+4. The pipeline validates, deduplicates, and conflict-checks it.
+5. CMS capability calls perform the actual write.
+6. Provenance and lifecycle metadata are recorded so the content can be re-evaluated safely later.
+
+That is materially different from a one-time file import. A WXR import is still useful as a transport, but the bridge treats it as another ingestion input, not as a privileged direct-write path.
+
+### What Makes It Real Ingestion
+
+The bridge only counts as ingestion because it is all of the following:
+
+- **Provenance-aware**: the system records source identity, external IDs, and source modification timestamps.
+- **Idempotent**: repeated delivery of the same version does not create duplicates.
+- **Event-driven**: the pipeline responds to change events or normalized payload submissions rather than trusting raw database dumps.
+- **Boundary-enforced**: writes go through CMS capabilities, not ad hoc SQL.
+- **Conflict-aware**: the pipeline can defer or flag content instead of overwriting blindly.
+- **Lifecycle-controlled**: imported content moves through explicit states such as external-managed, review-required, cms-managed, and retired.
+
+This is why the module is more than a WordPress migration utility. It is the first concrete implementation of a generalized external-content ingestion model for ApplicationOS.
+
 ---
 
 ## Why This Exists
@@ -562,6 +590,16 @@ Generates a new API token and invalidates the old one.
 
 The ingestion module (`content-ingestion`) already implements the full pipeline for WordPress. Phase 5 extracts the source-agnostic core and defines a formal adapter contract so that WordPress, Joomla, POS systems, mobile apps, and third-party APIs all plug into the same ingestion infrastructure without custom wiring.
 
+#### Current Boundary
+
+This remains a **module-level service today**, not a kernel-level service. That boundary is intentional for now:
+
+- the current production use case is still centered on CMS migration and bridge lifecycle controls
+- the implementation is still proving the adapter contract with the WordPress path first
+- kernel extraction should happen only after the shared pipeline is stable across multiple adapters or multiple modules genuinely need the same runtime
+
+Kernel promotion is therefore a **pending architectural direction**, not a current deliverable. Phase 5 in the current plan means formalizing the adapter contract and source-agnostic pipeline inside `content-ingestion` first.
+
 #### Design Principle
 
 > The ingestion pipeline owns normalization, deduplication, conflict detection, provenance, and CMS capability writes.  
@@ -712,6 +750,10 @@ Phase 5 execution means:
 4. Update `wpBridgeApiIngest()` to: receive raw payload → `$adapter->normalize()` → `pipeline->ingest($envelope)`
 5. Add adapter auto-discovery: scan `modules/content-ingestion/adapters/*.php` for classes implementing `IngestionAdapter`
 6. Settings UI: dynamically render adapter-specific settings based on registered adapters
+
+#### Pending After Phase 5
+
+If the same ingestion runtime is later required outside CMS migration, the next architectural review can evaluate moving the shared pipeline into a kernel-owned service layer. That is explicitly deferred until the module-level adapter contract and pipeline have been proven in practice.
 
 #### What Does NOT Change
 
