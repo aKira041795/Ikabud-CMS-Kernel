@@ -114,10 +114,18 @@ function ecPublicBookings(): void
         ? ecBookingsForCustomer((int)$user['id'], 50)
         : [];
 
+    if (function_exists('ecBookingHydrateForDisplay')) {
+        $bookings = array_map('ecBookingHydrateForDisplay', $bookings);
+    }
+
+    $flash = $_SESSION['ec_flash'] ?? null;
+    unset($_SESSION['ec_flash']);
+
     ecRender('modules/ecommerce/public/my-bookings.disyl', [
         'page_title' => 'My Bookings',
         'bookings' => $bookings,
         'user' => $user,
+        'flash' => $flash,
     ]);
 }
 

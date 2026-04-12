@@ -3,16 +3,16 @@
 {block content}
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Existing categories -->
-    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div class="px-5 py-3 border-b border-gray-200 font-semibold text-sm text-gray-700">Product Categories</div>
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-gray-100 text-[13px] font-semibold text-gray-800">Product Categories</div>
         {if categories | count == 0}
-        <div class="px-5 py-10 text-center text-gray-400 text-sm">No categories yet.</div>
+        <div class="px-5 py-10 text-center text-slate-500 text-sm">No categories yet.</div>
         {/if}
         {foreach categories as cat}
         <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0">
             <div>
                 <div class="text-sm font-medium text-gray-900">{cat.name}</div>
-                <div class="text-xs text-gray-400">/ecommerce/shop/category/{cat.slug} · {cat.product_count} products</div>
+                <div class="text-xs text-slate-500">/ecommerce/shop/category/{cat.slug} · {cat.product_count} products</div>
             </div>
             <form method="post" action="" onsubmit="return confirm('Delete this category?')">
                 <input type="hidden" name="_token" value="{csrf_token}">
@@ -25,8 +25,8 @@
     </div>
 
     <!-- Create category -->
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <h3 class="font-semibold text-sm text-gray-700 mb-4">New Category</h3>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 class="text-[13px] font-semibold text-gray-800 mb-4">New Category</h3>
         <form method="post" action="" class="space-y-3">
             <input type="hidden" name="_token" value="{csrf_token}">
             <input type="hidden" name="action" value="create">

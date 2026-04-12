@@ -4,11 +4,11 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 space-y-4">
         <!-- Order header -->
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h2 class="text-lg font-bold text-gray-900">{order.order_number}</h2>
-                    <p class="text-sm text-gray-400">{order.created_at}</p>
+                    <p class="text-sm text-slate-500">{order.created_at}</p>
                 </div>
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold
                     {if order.status == 'pending'}bg-amber-50 text-amber-700
@@ -21,7 +21,7 @@
             <!-- Items -->
             <table class="w-full text-sm">
                 <thead class="border-b border-gray-200">
-                    <tr class="text-left text-xs text-gray-500 uppercase tracking-wider">
+                    <tr class="text-left text-[11px] text-slate-600 uppercase tracking-wider font-semibold">
                         <th class="pb-2">Product</th>
                         <th class="pb-2 text-right">Unit Price</th>
                         <th class="pb-2 text-center">Qty</th>
@@ -33,7 +33,7 @@
                     <tr>
                         <td class="py-2">
                             <div class="font-medium text-gray-900">{item.product_title}</div>
-                            {if item.sku}<div class="text-xs text-gray-400">{item.sku}</div>{/if}
+                            {if item.sku}<div class="text-xs text-slate-500">{item.sku}</div>{/if}
                             {if item.variant_label}<div class="text-xs text-gray-500">{item.variant_label}</div>{/if}
                         </td>
                         <td class="py-2 text-right text-gray-700">{currency_symbol}{item.unit_price}</td>
@@ -66,10 +66,10 @@
         </div>
 
         {if refunds | count > 0}
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold text-gray-700">Refund History</h3>
-                <span class="text-xs text-gray-400">{refund_summary.total_refunded_amount_fmt} refunded</span>
+                <h3 class="text-sm font-semibold text-gray-800">Refund History</h3>
+                <span class="text-xs text-slate-500">{refund_summary.total_refunded_amount_fmt} refunded</span>
             </div>
             <div class="space-y-3">
                 {foreach refunds as refund}
@@ -98,11 +98,11 @@
         </div>
         {/if}
 
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center justify-between mb-3 gap-3">
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-700">Return Requests</h3>
-                    <p class="mt-1 text-xs text-gray-400">Customer return authorizations linked to this order.</p>
+                    <h3 class="text-sm font-semibold text-gray-800">Return Requests</h3>
+                    <p class="mt-1 text-xs text-slate-500">Customer return authorizations linked to this order.</p>
                 </div>
                 <a href="{base_url}/ecommerce/admin/returns" class="text-xs font-semibold text-orange-600 hover:text-orange-700">View all returns</a>
             </div>
@@ -148,10 +148,31 @@
             {/if}
         </div>
 
+        {if order_bookings | count > 0}
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Bookings</h3>
+            <div class="space-y-3">
+                {foreach order_bookings as bk}
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="space-y-1 text-sm">
+                        <div class="font-medium text-gray-900">{bk.product_title}</div>
+                        <div class="text-gray-600">{bk.scheduled_for | date:'M j, Y g:i A'} &mdash; {bk.duration_minutes} min</div>
+                        {if bk.status == 'cancelled' && bk.cancel_reason}<div class="text-xs text-red-600">Reason: {bk.cancel_reason}</div>{/if}
+                        {if bk.status == 'cancelled' && bk.cancelled_at}<div class="text-xs text-slate-500">Cancelled: {bk.cancelled_at | date:'M j, Y g:i A'}</div>{/if}
+                        {if bk.rescheduled_from_id}<div class="text-xs text-slate-500">Rescheduled from booking #{bk.rescheduled_from_id}</div>{/if}
+                        {if bk.reminder_sent_at}<div class="text-xs text-slate-500">Reminder sent: {bk.reminder_sent_at | date:'M j, Y g:i A'}</div>{/if}
+                    </div>
+                    <span class="inline-flex items-center self-start rounded-full px-2 py-0.5 text-xs font-semibold {if bk.status == 'confirmed'}bg-emerald-100 text-emerald-700{elseif bk.status == 'pending'}bg-amber-100 text-amber-700{elseif bk.status == 'cancelled'}bg-red-100 text-red-700{elseif bk.status == 'rescheduled'}bg-blue-100 text-blue-700{else}bg-gray-100 text-gray-600{/if}">{bk.status}</span>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/if}
+
         <!-- Addresses -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-white rounded-lg border border-gray-200 p-5">
-                <h3 class="text-sm font-semibold text-gray-700 mb-3">Billing Address</h3>
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="text-sm font-semibold text-gray-800 mb-3">Billing Address</h3>
                 <address class="text-sm text-gray-600 not-italic space-y-0.5">
                     <div class="font-medium">{order.billing.first_name} {order.billing.last_name}</div>
                     {if order.billing.email}<div>{order.billing.email}</div>{/if}
@@ -162,8 +183,8 @@
                     {if order.billing.phone}<div>{order.billing.phone}</div>{/if}
                 </address>
             </div>
-            <div class="bg-white rounded-lg border border-gray-200 p-5">
-                <h3 class="text-sm font-semibold text-gray-700 mb-3">Shipping Address</h3>
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="text-sm font-semibold text-gray-800 mb-3">Shipping Address</h3>
                 <address class="text-sm text-gray-600 not-italic space-y-0.5">
                     <div class="font-medium">{order.shipping.first_name} {order.shipping.last_name}</div>
                     <div>{order.shipping.address_line1}</div>
@@ -176,8 +197,8 @@
         </div>
 
         {if order.shipment_tracking.has_tracking}
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Shipment Tracking</h3>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Shipment Tracking</h3>
             <div class="space-y-2 text-sm text-gray-700">
                 {if order.shipment_tracking.carrier}<div class="flex justify-between gap-4"><span class="text-gray-500">Carrier</span><span class="font-medium text-right">{order.shipment_tracking.carrier}</span></div>{/if}
                 {if order.shipment_tracking.tracking_number}<div class="flex justify-between gap-4"><span class="text-gray-500">Tracking Number</span><span class="font-medium text-right">{order.shipment_tracking.tracking_number}</span></div>{/if}
@@ -191,8 +212,8 @@
     <div class="space-y-4">
         <!-- Update status -->
         {if allowed_statuses | count > 0}
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Update Status</h3>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Update Status</h3>
             <form method="post" action="" class="space-y-3">
                 <input type="hidden" name="_token" value="{csrf_token}">
                 <input type="hidden" name="action" value="update_status">
@@ -215,8 +236,8 @@
         {/if}
 
              {if order.status == 'shipped' || order.status == 'delivered'}
-             <div class="bg-white rounded-lg border border-gray-200 p-5">
-                 <h3 class="text-sm font-semibold text-gray-700 mb-3">Update Tracking</h3>
+             <div class="bg-white rounded-xl border border-gray-200 p-5">
+                 <h3 class="text-sm font-semibold text-gray-800 mb-3">Update Tracking</h3>
                  <form method="post" action="" class="space-y-3">
                   <input type="hidden" name="_token" value="{csrf_token}">
                   <input type="hidden" name="action" value="update_tracking">
@@ -234,8 +255,8 @@
              {/if}
 
         <!-- Payment -->
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Payment</h3>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Payment</h3>
             <div class="text-sm text-gray-600 space-y-1">
                 <div class="flex justify-between">
                     <span>Status</span>
@@ -259,8 +280,8 @@
         </div>
 
         {if refund_summary.refundable_amount > 0 and order.payment_status == 'paid'}
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Create Refund</h3>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Create Refund</h3>
             <form method="post" action="" class="space-y-3">
                 <input type="hidden" name="_token" value="{csrf_token}">
                 <input type="hidden" name="action" value="create_refund">
@@ -268,7 +289,7 @@
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Refund Amount</label>
                     <input type="number" name="refund_amount" step="0.01" min="0.01" max="{refund_summary.refundable_amount}" value="{refund_summary.refundable_amount}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                    <p class="mt-1 text-xs text-gray-400">Up to {refund_summary.refundable_amount_fmt} can still be refunded.</p>
+                    <p class="mt-1 text-xs text-slate-500">Up to {refund_summary.refundable_amount_fmt} can still be refunded.</p>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Reason</label>
@@ -285,7 +306,7 @@
                     <label class="flex items-center justify-between gap-3 text-sm text-gray-700">
                         <span class="min-w-0">
                             <span class="block font-medium text-gray-900">{item.product_title}</span>
-                            <span class="block text-xs text-gray-400">Ordered {item.qty}{if item.refunded_qty > 0} · Already refunded {item.refunded_qty}{/if}</span>
+                            <span class="block text-xs text-slate-500">Ordered {item.qty}{if item.refunded_qty > 0} · Already refunded {item.refunded_qty}{/if}</span>
                         </span>
                         <input type="number" name="refund_qty[{item.id}]" min="0" max="{item.refundable_qty}" value="0"
                                class="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right">
@@ -304,16 +325,16 @@
 
         <!-- Customer note -->
         {if order.customer_note}
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-gray-700 mb-2">Customer Note</h3>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-2">Customer Note</h3>
             <p class="text-sm text-gray-600">{order.customer_note}</p>
         </div>
         {/if}
 
         <!-- Digital Licenses -->
         {if order.licenses | count > 0}
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Digital Licenses</h3>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Digital Licenses</h3>
             <div class="space-y-3">
                 {foreach order.licenses as lic}
                 <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1.5">
@@ -325,7 +346,7 @@
                         <span class="px-1.5 py-0.5 rounded text-xs font-medium {if lic.status == 'active'}bg-emerald-50 text-emerald-700{else}bg-gray-100 text-gray-500{/if}">{lic.status}</span>
                     </div>
                     <div class="flex items-center gap-2 mt-1">
-                        <span class="text-gray-400 font-mono text-[10px] truncate flex-1 select-none" title="Use the Copy or Download button to get the full license key">{lic.license_key | truncate:40}…</span>
+                        <span class="text-slate-500 font-mono text-[10px] truncate flex-1 select-none" title="Use the Copy or Download button to get the full license key">{lic.license_key | truncate:40}…</span>
                         <button type="button"
                             onclick="ecCopyLicenseKey(this)"
                             data-key="{lic.license_key | esc_attr}"
@@ -335,7 +356,7 @@
                         </button>
                     </div>
                     <div class="flex items-center justify-between">
-                        <div class="text-gray-400">
+                        <div class="text-slate-500">
                             {if lic.downloaded_at}Downloaded {lic.downloaded_at}{else}Not downloaded yet{/if}
                         </div>
                         <div class="flex items-center gap-2">
@@ -364,8 +385,8 @@
         {/if}
 
         {if order.subscriptions | count > 0}
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Subscriptions</h3>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Subscriptions</h3>
             <div class="space-y-3">
                 {foreach order.subscriptions as subscription}
                 <div class="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs space-y-1.5">

@@ -2,7 +2,7 @@
 
 {block content}
 <div class="space-y-5">
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
         <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
                 <h2 class="text-lg font-semibold text-gray-900">Return Requests</h2>
@@ -25,12 +25,12 @@
     <div class="rounded-lg border px-4 py-3 text-sm {if message.type == 'success'}border-emerald-200 bg-emerald-50 text-emerald-800{else}border-red-200 bg-red-50 text-red-700{/if}">{message.text}</div>
     {/if}
 
-    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {if return_requests | count == 0}
-        <div class="px-5 py-12 text-center text-sm text-gray-500">No return requests match the current filter.</div>
+        <div class="px-5 py-12 text-center text-sm text-slate-500">No return requests match the current filter.</div>
         {else}
         <table class="w-full text-sm">
-            <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+            <thead class="bg-gray-50/80 border-b border-gray-200 text-[11px] uppercase tracking-wider font-semibold text-slate-600">
                 <tr>
                     <th class="px-4 py-3 text-left">Request</th>
                     <th class="px-4 py-3 text-left">Order</th>
@@ -45,11 +45,11 @@
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-3">
                         <div class="font-semibold text-gray-900">{request.request_number}</div>
-                        <div class="mt-1 text-xs text-gray-500">{request.total_qty_requested} item{if request.total_qty_requested == 1}{else}s{/if} · {request.reason}</div>
+                        <div class="mt-1 text-xs text-slate-500">{request.total_qty_requested} item{if request.total_qty_requested == 1}{else}s{/if} · {request.reason}</div>
                     </td>
                     <td class="px-4 py-3 text-gray-700">
                         <div>#{request.order_number}</div>
-                        <div class="mt-1 text-xs text-gray-400">{request.order_status}</div>
+                        <div class="mt-1 text-xs text-slate-500">{request.order_status}</div>
                     </td>
                     <td class="px-4 py-3 text-gray-700">{request.customer_name | default:request.created_by_name | default:'Customer'}</td>
                     <td class="px-4 py-3">
@@ -59,7 +59,7 @@
                             {elseif request.status == 'rejected'}bg-red-100 text-red-700
                             {else}bg-gray-100 text-gray-600{/if}">{request.status}</span>
                     </td>
-                    <td class="px-4 py-3 text-gray-500">{request.created_at | date:'M j, Y g:i A'}</td>
+                    <td class="px-4 py-3 text-slate-600">{request.created_at | date:'M j, Y g:i A'}</td>
                     <td class="px-4 py-3 text-right">
                         <a href="{base_url}/ecommerce/admin/orders/{request.order_id}" class="text-orange-600 hover:text-orange-700 font-medium">Open Order</a>
                     </td>

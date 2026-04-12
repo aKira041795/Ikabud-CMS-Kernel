@@ -1,0 +1,107 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-5">
+
+    {if message}
+    <div class="px-4 py-3 rounded-xl border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Earned</div>
+            <div class="mt-1 text-2xl font-bold text-emerald-600">{stats.total_earned | default:'0'} pts</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Redeemed</div>
+            <div class="mt-1 text-2xl font-bold text-orange-600">{stats.total_redeemed | default:'0'} pts</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unique Customers</div>
+            <div class="mt-1 text-2xl font-bold text-gray-900">{stats.unique_customers | default:'0'}</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <form method="get" action="" class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Type</label>
+                <select name="type" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <option value="">All</option>
+                    <option value="earn" {if entry_type == 'earn'}selected{/if}>Earned</option>
+                    <option value="redeem" {if entry_type == 'redeem'}selected{/if}>Redeemed</option>
+                </select>
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Search</label>
+                <input type="text" name="search" value="{search}" placeholder="Customer name, email, or description…"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Filter</button>
+        </form>
+    </div>
+
+    <!-- Ledger Table -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50/80 text-left text-[11px] uppercase tracking-wider font-semibold text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3">Customer</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3 text-right">Points</th>
+                        <th class="px-4 py-3">Description</th>
+                        <th class="px-4 py-3">Order</th>
+                        <th class="px-4 py-3">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {if entries | count == 0}
+                    <tr><td colspan="6" class="px-4 py-10 text-center text-slate-500">No loyalty entries found.</td></tr>
+                    {/if}
+                    {foreach entries as e}
+                    <tr class="hover:bg-gray-50/50">
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-gray-900">{e.customer_name | default:'—'}</div>
+                            <div class="text-xs text-slate-500">{e.customer_email | default:''}</div>
+                        </td>
+                        <td class="px-4 py-3">
+                            {if e.entry_type == 'earn'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">Earned</span>
+                            {elseif e.entry_type == 'redeem'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700">Redeemed</span>
+                            {else}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600">{e.entry_type}</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 text-right font-mono font-semibold {if e.points > 0}text-emerald-600{else}text-orange-600{/if}">
+                            {if e.points > 0}+{/if}{e.points}
+                        </td>
+                        <td class="px-4 py-3 text-gray-700 text-xs">{e.description | default:'—'}</td>
+                        <td class="px-4 py-3">
+                            {if e.order_id}
+                            <a href="{base_url}/ecommerce/admin/orders/{e.order_id}" class="text-orange-600 hover:underline text-xs font-medium">#{e.order_id}</a>
+                            {else}—{/if}
+                        </td>
+                        <td class="px-4 py-3 text-slate-500 text-xs">{e.created_at}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+
+        {if total_pages > 1}
+        <div class="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Page {page} of {total_pages} · {total} entries</span>
+            <div class="flex gap-1">
+                {if page > 1}<a href="?page={page - 1}&type={entry_type}&search={search}" class="px-3 py-1 rounded-lg border hover:bg-gray-50">Prev</a>{/if}
+                {if page < total_pages}<a href="?page={page + 1}&type={entry_type}&search={search}" class="px-3 py-1 rounded-lg border hover:bg-gray-50">Next</a>{/if}
+            </div>
+        </div>
+        {/if}
+    </div>
+
+</div>
+{/block}

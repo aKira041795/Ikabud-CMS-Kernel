@@ -3,10 +3,10 @@
 {block content}
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Coupon list -->
-    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div class="px-5 py-3 border-b border-gray-200 font-semibold text-sm text-gray-700">Coupons & Gift Cards</div>
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-gray-100 text-[13px] font-semibold text-gray-800">Coupons & Gift Cards</div>
         {if coupons | count == 0}
-        <div class="px-5 py-10 text-center text-gray-400 text-sm">No coupons or gift cards yet.</div>
+        <div class="px-5 py-10 text-center text-slate-500 text-sm">No coupons or gift cards yet.</div>
         {/if}
         {foreach coupons as c}
         <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0">
@@ -22,7 +22,7 @@
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">inactive</span>
                     {/if}
                 </div>
-                <div class="text-xs text-gray-400 mt-0.5">
+                <div class="text-xs text-slate-500 mt-0.5">
                     {if c.type == 'percent'}{c.value}% off
                     {elseif c.type == 'gift_card'}balance {ec_settings.currency_symbol}{c.value}
                     {else}{ec_settings.currency_symbol}{c.value} off{/if}
@@ -52,8 +52,8 @@
     </div>
 
     <!-- Create coupon -->
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <h3 class="font-semibold text-sm text-gray-700 mb-4">Create Coupon or Gift Card</h3>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 class="text-[13px] font-semibold text-gray-800 mb-4">Create Coupon or Gift Card</h3>
         <form method="post" action="" class="space-y-3">
             <input type="hidden" name="_token" value="{csrf_token}">
             <input type="hidden" name="action" value="create">

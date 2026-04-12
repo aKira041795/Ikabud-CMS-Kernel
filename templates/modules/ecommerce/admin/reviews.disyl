@@ -16,9 +16,9 @@
     </form>
 </div>
 
-<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
     <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+        <thead class="bg-gray-50/80 text-slate-600 text-[11px] uppercase tracking-wider font-semibold">
             <tr>
                 <th class="px-5 py-3 text-left">Review</th>
                 <th class="px-4 py-3 text-left">Product</th>
@@ -29,19 +29,19 @@
         </thead>
         <tbody class="divide-y divide-gray-100">
             {if reviews | count == 0}
-            <tr><td colspan="5" class="px-5 py-10 text-center text-gray-400">No reviews found.</td></tr>
+            <tr><td colspan="5" class="px-5 py-10 text-center text-slate-500">No reviews found.</td></tr>
             {/if}
             {foreach reviews as review}
             <tr class="align-top hover:bg-gray-50">
                 <td class="px-5 py-4">
                     <div class="font-medium text-gray-900">{review.reviewer_name}</div>
-                    <div class="mt-1 text-xs text-gray-500">{review.guest_email | default:'Logged-in customer'}{if review.verified_purchase} · Verified purchase{/if}</div>
+                    <div class="mt-1 text-xs text-slate-500">{review.guest_email | default:'Logged-in customer'}{if review.verified_purchase} · Verified purchase{/if}</div>
                     <p class="mt-2 text-sm text-gray-700 whitespace-pre-line">{review.review_body}</p>
-                    <div class="mt-2 text-xs text-gray-400">{review.created_at}</div>
+                    <div class="mt-2 text-xs text-slate-500">{review.created_at}</div>
                 </td>
                 <td class="px-4 py-4">
                     <div class="font-medium text-gray-900">{review.product_title}</div>
-                    <div class="text-xs text-gray-400">/ecommerce/shop/{review.product_slug}</div>
+                    <div class="text-xs text-slate-500">/ecommerce/shop/{review.product_slug}</div>
                 </td>
                 <td class="px-4 py-4 text-center font-semibold text-amber-600">{review.rating}/5</td>
                 <td class="px-4 py-4 text-center">

@@ -17,112 +17,217 @@ description: Actionable execution plan for ecommerce commerce maturity milestone
 
 ---
 
-## Milestone 1 — Booking Depth
+## Milestone 1 — Operational Depth: Bookings, Memberships & Rewards
 
 ### Objective
 
-Make bookings operationally complete for real merchant use: reschedule, cancel, and remind.
+Wire bookings, memberships, and loyalty/rewards into fully operational features — from product configuration through checkout, activation, customer account management, and admin visibility.
 
 ### Why First
 
-Bookings already exist end to end (product config → cart → order → confirmation → account listing). But they are operationally shallow — once created, a booking cannot be changed or cancelled by the customer, and there are no automated reminders. This is the most visible gap in the shipped storefront.
+All three features already have storage tables (`ec_bookings`, `ec_memberships`, `ec_loyalty_ledger`), helper functions, event listeners, customer-facing templates, and routes. But each has wiring gaps that prevent real merchant use. This milestone closes those gaps before adding new structural work.
+
+---
+
+### Architecture: How These Plug Into the Module
+
+**These are not product types. They are product behaviors.**
+
+A product in this system lives on `cms_content` (type=`product`). Its capabilities are defined by **meta flags** on `cms_content_meta`, not by a type enum column. Multiple behaviors can coexist on one product.
+
+#### The behavior model
+
+| Behavior | Meta flag | Storage table | Activation trigger |
+|---|---|---|---|
+| **Subscription** | `_is_subscription = 1` | `ec_subscriptions` | `ecommerce.order.paid` event → `ecSubscriptionCreateForPaidOrder()` |
+| **Membership** | `_is_membership_product = 1` | `ec_memberships` | `ecommerce.order.paid` event → `ecMembershipCreateForPaidOrder()` |
+| **Booking** | `_booking_enabled = 1` | `ec_bookings` | `ecommerce.order.paid` event → `ecBookingConfirmPaidOrder()` |
+| **Loyalty** | No per-product flag (system-wide) | `ec_loyalty_ledger` | `ecommerce.order.paid` event → `ecLoyaltyRecordPaidOrder()` |
+| **Digital/License** | `_is_digital = 1` | `ec_licenses` | `ecommerce.order.paid` event → license issuance |
+
+#### The product_type derivation
+
+`product_type` is a **computed label** resolved at read time in `ecProductGet()`, not a stored column. The chain (`helpers/30-products.php:382–388`):
+
+```
+bundle children exist? → 'bundle'
+_is_membership_product? → 'membership'
+_is_subscription?       → 'subscription'
+_is_external_product?   → 'external'
+default                 → 'physical'
+```
+
+Bookings do **not** override product_type — a subscription can also be bookable. A physical product can be bookable. The behaviors are orthogonal.
+
+#### The wiring pipeline (per behavior)
+
+1. **Admin product edit** — form fields write meta flags to `cms_content_meta`
+2. **`ecProductGet()`** — reads meta, calls `ecProductBookingConfigFromMetaMap()` / `ecProductMembershipMetaFromMetaMap()` / `ecProductSubscriptionMetaFromMetaMap()` to hydrate the product array
+3. **`ecBuildStorefrontCatalogItem()`** — passes hydrated data to templates (booking config, membership gate, subscription summary)
+4. **Cart / Checkout** — validates behavior rules (subscription isolation, booking slot selection, membership gate)
+5. **`ecOrderCreate()`** — creates order with `cart_items` that carry behavior metadata
+6. **`ecommerce.order.paid` event** — listeners in each helper file create records in their respective tables
+7. **Customer account pages** — handlers query behavior tables, templates render records
+
+#### What "wiring" means
+
+A behavior is **fully wired** when all 7 steps work end to end. A behavior is **partially wired** when some steps exist but gaps prevent real use (e.g., table exists but no admin management, or records are created but customer can't act on them).
+
+---
 
 ### Current State
 
-- `ec_bookings` table exists with: `id`, `order_id`, `order_item_id`, `customer_id`, `customer_email`, `product_id`, `product_title`, `status`, `scheduled_for`, `ends_at`, `duration_minutes`, `notes`, `created_at`, `updated_at`
-- Statuses today: `pending`, `confirmed` (set on paid order)
-- Helpers: `ecBookingCreatePendingRecordsForOrder()`, `ecBookingConfirmPaidOrder()`, `ecBookingsForOrder()`, `ecBookingsForCustomer()`
-- No reschedule, cancel, or reminder logic exists
-- No admin booking management beyond order-level viewing
+#### Bookings — partially wired ✅ → now fully wired (completed)
 
-### Workstream 1.1 — Schema Changes
+- **Table:** `ec_bookings` with columns for cancel, reschedule, reminder (migration 027 applied)
+- **Helpers:** Full lifecycle — create, confirm, reschedule, cancel, reminder, hydrate for display
+- **Product config:** `_booking_enabled`, duration, notice hours, weekdays, time slots, allow_reschedule, allow_cancel, cutoff hours, reminder hours
+- **Customer UI:** `my-bookings.disyl` with reschedule/cancel forms, status badges, flash messages
+- **Admin UI:** Booking panel in order detail with status badges, cancel reason, reschedule links
+- **Routes:** GET `/ecommerce/my-bookings`, POST reschedule + cancel
+- **Event listener:** `ecommerce.order.paid` → `ecBookingConfirmPaidOrder()`
+- **Gap closed:** Reschedule, cancel, reminder engine, admin product booking operations settings
 
-Migration `027_ec_booking_operations.sql`:
+#### Memberships — partially wired
 
-- Add `cancelled_at DATETIME NULL` to `ec_bookings`
-- Add `cancel_reason VARCHAR(255) NULL` to `ec_bookings`
-- Add `rescheduled_from_id BIGINT UNSIGNED NULL` to `ec_bookings` (self-referencing, links to original booking)
-- Add `reminder_sent_at DATETIME NULL` to `ec_bookings`
-- Add index `idx_ec_bookings_reminder (reminder_sent_at, status, scheduled_for)`
+- **Table:** `ec_memberships` exists (order_id, order_item_id, customer_id, customer_email, product_id, membership_tier, status, duration_days, starts_at, ends_at)
+- **Helpers:** `ecMembershipCreateForPaidOrder()`, `ecMembershipsForCustomer()`, `ecCustomerActiveMembershipTiers()`, `ecMembershipGateForProduct()`
+- **Product config:** `_is_membership_product`, `_membership_tier`, `_membership_duration_days`, `_required_membership_tiers`
+- **Customer UI:** `my-memberships.disyl` — lists memberships with tier, duration, status, originating order link
+- **Routes:** GET `/ecommerce/my-memberships` → `ecPublicMemberships()`; GET `/ecommerce/admin/memberships` → `ecAdminMemberships()` ✅
+- **Event listener:** `ecommerce.order.paid` → `ecMembershipCreateForPaidOrder()`
+- **Admin list page:** `memberships.disyl` exists with status/tier/date filters and customer search ✅
+- **Remaining gaps:**
+  - No admin ability to manually grant, extend, or revoke a membership
+  - No membership expiry warning email to customer
+  - Customer cannot see remaining days or renewal options
+  - No membership status in admin customer detail
 
-Register migration in `module.json`.
+#### Loyalty/Rewards — partially wired
 
-### Workstream 1.2 — Booking Settings (Product-Level)
+- **Table:** `ec_loyalty_ledger` exists (customer_id, order_id, entry_type, points, description, created_at)
+- **Helpers:** `ecLoyaltyRecordPaidOrder()` (earn + redeem), `ecCustomerLoyaltyPointsBalance()`, `ecLoyaltyEntriesForCustomer()`, `ecCartApplyLoyalty()`, `ecLoyaltyCurrencyDiscount()`
+- **Product config:** None (system-wide, not per-product)
+- **Customer UI:** `rewards.disyl` — balance display, transaction history
+- **Cart integration:** Loyalty points can be selected and applied as discount at checkout
+- **Routes:** GET `/ecommerce/rewards` → `ecPublicRewards()`; GET `/ecommerce/admin/loyalty` → `ecAdminLoyalty()` ✅
+- **Event listener:** `ecommerce.order.paid` → `ecLoyaltyRecordPaidOrder()`
+- **Admin loyalty page:** `loyalty.disyl` exists with balance summary cards, ledger activity, and customer search ✅
+- **Remaining gaps:**
+  - Earn rate is hardcoded (`ecLoyaltyEarnRatePerCurrencyUnit()` returns 1, `ecLoyaltyPointsPerCurrencyUnit()` returns 100, `ecLoyaltyMinimumRedeemPoints()` returns 100) — no admin settings
+  - No admin ability to manually credit/debit points
+  - No expiry policy for earned points
+  - No loyalty tier levels (bronze, silver, gold) based on lifetime spend
+  - Points-per-currency and minimum redemption are not configurable via admin settings
 
-Extend `ecProductBookingDefaults()` and `ecProductBookingConfigFromMetaMap()`:
+---
 
-- `allow_reschedule` (bool, default false)
-- `reschedule_cutoff_hours` (int, default 24) — how many hours before scheduled_for the customer can reschedule
-- `allow_cancel` (bool, default false)
-- `cancel_cutoff_hours` (int, default 24) — how many hours before scheduled_for the customer can cancel
-- `reminder_hours_before` (int, default 24) — when to send reminder (0 = disabled)
+### Workstream 1.A — Booking Depth (COMPLETED ✅)
 
-Save/load via existing `ecProductSaveBookingMeta()` path.
+All booking workstreams from the original plan have been implemented:
 
-### Workstream 1.3 — Reschedule Logic
+- **1.A.1** Schema migration `027_ec_booking_operations.sql` — applied
+- **1.A.2** Product-level booking settings — allow_reschedule, allow_cancel, cutoff hours, reminder hours
+- **1.A.3** Reschedule logic — `ecBookingCanReschedule()`, `ecBookingReschedule()`
+- **1.A.4** Cancel logic — `ecBookingCanCancel()`, `ecBookingCancel()`
+- **1.A.5** Reminder engine — `ecBookingsDueForReminder()`, `ecBookingSendReminder()`, `ecBookingProcessReminders()`
+- **1.A.6** Customer UI — reschedule/cancel forms in `my-bookings.disyl` (module + native theme)
+- **1.A.7** Admin visibility — booking panel in order detail with status badges
+- **1.A.8** Routes and handlers — `handlers/26-public-bookings.php`, POST routes registered
 
-New helper functions in `helpers/87-product-options-bookings.php`:
+### Workstream 1.B — Membership Operational Wiring
 
-- `ecBookingCanReschedule(array $booking): bool` — checks status is `confirmed`, cutoff not passed, product allows reschedule
-- `ecBookingReschedule(int $bookingId, string $newScheduledFor, ?string $newEndsAt): array` — creates new booking record linked to original via `rescheduled_from_id`, marks original as `rescheduled`, validates against product time slots and capacity
+#### 1.B.1 — Admin Memberships List Page ✅ COMPLETED
 
-### Workstream 1.4 — Cancel Logic
+- Route: `GET /ecommerce/admin/memberships` → `ecAdminMemberships()`
+- Handler: `handlers/71-admin-memberships-loyalty.php`
+- Template: `templates/modules/ecommerce/admin/memberships.disyl`
+- Features: customer name/email search, status/tier filter, start/end dates, order link
 
-- `ecBookingCanCancel(array $booking): bool` — checks status is `confirmed`, cutoff not passed, product allows cancel
-- `ecBookingCancel(int $bookingId, string $reason): array` — sets status to `cancelled`, records `cancelled_at` and `cancel_reason`
+#### 1.B.2 — Admin Membership Actions
 
-No automatic refund. Cancellation creates an admin-visible event. Refund is a separate merchant decision.
+- **Manual grant:** Admin can create a membership for a customer without an order (gift, comp, migration)
+- **Extend:** Admin can extend `ends_at` by N days
+- **Revoke:** Admin can set status to `cancelled` with a reason
+- API or form-based (POST route on admin memberships page)
 
-### Workstream 1.5 — Reminder Engine
+#### 1.B.3 — Membership Expiry Awareness
 
-- `ecBookingsDueForReminder(): array` — selects confirmed bookings where `scheduled_for` is within `reminder_hours_before`, `reminder_sent_at IS NULL`, and status is `confirmed`
-- `ecBookingSendReminder(int $bookingId): bool` — sends email notification, sets `reminder_sent_at`
-- CLI command or cron-callable helper: `ecBookingProcessReminders()` — iterates due bookings, calls send, logs results
+- Customer `my-memberships.disyl`: show "Expires in X days" badge when `ends_at` is within 30 days
+- Helper: `ecMembershipExpiringForCustomer(int $customerId, int $withinDays = 30): array`
+- Optional: cron-driven expiry warning email (same pattern as booking reminders)
 
-Cron integration: register `ecBookingProcessReminders` on the existing `kbc_every_5_minutes`-equivalent schedule or the ecommerce module's own interval.
+#### 1.B.4 — Admin Customer Detail: Membership Info
 
-### Workstream 1.6 — Customer Account UI
+Extend admin customer edit/detail page to show active memberships, tiers, and expiry dates. Read-only summary — full management via the memberships admin page.
 
-Extend existing booking account surfaces:
+### Workstream 1.C — Loyalty/Rewards Operational Wiring
 
-- Add "Reschedule" button on confirmed bookings (visible only if `ecBookingCanReschedule()` returns true)
-- Add "Cancel" button on confirmed bookings (visible only if `ecBookingCanCancel()` returns true)
-- Reschedule flow: date/time picker respecting product slot config, POST to reschedule handler
-- Cancel flow: confirmation prompt with optional reason, POST to cancel handler
+#### 1.C.1 — Configurable Loyalty Settings
 
-Templates affected:
-- `templates/modules/ecommerce/public/my-bookings.disyl`
-- `storage/cms-themes/native-default/public/ecommerce/my-bookings.disyl` (if override exists)
+Move hardcoded values to admin settings (stored in `ec_settings`):
 
-### Workstream 1.7 — Admin Visibility
+- `loyalty_earn_rate` — points earned per currency unit spent (default: 1)
+- `loyalty_points_per_currency_unit` — points needed for 1 currency unit discount (default: 100)
+- `loyalty_minimum_redeem_points` — minimum points to redeem (default: 100)
+- `loyalty_enabled` — master toggle (default: true)
 
-- Booking list in order detail shows status badges: `confirmed`, `cancelled`, `rescheduled`
-- Cancelled bookings show reason and timestamp
-- Rescheduled bookings link to the replacement booking
+Update `ecLoyaltyEarnRatePerCurrencyUnit()`, `ecLoyaltyPointsPerCurrencyUnit()`, `ecLoyaltyMinimumRedeemPoints()` to read from settings with fallback to current hardcoded values.
 
-### Workstream 1.8 — Handlers and Routes
+Admin UI: add Loyalty section to ecommerce admin settings page.
 
-New routes:
-- `POST /ecommerce/my-bookings/reschedule` — CSRF-protected, login-required
-- `POST /ecommerce/my-bookings/cancel` — CSRF-protected, login-required
+#### 1.C.2 — Admin Loyalty Dashboard ✅ COMPLETED
 
-New handler file: `handlers/19-public-bookings.php` (or extend existing booking handler if present)
+- Route: `GET /ecommerce/admin/loyalty` → `ecAdminLoyalty()`
+- Handler: `handlers/71-admin-memberships-loyalty.php`
+- Template: `templates/modules/ecommerce/admin/loyalty.disyl`
+- Features: summary cards (in circulation, earned all-time, redeemed), activity log, customer search
+
+#### 1.C.3 — Admin Manual Points Adjustment
+
+- From loyalty dashboard or customer detail: admin can credit or debit points with a description
+- Helper: `ecLoyaltyAdminAdjust(int $customerId, int $points, string $description, int $adminUserId): array`
+- Uses existing `ecLoyaltyRecordEntry()` with entry_type `admin_credit` or `admin_debit`
+
+#### 1.C.4 — Admin Customer Detail: Loyalty Balance
+
+Extend admin customer edit/detail page to show current loyalty balance and recent transactions.
+
+---
 
 ### Acceptance Criteria
 
-- A customer can reschedule a confirmed booking within the cutoff window
-- A customer can cancel a confirmed booking within the cutoff window
-- Reminders are sent automatically for upcoming confirmed bookings
-- Rescheduled bookings create a new record linked to the original
-- Cancelled bookings do not auto-refund
-- All actions are CSRF-protected and login-gated
-- Shared and native theme output stay in parity
+**Bookings (completed):**
+- ✅ Customer can reschedule/cancel confirmed bookings within cutoff window
+- ✅ Reminders engine exists for upcoming bookings
+- ✅ Rescheduled bookings create linked records
+- ✅ Admin sees booking status in order detail
+- ✅ All 10 booking config fields (including allow_reschedule, reschedule_cutoff_hours, allow_cancel, cancel_cutoff_hours, reminder_hours_before) now correctly persisted through handler → `ecProductSaveBookingMeta`
+- ✅ Product edit admin UI refactored to tabbed layout — booking fields exposed in dedicated Bookings tab
+
+**Memberships:**
+- ✅ Admin can list, search, and filter all memberships
+- Admin can manually grant, extend, or revoke a membership
+- Customer sees expiry countdown on active memberships
+- Admin customer detail shows membership summary
+
+**Rewards:**
+- Earn rate, redemption rate, and minimum are configurable in admin settings
+- ✅ Admin has a loyalty dashboard with circulation stats and activity log
+- Admin can manually credit/debit loyalty points
+- Admin customer detail shows loyalty balance
+
+**Cross-cutting:**
+- All admin pages follow existing admin layout and permission patterns
+- All customer-facing changes maintain shared + native theme parity
+- No PHP errors or warnings in app.log
 
 ### Exit Conditions
 
-- Integration test covers reschedule, cancel, and reminder flows
-- No PHP errors or warnings in app.log after test execution
-- Product-level booking settings round-trip correctly
+- Each behavior's 7-step wiring pipeline is complete end to end
+- Admin can manage all three features without database access
+- Customer account pages surface all relevant status and action information
+- Settings changes take effect without code deployment
 
 ---
 

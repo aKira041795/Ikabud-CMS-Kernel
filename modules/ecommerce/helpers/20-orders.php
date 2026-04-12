@@ -1263,34 +1263,52 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
 function ecOrderList(array $filters = []): array
 {
     $db     = ecDb();
+
+    $hasCmsUsers = false;
+    try {
+        $db->query('SELECT 1 FROM cms_users LIMIT 1');
+        $hasCmsUsers = true;
+    } catch (\Throwable $ignored) {}
+
+    $tbl = $hasCmsUsers ? 'o.' : '';
+
     $where  = ['1=1'];
     $params = [];
 
     if (!empty($filters['status'])) {
-        $where[]  = 'status = ?';
+        $where[]  = $tbl . 'status = ?';
         $params[] = $filters['status'];
     }
     if (!empty($filters['payment_status'])) {
-        $where[]  = 'payment_status = ?';
+        $where[]  = $tbl . 'payment_status = ?';
         $params[] = $filters['payment_status'];
     }
     if (!empty($filters['source'])) {
-        $where[]  = 'source = ?';
+        $where[]  = $tbl . 'source = ?';
         $params[] = $filters['source'];
     }
     if (!empty($filters['search'])) {
-        $where[]  = '(order_number LIKE ? OR guest_email LIKE ? OR guest_name LIKE ?)';
-        $s        = '%' . $filters['search'] . '%';
-        $params[] = $s;
-        $params[] = $s;
-        $params[] = $s;
+        $s = '%' . $filters['search'] . '%';
+        if ($hasCmsUsers) {
+            $where[]  = '(o.order_number LIKE ? OR o.guest_email LIKE ? OR o.guest_name LIKE ? OR cu.display_name LIKE ? OR cu.email LIKE ?)';
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+        } else {
+            $where[]  = '(order_number LIKE ? OR guest_email LIKE ? OR guest_name LIKE ?)';
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = $s;
+        }
     }
     if (!empty($filters['date_from'])) {
-        $where[]  = 'DATE(created_at) >= ?';
+        $where[]  = 'DATE(' . $tbl . 'created_at) >= ?';
         $params[] = $filters['date_from'];
     }
     if (!empty($filters['date_to'])) {
-        $where[]  = 'DATE(created_at) <= ?';
+        $where[]  = 'DATE(' . $tbl . 'created_at) <= ?';
         $params[] = $filters['date_to'];
     }
 
@@ -1300,15 +1318,30 @@ function ecOrderList(array $filters = []): array
     $whereStr = implode(' AND ', $where);
 
     try {
-        $total = (int)$db->query("SELECT COUNT(*) FROM ec_orders WHERE $whereStr", $params)->fetchColumn();
-        $rows  = $db->query(
-            "SELECT id, order_number, customer_id, guest_email, guest_name, source, status, payment_status, total, currency, created_at
-             FROM ec_orders
-             WHERE $whereStr
-             ORDER BY created_at DESC
-             LIMIT ? OFFSET ?",
-            array_merge($params, [$limit, $offset])
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $total = (int)$db->query("SELECT COUNT(*) FROM ec_orders" . ($hasCmsUsers ? ' o LEFT JOIN cms_users cu ON cu.id = o.customer_id' : '') . " WHERE $whereStr", $params)->fetchColumn();
+
+        if ($hasCmsUsers) {
+            $rows = $db->query(
+                "SELECT o.id, o.order_number, o.customer_id, o.guest_email, o.guest_name, o.source,
+                        o.status, o.payment_status, o.total, o.currency, o.created_at,
+                        cu.display_name AS customer_display_name, cu.email AS customer_email
+                 FROM ec_orders o
+                 LEFT JOIN cms_users cu ON cu.id = o.customer_id
+                 WHERE $whereStr
+                 ORDER BY o.created_at DESC
+                 LIMIT ? OFFSET ?",
+                array_merge($params, [$limit, $offset])
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } else {
+            $rows = $db->query(
+                "SELECT id, order_number, customer_id, guest_email, guest_name, source, status, payment_status, total, currency, created_at
+                 FROM ec_orders
+                 WHERE $whereStr
+                 ORDER BY created_at DESC
+                 LIMIT ? OFFSET ?",
+                array_merge($params, [$limit, $offset])
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        }
 
         $rows = array_map(static function (array $row): array {
             $currency = ecCurrencyNormalizeCode($row['currency'] ?? '') ?: ecStoreBaseCurrencyCode();
@@ -1316,6 +1349,11 @@ function ecOrderList(array $filters = []): array
             $row['currency_symbol'] = ecCurrencySymbolFor($currency);
             $row['total_amount'] = (float)($row['total'] ?? 0);
             $row['total_amount_fmt'] = ecCurrencyFormatAmount((float)$row['total_amount'], $currency, (string)$row['currency_symbol']);
+            $row['resolved_customer_name'] = trim((string)($row['customer_display_name'] ?? ''))
+                ?: trim((string)($row['guest_name'] ?? ''))
+                ?: trim((string)($row['customer_email'] ?? ''))
+                ?: trim((string)($row['guest_email'] ?? ''))
+                ?: '';
             return $row;
         }, $rows);
 

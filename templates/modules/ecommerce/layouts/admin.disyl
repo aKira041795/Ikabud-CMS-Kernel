@@ -17,16 +17,22 @@
     <style>
         [x-cloak]{ display:none !important; }
         .ec-admin { color:#1f2937; -webkit-font-smoothing:antialiased; }
-        .ec-admin main { color:#1f2937; line-height:1.58; }
-        .ec-admin main h1,.ec-admin main h2,.ec-admin main h3 { color:#111827; }
-        .ec-admin main .text-gray-400 { color:#5b6470 !important; }
-        .ec-admin main .text-gray-500 { color:#3f4752 !important; }
-        .ec-admin main .text-gray-600 { color:#2f3a46 !important; }
-        .ec-admin main .text-gray-700 { color:#1f2937 !important; }
-        .ec-admin main input,.ec-admin main select,.ec-admin main textarea { color:#111827; font-weight:500; }
-        .ec-admin main label { color:#374151; font-weight:600; }
-        .ec-admin aside .text-slate-300 { color:#d7deea !important; }
-        .ec-admin aside .text-slate-400 { color:#bfc9d8 !important; }
+        .ec-admin main { color:#1e293b; line-height:1.58; }
+        .ec-admin main h1,.ec-admin main h2,.ec-admin main h3 { color:#0f172a; }
+        .ec-admin main .text-gray-400 { color:#64748b !important; }
+        .ec-admin main .text-gray-500 { color:#475569 !important; }
+        .ec-admin main .text-gray-600 { color:#334155 !important; }
+        .ec-admin main .text-gray-700 { color:#1e293b !important; }
+        .ec-admin main input,.ec-admin main select,.ec-admin main textarea { color:#0f172a; font-weight:500; }
+        .ec-admin main label { color:#334155; font-weight:600; }
+        .ec-nav-item { display:flex; align-items:center; padding:7px 12px; border-radius:6px; font-size:13px; font-weight:500; transition:all .15s ease; }
+        .ec-nav-item:hover { background:rgba(255,255,255,.08); }
+        .ec-nav-item.active { background:rgba(255,255,255,.12); color:#fff; font-weight:600; }
+        .ec-nav-item:not(.active) { color:rgba(203,213,225,.9); }
+        .ec-nav-item:not(.active):hover { color:#f1f5f9; }
+        .ec-nav-item svg { opacity:.7; }
+        .ec-nav-item.active svg,.ec-nav-item:hover svg { opacity:1; }
+        .ec-nav-section { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:rgba(148,163,184,.6); padding:16px 12px 4px 12px; }
     </style>
     {block head}{/block}
 </head>
@@ -35,97 +41,105 @@
 
     <!-- Sidebar -->
     <aside class="hidden lg:flex lg:flex-col bg-slate-900 text-white transition-all duration-200"
-           :class="sidebarOpen ? 'w-60' : 'w-16'">
-        <div class="flex items-center h-14 px-4 border-b border-slate-700/50 shrink-0">
+           :class="sidebarOpen ? 'w-[232px]' : 'w-16'">
+        <div class="flex items-center h-14 px-4 border-b border-white/[.06] shrink-0">
             <svg class="w-6 h-6 text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
             </svg>
-            <span class="ml-2 font-bold text-sm tracking-wide" x-show="sidebarOpen" x-cloak>E-Commerce</span>
+            <span class="ml-2.5 font-bold text-[13px] tracking-wide text-white/90" x-show="sidebarOpen" x-cloak>E-Commerce</span>
         </div>
-        <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-            <a href="{base_url}/ecommerce/admin" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'dashboard'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <nav class="flex-1 overflow-y-auto py-2 px-2 space-y-px">
+
+            {* ── Overview ────────────────────────────────────────── *}
+            <a href="{base_url}/ecommerce/admin" class="ec-nav-item {if current_page == 'dashboard'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Dashboard</span>
             </a>
 
-            <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Catalog</span>
-            </div>
-            <a href="{base_url}/ecommerce/admin/products" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'products'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                <span class="ml-3" x-show="sidebarOpen" x-cloak>Products</span>
-            </a>
-            <a href="{base_url}/ecommerce/admin/categories" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'categories'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
-                <span class="ml-3" x-show="sidebarOpen" x-cloak>Categories</span>
-            </a>
-
-            <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Sales</span>
-            </div>
-            <a href="{base_url}/ecommerce/admin/orders" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'orders'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            {* ── Orders & Sales — highest-frequency daily tasks ──── *}
+            <div class="ec-nav-section" x-show="sidebarOpen" x-cloak>Orders & Sales</div>
+            <a href="{base_url}/ecommerce/admin/orders" class="ec-nav-item {if current_page == 'orders'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Orders</span>
             </a>
-            <a href="{base_url}/ecommerce/admin/returns" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'returns'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 14l-4-4m0 0l4-4m-4 4h11a4 4 0 014 4v4"/></svg>
+            <a href="{base_url}/ecommerce/admin/returns" class="ec-nav-item {if current_page == 'returns'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 14l-4-4m0 0l4-4m-4 4h11a4 4 0 014 4v4"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Returns</span>
             </a>
-            <a href="{base_url}/ecommerce/admin/coupons" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'coupons'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
-                <span class="ml-3" x-show="sidebarOpen" x-cloak>Coupons</span>
-            </a>
-            <a href="{base_url}/ecommerce/admin/customers" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'customers'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="ml-3" x-show="sidebarOpen" x-cloak>Customers</span>
-            </a>
-            <a href="{base_url}/ecommerce/admin/reviews" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'reviews'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.02 3.136a1 1 0 00.95.69h3.298c.969 0 1.371 1.24.588 1.81l-2.668 1.938a1 1 0 00-.364 1.118l1.02 3.136c.3.921-.755 1.688-1.538 1.118l-2.668-1.938a1 1 0 00-1.176 0l-2.668 1.938c-.783.57-1.838-.197-1.539-1.118l1.02-3.136a1 1 0 00-.364-1.118L2.243 8.563c-.783-.57-.38-1.81.588-1.81H6.13a1 1 0 00.95-.69l1.02-3.136z"/></svg>
-                <span class="ml-3" x-show="sidebarOpen" x-cloak>Reviews</span>
-            </a>
-
-            <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Communications</span>
-            </div>
-            <a href="{base_url}/ecommerce/admin/email-templates" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'email_templates'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7l9 6 9-6m-18 0v10a2 2 0 002 2h14a2 2 0 002-2V7m-18 0a2 2 0 012-2h14a2 2 0 012 2"/></svg>
-                <span class="ml-3" x-show="sidebarOpen" x-cloak>Email Templates</span>
-            </a>
-            <a href="{base_url}/ecommerce/admin/webhooks" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'webhooks'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 010 5.656m2.829-8.485a8 8 0 010 11.314M10.172 13.828a4 4 0 010-5.656m-2.829 8.485a8 8 0 010-11.314M8 12h8"/></svg>
-                <span class="ml-3" x-show="sidebarOpen" x-cloak>Webhooks</span>
-            </a>
-            <a href="{base_url}/ecommerce/admin/abandoned-carts" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'abandoned_carts'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8.25h18M6.75 4.5h10.5A2.25 2.25 0 0119.5 6.75v10.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 17.25V6.75A2.25 2.25 0 016.75 4.5zm2.25 6.75h6m-6 3h3"/></svg>
+            <a href="{base_url}/ecommerce/admin/abandoned-carts" class="ec-nav-item {if current_page == 'abandoned_carts'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Abandoned Carts</span>
             </a>
 
-            <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Analytics</span>
-            </div>
-            <a href="{base_url}/ecommerce/admin/reports" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'reports'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            {* ── Catalog ───────────────────────────────────────── *}
+            <div class="ec-nav-section" x-show="sidebarOpen" x-cloak>Catalog</div>
+            <a href="{base_url}/ecommerce/admin/products" class="ec-nav-item {if current_page == 'products'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Products</span>
+            </a>
+            <a href="{base_url}/ecommerce/admin/categories" class="ec-nav-item {if current_page == 'categories'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Categories</span>
+            </a>
+            <a href="{base_url}/ecommerce/admin/coupons" class="ec-nav-item {if current_page == 'coupons'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Coupons</span>
+            </a>
+            <a href="{base_url}/ecommerce/admin/reviews" class="ec-nav-item {if current_page == 'reviews'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.02 3.136a1 1 0 00.95.69h3.298c.969 0 1.371 1.24.588 1.81l-2.668 1.938a1 1 0 00-.364 1.118l1.02 3.136c.3.921-.755 1.688-1.538 1.118l-2.668-1.938a1 1 0 00-1.176 0l-2.668 1.938c-.783.57-1.838-.197-1.539-1.118l1.02-3.136a1 1 0 00-.364-1.118L2.243 8.563c-.783-.57-.38-1.81.588-1.81H6.13a1 1 0 00.95-.69l1.02-3.136z"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Reviews</span>
+            </a>
+
+            {* ── Customers & Engagement ────────────────────────── *}
+            <div class="ec-nav-section" x-show="sidebarOpen" x-cloak>Customers</div>
+            <a href="{base_url}/ecommerce/admin/customers" class="ec-nav-item {if current_page == 'customers'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Customers</span>
+            </a>
+            <a href="{base_url}/ecommerce/admin/memberships" class="ec-nav-item {if current_page == 'memberships'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15A2.25 2.25 0 002.25 6.75v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Memberships</span>
+            </a>
+            <a href="{base_url}/ecommerce/admin/loyalty" class="ec-nav-item {if current_page == 'loyalty'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18C2.754 7.5 2.25 8.004 2.25 8.625v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Loyalty & Rewards</span>
+            </a>
+
+            {* ── Analytics & Reports ───────────────────────────── *}
+            <div class="ec-nav-section" x-show="sidebarOpen" x-cloak>Analytics</div>
+            <a href="{base_url}/ecommerce/admin/reports" class="ec-nav-item {if current_page == 'reports'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Reports</span>
             </a>
 
-            <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Operations</span>
-            </div>
-            <a href="{base_url}/ecommerce/pos" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'pos'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            {* ── Operations & Tools ────────────────────────────── *}
+            <div class="ec-nav-section" x-show="sidebarOpen" x-cloak>Operations</div>
+            <a href="{base_url}/ecommerce/pos" class="ec-nav-item {if current_page == 'pos'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Point of Sale</span>
             </a>
-            <a href="{base_url}/ecommerce/admin/import-export" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'import_export'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17.25V18a3 3 0 003 3h10a3 3 0 003-3v-.75"/></svg>
+            <a href="{base_url}/ecommerce/admin/import-export" class="ec-nav-item {if current_page == 'import_export'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Import / Export</span>
             </a>
-            <a href="{base_url}/ecommerce/admin/settings" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'settings'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+
+            {* ── Configuration ─────────────────────────────────── *}
+            <div class="ec-nav-section" x-show="sidebarOpen" x-cloak>Configuration</div>
+            <a href="{base_url}/ecommerce/admin/email-templates" class="ec-nav-item {if current_page == 'email_templates'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Email Templates</span>
+            </a>
+            <a href="{base_url}/ecommerce/admin/webhooks" class="ec-nav-item {if current_page == 'webhooks'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 010 5.656m2.829-8.485a8 8 0 010 11.314M10.172 13.828a4 4 0 010-5.656m-2.829 8.485a8 8 0 010-11.314M8 12h8"/></svg>
+                <span class="ml-3" x-show="sidebarOpen" x-cloak>Webhooks</span>
+            </a>
+            <a href="{base_url}/ecommerce/admin/settings" class="ec-nav-item {if current_page == 'settings'}active{/if}">
+                <svg class="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 <span class="ml-3" x-show="sidebarOpen" x-cloak>Settings</span>
             </a>
 
-            <div class="mt-4 pt-3 border-t border-slate-700/40 px-3" x-show="sidebarOpen" x-cloak>
-                <a href="{base_url}/cms/admin" class="text-xs text-slate-500 hover:text-slate-300 transition-colors">← CMS Admin</a>
+            <div class="mt-3 pt-3 border-t border-white/[.06] px-3" x-show="sidebarOpen" x-cloak>
+                <a href="{base_url}/cms/admin" class="text-[11px] font-medium text-slate-500 hover:text-slate-300 transition-colors">← Back to CMS</a>
             </div>
         </nav>
     </aside>
@@ -133,16 +147,17 @@
     <!-- Main area -->
     <div class="flex-1 flex flex-col overflow-hidden">
         <!-- Top bar -->
-        <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0">
+        <header class="bg-white border-b border-gray-200/80 px-6 h-14 flex items-center justify-between shrink-0">
             <div class="flex items-center gap-3">
-                <button @click="sidebarOpen = !sidebarOpen" class="hidden lg:inline-flex text-gray-400 hover:text-gray-600">
+                <button @click="sidebarOpen = !sidebarOpen" class="hidden lg:inline-flex text-gray-400 hover:text-gray-700 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
-                <h1 class="text-lg font-semibold text-gray-900">{page_title}</h1>
+                <h1 class="text-base font-semibold text-gray-900">{page_title}</h1>
             </div>
-            <div class="flex items-center gap-3">
-                <a href="{base_url}/ecommerce/shop" target="_blank" class="text-sm text-gray-500 hover:text-gray-700">View Shop</a>
-                <span class="text-sm text-gray-500">Hi, {user.display_name | default:'Admin'}</span>
+            <div class="flex items-center gap-4">
+                <a href="{base_url}/ecommerce/shop" target="_blank" class="text-[13px] font-medium text-gray-500 hover:text-gray-800 transition-colors">View Shop</a>
+                <div class="h-4 w-px bg-gray-200"></div>
+                <span class="text-[13px] font-medium text-gray-600">{user.display_name | default:'Admin'}</span>
             </div>
         </header>
 

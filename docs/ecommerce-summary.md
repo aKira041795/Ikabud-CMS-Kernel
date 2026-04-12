@@ -37,6 +37,8 @@ This document summarizes the Ecommerce module as a commerce layer inside the Ika
 ### Merchant Operations
 
 - Admin flows already exist for products, orders, categories, coupons and gift cards, customers, reports, email templates, webhooks, abandoned carts, import/export, and settings.
+- Admin pages for memberships and loyalty now exist: `/ecommerce/admin/memberships` (list with status/tier/date filters) and `/ecommerce/admin/loyalty` (balance summary, ledger activity, customer search).
+- Product edit admin page has been refactored to a tabbed layout: core fields in a top two-column grid; secondary sections (Attributes, Relations, Subscription, Bookings, Digital, SEO) in AlpineJS tabs below, reducing the vertical scroll from ~14 stacked sidebar cards to a compact persistent sidebar plus six navigable tabs. Tab state persists via `?ptab=` URL param.
 - Sales and inventory reporting already exist.
 - Coupon management already exists, including gift cards backed by remaining-balance store credit.
 - Customer address storage already exists.
@@ -73,14 +75,18 @@ This positions the system closer to Shopify (ecosystem breadth), Odoo (modular E
 ### Current Reality Check
 
 - Core system: **complete**
-- Operational depth: **incomplete** — booking operations are lightweight; no reschedule, cancel, or reminder flows
+- Booking depth: **complete** — reschedule, cancel, cutoff windows, and reminder engine are all wired end to end; the admin product edit form now exposes all 10 booking config fields and the handler correctly persists them
+- Admin membership visibility: **partially wired** — list page exists; manual grant, extend, revoke, and expiry awareness are still pending
+- Admin loyalty visibility: **partially wired** — loyalty dashboard page exists; configurable earn/redeem rates, manual point adjustments, and customer-detail integration are still pending
 - Merchant intelligence: **thin** — no customer segmentation, tier pricing, or back-in-stock alerting
 - Multi-store: **not formalized** — no store context layer, store-aware queries, or store product overrides exist in code
 
 ### Remaining Depth Gaps
 
 **Operational depth:**
-- Booking reschedule and cancel windows, reminder notifications, capacity-aware calendar controls
+- Booking depth is now complete; capacity-aware calendar controls and resource/staff scheduling remain as future slices if needed
+- Membership admin actions (manual grant, extend, revoke, expiry awareness) and customer-detail membership summary are still pending
+- Loyalty configuration (earn/redeem rates as admin settings), manual point adjustments, and customer-detail loyalty panel are still pending
 - Membership entitlement reach beyond catalog gating into CMS pages, posts, or tenant capabilities
 
 **Merchant intelligence:**

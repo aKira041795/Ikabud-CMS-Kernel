@@ -19,37 +19,37 @@
 
 <!-- Summary cards -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Revenue</div>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Revenue</div>
         <div class="text-2xl font-bold text-gray-900">{sales.revenue_fmt}</div>
-        <div class="text-xs text-gray-400 mt-1">{sales.date_from} → {sales.date_to}</div>
+        <div class="text-xs text-slate-500 mt-1">{sales.date_from} → {sales.date_to}</div>
     </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Orders</div>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Orders</div>
         <div class="text-2xl font-bold text-gray-900">{sales.order_count}</div>
     </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Avg. Order</div>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Avg. Order</div>
         <div class="text-2xl font-bold text-gray-900">{sales.avg_fmt}</div>
     </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Low Stock Items</div>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Low Stock Items</div>
         <div class="text-2xl font-bold {if inventory.count > 0}text-red-600{else}text-gray-900{/if}">{inventory.count}</div>
     </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Top products -->
-    <div class="bg-white rounded-lg border border-gray-200">
-        <div class="px-5 py-3 border-b border-gray-200 font-semibold text-sm text-gray-700">Top Products</div>
+    <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-3.5 border-b border-gray-100 text-[13px] font-semibold text-gray-800">Top Products</div>
         {if sales.top_products | count == 0}
-        <div class="px-5 py-8 text-center text-gray-400 text-sm">No sales in this period.</div>
+        <div class="px-5 py-8 text-center text-slate-500 text-sm">No sales in this period.</div>
         {/if}
         {foreach sales.top_products as prod}
         <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0">
             <div>
                 <div class="text-sm font-medium text-gray-900">{prod.product_title}</div>
-                <div class="text-xs text-gray-400">{prod.units_sold} units sold</div>
+                <div class="text-xs text-slate-500">{prod.units_sold} units sold</div>
             </div>
             <span class="text-sm font-semibold text-gray-900">{ec_settings.currency_symbol}{prod.revenue}</span>
         </div>
@@ -57,18 +57,18 @@
     </div>
 
     <!-- Low stock -->
-    <div class="bg-white rounded-lg border border-gray-200">
-        <div class="px-5 py-3 border-b border-gray-200 font-semibold text-sm text-gray-700">Low / Out of Stock</div>
+    <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-3.5 border-b border-gray-100 text-[13px] font-semibold text-gray-800">Low / Out of Stock</div>
         {if inventory.count == 0}
-        <div class="px-5 py-8 text-center text-gray-400 text-sm">All products in stock.</div>
+        <div class="px-5 py-8 text-center text-slate-500 text-sm">All products in stock.</div>
         {/if}
         {foreach inventory.items as item}
         <a href="{base_url}/ecommerce/admin/products/{item.id}/edit" class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 no-underline">
             <div>
                 <div class="text-sm font-medium text-gray-900">{item.title}</div>
-                <div class="text-xs text-gray-400">{item.sku}</div>
+                <div class="text-xs text-slate-500">{item.sku}</div>
             </div>
-            <span class="text-sm font-bold {if item.stock_qty == 0}text-red-600{else}text-orange-500{/if}">{item.stock_qty}</span>
+            <span class="text-sm font-bold {if item.stock_qty == 0}text-red-600{else}text-orange-600{/if}">{item.stock_qty}</span>
         </a>
         {/foreach}
     </div>

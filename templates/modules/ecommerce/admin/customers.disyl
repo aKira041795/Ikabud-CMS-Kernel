@@ -24,9 +24,9 @@
     </form>
 </div>
 
-<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
     <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+        <thead class="bg-gray-50/80 text-slate-600 text-[11px] uppercase tracking-wider font-semibold">
             <tr>
                 <th class="px-5 py-3 text-left">Customer</th>
                 <th class="px-4 py-3 text-left">Email</th>
@@ -40,16 +40,16 @@
         <tbody class="divide-y divide-gray-100">
             {if customers | count == 0}
             <tr>
-                <td colspan="7" class="px-5 py-10 text-center text-gray-400">No customers found.</td>
+                <td colspan="7" class="px-5 py-10 text-center text-slate-500">No customers found.</td>
             </tr>
             {/if}
             {foreach customers as c}
             <tr class="hover:bg-gray-50">
                 <td class="px-5 py-3">
                     <div class="font-medium text-gray-900">{c.display_name | default:c.username}</div>
-                    <div class="text-xs text-gray-400">@{c.username}</div>
+                    <div class="text-xs text-slate-500">@{c.username}</div>
                 </td>
-                <td class="px-4 py-3 text-gray-600">{c.email}</td>
+                <td class="px-4 py-3 text-slate-700">{c.email}</td>
                 <td class="px-4 py-3 text-center">
                     {if c.is_active}
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700">active</span>
@@ -61,7 +61,7 @@
                 <td class="px-4 py-3 text-right text-gray-700">
                     {if c.lifetime_value}{ec_settings.currency_symbol}{c.lifetime_value | number_format:2}{else}—{/if}
                 </td>
-                <td class="px-4 py-3 text-right text-xs text-gray-400">{c.created_at}</td>
+                <td class="px-4 py-3 text-right text-xs text-slate-500">{c.created_at}</td>
                 <td class="px-4 py-3 text-right">
                     <a href="{base_url}/ecommerce/admin/customers/{c.id}/edit"
                        class="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Edit</a>

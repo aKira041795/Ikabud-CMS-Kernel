@@ -18,6 +18,12 @@
         </div>
     </header>
 
+    {if flash}
+    <div class="native-storefront-panel" style="padding:0.75rem 1rem; margin-bottom:1rem; border-left:4px solid {if flash.type == 'success'}#059669{else}#dc2626{/if};">
+        <p style="margin:0; font-size:0.9rem;">{flash.message}</p>
+    </div>
+    {/if}
+
     {if bookings | count == 0}
     <div class="native-empty-state">
         <h2>No bookings yet</h2>
@@ -32,7 +38,7 @@
                     <h2 class="native-panel-title">{booking.product_title}</h2>
                     <p class="native-note">{booking.scheduled_for | date:'M j, Y g:i A'}</p>
                 </div>
-                <span class="native-pill {if booking.status == 'confirmed'}native-pill--success{elseif booking.status == 'pending'}native-pill--warning{else}native-pill--muted{/if}">{booking.status}</span>
+                <span class="native-pill {if booking.status == 'confirmed'}native-pill--success{elseif booking.status == 'pending'}native-pill--warning{elseif booking.status == 'cancelled'}native-pill--danger{elseif booking.status == 'rescheduled'}native-pill--info{else}native-pill--muted{/if}">{booking.status}</span>
             </div>
             <div class="native-summary-list" style="margin-top:1rem;">
                 <div class="native-summary-row"><span>Duration</span><strong>{booking.duration_minutes} minutes</strong></div>
@@ -41,6 +47,60 @@
             </div>
             {if booking.notes}
             <p class="native-panel-copy" style="margin-top:1rem;">{booking.notes}</p>
+            {/if}
+            {if booking.status == 'cancelled' && booking.cancel_reason}
+            <p class="native-note" style="margin-top:0.75rem; color:#991b1b;">Cancellation reason: {booking.cancel_reason}</p>
+            {/if}
+            {if booking.status == 'rescheduled' && booking.rescheduled_from_id}
+            <p class="native-note" style="margin-top:0.75rem; color:#6b7280;">This booking was replaced by a rescheduled appointment.</p>
+            {/if}
+
+            {if booking.can_reschedule || booking.can_cancel}
+            <div style="margin-top:1rem; padding-top:1rem; border-top:1px solid #e5e7eb; display:flex; flex-wrap:wrap; gap:0.75rem;">
+                {if booking.can_reschedule}
+                <details>
+                    <summary class="button button-secondary" style="cursor:pointer; font-size:0.85rem;">Reschedule</summary>
+                    <form method="post" action="{base_url}/ecommerce/my-bookings/reschedule" style="margin-top:0.75rem; padding:1rem; border:1px solid #e0e7ff; border-radius:0.5rem; background:#f0f4ff;">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <input type="hidden" name="booking_id" value="{booking.id}">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                            <div>
+                                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.25rem;">New Date</label>
+                                <input type="date" name="reschedule_date" required style="width:100%; padding:0.4rem 0.6rem; border:1px solid #d1d5db; border-radius:0.375rem; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.25rem;">New Time</label>
+                                {if booking.product_config.time_slots | count > 0}
+                                <select name="reschedule_time" required style="width:100%; padding:0.4rem 0.6rem; border:1px solid #d1d5db; border-radius:0.375rem; font-size:0.9rem;">
+                                    <option value="">Select time</option>
+                                    {foreach booking.product_config.time_slots as slot}
+                                    <option value="{slot}">{slot}</option>
+                                    {/foreach}
+                                </select>
+                                {else}
+                                <input type="time" name="reschedule_time" required style="width:100%; padding:0.4rem 0.6rem; border:1px solid #d1d5db; border-radius:0.375rem; font-size:0.9rem;">
+                                {/if}
+                            </div>
+                        </div>
+                        <button type="submit" class="button button-primary" style="margin-top:0.75rem; font-size:0.85rem;">Confirm Reschedule</button>
+                    </form>
+                </details>
+                {/if}
+                {if booking.can_cancel}
+                <details>
+                    <summary class="button" style="cursor:pointer; font-size:0.85rem; color:#dc2626; border-color:#fecaca; background:#fef2f2;">Cancel Booking</summary>
+                    <form method="post" action="{base_url}/ecommerce/my-bookings/cancel" style="margin-top:0.75rem; padding:1rem; border:1px solid #fecaca; border-radius:0.5rem; background:#fff5f5;" onsubmit="return confirm('Are you sure you want to cancel this booking?')">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <input type="hidden" name="booking_id" value="{booking.id}">
+                        <div>
+                            <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.25rem;">Reason (optional)</label>
+                            <textarea name="cancel_reason" rows="2" style="width:100%; padding:0.4rem 0.6rem; border:1px solid #d1d5db; border-radius:0.375rem; font-size:0.9rem;" placeholder="Why are you cancelling?"></textarea>
+                        </div>
+                        <button type="submit" class="button" style="margin-top:0.75rem; font-size:0.85rem; color:#fff; background:#dc2626; border-color:#dc2626;">Confirm Cancellation</button>
+                    </form>
+                </details>
+                {/if}
+            </div>
             {/if}
         </section>
         {/foreach}

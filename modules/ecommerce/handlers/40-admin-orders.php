@@ -138,12 +138,18 @@ function ecAdminOrderDetail(array $params = []): void
     $allowedStatuses = EC_ORDER_STATUS_TRANSITIONS[$order['status']] ?? [];
     $symbol          = (string)($order['currency_symbol'] ?? ecSettings('currency_symbol'));
 
+    $orderBookings = function_exists('ecBookingsForOrder') ? ecBookingsForOrder($orderId) : [];
+    if (function_exists('ecBookingHydrateForDisplay')) {
+        $orderBookings = array_map('ecBookingHydrateForDisplay', $orderBookings);
+    }
+
     $ctx = ecAdminContext($user, 'orders', [
         'order'           => $order,
         'allowed_statuses' => $allowedStatuses,
         'currency_symbol' => $symbol,
         'refunds'         => $order['refunds'] ?? [],
         'refund_summary'  => $order['refund_summary'] ?? [],
+        'order_bookings'  => $orderBookings,
         'message'         => $_SESSION['ec_message'] ?? null,
     ]);
     unset($_SESSION['ec_message']);

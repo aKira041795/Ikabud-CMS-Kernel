@@ -79,7 +79,8 @@
         "modules/ecommerce/database/migrations/022_ec_subscriptions.sql",
         "modules/ecommerce/database/migrations/023_ec_cart_item_currency.sql",
         "modules/ecommerce/database/migrations/024_ec_return_requests.sql",
-        "modules/ecommerce/database/migrations/025_ec_phase6_product_options_and_loyalty.sql"
+        "modules/ecommerce/database/migrations/025_ec_phase6_product_options_and_loyalty.sql",
+        "modules/ecommerce/database/migrations/027_ec_booking_operations.sql"
     ],
     "capabilities": {
         "exposes": [

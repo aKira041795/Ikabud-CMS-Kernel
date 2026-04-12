@@ -100,6 +100,11 @@ function ecProductBookingDefaults(): array
         'available_weekdays' => [1, 2, 3, 4, 5],
         'time_slots' => ['09:00', '13:00', '15:00'],
         'summary' => '60 minute appointment',
+        'allow_reschedule' => false,
+        'reschedule_cutoff_hours' => 24,
+        'allow_cancel' => false,
+        'cancel_cutoff_hours' => 24,
+        'reminder_hours_before' => 24,
     ];
 }
 
@@ -169,6 +174,11 @@ function ecProductBookingConfigFromMetaMap(array $metaMap): array
     $noticeHours = max(0, (int)($metaMap['_booking_notice_hours'] ?? $defaults['notice_hours']));
     $availableWeekdays = ecProductNormalizeBookingWeekdays($metaMap['_booking_available_weekdays'] ?? $defaults['available_weekdays']);
     $timeSlots = ecProductNormalizeBookingTimeSlots($metaMap['_booking_time_slots'] ?? $defaults['time_slots']);
+    $allowReschedule = ($metaMap['_booking_allow_reschedule'] ?? '0') === '1';
+    $rescheduleCutoff = max(0, (int)($metaMap['_booking_reschedule_cutoff_hours'] ?? $defaults['reschedule_cutoff_hours']));
+    $allowCancel = ($metaMap['_booking_allow_cancel'] ?? '0') === '1';
+    $cancelCutoff = max(0, (int)($metaMap['_booking_cancel_cutoff_hours'] ?? $defaults['cancel_cutoff_hours']));
+    $reminderHours = max(0, (int)($metaMap['_booking_reminder_hours_before'] ?? $defaults['reminder_hours_before']));
 
     return [
         'enabled' => $enabled,
@@ -177,6 +187,11 @@ function ecProductBookingConfigFromMetaMap(array $metaMap): array
         'available_weekdays' => $availableWeekdays,
         'time_slots' => $timeSlots,
         'summary' => $duration . ' minute appointment',
+        'allow_reschedule' => $allowReschedule,
+        'reschedule_cutoff_hours' => $rescheduleCutoff,
+        'allow_cancel' => $allowCancel,
+        'cancel_cutoff_hours' => $cancelCutoff,
+        'reminder_hours_before' => $reminderHours,
     ];
 }
 
@@ -188,6 +203,11 @@ function ecProductSaveBookingMeta(int $productId, array $input): void
         '_booking_notice_hours' => (string)($input['booking_notice_hours'] ?? 24),
         '_booking_available_weekdays' => json_encode(ecProductNormalizeBookingWeekdays($input['booking_available_weekdays'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         '_booking_time_slots' => json_encode(ecProductNormalizeBookingTimeSlots($input['booking_time_slots'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        '_booking_allow_reschedule' => !empty($input['booking_allow_reschedule']) ? '1' : '0',
+        '_booking_reschedule_cutoff_hours' => (string)($input['booking_reschedule_cutoff_hours'] ?? 24),
+        '_booking_allow_cancel' => !empty($input['booking_allow_cancel']) ? '1' : '0',
+        '_booking_cancel_cutoff_hours' => (string)($input['booking_cancel_cutoff_hours'] ?? 24),
+        '_booking_reminder_hours_before' => (string)($input['booking_reminder_hours_before'] ?? 24),
     ]);
 
     $meta = [
@@ -196,6 +216,11 @@ function ecProductSaveBookingMeta(int $productId, array $input): void
         '_booking_notice_hours' => (string)$config['notice_hours'],
         '_booking_available_weekdays' => json_encode($config['available_weekdays'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         '_booking_time_slots' => json_encode($config['time_slots'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        '_booking_allow_reschedule' => $config['allow_reschedule'] ? '1' : '0',
+        '_booking_reschedule_cutoff_hours' => (string)$config['reschedule_cutoff_hours'],
+        '_booking_allow_cancel' => $config['allow_cancel'] ? '1' : '0',
+        '_booking_cancel_cutoff_hours' => (string)$config['cancel_cutoff_hours'],
+        '_booking_reminder_hours_before' => (string)$config['reminder_hours_before'],
     ];
 
     try {
@@ -515,6 +540,297 @@ function ecBookingConfirmPaidOrder(int $orderId): array
     }
 
     return ['ok' => true, 'confirmed' => $confirmed];
+}
+
+// ── Booking Depth: Reschedule, Cancel, Reminder ───────────────────────
+
+function ecBookingGetById(int $id): ?array
+{
+    if ($id <= 0 || !ecBookingStorageAvailable()) {
+        return null;
+    }
+
+    try {
+        $row = ecDb()->query('SELECT * FROM ec_bookings WHERE id = ? LIMIT 1', [$id])->fetch(\PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function ecBookingProductConfig(int $productId): array
+{
+    if ($productId <= 0) {
+        return ecProductBookingDefaults();
+    }
+
+    try {
+        $metaRows = [];
+        $rows = moduleWithContext('cms', static function () use ($productId): array {
+            return cmsDb()->query(
+                "SELECT meta_key, meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key LIKE '_booking_%'",
+                [$productId]
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        });
+        foreach ($rows as $row) {
+            $metaRows[(string)$row['meta_key']] = (string)$row['meta_value'];
+        }
+        return ecProductBookingConfigFromMetaMap($metaRows);
+    } catch (\Throwable $e) {
+        return ecProductBookingDefaults();
+    }
+}
+
+function ecBookingCanReschedule(array $booking): bool
+{
+    if (($booking['status'] ?? '') !== 'confirmed') {
+        return false;
+    }
+
+    $config = ecBookingProductConfig((int)($booking['product_id'] ?? 0));
+    if (empty($config['allow_reschedule'])) {
+        return false;
+    }
+
+    $scheduledFor = strtotime((string)($booking['scheduled_for'] ?? ''));
+    if ($scheduledFor === false) {
+        return false;
+    }
+
+    $cutoff = (int)($config['reschedule_cutoff_hours'] ?? 24);
+    return $scheduledFor > (time() + ($cutoff * 3600));
+}
+
+function ecBookingCanCancel(array $booking): bool
+{
+    if (($booking['status'] ?? '') !== 'confirmed') {
+        return false;
+    }
+
+    $config = ecBookingProductConfig((int)($booking['product_id'] ?? 0));
+    if (empty($config['allow_cancel'])) {
+        return false;
+    }
+
+    $scheduledFor = strtotime((string)($booking['scheduled_for'] ?? ''));
+    if ($scheduledFor === false) {
+        return false;
+    }
+
+    $cutoff = (int)($config['cancel_cutoff_hours'] ?? 24);
+    return $scheduledFor > (time() + ($cutoff * 3600));
+}
+
+function ecBookingReschedule(int $bookingId, string $newDate, string $newTime, int $customerId): array
+{
+    $booking = ecBookingGetById($bookingId);
+    if (!$booking) {
+        return ['ok' => false, 'error' => 'Booking not found.'];
+    }
+
+    if ((int)($booking['customer_id'] ?? 0) !== $customerId) {
+        return ['ok' => false, 'error' => 'This booking does not belong to you.'];
+    }
+
+    if (!ecBookingCanReschedule($booking)) {
+        return ['ok' => false, 'error' => 'This booking cannot be rescheduled.'];
+    }
+
+    $config = ecBookingProductConfig((int)$booking['product_id']);
+
+    $scheduledFor = strtotime($newDate . ' ' . $newTime);
+    if ($scheduledFor === false || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $newDate) || !preg_match('/^\d{2}:\d{2}$/', $newTime)) {
+        return ['ok' => false, 'error' => 'Invalid date or time selected.'];
+    }
+
+    $noticeHours = max(0, (int)($config['notice_hours'] ?? 24));
+    if ($scheduledFor < (time() + ($noticeHours * 3600))) {
+        return ['ok' => false, 'error' => 'This appointment requires at least ' . $noticeHours . ' hours notice.'];
+    }
+
+    $weekday = (int)date('w', $scheduledFor);
+    $allowedWeekdays = ecProductNormalizeBookingWeekdays($config['available_weekdays'] ?? []);
+    if ($allowedWeekdays !== [] && !in_array($weekday, $allowedWeekdays, true)) {
+        return ['ok' => false, 'error' => 'The selected day is not available for bookings.'];
+    }
+
+    $timeSlots = ecProductNormalizeBookingTimeSlots($config['time_slots'] ?? []);
+    if ($timeSlots !== [] && !in_array($newTime, $timeSlots, true)) {
+        return ['ok' => false, 'error' => 'The selected time is not available.'];
+    }
+
+    $durationMinutes = max(15, (int)($config['duration_minutes'] ?? 60));
+    $endsAt = date('Y-m-d H:i:s', strtotime('+' . $durationMinutes . ' minutes', $scheduledFor));
+
+    $db = ecDb();
+
+    $db->execute(
+        "UPDATE ec_bookings SET status = 'rescheduled', updated_at = NOW() WHERE id = ?",
+        [$bookingId]
+    );
+
+    $db->execute(
+        'INSERT INTO ec_bookings (
+            order_id, order_item_id, customer_id, customer_email, product_id, product_title,
+            status, scheduled_for, ends_at, duration_minutes, notes, rescheduled_from_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+        [
+            (int)$booking['order_id'],
+            !empty($booking['order_item_id']) ? (int)$booking['order_item_id'] : null,
+            (int)$booking['customer_id'],
+            (string)($booking['customer_email'] ?? ''),
+            (int)$booking['product_id'],
+            (string)$booking['product_title'],
+            'confirmed',
+            date('Y-m-d H:i:s', $scheduledFor),
+            $endsAt,
+            $durationMinutes,
+            trim((string)($booking['notes'] ?? '')),
+            $bookingId,
+        ]
+    );
+
+    $newId = (int)$db->lastInsertId();
+
+    write_log('Booking rescheduled: #' . $bookingId . ' → #' . $newId, 'info', [
+        'module' => 'ecommerce',
+        'booking_id' => $bookingId,
+        'new_booking_id' => $newId,
+        'customer_id' => $customerId,
+    ]);
+
+    return ['ok' => true, 'new_booking_id' => $newId];
+}
+
+function ecBookingCancel(int $bookingId, string $reason, int $customerId): array
+{
+    $booking = ecBookingGetById($bookingId);
+    if (!$booking) {
+        return ['ok' => false, 'error' => 'Booking not found.'];
+    }
+
+    if ((int)($booking['customer_id'] ?? 0) !== $customerId) {
+        return ['ok' => false, 'error' => 'This booking does not belong to you.'];
+    }
+
+    if (!ecBookingCanCancel($booking)) {
+        return ['ok' => false, 'error' => 'This booking cannot be cancelled.'];
+    }
+
+    ecDb()->execute(
+        "UPDATE ec_bookings SET status = 'cancelled', cancelled_at = NOW(), cancel_reason = ?, updated_at = NOW() WHERE id = ?",
+        [mb_substr(trim($reason), 0, 255), $bookingId]
+    );
+
+    write_log('Booking cancelled: #' . $bookingId, 'info', [
+        'module' => 'ecommerce',
+        'booking_id' => $bookingId,
+        'customer_id' => $customerId,
+        'reason' => $reason,
+    ]);
+
+    return ['ok' => true];
+}
+
+function ecBookingsDueForReminder(): array
+{
+    if (!ecBookingStorageAvailable()) {
+        return [];
+    }
+
+    try {
+        return ecDb()->query(
+            "SELECT b.*, cm.meta_value AS reminder_hours_config
+             FROM ec_bookings b
+             LEFT JOIN cms_content_meta cm ON cm.content_id = b.product_id AND cm.meta_key = '_booking_reminder_hours_before'
+             WHERE b.status = 'confirmed'
+               AND b.reminder_sent_at IS NULL
+               AND b.scheduled_for > NOW()
+               AND b.scheduled_for <= DATE_ADD(NOW(), INTERVAL COALESCE(CAST(cm.meta_value AS UNSIGNED), 24) HOUR)
+             ORDER BY b.scheduled_for ASC
+             LIMIT 100"
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        write_log('ecBookingsDueForReminder error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
+        return [];
+    }
+}
+
+function ecBookingSendReminder(int $bookingId): bool
+{
+    $booking = ecBookingGetById($bookingId);
+    if (!$booking || ($booking['status'] ?? '') !== 'confirmed' || !empty($booking['reminder_sent_at'])) {
+        return false;
+    }
+
+    $email = trim((string)($booking['customer_email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $subject = 'Booking Reminder: ' . ($booking['product_title'] ?? 'Appointment');
+    $scheduledFmt = date('l, F j, Y \a\t g:i A', strtotime((string)$booking['scheduled_for']));
+    $body = "Hello,\n\nThis is a reminder that you have an upcoming booking:\n\n"
+        . "Service: " . ($booking['product_title'] ?? 'Appointment') . "\n"
+        . "Date & Time: " . $scheduledFmt . "\n"
+        . "Duration: " . ($booking['duration_minutes'] ?? 60) . " minutes\n\n"
+        . "If you need to reschedule or cancel, please visit your bookings page.\n\n"
+        . "Thank you.";
+
+    try {
+        if (function_exists('ecSendEmail')) {
+            ecSendEmail($email, $subject, $body);
+        } elseif (function_exists('kernel_send_email')) {
+            kernel_send_email($email, $subject, $body);
+        } else {
+            write_log('No email sender available for booking reminder #' . $bookingId, 'warning', ['module' => 'ecommerce']);
+            return false;
+        }
+
+        ecDb()->execute(
+            'UPDATE ec_bookings SET reminder_sent_at = NOW(), updated_at = NOW() WHERE id = ?',
+            [$bookingId]
+        );
+
+        write_log('Booking reminder sent: #' . $bookingId . ' to ' . $email, 'info', ['module' => 'ecommerce']);
+        return true;
+    } catch (\Throwable $e) {
+        write_log('Booking reminder failed #' . $bookingId . ': ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
+        return false;
+    }
+}
+
+function ecBookingProcessReminders(): array
+{
+    $due = ecBookingsDueForReminder();
+    $sent = 0;
+    $failed = 0;
+
+    foreach ($due as $booking) {
+        $id = (int)($booking['id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+
+        if (ecBookingSendReminder($id)) {
+            $sent++;
+        } else {
+            $failed++;
+        }
+    }
+
+    return ['due' => count($due), 'sent' => $sent, 'failed' => $failed];
+}
+
+function ecBookingHydrateForDisplay(array $booking): array
+{
+    $booking['can_reschedule'] = ecBookingCanReschedule($booking);
+    $booking['can_cancel'] = ecBookingCanCancel($booking);
+
+    $config = ecBookingProductConfig((int)($booking['product_id'] ?? 0));
+    $booking['product_config'] = $config;
+
+    return $booking;
 }
 
 app()->events()->listen('ecommerce.order.paid', function (array $payload): void {

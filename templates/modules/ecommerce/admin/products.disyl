@@ -24,9 +24,9 @@
 </div>
 
 <!-- Product table -->
-<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
     <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+        <thead class="bg-gray-50/80 text-slate-600 text-[11px] uppercase tracking-wider font-semibold">
             <tr>
                 <th class="px-5 py-3 text-left">Product</th>
                 <th class="px-4 py-3 text-left">SKU</th>
@@ -38,15 +38,15 @@
         </thead>
         <tbody class="divide-y divide-gray-100">
             {if products | count == 0}
-            <tr><td colspan="6" class="px-5 py-10 text-center text-gray-400">No products found.</td></tr>
+            <tr><td colspan="6" class="px-5 py-10 text-center text-slate-500">No products found.</td></tr>
             {/if}
             {foreach products as p}
             <tr class="hover:bg-gray-50">
                 <td class="px-5 py-3">
                     <div class="font-medium text-gray-900">{p.title}</div>
-                    <div class="text-xs text-gray-400">/cms/product/{p.slug}</div>
+                    <div class="text-xs text-slate-500">/cms/product/{p.slug}</div>
                 </td>
-                <td class="px-4 py-3 text-gray-500">{p.inventory.sku | default:'—'}</td>
+                <td class="px-4 py-3 text-slate-600">{p.inventory.sku | default:'—'}</td>
                 <td class="px-4 py-3 text-right font-medium">
                     {if p.pricing.on_sale}
                     <span class="line-through text-gray-400 mr-1">{p.pricing.regular_fmt}</span>

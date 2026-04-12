@@ -43,6 +43,8 @@ return [
         '/ecommerce/admin/reviews'                => 'ecommerce:ecAdminReviews',
         '/ecommerce/admin/customers'              => 'ecommerce:ecAdminCustomers',
         '/ecommerce/admin/customers/{id}/edit'    => 'ecommerce:ecAdminCustomerEdit',
+        '/ecommerce/admin/memberships'            => 'ecommerce:ecAdminMemberships',
+        '/ecommerce/admin/loyalty'                => 'ecommerce:ecAdminLoyalty',
         '/ecommerce/admin/import-export'          => 'ecommerce:ecAdminImportExport',
         '/ecommerce/admin/import-export/{resource}' => 'ecommerce:ecAdminExportCsv',
         '/ecommerce/admin/settings'               => 'ecommerce:ecAdminSettings',
@@ -73,6 +75,8 @@ return [
         '/ecommerce/wishlist'                       => 'ecommerce:ecPublicWishlistAction',
         '/ecommerce/checkout'                        => 'ecommerce:ecPublicCheckoutProcess',
         '/ecommerce/my-orders/{id}'                  => 'ecommerce:ecPublicOrderDetail',
+        '/ecommerce/my-bookings/reschedule'              => 'ecommerce:ecPublicBookingReschedule',
+        '/ecommerce/my-bookings/cancel'                  => 'ecommerce:ecPublicBookingCancel',
 
         // ── Admin Pages (form submissions) ──────────────────────────
         '/ecommerce/admin/products/create'          => 'ecommerce:ecAdminProductCreate',
