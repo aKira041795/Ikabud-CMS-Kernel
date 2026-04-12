@@ -132,6 +132,7 @@
                         <p class="ec-customer-banner__meta">Shopping with <strong>{public_customer_email}</strong>. Your recent ecommerce activity stays linked to this account.</p>
                     </div>
                     <div class="ec-customer-banner__actions">
+                        <a href="{if public_customer_wishlist_url}{public_customer_wishlist_url}{else}{base_url}/ecommerce/my-wishlist{/if}" class="ec-customer-banner__secondary">Wishlist{if wishlist_count|default:storefront.wishlist.count|default:0 > 0} ({wishlist_count|default:storefront.wishlist.count|default:0}){/if}</a>
                         <a href="{public_customer_orders_url}" class="ec-customer-banner__primary">My Orders</a>
                         {if public_customer_has_admin_access}
                         <a href="{public_customer_admin_url}" class="ec-customer-banner__secondary">CMS Admin</a>

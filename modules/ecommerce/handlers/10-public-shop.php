@@ -74,6 +74,7 @@ function ecPublicDecorateCatalogProducts(array $products): array
         $product['sale_badge_text'] = (string)($storefrontItem['badges']['sale'] ?? '');
         $product['inventory_badge_text'] = (string)($storefrontItem['inventory']['badge']['label'] ?? '');
         $product['inventory_badge_tone'] = (string)($storefrontItem['inventory']['badge']['tone'] ?? 'muted');
+        $product['is_wishlisted'] = !empty($storefrontItem['is_wishlisted']);
         $product['is_compared'] = !empty($storefrontItem['is_compared']);
 
         $resolved[] = $product;
@@ -190,6 +191,8 @@ function ecPublicShop(): void
             'item_base_url' => '/ecommerce/shop',
             'total' => (int)$productResult['total'],
             'cart_count' => $cartCount,
+            'wishlist_count' => function_exists('ecWishlistCount') ? ecWishlistCount() : 0,
+            'compare_count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
             'pagination' => [
                 'current' => $page,
                 'total' => $totalPages,
@@ -221,6 +224,7 @@ function ecPublicShop(): void
             'pagination_prev_url' => $paginationPrevUrl,
             'pagination_next_url' => $paginationNextUrl,
             'cart_count' => $cartCount,
+            'wishlist_count' => function_exists('ecWishlistCount') ? ecWishlistCount() : 0,
             'compare_count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
             'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? '/ecommerce/shop'),
             'storefront' => $storefront,
@@ -255,10 +259,10 @@ function ecPublicCategory(array $params = []): void
         $perPage = (int)ecSettings('products_per_page');
 
         if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityList', [
-                'type'          => 'product',
+                'type' => 'product',
                 'category_slug' => $slug,
-                'search'        => $search,
-                'per_page'      => $perPage,
+                'search' => $search,
+                'per_page' => $perPage,
                 'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
                 'item_base_url' => '/ecommerce/shop',
                 'all_items_url' => '/ecommerce/shop',
@@ -267,11 +271,11 @@ function ecPublicCategory(array $params = []): void
                 'attribute_filters' => $attributeFilters,
                 'public_render_origin' => 'ecommerce',
                 'public_route_kind' => 'shop_category',
+                'public_presentation_mode' => $presentationMode,
             ], $routeContext)) {
             return;
         }
 
-        // Fallback
         $db  = ecDb();
         $cat = $db->query(
             "SELECT * FROM cms_categories WHERE slug = ? LIMIT 1",
@@ -341,6 +345,8 @@ function ecPublicCategory(array $params = []): void
             'item_base_url' => '/ecommerce/shop',
             'total' => (int)$productResult['total'],
             'cart_count' => $cartCount,
+            'wishlist_count' => function_exists('ecWishlistCount') ? ecWishlistCount() : 0,
+            'compare_count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
             'pagination' => [
                 'current' => $page,
                 'total' => $totalPages,
@@ -372,6 +378,7 @@ function ecPublicCategory(array $params = []): void
             'pagination_prev_url' => $paginationPrevUrl,
             'pagination_next_url' => $paginationNextUrl,
             'cart_count'  => $cartCount,
+            'wishlist_count' => function_exists('ecWishlistCount') ? ecWishlistCount() : 0,
             'compare_count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
             'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ('/ecommerce/shop/category/' . rawurlencode($slug))),
             'storefront' => $storefront,
@@ -439,6 +446,8 @@ function ecPublicProduct(array $params = []): void
         $recentlyViewedItems = function_exists('ecRecentlyViewedCatalogItems')
             ? ecRecentlyViewedCatalogItems((int)($product['id'] ?? 0), 4, ['item_base_url' => '/ecommerce/shop'])
             : [];
+        $wishlistCount = function_exists('ecWishlistCount') ? ecWishlistCount() : 0;
+        $wishlistSelected = function_exists('ecWishlistContains') ? ecWishlistContains((int)($product['id'] ?? 0)) : false;
         $compareCount = function_exists('ecCompareCount') ? ecCompareCount() : 0;
         $compareSelected = function_exists('ecCompareContains') ? ecCompareContains((int)($product['id'] ?? 0)) : false;
         $seoContent = function_exists('ecProductSeoContent') ? ecProductSeoContent($product) : [];
@@ -467,6 +476,8 @@ function ecPublicProduct(array $params = []): void
             'recently_viewed_items' => $recentlyViewedItems,
             'recently_viewed_display_variant' => 'horizontal',
             'cart_count'  => $cartCount,
+            'wishlist_count' => $wishlistCount,
+            'wishlist_product_is_selected' => $wishlistSelected,
             'compare_count' => $compareCount,
             'compare_product_is_selected' => $compareSelected,
             'current_request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ('/ecommerce/shop/' . rawurlencode($slug))),

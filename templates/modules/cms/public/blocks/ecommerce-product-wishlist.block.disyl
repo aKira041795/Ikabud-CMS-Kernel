@@ -1,0 +1,31 @@
+<div class="mt-6" data-ecommerce-section="wishlist-actions" style="border-top:1px solid #fde2e2;padding-top:1.25rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+            <p style="margin:0;font-size:0.8rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:#e11d48;">Wishlist</p>
+            <p style="margin:0.2rem 0 0;font-size:0.84rem;color:#64748b;line-height:1.4;">Save this product to revisit it from your account area.</p>
+        </div>
+        <a href="{base_url}/ecommerce/my-wishlist" style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 1rem;border-radius:999px;border:1.5px solid #fecdd3;background:#fff;color:#9f1239;font-size:0.82rem;font-weight:700;text-decoration:none;white-space:nowrap;transition:border-color 0.15s,color 0.15s;" onmouseover="this.style.borderColor='#be123c';this.style.color='#881337'" onmouseout="this.style.borderColor='#fecdd3';this.style.color='#9f1239'">
+            <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 0 1 6.364 0L12 7.636l1.318-1.318a4.5 4.5 0 1 1 6.364 6.364L12 20.364 4.318 12.682a4.5 4.5 0 0 1 0-6.364Z"/></svg>
+            Open Wishlist{if wishlist_count|default:storefront.wishlist.count|default:0 > 0}&nbsp;({wishlist_count|default:storefront.wishlist.count|default:0}){/if}
+        </a>
+    </div>
+    {if public_customer_is_logged_in}
+    <form method="post" action="{base_url}/ecommerce/wishlist" style="margin-top:0.9rem;">
+        <input type="hidden" name="_token" value="{csrf_token}">
+        <input type="hidden" name="action" value="{if wishlist_product_is_selected|default:storefront.product.is_wishlisted|default:0}remove{else}add{/if}">
+        <input type="hidden" name="product_id" value="{storefront.product.id|default:product.id|default:entity.id}">
+        <input type="hidden" name="return_to" value="{current_request_uri|default:'/ecommerce/my-wishlist'}">
+        <button type="submit" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.55rem 1.25rem;border-radius:999px;border:none;cursor:pointer;font-size:0.85rem;font-weight:700;letter-spacing:0.01em;transition:background 0.15s,color 0.15s;{if wishlist_product_is_selected|default:storefront.product.is_wishlisted|default:0}background:#ffe4e6;color:#9f1239;{else}background:#e11d48;color:#fff;{/if}">
+            {if wishlist_product_is_selected|default:storefront.product.is_wishlisted|default:0}
+            <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            Remove from Wishlist
+            {else}
+            <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.65-7 10-7 10Z"/></svg>
+            Save to Wishlist
+            {/if}
+        </button>
+    </form>
+    {else}
+    <a href="{base_url}/cms/login?redirect={current_request_uri|url_encode}" style="display:inline-flex;align-items:center;gap:0.45rem;margin-top:0.9rem;padding:0.55rem 1.1rem;border-radius:999px;border:1.5px solid #fecdd3;background:#fff;color:#9f1239;font-size:0.83rem;font-weight:700;text-decoration:none;" onmouseover="this.style.borderColor='#be123c';this.style.color='#881337'" onmouseout="this.style.borderColor='#fecdd3';this.style.color='#9f1239'">Sign in to save this product</a>
+    {/if}
+</div>

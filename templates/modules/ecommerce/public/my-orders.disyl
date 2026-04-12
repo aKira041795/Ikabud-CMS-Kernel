@@ -8,6 +8,7 @@
             <p class="mt-1 text-sm text-gray-500">Track purchases, rewards, memberships, and booked services from one account area.</p>
         </div>
         <div class="flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="{base_url}/ecommerce/my-wishlist" class="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-rose-700 hover:bg-rose-100">Wishlist</a>
             <a href="{base_url}/ecommerce/rewards" class="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-700 hover:bg-orange-100">Rewards</a>
             <a href="{base_url}/ecommerce/my-memberships" class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-700 hover:bg-sky-100">Memberships</a>
             <a href="{base_url}/ecommerce/my-bookings" class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-indigo-700 hover:bg-indigo-100">Bookings</a>

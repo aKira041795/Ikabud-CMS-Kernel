@@ -96,6 +96,7 @@ function ecInferPublicRouteKind(string $template, array $context = []): string
         'modules/ecommerce/public/checkout.disyl' => 'checkout',
         'modules/ecommerce/public/order-confirmation.disyl' => 'order_confirmation',
         'modules/ecommerce/public/my-orders.disyl' => 'my_orders',
+        'modules/ecommerce/public/my-wishlist.disyl' => 'my_wishlist',
         'modules/ecommerce/public/order-detail.disyl' => 'order_detail',
         'pages/404.disyl' => 'not_found',
         default => 'generic',
@@ -139,6 +140,7 @@ function ecPublicThemeTemplateCandidates(string $template, array $context = []):
             '_cms_active_theme/public/ecommerce/thankyou.disyl',
         ],
         'my_orders' => ['_cms_active_theme/public/ecommerce/my-orders.disyl'],
+        'my_wishlist' => ['_cms_active_theme/public/ecommerce/my-wishlist.disyl'],
         'order_detail' => ['_cms_active_theme/public/ecommerce/order-detail.disyl'],
         default => [],
     };
@@ -181,7 +183,9 @@ function ecResolvePublicThemeTemplate(string $template, array $context = []): st
     return $template;
 }
 
-
+/**
+ * Resolve the public presentation mode for the given route kind.
+ */
 function ecResolvePublicPresentationMode(?string $routeKind = null, array $context = []): string
 {
     $resolvedContext = $context;
@@ -283,6 +287,10 @@ function ecRender(string $template, array $context = []): void
         $context['cart_count'] = (int)($cart['totals']['item_count'] ?? 0);
     }
 
+    if (!array_key_exists('wishlist_count', $context)) {
+        $context['wishlist_count'] = function_exists('ecWishlistCount') ? ecWishlistCount() : 0;
+    }
+
     if (!array_key_exists('ec_settings', $context)) {
         $context['ec_settings'] = ecSettings();
     }
@@ -338,6 +346,7 @@ function ecRender(string $template, array $context = []): void
         $context['public_customer_display_name'] = $displayName;
         $context['public_customer_email'] = $email;
         $context['public_customer_orders_url'] = rtrim((string)$context['base_url'], '/') . '/ecommerce/my-orders';
+        $context['public_customer_wishlist_url'] = rtrim((string)$context['base_url'], '/') . '/ecommerce/my-wishlist';
         $context['public_customer_login_url'] = rtrim((string)$context['base_url'], '/') . '/cms/login?redirect=' . urlencode('/ecommerce/my-orders');
         $context['public_customer_admin_url'] = rtrim((string)$context['base_url'], '/') . '/cms/admin';
         $context['public_customer_has_admin_access'] = $isPublicCmsUser && in_array($role, ['editor', 'administrator', 'superadmin'], true);

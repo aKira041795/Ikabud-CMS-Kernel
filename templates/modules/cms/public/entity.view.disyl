@@ -175,6 +175,7 @@
     {/if}
 
     {if public_render_origin == 'ecommerce' and content_type == 'product'}
+    {include "modules/cms/public/blocks/ecommerce-product-wishlist.block.disyl"}
     {include "modules/cms/public/blocks/ecommerce-product-compare.block.disyl"}
     {/if}
 

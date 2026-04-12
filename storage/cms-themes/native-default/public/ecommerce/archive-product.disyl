@@ -41,6 +41,10 @@
                     <span>Basket</span>
                     <strong>{storefront.cart.count|default:cart_count|default:0}</strong>
                 </div>
+                <div class="native-shop-metric">
+                    <span>Wishlist</span>
+                    <strong>{storefront.wishlist.count|default:wishlist_count|default:0}</strong>
+                </div>
             </div>
         </div>
 
@@ -153,7 +157,16 @@
                     {if p.inventory_badge_text}
                     <span class="native-shop-card__inventory native-shop-card__inventory--{p.inventory_badge_tone}">{p.inventory_badge_text}</span>
                     {/if}
-                    <a href="{p.detail_url | default:'/ecommerce/shop'}" class="native-shop-card__cta">View details</a>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+                        <form method="post" action="{base_url}/ecommerce/wishlist" style="margin:0;">
+                            <input type="hidden" name="_token" value="{csrf_token}">
+                            <input type="hidden" name="action" value="{if p.is_wishlisted}remove{else}add{/if}">
+                            <input type="hidden" name="product_id" value="{p.id}">
+                            <input type="hidden" name="return_to" value="{current_request_uri|default:'/ecommerce/shop'}">
+                            <button type="submit" class="native-shop-card__cta" style="border:none; cursor:pointer; background:{if p.is_wishlisted}#ffe4e6{else}#e11d48{/if}; color:{if p.is_wishlisted}#9f1239{else}#ffffff{/if};">{if p.is_wishlisted}Saved{/if}{if !p.is_wishlisted}Wishlist{/if}</button>
+                        </form>
+                        <a href="{p.detail_url | default:'/ecommerce/shop'}" class="native-shop-card__cta">View details</a>
+                    </div>
                 </div>
             </div>
         </article>

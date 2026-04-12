@@ -8,6 +8,7 @@
             <p class="mt-1 text-sm text-gray-500">Appointments and services reserved through bookable ecommerce products.</p>
         </div>
         <div class="flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="{base_url}/ecommerce/my-wishlist" class="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-rose-700 hover:bg-rose-100">Wishlist</a>
             <a href="{base_url}/ecommerce/my-orders" class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-gray-700 hover:bg-gray-50">Orders</a>
             <a href="{base_url}/ecommerce/my-memberships" class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-700 hover:bg-sky-100">Memberships</a>
             <a href="{base_url}/ecommerce/rewards" class="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-700 hover:bg-orange-100">Rewards</a>

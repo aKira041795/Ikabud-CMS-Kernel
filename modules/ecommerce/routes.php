@@ -16,6 +16,7 @@ return [
         '/ecommerce/order/{token}'          => 'ecommerce:ecPublicOrderConfirm',
         '/ecommerce/my-orders'              => 'ecommerce:ecPublicMyOrders',
         '/ecommerce/my-orders/{id}'         => 'ecommerce:ecPublicOrderDetail',
+        '/ecommerce/my-wishlist'           => 'ecommerce:ecPublicWishlist',
         '/ecommerce/my-memberships'         => 'ecommerce:ecPublicMemberships',
         '/ecommerce/my-bookings'            => 'ecommerce:ecPublicBookings',
         '/ecommerce/rewards'                => 'ecommerce:ecPublicRewards',
@@ -69,6 +70,7 @@ return [
         // ── Public Checkout ──────────────────────────────────────────
         '/ecommerce/cart/add'                       => 'ecommerce:ecPublicCartAdd',
         '/ecommerce/compare'                        => 'ecommerce:ecPublicCompareAction',
+        '/ecommerce/wishlist'                       => 'ecommerce:ecPublicWishlistAction',
         '/ecommerce/checkout'                        => 'ecommerce:ecPublicCheckoutProcess',
         '/ecommerce/my-orders/{id}'                  => 'ecommerce:ecPublicOrderDetail',
 

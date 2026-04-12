@@ -1643,6 +1643,7 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
         'review_summary' => is_array($product['review_summary'] ?? null)
             ? ecReviewNormalizeSummary($product['review_summary'])
             : ecReviewDefaultSummary(),
+        'is_wishlisted' => function_exists('ecWishlistContains') ? ecWishlistContains($productId) : false,
         'is_compared' => function_exists('ecCompareContains') ? ecCompareContains($productId) : false,
     ];
 }
@@ -1781,6 +1782,10 @@ function ecBuildStorefrontCatalogContext(array $products, array $options = []): 
         'cart' => [
             'count' => ecStorefrontCurrentCartCount(isset($options['cart_count']) ? (int)$options['cart_count'] : null),
         ],
+        'wishlist' => [
+            'count' => function_exists('ecWishlistCount') ? ecWishlistCount() : 0,
+            'url' => '/ecommerce/my-wishlist',
+        ],
         'compare' => [
             'count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,
             'url' => '/ecommerce/compare',
@@ -1866,6 +1871,10 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
         ]),
         'cart' => [
             'count' => ecStorefrontCurrentCartCount(isset($options['cart_count']) ? (int)$options['cart_count'] : null),
+        ],
+        'wishlist' => [
+            'count' => function_exists('ecWishlistCount') ? ecWishlistCount() : 0,
+            'url' => '/ecommerce/my-wishlist',
         ],
         'compare' => [
             'count' => function_exists('ecCompareCount') ? ecCompareCount() : 0,

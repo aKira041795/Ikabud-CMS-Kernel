@@ -10,6 +10,7 @@ require_once __DIR__ . '/handlers/00-bootstrap.php';
 require_once __DIR__ . '/handlers/10-public-shop.php';
 require_once __DIR__ . '/handlers/15-public-cart.php';
 require_once __DIR__ . '/handlers/18-public-compare.php';
+require_once __DIR__ . '/handlers/19-public-wishlist.php';
 require_once __DIR__ . '/handlers/20-public-checkout.php';
 require_once __DIR__ . '/handlers/25-public-orders.php';
 require_once __DIR__ . '/handlers/30-admin-dashboard.php';

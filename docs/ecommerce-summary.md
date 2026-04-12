@@ -10,7 +10,7 @@ This document summarizes the current Ecommerce module, records the WooCommerce-s
 
 - Products are implemented as CMS content records with type `product`.
 - Supported product behaviors today: simple products, variants, digital products, grouped products, bundle products, subscription products, membership products, bookable service products, and external or affiliate products.
-- Catalog support already includes categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking, product SEO metadata, attributes, faceted filtering, related products, upsells, cross-sells, comparison, recently viewed products, and fixed-price product add-ons.
+- Catalog support already includes categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking, product SEO metadata, attributes, faceted filtering, related products, upsells, cross-sells, comparison, recently viewed products, fixed-price product add-ons, and customer wishlists.
 - Membership-gated product access and membership activation products now live on the same CMS content model instead of a parallel product system.
 - Storefront rendering is aligned to the CMS entity-view and entity-list contracts rather than a standalone storefront renderer.
 
@@ -31,6 +31,8 @@ This document summarizes the current Ecommerce module, records the WooCommerce-s
 - POS flows exist for in-store transactions.
 - Digital product license issuance and download delivery are already implemented.
 - Shipment tracking and refund-side gateway reversal support already exist.
+- Order confirmation tokens expire after 90 days (`token_expires_at` on `ec_orders`); existing orders are back-filled on migration to limit token exposure window.
+- Checkout submission and guest account auto-registration are protected by rate limiting via the kernel `rate_limits` table: checkout is capped at 3 attempts per 5 minutes per identifier; account creation during digital checkout is capped at 10 attempts per hour.
 
 ### Merchant Operations
 

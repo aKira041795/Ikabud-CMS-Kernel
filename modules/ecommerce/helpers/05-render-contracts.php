@@ -10,6 +10,7 @@ function ecPublicRoutePageKind(string $routeKind): string
         'cart' => 'cart',
         'checkout' => 'checkout',
         'my_orders' => 'orders',
+        'my_wishlist' => 'wishlist',
         'order_detail' => 'order_detail',
         'order_confirmation' => 'order_confirmation',
         default => 'page',
@@ -24,6 +25,7 @@ function ecPublicRouteDefaultPageTitle(string $routeKind): string
         'cart' => 'Cart',
         'checkout' => 'Checkout',
         'my_orders' => 'My Orders',
+        'my_wishlist' => 'My Wishlist',
         'order_detail' => 'Order Details',
         'order_confirmation' => 'Order Confirmed',
         default => 'Storefront',
@@ -85,6 +87,7 @@ function ecNormalizeCatalogProductShape(array $product, array &$missingKeys, arr
         'pricing' => [],
         'inventory' => [],
         'badges' => [],
+        'is_wishlisted' => false,
     ], ['title', 'slug', 'pricing', 'inventory', 'badges'], $missingKeys, $typeMismatches, $pathPrefix);
 
     $product['pricing'] = ecNormalizeProductPricingShape($product['pricing'], $missingKeys, $typeMismatches, $pathPrefix . 'pricing.');
@@ -201,6 +204,7 @@ function ecNormalizeStorefrontShellContext(array $storefront, array $context, st
         'page' => [],
         'navigation' => [],
         'cart' => [],
+        'wishlist' => [],
     ], [], $missingKeys, $typeMismatches, 'storefront.');
 
     $storefront['route'] = kernelApplyRenderContextShape($storefront['route'], [
@@ -239,6 +243,13 @@ function ecNormalizeStorefrontShellContext(array $storefront, array $context, st
     ], [], $missingKeys, $typeMismatches, 'storefront.cart.');
     $storefront['cart']['count'] = max(0, (int)($storefront['cart']['count'] ?? $context['cart_count'] ?? 0));
 
+    $storefront['wishlist'] = kernelApplyRenderContextShape($storefront['wishlist'], [
+        'count' => (int)($context['wishlist_count'] ?? 0),
+        'url' => '/ecommerce/my-wishlist',
+    ], [], $missingKeys, $typeMismatches, 'storefront.wishlist.');
+    $storefront['wishlist']['count'] = max(0, (int)($storefront['wishlist']['count'] ?? $context['wishlist_count'] ?? 0));
+    $storefront['wishlist']['url'] = trim((string)($storefront['wishlist']['url'] ?? '')) ?: '/ecommerce/my-wishlist';
+
     return $storefront;
 }
 
@@ -251,6 +262,7 @@ function ecNormalizePublicShellRenderContext(array $context, string $template, a
         'page_title' => '',
         'storefront' => [],
         'cart_count' => 0,
+        'wishlist_count' => 0,
         'ec_settings' => [],
         'public_render_origin' => 'ecommerce',
         'public_route_kind' => $routeKind,
