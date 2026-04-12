@@ -1584,6 +1584,16 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
             : '/ecommerce/shop';
     }
 
+    // Apply per-store price / visibility overrides when a store context is active
+    $storeCtx = function_exists('ecStoreResolveContext') ? ecStoreResolveContext() : null;
+    if ($storeCtx !== null && function_exists('ecStoreApplyProductOverrides')) {
+        $product = ecStoreApplyProductOverrides($product, $storeCtx);
+        if ($product === null) {
+            return ['id' => $productId, 'slug' => $slug, 'title' => '', 'url' => $detailUrl, 'is_visible' => false];
+        }
+    }
+    $product['is_visible'] = true;
+
     $pricing = ecStorefrontNormalizePricing(is_array($product['pricing'] ?? null) ? $product['pricing'] : []);
     $inventory = ecStorefrontNormalizeInventory(is_array($product['inventory'] ?? null) ? $product['inventory'] : []);
     $inventoryBadge = ecStorefrontInventoryBadge($inventory);

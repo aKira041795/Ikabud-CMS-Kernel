@@ -515,32 +515,46 @@ function ecOrderCreate(array $data): array
     $db->beginTransaction();
 
     try {
+        // Resolve store context for attribution
+        $storeCtx  = function_exists('ecStoreResolveContext') ? ecStoreResolveContext() : null;
+        $storeId   = $storeCtx ? (int)($storeCtx['id'] ?? 0) : 0;
+        $hasStoreId = $storeId > 0 && function_exists('ecStoreStorageAvailable') && ecStoreStorageAvailable();
+
         // Insert order
         $hasTokenExpiry = ecOrdersHasTokenExpiresAtColumn();
-        $orderCols = 'order_number, customer_id, guest_email, guest_name, source,
-                status, payment_status, subtotal, discount_amount, tax_amount,
+        $orderCols = 'order_number, customer_id, guest_email, guest_name, source'
+            . ($hasStoreId ? ', store_id' : '')
+            . ', status, payment_status, subtotal, discount_amount, tax_amount,
                 shipping_amount, total, currency, coupon_code, customer_note,
                 confirmation_token, placed_by_user_id' . ($hasTokenExpiry ? ', token_expires_at' : '') . ', created_at, updated_at';
-        $orderPlaceholders = '?, ?, ?, ?, ?, \'pending\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' . ($hasTokenExpiry ? ', DATE_ADD(NOW(), INTERVAL 90 DAY)' : '') . ', NOW(), NOW()';
+        $orderPlaceholders = '?, ?, ?, ?, ?'
+            . ($hasStoreId ? ', ?' : '')
+            . ', \'pending\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' . ($hasTokenExpiry ? ', DATE_ADD(NOW(), INTERVAL 90 DAY)' : '') . ', NOW(), NOW()';
+        $orderParams = [
+            $orderNumber,
+            $customerId,
+            $data['guest_email'] ?? null,
+            $data['guest_name']  ?? null,
+            $source,
+        ];
+        if ($hasStoreId) {
+            $orderParams[] = $storeId;
+        }
+        array_push($orderParams,
+            (float)($data['subtotal']         ?? 0),
+            (float)($data['discount_amount']  ?? 0),
+            (float)($data['tax_amount']        ?? 0),
+            (float)($data['shipping_amount']   ?? 0),
+            (float)($data['total']             ?? 0),
+            $currency,
+            $data['coupon_code'] ?? null,
+            $data['customer_note'] ?? null,
+            $token,
+            $data['placed_by_user_id'] ?? null,
+        );
         $db->execute(
             "INSERT INTO ec_orders ({$orderCols}) VALUES ({$orderPlaceholders})",
-            [
-                $orderNumber,
-                $customerId,
-                $data['guest_email'] ?? null,
-                $data['guest_name']  ?? null,
-                $source,
-                (float)($data['subtotal']         ?? 0),
-                (float)($data['discount_amount']  ?? 0),
-                (float)($data['tax_amount']        ?? 0),
-                (float)($data['shipping_amount']   ?? 0),
-                (float)($data['total']             ?? 0),
-                $currency,
-                $data['coupon_code'] ?? null,
-                $data['customer_note'] ?? null,
-                $token,
-                $data['placed_by_user_id'] ?? null,
-            ]
+            $orderParams
         );
 
         $orderId = (int)$db->lastInsertId();

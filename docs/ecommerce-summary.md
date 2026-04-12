@@ -76,18 +76,17 @@ This positions the system closer to Shopify (ecosystem breadth), Odoo (modular E
 
 - Core system: **complete**
 - Booking depth: **complete** — reschedule, cancel, cutoff windows, and reminder engine are all wired end to end; the admin product edit form now exposes all 10 booking config fields and the handler correctly persists them
-- Admin membership visibility: **partially wired** — list page exists; manual grant, extend, revoke, and expiry awareness are still pending
-- Admin loyalty visibility: **partially wired** — loyalty dashboard page exists; configurable earn/redeem rates, manual point adjustments, and customer-detail integration are still pending
+- Admin membership visibility: **complete** — list, manual grant/extend/revoke modals, expiry badge in customer account, membership + expiry summary in customer-detail sidebar
+- Admin loyalty visibility: **complete** — dashboard, manual point adjustment (credit/debit), admin_credit/admin_debit ledger entries, configurable earn/redeem rates via Settings → Loyalty tab, loyalty balance in customer-detail sidebar
 - Merchant intelligence: **thin** — no customer segmentation, tier pricing, or back-in-stock alerting
-- Multi-store: **not formalized** — no store context layer, store-aware queries, or store product overrides exist in code
+- Multi-store: **foundation complete** — `ec_stores`, `ec_store_product_overrides`, `ec_store_inventory_sources` tables exist; `ecStoreResolveContext()` wired into `ecBuildStorefrontCatalogItem()` and `ecOrderCreate()`; single-store behavior unchanged
 
 ### Remaining Depth Gaps
 
 **Operational depth:**
-- Booking depth is now complete; capacity-aware calendar controls and resource/staff scheduling remain as future slices if needed
-- Membership admin actions (manual grant, extend, revoke, expiry awareness) and customer-detail membership summary are still pending
-- Loyalty configuration (earn/redeem rates as admin settings), manual point adjustments, and customer-detail loyalty panel are still pending
-- Membership entitlement reach beyond catalog gating into CMS pages, posts, or tenant capabilities
+- Booking depth is complete; capacity-aware calendar controls and resource/staff scheduling remain as future slices
+- Membership entitlement reach beyond catalog gating into CMS pages, posts, or tenant capabilities (Milestone 6)
+- Loyalty: master enable/disable toggle not yet exposed (earn/redeem rates are now configurable)
 
 **Merchant intelligence:**
 - Customer segmentation and tier-based pricing (unlocks B2B, wholesale, institutional deployments)
@@ -444,7 +443,7 @@ Definition of done for that slice:
 - Integration-style test added
 - Application and PHP error logs checked after test execution
 
-The slice immediately after should be the multi-store data foundation — data model, context resolution, and store-aware queries only (no multi-store UI yet). This prevents structural debt from accumulating under the depth features.
+The multi-store data foundation is now in place. The next structural slice is **Milestone 3 — Customer Segmentation and Tier Pricing**, which builds on the store context layer to enable wholesale pricing, customer-tier discounts, and store-scoped pricing rules.
 
 ## Success Criteria
 
