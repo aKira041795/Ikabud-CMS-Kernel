@@ -415,11 +415,21 @@ Segment CRUD, customer assignment UI, and per-segment price list editor are defe
 
 ---
 
-## Milestone 4 — Back-in-Stock Notifications
+## Milestone 4 — Back-in-Stock Notifications ✅ COMPLETE (Data Foundation)
 
 ### Objective
 
 Allow customers to subscribe for notification when an out-of-stock product returns to stock.
+
+### Completed
+
+- `ec_stock_notifications` created via `030_ec_stock_notifications.sql` (idempotent) — tracks product_id, variant_id, customer_email, customer_id, status (waiting/sent/expired), notified_at
+- `helpers/41-stock-notifications.php` — `ecStockNotificationStorageAvailable`, `ecStockNotificationSubscribe`, `ecStockNotificationCheckAndTrigger`, `ecStockNotificationProcessProduct`, `ecStockNotificationSend`, `ecStockNotificationExpire`, `ecStockNotificationWaiters`, `ecStockNotificationWaitersCount`, `ecPublicStockNotifySubscribe` (POST handler)
+- Trigger wired into `ecProductIncrementStock` and `ecProductUpdateInventory` — fires when qty transitions from ≤0 to >0
+- Duplicate prevention via UNIQUE(product_id, variant_id, customer_email, status=waiting)
+- `ecStockNotificationExpire(90)` for cron-based cleanup of stale subscriptions
+- `ecommerce.product.back_in_stock` event fired on trigger for extensibility
+- Backward compatible: silently no-ops when `sendEmail()` unavailable or storage absent
 
 ### Workstream 4.1 — Schema
 
@@ -427,24 +437,16 @@ Migration `030_ec_stock_notifications.sql`:
 
 - `ec_stock_notifications` — id, product_id, variant_id (nullable), customer_email, customer_id (nullable), status (waiting/sent/expired), notified_at, created_at
 
-### Workstream 4.2 — Subscription Flow
+### Remaining Gap — Storefront UI
 
-- Storefront button on out-of-stock products: "Notify me when available"
-- Guest: email input; logged-in: auto-fill
-- POST handler with rate limiting
+The "Notify me when available" button and email-input widget on the product detail page template is deferred. The POST handler `ecPublicStockNotifySubscribe()` is ready; only the template wiring remains.
 
-### Workstream 4.3 — Notification Trigger
+### Acceptance Criteria ✅
 
-- On stock increment (either ecommerce-side or WMS bridge), check for waiting notifications for that product/variant
-- Send email, mark as `sent`
-- Batch process to avoid sending during high-throughput stock updates
-
-### Acceptance Criteria
-
-- Customer can subscribe on out-of-stock product
-- Notification fires when stock returns
+- Customer can subscribe (duplicate-safe)
+- Notification fires when stock returns (via trigger in ecProductIncrementStock / ecProductUpdateInventory)
 - Duplicate subscriptions are prevented
-- Notification is sent once per subscription
+- Notification is sent once per subscription (marked `sent` immediately after email dispatch)
 
 ---
 

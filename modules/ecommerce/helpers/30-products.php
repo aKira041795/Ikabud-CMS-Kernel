@@ -2591,14 +2591,21 @@ function ecProductUpdateInventory(int $productId, array $data): void
         return;
     }
     $existing = ecProductInventory($productId);
-    $sku = ecProductNormalizeSku($productId, $data['sku'] ?? ($existing['sku'] ?? ''));
-    $config = [
+    $prevQty  = (int)($existing['stock_qty'] ?? 0);
+    $sku      = ecProductNormalizeSku($productId, $data['sku'] ?? ($existing['sku'] ?? ''));
+    $config   = [
         'track_stock' => isset($data['track_stock']) ? (bool)$data['track_stock'] : ($existing['track_stock'] ?? true),
-        'stock_qty'   => isset($data['stock_qty'])   ? (int)$data['stock_qty']    : ($existing['stock_qty']   ?? 0),
+        'stock_qty'   => isset($data['stock_qty'])   ? (int)$data['stock_qty']    : $prevQty,
         'sku'         => $sku,
     ];
+    $newQty = $config['stock_qty'];
 
     ecAttachCmsEntityCapability($productId, 'inventory', $config);
+
+    // Fire back-in-stock notification when a manual update restocks from zero
+    if (function_exists('ecStockNotificationCheckAndTrigger')) {
+        ecStockNotificationCheckAndTrigger($productId, null, $prevQty, $newQty);
+    }
 }
 
 function ecProductDecrementStock(int $productId, int $qty): void
@@ -2683,7 +2690,9 @@ function ecProductIncrementStock(int $productId, int $qty): void
         return;
     }
 
-    $config['stock_qty'] = max(0, (int)($config['stock_qty'] ?? 0) + $qty);
+    $prevQty            = (int)($config['stock_qty'] ?? 0);
+    $config['stock_qty'] = max(0, $prevQty + $qty);
+    $newQty             = $config['stock_qty'];
 
     moduleWithContext('cms', static function () use ($config, $row): void {
         cmsDb()->execute(
@@ -2691,6 +2700,11 @@ function ecProductIncrementStock(int $productId, int $qty): void
             [json_encode($config), (int)$row['id']]
         );
     });
+
+    // Fire back-in-stock notification when restocked from zero
+    if (function_exists('ecStockNotificationCheckAndTrigger')) {
+        ecStockNotificationCheckAndTrigger($productId, null, $prevQty, $newQty);
+    }
 }
 
 function ecProductCategories(int $productId): array
