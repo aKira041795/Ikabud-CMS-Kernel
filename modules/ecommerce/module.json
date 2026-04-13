@@ -43,6 +43,7 @@
         "ec_stores",
         "ec_store_product_overrides",
         "ec_store_inventory_sources",
+        "ec_store_users",
         "ec_customer_segments",
         "ec_customer_segment_members",
         "ec_segment_product_prices",
@@ -92,7 +93,11 @@
         "modules/ecommerce/database/migrations/028_ec_multi_store_foundation.sql",
         "modules/ecommerce/database/migrations/029_ec_customer_segments.sql",
         "modules/ecommerce/database/migrations/030_ec_stock_notifications.sql",
-        "modules/ecommerce/database/migrations/031_ec_variant_media.sql"
+        "modules/ecommerce/database/migrations/031_ec_variant_media.sql",
+        "modules/ecommerce/database/migrations/032_ec_orders_warehouse_id.sql",
+        "modules/ecommerce/database/migrations/033_ec_store_users.sql",
+        "modules/ecommerce/database/migrations/034_ec_order_item_store.sql",
+        "modules/ecommerce/database/migrations/035_ec_stores_branding_coupons.sql"
     ],
     "capabilities": {
         "exposes": [

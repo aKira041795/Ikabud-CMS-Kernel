@@ -1,0 +1,97 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="max-w-4xl space-y-5">
+
+    <h1 class="text-xl font-bold text-gray-900">Orders — {store.name | escape}</h1>
+
+    <!-- Filters -->
+    <form method="get" action="" class="flex gap-3 flex-wrap items-end">
+        <div class="flex-1 min-w-[180px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Search</label>
+            <input type="text" name="search" value="{search | escape}" placeholder="Order number, name, email…"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+            <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                <option value="">All</option>
+                {foreach statuses as st}
+                <option value="{st | escape}" {if status_filter == st}selected{/if}>{st | escape}</option>
+                {/foreach}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors">
+            Filter
+        </button>
+        {if search || status_filter}
+        <a href="?" class="px-4 py-2 text-sm text-slate-500 border border-gray-200 rounded-lg hover:bg-gray-50">Clear</a>
+        {/if}
+    </form>
+
+    <!-- Orders table -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {if orders | count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2.5 text-left">Order</th>
+                        <th class="px-4 py-2.5 text-left">Customer</th>
+                        <th class="px-4 py-2.5 text-left">Status</th>
+                        <th class="px-4 py-2.5 text-left">Payment</th>
+                        <th class="px-4 py-2.5 text-right">Total</th>
+                        <th class="px-4 py-2.5 text-right">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach orders as o}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-2.5 font-mono text-xs text-orange-700 whitespace-nowrap">
+                            {o.order_number | escape}
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-700 max-w-[200px] truncate">
+                            {if o.customer_display_name}{o.customer_display_name | escape}{elseif o.guest_name}{o.guest_name | escape}{else}{o.guest_email | escape}{/if}
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600">
+                                {o.status | escape}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                                {if o.payment_status == 'paid'}bg-emerald-50 text-emerald-700{else}bg-amber-50 text-amber-700{/if}">
+                                {o.payment_status | escape}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-right font-medium tabular-nums">{currency_sym}{o.total}</td>
+                        <td class="px-4 py-2.5 text-right text-slate-400 text-xs tabular-nums">{o.created_at}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        {if total_pages > 1}
+        <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-sm">
+            <span class="text-slate-400 text-xs">{total} orders</span>
+            <div class="flex items-center gap-2">
+                {if page > 1}
+                <a href="?page={page - 1}&search={search | escape}&status={status_filter | escape}"
+                   class="px-3 py-1 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-50">&larr; Prev</a>
+                {/if}
+                <span class="text-slate-400 text-xs">Page {page} / {total_pages}</span>
+                {if page < total_pages}
+                <a href="?page={page + 1}&search={search | escape}&status={status_filter | escape}"
+                   class="px-3 py-1 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-50">Next &rarr;</a>
+                {/if}
+            </div>
+        </div>
+        {/if}
+        {else}
+        <div class="px-5 py-12 text-center text-slate-400 text-sm">No orders found for this store.</div>
+        {/if}
+    </div>
+
+</div>
+{/block}

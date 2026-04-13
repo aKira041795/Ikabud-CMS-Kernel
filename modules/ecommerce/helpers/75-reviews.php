@@ -230,6 +230,7 @@ function ecReviewList(array $filters = []): array
     }
 
     $productId = (int)($filters['product_id'] ?? 0);
+    $storeId   = (int)($filters['store_id'] ?? 0);
     $status = trim((string)($filters['status'] ?? 'approved'));
     $search = trim((string)($filters['search'] ?? ''));
     $limit = min(100, max(1, (int)($filters['limit'] ?? 10)));
@@ -237,6 +238,12 @@ function ecReviewList(array $filters = []): array
 
     $where = ['1 = 1'];
     $params = [];
+
+    // Scope to store: only reviews for products explicitly linked to this store.
+    if ($storeId > 0) {
+        $where[] = 'r.product_id IN (SELECT product_id FROM ec_store_product_overrides WHERE store_id = ? AND is_visible = 1)';
+        $params[] = $storeId;
+    }
 
     if ($productId > 0) {
         $where[] = 'r.product_id = ?';

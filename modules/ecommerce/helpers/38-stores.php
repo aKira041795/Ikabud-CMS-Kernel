@@ -461,14 +461,34 @@ function ecStoreSetDefault(int $id): array
 
 /**
  * Returns the users assigned to a store (with their roles).
- * Returns rows: [['user_id', 'role', 'created_at'], ...]
+ * Joins cms_users to include display_name, email, and username when available.
+ * Returns rows: [['user_id', 'role', 'created_at', 'display_name', 'email', 'username'], ...]
  */
 function ecStoreUserList(int $storeId): array
 {
     if (!ecStoreStorageAvailable() || $storeId <= 0) {
         return [];
     }
+    // Probe for cms_users table — may not exist in all deployments.
+    $hasCmsUsers = false;
     try {
+        ecDb()->query('SELECT 1 FROM cms_users LIMIT 1');
+        $hasCmsUsers = true;
+    } catch (\Throwable $ignored) {}
+
+    try {
+        if ($hasCmsUsers) {
+            return ecDb()->query(
+                'SELECT su.user_id, su.role, su.created_at,
+                        COALESCE(u.display_name, u.username, CONCAT("#", su.user_id)) AS display_name,
+                        u.email, u.username
+                 FROM ec_store_users su
+                 LEFT JOIN cms_users u ON u.id = su.user_id
+                 WHERE su.store_id = ?
+                 ORDER BY FIELD(su.role, "owner", "manager", "supervisor"), su.created_at ASC',
+                [$storeId]
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        }
         return ecDb()->query(
             'SELECT user_id, role, created_at FROM ec_store_users WHERE store_id = ? ORDER BY role ASC, created_at ASC',
             [$storeId]
@@ -479,7 +499,7 @@ function ecStoreUserList(int $storeId): array
 }
 
 /**
- * Assigns a user to a store with the given role ('owner' | 'manager').
+ * Assigns a user to a store with the given role ('owner' | 'manager' | 'supervisor').
  * Upserts — updates role if the assignment already exists.
  */
 function ecStoreUserAssign(int $storeId, int $userId, string $role = 'manager'): array
@@ -487,7 +507,7 @@ function ecStoreUserAssign(int $storeId, int $userId, string $role = 'manager'):
     if (!ecStoreStorageAvailable() || $storeId <= 0 || $userId <= 0) {
         return ['ok' => false, 'error' => 'Invalid store or user'];
     }
-    $role = in_array($role, ['owner', 'manager'], true) ? $role : 'manager';
+    $role = in_array($role, ['owner', 'manager', 'supervisor'], true) ? $role : 'manager';
     try {
         ecDb()->execute(
             'INSERT INTO ec_store_users (store_id, user_id, role) VALUES (?, ?, ?)
@@ -497,6 +517,32 @@ function ecStoreUserAssign(int $storeId, int $userId, string $role = 'manager'):
         return ['ok' => true, 'error' => ''];
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Returns all stores a user is assigned to, along with their role and basic store info.
+ * Used by the "My Stores" page to list stores for the logged-in store user.
+ *
+ * @return array[] Each element: ['store_id', 'role', 'created_at', 'name', 'slug', 'code', 'is_active', 'description']
+ */
+function ecStoresForUser(int $userId): array
+{
+    if (!ecStoreStorageAvailable() || $userId <= 0) {
+        return [];
+    }
+    try {
+        return ecDb()->query(
+            'SELECT su.store_id, su.role, su.created_at,
+                    s.name, s.slug, s.code, s.is_active, s.description
+             FROM ec_store_users su
+             JOIN ec_stores s ON s.id = su.store_id
+             WHERE su.user_id = ?
+             ORDER BY FIELD(su.role, "owner", "manager", "supervisor"), s.name ASC',
+            [$userId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
     }
 }
 

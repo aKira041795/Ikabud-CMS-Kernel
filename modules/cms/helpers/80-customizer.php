@@ -4077,9 +4077,22 @@ function cmsRenderSingleHeaderWidget(array $widget, object $db, array $cmsSettin
 // ── Hook Registrations ──────────────────────────────────────────────
 
 // Register CMS home URL for CMS roles
-app()->hooks()->on('kernel.home_url', function (?string $url, string $role) {
+app()->hooks()->on('kernel.home_url', function (?string $url, string $role, ?array $user = null) {
     // Ecommerce customers get sent to their order dashboard, not the CMS admin.
+    // But if the user has store assignments, send them to the store manager portal.
     if ($role === 'customer') {
+        $userId = (int)($user['id'] ?? 0);
+        if ($userId > 0 && function_exists('ecDb')) {
+            try {
+                $stmt = ecDb()->prepare('SELECT COUNT(*) FROM ec_store_users WHERE user_id = ?');
+                $stmt->execute([$userId]);
+                if ((int)$stmt->fetchColumn() > 0) {
+                    return '/ecommerce/my-stores';
+                }
+            } catch (\Throwable $ignored) {
+                // fall through to default customer redirect
+            }
+        }
         return '/ecommerce/my-orders';
     }
     // All other CMS roles get redirected to CMS admin dashboard

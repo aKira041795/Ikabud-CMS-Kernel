@@ -1396,6 +1396,10 @@ function ecOrderList(array $filters = []): array
         $where[]  = 'DATE(' . $tbl . 'created_at) <= ?';
         $params[] = $filters['date_to'];
     }
+    if (!empty($filters['store_id'])) {
+        $where[]  = $tbl . 'store_id = ?';
+        $params[] = (int)$filters['store_id'];
+    }
 
     $limit  = min(100, max(1, (int)($filters['limit']  ?? 25)));
     $offset = max(0, (int)($filters['offset'] ?? 0));

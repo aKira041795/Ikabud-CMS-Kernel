@@ -1,0 +1,108 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="max-w-4xl space-y-5">
+
+    <div class="flex items-center justify-between gap-4">
+        <h1 class="text-xl font-bold text-gray-900">Products — {store.name | escape}</h1>
+        {if can_edit}
+        <a href="{base_url}/ecommerce/admin/products/create"
+           class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors">
+            + Add Product
+        </a>
+        {/if}
+    </div>
+
+    {if !can_edit}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+        You have read-only access to this store's products. Contact an owner or manager to make changes.
+    </div>
+    {/if}
+
+    <!-- Search -->
+    <form method="get" action="" class="flex gap-3 items-end">
+        <div class="flex-1">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Search</label>
+            <input type="text" name="search" value="{search | escape}" placeholder="Product name or SKU…"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+        </div>
+        <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors">
+            Search
+        </button>
+        {if search}
+        <a href="?" class="px-4 py-2 text-sm text-slate-500 border border-gray-200 rounded-lg hover:bg-gray-50">Clear</a>
+        {/if}
+    </form>
+
+    <!-- Products table -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {if products | count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2.5 text-left">Product</th>
+                        <th class="px-4 py-2.5 text-left">SKU</th>
+                        <th class="px-4 py-2.5 text-left">Status</th>
+                        <th class="px-4 py-2.5 text-right">Price</th>
+                        {if can_edit}<th class="px-4 py-2.5"></th>{/if}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach products as p}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-2.5 font-medium text-gray-900 max-w-[260px] truncate">
+                            {p.title | escape}
+                        </td>
+                        <td class="px-4 py-2.5 font-mono text-xs text-slate-500">
+                            {p.sku | escape}
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                                {if p.status == 'published'}bg-emerald-50 text-emerald-700{else}bg-slate-100 text-slate-500{/if}">
+                                {p.status | escape}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-right tabular-nums font-medium">
+                            {if p.sale_price}
+                            <span class="text-red-600">{currency_sym}{p.sale_price}</span>
+                            <span class="text-slate-400 text-xs line-through ml-1">{currency_sym}{p.price}</span>
+                            {else}
+                            {currency_sym}{p.price}
+                            {/if}
+                        </td>
+                        {if can_edit}
+                        <td class="px-4 py-2.5 text-right">
+                            <a href="{base_url}/ecommerce/admin/products/{p.id}/edit"
+                               class="text-xs text-orange-600 hover:underline">Edit</a>
+                        </td>
+                        {/if}
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        {if total_pages > 1}
+        <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-sm">
+            <span class="text-slate-400 text-xs">{total} products</span>
+            <div class="flex items-center gap-2">
+                {if page > 1}
+                <a href="?page={page - 1}&search={search | escape}"
+                   class="px-3 py-1 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-50">&larr; Prev</a>
+                {/if}
+                <span class="text-slate-400 text-xs">Page {page} / {total_pages}</span>
+                {if page < total_pages}
+                <a href="?page={page + 1}&search={search | escape}"
+                   class="px-3 py-1 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-50">Next &rarr;</a>
+                {/if}
+            </div>
+        </div>
+        {/if}
+        {else}
+        <div class="px-5 py-12 text-center text-slate-400 text-sm">No products found for this store.</div>
+        {/if}
+    </div>
+
+</div>
+{/block}

@@ -126,6 +126,22 @@ function ecAdminStoreEdit(array $params = []): void
             exit;
         }
 
+        if ($action === 'assign_user') {
+            $assignUserId = (int)($input['assign_user_id'] ?? 0);
+            $assignRole   = trim((string)($input['assign_role'] ?? 'manager'));
+            $assignRole   = in_array($assignRole, ['owner', 'manager', 'supervisor'], true) ? $assignRole : 'manager';
+            if ($assignUserId > 0) {
+                $res = ecStoreUserAssign($id, $assignUserId, $assignRole);
+                $_SESSION['ec_message'] = $res['ok']
+                    ? ['type' => 'success', 'text' => 'User assigned as ' . $assignRole . '.']
+                    : ['type' => 'error',   'text' => $res['error']];
+            } else {
+                $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Invalid user ID.'];
+            }
+            header('Location: /ecommerce/admin/stores/' . $id . '/edit');
+            exit;
+        }
+
         if ($action === 'remove_user') {
             $removeUserId = (int)($input['remove_user_id'] ?? 0);
             if ($removeUserId > 0) {
@@ -195,11 +211,21 @@ function ecAdminStoreEdit(array $params = []): void
         }
     }
 
+    // Load CMS users for the assign-user dropdown (optional: table may not exist).
+    $cmsUsersList = [];
+    try {
+        ecDb()->query('SELECT 1 FROM cms_users LIMIT 1');
+        $cmsUsersList = ecDb()->query(
+            'SELECT id, username, display_name, email FROM cms_users WHERE is_active = 1 ORDER BY display_name ASC, username ASC'
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $ignored) {}
+
     $ctx = ecAdminContext($user, 'stores', [
         'store'            => $store,
         'input'            => $inputData,
         'is_new'           => false,
         'store_users'      => ecStoreUserList($id),
+        'cms_users_list'   => $cmsUsersList,
         'inventory_source' => ecStoreInventorySource($id),
         'message'          => $_SESSION['ec_message'] ?? null,
     ]);

@@ -157,6 +157,32 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
         $selected['anti-spam'] = true;
     }
 
+    // Reverse-dependency pass: include enabled modules whose `depends` list
+    // references any already-selected module.  This ensures modules that
+    // declare dependence on the entry module (e.g. ecommerce depends on cms)
+    // are provisioned for the tenant instead of being silently skipped.
+    $changed = true;
+    while ($changed) {
+        $changed = false;
+        foreach ($enabled as $moduleId => $candidate) {
+            if (isset($selected[$moduleId])) {
+                continue;
+            }
+            $moduleDeps = $candidate['depends'] ?? [];
+            if (!is_array($moduleDeps)) {
+                continue;
+            }
+            foreach ($moduleDeps as $dep) {
+                $dep = trim((string)$dep);
+                if ($dep !== '' && isset($selected[$dep])) {
+                    $selected[$moduleId] = true;
+                    $changed = true;
+                    break;
+                }
+            }
+        }
+    }
+
     $planned = [];
     foreach (array_keys($selected) as $moduleId) {
         if (!isset($enabled[$moduleId])) {

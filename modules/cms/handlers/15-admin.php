@@ -736,10 +736,42 @@ function cmsAdminUsers(array $params = []): void
     $stmt->execute($bind);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // ── Ecommerce: batch-load store assignments for all users ──────────
+    $storeAssignmentsMap = [];
+    $allStores           = [];
+    $ecActive            = false;
+    if (function_exists('ecStoreStorageAvailable') && ecStoreStorageAvailable()
+        && function_exists('ecDb') && function_exists('ecStoreList')) {
+        $ecActive = true;
+        $userIds  = array_column($users, 'id');
+        if ($userIds !== []) {
+            try {
+                $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+                $rows = ecDb()->query(
+                    "SELECT su.user_id, su.role, s.id AS store_id, s.name AS store_name, s.slug
+                     FROM ec_store_users su
+                     JOIN ec_stores s ON s.id = su.store_id
+                     WHERE su.user_id IN ($placeholders)
+                     ORDER BY FIELD(su.role,'owner','manager','supervisor'), s.name ASC",
+                    array_values($userIds)
+                )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+                foreach ($rows as $row) {
+                    $storeAssignmentsMap[(int)$row['user_id']][] = $row;
+                }
+            } catch (\Throwable $ignored) {}
+        }
+        try {
+            $allStores = ecStoreList(['active_only' => true, 'limit' => 200])['items'];
+        } catch (\Throwable $ignored) {}
+    }
+
     $payload = [
-        'page_title' => 'CMS Users',
-        'cms_users'  => $users,
-        'search'     => $q,
+        'page_title'              => 'CMS Users',
+        'cms_users'               => $users,
+        'search'                  => $q,
+        'ec_active'               => $ecActive,
+        'store_assignments_map'   => $storeAssignmentsMap,
+        'all_stores'              => $allStores,
     ];
 
     adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:users'], $user);

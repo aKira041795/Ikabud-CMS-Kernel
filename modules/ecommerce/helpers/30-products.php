@@ -71,13 +71,20 @@ function ecProductList(array $filters = []): array
         $joinParams = array_merge($joinParams, (array)($attributeFilterSql['params'] ?? []));
     }
 
-    // Phase 1 multi-store: optional store_id filter.
-    // Returns global products (no override row) OR products explicitly visible in the given store.
-    $storeIdFilter = isset($filters['store_id']) ? max(0, (int)$filters['store_id']) : 0;
+    // Multi-store product filter.
+    // store_id alone (storefront): global products + explicitly visible store products (LEFT JOIN).
+    // store_id + store_owned_only (store admin): only products explicitly linked to the store (INNER JOIN).
+    $storeIdFilter  = isset($filters['store_id']) ? max(0, (int)$filters['store_id']) : 0;
+    $storeOwnedOnly = !empty($filters['store_owned_only']);
     if ($storeIdFilter > 0) {
-        $joinParts[] = 'LEFT JOIN ec_store_product_overrides store_po ON store_po.product_id = c.id AND store_po.store_id = ?';
-        $joinParams[] = $storeIdFilter;
-        $where[] = '(store_po.id IS NULL OR store_po.is_visible = 1)';
+        if ($storeOwnedOnly) {
+            $joinParts[] = 'INNER JOIN ec_store_product_overrides store_po ON store_po.product_id = c.id AND store_po.store_id = ? AND store_po.is_visible = 1';
+            $joinParams[] = $storeIdFilter;
+        } else {
+            $joinParts[] = 'LEFT JOIN ec_store_product_overrides store_po ON store_po.product_id = c.id AND store_po.store_id = ?';
+            $joinParams[] = $storeIdFilter;
+            $where[] = '(store_po.id IS NULL OR store_po.is_visible = 1)';
+        }
     }
 
     $join = implode(' ', $joinParts);

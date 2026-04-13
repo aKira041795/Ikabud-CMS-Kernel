@@ -1,0 +1,147 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="max-w-3xl space-y-5">
+
+    <h1 class="text-xl font-bold text-gray-900">Coupons — {store.name | escape}</h1>
+
+    {if message}
+    <div class="rounded-xl px-4 py-3 text-sm font-medium
+        {if message.type == 'success'}bg-emerald-50 border border-emerald-200 text-emerald-700
+        {else}bg-red-50 border border-red-200 text-red-700{/if}">
+        {message.text | escape}
+    </div>
+    {/if}
+
+    {if !can_edit}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+        You have read-only access. Contact an owner or manager to make changes.
+    </div>
+    {/if}
+
+    {if can_edit}
+    <!-- Create coupon form -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">New Coupon</h2>
+        <form method="post" action="" class="grid grid-cols-2 gap-4">
+            {csrf_field | raw}
+            <input type="hidden" name="action" value="create">
+            <div class="col-span-2 sm:col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Code <span class="text-red-500">*</span></label>
+                <input type="text" name="code" placeholder="SUMMER20" maxlength="50" required
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono uppercase focus:border-orange-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Type</label>
+                <select name="type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                    <option value="percent">Percent (%)</option>
+                    <option value="fixed">Fixed Amount</option>
+                    <option value="free_shipping">Free Shipping</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Value</label>
+                <input type="number" name="value" min="0" step="0.01" placeholder="20"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Min Order Amount</label>
+                <input type="number" name="min_order_amount" min="0" step="0.01" placeholder="0"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Max Uses</label>
+                <input type="number" name="max_uses" min="0" placeholder="Unlimited"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Expires At</label>
+                <input type="datetime-local" name="expires_at"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Description</label>
+                <input type="text" name="description" placeholder="Optional internal note"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+            <div class="col-span-2 flex justify-end">
+                <button type="submit"
+                        class="px-5 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors">
+                    Create Coupon
+                </button>
+            </div>
+        </form>
+    </div>
+    {/if}
+
+    <!-- Coupon list -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {if coupons | count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2.5 text-left">Code</th>
+                        <th class="px-4 py-2.5 text-left">Type / Value</th>
+                        <th class="px-4 py-2.5 text-left">Uses</th>
+                        <th class="px-4 py-2.5 text-left">Expires</th>
+                        <th class="px-4 py-2.5 text-left">Status</th>
+                        {if can_edit}<th class="px-4 py-2.5"></th>{/if}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach coupons as c}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-2.5 font-mono font-semibold text-gray-900">{c.code | escape}</td>
+                        <td class="px-4 py-2.5 text-slate-600 text-xs">
+                            {if c.type == 'percent'}{c.value}%
+                            {elseif c.type == 'fixed'}{currency_sym}{c.value}
+                            {else}Free Shipping{/if}
+                        </td>
+                        <td class="px-4 py-2.5 text-slate-500 text-xs">
+                            {c.used_count}{if c.max_uses} / {c.max_uses}{/if}
+                        </td>
+                        <td class="px-4 py-2.5 text-slate-400 text-xs">
+                            {if c.expires_at}{c.expires_at}{else}—{/if}
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                                {if c.is_active}bg-emerald-50 text-emerald-700{else}bg-slate-100 text-slate-500{/if}">
+                                {if c.is_active}Active{else}Inactive{/if}
+                            </span>
+                        </td>
+                        {if can_edit}
+                        <td class="px-4 py-2.5 text-right">
+                            <div class="flex items-center justify-end gap-3">
+                                <form method="post" action="" class="inline">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="action" value="toggle">
+                                    <input type="hidden" name="id" value="{c.id}">
+                                    <button type="submit" class="text-xs text-blue-600 hover:underline">
+                                        {if c.is_active}Disable{else}Enable{/if}
+                                    </button>
+                                </form>
+                                <form method="post" action="" class="inline"
+                                      onsubmit="return confirm('Delete coupon {c.code | escape}?')">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="id" value="{c.id}">
+                                    <button type="submit" class="text-xs text-red-500 hover:underline">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                        {/if}
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="px-5 py-12 text-center text-slate-400 text-sm">
+            No coupons yet for this store.{if can_edit} Use the form above to create one.{/if}
+        </div>
+        {/if}
+    </div>
+
+</div>
+{/block}

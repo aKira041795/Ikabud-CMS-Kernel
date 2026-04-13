@@ -183,13 +183,13 @@
     {if !is_new}
     <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store Users</h2>
-        <p class="text-xs text-slate-500">Assign a user as owner or manager of this store. Enter the user's numeric ID from the platform.</p>
+        <p class="text-xs text-slate-500">Assign users as owners, managers, or supervisors of this store. Enter the user's numeric ID from the platform. Owners and managers can manage products and orders; supervisors have read-only access.</p>
 
         {if store_users | count > 0}
         <table class="w-full text-sm">
             <thead class="text-[11px] uppercase tracking-wider text-slate-500">
                 <tr>
-                    <th class="py-1 text-left">User ID</th>
+                    <th class="py-1 text-left">User</th>
                     <th class="py-1 text-left">Role</th>
                     <th class="py-1 text-left">Assigned</th>
                     <th class="py-1"></th>
@@ -198,10 +198,13 @@
             <tbody class="divide-y divide-gray-100">
                 {foreach store_users as su}
                 <tr>
-                    <td class="py-1.5 text-gray-700">#{su.user_id}</td>
+                    <td class="py-1.5 text-gray-700">
+                        {if su.display_name}{su.display_name | escape}{else}#{su.user_id}{/if}
+                        {if su.email}<div class="text-xs text-slate-400">{su.email | escape}</div>{/if}
+                    </td>
                     <td class="py-1.5">
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
-                            {if su.role == 'owner'}bg-amber-50 text-amber-700{else}bg-slate-50 text-slate-600{/if}">
+                            {if su.role == 'owner'}bg-amber-50 text-amber-700{elseif su.role == 'manager'}bg-blue-50 text-blue-700{else}bg-emerald-50 text-emerald-700{/if}">
                             {su.role}
                         </span>
                     </td>
@@ -220,16 +223,35 @@
         </table>
         {/if}
 
-        <form method="post" action="" class="flex items-end gap-3">
+        <form method="post" action="" class="flex items-end gap-3 flex-wrap">
             <input type="hidden" name="_token" value="{csrf_token}">
-            <input type="hidden" name="action" value="assign_owner">
-            <div class="flex-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1">User ID</label>
-                <input type="number" name="owner_user_id" min="1" placeholder="e.g. 42"
+            <input type="hidden" name="action" value="assign_user">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">User</label>
+                {if cms_users_list | count > 0}
+                <select name="assign_user_id" required
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                    <option value="">Select a user…</option>
+                    {foreach cms_users_list as cu}
+                    <option value="{cu.id}">{cu.display_name | escape} &lt;{cu.email | escape}&gt;</option>
+                    {/foreach}
+                </select>
+                {else}
+                <input type="number" name="assign_user_id" min="1" placeholder="User ID (e.g. 42)"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                {/if}
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Role</label>
+                <select name="assign_role"
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                    <option value="owner">Owner</option>
+                    <option value="manager">Manager</option>
+                    <option value="supervisor">Supervisor</option>
+                </select>
             </div>
             <button type="submit" class="px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-800">
-                Assign Owner
+                Add User
             </button>
         </form>
     </div>

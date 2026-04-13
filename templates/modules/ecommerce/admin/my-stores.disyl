@@ -1,0 +1,54 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="max-w-3xl space-y-5">
+
+    <div class="flex items-center justify-between">
+        <h1 class="text-xl font-bold text-gray-900">My Store Access</h1>
+    </div>
+
+    {if is_admin}
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-700">
+        <p class="font-semibold mb-1">You are a system administrator</p>
+        <p>Use the full <a href="{base_url}/ecommerce/admin/stores" class="underline font-medium">Stores admin panel</a> to manage all stores across the platform.</p>
+    </div>
+
+    {elseif stores | count == 0}
+    <div class="bg-white border border-gray-200 rounded-xl p-12 text-center space-y-2">
+        <p class="text-slate-400 text-sm">You are not assigned to any stores.</p>
+        <p class="text-xs text-slate-400">A system administrator can add you as an owner, manager, or supervisor from the Store settings.</p>
+    </div>
+
+    {else}
+    <div class="space-y-3">
+        {foreach stores as s}
+        <div class="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between gap-4">
+            <div class="space-y-1 min-w-0">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <h2 class="text-base font-semibold text-gray-900 truncate">{s.name | escape}</h2>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                        {if s.role == 'owner'}bg-amber-50 text-amber-700
+                        {elseif s.role == 'manager'}bg-blue-50 text-blue-700
+                        {else}bg-emerald-50 text-emerald-700{/if}">
+                        {s.role}
+                    </span>
+                    {if !s.is_active}
+                    <span class="text-[11px] text-slate-400 font-medium">Inactive</span>
+                    {/if}
+                </div>
+                <p class="text-xs text-slate-400">Code: <code>{s.code | escape}</code> &middot; Slug: <code>{s.slug | escape}</code></p>
+                {if s.description}
+                <p class="text-sm text-slate-500 truncate">{s.description | escape}</p>
+                {/if}
+            </div>
+            <a href="{base_url}/ecommerce/store-admin/{s.store_id}"
+               class="shrink-0 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors whitespace-nowrap">
+                Manage &rarr;
+            </a>
+        </div>
+        {/foreach}
+    </div>
+    {/if}
+
+</div>
+{/block}

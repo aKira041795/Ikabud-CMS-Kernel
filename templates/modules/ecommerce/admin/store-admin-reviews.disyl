@@ -1,0 +1,144 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="space-y-5">
+
+    <h1 class="text-xl font-bold text-gray-900">Reviews — {store.name | escape}</h1>
+
+    {if !can_edit}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+        You have read-only access. Contact an owner or manager to moderate reviews.
+    </div>
+    {/if}
+
+    <!-- Filter bar -->
+    <form method="get" action="" class="flex flex-wrap items-center gap-2">
+        <div class="flex rounded-lg overflow-hidden border border-gray-300 text-xs font-semibold">
+            {foreach [['', 'All'], ['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['spam', 'Spam']] as tab}
+            <a href="?status={tab.0}{if search}&search={search | url_encode}{/if}"
+               class="px-3 py-1.5 transition-colors
+                   {if status == tab.0}bg-orange-600 text-white{else}bg-white text-gray-600 hover:bg-gray-50{/if}">
+                {tab.1}
+            </a>
+            {/foreach}
+        </div>
+        <div class="flex items-center gap-2 ml-auto">
+            <input type="hidden" name="status" value="{status | escape}">
+            <input type="text" name="search" value="{search | escape}" placeholder="Search reviews…"
+                   class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-orange-500 outline-none w-48">
+            <button type="submit" class="px-3 py-1.5 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-200">
+                Search
+            </button>
+        </div>
+    </form>
+
+    <!-- Reviews table -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {if reviews | count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2.5 text-left">Product</th>
+                        <th class="px-4 py-2.5 text-left">Customer</th>
+                        <th class="px-4 py-2.5 text-left">Rating</th>
+                        <th class="px-4 py-2.5 text-left">Review</th>
+                        <th class="px-4 py-2.5 text-left">Status</th>
+                        <th class="px-4 py-2.5 text-left">Date</th>
+                        {if can_edit}<th class="px-4 py-2.5"></th>{/if}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach reviews as r}
+                    <tr class="hover:bg-gray-50 transition-colors align-top">
+                        <td class="px-4 py-3 text-xs text-slate-600 max-w-[160px]">
+                            {r.product_title | escape | default: '—'}
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600">
+                            {if r.user_display_name}
+                                {r.user_display_name | escape}
+                            {elseif r.guest_name}
+                                {r.guest_name | escape} <span class="text-slate-400">(guest)</span>
+                            {else}
+                                <span class="text-slate-400">Anonymous</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 text-xs">
+                            <span class="text-amber-500 font-bold">{r.rating}★</span>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600 max-w-[240px]">
+                            <span class="line-clamp-2">{r.review_body | escape | default: '—'}</span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                                {if r.status == 'approved'}bg-emerald-50 text-emerald-700
+                                {elseif r.status == 'pending'}bg-amber-50 text-amber-700
+                                {elseif r.status == 'spam'}bg-red-50 text-red-700
+                                {else}bg-slate-100 text-slate-500{/if}">
+                                {r.status | escape | default: 'pending'}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                            {r.created_at | escape}
+                        </td>
+                        {if can_edit}
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex items-center justify-end gap-2 flex-wrap">
+                                {if r.status != 'approved'}
+                                <form method="post" action="" class="inline">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="action" value="approve">
+                                    <input type="hidden" name="review_id" value="{r.id}">
+                                    <button type="submit" class="text-xs text-emerald-600 hover:underline">Approve</button>
+                                </form>
+                                {/if}
+                                {if r.status != 'rejected'}
+                                <form method="post" action="" class="inline">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="action" value="reject">
+                                    <input type="hidden" name="review_id" value="{r.id}">
+                                    <button type="submit" class="text-xs text-red-500 hover:underline">Reject</button>
+                                </form>
+                                {/if}
+                                {if r.status != 'spam'}
+                                <form method="post" action="" class="inline">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="action" value="spam">
+                                    <input type="hidden" name="review_id" value="{r.id}">
+                                    <button type="submit" class="text-xs text-slate-400 hover:underline">Spam</button>
+                                </form>
+                                {/if}
+                            </div>
+                        </td>
+                        {/if}
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+
+        {if total_pages > 1}
+        <div class="px-4 py-3 border-t border-gray-100 flex justify-between items-center text-xs text-slate-500">
+            <span>Showing page {page} of {total_pages} ({total} reviews)</span>
+            <div class="flex gap-2">
+                {if page > 1}
+                <a href="?page={page - 1}&status={status | escape}{if search}&search={search | url_encode}{/if}"
+                   class="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">← Prev</a>
+                {/if}
+                {if page < total_pages}
+                <a href="?page={page + 1}&status={status | escape}{if search}&search={search | url_encode}{/if}"
+                   class="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">Next →</a>
+                {/if}
+            </div>
+        </div>
+        {/if}
+
+        {else}
+        <div class="px-5 py-12 text-center text-slate-400 text-sm">
+            No reviews found{if status} with status &ldquo;{status | escape}&rdquo;{/if}.
+        </div>
+        {/if}
+    </div>
+
+</div>
+{/block}

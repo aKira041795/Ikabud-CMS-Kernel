@@ -1,0 +1,129 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="max-w-4xl space-y-5">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-4">
+        <div class="space-y-1">
+            <h1 class="text-xl font-bold text-gray-900">{store.name | escape}</h1>
+            <p class="text-sm text-slate-500">
+                Your role:
+                <span class="font-semibold
+                    {if store_role == 'owner'}text-amber-700
+                    {elseif store_role == 'manager'}text-blue-700
+                    {elseif store_role == 'supervisor'}text-emerald-700
+                    {else}text-gray-700{/if}">
+                    {store_role}
+                </span>
+                &middot; Code: <code class="text-xs bg-gray-100 px-1 rounded">{store.code | escape}</code>
+            </p>
+        </div>
+        <a href="{base_url}/ecommerce/shop?store={store.slug | escape}"
+           class="text-sm text-orange-600 hover:underline whitespace-nowrap" target="_blank">
+            View storefront &rarr;
+        </a>
+    </div>
+
+    <!-- Stats cards -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <p class="text-xs text-slate-500 uppercase tracking-wider">Products</p>
+            <p class="text-2xl font-bold text-gray-900 mt-1">{product_count}</p>
+            <a href="{base_url}/ecommerce/store-admin/{store.id}/products"
+               class="text-xs text-orange-600 hover:underline mt-1 inline-block">View all &rarr;</a>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <p class="text-xs text-slate-500 uppercase tracking-wider">Orders</p>
+            <p class="text-2xl font-bold text-gray-900 mt-1">{order_count}</p>
+            <a href="{base_url}/ecommerce/store-admin/{store.id}/orders"
+               class="text-xs text-orange-600 hover:underline mt-1 inline-block">View all &rarr;</a>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <p class="text-xs text-slate-500 uppercase tracking-wider">Inventory Source</p>
+            <p class="text-sm font-semibold text-gray-700 mt-1">
+                {if inv_source.source_type == 'wms'}WMS (Warehouse #{inv_source.warehouse_id}){else}Local{/if}
+            </p>
+        </div>
+    </div>
+
+    <!-- Quick nav -->
+    <div class="flex gap-3 flex-wrap">
+        <a href="{base_url}/ecommerce/store-admin/{store.id}/products"
+           class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            Products
+        </a>
+        <a href="{base_url}/ecommerce/store-admin/{store.id}/orders"
+           class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            Orders
+        </a>
+    </div>
+
+    <!-- Recent Orders -->
+    {if recent_orders | count > 0}
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Recent Orders</h2>
+            <a href="{base_url}/ecommerce/store-admin/{store.id}/orders"
+               class="text-xs text-orange-600 hover:underline">View all &rarr;</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">Order</th>
+                        <th class="px-4 py-2 text-left">Customer</th>
+                        <th class="px-4 py-2 text-left">Status</th>
+                        <th class="px-4 py-2 text-right">Total</th>
+                        <th class="px-4 py-2 text-right">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach recent_orders as o}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-2.5 font-mono text-xs text-orange-700">
+                            {o.order_number | escape}
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-700">
+                            {if o.customer_display_name}{o.customer_display_name | escape}{elseif o.guest_name}{o.guest_name | escape}{else}{o.guest_email | escape}{/if}
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600">{o.status | escape}</span>
+                        </td>
+                        <td class="px-4 py-2.5 text-right font-medium tabular-nums">{currency_sym}{o.total}</td>
+                        <td class="px-4 py-2.5 text-right text-slate-400 text-xs tabular-nums">{o.created_at}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {/if}
+
+    <!-- Store Team -->
+    {if store_users | count > 0}
+    <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store Team</h2>
+        <div class="flex flex-wrap gap-2">
+            {foreach store_users as su}
+            <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                    <p class="text-sm font-medium text-gray-700">
+                        {if su.display_name}{su.display_name | escape}{else}#{su.user_id}{/if}
+                    </p>
+                    {if su.email}<p class="text-xs text-slate-400">{su.email | escape}</p>{/if}
+                </div>
+                <span class="text-[11px] px-1.5 py-0.5 rounded font-semibold
+                    {if su.role == 'owner'}bg-amber-100 text-amber-700
+                    {elseif su.role == 'manager'}bg-blue-100 text-blue-700
+                    {else}bg-emerald-100 text-emerald-700{/if}">
+                    {su.role}
+                </span>
+            </div>
+            {/foreach}
+        </div>
+    </div>
+    {/if}
+
+</div>
+{/block}

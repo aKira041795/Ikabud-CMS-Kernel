@@ -75,6 +75,88 @@ function ecAdminContext(array $user, string $currentPage, array $extra = []): ar
 }
 
 /**
+ * Require the current user to be either a CMS administrator OR assigned to the given
+ * store with one of $minRoles ('owner', 'manager', 'supervisor').
+ *
+ * Returns the CMS user array (with 'store_role' key appended when access comes from
+ * store membership rather than system-admin privilege).
+ *
+ * Usage: $user = ecRequireStoreAccess($storeId, ['owner', 'manager', 'supervisor']);
+ */
+function ecRequireStoreAccess(int $storeId, array $minRoles = ['owner', 'manager', 'supervisor']): array
+{
+    if (!function_exists('cmsRequireRole')) {
+        http_response_code(503);
+        echo 'CMS module required.';
+        exit;
+    }
+    // Require at minimum a logged-in CMS user (any role).
+    $user   = cmsRequireRole('customer');
+    $role   = (string)($user['role'] ?? '');
+    $source = (string)($user['source'] ?? '');
+
+    // Kernel admins and CMS administrators get unrestricted access.
+    if ($source === 'kernel' || (function_exists('cmsRoleAtLeast') && cmsRoleAtLeast($role, 'administrator'))) {
+        $user['store_role'] = 'administrator';
+        return $user;
+    }
+
+    // Check store membership in ec_store_users.
+    $userId = (int)($user['id'] ?? 0);
+    if ($userId > 0 && function_exists('ecStoreStorageAvailable') && ecStoreStorageAvailable()) {
+        try {
+            $row = ecDb()->query(
+                'SELECT role FROM ec_store_users WHERE store_id = ? AND user_id = ? LIMIT 1',
+                [$storeId, $userId]
+            )->fetch(\PDO::FETCH_ASSOC);
+            if (is_array($row) && in_array($row['role'], $minRoles, true)) {
+                $user['store_role'] = $row['role'];
+                return $user;
+            }
+        } catch (\Throwable $e) {
+            // Fall through to 403.
+        }
+    }
+
+    http_response_code(403);
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Access Denied</title>'
+        . '<script src="https://cdn.tailwindcss.com"></script></head>'
+        . '<body class="min-h-screen bg-gray-50 flex items-center justify-center"><div class="text-center space-y-4">'
+        . '<h1 class="text-xl font-bold text-gray-800">Access Denied</h1>'
+        . '<p class="text-slate-500 text-sm">You are not assigned to manage this store.</p>'
+        . '<a href="/ecommerce/my-stores" class="inline-block mt-2 px-4 py-2 bg-orange-600 text-white text-sm rounded-lg">My Stores</a>'
+        . '</div></body></html>';
+    exit;
+}
+
+/**
+ * Build base context for per-store admin pages (handler 74).
+ * Unlike ecAdminContext(), this does not require a system admin — store-level
+ * users (owners, managers, supervisors) use this context.
+ */
+function ecStoreAdminContext(array $user, array $store, string $currentPage, array $extra = []): array
+{
+    $ecSettings = ecSettings();
+    $storeRole  = (string)($user['store_role'] ?? 'administrator');
+    $canEdit    = in_array($storeRole, ['owner', 'manager', 'administrator'], true);
+    return array_merge([
+        'user'         => $user,
+        'store'        => $store,
+        'store_role'   => $storeRole,
+        'can_edit'     => $canEdit,
+        'current_page' => $currentPage,
+        'page_title'   => ($store['name'] ?? 'Store') . ' — ' . ucfirst($currentPage),
+        'base_url'     => ecGetBaseUrl(),
+        'csrf_token'   => app()->csrfToken(),
+        'csrf_field'   => app()->csrfField(),
+        'ec_settings'  => $ecSettings,
+        'currency'     => (string)($ecSettings['currency'] ?? ''),
+        'currency_sym' => (string)($ecSettings['currency_symbol'] ?? ''),
+    ], $extra);
+}
+
+/**
  * Emit JSON success response and exit.
  */
 function ecJsonOk(array $data = [], int $status = 200): never

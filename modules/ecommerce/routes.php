@@ -49,6 +49,14 @@ return [
         '/ecommerce/admin/stores'                  => 'ecommerce:ecAdminStores',
         '/ecommerce/admin/stores/create'            => 'ecommerce:ecAdminStoreCreate',
         '/ecommerce/admin/stores/{id}/edit'         => 'ecommerce:ecAdminStoreEdit',
+
+        // ── Per-Store Admin (for store owners, managers, supervisors) ─
+        '/ecommerce/my-stores'                           => 'ecommerce:ecMyStores',
+        '/ecommerce/store-admin/{id}'                    => 'ecommerce:ecStoreAdminDashboard',
+        '/ecommerce/store-admin/{id}/orders'             => 'ecommerce:ecStoreAdminOrders',
+        '/ecommerce/store-admin/{id}/products'           => 'ecommerce:ecStoreAdminProducts',
+        '/ecommerce/store-admin/{id}/coupons'            => 'ecommerce:ecStoreAdminCoupons',
+        '/ecommerce/store-admin/{id}/reviews'            => 'ecommerce:ecStoreAdminReviews',
         '/ecommerce/admin/memberships'            => 'ecommerce:ecAdminMemberships',
         '/ecommerce/admin/loyalty'                => 'ecommerce:ecAdminLoyalty',
         '/ecommerce/admin/import-export'          => 'ecommerce:ecAdminImportExport',
@@ -71,6 +79,7 @@ return [
         '/api/v1/ecommerce/reports/inventory'     => 'ecommerce:ecApiReportInventory',
         '/api/v1/ecommerce/pos/products'          => 'ecommerce:ecApiPosProducts',
         '/api/v1/ecommerce/shipping/rates'        => 'ecommerce:ecApiShippingRates',
+        '/api/v1/ecommerce/stores/list'           => 'ecommerce:ecApiStoresList',
     ],
 
     'POST' => [
@@ -99,9 +108,14 @@ return [
         '/ecommerce/admin/stores/{id}/edit'         => 'ecommerce:ecAdminStoreEdit',
         '/ecommerce/admin/memberships'              => 'ecommerce:ecAdminMembershipAction',
         '/ecommerce/admin/loyalty/adjust'           => 'ecommerce:ecAdminLoyaltyAdjust',
+
+        // ── Per-Store Admin (POST actions) ──────────────────────────
+        '/ecommerce/store-admin/{id}/coupons'       => 'ecommerce:ecStoreAdminCoupons',
+        '/ecommerce/store-admin/{id}/reviews'       => 'ecommerce:ecStoreAdminReviews',
         '/ecommerce/admin/import-export'            => 'ecommerce:ecAdminImportExport',
         '/ecommerce/admin/settings'                 => 'ecommerce:ecAdminSettings',
-
+        // ── REST API — Store User Assignments ─────────────────────────────
+        '/api/v1/ecommerce/store-users'              => 'ecommerce:ecApiStoreUsersManage',
         // ── REST API — Products ──────────────────────────────────────
         '/api/v1/ecommerce/products'                 => 'ecommerce:ecApiProductCreate',
         '/api/v1/ecommerce/products/{id}'            => 'ecommerce:ecApiProductUpdate',
