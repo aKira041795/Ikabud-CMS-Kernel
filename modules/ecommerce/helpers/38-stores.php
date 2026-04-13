@@ -300,6 +300,28 @@ function ecStoreInventoryWarehouseOptions(): array
     }
 }
 
+function ecStoreBrandingColumnsAvailable(): bool
+{
+    static $available = null;
+    if ($available !== null) {
+        return $available;
+    }
+
+    if (!ecStoreStorageAvailable()) {
+        $available = false;
+        return false;
+    }
+
+    try {
+        ecDb()->query('SELECT banner_image_id, logo_image_id, announcement FROM ec_stores WHERE 1 = 0');
+        $available = true;
+    } catch (\Throwable $e) {
+        $available = false;
+    }
+
+    return $available;
+}
+
 function ecStoreSettingsJsonFromInput(array $input): ?string
 {
     $settings = [];
@@ -450,6 +472,9 @@ function ecStoreCreate(array $data): array
     $description = trim((string)($data['description'] ?? ''));
     $isActive    = (int)(bool)($data['is_active'] ?? true);
     $isDefault   = (int)(bool)($data['is_default'] ?? false);
+    $announcement = trim((string)($data['announcement'] ?? ''));
+    $bannerImageId = max(0, (int)($data['banner_image_id'] ?? 0)) ?: null;
+    $logoImageId = max(0, (int)($data['logo_image_id'] ?? 0)) ?: null;
     $settings    = $data['settings_json'] ?? null;
     if (is_array($settings)) {
         $settings = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -459,10 +484,17 @@ function ecStoreCreate(array $data): array
         if ($isDefault) {
             ecDb()->execute('UPDATE ec_stores SET is_default = 0');
         }
-        ecDb()->execute(
-            'INSERT INTO ec_stores (code, name, slug, description, is_active, is_default, settings_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$code, $name, $slug, $description ?: null, $isActive, $isDefault, $settings]
-        );
+        if (ecStoreBrandingColumnsAvailable()) {
+            ecDb()->execute(
+                'INSERT INTO ec_stores (code, name, slug, description, is_active, is_default, banner_image_id, logo_image_id, announcement, settings_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$code, $name, $slug, $description ?: null, $isActive, $isDefault, $bannerImageId, $logoImageId, $announcement ?: null, $settings]
+            );
+        } else {
+            ecDb()->execute(
+                'INSERT INTO ec_stores (code, name, slug, description, is_active, is_default, settings_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [$code, $name, $slug, $description ?: null, $isActive, $isDefault, $settings]
+            );
+        }
         $id = (int)ecDb()->lastInsertId();
         return ['ok' => true, 'id' => $id, 'error' => ''];
     } catch (\Throwable $e) {
@@ -487,6 +519,9 @@ function ecStoreUpdate(int $id, array $data): array
     $description = trim((string)($data['description'] ?? ''));
     $isActive    = (int)(bool)($data['is_active'] ?? true);
     $isDefault   = (int)(bool)($data['is_default'] ?? false);
+    $announcement = trim((string)($data['announcement'] ?? ''));
+    $bannerImageId = max(0, (int)($data['banner_image_id'] ?? 0)) ?: null;
+    $logoImageId = max(0, (int)($data['logo_image_id'] ?? 0)) ?: null;
     $settings    = $data['settings_json'] ?? null;
     if (is_array($settings)) {
         $settings = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -496,10 +531,17 @@ function ecStoreUpdate(int $id, array $data): array
         if ($isDefault) {
             ecDb()->execute('UPDATE ec_stores SET is_default = 0 WHERE id != ?', [$id]);
         }
-        ecDb()->execute(
-            'UPDATE ec_stores SET code=?, name=?, slug=?, description=?, is_active=?, is_default=?, settings_json=?, updated_at=NOW() WHERE id=?',
-            [$code, $name, $slug, $description ?: null, $isActive, $isDefault, $settings, $id]
-        );
+        if (ecStoreBrandingColumnsAvailable()) {
+            ecDb()->execute(
+                'UPDATE ec_stores SET code=?, name=?, slug=?, description=?, is_active=?, is_default=?, banner_image_id=?, logo_image_id=?, announcement=?, settings_json=?, updated_at=NOW() WHERE id=?',
+                [$code, $name, $slug, $description ?: null, $isActive, $isDefault, $bannerImageId, $logoImageId, $announcement ?: null, $settings, $id]
+            );
+        } else {
+            ecDb()->execute(
+                'UPDATE ec_stores SET code=?, name=?, slug=?, description=?, is_active=?, is_default=?, settings_json=?, updated_at=NOW() WHERE id=?',
+                [$code, $name, $slug, $description ?: null, $isActive, $isDefault, $settings, $id]
+            );
+        }
         return ['ok' => true, 'error' => ''];
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];

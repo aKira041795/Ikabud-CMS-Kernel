@@ -334,6 +334,36 @@ try {
     tStoreScope('store category list returns only assigned store categories', count($categories) === 1 && (int)($categories[0]['id'] ?? 0) === $categoryAId, json_encode($categories));
     tStoreScope('store inventory report only includes low stock assigned products', (int)($inventory['count'] ?? 0) === 1 && (int)($inventory['items'][0]['id'] ?? 0) === $productAId, json_encode($inventory));
 
+    echo "\n§2B Store Profile Fields\n";
+    $storeABase = ecStoreById($storeAId) ?? [];
+    $brandingSave = ecStoreUpdate($storeAId, [
+        'name' => $storeABase['name'] ?? ('Scope Store A ' . strtoupper($seed)),
+        'code' => $storeABase['code'] ?? ('scope-a-' . $seed),
+        'slug' => $storeABase['slug'] ?? ('scope-a-' . $seed),
+        'description' => $storeABase['description'] ?? 'Store scope fixture A',
+        'announcement' => 'Store notice ' . strtoupper($seed),
+        'banner_image_id' => 101,
+        'logo_image_id' => 202,
+        'is_active' => true,
+        'is_default' => false,
+        'settings_json' => ecStoreSettingsJsonFromInput([
+            'setting_currency' => 'PHP',
+            'setting_checkout_note' => 'Pickup ready in 1 hour',
+        ]),
+    ]);
+    $storeAfterBranding = ecStoreById($storeAId) ?? [];
+    tStoreScope(
+        'store profile fields persist branding and announcement when supported',
+        !ecStoreBrandingColumnsAvailable()
+            || (
+                !empty($brandingSave['ok'])
+                && (string)($storeAfterBranding['announcement'] ?? '') === 'Store notice ' . strtoupper($seed)
+                && (int)($storeAfterBranding['banner_image_id'] ?? 0) === 101
+                && (int)($storeAfterBranding['logo_image_id'] ?? 0) === 202
+            ),
+        json_encode($storeAfterBranding)
+    );
+
     echo "\n§3 Sales and Customers\n";
     $sales = ecReportSales([
         'period' => 'custom',

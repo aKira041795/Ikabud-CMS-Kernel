@@ -35,6 +35,23 @@
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Description</label>
                 <textarea name="description" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:border-orange-500 outline-none">{input.description | escape}</textarea>
             </div>
+            {if store_branding_supported}
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Announcement</label>
+                    <textarea name="announcement" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:border-orange-500 outline-none">{input.announcement | escape}</textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Banner Image ID</label>
+                    <input type="number" name="banner_image_id" min="0" value="{input.banner_image_id | escape}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Logo Image ID</label>
+                    <input type="number" name="logo_image_id" min="0" value="{input.logo_image_id | escape}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+            </div>
+            <p class="text-xs text-slate-500">Use CMS media-library image IDs for store banner and logo assets. Leave blank to clear them.</p>
+            {/if}
             <label class="flex items-center gap-3 cursor-pointer">
                 <input type="checkbox" name="is_active" value="1" {if input.is_active}checked{/if} class="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500">
                 <span class="text-sm font-medium text-gray-700">Active</span>
