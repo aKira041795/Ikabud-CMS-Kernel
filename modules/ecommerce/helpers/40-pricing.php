@@ -461,6 +461,11 @@ function ecShippingAvailableRates(array $items, array $address = [], ?string $co
         return [];
     }
 
+    $storeRates = ecStoreShippingRates($items, $address, $couponCode, ecShippingResolveStoreContext($items, $address));
+    if ($storeRates !== []) {
+        return $storeRates;
+    }
+
     $tableRates = ecShippingTableRates($items, $address, $couponCode);
     if ($tableRates !== []) {
         return $tableRates;
@@ -947,6 +952,121 @@ function ecShippingRateGet(int $rateId, array $items = [], array $address = [], 
     } catch (\Throwable $e) {
         return null;
     }
+}
+
+function ecShippingResolveStoreContext(array $items = [], array $address = [], array $options = []): ?array
+{
+    $explicitStoreId = max(0, (int)($options['store_id'] ?? 0));
+    if ($explicitStoreId > 0 && function_exists('ecStoreById')) {
+        return ecStoreById($explicitStoreId);
+    }
+
+    $storeIds = [];
+    foreach ($items as $item) {
+        $itemStoreId = max(0, (int)($item['store_id'] ?? 0));
+        if ($itemStoreId > 0) {
+            $storeIds[$itemStoreId] = true;
+        }
+    }
+
+    if ($storeIds === [] && function_exists('ecProductStoreAssignmentMap')) {
+        $productIds = array_values(array_unique(array_filter(array_map(
+            static fn(array $item): int => max(0, (int)($item['product_id'] ?? 0)),
+            $items
+        ))));
+        $assignmentMap = $productIds !== [] ? ecProductStoreAssignmentMap($productIds) : [];
+        foreach ($productIds as $productId) {
+            $assignedStores = array_values(array_filter(array_map('intval', $assignmentMap[$productId] ?? [])));
+            if (count($assignedStores) === 1) {
+                $storeIds[$assignedStores[0]] = true;
+                continue;
+            }
+            if (count($assignedStores) > 1) {
+                $storeIds = [];
+                break;
+            }
+        }
+    }
+
+    if (count($storeIds) !== 1 || !function_exists('ecStoreById')) {
+        if (function_exists('ecStoreResolveContext')) {
+            $activeStore = ecStoreResolveContext();
+            if (is_array($activeStore)) {
+                return $activeStore;
+            }
+        }
+
+        return null;
+    }
+
+    return ecStoreById((int)array_key_first($storeIds));
+}
+
+function ecStoreShippingRates(array $items, array $address = [], ?string $couponCode = null, ?array $store = null): array
+{
+    if ($store === null || !function_exists('ecStoreSettingsArray')) {
+        return [];
+    }
+
+    $settings = ecStoreSettingsArray($store);
+    $mode = trim((string)($settings['shipping_mode'] ?? ''));
+    if (!in_array($mode, ['flat', 'table'], true)) {
+        return [];
+    }
+
+    $metrics = ecShippingCartMetrics($items, $couponCode);
+
+    if ($mode === 'flat') {
+        $rate = isset($settings['shipping_flat_rate']) && is_numeric((string)$settings['shipping_flat_rate'])
+            ? round((float)$settings['shipping_flat_rate'], 2)
+            : 0.0;
+        $freeAbove = isset($settings['shipping_free_above']) && is_numeric((string)$settings['shipping_free_above'])
+            ? round((float)$settings['shipping_free_above'], 2)
+            : null;
+
+        return [ecShippingNormalizeRate([
+            'id' => -300000 - (int)($store['id'] ?? 0),
+            'label' => trim((string)($settings['shipping_label'] ?? 'Store Shipping')) ?: 'Store Shipping',
+            'carrier' => trim((string)($settings['shipping_carrier'] ?? '')),
+            'estimated_days' => trim((string)($settings['shipping_estimated_days'] ?? '')),
+            'rate' => $rate,
+            'free_above' => $freeAbove,
+            'sort_order' => 0,
+            'source' => 'store_flat_rate',
+            'zone_name' => (string)($store['name'] ?? ''),
+        ], $metrics)];
+    }
+
+    $rawRules = trim((string)($settings['shipping_table_rate_rules'] ?? ''));
+    if ($rawRules === '') {
+        return [];
+    }
+
+    $location = ecShippingNormalizeLocation(array_merge([
+        'country' => (string)($settings['shipping_default_country'] ?? ''),
+    ], $address));
+    $rates = [];
+
+    foreach (ecShippingParseTableRateRules($rawRules) as $rule) {
+        if (!ecShippingRuleMatches($rule, $location, $metrics)) {
+            continue;
+        }
+        $rule['id'] = ((int)($rule['id'] ?? -100000)) - ((int)($store['id'] ?? 0) * 1000);
+        $rule['zone_name'] = (string)($store['name'] ?? '');
+        $rule['source'] = 'store_table_rate';
+        $rates[] = ecShippingNormalizeRate($rule, $metrics);
+    }
+
+    usort($rates, static function (array $left, array $right): int {
+        $rateCompare = ((float)$left['rate']) <=> ((float)$right['rate']);
+        if ($rateCompare !== 0) {
+            return $rateCompare;
+        }
+
+        return ((int)($left['sort_order'] ?? 0)) <=> ((int)($right['sort_order'] ?? 0));
+    });
+
+    return $rates;
 }
 
 /**

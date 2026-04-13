@@ -68,6 +68,12 @@ function ecPublicOrderDetail(array $params = []): void
             } catch (\Throwable $e) {
                 $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Return request failed: ' . $e->getMessage()];
             }
+        } elseif ($action === 'send_message') {
+            $storeId = (int)($input['store_id'] ?? 0);
+            $result = ecStoreMessageCreateFromCustomer($orderId, $storeId, $user, (string)($input['message_body'] ?? ''));
+            $_SESSION['ec_message'] = $result['ok']
+                ? ['type' => 'success', 'text' => 'Message sent to the store.']
+                : ['type' => 'error', 'text' => $result['error']];
         }
 
         header('Location: /ecommerce/my-orders/' . $orderId);
@@ -78,6 +84,8 @@ function ecPublicOrderDetail(array $params = []): void
         'page_title' => 'Order ' . $order['order_number'],
         'order'      => $order,
         'user'       => $user,
+        'csrf_token' => app()->csrfToken(),
+        'message_threads' => ecOrderMessageThreadsForCustomer($order),
         'message'    => $_SESSION['ec_message'] ?? null,
     ]);
     unset($_SESSION['ec_message']);

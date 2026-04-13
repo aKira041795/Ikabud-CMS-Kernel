@@ -110,6 +110,36 @@ function ecStoreAdminDashboard(array $params = []): void
     ecRender('modules/ecommerce/admin/store-admin-dashboard.disyl', $ctx);
 }
 
+function ecStoreAdminNotifications(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id);
+    $store = ecStoreAdminLoadStore($id);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        $input = ecInput();
+        $action = trim((string)($input['action'] ?? ''));
+        if ($action === 'mark_all_read') {
+            ecStoreNotificationMarkAllRead($id, (int)($user['id'] ?? 0));
+        } elseif ($action === 'mark_read') {
+            ecStoreNotificationMarkRead((int)($input['notification_id'] ?? 0), $id, (int)($user['id'] ?? 0));
+        }
+
+        header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/notifications');
+        exit;
+    }
+
+    $notifications = ecStoreNotificationList($id, (int)($user['id'] ?? 0), 50, 0);
+    $ctx = ecStoreAdminContext($user, $store, 'notifications', [
+        'notifications' => $notifications['items'] ?? [],
+        'notifications_total' => (int)($notifications['total'] ?? 0),
+        'notifications_enabled' => ecStoreNotificationsStorageAvailable(),
+    ]);
+
+    ecRender('modules/ecommerce/admin/store-admin-notifications.disyl', $ctx);
+}
+
 /**
  * GET /ecommerce/store-admin/{id}/orders
  *
@@ -442,6 +472,51 @@ function ecStoreAdminCustomers(array $params = []): void
     ecRender('modules/ecommerce/admin/store-admin-customers.disyl', $ctx);
 }
 
+function ecStoreAdminMessages(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id);
+    $store = ecStoreAdminLoadStore($id);
+    $permissions = ecStoreAdminPermissions((string)($user['store_role'] ?? 'supervisor'));
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (empty($permissions['manage_messages'])) {
+            http_response_code(403);
+            exit;
+        }
+
+        csrf_verify();
+        $input = ecInput();
+        $orderId = (int)($input['order_id'] ?? 0);
+        $result = ecStoreMessageCreateFromStore($orderId, $id, $user, (string)($input['message_body'] ?? ''));
+        $_SESSION['ec_sa_message'] = $result['ok']
+            ? ['type' => 'success', 'text' => 'Message sent.']
+            : ['type' => 'error', 'text' => $result['error']];
+        header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/messages?order=' . $orderId);
+        exit;
+    }
+
+    $threads = ecStoreMessageThreadList($id, 50);
+    $selectedOrderId = max(0, (int)(ecInput()['order'] ?? 0));
+    if ($selectedOrderId <= 0 && isset($threads[0]['order_id'])) {
+        $selectedOrderId = (int)$threads[0]['order_id'];
+    }
+    $selectedOrder = $selectedOrderId > 0 ? ecOrderGet($selectedOrderId) : null;
+
+    $ctx = ecStoreAdminContext($user, $store, 'messages', [
+        'threads' => $threads,
+        'selected_order_id' => $selectedOrderId,
+        'selected_order' => $selectedOrder,
+        'selected_messages' => $selectedOrderId > 0 ? ecStoreMessagesForOrder($id, $selectedOrderId) : [],
+        'message_storage_available' => ecStoreMessagesStorageAvailable(),
+        'can_reply' => !empty($permissions['manage_messages']),
+        'message' => $_SESSION['ec_sa_message'] ?? null,
+    ]);
+    unset($_SESSION['ec_sa_message']);
+
+    ecRender('modules/ecommerce/admin/store-admin-messages.disyl', $ctx);
+}
+
 function ecStoreAdminCategories(array $params = []): void
 {
     $id = (int)($params['id'] ?? 0);
@@ -467,6 +542,83 @@ function ecStoreAdminAbandonedCarts(array $params = []): void
     ]);
 
     ecRender('modules/ecommerce/admin/store-admin-abandoned-carts.disyl', $ctx);
+}
+
+function ecStoreAdminLoyalty(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+    $summary = ecStoreLoyaltySummary($id, 75);
+
+    $ctx = ecStoreAdminContext($user, $store, 'loyalty', [
+        'loyalty_summary' => $summary,
+    ]);
+
+    ecRender('modules/ecommerce/admin/store-admin-loyalty.disyl', $ctx);
+}
+
+function ecStoreAdminImportExport(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        $input = ecInput();
+        $action = trim((string)($input['action'] ?? ''));
+
+        if ($action === 'import_products') {
+            $upload = ecImportReadUploadedCsv('csv_file');
+            if (!($upload['ok'] ?? false)) {
+                $_SESSION['ec_sa_message'] = ['type' => 'error', 'text' => (string)($upload['error'] ?? 'Upload failed.')];
+            } else {
+                try {
+                    $result = ecStoreImportProductsFromCsv((string)($upload['raw'] ?? ''), $id, (int)($user['id'] ?? 0));
+                    $errorCount = count((array)($result['errors'] ?? []));
+                    $summary = 'Imported ' . (int)($result['created'] ?? 0) . ' new product(s) and updated ' . (int)($result['updated'] ?? 0) . '.';
+                    if ($errorCount > 0) {
+                        $summary .= ' ' . $errorCount . ' row(s) failed.';
+                    }
+                    $_SESSION['ec_sa_message'] = [
+                        'type' => $errorCount > 0 ? 'error' : 'success',
+                        'text' => $summary,
+                    ];
+                } catch (\Throwable $e) {
+                    $_SESSION['ec_sa_message'] = ['type' => 'error', 'text' => 'Import failed: ' . $e->getMessage()];
+                }
+            }
+        }
+
+        header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/import-export');
+        exit;
+    }
+
+    $ctx = ecStoreAdminContext($user, $store, 'import_export', [
+        'export_resources' => ecStoreCsvExportResources($id),
+        'product_import_headers' => ecCsvProductHeaders(),
+        'message' => $_SESSION['ec_sa_message'] ?? null,
+    ]);
+    unset($_SESSION['ec_sa_message']);
+
+    ecRender('modules/ecommerce/admin/store-admin-import-export.disyl', $ctx);
+}
+
+function ecStoreAdminExportCsv(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    ecRequireStoreAccess($id, ['owner', 'manager']);
+    ecStoreAdminLoadStore($id);
+
+    $definition = ecStoreCsvExportDefinition($id, (string)($params['resource'] ?? ''));
+    if ($definition === null) {
+        http_response_code(404);
+        echo 'Export resource not found.';
+        exit;
+    }
+
+    ecCsvResponse((string)$definition['filename'], (array)$definition['headers'], (array)$definition['rows']);
 }
 
 function ecStoreAdminSettings(array $params = []): void

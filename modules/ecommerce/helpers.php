@@ -31,6 +31,7 @@ require_once __DIR__ . '/helpers/58-outbound-webhooks.php';
 require_once __DIR__ . '/helpers/60-pos.php';
 require_once __DIR__ . '/helpers/65-customers.php';
 require_once __DIR__ . '/helpers/66-import-export.php';
+require_once __DIR__ . '/helpers/67-store-communications.php';
 require_once __DIR__ . '/helpers/75-reviews.php';
 require_once __DIR__ . '/helpers/70-payment-gateways.php';
 require_once __DIR__ . '/helpers/71-gateway-paymongo.php';

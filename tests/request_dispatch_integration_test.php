@@ -428,6 +428,70 @@ t(
     $storeReportsPage['raw']
 );
 
+$storeNotificationsPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/notifications',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store notifications route renders for a store user without admin-only fallback',
+    ($storeNotificationsPage['exit_code'] ?? 1) === 0
+        && str_contains($storeNotificationsPage['body'] ?? '', 'Notifications')
+        && !str_contains($storeNotificationsPage['body'] ?? '', 'Access Denied'),
+    $storeNotificationsPage['raw']
+);
+
+$storeMessagesPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/messages',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store messages route renders for a store user without admin-only fallback',
+    ($storeMessagesPage['exit_code'] ?? 1) === 0
+        && str_contains($storeMessagesPage['body'] ?? '', 'Customer Messages')
+        && !str_contains($storeMessagesPage['body'] ?? '', 'Access Denied'),
+    $storeMessagesPage['raw']
+);
+
+$storeImportExportPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/import-export',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store import-export route renders for owner-managed store access',
+    ($storeImportExportPage['exit_code'] ?? 1) === 0
+        && str_contains($storeImportExportPage['body'] ?? '', 'Import and Export')
+        && !str_contains($storeImportExportPage['body'] ?? '', 'Access Denied'),
+    $storeImportExportPage['raw']
+);
+
+$storeLoyaltyPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/loyalty',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store loyalty route renders for owner-managed store access',
+    ($storeLoyaltyPage['exit_code'] ?? 1) === 0
+        && str_contains($storeLoyaltyPage['body'] ?? '', 'Loyalty Activity')
+        && !str_contains($storeLoyaltyPage['body'] ?? '', 'Access Denied'),
+    $storeLoyaltyPage['raw']
+);
+
 $storeProductCreatePage = runRequestThroughEntrypoint(
     [
         'REQUEST_METHOD' => 'GET',

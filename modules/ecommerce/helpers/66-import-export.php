@@ -658,3 +658,231 @@ function ecCsvExportResources(): array
         ],
     ];
 }
+
+function ecStoreImportProductsFromCsv(string $csvContent, int $storeId, int $actorUserId): array
+{
+    $rows = ecCsvRowsFromString($csvContent);
+    $created = 0;
+    $updated = 0;
+    $errors = [];
+
+    foreach ($rows as $index => $row) {
+        $lineNumber = $index + 2;
+        try {
+            $existingProduct = null;
+            $productId = ecCsvNullableInt($row['id'] ?? null) ?? 0;
+            if ($productId > 0) {
+                $existingProduct = ecProductGet($productId, false);
+                if ($existingProduct === null) {
+                    throw new RuntimeException('Product id not found: ' . $productId);
+                }
+            } else {
+                $sku = trim((string)($row['sku'] ?? ''));
+                if ($sku !== '') {
+                    $matchedProductId = ecCsvProductIdBySku($sku);
+                    if ($matchedProductId > 0) {
+                        $existingProduct = ecProductGet($matchedProductId, false);
+                    }
+                }
+            }
+
+            $payload = ecCsvBuildProductPayload($row, $existingProduct);
+            $assignedStores = [];
+
+            if ($existingProduct === null) {
+                $productId = ecProductCreate($payload, $actorUserId);
+                $created++;
+            } else {
+                $productId = (int)($existingProduct['id'] ?? 0);
+                ecProductUpdate($productId, $payload);
+                $updated++;
+                if (function_exists('ecProductStoreAssignmentMap')) {
+                    $assignmentMap = ecProductStoreAssignmentMap([$productId]);
+                    $assignedStores = array_values(array_filter(array_map('intval', $assignmentMap[$productId] ?? [])));
+                }
+            }
+
+            ecProductSaveStoreAssignments($productId, array_values(array_unique(array_merge($assignedStores, [$storeId]))));
+        } catch (Throwable $e) {
+            $errors[] = ['line' => $lineNumber, 'message' => $e->getMessage()];
+        }
+    }
+
+    return [
+        'created' => $created,
+        'updated' => $updated,
+        'errors' => $errors,
+        'total_rows' => count($rows),
+    ];
+}
+
+function ecStoreCsvProductExportRows(int $storeId): array
+{
+    $result = ecProductList([
+        'store_id' => $storeId,
+        'store_owned_only' => true,
+        'limit' => 5000,
+        'offset' => 0,
+    ]);
+    $rows = [];
+
+    foreach ((array)($result['items'] ?? []) as $product) {
+        $resolved = ecProductGet((int)($product['id'] ?? 0), false);
+        if (!is_array($resolved)) {
+            continue;
+        }
+
+        $category = (array)($resolved['categories'][0] ?? []);
+        $pricing = (array)($resolved['pricing'] ?? []);
+        $inventory = (array)($resolved['inventory'] ?? []);
+
+        $rows[] = [
+            'id' => (int)($resolved['id'] ?? 0),
+            'title' => (string)($resolved['title'] ?? ''),
+            'slug' => (string)($resolved['slug'] ?? ''),
+            'status' => (string)($resolved['status'] ?? ''),
+            'excerpt' => (string)($resolved['excerpt'] ?? ''),
+            'body' => (string)($resolved['body'] ?? ''),
+            'price' => isset($pricing['price']) ? number_format((float)$pricing['price'], 2, '.', '') : '',
+            'sale_price' => isset($pricing['sale_price']) && $pricing['sale_price'] !== null ? number_format((float)$pricing['sale_price'], 2, '.', '') : '',
+            'currency' => (string)($pricing['currency'] ?? ecSettings('currency')),
+            'sku' => (string)($inventory['sku'] ?? ''),
+            'stock_qty' => isset($inventory['stock_qty']) ? (string)(int)$inventory['stock_qty'] : '',
+            'track_stock' => !empty($inventory['track_stock']) ? '1' : '0',
+            'category_slug' => (string)($category['slug'] ?? ''),
+            'category_name' => (string)($category['name'] ?? ''),
+            'attributes' => ecCsvProductAttributeCell((array)($resolved['attributes'] ?? [])),
+            'tax_class' => (string)($resolved['tax_class'] ?? 'standard'),
+            'created_at' => (string)($resolved['created_at'] ?? ''),
+            'updated_at' => (string)($resolved['updated_at'] ?? ''),
+        ];
+    }
+
+    return $rows;
+}
+
+function ecStoreCsvOrderExportRows(int $storeId): array
+{
+    $result = ecOrderList([
+        'store_id' => $storeId,
+        'limit' => 5000,
+        'offset' => 0,
+    ]);
+    $rows = [];
+
+    foreach ((array)($result['items'] ?? []) as $order) {
+        $resolved = ecOrderGet((int)($order['id'] ?? 0));
+        if (!is_array($resolved)) {
+            continue;
+        }
+
+        $itemsSummary = [];
+        foreach ((array)($resolved['items'] ?? []) as $item) {
+            if ((int)($item['store_id'] ?? 0) !== $storeId) {
+                continue;
+            }
+            $itemsSummary[] = trim((string)($item['product_title'] ?? 'Item')) . ' x' . (int)($item['qty'] ?? 0);
+        }
+
+        $tracking = (array)($resolved['shipment_tracking'] ?? []);
+        $rows[] = [
+            'id' => (int)($resolved['id'] ?? 0),
+            'order_number' => (string)($resolved['order_number'] ?? ''),
+            'status' => (string)($resolved['status'] ?? ''),
+            'payment_status' => (string)($resolved['payment_status'] ?? ''),
+            'source' => (string)($resolved['source'] ?? ''),
+            'customer_email' => (string)($resolved['customer_email'] ?? ''),
+            'customer_name' => (string)($resolved['customer_name'] ?? ''),
+            'subtotal' => number_format((float)($resolved['subtotal_amount'] ?? 0), 2, '.', ''),
+            'discount_amount' => number_format((float)($resolved['discount_amount'] ?? 0), 2, '.', ''),
+            'tax_amount' => number_format((float)($resolved['tax_amount'] ?? 0), 2, '.', ''),
+            'shipping_amount' => number_format((float)($resolved['shipping_amount'] ?? 0), 2, '.', ''),
+            'total' => number_format((float)($resolved['total_amount'] ?? 0), 2, '.', ''),
+            'currency' => (string)($resolved['currency'] ?? ''),
+            'item_count' => (string)count($itemsSummary),
+            'items' => implode(' | ', $itemsSummary),
+            'tracking_number' => (string)($tracking['tracking_number'] ?? ''),
+            'tracking_carrier' => (string)($tracking['carrier'] ?? ''),
+            'tracking_url' => (string)($tracking['tracking_url'] ?? ''),
+            'created_at' => (string)($resolved['created_at'] ?? ''),
+            'updated_at' => (string)($resolved['updated_at'] ?? ''),
+        ];
+    }
+
+    return $rows;
+}
+
+function ecStoreCsvCustomerExportRows(int $storeId): array
+{
+    $result = ecStoreCustomerList($storeId, ['limit' => 5000, 'offset' => 0]);
+
+    return array_map(static function (array $customer): array {
+        return [
+            'id' => (int)($customer['customer_id'] ?? 0),
+            'username' => (string)($customer['username'] ?? ''),
+            'email' => (string)($customer['email'] ?? ''),
+            'display_name' => (string)($customer['display_name'] ?? ''),
+            'is_active' => (int)($customer['is_active'] ?? 1),
+            'order_count' => (int)($customer['order_count'] ?? 0),
+            'lifetime_value' => number_format((float)($customer['lifetime_value'] ?? 0), 2, '.', ''),
+            'last_login_at' => '',
+            'created_at' => (string)($customer['created_at'] ?? ''),
+            'updated_at' => (string)($customer['last_order_at'] ?? ''),
+        ];
+    }, (array)($result['items'] ?? []));
+}
+
+function ecStoreCsvExportDefinition(int $storeId, string $resource): ?array
+{
+    $dateSuffix = date('Ymd-His');
+    $store = ecStoreById($storeId);
+    $slug = trim((string)($store['slug'] ?? ('store-' . $storeId)));
+
+    return match (trim(strtolower($resource))) {
+        'products' => [
+            'label' => 'Products',
+            'filename' => $slug . '-products-' . $dateSuffix . '.csv',
+            'headers' => ecCsvProductHeaders(),
+            'rows' => ecStoreCsvProductExportRows($storeId),
+        ],
+        'orders' => [
+            'label' => 'Orders',
+            'filename' => $slug . '-orders-' . $dateSuffix . '.csv',
+            'headers' => ecCsvOrderHeaders(),
+            'rows' => ecStoreCsvOrderExportRows($storeId),
+        ],
+        'customers' => [
+            'label' => 'Customers',
+            'filename' => $slug . '-customers-' . $dateSuffix . '.csv',
+            'headers' => ecCsvCustomerHeaders(),
+            'rows' => ecStoreCsvCustomerExportRows($storeId),
+        ],
+        default => null,
+    };
+}
+
+function ecStoreCsvExportResources(int $storeId): array
+{
+    $base = ecGetBaseUrl() . '/ecommerce/store-admin/' . $storeId . '/import-export';
+
+    return [
+        [
+            'key' => 'products',
+            'label' => 'Products',
+            'description' => 'Products assigned to this store, ready for export or round-trip updates.',
+            'download_url' => $base . '/products',
+        ],
+        [
+            'key' => 'orders',
+            'label' => 'Orders',
+            'description' => 'Orders containing this store\'s products, including customer and tracking details.',
+            'download_url' => $base . '/orders',
+        ],
+        [
+            'key' => 'customers',
+            'label' => 'Customers',
+            'description' => 'Customers who purchased from this store, with order counts and store revenue totals.',
+            'download_url' => $base . '/customers',
+        ],
+    ];
+}

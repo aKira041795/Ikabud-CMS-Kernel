@@ -1,0 +1,64 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="space-y-5">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">Loyalty Activity</h1>
+        <p class="mt-1 text-sm text-slate-500">Track how this store contributes to points earned and points redeemed across customer orders.</p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Points Earned</div>
+            <div class="mt-2 text-3xl font-bold text-gray-900">{loyalty_summary.total_earned}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Points Redeemed</div>
+            <div class="mt-2 text-3xl font-bold text-gray-900">{loyalty_summary.total_redeemed}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Customers Reached</div>
+            <div class="mt-2 text-3xl font-bold text-gray-900">{loyalty_summary.unique_customers}</div>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div class="border-b border-gray-200 px-5 py-4">
+            <h2 class="text-sm font-semibold text-gray-900">Ledger Entries</h2>
+        </div>
+        {if loyalty_summary.entries | count > 0}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wider text-slate-500">
+                    <tr>
+                        <th class="px-5 py-3 text-left">Date</th>
+                        <th class="px-5 py-3 text-left">Customer</th>
+                        <th class="px-5 py-3 text-left">Type</th>
+                        <th class="px-5 py-3 text-left">Order</th>
+                        <th class="px-5 py-3 text-right">Points</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach loyalty_summary.entries as entry}
+                    <tr>
+                        <td class="px-5 py-3 text-slate-500">{entry.created_at | date:'M j, Y g:i A'}</td>
+                        <td class="px-5 py-3">
+                            <div class="font-medium text-gray-900">{entry.display_name | default:'Customer'}</div>
+                            {if entry.email}<div class="text-xs text-slate-400">{entry.email | escape}</div>{/if}
+                        </td>
+                        <td class="px-5 py-3">
+                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold {if entry.entry_type == 'earn'}bg-emerald-100 text-emerald-800{else}bg-orange-100 text-orange-800{/if}">{entry.entry_type}</span>
+                        </td>
+                        <td class="px-5 py-3 text-slate-600">#{entry.order_id}</td>
+                        <td class="px-5 py-3 text-right font-semibold {if entry.points < 0}text-orange-700{else}text-emerald-700{/if}">{entry.points}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="px-5 py-6 text-sm text-slate-500">No loyalty ledger entries have been attributed to this store yet.</div>
+        {/if}
+    </div>
+</div>
+{/block}

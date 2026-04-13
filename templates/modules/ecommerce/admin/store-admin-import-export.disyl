@@ -1,0 +1,53 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="max-w-6xl space-y-6">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">Import and Export</h1>
+        <p class="mt-1 text-sm text-slate-500">Move store products, customers, and order records in and out of CSV without leaving the merchant portal.</p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr),minmax(320px,0.8fr)]">
+        <div class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+            <div>
+                <h2 class="text-sm font-bold uppercase tracking-wider text-gray-700">Exports</h2>
+                <p class="mt-1 text-sm text-slate-500">Each export is limited to this store's own operational data.</p>
+            </div>
+            <div class="space-y-3">
+                {foreach export_resources as resource}
+                <div class="rounded-xl border border-gray-200 px-4 py-4">
+                    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <div class="text-sm font-semibold text-gray-900">{resource.label}</div>
+                            <div class="mt-1 text-sm text-slate-500">{resource.description}</div>
+                        </div>
+                        <a href="{resource.download_url | escape}" class="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Download CSV</a>
+                    </div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+            <div>
+                <h2 class="text-sm font-bold uppercase tracking-wider text-gray-700">Product Import</h2>
+                <p class="mt-1 text-sm text-slate-500">Imports create or update catalog records, then automatically assign them to this store.</p>
+            </div>
+            <form method="post" action="" enctype="multipart/form-data" class="space-y-4">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <input type="hidden" name="action" value="import_products">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">CSV File</label>
+                    <input type="file" name="csv_file" accept=".csv,text/csv" class="block w-full text-sm text-gray-700 file:mr-4 file:rounded-lg file:border-0 file:bg-orange-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-orange-700 hover:file:bg-orange-100">
+                </div>
+                <button type="submit" class="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Import Products</button>
+            </form>
+
+            <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4">
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Expected Headers</div>
+                <div class="mt-2 text-sm text-slate-600">{foreach product_import_headers as header}<span class="inline-flex rounded-md bg-white px-2 py-1 mr-2 mb-2 border border-gray-200 text-xs font-mono text-slate-700">{header}</span>{/foreach}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}

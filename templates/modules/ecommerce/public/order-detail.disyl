@@ -304,6 +304,48 @@
                 {/if}
             </div>
 
+            {if message_threads | count > 0}
+            <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                <div>
+                    <h2 class="font-semibold text-gray-900">Store Messages</h2>
+                    <p class="mt-1 text-sm text-gray-500">Contact the store teams handling items in this order.</p>
+                </div>
+
+                <div class="space-y-4">
+                    {foreach message_threads as thread}
+                    <div class="rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                            <div class="font-semibold text-gray-900">{thread.store.name | escape}</div>
+                            <div class="text-xs text-gray-500">Store support thread</div>
+                        </div>
+                        <div class="space-y-3 px-4 py-4">
+                            {if thread.messages | count > 0}
+                            {foreach thread.messages as thread_message}
+                            <div class="rounded-xl px-4 py-3 text-sm {if thread_message.sender_type == 'store'}bg-orange-50 text-orange-900 border border-orange-100{else}bg-gray-50 text-gray-800 border border-gray-200{/if}">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="font-semibold">{thread_message.sender_name | escape}</div>
+                                    <div class="text-xs text-gray-500">{thread_message.created_at | date:'M j, Y g:i A'}</div>
+                                </div>
+                                <div class="mt-2 whitespace-pre-line">{thread_message.body | escape}</div>
+                            </div>
+                            {/foreach}
+                            {else}
+                            <div class="rounded-xl border border-dashed border-gray-200 px-4 py-4 text-sm text-gray-500">No messages yet. Send the first update to this store.</div>
+                            {/if}
+                        </div>
+                        <form method="post" action="" class="border-t border-gray-200 bg-white px-4 py-4 space-y-3">
+                            <input type="hidden" name="_token" value="{csrf_token}">
+                            <input type="hidden" name="action" value="send_message">
+                            <input type="hidden" name="store_id" value="{thread.store.id}">
+                            <textarea name="message_body" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800" placeholder="Ask about packing, delivery timing, stock, or item-specific issues."></textarea>
+                            <button type="submit" class="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Send Message</button>
+                        </form>
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
+
             {if order.customer_note}
             <div class="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 class="font-semibold text-gray-900 mb-2">Customer Note</h2>

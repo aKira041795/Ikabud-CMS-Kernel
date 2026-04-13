@@ -141,11 +141,15 @@ function ecStoreAdminContext(array $user, array $store, string $currentPage, arr
     $storeRole  = (string)($user['store_role'] ?? 'administrator');
     $permissions = ecStoreAdminPermissions($storeRole);
     $canEdit    = !empty($permissions['edit_products']);
+    $notificationUnreadCount = function_exists('ecStoreNotificationUnreadCount')
+        ? ecStoreNotificationUnreadCount((int)($store['id'] ?? 0), (int)($user['id'] ?? 0))
+        : 0;
     return array_merge([
         'user'         => $user,
         'store'        => $store,
         'store_role'   => $storeRole,
         'store_permissions' => $permissions,
+        'notification_unread_count' => $notificationUnreadCount,
         'store_is_read_only' => empty($permissions['edit_products']) && $storeRole !== 'administrator',
         'can_edit'     => $canEdit,
         'current_page' => $currentPage,
@@ -168,6 +172,8 @@ function ecStoreAdminPermissions(string $storeRole): array
 
     return [
         'dashboard' => true,
+        'notifications' => true,
+        'messages' => true,
         'orders' => true,
         'returns' => $isManager,
         'abandoned_carts' => $isManager,
@@ -176,9 +182,12 @@ function ecStoreAdminPermissions(string $storeRole): array
         'coupons' => $isManager,
         'reviews' => true,
         'customers' => $isManager,
+        'loyalty' => $isManager,
         'reports' => $isManager,
+        'import_export' => $isManager,
         'settings' => $isOwner,
         'edit_products' => $isManager,
+        'manage_messages' => $isManager,
         'manage_coupons' => $isManager,
         'moderate_reviews' => $isManager,
         'review_returns' => $isManager,

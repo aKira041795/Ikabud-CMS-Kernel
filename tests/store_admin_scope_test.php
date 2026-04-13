@@ -19,6 +19,7 @@ if ($tenantId > 0) {
 foreach ([
     __DIR__ . '/../modules/ecommerce/database/migrations/018_ec_abandoned_carts.sql',
     __DIR__ . '/../modules/ecommerce/database/migrations/024_ec_return_requests.sql',
+    __DIR__ . '/../modules/ecommerce/database/migrations/036_ec_store_notifications_messages.sql',
 ] as $migrationFile) {
     if (is_file($migrationFile)) {
         try {
@@ -349,6 +350,13 @@ try {
         'settings_json' => ecStoreSettingsJsonFromInput([
             'setting_currency' => 'PHP',
             'setting_checkout_note' => 'Pickup ready in 1 hour',
+            'setting_shipping_mode' => 'flat',
+            'setting_shipping_label' => 'Express Scope',
+            'setting_shipping_carrier' => 'Scope Fleet',
+            'setting_shipping_estimated_days' => '1-2 days',
+            'setting_shipping_flat_rate' => '79',
+            'setting_shipping_free_above' => '500',
+            'setting_shipping_default_country' => 'PH',
         ]),
     ]);
     $storeAfterBranding = ecStoreById($storeAId) ?? [];
@@ -363,6 +371,21 @@ try {
             ),
         json_encode($storeAfterBranding)
     );
+        $storeShippingRates = ecShippingAvailableRates([
+            [
+                'product_id' => $productAId,
+                'qty' => 1,
+                'price_snapshot' => 40.0,
+                'store_id' => $storeAId,
+            ],
+        ], ['country' => 'PH'], null);
+        tStoreScope(
+            'store shipping settings override platform rates for single-store carts',
+            count($storeShippingRates) === 1
+                && (string)($storeShippingRates[0]['label'] ?? '') === 'Express Scope'
+                && (float)($storeShippingRates[0]['rate'] ?? 0) === 79.0,
+            json_encode($storeShippingRates)
+        );
 
     echo "\n§3 Sales and Customers\n";
     $sales = ecReportSales([
@@ -375,6 +398,42 @@ try {
     $customerEmails = array_column($customers['items'], 'email');
     tStoreScope('store sales report uses store item totals instead of full order totals', (float)($sales['total_revenue'] ?? 0) === 70.0 && (int)($sales['order_count'] ?? 0) === 2, json_encode($sales));
     tStoreScope('store customer list includes both registered and guest buyers for the store', (int)($customers['total'] ?? 0) === 2 && in_array(strtolower((string)$existingUser['email']), $customerEmails, true) && in_array('guest-' . $seed . '@example.com', $customerEmails, true), json_encode($customers));
+
+    echo "\n§3B Notifications, Messaging, and Loyalty\n";
+    ecStoreNotificationMarkAllRead($storeAId, (int)$existingUser['id']);
+    ecStoreNotificationCreate($storeAId, [
+        'type' => 'manual',
+        'title' => 'Inventory audit',
+        'body' => 'Cycle count scheduled for tonight.',
+        'related_order_id' => (int)$orderOne['order_id'],
+    ], [(int)$existingUser['id']]);
+    $unreadBeforeRead = ecStoreNotificationUnreadCount($storeAId, (int)$existingUser['id']);
+    $notificationList = ecStoreNotificationList($storeAId, (int)$existingUser['id'], 10, 0);
+    $firstNotificationId = (int)(($notificationList['items'][0]['id'] ?? 0));
+    if ($firstNotificationId > 0) {
+        ecStoreNotificationMarkRead($firstNotificationId, $storeAId, (int)$existingUser['id']);
+    }
+    $unreadAfterRead = ecStoreNotificationUnreadCount($storeAId, (int)$existingUser['id']);
+
+    $customerMessageResult = ecStoreMessageCreateFromCustomer((int)$orderOne['order_id'], $storeAId, $existingUser, 'Can you confirm packaging?');
+    $storeMessageResult = ecStoreMessageCreateFromStore((int)$orderOne['order_id'], $storeAId, [
+        'id' => (int)$existingUser['id'],
+        'display_name' => (string)($existingUser['display_name'] ?? 'Scope Owner'),
+        'name' => (string)($existingUser['display_name'] ?? 'Scope Owner'),
+    ], 'Packaging is secured and tagged for dispatch.');
+    $messageThreads = ecStoreMessageThreadList($storeAId, 10);
+    $messageThread = $messageThreads[0] ?? [];
+    $threadMessages = ecStoreMessagesForOrder($storeAId, (int)$orderOne['order_id']);
+
+    ecLoyaltyRecordEntry((int)$existingUser['id'], (int)$orderOne['order_id'], 'earn', 15, 'Store earn points');
+    ecLoyaltyRecordEntry((int)$existingUser['id'], (int)$orderTwo['order_id'], 'redeem', -5, 'Store redeem points');
+    $loyaltySummary = ecStoreLoyaltySummary($storeAId, 20);
+    $productExport = ecStoreCsvExportDefinition($storeAId, 'products');
+
+    tStoreScope('store notifications track unread state per store user', $unreadBeforeRead >= 1 && $unreadAfterRead === 0, json_encode($notificationList));
+    tStoreScope('store message threads accept customer and merchant replies on the same order', !empty($customerMessageResult['ok']) && !empty($storeMessageResult['ok']) && (int)($messageThread['order_id'] ?? 0) === (int)$orderOne['order_id'] && count($threadMessages) === 2, json_encode($threadMessages));
+    tStoreScope('store loyalty summary aggregates earned and redeemed points from store orders', (int)($loyaltySummary['total_earned'] ?? 0) === 15 && (int)($loyaltySummary['total_redeemed'] ?? 0) === 5 && (int)($loyaltySummary['unique_customers'] ?? 0) === 1, json_encode($loyaltySummary));
+    tStoreScope('store CSV export definition includes only products assigned to the store', (string)($productExport['label'] ?? '') === 'Products' && count((array)($productExport['rows'] ?? [])) === 1 && (int)($productExport['rows'][0]['id'] ?? 0) === $productAId, json_encode($productExport));
 
     echo "\n§4 Returns and Abandoned Carts\n";
     $returns = ecReturnRequestList(['store_id' => $storeAId, 'limit' => 10, 'offset' => 0]);
@@ -392,6 +451,7 @@ foreach (array_filter($cleanup['return_request_ids']) as $requestId) {
     $db->prepare('DELETE FROM ec_return_requests WHERE id = ?')->execute([(int)$requestId]);
 }
 foreach ($cleanup['order_ids'] as $orderId) {
+    $db->prepare('DELETE FROM ec_store_messages WHERE order_id = ?')->execute([(int)$orderId]);
     $db->prepare('DELETE FROM ec_order_items WHERE order_id = ?')->execute([(int)$orderId]);
     $db->prepare('DELETE FROM ec_order_meta WHERE order_id = ?')->execute([(int)$orderId]);
     $db->prepare('DELETE FROM ec_orders WHERE id = ?')->execute([(int)$orderId]);
@@ -415,6 +475,8 @@ foreach ($cleanup['category_ids'] as $categoryId) {
     });
 }
 foreach ($cleanup['store_ids'] as $storeId) {
+    $db->prepare('DELETE FROM ec_store_notifications WHERE store_id = ?')->execute([(int)$storeId]);
+    $db->prepare('DELETE FROM ec_store_messages WHERE store_id = ?')->execute([(int)$storeId]);
     $db->prepare('DELETE FROM ec_store_users WHERE store_id = ?')->execute([(int)$storeId]);
     $db->prepare('DELETE FROM ec_store_inventory_sources WHERE store_id = ?')->execute([(int)$storeId]);
     $db->prepare('DELETE FROM ec_stores WHERE id = ?')->execute([(int)$storeId]);

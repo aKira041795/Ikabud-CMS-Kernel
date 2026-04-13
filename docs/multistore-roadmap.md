@@ -82,13 +82,13 @@ Comparing the current store portal against Amazon Seller Central, Lazada Seller 
 | Feature | All 4 Platforms | Current |
 |---|---|---|
 | Dashboard with KPI cards | ✅ | Partial |
-| Revenue / sales reports | ✅ | ❌ |
-| Customer list (store buyers) | ✅ | ❌ |
-| Notification center | ✅ | ❌ |
-| Store profile / settings page | ✅ | ❌ |
-| Return / refund management | ✅ | ❌ (admin-only) |
-| Store-level shipping config | ✅ | ❌ |
-| Buyer-seller messaging | ✅ | ❌ |
+| Revenue / sales reports | ✅ | ✅ |
+| Customer list (store buyers) | ✅ | ✅ |
+| Notification center | ✅ | ✅ |
+| Store profile / settings page | ✅ | ✅ |
+| Return / refund management | ✅ | ✅ |
+| Store-level shipping config | ✅ | ✅ |
+| Buyer-seller messaging | ✅ | ✅ (order-scoped) |
 | Seller performance score | ✅ | ❌ |
 | Payout / settlement reports | ✅ | ❌ |
 
@@ -190,24 +190,26 @@ Make the store-admin UI reflect role boundaries instead of showing one generic s
 5. Add a persistent read-only banner for supervisors
 
 ### Phase E — Notifications & Alerts
-**Status:** Deferred
+**Status:** Complete
 
-This requires new schema and event hookups.
-
-**Deferred work**
+**Delivered work**
 1. Add `ec_store_notifications`
 2. Generate notifications on new orders, return requests, and low-stock conditions
 3. Add a notification bell to the store-admin chrome
 4. Add APIs for marking notifications as read
 
 ### Phase F — Messaging
-**Status:** Deferred pending product decision
+**Status:** Complete for the current multi-location retail model
 
-Buyer-seller messaging is standard in Amazon, Lazada, Shopee, and Foodpanda merchant experiences, but whether it is necessary here depends on platform direction.
+**Delivered work**
+1. Add order-scoped customer-to-store message threads
+2. Render merchant-side messaging in store-admin
+3. Render customer-side messaging on order detail pages
 
-**Decision gate**
-- If this product remains multi-location retail, messaging is optional
-- If this moves toward marketplace / third-party sellers, messaging becomes essential
+**Still deferred for a future marketplace model**
+- Cross-order inboxing
+- File attachments and moderation workflows
+- Seller SLA/performance integration
 
 ### Relevant Files
 
@@ -250,10 +252,10 @@ Buyer-seller messaging is standard in Amazon, Lazada, Shopee, and Foodpanda merc
 ### Decisions and Scope
 
 **In scope now**
-- Phases A through D
+- Phases A through F for the current multi-location retail scope
 
 **Deferred**
-- Phases E and F, because they require new schema or a product-direction decision
+- Seller performance scoring, payout settlement, and marketplace-vendor governance
 
 **Explicitly out of scope for this roadmap segment**
 - Commission / payout ledger
@@ -261,8 +263,8 @@ Buyer-seller messaging is standard in Amazon, Lazada, Shopee, and Foodpanda merc
 - Seller reputation/rating systems
 
 **Lower-priority placeholders**
-- Import / Export remains medium priority
-- Loyalty & Rewards remains low priority
+- Import / Export is now available in the merchant portal
+- Loyalty & Rewards now has store-level visibility, while deeper reward-program tooling remains low priority
 
 ### Further Considerations
 
@@ -271,7 +273,7 @@ Buyer-seller messaging is standard in Amazon, Lazada, Shopee, and Foodpanda merc
 2. **POS store scoping**
     The current sidebar points to `/ecommerce/pos` globally. The recommended direction is to scope POS to the current store's products and inventory.
 3. **Import / Export timing**
-    Bulk operations are standard across Amazon, Lazada, and Shopee. Decide whether to bring import/export into the same wave as Phase B or keep it deferred until the reporting and returns pages are complete.
+    Bulk operations are now available in the merchant portal for products, orders, and customers. Future work should focus on bulk validation reporting and richer catalog templates instead of first-time wiring.
 
 ### Validation Plan
 1. Keep shared authenticated-home redirect coverage for store-assigned CMS users.

@@ -322,16 +322,67 @@ function ecStoreBrandingColumnsAvailable(): bool
     return $available;
 }
 
+function ecStoreSettingsArray(array|int|null $store): array
+{
+    if (is_int($store)) {
+        $store = ecStoreById($store);
+    }
+
+    if (!is_array($store)) {
+        return [];
+    }
+
+    $rawSettings = trim((string)($store['settings_json'] ?? ''));
+    if ($rawSettings === '') {
+        return [];
+    }
+
+    $decoded = json_decode($rawSettings, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function ecStoreSetting(array|int|null $store, string $key, mixed $default = null): mixed
+{
+    $settings = ecStoreSettingsArray($store);
+    return array_key_exists($key, $settings) ? $settings[$key] : $default;
+}
+
 function ecStoreSettingsJsonFromInput(array $input): ?string
 {
     $settings = [];
     $fields = ['currency', 'currency_symbol', 'timezone', 'tax_rate', 'checkout_note'];
+    $shippingTextFields = ['shipping_label', 'shipping_carrier', 'shipping_estimated_days', 'shipping_default_country'];
+    $shippingNumberFields = ['shipping_flat_rate', 'shipping_free_above'];
 
     foreach ($fields as $field) {
         $value = trim((string)($input['setting_' . $field] ?? ''));
         if ($value !== '') {
             $settings[$field] = $value;
         }
+    }
+
+    $shippingMode = trim((string)($input['setting_shipping_mode'] ?? ''));
+    if (in_array($shippingMode, ['flat', 'table'], true)) {
+        $settings['shipping_mode'] = $shippingMode;
+    }
+
+    foreach ($shippingTextFields as $field) {
+        $value = trim((string)($input['setting_' . $field] ?? ''));
+        if ($value !== '') {
+            $settings[$field] = $value;
+        }
+    }
+
+    foreach ($shippingNumberFields as $field) {
+        $value = trim((string)($input['setting_' . $field] ?? ''));
+        if ($value !== '' && is_numeric($value)) {
+            $settings[$field] = round((float)$value, 2);
+        }
+    }
+
+    $tableRateRules = trim((string)($input['setting_shipping_table_rate_rules'] ?? ''));
+    if ($tableRateRules !== '') {
+        $settings['shipping_table_rate_rules'] = $tableRateRules;
     }
 
     return $settings !== []

@@ -1,0 +1,91 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="space-y-5">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">Customer Messages</h1>
+        <p class="mt-1 text-sm text-slate-500">Order-scoped conversations between the buyer and this store team.</p>
+    </div>
+
+    {if not message_storage_available}
+    <div class="rounded-xl border border-dashed border-gray-300 bg-white px-5 py-6 text-sm text-slate-500">
+        Messaging storage is not available yet. Run the latest ecommerce migrations to enable customer conversations.
+    </div>
+    {else}
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-[320px,minmax(0,1fr)]">
+        <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div class="border-b border-gray-200 px-4 py-3">
+                <h2 class="text-sm font-semibold text-gray-900">Threads</h2>
+            </div>
+            <div class="divide-y divide-gray-100">
+                {if threads | count > 0}
+                {foreach threads as thread}
+                <a href="{base_url}/ecommerce/store-admin/{store.id}/messages?order={thread.order_id}" class="block px-4 py-4 transition-colors {if selected_order_id == thread.order_id}bg-orange-50{else}hover:bg-gray-50{/if}">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="truncate text-sm font-semibold text-gray-900">#{thread.order_number}</div>
+                            <div class="mt-1 truncate text-xs text-slate-500">{thread.customer_name | escape}</div>
+                            {if thread.customer_email}<div class="truncate text-xs text-slate-400">{thread.customer_email | escape}</div>{/if}
+                        </div>
+                        <div class="text-right text-[11px] text-slate-400">
+                            <div>{thread.message_count} msg</div>
+                            {if thread.last_message_at}<div class="mt-1">{thread.last_message_at | date:'M j'}</div>{/if}
+                        </div>
+                    </div>
+                    {if thread.last_message_excerpt}<div class="mt-2 text-xs text-slate-500 line-clamp-2">{thread.last_message_excerpt | escape}</div>{/if}
+                </a>
+                {/foreach}
+                {else}
+                <div class="px-4 py-5 text-sm text-slate-500">No customer conversations yet.</div>
+                {/if}
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            {if selected_order}
+            <div class="border-b border-gray-200 px-5 py-4">
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 class="text-sm font-semibold text-gray-900">Order #{selected_order.order_number}</h2>
+                        <div class="mt-1 text-xs text-slate-500">{selected_order.customer_name | escape} {if selected_order.customer_email}&lt;{selected_order.customer_email | escape}&gt;{/if}</div>
+                    </div>
+                    <a href="{base_url}/ecommerce/store-admin/{store.id}/orders?search={selected_order.order_number | escape}" class="text-xs font-semibold text-orange-700 hover:text-orange-800">Open order</a>
+                </div>
+            </div>
+
+            <div class="space-y-3 px-5 py-5 max-h-[520px] overflow-y-auto bg-gray-50">
+                {if selected_messages | count > 0}
+                {foreach selected_messages as selected_message}
+                <div class="rounded-xl px-4 py-3 text-sm {if selected_message.sender_type == 'store'}bg-orange-50 border border-orange-100 text-orange-900 ml-6{else}bg-white border border-gray-200 text-gray-800 mr-6{/if}">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="font-semibold">{selected_message.sender_name | escape}</div>
+                        <div class="text-xs text-slate-400">{selected_message.created_at | date:'M j, Y g:i A'}</div>
+                    </div>
+                    <div class="mt-2 whitespace-pre-line">{selected_message.body | escape}</div>
+                </div>
+                {/foreach}
+                {else}
+                <div class="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-sm text-slate-500">This thread has no messages yet.</div>
+                {/if}
+            </div>
+
+            {if can_reply}
+            <form method="post" action="" class="border-t border-gray-200 px-5 py-4 space-y-3">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <input type="hidden" name="order_id" value="{selected_order_id}">
+                <textarea name="message_body" rows="4" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800" placeholder="Reply with order updates, item clarifications, or fulfillment notes."></textarea>
+                <div class="flex justify-end">
+                    <button type="submit" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">Send Reply</button>
+                </div>
+            </form>
+            {else}
+            <div class="border-t border-gray-200 px-5 py-4 text-sm text-slate-500">Supervisor access is read-only. A manager or owner must reply.</div>
+            {/if}
+            {else}
+            <div class="px-5 py-8 text-sm text-slate-500">Select a thread to review the conversation.</div>
+            {/if}
+        </div>
+    </div>
+    {/if}
+</div>
+{/block}
