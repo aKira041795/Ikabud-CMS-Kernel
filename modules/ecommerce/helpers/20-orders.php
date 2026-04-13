@@ -70,6 +70,22 @@ function ecOrderItemsHasSnapshotJsonColumn(): bool
     return $has;
 }
 
+function ecOrdersHasWarehouseIdColumn(): bool
+{
+    static $has = null;
+    if ($has !== null) {
+        return $has;
+    }
+    try {
+        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_orders LIKE ?');
+        $stmt->execute(['warehouse_id']);
+        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $has = false;
+    }
+    return $has;
+}
+
 function ecRefundStorageAvailable(): bool
 {
     static $ready = null;
@@ -520,15 +536,30 @@ function ecOrderCreate(array $data): array
         $storeId   = $storeCtx ? (int)($storeCtx['id'] ?? 0) : 0;
         $hasStoreId = $storeId > 0 && function_exists('ecStoreStorageAvailable') && ecStoreStorageAvailable();
 
+        // Phase 7B: resolve warehouse_id from store inventory source, fall back to global setting.
+        $warehouseId = 0;
+        if ($storeId > 0 && function_exists('ecStoreInventorySource')) {
+            $invSrc = ecStoreInventorySource($storeId);
+            if (is_array($invSrc) && ($invSrc['source_type'] ?? '') === 'wms') {
+                $warehouseId = max(0, (int)($invSrc['warehouse_id'] ?? 0));
+            }
+        }
+        if ($warehouseId <= 0) {
+            $warehouseId = max(0, (int)ecSettings('default_wms_warehouse_id', 0));
+        }
+        $hasWarehouseId = $warehouseId > 0 && ecOrdersHasWarehouseIdColumn();
+
         // Insert order
         $hasTokenExpiry = ecOrdersHasTokenExpiresAtColumn();
         $orderCols = 'order_number, customer_id, guest_email, guest_name, source'
             . ($hasStoreId ? ', store_id' : '')
+            . ($hasWarehouseId ? ', warehouse_id' : '')
             . ', status, payment_status, subtotal, discount_amount, tax_amount,
                 shipping_amount, total, currency, coupon_code, customer_note,
                 confirmation_token, placed_by_user_id' . ($hasTokenExpiry ? ', token_expires_at' : '') . ', created_at, updated_at';
         $orderPlaceholders = '?, ?, ?, ?, ?'
             . ($hasStoreId ? ', ?' : '')
+            . ($hasWarehouseId ? ', ?' : '')
             . ', \'pending\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' . ($hasTokenExpiry ? ', DATE_ADD(NOW(), INTERVAL 90 DAY)' : '') . ', NOW(), NOW()';
         $orderParams = [
             $orderNumber,
@@ -539,6 +570,9 @@ function ecOrderCreate(array $data): array
         ];
         if ($hasStoreId) {
             $orderParams[] = $storeId;
+        }
+        if ($hasWarehouseId) {
+            $orderParams[] = $warehouseId;
         }
         array_push($orderParams,
             (float)($data['subtotal']         ?? 0),

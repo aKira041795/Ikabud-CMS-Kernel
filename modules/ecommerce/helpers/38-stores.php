@@ -225,6 +225,29 @@ function ecStoreInventorySource(int $storeId): ?array
     }
 }
 
+/**
+ * Phase 7F: returns store IDs whose active WMS inventory source maps to the given warehouse.
+ * Used when WMS pushes a product update to resolve which stores should get an
+ * ec_store_product_overrides visibility record for that product.
+ *
+ * @return int[]
+ */
+function ecStoresByWarehouseId(int $warehouseId): array
+{
+    if (!ecStoreStorageAvailable() || $warehouseId <= 0) {
+        return [];
+    }
+    try {
+        $rows = ecDb()->query(
+            'SELECT store_id FROM ec_store_inventory_sources WHERE warehouse_id = ? AND source_type = ? AND is_active = 1',
+            [$warehouseId, 'wms']
+        )->fetchAll(\PDO::FETCH_COLUMN);
+        return array_values(array_map('intval', $rows ?: []));
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
 // ── Admin CRUD helpers ────────────────────────────────────────────────────
 
 /**

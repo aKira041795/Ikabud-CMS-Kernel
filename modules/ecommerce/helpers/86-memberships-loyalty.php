@@ -775,13 +775,4 @@ function ecMembershipContentGateCapabilityHandler(array $payload): array
     return ecMembershipGateForContent($contentId, $user);
 }
 
-try {
-    app()->capabilities()->register(
-        'ecommerce.membership.content_gate@1',
-        'ecommerce',
-        'ecMembershipContentGateCapabilityHandler',
-        50,
-        ['first']
-    );
-} catch (\Throwable $e) {
-}
+// ecommerce.membership.content_gate@1 is registered via ecommerce_capability_handlers() in helpers.php

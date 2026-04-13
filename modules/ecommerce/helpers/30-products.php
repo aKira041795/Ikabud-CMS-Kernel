@@ -71,6 +71,15 @@ function ecProductList(array $filters = []): array
         $joinParams = array_merge($joinParams, (array)($attributeFilterSql['params'] ?? []));
     }
 
+    // Phase 1 multi-store: optional store_id filter.
+    // Returns global products (no override row) OR products explicitly visible in the given store.
+    $storeIdFilter = isset($filters['store_id']) ? max(0, (int)$filters['store_id']) : 0;
+    if ($storeIdFilter > 0) {
+        $joinParts[] = 'LEFT JOIN ec_store_product_overrides store_po ON store_po.product_id = c.id AND store_po.store_id = ?';
+        $joinParams[] = $storeIdFilter;
+        $where[] = '(store_po.id IS NULL OR store_po.is_visible = 1)';
+    }
+
     $join = implode(' ', $joinParts);
     $params = array_merge($joinParams, $params);
 
@@ -2892,15 +2901,41 @@ function ecWmsInventorySnapshotMapForSkus(array $skus): array
         return [];
     }
 
-    $integrationMode = ecActiveIntegrationMode();
-    if ($integrationMode !== 'wms_authoritative_products') {
-        $integrationMode = ecActiveIntegrationMode(true);
-    }
-    if ($integrationMode !== 'wms_authoritative_products') {
-        return [];
+    // Phase 7A: per-store inventory source resolution.
+    // This MUST run before the global integration-mode guard so that stores with
+    // source_type='wms' work even when the global mode is ecommerce_authoritative_products.
+    $warehouseId = 0;
+    if (function_exists('ecStoreResolveContext') && function_exists('ecStoreInventorySource')) {
+        $storeCtx = ecStoreResolveContext();
+        if ($storeCtx !== null) {
+            $storeId = (int)($storeCtx['id'] ?? 0);
+            if ($storeId > 0) {
+                $invSrc = ecStoreInventorySource($storeId);
+                if (is_array($invSrc)) {
+                    if (($invSrc['source_type'] ?? '') === 'local') {
+                        // Store uses local stock_qty — WMS snapshot not applicable for this store.
+                        return [];
+                    }
+                    if (($invSrc['source_type'] ?? '') === 'wms') {
+                        $warehouseId = max(0, (int)($invSrc['warehouse_id'] ?? 0));
+                    }
+                }
+            }
+        }
     }
 
-    $warehouseId = max(0, (int)ecSettings('default_wms_warehouse_id'));
+    // Global integration-mode guard: only applies when no per-store warehouse was resolved.
+    if ($warehouseId <= 0) {
+        $integrationMode = ecActiveIntegrationMode();
+        if ($integrationMode !== 'wms_authoritative_products') {
+            $integrationMode = ecActiveIntegrationMode(true);
+        }
+        if ($integrationMode !== 'wms_authoritative_products') {
+            return [];
+        }
+        $warehouseId = max(0, (int)ecSettings('default_wms_warehouse_id'));
+    }
+
     $threshold = (int)ecSettings('low_stock_threshold');
     $warehouseKey = (string)$warehouseId;
     if (!isset($cache[$warehouseKey]) || !is_array($cache[$warehouseKey])) {

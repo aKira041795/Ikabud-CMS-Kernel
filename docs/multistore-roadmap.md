@@ -94,7 +94,7 @@ This avoids adding new meta keys and reuses the existing table.
 
 ### Work Items
 1. **`ec_store_users` table** — links `user_id` → `store_id` with a `role` column (`owner`, `staff`).
-2. **Migration:** `032_ec_store_users.sql`.
+2. **Migration:** `033_ec_store_users.sql` *(shifted from 032 — see Phase 7B for the new 032).*
 3. **New CMS role:** `store_owner` — limited admin access.
 4. **Admin dashboard scope:** if logged-in user has `store_owner` role, all admin pages (products, orders, reports) auto-filter to their store.
 5. **Store owner can:**
@@ -120,7 +120,7 @@ This avoids adding new meta keys and reuses the existing table.
 **Goal:** Track which store generated which revenue.
 
 ### Work Items
-1. **`ec_order_items.store_id` column** — migration `033_ec_order_item_store.sql`. Populated at checkout from the product's store assignment.
+1. **`ec_order_items.store_id` column** — migration `034_ec_order_item_store.sql` *(shifted from 033 — see Phase 7B for 032 and Phase 4 for 033)*. Populated at checkout from the product's store assignment.
 2. **Checkout logic** — when building order items, resolve each product's store and stamp `store_id`.
 3. **Per-store revenue report** in admin reports page — filter by store, show: gross sales, order count, top products.
 4. **Store owner report** — simplified revenue card on their dashboard.
@@ -265,6 +265,12 @@ Similarly, `ecWmsFulfillmentBridgeDefinitions()` passes `warehouse_id: '{{order.
    - no inventory source  → fall back to global default_wms_warehouse_id
 ```
 
+**⚠️ Integration-mode guard — must be restructured:** `ecWmsInventorySnapshotMapForSkus()` currently exits early (returns `[]`) when the global integration mode is not `wms_authoritative_products`. This guard must not run before the store-context branch: a store can declare `source_type = 'wms'` even when the global mode is `ecommerce_authoritative_products`. The guard must only apply to the global fallback path (step 1). Concretely, the function must attempt the store-source lookup before checking the global mode.
+
+**⚠️ Snapshot static cache — key must include warehouse ID:** The existing `static $cache` is keyed by `$warehouseKey`. After the per-store branch is added, different stores will resolve different warehouse IDs. The cache bucket `$cache[$warehouseKey]` correctly segregates by warehouse, so a store without a WMS source (falls back to global warehouse) will share a cache bucket with any other caller using the same warehouse. This is safe — but the cache key must **not** be derived from state computed before the per-store lookup, or the wrong warehouse's cached rows will be served. Keep the key as `(string)$warehouseId` where `$warehouseId` is the resolved value after the store-source lookup.
+
+**⚠️ `ecStoreResolveContext()` static cache — test isolation:** The function uses `static $resolved` which locks on the first call per PHP process. In integration tests that change store context across test cases (e.g., [`tests/ecommerce_multistore_membership_loyalty_test.php`](../tests/ecommerce_multistore_membership_loyalty_test.php)), the cached value will bleed. If tests call `ecWmsInventorySnapshotMapForSkus()` with different store contexts, wrap in a mechanism that resets the static (e.g., pass a reset flag or use a testable wrapper).
+
 **Impact:** Product cards, catalog list, product detail page all show per-store accurate stock. Store A shows Warehouse A's stock. Store B shows Warehouse B's stock.
 
 #### 7B — Per-Store Warehouse on Order Creation
@@ -280,6 +286,26 @@ Similarly, `ecWmsFulfillmentBridgeDefinitions()` passes `warehouse_id: '{{order.
 ```
 
 Without this, all orders go to the global warehouse even if the customer shopped in a store-specific context.
+
+**⚠️ Missing migration:** Migration `028_ec_multi_store_foundation.sql` added `store_id` to `ec_orders` but did **not** add `warehouse_id`. A new migration is required before 7B can stamp the column:
+
+```sql
+-- 032_ec_orders_warehouse_id.sql (idempotent)
+SET @col_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'ec_orders'
+      AND COLUMN_NAME  = 'warehouse_id'
+);
+SET @sql = IF(@col_exists = 0,
+    'ALTER TABLE ec_orders ADD COLUMN warehouse_id INT UNSIGNED NULL DEFAULT NULL AFTER store_id, ADD KEY idx_ec_orders_warehouse_id (warehouse_id)',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+```
+
+Also update the `INSERT INTO ec_orders` path in `ecCreateOrder` (`helpers/20-orders.php`) following the same pattern already used for `store_id` (idempotent column-existence check → conditional column inclusion). Without this column, `ecOrderRefundBridgeItems()` will always resolve `warehouse_id = 0` from the loaded order row, making 7E a no-op despite the bridge already reading the field.
+
+**Note on migration numbering:** Adding `032_ec_orders_warehouse_id.sql` shifts Phase 4's `ec_store_users` migration to `033` and Phase 5's `ec_order_item_store` migration to `034` — see updated numbers below.
 
 #### 7C — Admin: Inventory Source Configuration per Store
 
@@ -314,6 +340,32 @@ wms.product.created (warehouse_id = 2)
 ```
 
 This makes WMS-originated products automatically appear in the right stores.
+
+**⚠️ Missing helper — reverse warehouse→stores lookup:** `ecStoreInventorySource(int $storeId)` in `helpers/38-stores.php` goes store → inventory source. The 7F logic needs the reverse: given a `warehouse_id`, find all stores whose active inventory source points to that warehouse. A new helper is required:
+
+```php
+/**
+ * Returns store IDs whose active WMS inventory source maps to the given warehouse.
+ * Used by the ecommerce.product.upsert@1 bridge extension (7F).
+ */
+function ecStoresByWarehouseId(int $warehouseId): array
+{
+    if (!ecStoreStorageAvailable() || $warehouseId <= 0) {
+        return [];
+    }
+    try {
+        $rows = ecDb()->query(
+            'SELECT store_id FROM ec_store_inventory_sources WHERE warehouse_id = ? AND source_type = ? AND is_active = 1',
+            [$warehouseId, 'wms']
+        )->fetchAll(\PDO::FETCH_COLUMN);
+        return array_map('intval', $rows ?: []);
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+```
+
+Add this helper to `helpers/38-stores.php` before implementing the upsert bridge extension.
 
 ---
 

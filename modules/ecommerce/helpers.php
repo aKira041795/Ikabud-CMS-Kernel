@@ -53,6 +53,7 @@ function ecommerce_capability_handlers(): array
 		'ecommerce.orders.status.sync@1' => 'ec_cap_orders_status_sync_1',
 		'ecommerce.orders.tracking.sync@1' => 'ec_cap_orders_tracking_sync_1',
 		'ecommerce.orders.payment.sync@1' => 'ec_cap_orders_payment_sync_1',
+		'ecommerce.membership.content_gate@1' => 'ecMembershipContentGateCapabilityHandler',
 	];
 }
 
