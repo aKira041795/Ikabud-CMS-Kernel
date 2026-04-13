@@ -1,0 +1,37 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="max-w-4xl mx-auto py-10 px-4">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">{page_title}</h1>
+    <p class="text-sm text-gray-500 mb-8">Browse products from individual stores.</p>
+
+    {if stores | count == 0}
+    <div class="text-center py-20 text-gray-400">
+        <p class="text-lg">No stores available at this time.</p>
+        <a href="{base_url}/ecommerce/shop" class="text-orange-600 text-sm mt-2 inline-block">Browse all products →</a>
+    </div>
+    {else}
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {foreach stores as store}
+        <a href="{base_url}/store/{store.slug}" class="group block rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow bg-white no-underline">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                        <span class="text-orange-700 font-bold text-lg">{store.name | substr:0:1 | escape | upper}</span>
+                    </div>
+                    <div>
+                        <h2 class="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">{store.name | escape}</h2>
+                        {if store.code}<span class="text-xs text-slate-400 font-mono">{store.code | escape}</span>{/if}
+                    </div>
+                </div>
+                {if store.description}
+                <p class="text-sm text-gray-500 line-clamp-2">{store.description | escape}</p>
+                {/if}
+                <div class="mt-4 text-xs font-medium text-orange-600 group-hover:underline">Browse store →</div>
+            </div>
+        </a>
+        {/foreach}
+    </div>
+    {/if}
+</div>
+{/block}

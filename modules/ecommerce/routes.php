@@ -21,6 +21,9 @@ return [
         '/ecommerce/my-bookings'            => 'ecommerce:ecPublicBookings',
         '/ecommerce/rewards'                => 'ecommerce:ecPublicRewards',
         '/ecommerce/download/{token}'       => 'ecommerce:ecPublicDownloadLicense',
+        // Phase 3 multi-store: public store directory and per-store pages.
+        '/ecommerce/stores'                 => 'ecommerce:ecPublicStoreDirectory',
+        '/store/{slug}'                     => 'ecommerce:ecPublicStorePage',
 
         // ── Payment Gateway Return ────────────────────────────────────
         '/ecommerce/payment/return'         => 'ecommerce:ecPaymentReturn',

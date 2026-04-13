@@ -86,6 +86,22 @@ function ecOrdersHasWarehouseIdColumn(): bool
     return $has;
 }
 
+function ecOrderItemsHasStoreIdColumn(): bool
+{
+    static $has = null;
+    if ($has !== null) {
+        return $has;
+    }
+    try {
+        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_order_items LIKE ?');
+        $stmt->execute(['store_id']);
+        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $has = false;
+    }
+    return $has;
+}
+
 function ecRefundStorageAvailable(): bool
 {
     static $ready = null;
@@ -599,12 +615,26 @@ function ecOrderCreate(array $data): array
             $itemValues = [];
             $itemParams = [];
             $hasSnapshotJson = ecOrderItemsHasSnapshotJsonColumn();
+            $hasItemStoreId  = ecOrderItemsHasStoreIdColumn();
             foreach ($data['cart_items'] as $item) {
                 $unitPrice = (float)($item['price_snapshot'] ?? 0);
                 $qty       = max(1, (int)($item['qty'] ?? 1));
                 $snapshotJson = trim((string)($item['options_json'] ?? (function_exists('ecCartCanonicalOptionsJson') ? ecCartCanonicalOptionsJson($item) : '')));
 
-                $itemValues[] = $hasSnapshotJson ? '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)' : '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                // Phase 5 multi-store: resolve store_id for this line item.
+                // Prefer explicit store_id on the cart item; fall back to the order-level store.
+                $itemStoreId = null;
+                if ($hasItemStoreId) {
+                    $itemStoreId = isset($item['store_id']) && (int)$item['store_id'] > 0
+                        ? (int)$item['store_id']
+                        : ($storeId > 0 ? $storeId : null);
+                }
+
+                $placeholderCount = $hasSnapshotJson ? '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)' : '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                if ($hasItemStoreId) {
+                    $placeholderCount = $hasSnapshotJson ? '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)' : '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                }
+                $itemValues[] = $placeholderCount;
                 $rowParams = [
                     $orderId,
                     (int)$item['product_id'],
@@ -619,6 +649,9 @@ function ecOrderCreate(array $data): array
                 if ($hasSnapshotJson) {
                     $rowParams[] = $snapshotJson !== '' ? $snapshotJson : null;
                 }
+                if ($hasItemStoreId) {
+                    $rowParams[] = $itemStoreId;
+                }
                 array_push($itemParams, ...$rowParams);
                 // WMS becomes the stock authority once the order-created bridge is active.
                 if (!$wmsAuthorityActive) {
@@ -626,11 +659,15 @@ function ecOrderCreate(array $data): array
                 }
             }
             if ($itemValues) {
-                $columns = $hasSnapshotJson
-                    ? 'order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label, snapshot_json'
-                    : 'order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label';
+                $baseColumns = 'order_id, product_id, variant_id, product_title, sku, unit_price, qty, line_total, variant_label';
+                if ($hasSnapshotJson) {
+                    $baseColumns .= ', snapshot_json';
+                }
+                if ($hasItemStoreId) {
+                    $baseColumns .= ', store_id';
+                }
                 $db->execute(
-                    "INSERT INTO ec_order_items ({$columns}) VALUES " . implode(', ', $itemValues),
+                    "INSERT INTO ec_order_items ({$baseColumns}) VALUES " . implode(', ', $itemValues),
                     $itemParams
                 );
             }

@@ -43,11 +43,40 @@
                     {/foreach}
                 </div>
             </div>
+            {* Phase 2 multi-store: store facet *}
+            {if active_stores | count > 1}
+            <div>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 mt-4">Stores</h3>
+                <div class="space-y-1.5">
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="radio" name="store" value="" class="border-gray-300" {if store_filter == 0}checked{/if}>
+                        <span>All stores</span>
+                    </label>
+                    {foreach active_stores as ast}
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="radio" name="store" value="{ast.id}" class="border-gray-300" {if store_filter == ast.id}checked{/if}>
+                        <span>{ast.name | escape}</span>
+                    </label>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
             <div class="flex flex-col gap-2">
                 <button type="submit" class="px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Apply Filters</button>
                 <a href="{if storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="text-xs text-gray-500 hover:text-gray-700">Reset filters</a>
             </div>
         </form>
+        {elseif active_stores | count > 1}
+        <div class="mt-6 space-y-4">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Stores</h3>
+            <div class="space-y-1.5">
+                <a href="{base_url}/ecommerce/shop" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if store_filter == 0}font-semibold text-orange-600{else}text-gray-700{/if}">All stores</a>
+                {foreach active_stores as ast}
+                <a href="{base_url}/ecommerce/shop?store={ast.id}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if store_filter == ast.id}font-semibold text-orange-600{else}text-gray-700{/if}">{ast.name | escape}</a>
+                {/foreach}
+            </div>
+        </div>
+        {else}
         {/if}
     </aside>
     {elseif categories | count > 0}
@@ -117,6 +146,12 @@
                     {elseif p.inventory.track_stock && p.inventory.low_stock}
                     <div class="mt-1 text-xs text-amber-600 font-medium">Low stock - only {p.inventory.stock_qty} left</div>
                     {/if}
+                    {* Phase 2 multi-store: store badge *}
+                    {if p.store_name}
+                    <div class="mt-1.5">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700">{p.store_name | escape}</span>
+                    </div>
+                    {/if}
                 </div>
                 </a>
                 <div class="grid grid-cols-2 gap-3 px-4 pb-4">
@@ -165,6 +200,11 @@
                     <div class="mt-1 text-xs text-red-500 font-medium">Out of stock</div>
                     {elseif p.inventory.track_stock && p.inventory.low_stock}
                     <div class="mt-1 text-xs text-amber-600 font-medium">Low stock - only {p.inventory.stock_qty} left</div>
+                    {/if}
+                    {if p.store_name}
+                    <div class="mt-1.5">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700">{p.store_name | escape}</span>
+                    </div>
                     {/if}
                 </div>
                 </a>

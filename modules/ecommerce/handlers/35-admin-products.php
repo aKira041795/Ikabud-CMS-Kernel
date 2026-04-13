@@ -19,27 +19,37 @@ function ecAdminProducts(): void
     $limit   = 20;
     $offset  = ($page - 1) * $limit;
 
+    $storeId = (int)(ecInput()['store_id'] ?? 0);
     $result = ecProductList([
         'search'      => $search,
         'status'      => $status,
         'category_id' => $catId ?: null,
+        'store_id'    => $storeId ?: null,
         'limit'       => $limit,
         'offset'      => $offset,
+        'with_store'  => true,
     ]);
 
     $categories = ecDb()->query(
         ecCmsCategorySelectSql('id, name, slug', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
+    $stores = ecStoreIsMultiStoreActive()
+        ? ecStoreList(['active_only' => false])['items']
+        : [];
+
     $ctx = ecAdminContext($user, 'products', [
-        'products'    => $result['items'],
-        'total'       => $result['total'],
-        'total_pages' => (int)ceil($result['total'] / $limit),
-        'page'        => $page,
-        'search'      => $search,
-        'status'      => $status,
-        'cat_id'      => $catId,
-        'categories'  => $categories,
+        'products'       => $result['items'],
+        'total'          => $result['total'],
+        'total_pages'    => (int)ceil($result['total'] / $limit),
+        'page'           => $page,
+        'search'         => $search,
+        'status'         => $status,
+        'cat_id'         => $catId,
+        'categories'     => $categories,
+        'stores'         => $stores,
+        'store_id_filter' => $storeId,
+        'multi_store'    => count($stores) > 1,
     ]);
 
     ecRender('modules/ecommerce/admin/products.disyl', $ctx);
@@ -281,6 +291,12 @@ function ecAdminProductEdit(array $params = []): void
             }
             ecProductSaveDigitalMeta($productId, array_merge($input, $digitalFileMeta));
 
+            // Phase 1 multi-store: save store assignments when multi-store is active.
+            if (ecStoreIsMultiStoreActive()) {
+                $assignedStoreIds = array_map('intval', (array)($input['store_ids'] ?? []));
+                ecProductSaveStoreAssignments($productId, $assignedStoreIds);
+            }
+
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product saved.'];
             header('Location: /ecommerce/admin/products/' . $productId . '/edit');
             exit;
@@ -295,6 +311,17 @@ function ecAdminProductEdit(array $params = []): void
 
     // Refresh product after save
     $product = ecProductGet($productId);
+
+    // Phase 1 multi-store: load stores and current assignments.
+    $allStores = ecStoreIsMultiStoreActive() ? (ecStoreList(['active_only' => false])['items'] ?? []) : [];
+    $currentStoreAssignmentMap = count($allStores) > 0 ? ecProductStoreAssignmentMap([$productId]) : [];
+    $currentAssignedStoreIds = array_column($currentStoreAssignmentMap[$productId] ?? [], 'id');
+    $selectedStoreIds = isset($input) && isset($input['store_ids'])
+        ? array_map('intval', (array)$input['store_ids'])
+        : $currentAssignedStoreIds;
+    $storeAssignments = array_map(static function (array $store) use ($selectedStoreIds): array {
+        return array_merge($store, ['assigned' => in_array((int)($store['id'] ?? 0), $selectedStoreIds, true)]);
+    }, $allStores);
     $selectedRelationIds = isset($relationSelections)
         ? $relationSelections
         : (is_array($product['relation_ids'] ?? null) ? $product['relation_ids'] : ecProductDefaultRelationIds());
@@ -351,7 +378,10 @@ function ecAdminProductEdit(array $params = []): void
         })(isset($input['booking_available_weekdays'])
             ? array_map('intval', (array)$input['booking_available_weekdays'])
             : array_map('intval', is_array($product['booking']['available_weekdays'] ?? null) ? $product['booking']['available_weekdays'] : [])),
-        'seo_defaults' => ecProductSeoDefaults(),
+        'seo_defaults'      => ecProductSeoDefaults(),
+        'stores'            => $allStores,
+        'store_assignments' => $storeAssignments,
+        'multi_store'       => count($allStores) > 1,
         'error'      => $error ?? null,
         'message'    => $_SESSION['ec_message'] ?? null,
     ]);

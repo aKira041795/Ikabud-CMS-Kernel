@@ -103,6 +103,39 @@ function ecAdminStoreEdit(array $params = []): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = trim((string)($input['action'] ?? 'save'));
 
+        if ($action === 'save_inventory_source') {
+            $sourceType  = trim((string)($input['inventory_source_type'] ?? 'local'));
+            $warehouseId = max(0, (int)($input['inventory_warehouse_id'] ?? 0)) ?: null;
+            $result = ecStoreSaveInventorySource($id, $sourceType, $warehouseId);
+            $_SESSION['ec_message'] = $result['ok']
+                ? ['type' => 'success', 'text' => 'Inventory source saved.']
+                : ['type' => 'error',   'text' => $result['error']];
+            header('Location: /ecommerce/admin/stores/' . $id . '/edit');
+            exit;
+        }
+
+        if ($action === 'assign_owner') {
+            $ownerUserId = (int)($input['owner_user_id'] ?? 0);
+            if ($ownerUserId > 0) {
+                ecStoreUserAssign($id, $ownerUserId, 'owner');
+                $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Store owner assigned.'];
+            } else {
+                $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Invalid user ID.'];
+            }
+            header('Location: /ecommerce/admin/stores/' . $id . '/edit');
+            exit;
+        }
+
+        if ($action === 'remove_user') {
+            $removeUserId = (int)($input['remove_user_id'] ?? 0);
+            if ($removeUserId > 0) {
+                ecStoreUserRemove($id, $removeUserId);
+                $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'User removed from store.'];
+            }
+            header('Location: /ecommerce/admin/stores/' . $id . '/edit');
+            exit;
+        }
+
         if ($action === 'delete') {
             $del = ecStoreDelete($id);
             if ($del['ok']) {
@@ -163,10 +196,12 @@ function ecAdminStoreEdit(array $params = []): void
     }
 
     $ctx = ecAdminContext($user, 'stores', [
-        'store'   => $store,
-        'input'   => $inputData,
-        'is_new'  => false,
-        'message' => $_SESSION['ec_message'] ?? null,
+        'store'            => $store,
+        'input'            => $inputData,
+        'is_new'           => false,
+        'store_users'      => ecStoreUserList($id),
+        'inventory_source' => ecStoreInventorySource($id),
+        'message'          => $_SESSION['ec_message'] ?? null,
     ]);
     unset($_SESSION['ec_message']);
 

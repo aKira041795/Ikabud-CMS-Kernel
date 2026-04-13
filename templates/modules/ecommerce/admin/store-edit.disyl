@@ -124,6 +124,117 @@
         </div>
     </form>
 
+    <!-- Inventory Source (edit only — Phase 7C) -->
+    {if !is_new}
+    <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Inventory Source</h2>
+        <p class="text-xs text-slate-500">Controls where stock levels are read from for this store. Defaults to local tracking; choose WMS to pull from a linked warehouse.</p>
+
+        <form method="post" action="" class="space-y-4">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <input type="hidden" name="action" value="save_inventory_source">
+
+            <div class="flex items-center gap-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="inventory_source_type" value="local"
+                           {if inventory_source.source_type == 'wms'}class="border-gray-300"{else}checked class="border-gray-300"{/if}>
+                    <span class="text-sm font-medium text-gray-700">Local</span>
+                    <span class="text-xs text-slate-400">Use on-hand stock tracked by the platform</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="inventory_source_type" value="wms"
+                           {if inventory_source.source_type == 'wms'}checked{/if} class="border-gray-300">
+                    <span class="text-sm font-medium text-gray-700">WMS / Warehouse</span>
+                    <span class="text-xs text-slate-400">Pull stock from a linked warehouse</span>
+                </label>
+            </div>
+
+            <div id="wms-warehouse-row" class="{if inventory_source.source_type == 'wms'}block{else}hidden{/if}">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Warehouse ID</label>
+                <input type="number" name="inventory_warehouse_id" min="1"
+                       value="{inventory_source.warehouse_id | escape}"
+                       placeholder="Numeric warehouse ID from WMS module"
+                       class="w-48 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+            </div>
+
+            <div>
+                <button type="submit" class="px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-800">
+                    Save Inventory Source
+                </button>
+            </div>
+        </form>
+
+        <script>
+        (function () {
+            var radios = document.querySelectorAll('[name=inventory_source_type]');
+            var row = document.getElementById('wms-warehouse-row');
+            if (!radios.length || !row) return;
+            function update() {
+                var v = document.querySelector('[name=inventory_source_type]:checked');
+                row.className = (v && v.value === 'wms') ? 'block' : 'hidden';
+            }
+            radios.forEach(function (r) { r.addEventListener('change', update); });
+        })();
+        </script>
+    </div>
+    {/if}
+
+    <!-- Store Users (edit only — Phase 4) -->
+    {if !is_new}
+    <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store Users</h2>
+        <p class="text-xs text-slate-500">Assign a user as owner or manager of this store. Enter the user's numeric ID from the platform.</p>
+
+        {if store_users | count > 0}
+        <table class="w-full text-sm">
+            <thead class="text-[11px] uppercase tracking-wider text-slate-500">
+                <tr>
+                    <th class="py-1 text-left">User ID</th>
+                    <th class="py-1 text-left">Role</th>
+                    <th class="py-1 text-left">Assigned</th>
+                    <th class="py-1"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {foreach store_users as su}
+                <tr>
+                    <td class="py-1.5 text-gray-700">#{su.user_id}</td>
+                    <td class="py-1.5">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                            {if su.role == 'owner'}bg-amber-50 text-amber-700{else}bg-slate-50 text-slate-600{/if}">
+                            {su.role}
+                        </span>
+                    </td>
+                    <td class="py-1.5 text-slate-400 text-xs">{su.created_at}</td>
+                    <td class="py-1.5 text-right">
+                        <form method="post" action="" class="inline">
+                            <input type="hidden" name="_token" value="{csrf_token}">
+                            <input type="hidden" name="action" value="remove_user">
+                            <input type="hidden" name="remove_user_id" value="{su.user_id}">
+                            <button type="submit" class="text-xs text-red-500 hover:text-red-700">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+        {/if}
+
+        <form method="post" action="" class="flex items-end gap-3">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <input type="hidden" name="action" value="assign_owner">
+            <div class="flex-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">User ID</label>
+                <input type="number" name="owner_user_id" min="1" placeholder="e.g. 42"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-800">
+                Assign Owner
+            </button>
+        </form>
+    </div>
+    {/if}
+
     <!-- Danger zone (edit only) -->
     {if !is_new}
     <div class="bg-white rounded-xl border border-red-200 p-5 space-y-3">

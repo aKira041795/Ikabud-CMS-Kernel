@@ -14,6 +14,14 @@
            class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
     <input type="date" name="end_date"   value="{params.end_date}"
            class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+    {if multi_store}
+    <select name="store_id" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <option value="">All stores</option>
+        {foreach stores as st}
+        <option value="{st.id}" {if store_id == st.id}selected{/if}>{st.name | escape}</option>
+        {/foreach}
+    </select>
+    {/if}
     <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Apply</button>
 </form>
 

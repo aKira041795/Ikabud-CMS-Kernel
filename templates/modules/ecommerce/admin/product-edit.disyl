@@ -492,6 +492,30 @@
     </div>
 
 </form>
+
+{* Phase 1 multi-store: Store Assignment panel (only when multi-store is active) *}
+{if multi_store && product}
+<div class="mt-6 bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+    <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store Assignment</h2>
+    <p class="text-xs text-slate-500">Leave all unchecked to make this product visible in every store. Check specific stores to restrict visibility.</p>
+    <form method="post" action="">
+        <input type="hidden" name="_token" value="{csrf_token}">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {foreach store_assignments as st}
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="store_ids[]" value="{st.id}" {if st.assigned}checked{/if}
+                       class="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500">
+                <span class="text-sm text-gray-700">{st.name | escape}</span>
+                {if !st.is_active}<span class="text-[10px] text-slate-400">(inactive)</span>{/if}
+            </label>
+            {/foreach}
+        </div>
+        <div class="mt-4">
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors">Save Store Assignment</button>
+        </div>
+    </form>
+</div>
+{/if}
 {/block}
 
 {block scripts}

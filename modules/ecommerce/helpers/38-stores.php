@@ -226,6 +226,38 @@ function ecStoreInventorySource(int $storeId): ?array
 }
 
 /**
+ * Phase 7C: Save (upsert) the inventory source for a store.
+ * $source_type: 'local' | 'wms'
+ * $warehouse_id: required when source_type = 'wms', else null
+ */
+function ecStoreSaveInventorySource(int $storeId, string $sourceType, ?int $warehouseId): array
+{
+    if (!ecStoreStorageAvailable() || $storeId <= 0) {
+        return ['ok' => false, 'error' => 'Storage unavailable'];
+    }
+    $sourceType = in_array($sourceType, ['local', 'wms'], true) ? $sourceType : 'local';
+    if ($sourceType === 'wms' && ($warehouseId === null || $warehouseId <= 0)) {
+        return ['ok' => false, 'error' => 'A warehouse ID is required for WMS source type.'];
+    }
+    try {
+        // Deactivate existing sources first, then upsert the active one.
+        ecDb()->execute(
+            'UPDATE ec_store_inventory_sources SET is_active = 0 WHERE store_id = ?',
+            [$storeId]
+        );
+        ecDb()->execute(
+            'INSERT INTO ec_store_inventory_sources (store_id, source_type, warehouse_id, is_active, priority)
+             VALUES (?, ?, ?, 1, 1)
+             ON DUPLICATE KEY UPDATE source_type = VALUES(source_type), warehouse_id = VALUES(warehouse_id), is_active = 1',
+            [$storeId, $sourceType, $sourceType === 'wms' ? $warehouseId : null]
+        );
+        return ['ok' => true, 'error' => ''];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+/**
  * Phase 7F: returns store IDs whose active WMS inventory source maps to the given warehouse.
  * Used when WMS pushes a product update to resolve which stores should get an
  * ec_store_product_overrides visibility record for that product.
@@ -424,3 +456,66 @@ function ecStoreSetDefault(int $id): array
         return ['ok' => false, 'error' => $e->getMessage()];
     }
 }
+
+// ── Phase 4: Store user / owner management ───────────────────────────────
+
+/**
+ * Returns the users assigned to a store (with their roles).
+ * Returns rows: [['user_id', 'role', 'created_at'], ...]
+ */
+function ecStoreUserList(int $storeId): array
+{
+    if (!ecStoreStorageAvailable() || $storeId <= 0) {
+        return [];
+    }
+    try {
+        return ecDb()->query(
+            'SELECT user_id, role, created_at FROM ec_store_users WHERE store_id = ? ORDER BY role ASC, created_at ASC',
+            [$storeId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Assigns a user to a store with the given role ('owner' | 'manager').
+ * Upserts — updates role if the assignment already exists.
+ */
+function ecStoreUserAssign(int $storeId, int $userId, string $role = 'manager'): array
+{
+    if (!ecStoreStorageAvailable() || $storeId <= 0 || $userId <= 0) {
+        return ['ok' => false, 'error' => 'Invalid store or user'];
+    }
+    $role = in_array($role, ['owner', 'manager'], true) ? $role : 'manager';
+    try {
+        ecDb()->execute(
+            'INSERT INTO ec_store_users (store_id, user_id, role) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE role = VALUES(role)',
+            [$storeId, $userId, $role]
+        );
+        return ['ok' => true, 'error' => ''];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Removes a user's assignment from a store.
+ */
+function ecStoreUserRemove(int $storeId, int $userId): array
+{
+    if (!ecStoreStorageAvailable() || $storeId <= 0 || $userId <= 0) {
+        return ['ok' => false, 'error' => 'Invalid store or user'];
+    }
+    try {
+        ecDb()->execute(
+            'DELETE FROM ec_store_users WHERE store_id = ? AND user_id = ?',
+            [$storeId, $userId]
+        );
+        return ['ok' => true, 'error' => ''];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+

@@ -30,6 +30,7 @@ require_once __DIR__ . '/handlers/69-admin-abandoned-carts.php';
 require_once __DIR__ . '/handlers/70-pos.php';
 require_once __DIR__ . '/handlers/71-admin-memberships-loyalty.php';
 require_once __DIR__ . '/handlers/72-admin-stores.php';
+require_once __DIR__ . '/handlers/73-public-stores.php';
 require_once __DIR__ . '/handlers/80-api-products.php';
 require_once __DIR__ . '/handlers/82-api-cart.php';
 require_once __DIR__ . '/handlers/83-api-abandoned-carts.php';

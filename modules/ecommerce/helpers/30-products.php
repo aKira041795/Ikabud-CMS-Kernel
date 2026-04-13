@@ -261,10 +261,88 @@ function ecProductList(array $filters = []): array
         }
         unset($row);
 
+        // Phase 1 multi-store: attach store assignment data when requested.
+        if (!empty($filters['with_store']) && count($productIds) > 0) {
+            $storeAssignmentMap = ecProductStoreAssignmentMap($productIds);
+            foreach ($rows as &$row) {
+                $row['stores'] = $storeAssignmentMap[(int)($row['id'] ?? 0)] ?? [];
+            }
+            unset($row);
+        }
+
         return ['items' => $rows, 'total' => $total];
     } catch (\Throwable $e) {
         write_log('ecProductList error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
         return ['items' => [], 'total' => 0];
+    }
+}
+
+/**
+ * Batch-load store assignments for a list of product IDs.
+ * Returns a map of product_id => [['id', 'name', 'code', 'slug', 'is_visible'], ...]
+ */
+function ecProductStoreAssignmentMap(array $productIds): array
+{
+    if (empty($productIds)) {
+        return [];
+    }
+    $ids = array_values(array_map('intval', $productIds));
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $rows = ecDb()->query(
+            "SELECT po.product_id, po.store_id, po.is_visible,
+                    s.name, s.code, s.slug
+             FROM ec_store_product_overrides po
+             INNER JOIN ec_stores s ON s.id = po.store_id
+             WHERE po.product_id IN ($placeholders)
+             ORDER BY s.name ASC",
+            $ids
+        )->fetchAll(\PDO::FETCH_ASSOC);
+    } catch (\Throwable) {
+        return [];
+    }
+    $map = [];
+    foreach ($ids as $pid) {
+        $map[$pid] = [];
+    }
+    foreach ($rows as $row) {
+        $pid = (int)($row['product_id'] ?? 0);
+        if (!isset($map[$pid])) {
+            $map[$pid] = [];
+        }
+        $map[$pid][] = [
+            'id'         => (int)($row['store_id'] ?? 0),
+            'name'       => (string)($row['name'] ?? ''),
+            'code'       => (string)($row['code'] ?? ''),
+            'slug'       => (string)($row['slug'] ?? ''),
+            'is_visible' => (bool)($row['is_visible'] ?? true),
+        ];
+    }
+    return $map;
+}
+
+/**
+ * Save store assignments for a product.
+ * $storeIds — array of store IDs the product should be visible in.
+ * Products assigned to no store are visible in all stores (global default).
+ * Passing an empty array removes all store-specific overrides.
+ */
+function ecProductSaveStoreAssignments(int $productId, array $storeIds): void
+{
+    $db = ecDb();
+    // Delete all existing overrides for this product.
+    $db->query('DELETE FROM ec_store_product_overrides WHERE product_id = ?', [$productId]);
+    // Re-insert selected stores as visible.
+    foreach ($storeIds as $storeId) {
+        $sid = (int)$storeId;
+        if ($sid <= 0) {
+            continue;
+        }
+        $db->query(
+            'INSERT INTO ec_store_product_overrides (store_id, product_id, is_visible) VALUES (?, ?, 1)
+             ON DUPLICATE KEY UPDATE is_visible = 1',
+            [$sid, $productId]
+        );
     }
 }
 

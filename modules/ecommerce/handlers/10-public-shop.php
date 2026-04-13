@@ -91,6 +91,7 @@ function ecPublicShop(): void
 {
     $search     = trim((string)(ecInput()['search'] ?? ''));
     $categoryId = (int)(ecInput()['cat'] ?? 0);
+    $storeFilter = (int)(ecInput()['store'] ?? 0);
     $attributeFilters = function_exists('ecProductAttributeFiltersFromInput') ? ecProductAttributeFiltersFromInput(ecInput()) : [];
     $perPage    = (int)ecSettings('products_per_page');
     $routeContext = [
@@ -98,7 +99,7 @@ function ecPublicShop(): void
         'public_route_kind' => 'shop_index',
     ];
 
-    ecWithPublicThemeRouteContext($routeContext, static function () use ($search, $categoryId, $attributeFilters, $perPage, $routeContext): void {
+    ecWithPublicThemeRouteContext($routeContext, static function () use ($search, $categoryId, $storeFilter, $attributeFilters, $perPage, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_index', $routeContext);
 
         $availableCategories = ecPublicStorefrontCategories($categoryId);
@@ -128,6 +129,7 @@ function ecPublicShop(): void
             'attribute_filters' => $attributeFilters,
             'all_items_url' => '/ecommerce/shop',
             'search_action_url' => '/ecommerce/shop',
+            'store_id' => $storeFilter ?: null,
             'public_render_origin' => 'ecommerce',
             'public_route_kind' => 'shop_index',
             'public_presentation_mode' => $presentationMode,
@@ -149,6 +151,7 @@ function ecPublicShop(): void
             'search' => $search,
             'category_id' => $categoryId ?: null,
             'attribute_filters' => $attributeFilters,
+            'store_id' => $storeFilter ?: null,
             'status' => 'published',
             'limit' => $perPage,
             'offset' => $offset,
@@ -156,15 +159,23 @@ function ecPublicShop(): void
         $products = ecPublicDecorateCatalogProducts($productResult['items']);
         $totalPages = $perPage > 0 ? max(1, (int)ceil($productResult['total'] / $perPage)) : 1;
         $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
+
+        // Phase 2 multi-store: load active stores for sidebar facet.
+        $activeStores = ecStoreIsMultiStoreActive()
+            ? (ecStoreList(['active_only' => true])['items'] ?? [])
+            : [];
+        $activeStore = $storeFilter > 0 ? ecStoreById($storeFilter) : null;
         $paginationFirstUrl = ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
             'search' => $search,
             'cat' => $categoryId,
+            'store' => $storeFilter ?: null,
             'attr' => $attributeFilters,
         ]);
         $paginationPrevUrl = $page > 1
             ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page - 1, [
                 'search' => $search,
                 'cat' => $categoryId,
+                'store' => $storeFilter ?: null,
                 'attr' => $attributeFilters,
             ])
             : '';
@@ -172,6 +183,7 @@ function ecPublicShop(): void
             ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page + 1, [
                 'search' => $search,
                 'cat' => $categoryId,
+                'store' => $storeFilter ?: null,
                 'attr' => $attributeFilters,
             ])
             : '';
@@ -230,6 +242,9 @@ function ecPublicShop(): void
             'storefront' => $storefront,
             'public_route_kind' => 'shop_index',
             'public_presentation_mode' => $presentationMode,
+            'active_stores' => $activeStores,
+            'store_filter' => $storeFilter,
+            'active_store' => $activeStore,
         ]);
     });
 }
