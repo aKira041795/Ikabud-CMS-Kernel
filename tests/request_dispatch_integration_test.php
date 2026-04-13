@@ -372,6 +372,107 @@ t(
     json_encode($cmsLoginRedirect['context'])
 );
 
+$storeRedirectUser = [
+    'id' => 1211,
+    'username' => 'storeowner',
+    'name' => 'Store Owner',
+    'role' => 'author',
+    'source' => 'cms',
+];
+$dispatchDb->prepare('DELETE FROM ec_store_users WHERE user_id = ?')->execute([1211]);
+$dispatchDb->prepare('DELETE FROM ec_stores WHERE code IN (?, ?)')->execute(['DISPATCH-SINGLE-STORE', 'DISPATCH-MULTI-STORE']);
+$dispatchDb->prepare(
+    "INSERT INTO ec_stores (code, name, slug, description, is_active, is_default, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 1, 0, '{}', NOW(), NOW())"
+)->execute(['DISPATCH-SINGLE-STORE', 'Dispatch Single Store', 'dispatch-single-store', 'Fixture store']);
+$storeId = (int)$dispatchDb->lastInsertId();
+$dispatchDb->prepare('INSERT INTO ec_store_users (store_id, user_id, role) VALUES (?, ?, ?)')->execute([$storeId, 1211, 'owner']);
+
+$storePortalRedirect = kernelResolveStorePortalHomeRedirect($storeRedirectUser);
+t(
+    'kernel store portal resolver returns the direct store dashboard for a single-store CMS user',
+    str_starts_with((string)$storePortalRedirect, '/ecommerce/store-admin/'),
+    (string)$storePortalRedirect
+);
+t(
+    'authenticated home resolver prefers the store portal for a store-assigned CMS user',
+    str_starts_with((string)kernelResolveAuthenticatedHomeRedirect($storeRedirectUser, true), '/ecommerce/store-admin/'),
+    (string)kernelResolveAuthenticatedHomeRedirect($storeRedirectUser, true)
+);
+
+$dispatchDb->prepare(
+    "INSERT INTO ec_stores (code, name, slug, description, is_active, is_default, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 1, 0, '{}', NOW(), NOW())"
+)->execute(['DISPATCH-MULTI-STORE', 'Dispatch Multi Store', 'dispatch-multi-store', 'Fixture store']);
+$secondStoreId = (int)$dispatchDb->lastInsertId();
+$dispatchDb->prepare('INSERT INTO ec_store_users (store_id, user_id, role) VALUES (?, ?, ?)')->execute([$secondStoreId, 1211, 'manager']);
+t(
+    'kernel store portal resolver returns my-stores when a CMS user manages multiple stores',
+    kernelResolveStorePortalHomeRedirect($storeRedirectUser) === '/ecommerce/my-stores',
+    (string)kernelResolveStorePortalHomeRedirect($storeRedirectUser)
+);
+
+$storeReportsPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/reports',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store reports route renders for a store owner without falling through to admin-only access',
+    ($storeReportsPage['exit_code'] ?? 1) === 0
+        && str_contains($storeReportsPage['body'] ?? '', 'Top Products')
+        && !str_contains($storeReportsPage['body'] ?? '', 'Access Denied'),
+    $storeReportsPage['raw']
+);
+
+$storeProductCreatePage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/products/create',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store product create route renders for owner-managed store access',
+    ($storeProductCreatePage['exit_code'] ?? 1) === 0
+        && str_contains($storeProductCreatePage['body'] ?? '', 'Add Product')
+        && !str_contains($storeProductCreatePage['body'] ?? '', 'Access Denied'),
+    $storeProductCreatePage['raw']
+);
+
+$storeSettingsDenied = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $secondStoreId . '/settings',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store settings route rejects manager access when owner privileges are required',
+    str_contains($storeSettingsDenied['body'] ?? '', 'Access Denied'),
+    $storeSettingsDenied['raw']
+);
+
+$dispatchDb->prepare('UPDATE ec_store_users SET role = ? WHERE store_id = ? AND user_id = ?')->execute(['supervisor', $secondStoreId, 1211]);
+$storeReportsDenied = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $secondStoreId . '/reports',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store reports route rejects supervisor access when manager privileges are required',
+    str_contains($storeReportsDenied['body'] ?? '', 'Access Denied'),
+    $storeReportsDenied['raw']
+);
+
 $kernelIntegrationsPage = runRequestThroughEntrypoint(
     [
         'REQUEST_METHOD' => 'GET',

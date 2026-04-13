@@ -25,6 +25,262 @@
 
 ---
 
+## Actionable Execution Track — April 2026
+
+This section turns the roadmap into an execution plan tied to the current implementation and the current review findings.
+
+## Multi-Store UX Gaps & Marketplace Alignment
+
+The multi-store system has a solid data layer already: stores, product overrides, user roles, WMS store routing, public store pages, and the initial store-admin area exist. The main problems are now UX correctness, inactive store-admin navigation, and missing merchant-facing capabilities that are baseline in Amazon, Lazada, Shopee, and Foodpanda-style seller portals.
+
+### Current State Summary
+
+**Working now**
+- Store CRUD
+- Per-store dashboards, orders, products, coupons, reviews
+- Role-based store access (`owner`, `manager`, `supervisor`)
+- WMS warehouse-to-store routing foundation
+- Public store directory and per-store pages
+- POS link in the store sidebar
+
+**Broken / missing — six issue groups**
+
+#### Issue 1 — Store Owner Login Redirect
+
+**Root cause:** `cmsLoginBridge()` in `modules/cms/handlers/10-auth.php` historically only branched to `/cms/admin` or `/ecommerce/shop`, with no awareness of store assignments. Store-assigned CMS users could see the admin panel first instead of landing in the store portal.
+
+**Current implementation note:** the redirect decision is now being centralized in the shared authenticated-home path so login, `/login`, and `/cms/login` use the same store-aware resolution.
+
+#### Issue 2 — My Stores Used Admin Layout
+
+**Root cause:** `templates/modules/ecommerce/admin/my-stores.disyl` extended the full ecommerce admin layout, so store users inherited the global admin shell.
+
+**Current implementation note:** the `my-stores` entry page should live in a lightweight store-entry shell instead of the full admin navigation.
+
+#### Issue 3 — Seven Disabled Sidebar Links
+
+In `templates/modules/ecommerce/layouts/store-admin.disyl`, these links are currently non-functional placeholders rendered as disabled nav items.
+
+| Link | Priority | Why |
+|---|---|---|
+| Reports | Critical | Present in all four reference platforms |
+| Returns | High | Required for order lifecycle management |
+| Customers | High | Standard merchant capability |
+| Categories | High | Required for store catalog organization |
+| Abandoned Carts | Medium | Revenue recovery |
+| Import / Export | Medium | Bulk operations |
+| Loyalty & Rewards | Low | Nice-to-have |
+
+#### Issue 4 — No Supervisor vs Manager View Differentiation
+
+At the moment, supervisors and managers see the same sidebar. The only practical difference is that supervisors are blocked from write actions by `can_edit = false`. The navigation itself is not role-specific.
+
+#### Issue 5 — Missing Marketplace Must-Haves
+
+Comparing the current store portal against Amazon Seller Central, Lazada Seller Center, Shopee Seller Centre, and Foodpanda merchant tooling:
+
+| Feature | All 4 Platforms | Current |
+|---|---|---|
+| Dashboard with KPI cards | ✅ | Partial |
+| Revenue / sales reports | ✅ | ❌ |
+| Customer list (store buyers) | ✅ | ❌ |
+| Notification center | ✅ | ❌ |
+| Store profile / settings page | ✅ | ❌ |
+| Return / refund management | ✅ | ❌ (admin-only) |
+| Store-level shipping config | ✅ | ❌ |
+| Buyer-seller messaging | ✅ | ❌ |
+| Seller performance score | ✅ | ❌ |
+| Payout / settlement reports | ✅ | ❌ |
+
+#### Issue 6 — Comprehensive Delivery Plan Required
+
+The roadmap needs a clear implementation sequence that separates critical-path UX fixes from store-admin feature expansion, then from deferred marketplace-depth work.
+
+### Implementation Phases
+
+### Phase A — Critical Path Fixes (Login + Layout)
+**Status:** In progress
+
+No new features. Fix the broken entry flow first.
+
+**Work items**
+1. Fix login redirect so non-admin CMS users with store assignments are routed to `/ecommerce/store-admin/{id}` when they have exactly one store and `/ecommerce/my-stores` when they have multiple stores.
+2. Fix `my-stores` so it uses a minimal standalone store-entry layout rather than `modules/ecommerce/layouts/admin.disyl`.
+3. Auto-redirect `/ecommerce/my-stores` to the direct store dashboard when exactly one store is assigned.
+
+**Files**
+- `modules/cms/handlers/10-auth.php`
+- `bootstrap.php`
+- `modules/cms/helpers/00-bootstrap.php`
+- `modules/cms/helpers/80-customizer.php`
+- `modules/ecommerce/helpers/38-stores.php`
+- `modules/ecommerce/handlers/74-store-admin-access.php`
+- `templates/modules/ecommerce/admin/my-stores.disyl`
+- `templates/modules/ecommerce/layouts/store-entry.disyl`
+
+**Verification**
+- Store owner lands at the store dashboard, not `/cms/admin`
+- CMS admin still lands at `/cms/admin`
+- Customer still lands at `/ecommerce/my-orders` or public shop flows as appropriate
+
+### Phase B — Activate Disabled Sidebar Links
+**Status:** Planned
+
+Implement the highest-priority store-admin placeholders.
+
+**Work items**
+1. **Reports** — `ecStoreAdminReports()` + store-scoped template using `store_id`-filtered reporting data from `helpers/50-reports.php`
+2. **Returns** — `ecStoreAdminReturns()` + template using store-scoped return queries via order/item store attribution and `helpers/22-returns.php`
+3. **Customers** — `ecStoreAdminCustomers()` + template listing customers who ordered from the store, including counts and spend
+4. **Categories** — `ecStoreAdminCategories()` + template for store-relevant categories and product/category organization
+5. **Abandoned Carts** — `ecStoreAdminAbandonedCarts()` + template scoped to carts containing store products
+
+**Per-page implementation pattern**
+1. Add handler function in `modules/ecommerce/handlers/74-store-admin-access.php`
+2. Register route in `modules/ecommerce/routes.php`
+3. Add template under `templates/modules/ecommerce/admin/`
+4. Activate the sidebar link in `templates/modules/ecommerce/layouts/store-admin.disyl`
+
+**Files**
+- `modules/ecommerce/handlers/74-store-admin-access.php`
+- `modules/ecommerce/routes.php`
+- `templates/modules/ecommerce/admin/store-admin-reports.disyl`
+- `templates/modules/ecommerce/admin/store-admin-returns.disyl`
+- `templates/modules/ecommerce/admin/store-admin-customers.disyl`
+- `templates/modules/ecommerce/admin/store-admin-categories.disyl`
+- `templates/modules/ecommerce/admin/store-admin-abandoned-carts.disyl`
+- `templates/modules/ecommerce/layouts/store-admin.disyl`
+- `modules/ecommerce/helpers/50-reports.php`
+- `modules/ecommerce/helpers/22-returns.php`
+
+### Phase C — Store Profile & Settings
+**Status:** Planned
+
+Give owners a store-scoped control surface for identity and configuration.
+
+**Work items**
+1. Add `GET|POST /ecommerce/store-admin/{id}/settings`
+2. Add `ecStoreAdminSettings()` with owner-only access
+3. Allow editing name, description, announcement, banner, and logo
+4. Show store team management for owner-only assignment workflows
+5. Surface store-level shipping/config data from `settings_json`
+6. Add a settings link to the sidebar for owners; keep it hidden or disabled for other roles
+
+**Files**
+- `modules/ecommerce/handlers/74-store-admin-access.php`
+- `modules/ecommerce/routes.php`
+- `templates/modules/ecommerce/admin/store-admin-settings.disyl`
+- `templates/modules/ecommerce/layouts/store-admin.disyl`
+
+### Phase D — Role-Differentiated Sidebar
+**Status:** Planned
+
+Make the store-admin UI reflect role boundaries instead of showing one generic sidebar.
+
+**Target permission map**
+- `supervisor`: dashboard, orders (read), products (read), reviews (read)
+- `manager`: everything supervisor has plus coupons, categories, customers, returns, reports, POS, import/export
+- `owner`: everything manager has plus settings and team management
+
+**Work items**
+1. Define a permissions map in `ecStoreAdminContext()` in `modules/ecommerce/handlers/00-bootstrap.php`
+2. Pass permissions to the template context
+3. Render store-admin navigation conditionally in `templates/modules/ecommerce/layouts/store-admin.disyl`
+4. Keep supervisor write restrictions enforced on the server side
+5. Add a persistent read-only banner for supervisors
+
+### Phase E — Notifications & Alerts
+**Status:** Deferred
+
+This requires new schema and event hookups.
+
+**Deferred work**
+1. Add `ec_store_notifications`
+2. Generate notifications on new orders, return requests, and low-stock conditions
+3. Add a notification bell to the store-admin chrome
+4. Add APIs for marking notifications as read
+
+### Phase F — Messaging
+**Status:** Deferred pending product decision
+
+Buyer-seller messaging is standard in Amazon, Lazada, Shopee, and Foodpanda merchant experiences, but whether it is necessary here depends on platform direction.
+
+**Decision gate**
+- If this product remains multi-location retail, messaging is optional
+- If this moves toward marketplace / third-party sellers, messaging becomes essential
+
+### Relevant Files
+
+- `modules/cms/handlers/10-auth.php` — login redirect logic
+- `modules/ecommerce/handlers/00-bootstrap.php` — `ecRequireStoreAccess()`, `ecStoreAdminContext()`
+- `modules/ecommerce/handlers/74-store-admin-access.php` — all store-admin handlers
+- `modules/ecommerce/helpers/38-stores.php` — store CRUD, `ecStoresForUser()`
+- `modules/ecommerce/helpers/22-returns.php` — returns logic
+- `modules/ecommerce/helpers/50-reports.php` — reporting logic
+- `modules/ecommerce/routes.php` — store-admin routes
+- `templates/modules/ecommerce/layouts/store-admin.disyl` — sidebar and store-admin shell
+- `templates/modules/ecommerce/admin/my-stores.disyl` — store chooser entry page
+
+### Verification Matrix
+
+**Phase A**
+- Store owner login redirects to the store dashboard
+- Multi-store assignees land on `/ecommerce/my-stores`
+- Admin bypass still works
+
+**Phase B**
+- All five high-priority links navigate to functional store-scoped views
+- Supervisors cannot POST on those pages
+
+**Phase C**
+- Owners can edit store identity and branding
+- Managers and supervisors cannot access owner-only settings actions
+
+**Phase D**
+- Supervisor sees only the read-only core sections
+- Manager sees the operational sections but not owner-only settings/team management
+- Owner sees the full store navigation
+
+**Cross-cutting**
+- Supervisors cannot POST
+- Managers cannot access owner-only settings
+- System admin bypass still works
+- After each phase, inspect `storage/logs/app.log` and `storage/logs/error.log`
+
+### Decisions and Scope
+
+**In scope now**
+- Phases A through D
+
+**Deferred**
+- Phases E and F, because they require new schema or a product-direction decision
+
+**Explicitly out of scope for this roadmap segment**
+- Commission / payout ledger
+- Vendor onboarding and self-registration
+- Seller reputation/rating systems
+
+**Lower-priority placeholders**
+- Import / Export remains medium priority
+- Loyalty & Rewards remains low priority
+
+### Further Considerations
+
+1. **Marketplace vs multi-location retail**
+    The current model is admin-assigned store staff, not self-registered third-party vendors. If this evolves toward Lazada/Shopee-style marketplace behavior, onboarding and seller governance need their own future phase.
+2. **POS store scoping**
+    The current sidebar points to `/ecommerce/pos` globally. The recommended direction is to scope POS to the current store's products and inventory.
+3. **Import / Export timing**
+    Bulk operations are standard across Amazon, Lazada, and Shopee. Decide whether to bring import/export into the same wave as Phase B or keep it deferred until the reporting and returns pages are complete.
+
+### Validation Plan
+1. Keep shared authenticated-home redirect coverage for store-assigned CMS users.
+2. Validate direct store-home resolution for single-store and multi-store assignees.
+3. Verify no regressions for admin and non-store customer redirect paths.
+4. After each implementation phase, check `storage/logs/app.log` and `storage/logs/error.log`.
+
+---
+
 ## Phase 1 — Product-Store Assignment (Data Layer)
 **Goal:** Define which products belong to which stores.
 

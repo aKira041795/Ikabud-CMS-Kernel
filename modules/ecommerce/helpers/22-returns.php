@@ -5,7 +5,7 @@ declare(strict_types=1);
 function ecReturnRequestStorageAvailable(): bool
 {
     static $ready = null;
-    if ($ready !== null) {
+    if ($ready === true) {
         return $ready;
     }
 
@@ -77,8 +77,12 @@ function ecReturnRequestItemRows(int $requestId): array
 
     try {
         $rows = ecDb()->query(
-            'SELECT id, request_id, order_item_id, product_id, product_title, sku, qty_requested, condition_code, notes, created_at, updated_at
-             FROM ec_return_request_items WHERE request_id = ? ORDER BY id ASC',
+            'SELECT rri.id, rri.request_id, rri.order_item_id, rri.product_id, rri.product_title, rri.sku, rri.qty_requested, rri.condition_code, rri.notes, rri.created_at, rri.updated_at,
+                    oi.store_id
+             FROM ec_return_request_items rri
+             LEFT JOIN ec_order_items oi ON oi.id = rri.order_item_id
+             WHERE rri.request_id = ?
+             ORDER BY rri.id ASC',
             [$requestId]
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
@@ -90,6 +94,7 @@ function ecReturnRequestItemRows(int $requestId): array
         $row['request_id'] = (int)($row['request_id'] ?? 0);
         $row['order_item_id'] = (int)($row['order_item_id'] ?? 0);
         $row['product_id'] = (int)($row['product_id'] ?? 0);
+        $row['store_id'] = max(0, (int)($row['store_id'] ?? 0));
         $row['qty_requested'] = max(0, (int)($row['qty_requested'] ?? 0));
         $row['condition_code'] = ecReturnRequestNormalizeCondition($row['condition_code'] ?? 'unknown');
         $row['condition_label'] = ucfirst((string)$row['condition_code']);
@@ -98,6 +103,44 @@ function ecReturnRequestItemRows(int $requestId): array
         $row['notes'] = trim((string)($row['notes'] ?? ''));
         return $row;
     }, $rows);
+}
+
+function ecReturnRequestBelongsToStore(int $requestId, int $storeId): bool
+{
+    if ($requestId <= 0 || $storeId <= 0 || !ecReturnRequestStorageAvailable()) {
+        return false;
+    }
+
+    try {
+        return (int)ecDb()->query(
+            'SELECT COUNT(*)
+             FROM ec_return_request_items rri
+             INNER JOIN ec_order_items oi ON oi.id = rri.order_item_id
+             WHERE rri.request_id = ? AND oi.store_id = ?',
+            [$requestId, $storeId]
+        )->fetchColumn() > 0;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+function ecReturnRequestFilterRowToStore(array $row, int $storeId): array
+{
+    if ($storeId <= 0) {
+        return $row;
+    }
+
+    $items = array_values(array_filter((array)($row['items'] ?? []), static function (array $item) use ($storeId): bool {
+        return (int)($item['store_id'] ?? 0) === $storeId;
+    }));
+
+    $row['items'] = $items;
+    $row['item_count'] = count($items);
+    $row['total_qty_requested'] = array_reduce($items, static function (int $carry, array $item): int {
+        return $carry + max(0, (int)($item['qty_requested'] ?? 0));
+    }, 0);
+
+    return $row;
 }
 
 function ecReturnRequestRow(array $row): array
@@ -609,9 +652,21 @@ function ecReturnRequestList(array $filters = []): array
     $params = [];
 
     $status = ecReturnRequestNormalizeStatus($filters['status'] ?? '');
+    $storeId = max(0, (int)($filters['store_id'] ?? 0));
     if (($filters['status'] ?? '') !== '') {
         $where[] = 'rr.status = ?';
         $params[] = $status;
+    }
+
+    if ($storeId > 0) {
+        $where[] = 'EXISTS (
+            SELECT 1
+            FROM ec_return_request_items rri_filter
+            INNER JOIN ec_order_items oi_filter ON oi_filter.id = rri_filter.order_item_id
+            WHERE rri_filter.request_id = rr.id
+              AND oi_filter.store_id = ?
+        )';
+        $params[] = $storeId;
     }
 
     $whereSql = $where !== [] ? ('WHERE ' . implode(' AND ', $where)) : '';
@@ -646,8 +701,15 @@ function ecReturnRequestList(array $filters = []): array
         return ['items' => [], 'total' => 0];
     }
 
+    $items = array_map('ecReturnRequestRow', $rows);
+    if ($storeId > 0) {
+        $items = array_map(static function (array $row) use ($storeId): array {
+            return ecReturnRequestFilterRowToStore($row, $storeId);
+        }, $items);
+    }
+
     return [
-        'items' => array_map('ecReturnRequestRow', $rows),
+        'items' => $items,
         'total' => $total,
     ];
 }

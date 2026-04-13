@@ -1,0 +1,72 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <form method="get" action="" class="flex flex-wrap items-center gap-3">
+        <select name="period" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="today" {if params.period == 'today'}selected{/if}>Today</option>
+            <option value="week" {if params.period == 'week'}selected{/if}>This Week</option>
+            <option value="month" {if params.period == 'month'}selected{/if}>This Month</option>
+            <option value="year" {if params.period == 'year'}selected{/if}>This Year</option>
+            <option value="custom" {if params.period == 'custom'}selected{/if}>Custom Range</option>
+        </select>
+        <input type="date" name="start_date" value="{params.start_date}" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <input type="date" name="end_date" value="{params.end_date}" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Apply</button>
+    </form>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Revenue</div>
+            <div class="text-2xl font-bold text-gray-900">{sales.revenue_fmt}</div>
+            <div class="text-xs text-slate-500 mt-1">{sales.date_from} → {sales.date_to}</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Orders</div>
+            <div class="text-2xl font-bold text-gray-900">{sales.order_count}</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Avg. Order</div>
+            <div class="text-2xl font-bold text-gray-900">{sales.avg_fmt}</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Low Stock Items</div>
+            <div class="text-2xl font-bold {if inventory.count > 0}text-red-600{else}text-gray-900{/if}">{inventory.count}</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-100 text-[13px] font-semibold text-gray-800">Top Products</div>
+            {if sales.top_products | count == 0}
+            <div class="px-5 py-8 text-center text-slate-500 text-sm">No sales in this period.</div>
+            {/if}
+            {foreach sales.top_products as prod}
+            <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0">
+                <div>
+                    <div class="text-sm font-medium text-gray-900">{prod.product_title | escape}</div>
+                    <div class="text-xs text-slate-500">{prod.units_sold} units sold</div>
+                </div>
+                <span class="text-sm font-semibold text-gray-900">{currency_sym}{prod.revenue}</span>
+            </div>
+            {/foreach}
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-100 text-[13px] font-semibold text-gray-800">Low / Out of Stock</div>
+            {if inventory.count == 0}
+            <div class="px-5 py-8 text-center text-slate-500 text-sm">All assigned products are in stock.</div>
+            {/if}
+            {foreach inventory.items as item}
+            <a href="{base_url}/ecommerce/store-admin/{store.id}/products/{item.id}/edit" class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 no-underline">
+                <div>
+                    <div class="text-sm font-medium text-gray-900">{item.title | escape}</div>
+                    <div class="text-xs text-slate-500">{item.sku | escape}</div>
+                </div>
+                <span class="text-sm font-bold {if item.stock_qty == 0}text-red-600{else}text-orange-600{/if}">{item.stock_qty}</span>
+            </a>
+            {/foreach}
+        </div>
+    </div>
+</div>
+{/block}

@@ -12,11 +12,8 @@ function cmsLoginBridge(array $params = []): void
             return;
         }
         if (($u['source'] ?? '') === 'cms') {
-            if (cmsUserCan($u, 'dashboard.view')) {
-                cmsRedirect('/cms/admin');
-            } else {
-                cmsRedirect('/ecommerce/shop');
-            }
+            $target = kernelResolveAuthenticatedHomeRedirect($u, true) ?? '/cms/admin';
+            cmsRedirect($target);
             return;
         }
     }

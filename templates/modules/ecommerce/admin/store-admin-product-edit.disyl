@@ -1,0 +1,136 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="max-w-4xl space-y-5">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900">{if is_new}Add Product{else}Edit Product{/if}</h1>
+            <p class="mt-1 text-sm text-slate-500">This editor is scoped to {store.name | escape}. New products are automatically assigned to this store.</p>
+        </div>
+        <a href="{base_url}/ecommerce/store-admin/{store.id}/products"
+           class="px-4 py-2 text-sm font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            Back to Products
+        </a>
+    </div>
+
+    {if message}
+    <div class="rounded-xl px-4 py-3 text-sm font-medium {if message.type == 'success'}bg-emerald-50 border border-emerald-200 text-emerald-700{else}bg-red-50 border border-red-200 text-red-700{/if}">
+        {message.text | escape}
+    </div>
+    {/if}
+
+    {if error}
+    <div class="rounded-xl px-4 py-3 text-sm font-medium bg-red-50 border border-red-200 text-red-700">{error | escape}</div>
+    {/if}
+
+    {if shared_catalog_product}
+    <div class="rounded-xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-700">
+        This product is assigned to multiple stores. Changes here update the shared catalog record.
+    </div>
+    {/if}
+
+    <form method="post" action="" enctype="multipart/form-data" class="space-y-5">
+        <input type="hidden" name="_token" value="{csrf_token}">
+        <input type="hidden" name="featured_image_id" value="{product.featured_image_id | default:''}">
+
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5">
+            <div class="space-y-5">
+                <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Title</label>
+                        <input type="text" name="title" value="{input.title | default:product.title | default:''}" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Slug</label>
+                        <input type="text" name="slug" value="{input.slug | default:product.slug | default:''}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Short Description</label>
+                        <textarea name="excerpt" rows="3"
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:border-orange-500 outline-none">{input.excerpt | default:product.excerpt | default:''}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Full Description</label>
+                        <textarea name="body" rows="8"
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">{input.body | default:product.body | default:''}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-5">
+                <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                        <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                            <option value="draft" {if input.status | default:product.status | default:'draft' == 'draft'}selected{/if}>Draft</option>
+                            <option value="published" {if input.status | default:product.status == 'published'}selected{/if}>Published</option>
+                            <option value="private" {if input.status | default:product.status == 'private'}selected{/if}>Private</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Regular Price</label>
+                            <input type="number" name="price" min="0" step="0.01" value="{input.price | default:product.pricing.price | default:''}"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Sale Price</label>
+                            <input type="number" name="sale_price" min="0" step="0.01" value="{input.sale_price | default:product.pricing.sale_price | default:''}"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">SKU</label>
+                        <input type="text" name="sku" value="{input.sku | default:product.inventory.sku | default:''}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="track_stock" value="on" class="rounded" {if input.track_stock || product.inventory.track_stock || is_new}checked{/if}>
+                        <span class="text-xs font-medium text-gray-700">Track stock quantity</span>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Stock Quantity</label>
+                        <input type="number" name="stock_qty" min="0" value="{input.stock_qty | default:product.inventory.stock_qty | default:'0'}"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Category</label>
+                        <select name="category_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                            <option value="">No category</option>
+                            {foreach categories as cat}
+                            <option value="{cat.id}" {if selected_category_id == cat.id}selected{/if}>{cat.name | escape}</option>
+                            {/foreach}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+                    <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Product Image</h2>
+                    {if product.featured_image_url}
+                    <img src="{product.featured_image_url}" alt="{product.title | default:'Product image'}" class="w-full h-40 object-cover rounded-lg border border-gray-200">
+                    <label class="flex items-center gap-2 text-xs text-gray-600">
+                        <input type="checkbox" name="remove_featured_image" value="1" class="rounded">
+                        <span>Remove current image</span>
+                    </label>
+                    {/if}
+                    <input type="file" name="featured_image" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+            <a href="{base_url}/ecommerce/store-admin/{store.id}/products"
+               class="px-4 py-2 text-sm font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors">
+                {if is_new}Create Product{else}Save Changes{/if}
+            </button>
+        </div>
+    </form>
+</div>
+{/block}

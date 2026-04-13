@@ -1,4 +1,4 @@
-{extends "modules/ecommerce/layouts/admin.disyl"}
+{extends "modules/ecommerce/layouts/store-entry.disyl"}
 
 {block content}
 <div class="max-w-3xl space-y-5">

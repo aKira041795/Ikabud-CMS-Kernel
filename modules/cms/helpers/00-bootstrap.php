@@ -38,7 +38,12 @@ app()->hooks()->on('kernel.request.before_dispatch', static function (array $con
     }
 
     $user = cmsCtxUser();
-    if (is_array($user) && (($user['source'] ?? '') === 'cms' || (($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'admin'))) {
+    if (is_array($user) && ($user['source'] ?? '') === 'cms') {
+        $target = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/cms/admin';
+        return kernelRequestDispatchRedirect($context, $target);
+    }
+
+    if (is_array($user) && ($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'admin') {
         return kernelRequestDispatchRedirect($context, '/cms/admin');
     }
 

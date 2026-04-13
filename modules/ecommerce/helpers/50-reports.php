@@ -20,46 +20,103 @@ function ecReportSales(array $params = []): array
 
     // Let other modules augment report params
     $params = app()->hooks()->filter('ecommerce.reports.sales.params', $params);
+    $storeId = max(0, (int)($params['store_id'] ?? 0));
 
     try {
-        $base = "FROM ec_orders o
-                 WHERE o.status NOT IN ('cancelled', 'refunded')
-                   AND o.created_at >= ? AND o.created_at <= ?";
         $baseParams = [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'];
 
-        $totalRevenue = (float)$db->query(
-            "SELECT COALESCE(SUM(o.total), 0) $base", $baseParams
-        )->fetchColumn();
+        if ($storeId > 0) {
+            $storeParams = array_merge([$storeId], $baseParams);
 
-        $orderCount = (int)$db->query(
-            "SELECT COUNT(*) $base", $baseParams
-        )->fetchColumn();
+            $totalRevenue = (float)$db->query(
+                "SELECT COALESCE(SUM(oi.line_total), 0)
+                 FROM ec_order_items oi
+                 INNER JOIN ec_orders o ON o.id = oi.order_id
+                 WHERE oi.store_id = ?
+                   AND o.status NOT IN ('cancelled', 'refunded')
+                   AND o.created_at >= ? AND o.created_at <= ?",
+                $storeParams
+            )->fetchColumn();
+
+            $orderCount = (int)$db->query(
+                "SELECT COUNT(DISTINCT o.id)
+                 FROM ec_order_items oi
+                 INNER JOIN ec_orders o ON o.id = oi.order_id
+                 WHERE oi.store_id = ?
+                   AND o.status NOT IN ('cancelled', 'refunded')
+                   AND o.created_at >= ? AND o.created_at <= ?",
+                $storeParams
+            )->fetchColumn();
+
+            $topProducts = $db->query(
+                "SELECT oi.product_id, oi.product_title, oi.sku,
+                        SUM(oi.qty) AS units_sold,
+                        SUM(oi.line_total) AS revenue
+                 FROM ec_order_items oi
+                 INNER JOIN ec_orders o ON o.id = oi.order_id
+                 WHERE oi.store_id = ?
+                   AND o.status NOT IN ('cancelled', 'refunded')
+                   AND o.created_at >= ? AND o.created_at <= ?
+                 GROUP BY oi.product_id, oi.product_title, oi.sku
+                 ORDER BY revenue DESC
+                 LIMIT 10",
+                $storeParams
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+            $revenueByDay = $db->query(
+                "SELECT DATE(o.created_at) AS date,
+                        COUNT(DISTINCT o.id) AS orders,
+                        COALESCE(SUM(oi.line_total), 0) AS revenue
+                 FROM ec_order_items oi
+                 INNER JOIN ec_orders o ON o.id = oi.order_id
+                 WHERE oi.store_id = ?
+                   AND o.status NOT IN ('cancelled', 'refunded')
+                   AND o.created_at >= ? AND o.created_at <= ?
+                 GROUP BY DATE(o.created_at)
+                 ORDER BY date ASC",
+                $storeParams
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } else {
+            $base = "FROM ec_orders o
+                     WHERE o.status NOT IN ('cancelled', 'refunded')
+                       AND o.created_at >= ? AND o.created_at <= ?";
+
+            $totalRevenue = (float)$db->query(
+                "SELECT COALESCE(SUM(o.total), 0) $base",
+                $baseParams
+            )->fetchColumn();
+
+            $orderCount = (int)$db->query(
+                "SELECT COUNT(*) $base",
+                $baseParams
+            )->fetchColumn();
+
+            $topProducts = $db->query(
+                "SELECT oi.product_id, oi.product_title, oi.sku,
+                        SUM(oi.qty) AS units_sold,
+                        SUM(oi.line_total) AS revenue
+                 FROM ec_order_items oi
+                 INNER JOIN ec_orders o ON o.id = oi.order_id
+                 WHERE o.status NOT IN ('cancelled', 'refunded')
+                   AND o.created_at >= ? AND o.created_at <= ?
+                 GROUP BY oi.product_id, oi.product_title, oi.sku
+                 ORDER BY revenue DESC
+                 LIMIT 10",
+                $baseParams
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+            $revenueByDay = $db->query(
+                "SELECT DATE(o.created_at) AS date,
+                        COUNT(*) AS orders,
+                        COALESCE(SUM(o.total), 0) AS revenue
+                 $base
+                 GROUP BY DATE(o.created_at)
+                 ORDER BY date ASC",
+                $baseParams
+            )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        }
 
         $avgOrderValue = $orderCount > 0 ? round($totalRevenue / $orderCount, 2) : 0.0;
-
-        $topProducts = $db->query(
-            "SELECT oi.product_id, oi.product_title, oi.sku,
-                    SUM(oi.qty) as units_sold,
-                    SUM(oi.line_total) as revenue
-             FROM ec_order_items oi
-             INNER JOIN ec_orders o ON o.id = oi.order_id
-             WHERE o.status NOT IN ('cancelled', 'refunded')
-               AND o.created_at >= ? AND o.created_at <= ?
-             GROUP BY oi.product_id, oi.product_title, oi.sku
-             ORDER BY revenue DESC
-             LIMIT 10",
-            $baseParams
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        $revenueByDay = $db->query(
-            "SELECT DATE(o.created_at) as date,
-                    COUNT(*) as orders,
-                    COALESCE(SUM(o.total), 0) as revenue
-             $base
-             GROUP BY DATE(o.created_at)
-             ORDER BY date ASC",
-            $baseParams
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
         $sym = (string)ecSettings('currency_symbol');
 
@@ -91,21 +148,31 @@ function ecReportSales(array $params = []): array
 /**
  * Inventory status report — products low on stock or out of stock.
  */
-function ecReportInventory(): array
+function ecReportInventory(array $params = []): array
 {
     $threshold = (int)ecSettings('low_stock_threshold');
+    $storeId = max(0, (int)($params['store_id'] ?? 0));
 
     try {
+        $join = '';
+        $queryParams = [];
+        if ($storeId > 0) {
+            $join = ' INNER JOIN ec_store_product_overrides store_po ON store_po.product_id = c.id AND store_po.store_id = ? AND store_po.is_visible = 1';
+            $queryParams[] = $storeId;
+        }
+
         $candidates = ecDb()->query(
             "SELECT c.id, c.title, c.slug,
                     ec.config AS inventory_config,
                     COALESCE(dm.meta_value, '0') AS is_digital
              FROM cms_content c
+             {$join}
              INNER JOIN cms_entity_capabilities ec ON ec.entity_id = c.id AND ec.capability_id = 'inventory'
              LEFT JOIN cms_content_meta dm ON dm.content_id = c.id AND dm.meta_key = '_is_digital'
              WHERE c.type = 'product'
                AND c.deleted_at IS NULL
              ORDER BY c.title ASC",
+            $queryParams
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
         ecWmsInventorySnapshotMapForSkus(array_map(static function (array $candidate): string {

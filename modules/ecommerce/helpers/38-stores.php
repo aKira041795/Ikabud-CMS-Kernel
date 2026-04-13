@@ -226,6 +226,98 @@ function ecStoreInventorySource(int $storeId): ?array
 }
 
 /**
+ * Returns the visible product IDs explicitly assigned to a store.
+ *
+ * @return int[]
+ */
+function ecStoreAssignedProductIds(int $storeId): array
+{
+    if (!ecStoreStorageAvailable() || $storeId <= 0) {
+        return [];
+    }
+
+    try {
+        $rows = ecDb()->query(
+            'SELECT product_id FROM ec_store_product_overrides WHERE store_id = ? AND is_visible = 1',
+            [$storeId]
+        )->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    return array_values(array_unique(array_map('intval', $rows)));
+}
+
+function ecStoreOwnsProduct(int $storeId, int $productId): bool
+{
+    if ($storeId <= 0 || $productId <= 0) {
+        return false;
+    }
+
+    try {
+        return (int)ecDb()->query(
+            'SELECT COUNT(*) FROM ec_store_product_overrides WHERE store_id = ? AND product_id = ? AND is_visible = 1',
+            [$storeId, $productId]
+        )->fetchColumn() > 0;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+function ecStoreCategoryList(int $storeId): array
+{
+    if (!ecStoreStorageAvailable() || $storeId <= 0) {
+        return [];
+    }
+
+    $categoryWhere = ecHasCmsCategoryTaxonomy() ? "WHERE cat.taxonomy = 'product' OR cat.taxonomy IS NULL" : '';
+
+    try {
+        return ecDb()->query(
+            "SELECT cat.id, cat.name, cat.slug, COUNT(DISTINCT c.id) AS product_count
+             FROM cms_categories cat
+             INNER JOIN cms_content_categories cc ON cc.category_id = cat.id
+             INNER JOIN cms_content c ON c.id = cc.content_id AND c.type = 'product' AND c.deleted_at IS NULL
+             INNER JOIN ec_store_product_overrides store_po ON store_po.product_id = c.id AND store_po.store_id = ? AND store_po.is_visible = 1
+             {$categoryWhere}
+             GROUP BY cat.id, cat.name, cat.slug
+             ORDER BY product_count DESC, cat.name ASC",
+            [$storeId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function ecStoreInventoryWarehouseOptions(): array
+{
+    try {
+        return ecDb()->query(
+            'SELECT id, code, name FROM wms_warehouses WHERE deleted_at IS NULL AND COALESCE(is_active, 1) = 1 ORDER BY name ASC'
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function ecStoreSettingsJsonFromInput(array $input): ?string
+{
+    $settings = [];
+    $fields = ['currency', 'currency_symbol', 'timezone', 'tax_rate', 'checkout_note'];
+
+    foreach ($fields as $field) {
+        $value = trim((string)($input['setting_' . $field] ?? ''));
+        if ($value !== '') {
+            $settings[$field] = $value;
+        }
+    }
+
+    return $settings !== []
+        ? json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        : null;
+}
+
+/**
  * Phase 7C: Save (upsert) the inventory source for a store.
  * $source_type: 'local' | 'wms'
  * $warehouse_id: required when source_type = 'wms', else null
@@ -544,6 +636,43 @@ function ecStoresForUser(int $userId): array
     } catch (\Throwable $e) {
         return [];
     }
+}
+
+/**
+ * Returns the preferred store-admin landing path for a user.
+ * - No assignments: null
+ * - One assignment: direct store dashboard
+ * - Multiple assignments: my-stores chooser
+ */
+function ecStoreHomePathForUser(int $userId): ?string
+{
+    if ($userId <= 0) {
+        return null;
+    }
+
+    try {
+        $rows = ecDb()->query(
+            'SELECT su.store_id
+             FROM ec_store_users su
+             JOIN ec_stores s ON s.id = su.store_id
+             WHERE su.user_id = ?
+             ORDER BY FIELD(su.role, "owner", "manager", "supervisor"), s.name ASC
+             LIMIT 2',
+            [$userId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return null;
+    }
+
+    if ($rows === []) {
+        return null;
+    }
+
+    if (count($rows) === 1) {
+        return '/ecommerce/store-admin/' . (int)($rows[0]['store_id'] ?? 0);
+    }
+
+    return '/ecommerce/my-stores';
 }
 
 /**

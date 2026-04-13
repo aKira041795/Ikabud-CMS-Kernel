@@ -6,7 +6,7 @@
     <div class="flex items-center justify-between gap-4">
         <h1 class="text-xl font-bold text-gray-900">Products — {store.name | escape}</h1>
         {if can_edit}
-        <a href="{base_url}/ecommerce/admin/products/create"
+        <a href="{base_url}/ecommerce/store-admin/{store.id}/products/create"
            class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors">
             + Add Product
         </a>
@@ -73,7 +73,7 @@
                         </td>
                         {if can_edit}
                         <td class="px-4 py-2.5 text-right">
-                            <a href="{base_url}/ecommerce/admin/products/{p.id}/edit"
+                            <a href="{base_url}/ecommerce/store-admin/{store.id}/products/{p.id}/edit"
                                class="text-xs text-orange-600 hover:underline">Edit</a>
                         </td>
                         {/if}

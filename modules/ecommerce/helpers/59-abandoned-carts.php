@@ -5,7 +5,7 @@ declare(strict_types=1);
 function ecAbandonedCartStorageAvailable(): bool
 {
     static $ready = null;
-    if ($ready !== null) {
+    if ($ready === true) {
         return $ready;
     }
 
@@ -591,6 +591,67 @@ function ecAbandonedCartMetrics(): array
     $metrics['recovered_revenue_fmt'] = (string)ecSettings('currency_symbol') . number_format((float)$metrics['recovered_revenue'], 2);
 
     return $metrics;
+}
+
+function ecStoreAbandonedCartFilterRows(array $rows, int $storeId): array
+{
+    if ($storeId <= 0 || $rows === []) {
+        return [];
+    }
+
+    $assignedProductIds = array_flip(ecStoreAssignedProductIds($storeId));
+    if ($assignedProductIds === []) {
+        return [];
+    }
+
+    return array_values(array_filter($rows, static function (array $row) use ($assignedProductIds): bool {
+        foreach ((array)($row['cart_snapshot']['items'] ?? []) as $item) {
+            $productId = (int)($item['product_id'] ?? 0);
+            if ($productId > 0 && isset($assignedProductIds[$productId])) {
+                return true;
+            }
+        }
+
+        return false;
+    }));
+}
+
+function ecStoreAbandonedCartMetrics(int $storeId): array
+{
+    $rows = ecStoreAbandonedCartFilterRows(ecAbandonedCartList(500), $storeId);
+    $metrics = [
+        'active_count' => 0,
+        'recovered_count' => 0,
+        'closed_count' => 0,
+        'revenue_at_risk' => 0.0,
+        'recovered_revenue' => 0.0,
+    ];
+
+    foreach ($rows as $row) {
+        $status = trim((string)($row['status'] ?? 'active'));
+        $total = round((float)($row['total'] ?? 0), 2);
+        if ($status === 'active') {
+            $metrics['active_count']++;
+            $metrics['revenue_at_risk'] += $total;
+        } elseif ($status === 'recovered') {
+            $metrics['recovered_count']++;
+            $metrics['recovered_revenue'] += $total;
+        } elseif ($status === 'closed') {
+            $metrics['closed_count']++;
+        }
+    }
+
+    $metrics['revenue_at_risk'] = round((float)$metrics['revenue_at_risk'], 2);
+    $metrics['recovered_revenue'] = round((float)$metrics['recovered_revenue'], 2);
+    $metrics['revenue_at_risk_fmt'] = (string)ecSettings('currency_symbol') . number_format((float)$metrics['revenue_at_risk'], 2);
+    $metrics['recovered_revenue_fmt'] = (string)ecSettings('currency_symbol') . number_format((float)$metrics['recovered_revenue'], 2);
+
+    return $metrics;
+}
+
+function ecStoreAbandonedCartList(int $storeId, int $limit = 50): array
+{
+    return array_slice(ecStoreAbandonedCartFilterRows(ecAbandonedCartList(max($limit, 200)), $storeId), 0, max(1, $limit));
 }
 
 function ecAbandonedCartList(int $limit = 50): array

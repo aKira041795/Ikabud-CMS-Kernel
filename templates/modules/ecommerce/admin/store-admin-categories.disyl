@@ -1,0 +1,38 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="space-y-5 max-w-4xl">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">Categories</h1>
+        <p class="mt-1 text-sm text-slate-500">These shared product categories currently contain products assigned to {store.name | escape}.</p>
+    </div>
+
+    <div class="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-sm text-sky-800">
+        Category definitions remain shared across the platform. Use the product editor to change category placement for this store's catalog.
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50/80 text-slate-600 text-[11px] uppercase tracking-wider font-semibold">
+                <tr>
+                    <th class="px-5 py-3 text-left">Category</th>
+                    <th class="px-4 py-3 text-left">Slug</th>
+                    <th class="px-4 py-3 text-right">Assigned Products</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {if categories | count == 0}
+                <tr><td colspan="3" class="px-5 py-10 text-center text-slate-500">No assigned categories yet.</td></tr>
+                {/if}
+                {foreach categories as category}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-5 py-3 font-medium text-gray-900">{category.name | escape}</td>
+                    <td class="px-4 py-3 text-slate-500 font-mono text-xs">{category.slug | escape}</td>
+                    <td class="px-4 py-3 text-right text-gray-700">{category.product_count}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}

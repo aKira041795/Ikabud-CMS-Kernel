@@ -35,6 +35,14 @@ function ecMyStores(): void
     $userId = (int)($user['id'] ?? 0);
     $stores = (!$isAdmin && $userId > 0) ? ecStoresForUser($userId) : [];
 
+    $storeHome = (!$isAdmin && function_exists('kernelResolveStorePortalHomeRedirect'))
+        ? kernelResolveStorePortalHomeRedirect($user)
+        : null;
+
+    if (!$isAdmin && is_string($storeHome) && str_starts_with($storeHome, '/ecommerce/store-admin/')) {
+        app()->redirect($storeHome);
+    }
+
     $ecSettings = ecSettings();
     $ctx = [
         'user'         => $user,
@@ -52,6 +60,18 @@ function ecMyStores(): void
     ecRender('modules/ecommerce/admin/my-stores.disyl', $ctx);
 }
 
+function ecStoreAdminLoadStore(int $storeId): array
+{
+    $store = ecStoreById($storeId);
+    if (!is_array($store)) {
+        http_response_code(404);
+        echo 'Store not found.';
+        exit;
+    }
+
+    return $store;
+}
+
 /**
  * GET /ecommerce/store-admin/{id}
  *
@@ -63,14 +83,7 @@ function ecStoreAdminDashboard(array $params = []): void
 {
     $id    = (int)($params['id'] ?? 0);
     $user  = ecRequireStoreAccess($id);
-
-    $store = ecDb()->query('SELECT * FROM ec_stores WHERE id = ? LIMIT 1', [$id])
-        ->fetch(\PDO::FETCH_ASSOC);
-    if (!is_array($store)) {
-        http_response_code(404);
-        echo 'Store not found.';
-        exit;
-    }
+    $store = ecStoreAdminLoadStore($id);
 
     $recentOrders = ecOrderList(['store_id' => $id, 'limit' => 10, 'offset' => 0]);
 
@@ -107,14 +120,7 @@ function ecStoreAdminOrders(array $params = []): void
 {
     $id   = (int)($params['id'] ?? 0);
     $user = ecRequireStoreAccess($id);
-
-    $store = ecDb()->query('SELECT * FROM ec_stores WHERE id = ? LIMIT 1', [$id])
-        ->fetch(\PDO::FETCH_ASSOC);
-    if (!is_array($store)) {
-        http_response_code(404);
-        echo 'Store not found.';
-        exit;
-    }
+    $store = ecStoreAdminLoadStore($id);
 
     $input  = ecInput();
     $page   = max(1, (int)($input['page'] ?? 1));
@@ -149,14 +155,7 @@ function ecStoreAdminProducts(array $params = []): void
 {
     $id   = (int)($params['id'] ?? 0);
     $user = ecRequireStoreAccess($id);
-
-    $store = ecDb()->query('SELECT * FROM ec_stores WHERE id = ? LIMIT 1', [$id])
-        ->fetch(\PDO::FETCH_ASSOC);
-    if (!is_array($store)) {
-        http_response_code(404);
-        echo 'Store not found.';
-        exit;
-    }
+    $store = ecStoreAdminLoadStore($id);
 
     $input  = ecInput();
     $page   = max(1, (int)($input['page'] ?? 1));
@@ -170,8 +169,8 @@ function ecStoreAdminProducts(array $params = []): void
         'offset'          => ($page - 1) * $limit,
     ]);
 
-    $storeRole = (string)($user['store_role'] ?? 'supervisor');
-    $canEdit   = in_array($storeRole, ['owner', 'manager', 'administrator'], true);
+    $permissions = ecStoreAdminPermissions((string)($user['store_role'] ?? 'supervisor'));
+    $canEdit   = !empty($permissions['edit_products']);
 
     $ctx = ecStoreAdminContext($user, $store, 'products', [
         'products'    => $result['items'] ?? [],
@@ -182,6 +181,385 @@ function ecStoreAdminProducts(array $params = []): void
         'can_edit'    => $canEdit,
     ]);
     ecRender('modules/ecommerce/admin/store-admin-products.disyl', $ctx);
+}
+
+function ecStoreAdminProductCreate(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+
+    $categories = ecDb()->query(
+        ecCmsCategorySelectSql('id, name', 'name ASC')
+    )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        $input = ecInput();
+        $featuredImageId = null;
+        $uploadedImage = ecUploadProductFeaturedImage(kernelUploadedFile('featured_image') ?? [], (int)($user['id'] ?? 0));
+        if (is_array($uploadedImage) && !empty($uploadedImage['id'])) {
+            $featuredImageId = (int)$uploadedImage['id'];
+        }
+
+        try {
+            $productId = ecProductCreate([
+                'title' => $input['title'] ?? 'New Product',
+                'slug' => $input['slug'] ?? '',
+                'excerpt' => $input['excerpt'] ?? '',
+                'body' => $input['body'] ?? '',
+                'status' => $input['status'] ?? 'draft',
+                'price' => $input['price'] ?? null,
+                'sale_price' => $input['sale_price'] ?? null,
+                'sku' => $input['sku'] ?? '',
+                'stock_qty' => $input['stock_qty'] ?? 0,
+                'track_stock' => ($input['track_stock'] ?? 'on') === 'on',
+                'category_id' => ($input['category_id'] ?? '') !== '' ? (int)$input['category_id'] : null,
+                'featured_image_id' => $featuredImageId,
+            ], (int)($user['id'] ?? 0));
+
+            ecProductSaveStoreAssignments($productId, [$id]);
+            $_SESSION['ec_sa_message'] = ['type' => 'success', 'text' => 'Product created.'];
+            header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/products/' . $productId . '/edit');
+            exit;
+        } catch (\Throwable $e) {
+            $error = 'Failed to create product: ' . $e->getMessage();
+            $inputState = $input;
+        }
+    }
+
+    $ctx = ecStoreAdminContext($user, $store, 'products', [
+        'product' => null,
+        'categories' => $categories,
+        'selected_category_id' => 0,
+        'message' => $_SESSION['ec_sa_message'] ?? null,
+        'error' => $error ?? null,
+        'input' => $inputState ?? [],
+        'is_new' => true,
+        'shared_catalog_product' => false,
+    ]);
+    unset($_SESSION['ec_sa_message']);
+
+    ecRender('modules/ecommerce/admin/store-admin-product-edit.disyl', $ctx);
+}
+
+function ecStoreAdminProductEdit(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $productId = (int)($params['productId'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+
+    if (!ecStoreOwnsProduct($id, $productId)) {
+        http_response_code(404);
+        echo 'Product not found for this store.';
+        exit;
+    }
+
+    $product = ecProductGet($productId, false);
+    if (!$product) {
+        http_response_code(404);
+        echo 'Product not found.';
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        $input = ecInput();
+
+        try {
+            $featuredImageId = array_key_exists('featured_image_id', $input) ? $input['featured_image_id'] : ($product['featured_image_id'] ?? null);
+            if (($input['remove_featured_image'] ?? '') === '1') {
+                $featuredImageId = null;
+            }
+
+            $uploadedImage = ecUploadProductFeaturedImage(kernelUploadedFile('featured_image') ?? [], (int)($user['id'] ?? 0));
+            if (is_array($uploadedImage) && !empty($uploadedImage['id'])) {
+                $featuredImageId = (int)$uploadedImage['id'];
+            }
+
+            ecProductUpdate($productId, [
+                'title' => $input['title'] ?? $product['title'],
+                'slug' => $input['slug'] ?? $product['slug'],
+                'excerpt' => $input['excerpt'] ?? $product['excerpt'],
+                'body' => $input['body'] ?? $product['body'],
+                'status' => $input['status'] ?? $product['status'],
+                'price' => $input['price'] ?? ($product['pricing']['price'] ?? null),
+                'sale_price' => $input['sale_price'] ?? ($product['pricing']['sale_price'] ?? null),
+                'sku' => $input['sku'] ?? ($product['inventory']['sku'] ?? ''),
+                'stock_qty' => $input['stock_qty'] ?? ($product['inventory']['stock_qty'] ?? 0),
+                'track_stock' => ($input['track_stock'] ?? (!empty($product['inventory']['track_stock']) ? 'on' : 'off')) === 'on',
+                'category_id' => ($input['category_id'] ?? '') !== '' ? (int)$input['category_id'] : null,
+                'featured_image_id' => $featuredImageId,
+            ]);
+
+            $_SESSION['ec_sa_message'] = ['type' => 'success', 'text' => 'Product saved.'];
+            header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/products/' . $productId . '/edit');
+            exit;
+        } catch (\Throwable $e) {
+            $error = 'Save failed: ' . $e->getMessage();
+            $inputState = $input;
+        }
+
+        $product = ecProductGet($productId, false) ?: $product;
+    }
+
+    $categories = ecDb()->query(
+        ecCmsCategorySelectSql('id, name', 'name ASC')
+    )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    $assignmentMap = ecProductStoreAssignmentMap([$productId]);
+    $assignedStores = $assignmentMap[$productId] ?? [];
+
+    $ctx = ecStoreAdminContext($user, $store, 'products', [
+        'product' => $product,
+        'categories' => $categories,
+        'selected_category_id' => (int)($product['categories'][0]['id'] ?? 0),
+        'message' => $_SESSION['ec_sa_message'] ?? null,
+        'error' => $error ?? null,
+        'input' => $inputState ?? [],
+        'is_new' => false,
+        'shared_catalog_product' => count($assignedStores) > 1,
+    ]);
+    unset($_SESSION['ec_sa_message']);
+
+    ecRender('modules/ecommerce/admin/store-admin-product-edit.disyl', $ctx);
+}
+
+function ecStoreAdminReports(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+    $input = ecInput();
+    $reportParams = [
+        'period' => $input['period'] ?? 'month',
+        'start_date' => $input['start_date'] ?? '',
+        'end_date' => $input['end_date'] ?? '',
+        'store_id' => $id,
+    ];
+
+    $ctx = ecStoreAdminContext($user, $store, 'reports', [
+        'params' => $reportParams,
+        'sales' => ecReportSales($reportParams),
+        'inventory' => ecReportInventory(['store_id' => $id]),
+    ]);
+
+    ecRender('modules/ecommerce/admin/store-admin-reports.disyl', $ctx);
+}
+
+function ecStoreAdminReturns(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+    $permissions = ecStoreAdminPermissions((string)($user['store_role'] ?? 'supervisor'));
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (empty($permissions['review_returns'])) {
+            http_response_code(403);
+            exit;
+        }
+
+        csrf_verify();
+        $input = ecInput();
+        $requestId = (int)($input['request_id'] ?? 0);
+        $action = trim((string)($input['action'] ?? ''));
+
+        if ($requestId > 0 && ecReturnRequestBelongsToStore($requestId, $id)) {
+            $status = match ($action) {
+                'approve' => 'approved',
+                'reject' => 'rejected',
+                'cancel' => 'cancelled',
+                default => '',
+            };
+
+            if ($status !== '') {
+                try {
+                    ecReturnRequestReview($requestId, $status, [
+                        'reviewed_by_user_id' => (int)($user['id'] ?? 0),
+                        'admin_note' => trim((string)($input['admin_note'] ?? '')),
+                    ]);
+                    $_SESSION['ec_sa_message'] = ['type' => 'success', 'text' => 'Return request updated.'];
+                } catch (\Throwable $e) {
+                    $_SESSION['ec_sa_message'] = ['type' => 'error', 'text' => 'Could not update return request: ' . $e->getMessage()];
+                }
+            }
+        }
+
+        header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/returns');
+        exit;
+    }
+
+    $input = ecInput();
+    $page = max(1, (int)($input['page'] ?? 1));
+    $limit = 20;
+    $status = trim((string)($input['status'] ?? ''));
+    $result = ecReturnRequestList([
+        'store_id' => $id,
+        'status' => $status,
+        'limit' => $limit,
+        'offset' => ($page - 1) * $limit,
+    ]);
+
+    $ctx = ecStoreAdminContext($user, $store, 'returns', [
+        'return_requests' => $result['items'] ?? [],
+        'filters' => ['status' => $status],
+        'total' => (int)($result['total'] ?? 0),
+        'total_pages' => max(1, (int)ceil(((int)($result['total'] ?? 0)) / $limit)),
+        'page' => $page,
+        'message' => $_SESSION['ec_sa_message'] ?? null,
+        'can_edit' => !empty($permissions['review_returns']),
+    ]);
+    unset($_SESSION['ec_sa_message']);
+
+    ecRender('modules/ecommerce/admin/store-admin-returns.disyl', $ctx);
+}
+
+function ecStoreAdminCustomers(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+    $input = ecInput();
+    $search = trim((string)($input['search'] ?? ''));
+    $page = max(1, (int)($input['page'] ?? 1));
+    $limit = 25;
+
+    $result = ecStoreCustomerList($id, [
+        'search' => $search,
+        'limit' => $limit,
+        'offset' => ($page - 1) * $limit,
+    ]);
+
+    $ctx = ecStoreAdminContext($user, $store, 'customers', [
+        'customers' => $result['items'] ?? [],
+        'total' => (int)($result['total'] ?? 0),
+        'total_pages' => max(1, (int)ceil(((int)($result['total'] ?? 0)) / $limit)),
+        'page' => $page,
+        'search' => $search,
+    ]);
+
+    ecRender('modules/ecommerce/admin/store-admin-customers.disyl', $ctx);
+}
+
+function ecStoreAdminCategories(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+
+    $ctx = ecStoreAdminContext($user, $store, 'categories', [
+        'categories' => ecStoreCategoryList($id),
+    ]);
+
+    ecRender('modules/ecommerce/admin/store-admin-categories.disyl', $ctx);
+}
+
+function ecStoreAdminAbandonedCarts(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
+
+    $ctx = ecStoreAdminContext($user, $store, 'abandoned_carts', [
+        'abandoned_cart_metrics' => ecStoreAbandonedCartMetrics($id),
+        'abandoned_carts' => ecStoreAbandonedCartList($id, 75),
+    ]);
+
+    ecRender('modules/ecommerce/admin/store-admin-abandoned-carts.disyl', $ctx);
+}
+
+function ecStoreAdminSettings(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $user = ecRequireStoreAccess($id, ['owner']);
+    $store = ecStoreAdminLoadStore($id);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        $input = ecInput();
+        $action = trim((string)($input['action'] ?? 'save'));
+
+        if ($action === 'save_inventory_source') {
+            $sourceType = trim((string)($input['inventory_source_type'] ?? 'local'));
+            $warehouseId = max(0, (int)($input['inventory_warehouse_id'] ?? 0)) ?: null;
+            $result = ecStoreSaveInventorySource($id, $sourceType, $warehouseId);
+            $_SESSION['ec_sa_message'] = $result['ok']
+                ? ['type' => 'success', 'text' => 'Inventory source saved.']
+                : ['type' => 'error', 'text' => $result['error']];
+            header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/settings');
+            exit;
+        }
+
+        if ($action === 'assign_user') {
+            $assignUserId = (int)($input['assign_user_id'] ?? 0);
+            $assignRole = trim((string)($input['assign_role'] ?? 'manager'));
+            $result = ecStoreUserAssign($id, $assignUserId, $assignRole);
+            $_SESSION['ec_sa_message'] = $result['ok']
+                ? ['type' => 'success', 'text' => 'Store user assigned.']
+                : ['type' => 'error', 'text' => $result['error']];
+            header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/settings');
+            exit;
+        }
+
+        if ($action === 'remove_user') {
+            $removeUserId = (int)($input['remove_user_id'] ?? 0);
+            $result = ecStoreUserRemove($id, $removeUserId);
+            $_SESSION['ec_sa_message'] = $result['ok']
+                ? ['type' => 'success', 'text' => 'Store user removed.']
+                : ['type' => 'error', 'text' => $result['error']];
+            header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/settings');
+            exit;
+        }
+
+        $result = ecStoreUpdate($id, [
+            'name' => $input['name'] ?? $store['name'],
+            'code' => $input['code'] ?? $store['code'],
+            'slug' => $input['slug'] ?? $store['slug'],
+            'description' => $input['description'] ?? $store['description'],
+            'is_active' => !empty($input['is_active']),
+            'is_default' => !empty($store['is_default']),
+            'settings_json' => ecStoreSettingsJsonFromInput($input),
+        ]);
+
+        $_SESSION['ec_sa_message'] = $result['ok']
+            ? ['type' => 'success', 'text' => 'Store settings saved.']
+            : ['type' => 'error', 'text' => $result['error']];
+        header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/settings');
+        exit;
+    }
+
+    $inputData = $store;
+    $rawSettings = trim((string)($store['settings_json'] ?? ''));
+    if ($rawSettings !== '') {
+        $decoded = json_decode($rawSettings, true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $key => $value) {
+                $inputData['setting_' . $key] = $value;
+            }
+        }
+    }
+
+    $cmsUsersList = [];
+    try {
+        ecDb()->query('SELECT 1 FROM cms_users LIMIT 1');
+        $cmsUsersList = ecDb()->query(
+            'SELECT id, username, display_name, email FROM cms_users WHERE is_active = 1 ORDER BY display_name ASC, username ASC'
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $ignored) {
+    }
+
+    $ctx = ecStoreAdminContext($user, $store, 'settings', [
+        'input' => $inputData,
+        'store_users' => ecStoreUserList($id),
+        'cms_users_list' => $cmsUsersList,
+        'inventory_source' => ecStoreInventorySource($id),
+        'warehouses' => ecStoreInventoryWarehouseOptions(),
+        'message' => $_SESSION['ec_sa_message'] ?? null,
+    ]);
+    unset($_SESSION['ec_sa_message']);
+
+    ecRender('modules/ecommerce/admin/store-admin-settings.disyl', $ctx);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -197,18 +575,11 @@ function ecStoreAdminProducts(array $params = []): void
 function ecStoreAdminCoupons(array $params = []): void
 {
     $id   = (int)($params['id'] ?? 0);
-    $user = ecRequireStoreAccess($id);
+    $user = ecRequireStoreAccess($id, ['owner', 'manager']);
+    $store = ecStoreAdminLoadStore($id);
 
-    $store = ecDb()->query('SELECT * FROM ec_stores WHERE id = ? LIMIT 1', [$id])
-        ->fetch(\PDO::FETCH_ASSOC);
-    if (!is_array($store)) {
-        http_response_code(404);
-        echo 'Store not found.';
-        exit;
-    }
-
-    $storeRole = (string)($user['store_role'] ?? 'supervisor');
-    $canEdit   = in_array($storeRole, ['owner', 'manager', 'administrator'], true);
+    $permissions = ecStoreAdminPermissions((string)($user['store_role'] ?? 'supervisor'));
+    $canEdit   = !empty($permissions['manage_coupons']);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$canEdit) {
@@ -296,22 +667,15 @@ function ecStoreAdminReviews(array $params = []): void
 {
     $id   = (int)($params['id'] ?? 0);
     $user = ecRequireStoreAccess($id);
+    $store = ecStoreAdminLoadStore($id);
 
-    $store = ecDb()->query('SELECT * FROM ec_stores WHERE id = ? LIMIT 1', [$id])
-        ->fetch(\PDO::FETCH_ASSOC);
-    if (!is_array($store)) {
-        http_response_code(404);
-        echo 'Store not found.';
-        exit;
-    }
-
-    $storeRole = (string)($user['store_role'] ?? 'supervisor');
-    $canEdit   = in_array($storeRole, ['owner', 'manager', 'administrator'], true);
+    $permissions = ecStoreAdminPermissions((string)($user['store_role'] ?? 'supervisor'));
+    $canEdit   = !empty($permissions['moderate_reviews']);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
         csrf_verify();
         $input    = ecInput();
-        $reviewId = (int)($input['id'] ?? 0);
+        $reviewId = (int)($input['review_id'] ?? $input['id'] ?? 0);
         $newStatus = match (trim((string)($input['action'] ?? ''))) {
             'approve' => 'approved',
             'reject'  => 'rejected',

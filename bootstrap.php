@@ -646,6 +646,71 @@ function write_log(string $message, string $level = 'error', array $context = []
         return $context;
     }
 
+    function kernelResolveStorePortalHomeRedirect(?array $user = null): ?string
+    {
+        if (!is_array($user)) {
+            return null;
+        }
+
+        if (trim((string)($user['source'] ?? '')) !== 'cms') {
+            return null;
+        }
+
+        $role = trim((string)($user['role'] ?? ''));
+        if ($role !== '' && function_exists('cmsRoleAtLeast') && cmsRoleAtLeast($role, 'administrator')) {
+            return null;
+        }
+
+        $userId = (int)($user['id'] ?? 0);
+        if ($userId <= 0 || !function_exists('app')) {
+            return null;
+        }
+
+        try {
+            $db = null;
+            if (function_exists('ecDb')) {
+                $db = ecDb();
+            }
+
+            if (!$db instanceof PDO) {
+                $tenantId = app()->tenant()->current();
+                if ($tenantId === null || $tenantId <= 0) {
+                    $tenantId = app()->tenant()->resolve($user);
+                }
+                if ($tenantId !== null && $tenantId > 0) {
+                    $db = app()->dbForTenant((int)$tenantId);
+                }
+            }
+
+            if (!$db instanceof PDO) {
+                $db = app()->db();
+            }
+
+            $rows = $db->prepare(
+                'SELECT su.store_id
+                 FROM ec_store_users su
+                 JOIN ec_stores s ON s.id = su.store_id
+                 WHERE su.user_id = ?
+                 ORDER BY FIELD(su.role, "owner", "manager", "supervisor"), s.name ASC
+                 LIMIT 2'
+            );
+            $rows->execute([$userId]);
+            $matches = $rows->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            return null;
+        }
+
+        if ($matches === []) {
+            return null;
+        }
+
+        if (count($matches) === 1) {
+            return '/ecommerce/store-admin/' . (int)($matches[0]['store_id'] ?? 0);
+        }
+
+        return '/ecommerce/my-stores';
+    }
+
     function kernelResolveAuthenticatedHomeRedirect(?array $user = null, bool $fallbackToRoot = false): ?string
     {
         if ($user === null && function_exists('app')) {
@@ -661,6 +726,11 @@ function write_log(string $message, string $level = 'error', array $context = []
         $source = trim((string)($user['source'] ?? ''));
         if ($role === 'superadmin' && $source === 'kernel') {
             return '/superadmin/settings';
+        }
+
+        $storePortalHome = kernelResolveStorePortalHomeRedirect($user);
+        if (is_string($storePortalHome) && $storePortalHome !== '') {
+            return $storePortalHome;
         }
 
         if (function_exists('app')) {

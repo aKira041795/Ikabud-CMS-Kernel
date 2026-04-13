@@ -1,0 +1,70 @@
+{extends "modules/ecommerce/layouts/store-admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">Active</div>
+            <div class="mt-2 text-3xl font-bold text-amber-900">{abandoned_cart_metrics.active_count}</div>
+            <div class="mt-1 text-sm text-amber-700">{abandoned_cart_metrics.revenue_at_risk_fmt} at risk</div>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Recovered</div>
+            <div class="mt-2 text-3xl font-bold text-emerald-900">{abandoned_cart_metrics.recovered_count}</div>
+            <div class="mt-1 text-sm text-emerald-700">{abandoned_cart_metrics.recovered_revenue_fmt} recovered</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">Closed</div>
+            <div class="mt-2 text-3xl font-bold text-slate-900">{abandoned_cart_metrics.closed_count}</div>
+            <div class="mt-1 text-sm text-slate-600">Expired or cleared</div>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
+            <h2 class="text-base font-semibold text-gray-900">Tracked Carts</h2>
+            <p class="mt-1 text-sm text-gray-500">Only carts containing products assigned to this store are shown here.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50/80 text-left text-[11px] uppercase tracking-wider font-semibold text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3">Customer</th>
+                        <th class="px-4 py-3">Cart</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Reminders</th>
+                        <th class="px-4 py-3">Updated</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {if abandoned_carts | count == 0}
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-slate-500">No abandoned carts tracked for this store yet.</td></tr>
+                    {/if}
+                    {foreach abandoned_carts as cart}
+                    <tr>
+                        <td class="px-4 py-3 align-top">
+                            <div class="font-medium text-gray-900">{if cart.guest_name}{cart.guest_name | escape}{else}Customer{/if}</div>
+                            <div class="mt-1 text-xs text-slate-600">{cart.guest_email | escape}</div>
+                        </td>
+                        <td class="px-4 py-3 align-top">
+                            <div class="font-medium text-gray-900">{cart.item_count} item(s)</div>
+                            <div class="mt-1 text-xs text-gray-500">{cart.total_fmt}</div>
+                        </td>
+                        <td class="px-4 py-3 align-top">
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold {if cart.status == 'recovered'}bg-emerald-50 text-emerald-700{elseif cart.status == 'closed'}bg-slate-100 text-slate-700{else}bg-amber-50 text-amber-700{/if}">{cart.status}</span>
+                            {if cart.recovered_order_id}<div class="mt-1 text-xs text-slate-500">Order #{cart.recovered_order_id}</div>{/if}
+                        </td>
+                        <td class="px-4 py-3 align-top text-xs text-gray-500">
+                            <div>{if cart.recovery_email_1_sent_at}1st: {cart.recovery_email_1_sent_at}{else}1st pending{/if}</div>
+                            <div>{if cart.recovery_email_2_sent_at}2nd: {cart.recovery_email_2_sent_at}{else}2nd pending{/if}</div>
+                            <div>{if cart.recovery_email_3_sent_at}3rd: {cart.recovery_email_3_sent_at}{else}3rd pending{/if}</div>
+                        </td>
+                        <td class="px-4 py-3 align-top text-xs text-gray-500">{cart.updated_at | default:cart.last_activity_at}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{/block}

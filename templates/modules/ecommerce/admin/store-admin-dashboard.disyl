@@ -57,6 +57,18 @@
            class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
             Orders
         </a>
+        {if store_permissions.reports}
+        <a href="{base_url}/ecommerce/store-admin/{store.id}/reports"
+           class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            Reports
+        </a>
+        {/if}
+        {if store_permissions.settings}
+        <a href="{base_url}/ecommerce/store-admin/{store.id}/settings"
+           class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            Settings
+        </a>
+        {/if}
     </div>
 
     <!-- Recent Orders -->

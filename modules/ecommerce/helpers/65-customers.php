@@ -58,6 +58,97 @@ function ecCustomerList(array $filters = []): array
     return ['items' => $rows, 'total' => $total];
 }
 
+function ecStoreCustomerList(int $storeId, array $filters = []): array
+{
+    if ($storeId <= 0) {
+        return ['items' => [], 'total' => 0];
+    }
+
+    $db = ecDb();
+    $search = trim((string)($filters['search'] ?? ''));
+    $limit = max(1, min(100, (int)($filters['limit'] ?? 25)));
+    $offset = max(0, (int)($filters['offset'] ?? 0));
+
+    try {
+        $orders = $db->query(
+            "SELECT o.id AS order_id,
+                    o.order_number,
+                    o.customer_id,
+                    o.guest_email,
+                    o.guest_name,
+                    o.created_at,
+                    u.username,
+                    u.email AS user_email,
+                    u.display_name,
+                    u.is_active,
+                    u.created_at AS user_created_at,
+                    SUM(oi.line_total) AS order_total
+             FROM ec_order_items oi
+             INNER JOIN ec_orders o ON o.id = oi.order_id
+             LEFT JOIN cms_users u ON u.id = o.customer_id
+             WHERE oi.store_id = ?
+               AND o.status NOT IN ('cancelled')
+             GROUP BY o.id, o.order_number, o.customer_id, o.guest_email, o.guest_name, o.created_at, u.username, u.email, u.display_name, u.is_active, u.created_at
+             ORDER BY o.created_at DESC",
+            [$storeId]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return ['items' => [], 'total' => 0];
+    }
+
+    $grouped = [];
+    foreach ($orders as $order) {
+        $customerId = isset($order['customer_id']) && (int)$order['customer_id'] > 0 ? (int)$order['customer_id'] : null;
+        $email = strtolower(trim((string)($order['user_email'] ?? $order['guest_email'] ?? '')));
+        $key = $customerId !== null
+            ? 'u:' . $customerId
+            : 'g:' . ($email !== '' ? $email : 'order:' . (int)($order['order_id'] ?? 0));
+
+        if (!isset($grouped[$key])) {
+            $grouped[$key] = [
+                'customer_id' => $customerId,
+                'username' => trim((string)($order['username'] ?? '')),
+                'email' => $email,
+                'display_name' => trim((string)($order['display_name'] ?? $order['guest_name'] ?? 'Customer')),
+                'is_active' => isset($order['is_active']) ? (int)$order['is_active'] : 1,
+                'created_at' => (string)($order['user_created_at'] ?? $order['created_at'] ?? ''),
+                'last_order_number' => (string)($order['order_number'] ?? ''),
+                'last_order_at' => (string)($order['created_at'] ?? ''),
+                'order_count' => 0,
+                'lifetime_value' => 0.0,
+            ];
+        }
+
+        $grouped[$key]['order_count']++;
+        $grouped[$key]['lifetime_value'] = round((float)$grouped[$key]['lifetime_value'] + (float)($order['order_total'] ?? 0), 2);
+        if ((string)($order['created_at'] ?? '') > (string)$grouped[$key]['last_order_at']) {
+            $grouped[$key]['last_order_at'] = (string)($order['created_at'] ?? '');
+            $grouped[$key]['last_order_number'] = (string)($order['order_number'] ?? '');
+        }
+    }
+
+    $rows = array_values(array_filter($grouped, static function (array $row) use ($search): bool {
+        if ($search === '') {
+            return true;
+        }
+
+        $needle = strtolower($search);
+        return str_contains(strtolower((string)($row['email'] ?? '')), $needle)
+            || str_contains(strtolower((string)($row['display_name'] ?? '')), $needle)
+            || str_contains(strtolower((string)($row['username'] ?? '')), $needle)
+            || str_contains(strtolower((string)($row['last_order_number'] ?? '')), $needle);
+    }));
+
+    usort($rows, static function (array $left, array $right): int {
+        return strcmp((string)($right['last_order_at'] ?? ''), (string)($left['last_order_at'] ?? ''));
+    });
+
+    $total = count($rows);
+    $rows = array_slice($rows, $offset, $limit);
+
+    return ['items' => $rows, 'total' => $total];
+}
+
 /**
  * Get a single customer by ID. Returns null if not found or not a customer.
  */

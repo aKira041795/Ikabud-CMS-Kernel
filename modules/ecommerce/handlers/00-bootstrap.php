@@ -139,11 +139,14 @@ function ecStoreAdminContext(array $user, array $store, string $currentPage, arr
 {
     $ecSettings = ecSettings();
     $storeRole  = (string)($user['store_role'] ?? 'administrator');
-    $canEdit    = in_array($storeRole, ['owner', 'manager', 'administrator'], true);
+    $permissions = ecStoreAdminPermissions($storeRole);
+    $canEdit    = !empty($permissions['edit_products']);
     return array_merge([
         'user'         => $user,
         'store'        => $store,
         'store_role'   => $storeRole,
+        'store_permissions' => $permissions,
+        'store_is_read_only' => empty($permissions['edit_products']) && $storeRole !== 'administrator',
         'can_edit'     => $canEdit,
         'current_page' => $currentPage,
         'page_title'   => ($store['name'] ?? 'Store') . ' — ' . ucfirst($currentPage),
@@ -154,6 +157,35 @@ function ecStoreAdminContext(array $user, array $store, string $currentPage, arr
         'currency'     => (string)($ecSettings['currency'] ?? ''),
         'currency_sym' => (string)($ecSettings['currency_symbol'] ?? ''),
     ], $extra);
+}
+
+function ecStoreAdminPermissions(string $storeRole): array
+{
+    $storeRole = trim($storeRole) !== '' ? $storeRole : 'supervisor';
+    $isAdmin = $storeRole === 'administrator';
+    $isOwner = $isAdmin || $storeRole === 'owner';
+    $isManager = $isOwner || $storeRole === 'manager';
+
+    return [
+        'dashboard' => true,
+        'orders' => true,
+        'returns' => $isManager,
+        'abandoned_carts' => $isManager,
+        'products' => true,
+        'categories' => $isManager,
+        'coupons' => $isManager,
+        'reviews' => true,
+        'customers' => $isManager,
+        'reports' => $isManager,
+        'settings' => $isOwner,
+        'edit_products' => $isManager,
+        'manage_coupons' => $isManager,
+        'moderate_reviews' => $isManager,
+        'review_returns' => $isManager,
+        'manage_settings' => $isOwner,
+        'manage_team' => $isOwner,
+        'manage_inventory_source' => $isOwner,
+    ];
 }
 
 /**

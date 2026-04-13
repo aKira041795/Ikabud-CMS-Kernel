@@ -54,13 +54,15 @@ function ecTableExists(string $table): bool
         return false;
     }
 
-    if (array_key_exists($table, $cache[$tid])) {
+    if (($cache[$tid][$table] ?? null) === true) {
         return $cache[$tid][$table];
     }
 
     try {
         $db = app()->db();
-        $stmt = $db->prepare('SHOW TABLES LIKE ?');
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?'
+        );
         $stmt->execute([$table]);
         $cache[$tid][$table] = (bool)$stmt->fetchColumn();
     } catch (\Throwable $e) {
