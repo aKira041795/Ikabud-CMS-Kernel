@@ -1530,6 +1530,7 @@ function cmsPublicEntityList(array $params = []): void
         } catch (\Throwable $e) {}
     }
 
+    $storeId = isset($params['store_id']) ? (int)$params['store_id'] : 0;
     $publicRenderOrigin = (string)($params['public_render_origin'] ?? 'cms');
     $publicRouteKind = (string)($params['public_route_kind'] ?? 'generic');
     $publicPresentationMode = (string)($params['public_presentation_mode'] ?? 'traditional');
@@ -1541,6 +1542,7 @@ function cmsPublicEntityList(array $params = []): void
         'public_render_origin' => $publicRenderOrigin,
         'public_route_kind' => $publicRouteKind,
         'public_presentation_mode' => $publicPresentationMode,
+        'store_id' => $storeId > 0 ? $storeId : null,
     ];
 
     $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $type, $entityRenderContext);
@@ -1563,6 +1565,7 @@ function cmsPublicEntityList(array $params = []): void
         . ($categoryId > 0 ? ':cat' . $categoryId : '')
         . ($search !== '' ? ':s' . md5($search) : '')
         . ($attributeFilters !== [] ? ':attr' . md5((string)json_encode($attributeFilters)) : '')
+        . ($storeId > 0 ? ':store' . $storeId : '')
         . ':tpl:' . $templateVersion
         . ':ctx:' . $renderContextVersion;
 
@@ -1615,6 +1618,8 @@ function cmsPublicEntityList(array $params = []): void
         $productResult = ecProductList([
             'search' => $search,
             'category_id' => $categoryId > 0 ? $categoryId : null,
+            'store_id' => $storeId > 0 ? $storeId : null,
+            'store_owned_only' => $storeId > 0,
             'attribute_filters' => $attributeFilters,
             'status' => 'published',
             'limit' => $perPage,

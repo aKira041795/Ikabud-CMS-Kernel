@@ -471,7 +471,28 @@
                 }
             }
         },
-        "consumes": []
+        "consumes": [
+            {
+                "id": "wms.stock.reserve@1",
+                "optional": true
+            },
+            {
+                "id": "wms.stock.release@1",
+                "optional": true
+            },
+            {
+                "id": "wms.order.create@1",
+                "optional": true
+            },
+            {
+                "id": "wms.order.cancel@1",
+                "optional": true
+            },
+            {
+                "id": "wms.return.create@1",
+                "optional": true
+            }
+        ]
     },
     "entity_contexts": {
         "definitions": [

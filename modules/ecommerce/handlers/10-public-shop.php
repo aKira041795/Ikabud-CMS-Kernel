@@ -91,12 +91,47 @@ function ecPublicShop(): void
 {
     $search     = trim((string)(ecInput()['search'] ?? ''));
     $categoryId = (int)(ecInput()['cat'] ?? 0);
-    $storeFilter = (int)(ecInput()['store'] ?? 0);
+    $storeInput = trim((string)(ecInput()['store'] ?? ''));
+    $storeFilter = 0;
+    if ($storeInput !== '') {
+        if (is_numeric($storeInput)) {
+            $storeFilter = (int)$storeInput;
+        } elseif (function_exists('ecStoreBySlug')) {
+            $storeBySlug = ecStoreBySlug($storeInput);
+            if (is_array($storeBySlug) && !empty($storeBySlug['id'])) {
+                $storeFilter = (int)$storeBySlug['id'];
+            }
+        }
+    }
+    // Auto-scope: if no ?store= param and the logged-in user is a store owner/manager/supervisor
+    // (but NOT a CMS admin), resolve their first assigned store automatically.
+    if ($storeFilter === 0 && function_exists('ecStoresForUser') && function_exists('ecStoreStorageAvailable') && ecStoreStorageAvailable()) {
+        $shopUser = app()->user();
+        if (is_array($shopUser)) {
+            $shopRole   = (string)($shopUser['role'] ?? '');
+            $shopSource = (string)($shopUser['source'] ?? '');
+            $isCmsAdmin = $shopSource === 'kernel'
+                || (function_exists('cmsRoleAtLeast') && cmsRoleAtLeast($shopRole, 'administrator'));
+            if (!$isCmsAdmin) {
+                $shopUserId = (int)($shopUser['id'] ?? 0);
+                if ($shopUserId > 0) {
+                    $userStores = ecStoresForUser($shopUserId);
+                    if (count($userStores) === 1) {
+                        // Single-store user: silently scope to their store.
+                        $storeFilter = (int)($userStores[0]['store_id'] ?? 0);
+                    }
+                    // Multi-store users keep the global view; they can append ?store= to scope.
+                }
+            }
+        }
+    }
+
     $attributeFilters = function_exists('ecProductAttributeFiltersFromInput') ? ecProductAttributeFiltersFromInput(ecInput()) : [];
     $perPage    = (int)ecSettings('products_per_page');
     $routeContext = [
         'public_render_origin' => 'ecommerce',
         'public_route_kind' => 'shop_index',
+        'store_id' => $storeFilter > 0 ? $storeFilter : null,
     ];
 
     ecWithPublicThemeRouteContext($routeContext, static function () use ($search, $categoryId, $storeFilter, $attributeFilters, $perPage, $routeContext): void {
@@ -152,6 +187,7 @@ function ecPublicShop(): void
             'category_id' => $categoryId ?: null,
             'attribute_filters' => $attributeFilters,
             'store_id' => $storeFilter ?: null,
+            'store_owned_only' => $storeFilter > 0,
             'status' => 'published',
             'limit' => $perPage,
             'offset' => $offset,

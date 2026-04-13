@@ -11,17 +11,19 @@
 |---|---|
 | `ec_stores` table — name, code, slug, settings_json | ✅ Done |
 | `ec_store_product_overrides` — per-store price/visibility | ✅ Done |
-| `ec_store_inventory_sources` | ✅ Done |
+| `ec_store_inventory_sources` — maps WMS warehouse to Store | ✅ Done |
 | `ecStoreResolveContext()` — `?store=slug` / header | ✅ Done |
 | `ecStoreApplyProductOverrides()` — price/visibility at render | ✅ Done |
 | Admin CRUD for stores | ✅ Done |
-| `ecProductList()` — ignores store context entirely | ❌ Gap |
-| Store badge on product cards | ❌ Gap |
-| Store facet filter on shop | ❌ Gap |
-| Dedicated `/store/{slug}` page | ❌ Gap |
-| Store-owner role / scoped dashboard | ❌ Gap |
-| Order item store attribution | ❌ Gap |
-| Per-store analytics | ❌ Gap |
+| WMS integration on Orders & Order Items | ✅ Done |
+| `ecProductList()` — includes `store_id` filter routing | ✅ Done |
+| Store facet filter on shop | ✅ Done |
+| Dedicated `/store/{slug}` page (`ecPublicStorePage`) | ✅ Done |
+| Store-owner role / scoped dashboard (`74-store-admin-access.php`) | ✅ Done |
+| Order & Order item store attribution (`store_id` propagation) | ✅ Done |
+| Per-store analytics (`ecStoreAdminReports`) | ✅ Done |
+| Multi-store order return/refund routing | ✅ Done |
+| Store badges on product cards | ❌ Gap |
 
 ---
 
@@ -99,7 +101,7 @@ The roadmap needs a clear implementation sequence that separates critical-path U
 ### Implementation Phases
 
 ### Phase A — Critical Path Fixes (Login + Layout)
-**Status:** In progress
+**Status:** Complete
 
 No new features. Fix the broken entry flow first.
 
@@ -124,7 +126,7 @@ No new features. Fix the broken entry flow first.
 - Customer still lands at `/ecommerce/my-orders` or public shop flows as appropriate
 
 ### Phase B — Activate Disabled Sidebar Links
-**Status:** Planned
+**Status:** Complete
 
 Implement the highest-priority store-admin placeholders.
 
@@ -154,7 +156,7 @@ Implement the highest-priority store-admin placeholders.
 - `modules/ecommerce/helpers/22-returns.php`
 
 ### Phase C — Store Profile & Settings
-**Status:** Planned
+**Status:** Complete
 
 Give owners a store-scoped control surface for identity and configuration.
 
@@ -173,7 +175,7 @@ Give owners a store-scoped control surface for identity and configuration.
 - `templates/modules/ecommerce/layouts/store-admin.disyl`
 
 ### Phase D — Role-Differentiated Sidebar
-**Status:** Planned
+**Status:** Complete
 
 Make the store-admin UI reflect role boundaries instead of showing one generic sidebar.
 
@@ -675,3 +677,29 @@ Add this helper to `helpers/38-stores.php` before implementing the upsert bridge
 3. **Unified checkout** — customer always checks out once, regardless of how many stores are in their cart.
 4. **Store = facet** — in the catalog, store behaves exactly like a category filter. Familiar UX pattern.
 5. **Progressive enhancement** — single-store deployments work unchanged. Multi-store activates when `ec_stores` has more than one active row.
+
+---
+
+## Stability Hardening — Completed Items
+
+| Item | Status | Notes |
+|---|---|---|
+| `ecStoreResolveContext()` singleton made test-resetable | ✅ Done | Switched from `static $resolved` to `$GLOBALS['_ec_store_resolved_cache']`; `ecStoreClearResolvedContext()` added |
+| `store_owned_only` INNER JOIN regression test | ✅ Done | `tests/ecommerce_store_catalog_filter_test.php` — 8 assertions covering global catalog, empty store (INNER JOIN), assigned store, and singleton reset |
+| WMS capability `consumes` declarations | ✅ Done | `module.json` now lists `wms.stock.reserve@1`, `wms.stock.release@1`, `wms.order.create@1`, `wms.order.cancel@1`, `wms.return.create@1` as optional consumes |
+
+## Stability Hardening — Backlog
+
+### Split `helpers/30-products.php` into domain files
+
+`30-products.php` has grown to over 3,000 lines covering catalog listing, product CRUD, WMS inventory snapshots, variant management, gallery helpers, and store-overlay logic. Splitting it will reduce cognitive load and make future changes safer.
+
+Proposed split:
+
+| File | Responsibility |
+|---|---|
+| `30-catalog.php` | `ecProductList()`, storefront listing, pagination, attribute filters, `store_owned_only` JOIN |
+| `31-inventory.php` | `ecWmsInventorySnapshotMapForSkus()`, inventory state helpers, low-stock logic |
+| `32-storefront.php` | `ecProductPrimaryImageUrl()`, gallery resolution, featured image fallback |
+
+**Priority:** Low — no functional change; do only after existing test suite is green and stable. Requires updating all `require_once` chains that load `30-products.php` directly (test files, migration scripts).

@@ -119,12 +119,14 @@ function ecStoreById(int $id): ?array
  */
 function ecStoreResolveContext(): ?array
 {
-    static $resolved = null;
-    if ($resolved !== null) {
-        return $resolved === false ? null : $resolved;
+    // Use a module-level global slot so ecStoreClearResolvedContext() can reset it
+    // between test cases without reflection hacks on function-level static variables.
+    if (array_key_exists('_ec_store_resolved_cache', $GLOBALS) && $GLOBALS['_ec_store_resolved_cache'] !== null) {
+        return $GLOBALS['_ec_store_resolved_cache'] === false ? null : $GLOBALS['_ec_store_resolved_cache'];
     }
+
     if (!ecStoreStorageAvailable()) {
-        $resolved = false;
+        $GLOBALS['_ec_store_resolved_cache'] = false;
         return null;
     }
 
@@ -133,7 +135,7 @@ function ecStoreResolveContext(): ?array
     if ($slug !== '') {
         $store = ecStoreBySlug($slug);
         if ($store) {
-            $resolved = $store;
+            $GLOBALS['_ec_store_resolved_cache'] = $store;
             return $store;
         }
     }
@@ -143,15 +145,26 @@ function ecStoreResolveContext(): ?array
     if ($headerSlug !== '') {
         $store = ecStoreBySlug($headerSlug);
         if ($store) {
-            $resolved = $store;
+            $GLOBALS['_ec_store_resolved_cache'] = $store;
             return $store;
         }
     }
 
     // 3. Default store
     $default  = ecStoreDefault();
-    $resolved = $default ?? false;
+    $GLOBALS['_ec_store_resolved_cache'] = $default ?? false;
     return $default;
+}
+
+/**
+ * Reset the ecStoreResolveContext() cache.
+ *
+ * Call this between test cases (or after mutating $_GET['store']) to prevent
+ * the request-scoped singleton from carrying stale values across tests.
+ */
+function ecStoreClearResolvedContext(): void
+{
+    $GLOBALS['_ec_store_resolved_cache'] = null;
 }
 
 /**

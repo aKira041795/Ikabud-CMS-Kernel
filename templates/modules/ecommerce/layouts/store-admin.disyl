@@ -191,7 +191,7 @@
                     <span class="absolute -top-1.5 -right-2 inline-flex min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{notification_unread_count}</span>
                     {/if}
                 </a>
-                <a href="{base_url}/ecommerce/shop?store={store.slug | escape}" target="_blank"
+                <a href="{base_url}/store/{store.slug | escape}" target="_blank"
                    class="text-[13px] font-medium text-gray-500 hover:text-gray-800 transition-colors">
                     View Store
                 </a>

@@ -1389,7 +1389,7 @@ t('legacy archive template reads list presentation from entity presentation sett
 t('legacy single template reads detail presentation from entity presentation settings', str_contains($singleTemplateContent, 'entity_presentation_settings.single_show_author') && str_contains($singleTemplateContent, 'entity_presentation_settings.single_show_nav'), $singleTemplateContent);
 
 $ecInitContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/00-init.php');
-$ecProductsHelperContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/30-products.php');
+$ecProductsHelperContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/36-storefront.php');
 $ecPublicShopHandlerContent = file_get_contents(BASE_PATH . '/modules/ecommerce/handlers/10-public-shop.php');
 t('ecommerce public render delegates CMS shell rendering through cms module context', str_contains($ecInitContent, "moduleWithContext('cms', static function () use (") && str_contains($ecInitContent, 'cmsPublicContext($context)'), $ecInitContent);
 t('ecommerce public render resolves native theme storefront template candidates', str_contains($ecInitContent, 'function ecPublicThemeTemplateCandidates(') && str_contains($ecInitContent, 'function ecResolvePublicThemeTemplate('), $ecInitContent);
