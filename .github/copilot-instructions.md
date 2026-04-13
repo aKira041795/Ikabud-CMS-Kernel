@@ -14,7 +14,7 @@
 - Follow module boundaries: kernel provides routing/auth/hooks/capabilities; modules provide business features.
 - Keep route files declarative (`GET`/`POST` maps); place request logic in module handlers/services.
 - Builder persistence flows through CMS builder APIs (`/api/v1/cms/content/{id}/builder*`) defined in [modules/cms/routes.php](modules/cms/routes.php).
-- Builder source of truth is structured JSON documents (see [docs/page-builder-technical-spec.md](docs/page-builder-technical-spec.md)); avoid HTML-as-source edits.
+- Builder source of truth is structured JSON documents (see [docs/page-builder/page-builder-technical-spec.md](docs/page-builder/page-builder-technical-spec.md)); avoid HTML-as-source edits.
 
 ## Critical workflows (commands)
 - PHP dependencies (repo root): `composer install`
@@ -51,7 +51,7 @@
 ## Practical edit strategy
 - Prefer minimal, surgical changes in existing files over introducing new patterns.
 - When touching CMS builder behavior, verify both preview behavior (React builder) and server-rendered output (PHP renderers/helpers).
-- If behavior changes affect persistence schema/format, update docs in [docs/page-builder-technical-spec.md](docs/page-builder-technical-spec.md) or related builder docs.
+- If behavior changes affect persistence schema/format, update docs in [docs/page-builder/page-builder-technical-spec.md](docs/page-builder/page-builder-technical-spec.md) or related builder docs.
 
 ## Security hardening — CSP rules (must check during every hardening review)
 - The canonical `script-src` for this app is: `'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com`

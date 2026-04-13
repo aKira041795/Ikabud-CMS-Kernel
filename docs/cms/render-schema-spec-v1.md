@@ -8,9 +8,9 @@ It is intentionally narrow. The goal is to put stable names, ownership, and runt
 
 This spec does not replace the current render-contract system. It layers named schema and profile metadata onto it so the current runtime and tests can keep working while the platform becomes more explicit.
 
-Related roadmap: `docs/render-schema-context-profiles-plan.md`
-Profile companion spec: `docs/context-profiles-spec-v1.md`
-Resolution companion spec: `docs/render-resolution-flow-spec-v1.md`
+Related roadmap: `docs/cms/render-schema-context-profiles-plan.md`
+Profile companion spec: `docs/cms/context-profiles-spec-v1.md`
+Resolution companion spec: `docs/cms/render-resolution-flow-spec-v1.md`
 
 ---
 
@@ -318,7 +318,7 @@ Required roots:
 
 Canonical detail spec:
 
-- `docs/entity-view-block-schema.md`
+- `docs/cms/entity-view-block-schema.md`
 
 #### `cms.public.entity.list@1`
 
@@ -664,11 +664,11 @@ Runtime:
 
 Docs:
 
-- `docs/render-schema-context-profiles-plan.md`
-- `docs/entity-view-block-schema.md`
-- `docs/render-resolution-flow-spec-v1.md`
-- `docs/disyl-implementation-spec.md`
-- `docs/module-development-guide.md`
+- `docs/cms/render-schema-context-profiles-plan.md`
+- `docs/cms/entity-view-block-schema.md`
+- `docs/cms/render-resolution-flow-spec-v1.md`
+- `docs/cms/disyl-implementation-spec.md`
+- `docs/kernel/module-development-guide.md`
 
 Tests:
 
@@ -687,4 +687,4 @@ Tests:
 5. Add tests that freeze the new names.
 6. Update the broader docs once runtime metadata is live.
 
-That is enough to establish the Render Schema v1 foundation. Contract-aware linting (`disyl:lint` Check 8) has since been implemented as a separate step — see `docs/disyl-implementation-spec.md`.
+That is enough to establish the Render Schema v1 foundation. Contract-aware linting (`disyl:lint` Check 8) has since been implemented as a separate step — see `docs/cms/disyl-implementation-spec.md`.

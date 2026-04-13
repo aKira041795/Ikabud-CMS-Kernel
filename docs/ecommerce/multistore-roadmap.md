@@ -687,19 +687,4 @@ Add this helper to `helpers/38-stores.php` before implementing the upsert bridge
 | `ecStoreResolveContext()` singleton made test-resetable | ✅ Done | Switched from `static $resolved` to `$GLOBALS['_ec_store_resolved_cache']`; `ecStoreClearResolvedContext()` added |
 | `store_owned_only` INNER JOIN regression test | ✅ Done | `tests/ecommerce_store_catalog_filter_test.php` — 8 assertions covering global catalog, empty store (INNER JOIN), assigned store, and singleton reset |
 | WMS capability `consumes` declarations | ✅ Done | `module.json` now lists `wms.stock.reserve@1`, `wms.stock.release@1`, `wms.order.create@1`, `wms.order.cancel@1`, `wms.return.create@1` as optional consumes |
-
-## Stability Hardening — Backlog
-
-### Split `helpers/30-products.php` into domain files
-
-`30-products.php` has grown to over 3,000 lines covering catalog listing, product CRUD, WMS inventory snapshots, variant management, gallery helpers, and store-overlay logic. Splitting it will reduce cognitive load and make future changes safer.
-
-Proposed split:
-
-| File | Responsibility |
-|---|---|
-| `30-catalog.php` | `ecProductList()`, storefront listing, pagination, attribute filters, `store_owned_only` JOIN |
-| `31-inventory.php` | `ecWmsInventorySnapshotMapForSkus()`, inventory state helpers, low-stock logic |
-| `32-storefront.php` | `ecProductPrimaryImageUrl()`, gallery resolution, featured image fallback |
-
-**Priority:** Low — no functional change; do only after existing test suite is green and stable. Requires updating all `require_once` chains that load `30-products.php` directly (test files, migration scripts).
+| Split `helpers/30-products.php` into domain files | ✅ Done | `30-catalog.php` (69 fns), `31-inventory.php` (10 fns), `36-storefront.php` (18 fns); `helpers.php` and `cms_theme_test.php` updated; `30-products.php` deleted |

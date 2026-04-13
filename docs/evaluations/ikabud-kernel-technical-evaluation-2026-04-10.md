@@ -37,7 +37,7 @@ This evaluation was based on repository inspection of:
 - `src/helpers/module-manager.php`
 - `src/helpers/security.php`
 - representative module manifests such as `modules/cms/module.json`
-- project documentation in `README.md` and `docs/ARCHITECTURE.md`
+- project documentation in `README.md` and `docs/kernel/ARCHITECTURE.md`
 - representative tests including tenancy and infrastructure regressions
 
 This evaluation did not include executing the application or running the test suite.

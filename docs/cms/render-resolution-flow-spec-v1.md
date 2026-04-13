@@ -10,8 +10,8 @@ This document defines the code-level resolution flow from route or template boun
 
 It complements:
 
-- `docs/render-schema-spec-v1.md`
-- `docs/context-profiles-spec-v1.md`
+- `docs/cms/render-schema-spec-v1.md`
+- `docs/cms/context-profiles-spec-v1.md`
 
 The goal is to make the current v1 runtime deterministic and hard to misuse without redesigning the public render stack.
 
@@ -234,8 +234,8 @@ Runtime:
 
 Docs:
 
-- `docs/render-schema-spec-v1.md`
-- `docs/context-profiles-spec-v1.md`
+- `docs/cms/render-schema-spec-v1.md`
+- `docs/cms/context-profiles-spec-v1.md`
 
 Tests:
 

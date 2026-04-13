@@ -121,7 +121,7 @@ Use request IDs to correlate runtime behavior where possible.
 
 ## Related Docs
 
-- `docs/ARCHITECTURE.md`
-- `docs/kernel-stable-contracts.md`
+- `docs/kernel/ARCHITECTURE.md`
+- `docs/kernel/kernel-stable-contracts.md`
 - `docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md`
 - `docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md`

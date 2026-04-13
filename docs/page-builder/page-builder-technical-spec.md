@@ -577,7 +577,7 @@ Invalidate builder pages on:
 - theme switch or token changes affecting public page output
 - layout/customizer changes that alter public page framing or visibility behavior
 
-See [docs/cms-implementation-guide.md](cms-implementation-guide.md) for the current CMS runtime conventions that builder changes must preserve.
+See [docs/cms/cms-implementation-guide.md](cms-implementation-guide.md) for the current CMS runtime conventions that builder changes must preserve.
 
 ---
 

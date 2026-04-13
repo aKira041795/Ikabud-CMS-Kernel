@@ -143,7 +143,7 @@ When changing CMS public rendering, follow these rules:
 6. Builder pages should keep frontend JS optional for visibility. If CSS/JS can hide content before hydration, ship a synchronous reveal fallback.
 7. For critical stock / booking / CTA states in DiSyL, prefer small nested boolean checks over compound expressions.
 
-The detailed implementation checklist lives in [docs/cms-implementation-guide.md](cms-implementation-guide.md).
+The detailed implementation checklist lives in [docs/cms/cms-implementation-guide.md](cms-implementation-guide.md).
 
 ---
 
@@ -178,7 +178,7 @@ Cross-module dependencies are declared in `module.json`. The CMS also reads `wor
 - Theme customizer data is stored in `cms_theme_customizer`
 - The admin `Entities` workspace is now rendered from entity-context registry schemas/examples emitted by `handlers/80-customizer.php`, while persistence stays in canonical `entity_presentation`
 
-For the full theme contract, see `docs/cms-theme-design-architecture.md`.
+For the full theme contract, see `docs/cms/cms-theme-design-architecture.md`.
 
 ---
 
@@ -250,7 +250,7 @@ CMS sub-modules are add-ons installed through the CMS admin UI (`/cms/admin/modu
 - The installer guards against overwriting kernel/bundled modules: true kernel modules (no `.cms-owned` marker) cannot be overwritten via ZIP upload.
 - **Superadmin visibility**: The superadmin settings page shows CMS sub-module settings per tenant. For tenants whose `entry_module_id` is `cms`, the page displays settings for the CMS module itself plus any modules listed in that tenant's `_installed_submodules` registry. This allows cross-tenant management of CMS add-on configuration without switching tenant contexts.
 
-See `docs/module-development-guide.md` → *Packaging & Installation* for the full ZIP format spec, API reference, cross-tenant adoption details, and multi-tenant-safe delete behavior.
+See `docs/kernel/module-development-guide.md` → *Packaging & Installation* for the full ZIP format spec, API reference, cross-tenant adoption details, and multi-tenant-safe delete behavior.
 
 ### WordPress importer behavior
 
@@ -259,7 +259,7 @@ See `docs/module-development-guide.md` → *Packaging & Installation* for the fu
 - The dedicated importer page is available at `/cms/admin/wordpress-import` when the extension route is active.
 - Import result counters distinguish between newly created taxonomy terms (`New Categories`, `New Tags`) and taxonomy assignments made to imported content (`Category Links`, `Tag Links`). A zero value for new terms does not mean taxonomy assignment failed if links were created against existing terms.
 
-See `docs/cms-capability-map.md` and `docs/cms-extension-points.md` for capabilities, hooks, and events.
+See `docs/cms/cms-capability-map.md` and `docs/cms/cms-extension-points.md` for capabilities, hooks, and events.
 
 ---
 
@@ -316,12 +316,12 @@ See `docs/cms-capability-map.md` and `docs/cms-extension-points.md` for capabili
 
 ## 9. Documentation map
 
-- `docs/cms-module.md` — current-state module guide
-- `docs/cms-architecture.md` — architecture review, risks, and optimization plan
-- `docs/cms-implementation-guide.md` — implementation conventions and hot-path checklist for CMS public/page loading
-- `docs/cms-capability-map.md` — actual capabilities, hooks, events, and route/API map
-- `docs/cms-extension-points.md` — extension hooks and examples
-- `docs/cms-roadmap.md` — forward roadmap from the current baseline
-- `docs/cms-rewiring-audit.md` — implementation audit and remaining debt
-- `docs/cms-theme-design-architecture.md` — theme authoring and architecture guide
-- `docs/cms-ai-content-automation.md` — AI content automation: plans, runs, search grounding, content modes
+- `docs/cms/cms-module.md` — current-state module guide
+- `docs/cms/cms-architecture.md` — architecture review, risks, and optimization plan
+- `docs/cms/cms-implementation-guide.md` — implementation conventions and hot-path checklist for CMS public/page loading
+- `docs/cms/cms-capability-map.md` — actual capabilities, hooks, events, and route/API map
+- `docs/cms/cms-extension-points.md` — extension hooks and examples
+- `docs/cms/cms-roadmap.md` — forward roadmap from the current baseline
+- `docs/cms/cms-rewiring-audit.md` — implementation audit and remaining debt
+- `docs/cms/cms-theme-design-architecture.md` — theme authoring and architecture guide
+- `docs/cms/cms-ai-content-automation.md` — AI content automation: plans, runs, search grounding, content modes

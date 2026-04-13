@@ -4,9 +4,9 @@
 
 This document defines the first implementation-ready context profile model for the render pipeline.
 
-It sits beside `docs/render-schema-spec-v1.md`.
+It sits beside `docs/cms/render-schema-spec-v1.md`.
 
-Resolution flow companion spec: `docs/render-resolution-flow-spec-v1.md`
+Resolution flow companion spec: `docs/cms/render-resolution-flow-spec-v1.md`
 
 Render schemas define stable data shapes.
 Context profiles define which schema family, enrichers, and route policies apply to a request before DiSyL renders.
@@ -349,7 +349,7 @@ combined with helper-level CMS canonical mappings for:
 - `entity.view` -> `cms_public` + `cms.public.entity.view@1`
 - `entity.list` -> `cms_public` + `cms.public.entity.list@1`
 
-The concrete v1 flow is specified in `docs/render-resolution-flow-spec-v1.md`.
+The concrete v1 flow is specified in `docs/cms/render-resolution-flow-spec-v1.md`.
 
 ---
 
@@ -404,9 +404,9 @@ Runtime:
 
 Docs:
 
-- `docs/render-schema-context-profiles-plan.md`
-- `docs/render-schema-spec-v1.md`
-- `docs/render-resolution-flow-spec-v1.md`
+- `docs/cms/render-schema-context-profiles-plan.md`
+- `docs/cms/render-schema-spec-v1.md`
+- `docs/cms/render-resolution-flow-spec-v1.md`
 
 ---
 

@@ -14,10 +14,10 @@ It replaces the weaker mental model of "a theme owns its own entity templates" w
 
 Primary references:
 
-- `docs/cms-theme-design-architecture.md`
-- `docs/entity-view-block-schema.md`
-- `docs/capability-driven-theme-design.md`
-- `docs/ARCHITECTURE.md`
+- `docs/cms/cms-theme-design-architecture.md`
+- `docs/cms/entity-view-block-schema.md`
+- `docs/cms/capability-driven-theme-design.md`
+- `docs/kernel/ARCHITECTURE.md`
 
 ---
 

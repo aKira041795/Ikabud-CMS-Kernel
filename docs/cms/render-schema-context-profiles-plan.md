@@ -50,7 +50,7 @@ The repo already has the foundation for this direction:
 - shared render-context contract registration and normalization in `bootstrap.php`
 - final render-context shaping in `kernel/App.php`
 - CMS canonical public context assembly in `modules/cms/helpers/78-public-context.php`
-- documented canonical entity-view contract in `docs/entity-view-block-schema.md`
+- documented canonical entity-view contract in `docs/cms/entity-view-block-schema.md`
 - wrapper-based contract preparation across multiple modules
 - regression coverage for render-context contracts and theme-sensitive rendering
 
@@ -499,9 +499,9 @@ Because the linter should consume stable schemas and profiles, not lead them.
 
 ### Likely docs
 
-- `docs/disyl-implementation-spec.md`
-- `docs/module-development-guide.md`
-- `docs/entity-view-block-schema.md`
+- `docs/cms/disyl-implementation-spec.md`
+- `docs/kernel/module-development-guide.md`
+- `docs/cms/entity-view-block-schema.md`
 - new schema/profile spec docs
 
 ### Likely tests
@@ -574,8 +574,8 @@ Implement the first follow-up spec:
 
 Drafted here:
 
-- `docs/render-schema-spec-v1.md`
-- `docs/context-profiles-spec-v1.md`
+- `docs/cms/render-schema-spec-v1.md`
+- `docs/cms/context-profiles-spec-v1.md`
 
 That work should define the named schemas, profile names, and registry format without yet expanding DiSyL syntax.
 

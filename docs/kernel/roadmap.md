@@ -34,7 +34,7 @@ Outcome: a stable contract surface before implementation.
 
 Acceptance criteria:
 
-- Documented in `docs/module-development-guide.md` and this file
+- Documented in `docs/kernel/module-development-guide.md` and this file
 
 ---
 

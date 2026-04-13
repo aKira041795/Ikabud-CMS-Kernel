@@ -10,7 +10,7 @@ Turn the technical evaluation into a concrete improvement program that reduces k
 
 This plan assumes the evaluation is directionally correct, with one important clarification from current repo state:
 
-- runtime metadata is inconsistent across `docs/ARCHITECTURE.md` (`PHP 8.2+`) versus `README.md` and `composer.json` (`PHP 8.1+`)
+- runtime metadata is inconsistent across `docs/kernel/ARCHITECTURE.md` (`PHP 8.2+`) versus `README.md` and `composer.json` (`PHP 8.1+`)
 - license metadata is inconsistent across `README.md` (`GPL v3.0`) versus `composer.json` (`proprietary`)
 
 ## Guiding Rules
@@ -107,7 +107,7 @@ Target files:
 
 - `README.md`
 - `composer.json`
-- `docs/ARCHITECTURE.md`
+- `docs/kernel/ARCHITECTURE.md`
 - new docs under `docs/`
 
 Primary fixes:
@@ -164,14 +164,14 @@ Goal:
 
 Tasks:
 
-- align PHP version floor across `README.md`, `composer.json`, and `docs/ARCHITECTURE.md`
+- align PHP version floor across `README.md`, `composer.json`, and `docs/kernel/ARCHITECTURE.md`
 - align license metadata across `README.md` and `composer.json`
-- add `docs/contributor-workflows.md` covering:
+- add `docs/kernel/contributor-workflows.md` covering:
   - environment prerequisites
   - tenant/control DB expectations
   - how to run targeted tests
   - where to inspect logs
-- add `docs/kernel-stable-contracts.md` covering:
+- add `docs/kernel/kernel-stable-contracts.md` covering:
   - hooks
   - events
   - capabilities

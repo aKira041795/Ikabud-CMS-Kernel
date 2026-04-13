@@ -23,11 +23,11 @@ The central policy is:
 
 ## Primary References
 
-- `docs/theme-entity-view-primer.md`
-- `docs/capability-driven-theme-design.md`
-- `docs/entity-view-block-schema.md`
-- `docs/cms-theme-design-architecture.md`
-- `docs/cms-implementation-guide.md`
+- `docs/cms/theme-entity-view-primer.md`
+- `docs/cms/capability-driven-theme-design.md`
+- `docs/cms/entity-view-block-schema.md`
+- `docs/cms/cms-theme-design-architecture.md`
+- `docs/cms/cms-implementation-guide.md`
 
 ## Problem Statement
 
@@ -500,4 +500,4 @@ The repo already contains most of the needed seams:
 
 The remaining job is to make that path authoritative, incremental, and test-backed.
 
-For the remaining formal closeout work, use [docs/ecommerce-phase-5-6-closeout-checklist.md](docs/ecommerce-phase-5-6-closeout-checklist.md).
+For the remaining formal closeout work, use [docs/ecommerce/ecommerce-phase-5-6-closeout-checklist.md](docs/ecommerce/ecommerce-phase-5-6-closeout-checklist.md).

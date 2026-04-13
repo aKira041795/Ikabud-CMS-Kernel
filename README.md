@@ -28,7 +28,7 @@ A multi-tenant application kernel and CMS platform powered by the DiSyL templati
 4. **Run installer** — Navigate to `https://yourdomain.com/lock.php` → Enter DB credentials + admin account
 5. **Secure** — Delete `public/lock.php` after verifying the app works
 
-See [docs/installation.md](docs/installation.md) for the full guide.
+See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guide.
 
 ## Repository Structure
 
@@ -47,24 +47,24 @@ See [docs/installation.md](docs/installation.md) for the full guide.
 
 ## Architecture
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full Kernel OS architecture — request lifecycle, module system, extension model, multi-tenancy, and authentication.
+See [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) for the full Kernel OS architecture — request lifecycle, module system, extension model, multi-tenancy, and authentication.
 
 ## Documentation Index
 
 | Document | Topic |
 |---|---|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Kernel OS system architecture |
-| [installation.md](docs/installation.md) | Installation & deployment guide |
-| [contributor-workflows.md](docs/contributor-workflows.md) | Local setup, testing, logs, and refactor guardrails |
-| [api-reference.md](docs/api-reference.md) | REST API reference |
-| [module-development-guide.md](docs/module-development-guide.md) | Guide for building new modules |
-| [kernel-stable-contracts.md](docs/kernel-stable-contracts.md) | Stable kernel extension points versus refactorable internals |
-| [cms-module.md](docs/cms-module.md) | CMS module documentation |
-| [wms-module.md](docs/wms-module.md) | WMS module documentation |
-| [cms-architecture.md](docs/cms-architecture.md) | CMS module architecture |
-| [page-builder-technical-spec.md](docs/page-builder-technical-spec.md) | Visual page builder spec |
+| [ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) | Kernel OS system architecture |
+| [installation.md](docs/kernel/installation.md) | Installation & deployment guide |
+| [contributor-workflows.md](docs/kernel/contributor-workflows.md) | Local setup, testing, logs, and refactor guardrails |
+| [api-reference.md](docs/kernel/api-reference.md) | REST API reference |
+| [module-development-guide.md](docs/kernel/module-development-guide.md) | Guide for building new modules |
+| [kernel-stable-contracts.md](docs/kernel/kernel-stable-contracts.md) | Stable kernel extension points versus refactorable internals |
+| [cms-module.md](docs/cms/cms-module.md) | CMS module documentation |
+| [wms-module.md](docs/wms/wms-module.md) | WMS module documentation |
+| [cms-architecture.md](docs/cms/cms-architecture.md) | CMS module architecture |
+| [page-builder-technical-spec.md](docs/page-builder/page-builder-technical-spec.md) | Visual page builder spec |
 | [evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md](docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md) | Baseline metrics and required regression gates for kernel refactors |
-| [roadmap.md](docs/roadmap.md) | Project roadmap |
+| [roadmap.md](docs/kernel/roadmap.md) | Project roadmap |
 
 ## License
 

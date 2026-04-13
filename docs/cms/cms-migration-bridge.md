@@ -373,7 +373,7 @@ Phase 1 (import-only) handles media from WXR exports or direct file copies. Phas
 | Content create capability | `modules/cms/helpers/55-capabilities.php` → `cms.content.create@1` | CMS-boundary-safe content writes with full validation |
 | Content list/get capabilities | Same file → `cms.content.list@1`, `cms.content.get@1` | Read access for conflict detection |
 | CMS content schema | `modules/cms/database/migrations/001_cms_foundation.sql` | `cms_content`, `cms_content_meta`, `cms_media` tables |
-| Integration bridge discipline | `docs/integration-bridge.md` | Authority model, anti-sync rules, fail-fast behavior |
+| Integration bridge discipline | `docs/kernel/integration-bridge.md` | Authority model, anti-sync rules, fail-fast behavior |
 | WordPress boot proof | `ikabud/backend/src/Core/WordPressEnvironment.php` | Shared-core boot, ABSPATH override, selective loading |
 | Instance creation proof | `ikabud/install-wordpress-instance.php` | Per-tenant WP config generation from shared core |
 | Kernel event bus | `kernel/EventBus.php` | `fire()` / `listen()` pattern, event naming conventions |

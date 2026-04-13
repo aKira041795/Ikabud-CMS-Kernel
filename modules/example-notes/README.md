@@ -69,5 +69,5 @@ php ikabud migrate example-notes
 
 ## Learning Resources
 
-- [Module Quickstart Tutorial](../../docs/module-quickstart.md)
-- [Module Development Guide](../../docs/module-development-guide.md)
+- [Module Quickstart Tutorial](../../docs/kernel/module-quickstart.md)
+- [Module Development Guide](../../docs/kernel/module-development-guide.md)

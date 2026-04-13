@@ -665,7 +665,7 @@ For the detailed normalization contract (per-field guarantees), see entity-view-
 
 Remaining extensions, in priority order:
 
-1. **Entity card preset registry** — formalize module-owned named card compositions for canonical list cards, customizer defaults, and builder reuse without turning themes into behavior owners. Draft contract: `docs/entity-view-block-schema.md` §8.1.
+1. **Entity card preset registry** — formalize module-owned named card compositions for canonical list cards, customizer defaults, and builder reuse without turning themes into behavior owners. Draft contract: `docs/cms/entity-view-block-schema.md` §8.1.
 2. **Block variant templates** — create the actual `.featured.block.disyl`, `.carousel.block.disyl`, etc. files declared in §13.2
 3. **Contract enforcement in cmsEntityCapabilityData()** — implement the runtime validation described in §12.3 (currently documented as a requirement; enforcement code not yet written)
 4. **CSS token flattener** — update `cmsThemeTokensCss()` to handle nested token hierarchy (§5.4) in addition to the legacy flat form

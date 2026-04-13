@@ -10,8 +10,8 @@ Ikabud is an **application-kernel modular infrastructure framework** — a PHP r
 
 Contributor workflow and refactor guardrails are documented in:
 
-- `docs/contributor-workflows.md`
-- `docs/kernel-stable-contracts.md`
+- `docs/kernel/contributor-workflows.md`
+- `docs/kernel/kernel-stable-contracts.md`
 - `docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md`
 
 ---

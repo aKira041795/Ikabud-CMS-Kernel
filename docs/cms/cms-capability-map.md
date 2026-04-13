@@ -73,7 +73,7 @@ The following hook/filter surfaces are implemented in helper code today.
 | `cms.public.render_content` | transform rendered content HTML |
 | `cms.content.query_args` | alter public list/query behavior |
 
-See `docs/cms-extension-points.md` for signatures and examples.
+See `docs/cms/cms-extension-points.md` for signatures and examples.
 
 ---
 

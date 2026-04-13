@@ -89,7 +89,7 @@ Check logs: `storage/logs/app.log`
 
 ## Documentation
 
-- Full guide: `docs/EMAIL_CONFIGURATION.md`
+- Full guide: `docs/email/EMAIL_CONFIGURATION.md`
 - Contact form example: `modules/contact-form/handlers.php`
 - Helper functions: `src/helpers/email.php`
 

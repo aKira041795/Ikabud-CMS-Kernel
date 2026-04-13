@@ -3,7 +3,7 @@
 **Status**: Revised — external review integrated (v2)  
 **Author**: Cascade (AI pair programmer)  
 **Created**: 2026-03-05  
-**Related docs**: `docs/roadmap.md`, `docs/module-development-guide.md`
+**Related docs**: `docs/kernel/roadmap.md`, `docs/kernel/module-development-guide.md`
 
 > **Core Principle**: Kernel owns. AI suggests. Kernel enforces. Modules execute.
 
@@ -759,7 +759,7 @@ The `module-manager.php` `loadModuleRoutes()` function is updated to call `kerne
 
 ## 12. Roadmap Placement
 
-This work spans two phases in `docs/roadmap.md`:
+This work spans two phases in `docs/kernel/roadmap.md`:
 
 **Phase 4 — Post-v1 Enhancements (existing)**  
 Add under "Potential deliverables":

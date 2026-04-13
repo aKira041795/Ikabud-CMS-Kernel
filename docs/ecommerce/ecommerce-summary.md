@@ -13,6 +13,7 @@ This document summarizes the Ecommerce module as a commerce layer inside the Ika
 - Catalog support already includes categories, tags, featured image, gallery media, SKU, pricing, sale pricing, stock tracking, product SEO metadata, attributes, faceted filtering, related products, upsells, cross-sells, comparison, recently viewed products, fixed-price product add-ons, and customer wishlists.
 - Membership-gated product access and membership activation products now live on the same CMS content model instead of a parallel product system.
 - Storefront rendering is aligned to the CMS entity-view and entity-list contracts rather than a standalone storefront renderer.
+- Multi-store catalog filtering uses `store_owned_only` INNER JOIN mode in `ecProductList()` so store-scoped views never leak global products. Store-owner users with a single assigned store are auto-scoped on `/ecommerce/shop` without requiring a `?store=` parameter.
 
 ### Cart, Checkout, and Orders
 
@@ -42,6 +43,11 @@ This document summarizes the Ecommerce module as a commerce layer inside the Ika
 - Sales and inventory reporting already exist.
 - Coupon management already exists, including gift cards backed by remaining-balance store credit.
 - Customer address storage already exists.
+- Customer segmentation and tier-based pricing are shipped: customer segments with rule-based membership, segment-scoped price overrides, and checkout-time application.
+- Back-in-stock notifications are shipped: opt-in stock watch with per-product subscriber list, triggered on admin stock update or import.
+- Variant image/media mapping is shipped: per-variant media rows in `ec_variant_media` with gallery resolution in storefront context.
+- Multi-store admin portal is shipped: `/ecommerce/my-stores`, `/ecommerce/store-admin/{id}/*` routes with dashboard, orders, products, coupons, and reviews views; role-based access (owner/manager/supervisor); `ecRequireStoreAccess()` guard.
+- CMS-wide membership gating is shipped: entitlement checks extend beyond the ecommerce storefront into CMS pages and posts via the `ecommerce.membership.content_gate@1` capability.
 
 ### Integration and Warehouse Connectivity
 
@@ -57,6 +63,12 @@ This document summarizes the Ecommerce module as a commerce layer inside the Ika
 - Phase 4 is complete for the planned scope: abandoned carts, outbound webhooks, import/export, gift cards, customer-facing order note visibility, and recently viewed merchandising are shipped.
 - Phase 5 is complete: grouped products, bundles, subscriptions, and multi-currency are shipped.
 - Phase 6 is complete: comparison, memberships, loyalty, add-ons, and bookings are shipped.
+- Milestone 2 is complete: store management admin UI shipped.
+- Milestone 3 is complete: customer segmentation and tier-based pricing shipped.
+- Milestone 4 is complete: back-in-stock notifications shipped.
+- Milestone 5 is complete: variant-aware media mapping and merchandising shipped.
+- Milestone 6 is complete: CMS-wide membership gating shipped.
+- Multi-store phases 1–7C are complete: `ec_stores`, `ec_store_product_overrides`, `ec_store_inventory_sources`, `ec_store_users` tables; store context resolution; store admin portal; WMS warehouse-per-store inventory source wiring; store-owner auto-scope on storefront.
 
 ## Maturity Assessment
 
@@ -78,20 +90,22 @@ This positions the system closer to Shopify (ecosystem breadth), Odoo (modular E
 - Booking depth: **complete** — reschedule, cancel, cutoff windows, and reminder engine are all wired end to end; the admin product edit form now exposes all 10 booking config fields and the handler correctly persists them
 - Admin membership visibility: **complete** — list, manual grant/extend/revoke modals, expiry badge in customer account, membership + expiry summary in customer-detail sidebar
 - Admin loyalty visibility: **complete** — dashboard, manual point adjustment (credit/debit), admin_credit/admin_debit ledger entries, configurable earn/redeem rates via Settings → Loyalty tab, loyalty balance in customer-detail sidebar
-- Merchant intelligence: **thin** — no customer segmentation, tier pricing, or back-in-stock alerting
-- Multi-store: **foundation complete** — `ec_stores`, `ec_store_product_overrides`, `ec_store_inventory_sources` tables exist; `ecStoreResolveContext()` wired into `ecBuildStorefrontCatalogItem()` and `ecOrderCreate()`; single-store behavior unchanged
+- Merchant intelligence: **complete** — customer segmentation (Milestone 3), tier-based pricing, and back-in-stock notifications (Milestone 4) all shipped
+- Variant media: **complete** — per-variant image/media mapping (Milestone 5) shipped
+- CMS-wide membership gating: **complete** — entitlement checks beyond the ecommerce storefront into CMS pages and posts (Milestone 6) shipped
+- Multi-store: **complete through Phase 7C** — `ec_stores`, `ec_store_product_overrides`, `ec_store_inventory_sources`, `ec_store_users` tables; store context resolution (`ecStoreResolveContext()` GLOBALS singleton with `ecStoreClearResolvedContext()`); store admin portal (owner/manager/supervisor roles, dashboard/orders/products/coupons/reviews); WMS warehouse-per-store inventory source; store-owner auto-scope on `/ecommerce/shop`; `store_owned_only` INNER JOIN regression-tested
+- Stability hardening: **complete** — `helpers/30-products.php` split into `30-catalog.php` / `31-inventory.php` / `36-storefront.php`; WMS capability `consumes` declared in `module.json`; 34 ecommerce test files; 654 helper functions across 37 files
 
 ### Remaining Depth Gaps
 
 **Operational depth:**
-- Booking depth is complete; capacity-aware calendar controls and resource/staff scheduling remain as future slices
-- Membership entitlement reach beyond catalog gating into CMS pages, posts, or tenant capabilities (Milestone 6)
-- Loyalty: master enable/disable toggle not yet exposed (earn/redeem rates are now configurable)
+- Booking depth is complete for the core flow; capacity-aware calendar controls and resource/staff scheduling remain as future slices
+- Loyalty: master enable/disable toggle not yet exposed (earn/redeem rates are configurable)
 
-**Merchant intelligence:**
-- Customer segmentation and tier-based pricing (unlocks B2B, wholesale, institutional deployments)
-- Back-in-stock notifications and richer inventory alerting
-- Variant image mapping and richer merchandising media rules
+**Multi-store:**
+- Phase 7D (catalog sync verification), 7E (returns per store), 7F (WMS product sync) are out of scope for the current slice but possible follow-ons
+- Vendor payouts and commission ledger (Phase 8, marketplace model) not yet started
+- Store-level shipping zone overrides not yet bound
 
 **Adjacent tooling:**
 - Referral and affiliate programs
@@ -422,28 +436,20 @@ Products stay in `cms_content`. Always.
 
 ## Next Recommended Build Order
 
-With the main roadmap complete, the next work is structural stability and controlled depth — not feature dumping.
+All six planned depth milestones and multi-store phases 1–7C are complete. The next work is operational reach beyond existing shipped surfaces and stability maintenance.
 
-1. **Booking depth** — reschedule and cancel windows, reminder notifications, capacity-aware calendar controls (operational depth; affects real merchant operations and customer UX immediately)
-2. **Multi-store data foundation** — `ec_stores`, `ec_store_product_overrides`, `ec_store_inventory_sources`, `ec_store_settings`, context resolution, and store-aware queries (structural; start now before depth features create more migration surface)
-3. **Customer segmentation and tier pricing** — unlocks B2B, wholesale, and institutional deployment use cases
-4. **Back-in-stock notifications** — merchant intelligence
-5. **Variant-aware merchandising** — variant image mapping and richer media rules
-6. **CMS-wide membership gating** — entitlement checks beyond the storefront, if needed
+1. **Store-level shipping and tax overrides** — bind per-store shipping zone and tax class config now that `ec_store_settings` schema exists (structural completion of multi-store)
+2. **Booking calendar depth** — capacity-aware calendar controls, resource/staff scheduling, and reminder engine follow-on (requires no structural change; operational UX improvement)
+3. **Loyalty master toggle** — expose enable/disable switch in settings UI (earn/redeem rate config already exists; one settings field gap)
+4. **Multi-store Phase 7E/7F** — per-store return intake (7E) and WMS product authority sync per store (7F, wms_authoritative mode only)
+5. **Referral and affiliate programs** — adjacent merchant tooling; no structural blocker
+6. **Live carrier quotes** — extends table-rate shipping; structural seam already exists in checkout
 
 ## Next Execution Slice
 
-The next build slice should be booking depth (reschedule, cancel, reminders) because bookings exist end to end and operational depth is the most meaningful remaining gap in the shipped storefront experience.
+The highest-value slice with the smallest structural footprint is the **loyalty master enable/disable toggle** (single settings field addition) combined with **store-level shipping zone binding** (uses existing multi-store settings schema).
 
-Definition of done for that slice:
-
-- Booking records support merchant-controlled reminder timing and customer-visible reschedule or cancel rules
-- Account and order-detail surfaces expose the new booking actions without breaking existing purchase flows
-- Shared and native theme output stay in parity
-- Integration-style test added
-- Application and PHP error logs checked after test execution
-
-The multi-store data foundation is now in place. The next structural slice is **Milestone 3 — Customer Segmentation and Tier Pricing**, which builds on the store context layer to enable wholesale pricing, customer-tier discounts, and store-scoped pricing rules.
+If longer work is preferred, **booking calendar depth** (capacity, resources, richer reminders) is the most meaningful operational gap in the shipped storefront experience and requires no schema migration.
 
 ## Success Criteria
 
