@@ -500,9 +500,13 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $entityRouteKinds = function_exists('cmsEcommerceEntityViewRouteKinds')
         ? cmsEcommerceEntityViewRouteKinds()
         : ['shop_index', 'shop_category', 'product_detail'];
+    $storefrontThemeRouteKinds = function_exists('cmsEcommerceStorefrontThemeRouteKinds')
+        ? cmsEcommerceStorefrontThemeRouteKinds()
+        : array_merge($entityRouteKinds, ['store_page', 'store_directory']);
     $isEcommerceOrigin = $origin === 'ecommerce';
     $isEcommerceEntityRouteKind = in_array($routeKind, $entityRouteKinds, true);
     $isEcommerceEntityRoute = $isEcommerceOrigin && $isEcommerceEntityRouteKind;
+    $isEcommerceStorefrontThemeRoute = $isEcommerceOrigin && in_array($routeKind, $storefrontThemeRouteKinds, true);
 
     $configuredSiteTheme = cmsConfiguredActiveTheme();
     $configuredSiteManifest = cmsThemeManifestForSlug($configuredSiteTheme);
@@ -519,7 +523,7 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $resolvedTheme = $configuredSiteTheme;
     $resolvedThemeSource = $resolvedTheme !== null ? 'site' : 'default';
 
-    if ($isEcommerceEntityRoute) {
+    if ($isEcommerceStorefrontThemeRoute) {
         if ($configuredSiteTheme !== null && $configuredSiteScope === 'ecommerce') {
             $resolvedTheme = $configuredSiteTheme;
             $resolvedThemeSource = 'site';
@@ -540,6 +544,7 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
         'public_route_kind' => $routeKind,
         'is_ecommerce_origin' => $isEcommerceOrigin,
         'is_ecommerce_entity_route' => $isEcommerceEntityRoute,
+        'is_ecommerce_storefront_theme_route' => $isEcommerceStorefrontThemeRoute,
         'configured_site_theme' => $configuredSiteTheme,
         'configured_site_theme_scope' => $configuredSiteScope,
         'preferred_storefront_theme' => $preferredStorefrontTheme,

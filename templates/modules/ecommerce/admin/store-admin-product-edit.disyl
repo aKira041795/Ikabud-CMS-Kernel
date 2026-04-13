@@ -1,7 +1,7 @@
 {extends "modules/ecommerce/layouts/store-admin.disyl"}
 
 {block content}
-<div class="max-w-4xl space-y-5">
+<div class="space-y-5">
     <div class="flex items-start justify-between gap-4">
         <div>
             <h1 class="text-xl font-bold text-gray-900">{if is_new}Add Product{else}Edit Product{/if}</h1>
@@ -29,108 +29,600 @@
     </div>
     {/if}
 
-    <form method="post" action="" enctype="multipart/form-data" class="space-y-5">
+    <form method="post" action="" enctype="multipart/form-data" id="ec-product-form">
         <input type="hidden" name="_token" value="{csrf_token}">
         <input type="hidden" name="featured_image_id" value="{product.featured_image_id | default:''}">
-
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5">
-            <div class="space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+            <div class="lg:col-span-2 space-y-4">
                 <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Title</label>
-                        <input type="text" name="title" value="{input.title | default:product.title | default:''}" required
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Product Title</label>
+                        <input type="text" name="title" value="{product.title | default:''}" required id="ec-product-title"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Slug</label>
-                        <input type="text" name="slug" value="{input.slug | default:product.slug | default:''}"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Slug</label>
+                        <input type="text" name="slug" value="{product.slug | default:''}" id="ec-product-slug"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono text-gray-600">
+                        <p class="mt-1 text-xs text-slate-500" id="ec-product-slug-hint">Generated from the title until you edit it manually.</p>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Short Description</label>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Short Description</label>
                         <textarea name="excerpt" rows="3"
-                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:border-orange-500 outline-none">{input.excerpt | default:product.excerpt | default:''}</textarea>
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none resize-none">{product.excerpt | default:''}</textarea>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Full Description</label>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Full Description</label>
                         <textarea name="body" rows="8"
-                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">{input.body | default:product.body | default:''}</textarea>
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none font-mono">{product.body | default:''}</textarea>
                     </div>
                 </div>
             </div>
 
-            <div class="space-y-5">
-                <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
-                        <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
-                            <option value="draft" {if input.status | default:product.status | default:'draft' == 'draft'}selected{/if}>Draft</option>
-                            <option value="published" {if input.status | default:product.status == 'published'}selected{/if}>Published</option>
-                            <option value="private" {if input.status | default:product.status == 'private'}selected{/if}>Private</option>
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">Regular Price</label>
-                            <input type="number" name="price" min="0" step="0.01" value="{input.price | default:product.pricing.price | default:''}"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">Sale Price</label>
-                            <input type="number" name="sale_price" min="0" step="0.01" value="{input.sale_price | default:product.pricing.sale_price | default:''}"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">SKU</label>
-                        <input type="text" name="sku" value="{input.sku | default:product.inventory.sku | default:''}"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <input type="checkbox" name="track_stock" value="on" class="rounded" {if input.track_stock || product.inventory.track_stock || is_new}checked{/if}>
-                        <span class="text-xs font-medium text-gray-700">Track stock quantity</span>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Stock Quantity</label>
-                        <input type="number" name="stock_qty" min="0" value="{input.stock_qty | default:product.inventory.stock_qty | default:'0'}"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">Category</label>
-                        <select name="category_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
-                            <option value="">No category</option>
-                            {foreach categories as cat}
-                            <option value="{cat.id}" {if selected_category_id == cat.id}selected{/if}>{cat.name | escape}</option>
-                            {/foreach}
-                        </select>
+            <div class="space-y-4">
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-sm text-gray-800 mb-3">Publish</h3>
+                    <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:border-orange-500 outline-none">
+                        <option value="draft" {if product.status == 'draft'}selected{/if}>Draft</option>
+                        <option value="published" {if product.status == 'published'}selected{/if}>Published</option>
+                        <option value="private" {if product.status == 'private'}selected{/if}>Private</option>
+                    </select>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">{if is_new}Create Product{else}Save{/if}</button>
+                        {if product.id}
+                        <a href="{base_url}/ecommerce/shop/{product.slug}" target="_blank" class="px-3 py-2 border text-sm rounded-lg hover:bg-gray-50">View</a>
+                        {/if}
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-                    <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Product Image</h2>
-                    {if product.featured_image_url}
-                    <img src="{product.featured_image_url}" alt="{product.title | default:'Product image'}" class="w-full h-40 object-cover rounded-lg border border-gray-200">
-                    <label class="flex items-center gap-2 text-xs text-gray-600">
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-sm text-gray-800 mb-3">Pricing</h3>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Regular Price</label>
+                                <input type="number" name="price" step="0.01" min="0"
+                                       value="{product.pricing.price | default:''}"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Sale Price</label>
+                                <input type="number" name="sale_price" step="0.01" min="0"
+                                       value="{product.pricing.sale_price | default:''}"
+                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Tax Class</label>
+                            <select name="tax_class" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                                {foreach tax_class_options as opt}
+                                <option value="{opt.value}" {if opt.selected}selected{/if}>{opt.label}</option>
+                                {/foreach}
+                            </select>
+                            <p class="mt-1 text-xs text-slate-500">Choose which destination tax rules apply to this product at checkout.</p>
+                        </div>
+                        <div class="pt-2 border-t border-gray-100">
+                            <label class="flex items-center gap-2 text-xs font-medium text-gray-700 mb-2">
+                                <input type="checkbox" name="is_external_product" value="1" class="rounded"
+                                       {if product.is_external_product}checked{/if}>
+                                <span>External or affiliate product</span>
+                            </label>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">External Checkout URL</label>
+                            <input type="url" name="external_product_url" value="{product.external_product_url | default:''}"
+                                   placeholder="https://partner.example.com/product"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            <label class="block text-xs font-semibold text-gray-600 mt-3 mb-1">Button Label</label>
+                            <input type="text" name="external_product_button_text" value="{product.external_product_button_text | default:'Buy Externally'}"
+                                   placeholder="Buy on Partner Site"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                            <p class="mt-2 text-xs text-slate-500">When enabled, storefront product pages replace add-to-cart with an outbound partner checkout button. Local cart, checkout, and stock reservation are bypassed.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-sm text-gray-800 mb-3">Product Image</h3>
+                    {if featured_image_url}
+                    <img src="{featured_image_url}" alt="{product.title | default:'Product image'}" class="w-full h-40 object-cover rounded-lg border border-gray-200 mb-3">
+                    <label class="flex items-center gap-2 text-xs text-gray-600 mb-3">
                         <input type="checkbox" name="remove_featured_image" value="1" class="rounded">
                         <span>Remove current image</span>
                     </label>
                     {/if}
                     <input type="file" name="featured_image" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+                    <p class="mt-2 text-xs text-slate-500">Upload a featured product image. Leave blank to keep the current image. If SKU is empty, one will be generated automatically on save.</p>
+                </div>
+
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-sm text-gray-800 mb-3">Inventory</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">SKU</label>
+                            <input type="text" name="sku" value="{product.inventory.sku | default:''}" id="ec-product-sku"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-slate-500" id="ec-product-sku-hint">Mirrors the slug until you set a custom SKU.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" name="track_stock" id="track_stock" value="on" class="rounded"
+                                   {if product.inventory.track_stock}checked{/if}>
+                            <label for="track_stock" class="text-xs font-medium text-gray-700">Track stock quantity</label>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Stock Quantity</label>
+                            <input type="number" name="stock_qty" min="0"
+                                   value="{product.inventory.stock_qty | default:'0'}"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-sm text-gray-800 mb-3">Category</h3>
+                    <select name="category_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                        <option value="">No category</option>
+                        {foreach categories as cat}
+                        <option value="{cat.id}" {if selected_category_id == cat.id}selected{/if}>{cat.name}</option>
+                        {/foreach}
+                    </select>
                 </div>
             </div>
         </div>
 
-        <div class="flex items-center justify-between">
-            <a href="{base_url}/ecommerce/store-admin/{store.id}/products"
-               class="px-4 py-2 text-sm font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                Cancel
-            </a>
-            <button type="submit"
-                    class="px-6 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors">
-                {if is_new}Create Product{else}Save Changes{/if}
-            </button>
+        <div x-data="{ tab: (new URLSearchParams(location.search).get('ptab') || 'attributes') }"
+             x-init="$watch('tab', t => { const u = new URL(location); u.searchParams.set('ptab', t); history.replaceState(null,'',u); })">
+            <div class="mb-5 flex items-center gap-1 border-b border-gray-200 overflow-x-auto">
+                <template x-for="t in [
+                    {id:'attributes', label:'Attributes'},
+                    {id:'relations', label:'Relations'},
+                    {id:'subscription', label:'Subscription'},
+                    {id:'bookings', label:'Bookings'},
+                    {id:'digital', label:'Digital'},
+                    {id:'seo', label:'SEO'}
+                ]" :key="t.id">
+                    <button type="button"
+                            @click="tab = t.id"
+                            :class="tab === t.id ? 'border-b-2 border-orange-500 text-orange-600 font-semibold' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-800'"
+                            class="px-4 py-2.5 text-sm transition-colors -mb-px whitespace-nowrap"
+                            x-text="t.label"></button>
+                </template>
+            </div>
+
+            <div x-show="tab === 'attributes'" x-cloak class="space-y-4">
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 class="font-semibold text-sm text-gray-800 mb-3">Product Attributes</h3>
+                    <textarea name="attribute_lines" rows="6"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none"
+                              placeholder="Color: Red, Blue&#10;Size: Small, Medium">{attribute_lines | default:''}</textarea>
+                    <p class="mt-2 text-xs text-slate-500">One attribute per line using <span class="font-mono">Name: Value, Value</span>. Drives storefront filters and product facets.</p>
+                </div>
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-semibold text-sm text-gray-800">Product Add-ons</h3>
+                        <span class="text-xs text-slate-500">Fixed-price extras</span>
+                    </div>
+                    <textarea name="addon_lines" rows="5"
+                              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none"
+                              placeholder="Gift Wrap | 5.00 | Premium wrap&#10;Priority Setup | 15.00 | Fast-track service">{addon_lines | default:''}</textarea>
+                    <p class="mt-2 text-xs text-slate-500">One add-on per line: <span class="font-mono">Label | Price | Optional description</span>. Customers can select any combination on the product page.</p>
+                </div>
+            </div>
+
+            <div x-show="tab === 'relations'" x-cloak class="space-y-4">
+                <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
+                    <div>
+                        <h3 class="font-semibold text-sm text-gray-800">Product Relations</h3>
+                        <p class="mt-1 text-xs text-slate-500">Assign manual recommendations for the product page and cart. Hold Ctrl or Cmd to select multiple items.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-2">Bundle Items</label>
+                            <div class="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                                {foreach relation_options as option}
+                                <label class="flex items-center gap-3 px-3 py-2 text-sm">
+                                    <input type="checkbox" name="bundle_product_ids[]" value="{option.id}" class="rounded" {if option.selected_bundle}checked{/if}>
+                                    <span class="flex-1 text-gray-700">{option.label}</span>
+                                    <span class="text-xs text-slate-500">qty</span>
+                                    <input type="number" name="bundle_product_qty[{option.id}]" value="{option.selected_bundle_qty}" min="1" class="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:border-orange-500 outline-none">
+                                </label>
+                                {/foreach}
+                            </div>
+                            <p class="mt-2 text-xs text-slate-500">Parent price acts as bundle total when lower than sum of child prices.</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-2">Grouped Products</label>
+                            <div class="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                                {foreach relation_options as option}
+                                <label class="flex items-center gap-3 px-3 py-2 text-sm">
+                                    <input type="checkbox" name="grouped_product_ids[]" value="{option.id}" class="rounded" {if option.selected_grouped}checked{/if}>
+                                    <span class="flex-1 text-gray-700">{option.label}</span>
+                                    <span class="text-xs text-slate-500">qty</span>
+                                    <input type="number" name="grouped_product_qty[{option.id}]" value="{option.selected_grouped_qty}" min="1" class="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:border-orange-500 outline-none">
+                                </label>
+                                {/foreach}
+                            </div>
+                            <p class="mt-2 text-xs text-slate-500">Each child renders on the product page and adds individually to the cart.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Upsells</label>
+                            <select name="upsell_product_ids[]" multiple size="5" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                                {foreach relation_options as option}<option value="{option.id}" {if option.selected_upsell}selected{/if}>{option.label}</option>{/foreach}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Related Products</label>
+                            <select name="related_product_ids[]" multiple size="5" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                                {foreach relation_options as option}<option value="{option.id}" {if option.selected_related}selected{/if}>{option.label}</option>{/foreach}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Cross-sells</label>
+                            <select name="cross_sell_product_ids[]" multiple size="5" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                                {foreach relation_options as option}<option value="{option.id}" {if option.selected_cross_sell}selected{/if}>{option.label}</option>{/foreach}
+                            </select>
+                            <p class="mt-1 text-xs text-slate-500">Shown on the cart page when this product is in the cart.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="tab === 'subscription'" x-cloak class="space-y-4">
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-sm text-gray-800">Subscription Plan</h3>
+                        <span class="text-xs text-slate-500">Recurring billing terms</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" name="is_subscription" id="is_subscription" value="1" class="rounded" {if product.is_subscription}checked{/if}>
+                            <label for="is_subscription" class="text-xs font-medium text-gray-700">This product renews on a recurring schedule</label>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Renewal Every</label>
+                                <div class="flex gap-1">
+                                    <input type="number" name="subscription_interval_count" min="1" value="{product.subscription_interval_count | default:'1'}" class="w-16 border border-gray-300 rounded-lg px-2 py-2 text-xs focus:border-orange-500 outline-none">
+                                    <select name="subscription_interval_unit" class="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-xs focus:border-orange-500 outline-none">
+                                        <option value="day" {if product.subscription_interval_unit == 'day'}selected{/if}>Day(s)</option>
+                                        <option value="week" {if product.subscription_interval_unit == 'week'}selected{/if}>Week(s)</option>
+                                        <option value="month" {if product.subscription_interval_unit == 'month' || !product.subscription_interval_unit}selected{/if}>Month(s)</option>
+                                        <option value="year" {if product.subscription_interval_unit == 'year'}selected{/if}>Year(s)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Trial (days)</label>
+                                <input type="number" name="subscription_trial_days" min="0" value="{product.subscription_trial_days | default:'0'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Max Cycles</label>
+                                <input type="number" name="subscription_max_cycles" min="0" value="{product.subscription_max_cycles | default:'0'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                                <p class="mt-1 text-xs text-slate-500">0 = open-ended</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Grace (days)</label>
+                                <input type="number" name="subscription_grace_period_days" min="0" value="{product.subscription_grace_period_days | default:'7'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-500">Subscriptions cannot be mixed with one-time products in the same order.</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-sm text-gray-800">Membership Access</h3>
+                        <span class="text-xs text-slate-500">Tier activation and gating</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" name="is_membership_product" id="is_membership_product" value="1" class="rounded" {if product.is_membership_product}checked{/if}>
+                            <label for="is_membership_product" class="text-xs font-medium text-gray-700">This product activates a membership after payment</label>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Membership Tier</label>
+                                <input type="text" name="membership_tier" value="{product.membership_tier | default:'member'}" placeholder="member" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Duration (days)</label>
+                                <input type="number" name="membership_duration_days" min="1" value="{product.membership_duration_days | default:'365'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Required Tiers to Access</label>
+                                <input type="text" name="required_membership_tiers_text" value="{required_membership_tiers_text | default:''}" placeholder="gold, vip" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none">
+                                <p class="mt-1 text-xs text-slate-500">Leave blank to keep open to everyone. Comma-separated tier keys to gate access.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="tab === 'bookings'" x-cloak class="space-y-4">
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-sm text-gray-800">Bookings &amp; Appointments</h3>
+                        <span class="text-xs text-slate-500">Reserve a time during checkout</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" name="booking_enabled" id="booking_enabled" value="1" class="rounded" {if product.booking.enabled}checked{/if}>
+                            <label for="booking_enabled" class="text-xs font-medium text-gray-700">This product requires a booking slot</label>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Duration (min)</label>
+                                <input type="number" name="booking_duration_minutes" min="15" step="15" value="{product.booking.duration_minutes | default:'60'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Notice (hours)</label>
+                                <input type="number" name="booking_notice_hours" min="0" value="{product.booking.notice_hours | default:'24'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Reschedule Cutoff (h)</label>
+                                <div class="flex items-center gap-1 mb-1">
+                                    <input type="checkbox" name="booking_allow_reschedule" id="booking_allow_reschedule" value="1" class="rounded" {if product.booking.allow_reschedule}checked{/if}>
+                                    <label for="booking_allow_reschedule" class="text-xs text-gray-600">Allow</label>
+                                </div>
+                                <input type="number" name="booking_reschedule_cutoff_hours" min="0" value="{product.booking.reschedule_cutoff_hours | default:'24'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Cancel Cutoff (h)</label>
+                                <div class="flex items-center gap-1 mb-1">
+                                    <input type="checkbox" name="booking_allow_cancel" id="booking_allow_cancel" value="1" class="rounded" {if product.booking.allow_cancel}checked{/if}>
+                                    <label for="booking_allow_cancel" class="text-xs text-gray-600">Allow</label>
+                                </div>
+                                <input type="number" name="booking_cancel_cutoff_hours" min="0" value="{product.booking.cancel_cutoff_hours | default:'24'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-2">Available Weekdays</label>
+                                <div class="grid grid-cols-2 gap-2 text-xs text-gray-700">
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="booking_available_weekdays[]" value="1" class="rounded" {if booking_weekday_flags.mon}checked{/if}>Monday</label>
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="booking_available_weekdays[]" value="2" class="rounded" {if booking_weekday_flags.tue}checked{/if}>Tuesday</label>
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="booking_available_weekdays[]" value="3" class="rounded" {if booking_weekday_flags.wed}checked{/if}>Wednesday</label>
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="booking_available_weekdays[]" value="4" class="rounded" {if booking_weekday_flags.thu}checked{/if}>Thursday</label>
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="booking_available_weekdays[]" value="5" class="rounded" {if booking_weekday_flags.fri}checked{/if}>Friday</label>
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="booking_available_weekdays[]" value="6" class="rounded" {if booking_weekday_flags.sat}checked{/if}>Saturday</label>
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="booking_available_weekdays[]" value="0" class="rounded" {if booking_weekday_flags.sun}checked{/if}>Sunday</label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Available Start Times</label>
+                                <textarea name="booking_time_slots" rows="5" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none" placeholder="09:00&#10;11:00&#10;14:00">{booking_time_slots_text | default:''}</textarea>
+                                <p class="mt-1 text-xs text-slate-500">One time per line in 24-hour format.</p>
+                            </div>
+                        </div>
+                        <div class="max-w-xs">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Reminder (hours before)</label>
+                            <input type="number" name="booking_reminder_hours_before" min="0" value="{product.booking.reminder_hours_before | default:'24'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                            <p class="mt-1 text-xs text-slate-500">Set to 0 to disable automated email reminders.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="tab === 'digital'" x-cloak class="space-y-4">
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-sm text-gray-800">Digital Product</h3>
+                        <span class="text-xs text-slate-500">File delivery &amp; JWT key on purchase</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" name="is_digital" id="is_digital" value="1" class="rounded" {if product.is_digital}checked{/if}>
+                            <label for="is_digital" class="text-xs font-medium text-gray-700">This is a digital product — deliver a file and/or license key on purchase</label>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Downloadable File</label>
+                                {if product.download_file_name}
+                                <div class="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded border border-gray-200 text-xs text-gray-700" id="ec-current-digital-file">
+                                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    <span class="flex-1 truncate">{product.download_file_name}</span>
+                                    <label class="flex items-center gap-1 text-red-600 cursor-pointer">
+                                        <input type="checkbox" name="remove_digital_file" value="1" class="rounded" id="ec-remove-digital-file">
+                                        Remove
+                                    </label>
+                                </div>
+                                {/if}
+                                <div {if product.download_file_name}id="ec-replace-digital-file" class="hidden"{/if}>
+                                    <label class="flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-200 rounded-lg p-4 cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors" id="ec-digital-file-label">
+                                        <svg class="w-6 h-6 text-gray-300 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                        <span class="text-xs text-gray-500" id="ec-digital-file-label-text">Click to upload or drag &amp; drop</span>
+                                        <span class="text-xs text-slate-500 mt-0.5">ZIP, PDF, EPUB, MP3, MP4 and more (max 64 MB)</span>
+                                        <input type="file" name="digital_file" id="ec-digital-file-input" class="hidden" accept=".zip,.pdf,.epub,.mp3,.mp4,.m4a,.ogg,.m4v,.svg,.txt,.json,.tar,.gz,.bz2,.7z,.rar">
+                                    </label>
+                                </div>
+                                {if product.download_file_name}
+                                <button type="button" id="ec-replace-digital-btn" class="mt-1.5 text-xs text-orange-600 hover:underline">Replace file</button>
+                                {/if}
+                            </div>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">License Module ID</label>
+                                    <input type="text" name="license_module" value="{product.license_module | default:''}" placeholder="e.g. my-plugin" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none">
+                                    <p class="mt-1 text-xs text-slate-500">Leave blank to skip JWT generation. Embedded in the JWT <code>aud</code> claim.</p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-600 mb-1">License Tier</label>
+                                        <input type="text" name="license_tier" value="{product.license_tier | default:'pro'}" placeholder="pro" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none">
+                                        <p class="mt-1 text-xs text-slate-500"><code>free</code>, <code>pro</code>, <code>enterprise</code></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-600 mb-1">Duration (days)</label>
+                                        <input type="number" name="license_duration_days" min="1" value="{product.license_duration_days | default:'365'}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:border-orange-500 outline-none">
+                                        <p class="mt-1 text-xs text-slate-500">Use 36500 for lifetime.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="tab === 'seo'" x-cloak class="space-y-4">
+                <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                    <div>
+                        <h3 class="font-semibold text-sm text-gray-800">SEO</h3>
+                        <p class="mt-1 text-xs text-slate-500">Feeds the shared CMS SEO head output used by canonical product pages.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">SEO Title</label>
+                            <input type="text" name="seo_title" value="{product.seo_title | default:seo_defaults.seo_title}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="Override meta title">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Meta Description</label>
+                            <textarea name="seo_description" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none resize-none" placeholder="Describe this product for search and social previews">{product.seo_description | default:seo_defaults.seo_description}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Canonical URL Override</label>
+                            <input type="url" name="seo_canonical_url" value="{product.seo_canonical_url | default:seo_defaults.seo_canonical_url}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="https://example.com/products/slug">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Open Graph Image URL</label>
+                            <input type="url" name="seo_og_image" value="{product.seo_og_image | default:seo_defaults.seo_og_image}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="https://example.com/images/share-card.jpg">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-3 border-t border-gray-200 mt-2">
+                <span class="text-xs text-slate-500">All tabs save together.</span>
+                <button type="submit" class="px-6 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors">{if is_new}Create Product{else}Save Product{/if}</button>
+            </div>
         </div>
     </form>
 </div>
+{/block}
+
+{block scripts}
+<script>
+    (function () {
+        var form = document.getElementById('ec-product-form');
+        if (!form) {
+            return;
+        }
+
+        var titleInput = document.getElementById('ec-product-title');
+        var slugInput = document.getElementById('ec-product-slug');
+        var skuInput = document.getElementById('ec-product-sku');
+        var slugHint = document.getElementById('ec-product-slug-hint');
+        var skuHint = document.getElementById('ec-product-sku-hint');
+
+        if (!titleInput || !slugInput || !skuInput) {
+            return;
+        }
+
+        function slugify(value) {
+            return String(value || '')
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .replace(/-{2,}/g, '-');
+        }
+
+        function skuify(value) {
+            var normalized = String(value || '')
+                .toUpperCase()
+                .trim()
+                .replace(/[^A-Z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .replace(/-{2,}/g, '-');
+
+            return normalized.slice(0, 80);
+        }
+
+        function currentAutoSlug() {
+            return slugify(titleInput.value) || 'product';
+        }
+
+        function currentAutoSku() {
+            return skuify(titleInput.value) || 'PRODUCT';
+        }
+
+        var slugDirty = slugInput.value.trim() !== '';
+        var skuDirty = skuInput.value.trim() !== '';
+
+        function syncSlug() {
+            if (slugDirty) {
+                return;
+            }
+
+            slugInput.value = currentAutoSlug();
+            if (slugHint) {
+                slugHint.textContent = 'Auto-generated from the title.';
+            }
+        }
+
+        function syncSku() {
+            if (skuDirty) {
+                return;
+            }
+
+            skuInput.value = currentAutoSku();
+            if (skuHint) {
+                skuHint.textContent = 'Auto-generated from the title.';
+            }
+        }
+
+        titleInput.addEventListener('input', function () {
+            syncSlug();
+            syncSku();
+        });
+
+        slugInput.addEventListener('input', function () {
+            slugDirty = slugInput.value.trim() !== '';
+            if (slugHint) {
+                slugHint.textContent = slugDirty ? 'Custom slug.' : 'Generated from the title until you edit it manually.';
+            }
+        });
+
+        skuInput.addEventListener('input', function () {
+            skuDirty = skuInput.value.trim() !== '';
+            if (skuHint) {
+                skuHint.textContent = skuDirty ? 'Custom SKU.' : 'Mirrors the slug until you set a custom SKU.';
+            }
+        });
+
+        syncSlug();
+        syncSku();
+
+        var removeDigital = document.getElementById('ec-remove-digital-file');
+        var replaceDigitalBtn = document.getElementById('ec-replace-digital-btn');
+        var replaceDigitalWrap = document.getElementById('ec-replace-digital-file');
+        var digitalFileInput = document.getElementById('ec-digital-file-input');
+        var digitalFileLabelText = document.getElementById('ec-digital-file-label-text');
+
+        if (removeDigital && replaceDigitalWrap) {
+            removeDigital.addEventListener('change', function () {
+                if (removeDigital.checked) {
+                    replaceDigitalWrap.classList.remove('hidden');
+                }
+            });
+        }
+
+        if (replaceDigitalBtn && replaceDigitalWrap) {
+            replaceDigitalBtn.addEventListener('click', function () {
+                replaceDigitalWrap.classList.remove('hidden');
+                if (digitalFileInput) {
+                    digitalFileInput.click();
+                }
+            });
+        }
+
+        if (digitalFileInput && digitalFileLabelText) {
+            digitalFileInput.addEventListener('change', function () {
+                var file = digitalFileInput.files && digitalFileInput.files[0];
+                if (file) {
+                    digitalFileLabelText.textContent = file.name;
+                }
+            });
+        }
+    })();
+</script>
 {/block}

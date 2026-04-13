@@ -6,6 +6,8 @@ $_SERVER['REQUEST_URI'] = $_SERVER['REQUEST_URI'] ?? '/';
 
 require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
+require_once __DIR__ . '/../modules/cms/helpers.php';
+require_once __DIR__ . '/../modules/ecommerce/helpers.php';
 
 $dispatchDb = app()->db();
 $dispatchRunner = new \Ikabud\Kernel\Database\MigrationRunner($dispatchDb);
@@ -406,6 +408,29 @@ $dispatchDb->prepare(
 )->execute(['DISPATCH-MULTI-STORE', 'Dispatch Multi Store', 'dispatch-multi-store', 'Fixture store']);
 $secondStoreId = (int)$dispatchDb->lastInsertId();
 $dispatchDb->prepare('INSERT INTO ec_store_users (store_id, user_id, role) VALUES (?, ?, ?)')->execute([$secondStoreId, 1211, 'manager']);
+$storeProductSeed = bin2hex(random_bytes(4));
+$storeBundleChildId = ecProductCreate([
+    'title' => 'Dispatch Bundle Child ' . strtoupper($storeProductSeed),
+    'slug' => 'dispatch-bundle-child-' . strtolower($storeProductSeed),
+    'excerpt' => 'Dispatch bundle child fixture',
+    'status' => 'published',
+    'price' => 11.00,
+    'sku' => 'DISPATCH-BUNDLE-' . strtoupper($storeProductSeed),
+    'stock_qty' => 8,
+    'track_stock' => true,
+], 1211);
+$storeGroupedChildId = ecProductCreate([
+    'title' => 'Dispatch Grouped Child ' . strtoupper($storeProductSeed),
+    'slug' => 'dispatch-grouped-child-' . strtolower($storeProductSeed),
+    'excerpt' => 'Dispatch grouped child fixture',
+    'status' => 'published',
+    'price' => 13.00,
+    'sku' => 'DISPATCH-GROUPED-' . strtoupper($storeProductSeed),
+    'stock_qty' => 9,
+    'track_stock' => true,
+], 1211);
+ecProductSaveStoreAssignments($storeBundleChildId, [$storeId]);
+ecProductSaveStoreAssignments($storeGroupedChildId, [$storeId]);
 t(
     'kernel store portal resolver returns my-stores when a CMS user manages multiple stores',
     kernelResolveStorePortalHomeRedirect($storeRedirectUser) === '/ecommerce/my-stores',
@@ -504,8 +529,82 @@ t(
     'store product create route renders for owner-managed store access',
     ($storeProductCreatePage['exit_code'] ?? 1) === 0
         && str_contains($storeProductCreatePage['body'] ?? '', 'Add Product')
+        && str_contains($storeProductCreatePage['body'] ?? '', 'Product Attributes')
+        && str_contains($storeProductCreatePage['body'] ?? '', 'All tabs save together.')
         && !str_contains($storeProductCreatePage['body'] ?? '', 'Access Denied'),
     $storeProductCreatePage['raw']
+);
+
+$storeCreateProductPayload = [
+    'title' => 'Dispatch Store Product ' . strtoupper($storeProductSeed),
+    'slug' => 'dispatch-store-product-' . strtolower($storeProductSeed),
+    'excerpt' => 'Store create payload fixture',
+    'body' => 'Store-admin create route should persist tabbed metadata.',
+    'status' => 'published',
+    'price' => '49.00',
+    'sale_price' => '39.00',
+    'sku' => 'DISPATCH-STORE-' . strtoupper($storeProductSeed),
+    'track_stock' => 'on',
+    'stock_qty' => '6',
+    'attribute_lines' => "Color: Orange\nSize: Large",
+    'tax_class' => 'reduced',
+    'addon_lines' => 'Gift Wrap | 5.00 | Premium wrap',
+    'bundle_product_ids' => [(string)$storeBundleChildId],
+    'bundle_product_qty' => [(string)$storeBundleChildId => '2'],
+    'grouped_product_ids' => [(string)$storeGroupedChildId],
+    'grouped_product_qty' => [(string)$storeGroupedChildId => '3'],
+    'related_product_ids' => [(string)$storeBundleChildId],
+    'upsell_product_ids' => [(string)$storeGroupedChildId],
+    'cross_sell_product_ids' => [(string)$storeBundleChildId],
+    'booking_enabled' => '1',
+    'booking_duration_minutes' => '90',
+    'booking_notice_hours' => '12',
+    'booking_available_weekdays' => ['1', '3'],
+    'booking_time_slots' => "09:00\n13:30",
+    'booking_allow_reschedule' => '1',
+    'booking_reschedule_cutoff_hours' => '8',
+    'booking_allow_cancel' => '1',
+    'booking_cancel_cutoff_hours' => '6',
+    'booking_reminder_hours_before' => '4',
+    'is_digital' => '1',
+    'license_module' => 'dispatch-addon',
+    'license_tier' => 'pro',
+    'license_duration_days' => '730',
+    'seo_title' => 'Dispatch SEO Product',
+    'seo_description' => 'Dispatch store-admin SEO description.',
+    'seo_canonical_url' => 'https://example.com/dispatch-store-product',
+    'seo_og_image' => 'https://example.com/assets/dispatch-store-product.jpg',
+];
+$storeCreateProductHook = '$_SERVER["HTTP_X_CSRF_TOKEN"] = app()->csrfToken();' . "\n"
+    . '$_POST = ' . var_export($storeCreateProductPayload, true) . ';' . "\n"
+    . '$_REQUEST = array_merge($_REQUEST ?? [], $_POST);';
+$storeProductCreatePost = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/products/create',
+        'HTTP_HOST' => 'applicationos.test',
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+    ],
+    $storeRedirectUser,
+    $storeCreateProductHook
+);
+$storeCreatedProduct = ecProductGetBySlug((string)$storeCreateProductPayload['slug']);
+$storeCreatedProductId = (int)($storeCreatedProduct['id'] ?? 0);
+t(
+    'store product create route persists tabbed product metadata and redirects to edit',
+    ($storeProductCreatePost['exit_code'] ?? 1) === 0
+        && $storeCreatedProductId > 0
+        && (int)($storeProductCreatePost['context']['redirect_status'] ?? 0) === 302
+        && is_array($storeCreatedProduct)
+        && ecStoreOwnsProduct($storeId, $storeCreatedProductId)
+        && count((array)($storeCreatedProduct['attributes'] ?? [])) === 2
+        && (($storeCreatedProduct['tax_class'] ?? '') === 'reduced')
+        && (($storeCreatedProduct['booking']['enabled'] ?? false) === true)
+        && (($storeCreatedProduct['license_module'] ?? '') === 'dispatch-addon')
+        && (($storeCreatedProduct['seo_title'] ?? '') === 'Dispatch SEO Product')
+        && count((array)($storeCreatedProduct['bundle_children'] ?? [])) === 1
+        && count((array)($storeCreatedProduct['grouped_children'] ?? [])) === 1,
+    $storeProductCreatePost['raw'] . "\nProduct: " . json_encode($storeCreatedProduct, JSON_UNESCAPED_SLASHES)
 );
 
 $storeSettingsDenied = runRequestThroughEntrypoint(

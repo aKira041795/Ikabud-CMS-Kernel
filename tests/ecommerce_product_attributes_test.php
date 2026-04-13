@@ -24,6 +24,7 @@ $pass = 0;
 $fail = 0;
 $errors = [];
 $cleanupProductIds = [];
+$cleanupCategoryIds = [];
 
 function t(string $label, bool $ok, string $detail = ''): void
 {
@@ -49,18 +50,42 @@ function ecommerceProductAttributesTestUserId(): int
     return $userId;
 }
 
-function cleanupEcommerceProductAttributeFixtures(array $productIds): void
+function ecommerceProductAttributesInsertCategory(string $name, string $slug): int
 {
-    if ($productIds === []) {
-        return;
+    return moduleWithContext('cms', static function () use ($name, $slug): int {
+        if (ecHasCmsCategoryTaxonomy()) {
+            cmsDb()->execute(
+                "INSERT INTO cms_categories (name, slug, taxonomy, created_at, updated_at) VALUES (?, ?, 'product', NOW(), NOW())",
+                [$name, $slug]
+            );
+        } else {
+            cmsDb()->execute(
+                'INSERT INTO cms_categories (name, slug, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                [$name, $slug]
+            );
+        }
+
+        return (int)cmsDb()->lastInsertId();
+    });
+}
+
+function cleanupEcommerceProductAttributeFixtures(array $productIds, array $categoryIds = []): void
+{
+    $db = app()->db();
+
+    if ($productIds !== []) {
+        $placeholders = implode(', ', array_fill(0, count($productIds), '?'));
+        $db->prepare("DELETE FROM ec_product_attribute_values WHERE product_id IN ({$placeholders})")->execute($productIds);
+        $db->prepare("DELETE FROM cms_content_categories WHERE content_id IN ({$placeholders})")->execute($productIds);
+        $db->prepare("DELETE FROM cms_content_meta WHERE content_id IN ({$placeholders})")->execute($productIds);
+        $db->prepare("DELETE FROM cms_entity_capabilities WHERE entity_id IN ({$placeholders})")->execute($productIds);
+        $db->prepare("DELETE FROM cms_content WHERE id IN ({$placeholders})")->execute($productIds);
     }
 
-    $db = app()->db();
-    $placeholders = implode(', ', array_fill(0, count($productIds), '?'));
-    $db->prepare("DELETE FROM ec_product_attribute_values WHERE product_id IN ({$placeholders})")->execute($productIds);
-    $db->prepare("DELETE FROM cms_content_meta WHERE content_id IN ({$placeholders})")->execute($productIds);
-    $db->prepare("DELETE FROM cms_entity_capabilities WHERE entity_id IN ({$placeholders})")->execute($productIds);
-    $db->prepare("DELETE FROM cms_content WHERE id IN ({$placeholders})")->execute($productIds);
+    if ($categoryIds !== []) {
+        $placeholders = implode(', ', array_fill(0, count($categoryIds), '?'));
+        $db->prepare("DELETE FROM cms_categories WHERE id IN ({$placeholders})")->execute($categoryIds);
+    }
 }
 
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
@@ -70,6 +95,8 @@ echo "\n=== ECOMMERCE PRODUCT ATTRIBUTES ===\n";
 
 $userId = ecommerceProductAttributesTestUserId();
 $seed = substr(bin2hex(random_bytes(4)), 0, 8);
+$categoryId = ecommerceProductAttributesInsertCategory('Attribute Fixture ' . strtoupper($seed), 'attribute-fixture-' . strtolower($seed));
+$cleanupCategoryIds = [$categoryId];
 
 $productA = ecProductCreate([
     'title' => 'Attribute Red Large ' . $seed,
@@ -77,6 +104,7 @@ $productA = ecProductCreate([
     'excerpt' => 'Red and large fixture.',
     'status' => 'published',
     'price' => 120.00,
+    'category_id' => $categoryId,
 ], $userId);
 $productB = ecProductCreate([
     'title' => 'Attribute Blue Medium ' . $seed,
@@ -84,6 +112,7 @@ $productB = ecProductCreate([
     'excerpt' => 'Blue and medium fixture.',
     'status' => 'published',
     'price' => 95.00,
+    'category_id' => $categoryId,
 ], $userId);
 $productC = ecProductCreate([
     'title' => 'Attribute Red Cotton ' . $seed,
@@ -91,6 +120,7 @@ $productC = ecProductCreate([
     'excerpt' => 'Red and cotton fixture.',
     'status' => 'published',
     'price' => 130.00,
+    'category_id' => $categoryId,
 ], $userId);
 $cleanupProductIds = [$productA, $productB, $productC];
 
@@ -102,18 +132,21 @@ ecProductSaveAttributes($productC, ecProductParseAttributeLines("Color: Red\nMat
 $product = ecProductGet($productA) ?: [];
 $redProducts = ecProductList([
     'status' => 'published',
+    'category_id' => $categoryId,
     'attribute_filters' => ['color' => ['red']],
     'limit' => 20,
     'offset' => 0,
 ]);
 $redLargeProducts = ecProductList([
     'status' => 'published',
+    'category_id' => $categoryId,
     'attribute_filters' => ['color' => ['red'], 'size' => ['large']],
     'limit' => 20,
     'offset' => 0,
 ]);
 $facets = ecProductAttributeFacetSummary([
     'status' => 'published',
+    'category_id' => $categoryId,
     'attribute_filters' => ['color' => ['red']],
 ]);
 $shopTemplate = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/public/shop.disyl') ?: '';
@@ -141,7 +174,7 @@ $errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
 t('no app.log critical errors', !str_contains($appLog, '[critical]'), $appLog !== '' ? substr($appLog, 0, 200) : '');
 t('no PHP warnings or fatals in error.log', $errorLog === '' || (!str_contains($errorLog, 'PHP Warning') && !str_contains($errorLog, 'PHP Fatal')), $errorLog !== '' ? substr($errorLog, 0, 200) : '');
 
-cleanupEcommerceProductAttributeFixtures($cleanupProductIds);
+cleanupEcommerceProductAttributeFixtures($cleanupProductIds, $cleanupCategoryIds);
 
 echo "\n════════════════════════════════════════════\n";
 echo "  Results: {$pass} passed, {$fail} failed\n";

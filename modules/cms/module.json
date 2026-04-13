@@ -50,6 +50,7 @@
         "kernel_event_triggers",
         "rate_limits",
         "workflow_definitions",
+        "ec_stores",
         "ec_store_users"
     ],
     "migrations": [

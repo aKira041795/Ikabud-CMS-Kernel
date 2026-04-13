@@ -213,19 +213,198 @@ function ecStoreAdminProducts(array $params = []): void
     ecRender('modules/ecommerce/admin/store-admin-products.disyl', $ctx);
 }
 
+function ecStoreAdminProductFormState(array $input = [], ?array $product = null): array
+{
+    $state = is_array($product) ? $product : [];
+    $pricing = is_array($state['pricing'] ?? null) ? $state['pricing'] : [];
+    $inventory = is_array($state['inventory'] ?? null) ? $state['inventory'] : [];
+    $booking = is_array($state['booking'] ?? null) ? $state['booking'] : [];
+
+    $normalizeBool = static function (string $key, bool $fallback = false) use ($input): bool {
+        if (!array_key_exists($key, $input)) {
+            return $fallback;
+        }
+
+        $value = $input[$key];
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array((string)$value, ['1', 'on', 'true', 'yes'], true);
+    };
+
+    $parseLines = static function (mixed $value): array {
+        $lines = preg_split('/\r\n|\r|\n/', trim((string)$value)) ?: [];
+        return array_values(array_filter(array_map('trim', $lines), static fn(string $line): bool => $line !== ''));
+    };
+
+    $state['title'] = (string)($input['title'] ?? $state['title'] ?? '');
+    $state['slug'] = (string)($input['slug'] ?? $state['slug'] ?? '');
+    $state['excerpt'] = (string)($input['excerpt'] ?? $state['excerpt'] ?? '');
+    $state['body'] = (string)($input['body'] ?? $state['body'] ?? '');
+    $state['status'] = (string)($input['status'] ?? $state['status'] ?? 'draft');
+    $state['featured_image_id'] = $input['featured_image_id'] ?? ($state['featured_image_id'] ?? '');
+
+    $state['pricing'] = array_merge($pricing, [
+        'price' => $input['price'] ?? ($pricing['price'] ?? ''),
+        'sale_price' => $input['sale_price'] ?? ($pricing['sale_price'] ?? ''),
+    ]);
+
+    $state['inventory'] = array_merge($inventory, [
+        'sku' => (string)($input['sku'] ?? $inventory['sku'] ?? ''),
+        'track_stock' => $normalizeBool('track_stock', (bool)($inventory['track_stock'] ?? true)),
+        'stock_qty' => $input['stock_qty'] ?? ($inventory['stock_qty'] ?? 0),
+    ]);
+
+    $state['tax_class'] = function_exists('ecProductNormalizeTaxClass')
+        ? ecProductNormalizeTaxClass($input['tax_class'] ?? ($state['tax_class'] ?? 'standard'))
+        : (string)($input['tax_class'] ?? $state['tax_class'] ?? 'standard');
+
+    $state['is_subscription'] = $normalizeBool('is_subscription', !empty($state['is_subscription']));
+    $state['subscription_interval_unit'] = (string)($input['subscription_interval_unit'] ?? $state['subscription_interval_unit'] ?? 'month');
+    $state['subscription_interval_count'] = (int)($input['subscription_interval_count'] ?? $state['subscription_interval_count'] ?? 1);
+    $state['subscription_trial_days'] = (int)($input['subscription_trial_days'] ?? $state['subscription_trial_days'] ?? 0);
+    $state['subscription_max_cycles'] = (int)($input['subscription_max_cycles'] ?? $state['subscription_max_cycles'] ?? 0);
+    $state['subscription_grace_period_days'] = (int)($input['subscription_grace_period_days'] ?? $state['subscription_grace_period_days'] ?? 7);
+
+    $state['is_membership_product'] = $normalizeBool('is_membership_product', !empty($state['is_membership_product']));
+    $state['membership_tier'] = (string)($input['membership_tier'] ?? $state['membership_tier'] ?? 'member');
+    $state['membership_duration_days'] = (int)($input['membership_duration_days'] ?? $state['membership_duration_days'] ?? 365);
+
+    $state['booking'] = array_merge($booking, [
+        'enabled' => $normalizeBool('booking_enabled', !empty($booking['enabled'])),
+        'duration_minutes' => (int)($input['booking_duration_minutes'] ?? $booking['duration_minutes'] ?? 60),
+        'notice_hours' => (int)($input['booking_notice_hours'] ?? $booking['notice_hours'] ?? 24),
+        'available_weekdays' => array_map('intval', (array)($input['booking_available_weekdays'] ?? $booking['available_weekdays'] ?? [])),
+        'time_slots' => array_key_exists('booking_time_slots', $input)
+            ? $parseLines($input['booking_time_slots'])
+            : (array)($booking['time_slots'] ?? []),
+        'allow_reschedule' => $normalizeBool('booking_allow_reschedule', !empty($booking['allow_reschedule'])),
+        'reschedule_cutoff_hours' => (int)($input['booking_reschedule_cutoff_hours'] ?? $booking['reschedule_cutoff_hours'] ?? 24),
+        'allow_cancel' => $normalizeBool('booking_allow_cancel', !empty($booking['allow_cancel'])),
+        'cancel_cutoff_hours' => (int)($input['booking_cancel_cutoff_hours'] ?? $booking['cancel_cutoff_hours'] ?? 24),
+        'reminder_hours_before' => (int)($input['booking_reminder_hours_before'] ?? $booking['reminder_hours_before'] ?? 24),
+    ]);
+
+    $state['is_digital'] = $normalizeBool('is_digital', !empty($state['is_digital']));
+    $state['license_module'] = (string)($input['license_module'] ?? $state['license_module'] ?? '');
+    $state['license_tier'] = (string)($input['license_tier'] ?? $state['license_tier'] ?? 'pro');
+    $state['license_duration_days'] = (int)($input['license_duration_days'] ?? $state['license_duration_days'] ?? 365);
+
+    $state['is_external_product'] = $normalizeBool('is_external_product', !empty($state['is_external_product']));
+    $state['external_product_url'] = (string)($input['external_product_url'] ?? $state['external_product_url'] ?? '');
+    $state['external_product_button_text'] = (string)($input['external_product_button_text'] ?? $state['external_product_button_text'] ?? 'Buy Externally');
+
+    $state['seo_title'] = (string)($input['seo_title'] ?? $state['seo_title'] ?? '');
+    $state['seo_description'] = (string)($input['seo_description'] ?? $state['seo_description'] ?? '');
+    $state['seo_canonical_url'] = (string)($input['seo_canonical_url'] ?? $state['seo_canonical_url'] ?? '');
+    $state['seo_og_image'] = (string)($input['seo_og_image'] ?? $state['seo_og_image'] ?? '');
+
+    return $state;
+}
+
+function ecStoreAdminProductEditorContext(
+    array $user,
+    array $store,
+    array $product,
+    array $input,
+    array $options = []
+): array {
+    $categories = ecDb()->query(
+        ecCmsCategorySelectSql('id, name', 'name ASC')
+    )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+    $productId = (int)($product['id'] ?? 0);
+    $attributeLines = array_key_exists('attribute_lines', $options)
+        ? (string)$options['attribute_lines']
+        : (function_exists('ecProductAttributesToLines') ? ecProductAttributesToLines((array)($product['attributes'] ?? [])) : '');
+    $taxClass = (string)($options['tax_class'] ?? $product['tax_class'] ?? 'standard');
+    $selectedRelationIds = $options['relation_ids']
+        ?? (is_array($product['relation_ids'] ?? null) ? $product['relation_ids'] : ecProductDefaultRelationIds());
+    $selectedBundleChildren = $options['bundle_children']
+        ?? ($productId > 0 ? ecProductBundleChildSelections($productId) : []);
+    $selectedGroupedChildren = $options['grouped_children']
+        ?? ($productId > 0 ? ecProductGroupedChildSelections($productId) : []);
+    $addonLines = array_key_exists('addon_lines', $options)
+        ? (string)$options['addon_lines']
+        : implode("\n", array_map(static function (array $addon): string {
+            $parts = [trim((string)($addon['label'] ?? ''))];
+            $parts[] = number_format((float)($addon['price'] ?? 0.0), 2, '.', '');
+            if (trim((string)($addon['description'] ?? '')) !== '') {
+                $parts[] = trim((string)$addon['description']);
+            }
+            return implode(' | ', $parts);
+        }, is_array($product['addons'] ?? null) ? $product['addons'] : []));
+    $requiredMembershipTiersText = array_key_exists('required_membership_tiers_text', $options)
+        ? (string)$options['required_membership_tiers_text']
+        : implode(', ', is_array($product['required_membership_tiers'] ?? null) ? $product['required_membership_tiers'] : []);
+    $bookingTimeSlotsText = array_key_exists('booking_time_slots', $options)
+        ? (string)$options['booking_time_slots']
+        : implode("\n", is_array($product['booking']['time_slots'] ?? null) ? $product['booking']['time_slots'] : []);
+    $selectedBookingWeekdays = array_key_exists('booking_available_weekdays', $input)
+        ? array_map('intval', (array)$input['booking_available_weekdays'])
+        : array_map('intval', is_array($product['booking']['available_weekdays'] ?? null) ? $product['booking']['available_weekdays'] : []);
+
+    return ecStoreAdminContext($user, $store, 'products', [
+        'product' => $product,
+        'categories' => $categories,
+        'selected_category_id' => (int)($options['selected_category_id'] ?? $product['categories'][0]['id'] ?? 0),
+        'attribute_lines' => $attributeLines,
+        'selected_tax_class' => $taxClass,
+        'tax_class_options' => ecProductTaxClassOptions($taxClass),
+        'relation_options' => ecProductAdminRelationOptions($productId, array_merge($selectedRelationIds, [
+            'bundle_children' => $selectedBundleChildren,
+            'grouped_children' => $selectedGroupedChildren,
+        ])),
+        'selected_relation_ids' => $selectedRelationIds,
+        'selected_bundle_children' => $selectedBundleChildren,
+        'selected_grouped_children' => $selectedGroupedChildren,
+        'featured_image_url' => (string)($product['featured_image_url'] ?? ''),
+        'addon_lines' => $addonLines,
+        'required_membership_tiers_text' => $requiredMembershipTiersText,
+        'booking_time_slots_text' => $bookingTimeSlotsText,
+        'selected_booking_weekdays' => $selectedBookingWeekdays,
+        'booking_weekday_flags' => [
+            'sun' => in_array(0, $selectedBookingWeekdays, true),
+            'mon' => in_array(1, $selectedBookingWeekdays, true),
+            'tue' => in_array(2, $selectedBookingWeekdays, true),
+            'wed' => in_array(3, $selectedBookingWeekdays, true),
+            'thu' => in_array(4, $selectedBookingWeekdays, true),
+            'fri' => in_array(5, $selectedBookingWeekdays, true),
+            'sat' => in_array(6, $selectedBookingWeekdays, true),
+        ],
+        'seo_defaults' => ecProductSeoDefaults(),
+        'error' => $options['error'] ?? null,
+        'message' => $options['message'] ?? null,
+        'is_new' => !empty($options['is_new']),
+        'shared_catalog_product' => !empty($options['shared_catalog_product']),
+    ]);
+}
+
 function ecStoreAdminProductCreate(array $params = []): void
 {
     $id = (int)($params['id'] ?? 0);
     $user = ecRequireStoreAccess($id, ['owner', 'manager']);
     $store = ecStoreAdminLoadStore($id);
 
-    $categories = ecDb()->query(
-        ecCmsCategorySelectSql('id, name', 'name ASC')
-    )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    $input = [];
+    $product = ecStoreAdminProductFormState();
+    $attributeLines = '';
+    $relationSelections = ecProductDefaultRelationIds();
+    $bundleChildren = [];
+    $groupedChildren = [];
+    $taxClass = 'standard';
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_verify();
         $input = ecInput();
+        $attributeLines = trim((string)($input['attribute_lines'] ?? ''));
+        $relationSelections = ecProductRelationSelectionsFromInput($input);
+        $bundleChildren = ecProductBundleSelectionsFromInput($input);
+        $groupedChildren = ecProductGroupedSelectionsFromInput($input);
+        $taxClass = function_exists('ecProductNormalizeTaxClass')
+            ? ecProductNormalizeTaxClass($input['tax_class'] ?? 'standard')
+            : 'standard';
         $featuredImageId = null;
         $uploadedImage = ecUploadProductFeaturedImage(kernelUploadedFile('featured_image') ?? [], (int)($user['id'] ?? 0));
         if (is_array($uploadedImage) && !empty($uploadedImage['id'])) {
@@ -246,7 +425,48 @@ function ecStoreAdminProductCreate(array $params = []): void
                 'track_stock' => ($input['track_stock'] ?? 'on') === 'on',
                 'category_id' => ($input['category_id'] ?? '') !== '' ? (int)$input['category_id'] : null,
                 'featured_image_id' => $featuredImageId,
+                'attributes' => function_exists('ecProductParseAttributeLines') ? ecProductParseAttributeLines($attributeLines) : [],
+                'relations' => $relationSelections,
+                'bundle_children' => $bundleChildren,
+                'grouped_children' => $groupedChildren,
+                'tax_class' => $taxClass,
+                'is_subscription' => !empty($input['is_subscription']),
+                'subscription_interval_unit' => $input['subscription_interval_unit'] ?? 'month',
+                'subscription_interval_count' => $input['subscription_interval_count'] ?? 1,
+                'subscription_trial_days' => $input['subscription_trial_days'] ?? 0,
+                'subscription_max_cycles' => $input['subscription_max_cycles'] ?? 0,
+                'subscription_grace_period_days' => $input['subscription_grace_period_days'] ?? 7,
+                'is_membership_product' => !empty($input['is_membership_product']),
+                'membership_tier' => $input['membership_tier'] ?? 'member',
+                'membership_duration_days' => $input['membership_duration_days'] ?? 365,
+                'required_membership_tiers_text' => $input['required_membership_tiers_text'] ?? '',
+                'addon_lines' => $input['addon_lines'] ?? '',
+                'booking_enabled' => !empty($input['booking_enabled']),
+                'booking_duration_minutes' => $input['booking_duration_minutes'] ?? 60,
+                'booking_notice_hours' => $input['booking_notice_hours'] ?? 24,
+                'booking_available_weekdays' => $input['booking_available_weekdays'] ?? [],
+                'booking_time_slots' => $input['booking_time_slots'] ?? '',
+                'booking_allow_reschedule' => !empty($input['booking_allow_reschedule']),
+                'booking_reschedule_cutoff_hours' => $input['booking_reschedule_cutoff_hours'] ?? 24,
+                'booking_allow_cancel' => !empty($input['booking_allow_cancel']),
+                'booking_cancel_cutoff_hours' => $input['booking_cancel_cutoff_hours'] ?? 24,
+                'booking_reminder_hours_before' => $input['booking_reminder_hours_before'] ?? 24,
+                'is_external_product' => !empty($input['is_external_product']),
+                'external_product_url' => $input['external_product_url'] ?? '',
+                'external_product_button_text' => $input['external_product_button_text'] ?? '',
+                'seo_title' => $input['seo_title'] ?? '',
+                'seo_description' => $input['seo_description'] ?? '',
+                'seo_canonical_url' => $input['seo_canonical_url'] ?? '',
+                'seo_og_image' => $input['seo_og_image'] ?? '',
             ], (int)($user['id'] ?? 0));
+
+            $digitalFileMeta = [];
+            $digitalFileUpload = ecUploadProductDigitalFile(kernelUploadedFile('digital_file') ?? [], (int)($user['id'] ?? 0));
+            if (is_array($digitalFileUpload)) {
+                $digitalFileMeta['_download_file_path'] = $digitalFileUpload['file_path'];
+                $digitalFileMeta['_download_file_name'] = $digitalFileUpload['original_name'];
+            }
+            ecProductSaveDigitalMeta($productId, array_merge($input, $digitalFileMeta));
 
             ecProductSaveStoreAssignments($productId, [$id]);
             $_SESSION['ec_sa_message'] = ['type' => 'success', 'text' => 'Product created.'];
@@ -254,17 +474,22 @@ function ecStoreAdminProductCreate(array $params = []): void
             exit;
         } catch (\Throwable $e) {
             $error = 'Failed to create product: ' . $e->getMessage();
-            $inputState = $input;
+            $product = ecStoreAdminProductFormState($input);
         }
     }
 
-    $ctx = ecStoreAdminContext($user, $store, 'products', [
-        'product' => null,
-        'categories' => $categories,
-        'selected_category_id' => 0,
+    $ctx = ecStoreAdminProductEditorContext($user, $store, $product, $input, [
+        'attribute_lines' => $attributeLines,
+        'relation_ids' => $relationSelections,
+        'bundle_children' => $bundleChildren,
+        'grouped_children' => $groupedChildren,
+        'tax_class' => $taxClass,
+        'selected_category_id' => ($input['category_id'] ?? '') !== '' ? (int)$input['category_id'] : 0,
+        'addon_lines' => (string)($input['addon_lines'] ?? ''),
+        'required_membership_tiers_text' => (string)($input['required_membership_tiers_text'] ?? ''),
+        'booking_time_slots' => (string)($input['booking_time_slots'] ?? ''),
         'message' => $_SESSION['ec_sa_message'] ?? null,
         'error' => $error ?? null,
-        'input' => $inputState ?? [],
         'is_new' => true,
         'shared_catalog_product' => false,
     ]);
@@ -286,16 +511,30 @@ function ecStoreAdminProductEdit(array $params = []): void
         exit;
     }
 
-    $product = ecProductGet($productId, false);
+    $product = ecProductGet($productId);
     if (!$product) {
         http_response_code(404);
         echo 'Product not found.';
         exit;
     }
 
+    $input = [];
+    $attributeLines = function_exists('ecProductAttributesToLines') ? ecProductAttributesToLines((array)($product['attributes'] ?? [])) : '';
+    $relationSelections = is_array($product['relation_ids'] ?? null) ? $product['relation_ids'] : ecProductDefaultRelationIds();
+    $bundleChildren = ecProductBundleChildSelections($productId);
+    $groupedChildren = ecProductGroupedChildSelections($productId);
+    $taxClass = (string)($product['tax_class'] ?? 'standard');
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_verify();
         $input = ecInput();
+        $attributeLines = trim((string)($input['attribute_lines'] ?? ''));
+        $relationSelections = ecProductRelationSelectionsFromInput($input, $productId);
+        $bundleChildren = ecProductBundleSelectionsFromInput($input, $productId);
+        $groupedChildren = ecProductGroupedSelectionsFromInput($input, $productId);
+        $taxClass = function_exists('ecProductNormalizeTaxClass')
+            ? ecProductNormalizeTaxClass($input['tax_class'] ?? ($product['tax_class'] ?? 'standard'))
+            : 'standard';
 
         try {
             $featuredImageId = array_key_exists('featured_image_id', $input) ? $input['featured_image_id'] : ($product['featured_image_id'] ?? null);
@@ -321,32 +560,89 @@ function ecStoreAdminProductEdit(array $params = []): void
                 'track_stock' => ($input['track_stock'] ?? (!empty($product['inventory']['track_stock']) ? 'on' : 'off')) === 'on',
                 'category_id' => ($input['category_id'] ?? '') !== '' ? (int)$input['category_id'] : null,
                 'featured_image_id' => $featuredImageId,
+                'attributes' => function_exists('ecProductParseAttributeLines') ? ecProductParseAttributeLines($attributeLines) : [],
+                'relations' => $relationSelections,
+                'bundle_children' => $bundleChildren,
+                'grouped_children' => $groupedChildren,
+                'tax_class' => $taxClass,
+                'is_subscription' => !empty($input['is_subscription']),
+                'subscription_interval_unit' => $input['subscription_interval_unit'] ?? 'month',
+                'subscription_interval_count' => $input['subscription_interval_count'] ?? 1,
+                'subscription_trial_days' => $input['subscription_trial_days'] ?? 0,
+                'subscription_max_cycles' => $input['subscription_max_cycles'] ?? 0,
+                'subscription_grace_period_days' => $input['subscription_grace_period_days'] ?? 7,
+                'is_membership_product' => !empty($input['is_membership_product']),
+                'membership_tier' => $input['membership_tier'] ?? 'member',
+                'membership_duration_days' => $input['membership_duration_days'] ?? 365,
+                'required_membership_tiers_text' => $input['required_membership_tiers_text'] ?? '',
+                'addon_lines' => $input['addon_lines'] ?? '',
+                'booking_enabled' => !empty($input['booking_enabled']),
+                'booking_duration_minutes' => $input['booking_duration_minutes'] ?? 60,
+                'booking_notice_hours' => $input['booking_notice_hours'] ?? 24,
+                'booking_available_weekdays' => $input['booking_available_weekdays'] ?? [],
+                'booking_time_slots' => $input['booking_time_slots'] ?? '',
+                'booking_allow_reschedule' => !empty($input['booking_allow_reschedule']),
+                'booking_reschedule_cutoff_hours' => $input['booking_reschedule_cutoff_hours'] ?? 24,
+                'booking_allow_cancel' => !empty($input['booking_allow_cancel']),
+                'booking_cancel_cutoff_hours' => $input['booking_cancel_cutoff_hours'] ?? 24,
+                'booking_reminder_hours_before' => $input['booking_reminder_hours_before'] ?? 24,
+                'is_external_product' => !empty($input['is_external_product']),
+                'external_product_url' => $input['external_product_url'] ?? '',
+                'external_product_button_text' => $input['external_product_button_text'] ?? '',
+                'seo_title' => $input['seo_title'] ?? '',
+                'seo_description' => $input['seo_description'] ?? '',
+                'seo_canonical_url' => $input['seo_canonical_url'] ?? '',
+                'seo_og_image' => $input['seo_og_image'] ?? '',
             ]);
+
+            $digitalFileMeta = [];
+            $digitalFileUpload = ecUploadProductDigitalFile(kernelUploadedFile('digital_file') ?? [], (int)($user['id'] ?? 0));
+            if (is_array($digitalFileUpload)) {
+                $digitalFileMeta['_download_file_path'] = $digitalFileUpload['file_path'];
+                $digitalFileMeta['_download_file_name'] = $digitalFileUpload['original_name'];
+            }
+            ecProductSaveDigitalMeta($productId, array_merge($input, $digitalFileMeta));
 
             $_SESSION['ec_sa_message'] = ['type' => 'success', 'text' => 'Product saved.'];
             header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/products/' . $productId . '/edit');
             exit;
         } catch (\Throwable $e) {
             $error = 'Save failed: ' . $e->getMessage();
-            $inputState = $input;
+            $product = ecStoreAdminProductFormState($input, $product);
         }
 
         $product = ecProductGet($productId, false) ?: $product;
     }
-
-    $categories = ecDb()->query(
-        ecCmsCategorySelectSql('id, name', 'name ASC')
-    )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     $assignmentMap = ecProductStoreAssignmentMap([$productId]);
     $assignedStores = $assignmentMap[$productId] ?? [];
 
-    $ctx = ecStoreAdminContext($user, $store, 'products', [
-        'product' => $product,
-        'categories' => $categories,
-        'selected_category_id' => (int)($product['categories'][0]['id'] ?? 0),
+    $ctx = ecStoreAdminProductEditorContext($user, $store, $product, $input, [
+        'attribute_lines' => $attributeLines,
+        'relation_ids' => $relationSelections,
+        'bundle_children' => $bundleChildren,
+        'grouped_children' => $groupedChildren,
+        'tax_class' => $taxClass,
+        'selected_category_id' => ($input['category_id'] ?? '') !== ''
+            ? (int)$input['category_id']
+            : (int)($product['categories'][0]['id'] ?? 0),
+        'addon_lines' => array_key_exists('addon_lines', $input)
+            ? (string)$input['addon_lines']
+            : implode("\n", array_map(static function (array $addon): string {
+                $parts = [trim((string)($addon['label'] ?? ''))];
+                $parts[] = number_format((float)($addon['price'] ?? 0.0), 2, '.', '');
+                if (trim((string)($addon['description'] ?? '')) !== '') {
+                    $parts[] = trim((string)$addon['description']);
+                }
+                return implode(' | ', $parts);
+            }, is_array($product['addons'] ?? null) ? $product['addons'] : [])),
+        'required_membership_tiers_text' => array_key_exists('required_membership_tiers_text', $input)
+            ? (string)$input['required_membership_tiers_text']
+            : implode(', ', is_array($product['required_membership_tiers'] ?? null) ? $product['required_membership_tiers'] : []),
+        'booking_time_slots' => array_key_exists('booking_time_slots', $input)
+            ? (string)$input['booking_time_slots']
+            : implode("\n", is_array($product['booking']['time_slots'] ?? null) ? $product['booking']['time_slots'] : []),
         'message' => $_SESSION['ec_sa_message'] ?? null,
         'error' => $error ?? null,
-        'input' => $inputState ?? [],
         'is_new' => false,
         'shared_catalog_product' => count($assignedStores) > 1,
     ]);

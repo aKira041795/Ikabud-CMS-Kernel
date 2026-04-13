@@ -225,6 +225,11 @@ function cmsEcommerceEntityViewRouteKinds(): array
     return ['shop_index', 'shop_category', 'product_detail'];
 }
 
+function cmsEcommerceStorefrontThemeRouteKinds(): array
+{
+    return ['shop_index', 'shop_category', 'product_detail', 'store_page', 'store_directory'];
+}
+
 function cmsNormalizeEcommercePublicRouteKind(?string $routeKind = null): string
 {
     $routeKind = trim((string)$routeKind);
@@ -237,6 +242,8 @@ function cmsNormalizeEcommercePublicRouteKind(?string $routeKind = null): string
         'shop_index',
         'shop_category',
         'product_detail',
+        'store_page',
+        'store_directory',
         'cart',
         'checkout',
         'order_confirmation',

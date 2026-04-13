@@ -513,11 +513,32 @@ t('explicit ecommerce theme config resolves storefront theme source', ($explicit
 t('explicit ecommerce theme config restores ecommerce customizer scope', ($explicitStorefrontPolicy['active_theme_scope'] ?? '') === 'ecommerce', json_encode($explicitStorefrontPolicy));
 t('explicit ecommerce theme config restores entity-view mode', ($explicitStorefrontPolicy['public_presentation_mode'] ?? '') === 'entity_view', json_encode($explicitStorefrontPolicy));
 
+$explicitStorefrontStorePagePolicy = cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'store_page',
+], static function (): array {
+    return cmsResolveEcommerceThemePolicy([
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'store_page',
+        'store_id' => 77,
+    ]);
+});
+t('explicit ecommerce theme config promotes storefront theme on store page route', ($explicitStorefrontStorePagePolicy['active_theme'] ?? '') === 'entity-commerce-poc', json_encode($explicitStorefrontStorePagePolicy));
+t('store page theme promotion keeps storefront theme source', ($explicitStorefrontStorePagePolicy['active_theme_source'] ?? '') === 'storefront', json_encode($explicitStorefrontStorePagePolicy));
+t('store page theme promotion keeps ecommerce customizer scope without forcing entity-view mode', ($explicitStorefrontStorePagePolicy['active_theme_scope'] ?? '') === 'ecommerce' && ($explicitStorefrontStorePagePolicy['public_presentation_mode'] ?? '') === 'traditional', json_encode($explicitStorefrontStorePagePolicy));
+
 $configuredStorefrontPublicContext = cmsPublicContext([
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'shop_index',
 ]);
 t('configured ecommerce theme lets cmsPublicContext auto-promote storefront theme on shop route', ($configuredStorefrontPublicContext['active_theme'] ?? '') === 'entity-commerce-poc' && ($configuredStorefrontPublicContext['active_theme_source'] ?? '') === 'storefront' && ($configuredStorefrontPublicContext['active_customizer_scope'] ?? '') === 'ecommerce' && ($configuredStorefrontPublicContext['public_presentation_mode'] ?? '') === 'entity_view', json_encode($configuredStorefrontPublicContext));
+
+$configuredStorePagePublicContext = cmsPublicContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'store_page',
+    'store_id' => 77,
+]);
+t('configured ecommerce theme lets cmsPublicContext auto-promote storefront theme on store page route while staying traditional', ($configuredStorePagePublicContext['active_theme'] ?? '') === 'entity-commerce-poc' && ($configuredStorePagePublicContext['active_theme_source'] ?? '') === 'storefront' && ($configuredStorePagePublicContext['active_customizer_scope'] ?? '') === 'ecommerce' && ($configuredStorePagePublicContext['public_presentation_mode'] ?? '') === 'traditional', json_encode($configuredStorePagePublicContext));
 
 $configuredTraditionalTemplateError = '';
 try {
