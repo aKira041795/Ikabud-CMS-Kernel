@@ -1758,6 +1758,9 @@ function cmsPublicEntityList(array $params = []): void
                 'pagination' => $pagination,
                 'total' => $total,
                 'cart_count' => function_exists('ecCartGet') ? (int)(ecCartGet()['totals']['item_count'] ?? 0) : 0,
+                // Thread the active store so per-store currency applies to pricing.formatted
+                // on each catalog item regardless of whether ?store= is in the URL.
+                'store_context' => ($storeId > 0 && function_exists('ecStoreById')) ? ecStoreById($storeId) : null,
             ])
             : [];
 
@@ -1771,6 +1774,11 @@ function cmsPublicEntityList(array $params = []): void
         }
         if (function_exists('ecStorefrontRenderContext')) {
             $templateContext = array_merge($templateContext, ecStorefrontRenderContext($activeStore));
+        }
+        // Apply per-store currency to {currency}/{currency_sym} template vars.
+        // ecRender is never called in the canonical CMS path, so we apply here directly.
+        if (function_exists('ecApplyPublicCurrencyContext')) {
+            $templateContext = ecApplyPublicCurrencyContext($templateContext);
         }
 
         $html = cmsPublicCanonicalRenderEntityList($items, [
@@ -2308,6 +2316,11 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
                         $templateContext[$key] = $value;
                     }
                 }
+            }
+            // Apply per-store currency to {currency}/{currency_sym} template vars.
+            // ecRender is never called in the canonical CMS path, so we apply here directly.
+            if (function_exists('ecApplyPublicCurrencyContext')) {
+                $templateContext = ecApplyPublicCurrencyContext($templateContext);
             }
         }
         if (

@@ -546,6 +546,7 @@ function ecBuildStorefrontCatalogContext(array $products, array $options = []): 
 
         $items[] = ecBuildStorefrontCatalogItem($product, [
             'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
+            'store_context' => $options['store_context'] ?? null,
         ]);
     }
 

@@ -282,6 +282,49 @@ function ecPublicRenderContext(string $template, array $context = []): array
     ]);
 }
 
+/**
+ * Apply global platform currency to a render context, then override with per-store
+ * currency when the context carries store_currency_code (from ecStorefrontRenderContext).
+ *
+ * This is used by ecRender for the traditional template path AND injected directly into
+ * the CMS canonical entity-list and entity-view paths which never call ecRender, ensuring
+ * {currency}, {currency_sym}, and ec_settings.currency_symbol are consistent everywhere.
+ */
+function ecApplyPublicCurrencyContext(array $context): array
+{
+    // 1. Apply global platform currency (the baseline)
+    if (function_exists('ecCurrentCurrencyContext')) {
+        $currencyContext = ecCurrentCurrencyContext();
+        $context['ec_currency'] = $currencyContext;
+        $context['currency'] = (string)($currencyContext['code'] ?? '');
+        $context['currency_sym'] = (string)($currencyContext['symbol'] ?? '');
+
+        $settings = is_array($context['ec_settings'] ?? null) ? $context['ec_settings'] : [];
+        $settings['currency'] = (string)($currencyContext['code'] ?? ($settings['currency'] ?? ''));
+        $settings['currency_symbol'] = (string)($currencyContext['symbol'] ?? ($settings['currency_symbol'] ?? ''));
+        $context['ec_settings'] = $settings;
+    }
+
+    // 2. Per-store override: when ecStorefrontRenderContext has set store_currency_code,
+    //    override the global defaults so templates see the correct per-store symbol.
+    //    Does not affect cart/order math — display/presentation only.
+    if (!empty($context['store_currency_code'])) {
+        $context['currency'] = (string)$context['store_currency_code'];
+        $storeSym = (string)($context['store_currency_sym'] ?? '');
+        if ($storeSym !== '') {
+            $context['currency_sym'] = $storeSym;
+        }
+        $settings = is_array($context['ec_settings'] ?? null) ? $context['ec_settings'] : [];
+        $settings['currency'] = $context['currency'];
+        if ($storeSym !== '') {
+            $settings['currency_symbol'] = $storeSym;
+        }
+        $context['ec_settings'] = $settings;
+    }
+
+    return $context;
+}
+
 function ecRender(string $template, array $context = []): void
 {
     if (!array_key_exists('cart_count', $context)) {
@@ -356,34 +399,8 @@ function ecRender(string $template, array $context = []): void
 
     $context = ecPublicRenderContext($template, $context);
     $isPublicTemplate = ecIsPublicTemplate($template);
-    if ($isPublicTemplate && function_exists('ecCurrentCurrencyContext')) {
-        $currencyContext = ecCurrentCurrencyContext();
-        $context['ec_currency'] = $currencyContext;
-        $context['currency'] = (string)($currencyContext['code'] ?? '');
-        $context['currency_sym'] = (string)($currencyContext['symbol'] ?? '');
-
-        $settings = is_array($context['ec_settings'] ?? null) ? $context['ec_settings'] : [];
-        $settings['currency'] = (string)($currencyContext['code'] ?? ($settings['currency'] ?? ''));
-        $settings['currency_symbol'] = (string)($currencyContext['symbol'] ?? ($settings['currency_symbol'] ?? ''));
-        $context['ec_settings'] = $settings;
-    }
-
-    // Per-store currency override: when browsing a store-scoped page and the store has
-    // its own currency configured (via ecStorefrontRenderContext's store_currency_code),
-    // override the global defaults so all templates see the correct per-store symbol.
-    // This does not affect cart/order math — only display/presentation currency.
-    if ($isPublicTemplate && !empty($context['store_currency_code'])) {
-        $context['currency'] = (string)$context['store_currency_code'];
-        $storeSym = (string)($context['store_currency_sym'] ?? '');
-        if ($storeSym !== '') {
-            $context['currency_sym'] = $storeSym;
-        }
-        $settings = is_array($context['ec_settings'] ?? null) ? $context['ec_settings'] : [];
-        $settings['currency'] = $context['currency'];
-        if ($storeSym !== '') {
-            $settings['currency_symbol'] = $storeSym;
-        }
-        $context['ec_settings'] = $settings;
+    if ($isPublicTemplate) {
+        $context = ecApplyPublicCurrencyContext($context);
     }
 
     // Always check presentation modes for traditional-style entity endpoints if cms isn't managing it upstream
