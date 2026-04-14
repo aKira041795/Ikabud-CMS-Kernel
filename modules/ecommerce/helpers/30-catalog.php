@@ -271,11 +271,15 @@ function ecProductList(array $filters = []): array
         }
         unset($row);
 
-        // Phase 1 multi-store: attach store assignment data when requested.
-        if (!empty($filters['with_store']) && count($productIds) > 0) {
+        // Phase 1 multi-store: attach store assignment data.
+        if (count($productIds) > 0) {
             $storeAssignmentMap = ecProductStoreAssignmentMap($productIds);
             foreach ($rows as &$row) {
-                $row['stores'] = $storeAssignmentMap[(int)($row['id'] ?? 0)] ?? [];
+                $myStores = $storeAssignmentMap[(int)($row['id'] ?? 0)] ?? [];
+                $row['store_id'] = $myStores[0]['id'] ?? 0;
+                if (!empty($filters['with_store'])) {
+                    $row['stores'] = $myStores;
+                }
             }
             unset($row);
         }
@@ -490,6 +494,10 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
         $row['seo_canonical_url']     = $seo['seo_canonical_url'];
         $row['seo_og_image']          = $seo['seo_og_image'];
         $row['seo_builder_settings']  = $seo['seo_builder_settings'];
+
+                $storeMap = function_exists("ecProductStoreAssignmentMap") ? ecProductStoreAssignmentMap([$id]) : [];
+        $row["store_assignments"] = $storeMap[$id] ?? [];
+        $row["store_id"] = $row["store_assignments"][0]["id"] ?? 0;
 
         return $row;
     } catch (\Throwable $e) {

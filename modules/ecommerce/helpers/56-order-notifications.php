@@ -38,11 +38,11 @@ function ecSendAdminOrderNotification(array $payload): void
         $customerEmail  = (string)($order['customer_email']  ?? $payload['customer_email'] ?? '');
         $customerName   = trim((string)($order['customer_name']  ?? $order['guest_name']    ?? ''));
         $currency       = (string)($order['currency']        ?? ecSettings('currency'));
-        $currencySymbol = (string)ecSettings('currency_symbol');
+        $currencySymbol = (string)($order['currency_symbol'] ?? ecCurrencySymbolFor($currency));
         $baseUrl        = rtrim((string)app()->config('app.url', ''), '/');
         $adminOrderUrl  = $baseUrl . '/ecommerce/admin/orders/' . $orderId;
 
-        $formattedTotal = $currencySymbol . number_format($total, 2);
+        $formattedTotal = ecCurrencyFormatAmount($total, $currency, $currencySymbol);
         $formattedCustomer = $customerName !== ''
             ? $customerName . ' <' . $customerEmail . '>'
             : $customerEmail;
@@ -57,7 +57,7 @@ function ecSendAdminOrderNotification(array $payload): void
                 . (int)($item['qty'] ?? 1)
                 . '</td>'
                 . '<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">'
-                . $currencySymbol . number_format((float)($item['unit_price'] ?? 0), 2)
+                . ecCurrencyFormatAmount((float)($item['unit_price'] ?? 0), $currency, $currencySymbol)
                 . '</td>'
                 . '</tr>';
         }

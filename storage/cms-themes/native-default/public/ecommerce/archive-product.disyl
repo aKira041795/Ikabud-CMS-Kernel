@@ -26,8 +26,14 @@
             <p class="native-storefront-subtitle">Browse products filed under {current_cat.name}. The layout leans into a cleaner fashion-grid rhythm while keeping the native theme shell intact.</p>
             {elseif search}
             <p class="native-storefront-subtitle">Showing results for "{search}" across the current catalog.</p>
-            {else}
-            <p class="native-storefront-subtitle">A more editorial storefront pass for the native theme: tighter cards, a horizontal category rail, and a cleaner price-first shopping rhythm.</p>
+            {elseif store_banner.subtext}
+            <p class="native-storefront-subtitle">{store_banner.subtext | escape}</p>
+            {elseif active_store.description}
+            <p class="native-storefront-subtitle">{active_store.description | escape}</p>
+            {elseif store.description}
+            <p class="native-storefront-subtitle">{store.description | escape}</p>
+            {elseif storefront.page.description}
+            <p class="native-storefront-subtitle">{storefront.page.description | escape}</p>
             {/if}
 
             <div class="native-shop-masthead__metrics">

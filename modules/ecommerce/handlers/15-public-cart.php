@@ -13,6 +13,8 @@ function ecPublicCart(): void
 {
     $cart    = ecCartGet();
     $rates   = ecShippingRates();
+    $cartStore = function_exists('ecCartResolvedStore') ? ecCartResolvedStore((array)($cart['items'] ?? [])) : null;
+    $cartStoreSettings = is_array($cartStore) && function_exists('ecStoreSettingsArray') ? ecStoreSettingsArray($cartStore) : [];
     $message = $_SESSION['ec_message'] ?? null;
     if (!is_array($message) || trim((string)($message['text'] ?? '')) === '') {
         $message = null;
@@ -25,6 +27,8 @@ function ecPublicCart(): void
         'cart'           => $cart,
         'shipping_rates' => $rates,
         'message'        => $message,
+        'store_currency_code' => (string)($cartStoreSettings['currency'] ?? ($cart['currency'] ?? '')),
+        'store_currency_sym' => (string)($cartStoreSettings['currency_symbol'] ?? ($cart['currency_symbol'] ?? '')),
         'relation_sections' => $relationSections,
         'relation_display_variant' => 'compact',
     ]);

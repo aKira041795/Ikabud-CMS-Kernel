@@ -505,6 +505,77 @@ function ecShippingQuote(array $items, array $address = [], ?string $couponCode 
         'totals' => ecCalculateTotals($items, $couponCode, $resolvedRateId, $location, $options),
     ];
 }
+    function ecAuthoritativeCartItemPricing(array $item): ?array
+    {
+        $productId = max(0, (int)($item['product_id'] ?? 0));
+        if ($productId <= 0 || !function_exists('ecProductGet')) {
+            return null;
+        }
+
+        $product = ecProductGet($productId, false);
+        if (!is_array($product)) {
+            return null;
+        }
+
+        $storeId = max(0, (int)($item['store_id'] ?? 0));
+        if ($storeId <= 0 && function_exists('ecProductStoreAssignmentMap')) {
+            $assignmentMap = ecProductStoreAssignmentMap([$productId]);
+            $assignedStores = array_values(array_unique(array_filter(array_map(
+                static fn(array $store): int => max(0, (int)($store['id'] ?? 0)),
+                (array)($assignmentMap[$productId] ?? [])
+            ))));
+            if (count($assignedStores) === 1) {
+                $storeId = $assignedStores[0];
+            }
+        }
+
+        if ($storeId > 0 && function_exists('ecStoreById') && function_exists('ecStoreApplyProductOverrides')) {
+            $store = ecStoreById($storeId);
+            if (is_array($store)) {
+                $product = ecStoreApplyProductOverrides($product, $store);
+                if (!is_array($product)) {
+                    return null;
+                }
+            }
+        }
+
+        $pricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+        $segmentUserId = function_exists('ecSegmentCurrentUserId') ? ecSegmentCurrentUserId() : 0;
+        if ($segmentUserId > 0 && function_exists('ecCustomerActiveSegments') && function_exists('ecSegmentApplyProductPrice')) {
+            $activeSegments = ecCustomerActiveSegments($segmentUserId);
+            if ($activeSegments !== []) {
+                $pricing = ecSegmentApplyProductPrice($pricing, $activeSegments);
+            }
+        }
+
+        $sourceCurrency = ecCurrencyNormalizeCode($pricing['currency'] ?? '') ?: ecStoreBaseCurrencyCode();
+        $targetCurrency = ecCurrencyNormalizeCode($item['currency'] ?? '');
+        if ($targetCurrency === '' && $storeId > 0 && function_exists('ecStoreSettingsArray')) {
+            $storeSettings = ecStoreSettingsArray($storeId);
+            $targetCurrency = ecCurrencyNormalizeCode($storeSettings['currency'] ?? '');
+        }
+        if ($targetCurrency === '') {
+            $targetCurrency = $sourceCurrency;
+        }
+
+        $basePrice = array_key_exists('active_price', $pricing) && $pricing['active_price'] !== null
+            ? (float)$pricing['active_price']
+            : (float)($pricing['price'] ?? 0.0);
+        $variantId = max(0, (int)($item['variant_id'] ?? 0));
+        if ($variantId > 0 && function_exists('ecProductVariantGet')) {
+            $variant = ecProductVariantGet($variantId, $productId);
+            if (is_array($variant) && $variant['price_override'] !== null && $variant['price_override'] !== '') {
+                $basePrice = (float)$variant['price_override'];
+            }
+        }
+
+        return [
+            'base_price' => ecCurrencyConvertAmount($basePrice, $sourceCurrency, $targetCurrency),
+            'currency' => $targetCurrency,
+            'store_id' => $storeId,
+        ];
+    }
+
 
 /**
  * Re-fetch authoritative product prices from the database and override
@@ -596,21 +667,34 @@ function ecEnforceCurrentPrices(array $items): array
         } catch (\Throwable $ignored) {}
     }
 
-    // Override price_snapshot with authoritative DB price.
     foreach ($items as &$item) {
         $pid = (int)($item['product_id'] ?? 0);
-        if ($pid <= 0 || !array_key_exists($pid, $livePrices)) {
+        if ($pid <= 0) {
             continue;
         }
 
-        $vid         = (int)($item['variant_id'] ?? 0);
-        $dbBasePrice = ($vid > 0 && array_key_exists($vid, $variantPrices))
-            ? $variantPrices[$vid]
-            : $livePrices[$pid];
+        $authoritativePricing = ecAuthoritativeCartItemPricing($item);
+        $vid = (int)($item['variant_id'] ?? 0);
+        $dbBasePrice = $authoritativePricing['base_price'] ?? null;
+        if ($dbBasePrice === null && array_key_exists($pid, $livePrices)) {
+            $dbBasePrice = ($vid > 0 && array_key_exists($vid, $variantPrices))
+                ? $variantPrices[$vid]
+                : $livePrices[$pid];
+        }
+        if ($dbBasePrice === null) {
+            continue;
+        }
 
         $addonTotal   = round((float)($item['addon_total'] ?? 0.0), 2);
         $authoritative = round($dbBasePrice + $addonTotal, 2);
         $stored        = round((float)($item['price_snapshot'] ?? 0), 2);
+
+        if (!empty($authoritativePricing['currency'])) {
+            $item['currency'] = (string)$authoritativePricing['currency'];
+        }
+        if (!empty($authoritativePricing['store_id'])) {
+            $item['store_id'] = (int)$authoritativePricing['store_id'];
+        }
 
         if (abs($authoritative - $stored) > 0.01) {
             if (function_exists('write_log')) {

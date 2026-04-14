@@ -1764,11 +1764,35 @@ function cmsPublicEntityList(array $params = []): void
             ])
             : [];
 
-        $templateContext = ['storefront' => $storefront];
         $activeStore = null;
         if ($storeId > 0 && function_exists('ecStoreById')) {
             $activeStore = ecStoreById($storeId);
         }
+
+        $storefrontBanner = function_exists('ecStoreBanner') ? ecStoreBanner($activeStore) : null;
+        $storefrontPageTitle = trim((string)($storefrontBanner['headline'] ?? ''));
+        if ($storefrontPageTitle === '' && is_array($activeStore)) {
+            $storefrontPageTitle = trim((string)($activeStore['name'] ?? ''));
+        }
+        if ($storefrontPageTitle === '') {
+            $storefrontPageTitle = $listTitle;
+        }
+
+        $storefrontPageDescription = trim((string)($storefrontBanner['subtext'] ?? ''));
+        if ($storefrontPageDescription === '' && is_array($activeStore)) {
+            $storefrontPageDescription = trim((string)($activeStore['description'] ?? $activeStore['announcement'] ?? ''));
+        }
+        if ($storefrontPageDescription === '') {
+            $storefrontPageDescription = $listDescription;
+        }
+
+        if (!is_array($storefront['page'] ?? null)) {
+            $storefront['page'] = [];
+        }
+        $storefront['page']['title'] = $storefrontPageTitle;
+        $storefront['page']['description'] = $storefrontPageDescription;
+
+        $templateContext = ['storefront' => $storefront];
         if ($activeStore !== null) {
             $templateContext['active_store'] = $activeStore;
         }

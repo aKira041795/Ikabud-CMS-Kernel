@@ -76,7 +76,7 @@
                         <div class="text-sm font-semibold text-gray-900">Loyalty Rewards</div>
                         <div class="text-xs text-gray-500">Balance: {cart.loyalty.balance_fmt} points</div>
                     </div>
-                    <div class="text-xs text-gray-500">{cart.loyalty.minimum_points} points = {ec_settings.currency_symbol}1.00</div>
+                    <div class="text-xs text-gray-500">{cart.loyalty.minimum_points} points = {cart.currency_symbol}1.00</div>
                 </div>
                 <div class="flex gap-2">
                     <input type="number" id="loyalty-points" min="0" step="100" value="{cart.loyalty.selected_points | default:'0'}"

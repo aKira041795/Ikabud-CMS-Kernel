@@ -4,7 +4,7 @@
 <div class="max-w-4xl mx-auto">
     <div class="mb-6 flex items-center justify-between gap-4">
         <h1 class="text-2xl font-bold text-gray-900">Checkout</h1>
-        <div class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">{ec_settings.currency}</div>
+        <div class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">{checkout_totals.currency}</div>
     </div>
 
     <form id="checkout-form" class="grid grid-cols-1 lg:grid-cols-3 gap-8">

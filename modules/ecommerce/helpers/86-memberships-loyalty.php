@@ -275,6 +275,17 @@ function ecCustomerHasMembershipTier(int $customerId = 0, string $customerEmail 
 
 function ecMembershipGateForProduct(array $product, ?array $user = null): array
 {
+    if (!ecMembershipsEnabled()) {
+        return [
+            'allowed' => true,
+            'requires_membership' => false,
+            'login_required' => false,
+            'required_tiers' => [],
+            'active_tiers' => [],
+            'message' => '',
+        ];
+    }
+
     $required = ecMembershipNormalizeTierList($product['required_membership_tiers'] ?? []);
     if ($required === []) {
         return [

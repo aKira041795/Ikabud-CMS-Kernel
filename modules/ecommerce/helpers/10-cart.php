@@ -67,6 +67,91 @@ function ecSessionCartClear(): void
     unset($_SESSION[EC_SESSION_CART_KEY], $_SESSION[EC_SESSION_COUPON_KEY], $_SESSION[defined('EC_SESSION_LOYALTY_KEY') ? EC_SESSION_LOYALTY_KEY : 'ec_cart_loyalty_points']);
 }
 
+function ecCartHydrateStoreIds(array $items): array
+{
+    $productIds = [];
+    foreach ($items as $item) {
+        if (max(0, (int)($item['store_id'] ?? 0)) > 0) {
+            continue;
+        }
+
+        $productId = max(0, (int)($item['product_id'] ?? 0));
+        if ($productId > 0) {
+            $productIds[$productId] = true;
+        }
+    }
+
+    if ($productIds === [] || !function_exists('ecProductStoreAssignmentMap')) {
+        return $items;
+    }
+
+    $assignmentMap = ecProductStoreAssignmentMap(array_map('intval', array_keys($productIds)));
+    foreach ($items as &$item) {
+        if (max(0, (int)($item['store_id'] ?? 0)) > 0) {
+            continue;
+        }
+
+        $productId = max(0, (int)($item['product_id'] ?? 0));
+        if ($productId <= 0) {
+            continue;
+        }
+
+        $assignedStores = array_values(array_unique(array_filter(array_map(
+            static fn(array $store): int => max(0, (int)($store['id'] ?? 0)),
+            (array)($assignmentMap[$productId] ?? [])
+        ))));
+        if (count($assignedStores) === 1) {
+            $item['store_id'] = $assignedStores[0];
+        }
+    }
+    unset($item);
+
+    return $items;
+}
+
+function ecCartResolvedStoreId(array $items): int
+{
+    $storeIds = [];
+    foreach (ecCartHydrateStoreIds($items) as $item) {
+        $storeId = max(0, (int)($item['store_id'] ?? 0));
+        if ($storeId > 0) {
+            $storeIds[$storeId] = true;
+        }
+    }
+
+    return count($storeIds) === 1 ? (int)array_key_first($storeIds) : 0;
+}
+
+function ecCartResolvedStore(array $items): ?array
+{
+    $storeId = ecCartResolvedStoreId($items);
+    if ($storeId <= 0 || !function_exists('ecStoreById')) {
+        return null;
+    }
+
+    $store = ecStoreById($storeId);
+    return is_array($store) ? $store : null;
+}
+
+function ecCartResolveTargetCurrencyForProduct(array $product): string
+{
+    $storeId = max(0, (int)($product['store_id'] ?? 0));
+    if ($storeId > 0 && function_exists('ecStoreSettingsArray')) {
+        $storeSettings = ecStoreSettingsArray($storeId);
+        $storeCurrency = ecCurrencyNormalizeCode($storeSettings['currency'] ?? '');
+        if ($storeCurrency !== '') {
+            return $storeCurrency;
+        }
+    }
+
+    $pricingCurrency = ecCurrencyNormalizeCode($product['pricing']['currency'] ?? '');
+    if ($pricingCurrency !== '') {
+        return $pricingCurrency;
+    }
+
+    return ecCurrentCurrencyCode();
+}
+
 // ── Unified cart API ─────────────────────────────────────────────────
 
 /**
@@ -79,6 +164,10 @@ function ecCartGet(): array
     $userId = ($user && ($user['source'] ?? '') === 'cms') ? (int)$user['id'] : 0;
 
     $items = $userId ? ecDbCartItems($userId) : ecSessionCartGet();
+    $items = ecCartHydrateStoreIds($items);
+    if (function_exists('ecEnforceCurrentPrices')) {
+        $items = ecEnforceCurrentPrices($items);
+    }
     $couponCode = $userId
         ? ecDbCartCoupon($userId)
         : ($_SESSION[EC_SESSION_COUPON_KEY] ?? null);
@@ -90,6 +179,7 @@ function ecCartGet(): array
     ]);
     $currencyCode = ecResolveCartItemsCurrencyCode($items);
     $currencySymbol = ecCurrencySymbolFor($currencyCode);
+    $resolvedStore = ecCartResolvedStore($items);
     foreach ($items as &$item) {
         if (function_exists('ecHydrateLineItemOptions')) {
             $item = ecHydrateLineItemOptions($item, $currencyCode);
@@ -113,6 +203,7 @@ function ecCartGet(): array
         'coupon_code' => $couponCode,
         'currency' => $currencyCode,
         'currency_symbol' => $currencySymbol,
+        'store' => $resolvedStore,
         'loyalty' => function_exists('ecCartLoyaltySummary')
             ? ecCartLoyaltySummary($userId, $totals, $loyaltyPoints)
             : ['balance' => 0, 'selected_points' => 0, 'applied_points' => 0, 'discount_amount' => 0.0, 'can_redeem' => false],
@@ -148,6 +239,30 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null,
         }
     }
 
+    $itemStoreId = max(0, (int)($product['store_id'] ?? 0));
+    if ($itemStoreId > 0 && function_exists('ecStoreById') && function_exists('ecStoreApplyProductOverrides')) {
+        $store = ecStoreById($itemStoreId);
+        if (is_array($store)) {
+            $product = ecStoreApplyProductOverrides($product, $store);
+            if (!is_array($product)) {
+                return ['ok' => false, 'error' => 'This product is not available in the selected store.'];
+            }
+        }
+    }
+    $targetCurrency = ecCartResolveTargetCurrencyForProduct($product);
+    $existingCart = ecCartGet();
+    $existingItems = (array)($existingCart['items'] ?? []);
+    if ($existingItems !== []) {
+        $existingCurrency = ecResolveCartItemsCurrencyCode($existingItems);
+        $existingStoreId = ecCartResolvedStoreId($existingItems);
+        if ($existingCurrency !== '' && $targetCurrency !== '' && $existingCurrency !== $targetCurrency) {
+            return ['ok' => false, 'error' => 'Products with different store currencies must be purchased in separate orders.'];
+        }
+        if ($existingStoreId > 0 && $itemStoreId > 0 && $existingStoreId !== $itemStoreId) {
+            return ['ok' => false, 'error' => 'Products from different stores must be purchased in separate orders.'];
+        }
+    }
+
     $pricing   = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
     $inventory = $product['inventory'];
 
@@ -157,7 +272,6 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null,
 
     $price = 0.00;
     $sku   = $inventory['sku'] ?? '';
-    $targetCurrency = ecCurrentCurrencyCode();
     $sourceCurrency = ecCurrencyNormalizeCode($pricing['currency'] ?? ecStoreBaseCurrencyCode()) ?: ecStoreBaseCurrencyCode();
 
     if ($variantId) {
@@ -193,6 +307,7 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null,
         'price_snapshot' => round($price, 2),
         'base_price_snapshot' => round($price - (float)($extendedData['price_adjustment'] ?? 0.0), 2),
         'currency' => $targetCurrency,
+        'store_id' => $itemStoreId > 0 ? $itemStoreId : null,
         'product_title' => $product['title'],
         'sku' => $sku,
         'selected_addons' => is_array($extendedData['selected_addons'] ?? null) ? $extendedData['selected_addons'] : [],

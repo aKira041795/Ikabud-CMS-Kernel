@@ -28,6 +28,8 @@ function ecPublicCheckout(): void
     }
 
     $shippingDefaults = ['country' => function_exists('ecShippingDefaultCountry') ? ecShippingDefaultCountry() : ''];
+    $cartStore = function_exists('ecCartResolvedStore') ? ecCartResolvedStore((array)($cart['items'] ?? [])) : null;
+    $cartStoreSettings = is_array($cartStore) && function_exists('ecStoreSettingsArray') ? ecStoreSettingsArray($cartStore) : [];
     $shippingQuote   = function_exists('ecShippingQuote')
         ? ecShippingQuote($cart['items'], $shippingDefaults, (string)($cart['coupon_code'] ?? ''), null, [
             'customer_id' => $isCustomer ? (int)($user['id'] ?? 0) : null,
@@ -50,6 +52,8 @@ function ecPublicCheckout(): void
         'checkout_totals'            => is_array($shippingQuote['totals'] ?? null) ? $shippingQuote['totals'] : $cart['totals'],
         'payment_label'              => $paymentLabel,
         'csrf_token'                 => app()->csrfToken(),
+        'store_currency_code'        => (string)($cartStoreSettings['currency'] ?? ($cart['currency'] ?? '')),
+        'store_currency_sym'         => (string)($cartStoreSettings['currency_symbol'] ?? ($cart['currency_symbol'] ?? '')),
         'cart_has_digital'           => $cartHasDigital,
         'require_account_for_digital' => $requireAccount,
         'abandoned_cart_enabled'     => ecAbandonedCartEnabled(),

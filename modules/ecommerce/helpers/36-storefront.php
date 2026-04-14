@@ -379,8 +379,13 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
     // Prefer explicit store_context option (threaded from ecPublicProduct for direct product URL
     // visits) so that per-store currency and overrides work correctly even when no ?store= param
     // is present in the URL.
-    $storeCtx = ($options['store_context'] ?? null)
-        ?? (function_exists('ecStoreResolveContext') ? ecStoreResolveContext() : null);
+    $storeCtx = $options['store_context'] ?? null;
+    if ($storeCtx === null && ($product['store_id'] ?? 0) > 0 && function_exists('ecStoreById')) {
+        $storeCtx = ecStoreById((int)$product['store_id']);
+    }
+    if ($storeCtx === null && function_exists('ecStoreResolveContext')) {
+        $storeCtx = ecStoreResolveContext();
+    }
 
     // Resolve per-store currency override used for pricing.formatted below.
     $storeCurrencyOverride = '';

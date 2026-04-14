@@ -547,8 +547,16 @@ function ecOrderCreate(array $data): array
     $db->beginTransaction();
 
     try {
-        // Resolve store context for attribution
-        $storeCtx  = function_exists('ecStoreResolveContext') ? ecStoreResolveContext() : null;
+        // Resolve store context from the cart first so global storefront checkouts
+        // still attribute the order to the owning store.
+        $storeCtx  = function_exists('ecShippingResolveStoreContext')
+            ? ecShippingResolveStoreContext((array)($data['cart_items'] ?? []), (array)($data['shipping'] ?? []), [
+                'store_id' => max(0, (int)($data['store_id'] ?? 0)),
+            ])
+            : null;
+        if (!is_array($storeCtx) && function_exists('ecStoreResolveContext')) {
+            $storeCtx = ecStoreResolveContext();
+        }
         $storeId   = $storeCtx ? (int)($storeCtx['id'] ?? 0) : 0;
         $hasStoreId = $storeId > 0 && function_exists('ecStoreStorageAvailable') && ecStoreStorageAvailable();
 
