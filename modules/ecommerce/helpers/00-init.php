@@ -367,7 +367,25 @@ function ecRender(string $template, array $context = []): void
         $settings['currency_symbol'] = (string)($currencyContext['symbol'] ?? ($settings['currency_symbol'] ?? ''));
         $context['ec_settings'] = $settings;
     }
-    
+
+    // Per-store currency override: when browsing a store-scoped page and the store has
+    // its own currency configured (via ecStorefrontRenderContext's store_currency_code),
+    // override the global defaults so all templates see the correct per-store symbol.
+    // This does not affect cart/order math — only display/presentation currency.
+    if ($isPublicTemplate && !empty($context['store_currency_code'])) {
+        $context['currency'] = (string)$context['store_currency_code'];
+        $storeSym = (string)($context['store_currency_sym'] ?? '');
+        if ($storeSym !== '') {
+            $context['currency_sym'] = $storeSym;
+        }
+        $settings = is_array($context['ec_settings'] ?? null) ? $context['ec_settings'] : [];
+        $settings['currency'] = $context['currency'];
+        if ($storeSym !== '') {
+            $settings['currency_symbol'] = $storeSym;
+        }
+        $context['ec_settings'] = $settings;
+    }
+
     // Always check presentation modes for traditional-style entity endpoints if cms isn't managing it upstream
     // (cart, checkout etc are exempt as CMS builder has no explicit "cart route" in phase 1)
     if ($isPublicTemplate && defined('CMS_API_VERSION') && function_exists('cmsResolveEcommerceThemePolicy')) {

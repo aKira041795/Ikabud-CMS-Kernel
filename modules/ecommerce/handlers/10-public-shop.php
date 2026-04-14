@@ -555,6 +555,17 @@ function ecPublicProduct(array $params = []): void
         $headCode = function_exists('cmsGetPublicHeadHtml') ? cmsGetPublicHeadHtml($seoContent) : '';
         $seoPageTitle = function_exists('cmsResolveSeoTitle') ? cmsResolveSeoTitle($seoContent) : (string)($product['seo_title'] ?? $product['title'] ?? '');
 
+        // Resolve the product's store BEFORE building the storefront detail context so it can
+        // be threaded into ecBuildStorefrontCatalogItem for correct per-store currency formatting
+        // and persistent store context on direct product URL visits (no ?store= param).
+        $productStoreId = max(0, (int)($product['store_id'] ?? 0));
+        $productStore = $productStoreId > 0 && function_exists('ecStoreById') ? ecStoreById($productStoreId) : null;
+        // When product has no store_id, fall back to the URL/header store context
+        // so browsing from a store-filtered shop carries through to product pages.
+        if ($productStore === null && function_exists('ecStoreResolveContext')) {
+            $productStore = ecStoreResolveContext();
+        }
+
         $storefront = ecBuildStorefrontDetailContext($product, [
             'route_kind' => 'product_detail',
             'presentation_mode' => $presentationMode,
@@ -563,17 +574,11 @@ function ecPublicProduct(array $params = []): void
             'all_items_url' => '/ecommerce/shop',
             'item_base_url' => '/ecommerce/shop',
             'cart_count' => $cartCount,
+            'store_context' => $productStore,
         ]);
         $product['pricing'] = (array)($storefront['product']['pricing'] ?? $product['pricing'] ?? []);
         $product['bundle_summary'] = (array)($storefront['product']['bundle_summary'] ?? $product['bundle_summary'] ?? []);
         $product['subscription_summary'] = (array)($storefront['product']['subscription_summary'] ?? $product['subscription_summary'] ?? []);
-        $productStoreId = max(0, (int)($product['store_id'] ?? 0));
-        $productStore = $productStoreId > 0 && function_exists('ecStoreById') ? ecStoreById($productStoreId) : null;
-        // When product has no store_id, fall back to the URL/header store context
-        // so browsing from a store-filtered shop carries through to product pages.
-        if ($productStore === null && function_exists('ecStoreResolveContext')) {
-            $productStore = ecStoreResolveContext();
-        }
 
         ecRender('modules/ecommerce/public/product.disyl', array_merge([
             'page_title'  => $seoPageTitle,

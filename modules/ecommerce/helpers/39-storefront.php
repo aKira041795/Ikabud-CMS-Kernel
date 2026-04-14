@@ -414,6 +414,10 @@ function ecStorefrontRenderContext(array|int|null $store = null): array
         $store = ecStoreDefault();
     }
 
+    $storeSettings = ecStorefrontStoreSettings($store);
+    $storeCurrencyCode = trim((string)($storeSettings['currency'] ?? ''));
+    $storeCurrencySym  = trim((string)($storeSettings['currency_symbol'] ?? ''));
+
     return [
         'store_banner' => ecStoreBanner($store) ?? [],
         'store_hours_schedule' => ecStoreHoursSchedule($store),
@@ -421,6 +425,8 @@ function ecStorefrontRenderContext(array|int|null $store = null): array
         'social_links' => ecSocialLinks($store),
         'storefront_theme' => ecStorefrontTheme($store),
         'storefront_theme_css' => ecStorefrontThemeCss($store),
+        'store_currency_code' => $storeCurrencyCode,
+        'store_currency_sym'  => $storeCurrencySym,
     ];
 }
 

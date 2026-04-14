@@ -365,14 +365,41 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
             : '/ecommerce/shop';
     }
 
+    // Prefer explicit store_context option (threaded from ecPublicProduct for direct product URL
+    // visits) so that per-store currency and overrides work correctly even when no ?store= param
+    // is present in the URL.
+    $storeCtx = ($options['store_context'] ?? null)
+        ?? (function_exists('ecStoreResolveContext') ? ecStoreResolveContext() : null);
+
+    // Resolve per-store currency override used for pricing.formatted below.
+    $storeCurrencyOverride = '';
+    if ($storeCtx !== null && function_exists('ecStoreSettingsArray')) {
+        $storeSettings = ecStoreSettingsArray($storeCtx);
+        $storeCurrencyOverride = trim((string)($storeSettings['currency'] ?? ''));
+    }
+
     // Apply per-store price / visibility overrides when a store context is active
-    $storeCtx = function_exists('ecStoreResolveContext') ? ecStoreResolveContext() : null;
     if ($storeCtx !== null && function_exists('ecStoreApplyProductOverrides')) {
         $product = ecStoreApplyProductOverrides($product, $storeCtx);
         if ($product === null) {
             return ['id' => $productId, 'slug' => $slug, 'title' => '', 'url' => $detailUrl, 'is_visible' => false];
         }
     }
+
+    // Persist the active store slug in the product detail URL so navigating from a
+    // store-filtered shop page carries the store context to the product detail page.
+    // Only append when the current request has an explicit ?store= param already
+    // (i.e., the user is actively browsing with a store filter), not for passive
+    // default-store fallbacks which would pollute all product URLs unnecessarily.
+    $activeStoreParam = trim((string)($_GET['store'] ?? ''));
+    if ($activeStoreParam !== '' && $storeCtx !== null) {
+        $storeSlug = trim((string)($storeCtx['slug'] ?? ''));
+        if ($storeSlug !== '') {
+            $sep = strpos($detailUrl, '?') !== false ? '&' : '?';
+            $detailUrl .= $sep . 'store=' . rawurlencode($storeSlug);
+        }
+    }
+
     $product['is_visible'] = true;
 
     // Apply segment / tier pricing when a logged-in customer has active segments
@@ -384,7 +411,18 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
         }
     }
 
-    $pricing = ecStorefrontNormalizePricing(is_array($product['pricing'] ?? null) ? $product['pricing'] : []);
+    // Use per-store currency for pricing.formatted when the store has a currency setting
+    // configured.  Pass it as both source and target so no exchange-rate conversion is
+    // applied — prices entered through store-admin are native to the store's currency.
+    $rawPricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+    if ($storeCurrencyOverride !== '' && function_exists('ecCurrencyPresentPricing')) {
+        $pricing = ecCurrencyPresentPricing(
+            array_merge($rawPricing, ['currency' => $storeCurrencyOverride]),
+            $storeCurrencyOverride
+        );
+    } else {
+        $pricing = ecStorefrontNormalizePricing($rawPricing);
+    }
     $inventory = ecStorefrontNormalizeInventory(is_array($product['inventory'] ?? null) ? $product['inventory'] : []);
     $inventoryBadge = ecStorefrontInventoryBadge($inventory);
     $bundleSummary = is_array($product['bundle_summary'] ?? null)
@@ -595,6 +633,7 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
     ecWmsInventoryWarmProductCollection($groupedChildren);
     $catalogItem = ecBuildStorefrontCatalogItem($product, [
         'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
+        'store_context' => $options['store_context'] ?? null,
     ]);
 
     return [
@@ -633,14 +672,20 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
             'booking' => is_array($product['booking'] ?? null) ? $product['booking'] : ['enabled' => false],
             'membership_gate' => is_array($catalogItem['membership_gate'] ?? null) ? $catalogItem['membership_gate'] : ['allowed' => true],
             'reviews' => is_array($product['reviews'] ?? null) ? $product['reviews'] : [],
-            'bundle_children' => array_map(static function (array $child): array {
-                $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
+            'bundle_children' => array_map(static function (array $child) use ($options): array {
+                $storefrontChild = ecBuildStorefrontCatalogItem($child, [
+                    'item_base_url' => '/ecommerce/shop',
+                    'store_context' => $options['store_context'] ?? null,
+                ]);
                 $storefrontChild['bundle_qty'] = max(1, (int)($child['bundle_qty'] ?? 1));
                 return $storefrontChild;
             }, $bundleChildren),
             'bundle_summary' => is_array($product['bundle_summary'] ?? null) ? $product['bundle_summary'] : ecProductBundleSummary($product),
-            'grouped_children' => array_map(static function (array $child): array {
-                $storefrontChild = ecBuildStorefrontCatalogItem($child, ['item_base_url' => '/ecommerce/shop']);
+            'grouped_children' => array_map(static function (array $child) use ($options): array {
+                $storefrontChild = ecBuildStorefrontCatalogItem($child, [
+                    'item_base_url' => '/ecommerce/shop',
+                    'store_context' => $options['store_context'] ?? null,
+                ]);
                 $storefrontChild['grouped_qty'] = max(1, (int)($child['grouped_qty'] ?? 1));
                 return $storefrontChild;
             }, $groupedChildren),
