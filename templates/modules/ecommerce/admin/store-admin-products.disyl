@@ -55,7 +55,7 @@
                             {p.title | escape}
                         </td>
                         <td class="px-4 py-2.5 font-mono text-xs text-slate-500">
-                            {p.sku | escape}
+                            {p.inventory.sku | escape}
                         </td>
                         <td class="px-4 py-2.5">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
@@ -64,11 +64,11 @@
                             </span>
                         </td>
                         <td class="px-4 py-2.5 text-right tabular-nums font-medium">
-                            {if p.sale_price}
-                            <span class="text-red-600">{currency_sym}{p.sale_price}</span>
-                            <span class="text-slate-400 text-xs line-through ml-1">{currency_sym}{p.price}</span>
+                            {if p.pricing.on_sale}
+                            <span class="text-red-600">{currency_sym}{p.pricing.sale_price}</span>
+                            <span class="text-slate-400 text-xs line-through ml-1">{currency_sym}{p.pricing.price}</span>
                             {else}
-                            {currency_sym}{p.price}
+                            {currency_sym}{p.pricing.price}
                             {/if}
                         </td>
                         {if can_edit}

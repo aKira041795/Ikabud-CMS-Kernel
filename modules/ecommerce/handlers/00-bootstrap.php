@@ -144,6 +144,18 @@ function ecStoreAdminContext(array $user, array $store, string $currentPage, arr
     $notificationUnreadCount = function_exists('ecStoreNotificationUnreadCount')
         ? ecStoreNotificationUnreadCount((int)($store['id'] ?? 0), (int)($user['id'] ?? 0))
         : 0;
+
+    // Resolve currency: per-store settings override the platform default.
+    $currency    = (string)($ecSettings['currency'] ?? '');
+    $currencySym = (string)($ecSettings['currency_symbol'] ?? '');
+    $storeSettings = function_exists('ecStoreSettingsArray') ? ecStoreSettingsArray($store) : [];
+    if (($storeSettings['currency'] ?? '') !== '') {
+        $currency = (string)$storeSettings['currency'];
+    }
+    if (($storeSettings['currency_symbol'] ?? '') !== '') {
+        $currencySym = (string)$storeSettings['currency_symbol'];
+    }
+
     return array_merge([
         'user'         => $user,
         'store'        => $store,
@@ -158,8 +170,8 @@ function ecStoreAdminContext(array $user, array $store, string $currentPage, arr
         'csrf_token'   => app()->csrfToken(),
         'csrf_field'   => app()->csrfField(),
         'ec_settings'  => $ecSettings,
-        'currency'     => (string)($ecSettings['currency'] ?? ''),
-        'currency_sym' => (string)($ecSettings['currency_symbol'] ?? ''),
+        'currency'     => $currency,
+        'currency_sym' => $currencySym,
     ], $extra);
 }
 
