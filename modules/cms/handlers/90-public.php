@@ -2294,6 +2294,11 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
             if ($storeId > 0 && function_exists('ecStoreById')) {
                 $activeStore = ecStoreById($storeId);
             }
+            // When the product has no store_id, fall back to the URL/header store context
+            // so that browsing a store-filtered shop carries through to product pages.
+            if ($activeStore === null && function_exists('ecStoreResolveContext')) {
+                $activeStore = ecStoreResolveContext();
+            }
             if ($activeStore !== null && !array_key_exists('active_store', $templateContext)) {
                 $templateContext['active_store'] = $activeStore;
             }

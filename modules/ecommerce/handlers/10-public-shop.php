@@ -569,6 +569,11 @@ function ecPublicProduct(array $params = []): void
         $product['subscription_summary'] = (array)($storefront['product']['subscription_summary'] ?? $product['subscription_summary'] ?? []);
         $productStoreId = max(0, (int)($product['store_id'] ?? 0));
         $productStore = $productStoreId > 0 && function_exists('ecStoreById') ? ecStoreById($productStoreId) : null;
+        // When product has no store_id, fall back to the URL/header store context
+        // so browsing from a store-filtered shop carries through to product pages.
+        if ($productStore === null && function_exists('ecStoreResolveContext')) {
+            $productStore = ecStoreResolveContext();
+        }
 
         ecRender('modules/ecommerce/public/product.disyl', array_merge([
             'page_title'  => $seoPageTitle,
@@ -589,6 +594,7 @@ function ecPublicProduct(array $params = []): void
             'storefront' => $storefront,
             'public_route_kind' => 'product_detail',
             'public_presentation_mode' => $presentationMode,
+            'active_store' => $productStore,
         ], function_exists('ecStorefrontRenderContext') ? ecStorefrontRenderContext($productStore) : []));
     });
 }

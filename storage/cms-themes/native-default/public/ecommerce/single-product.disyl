@@ -13,6 +13,8 @@
     data-storefront-page-kind="{storefront.page.kind|default:'detail'}"
     data-storefront-product-id="{storefront.product.id|default:product.id|default:''}"
 >
+    {include "modules/ecommerce/public/partials/storefront-chrome.disyl"}
+
     <nav class="native-breadcrumbs" aria-label="Breadcrumb">
         <ol>
             <li><a href="{base_url}/cms">Home</a></li>

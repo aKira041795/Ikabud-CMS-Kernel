@@ -663,6 +663,7 @@ $staleSymlinkShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'products' => $staleSymlinkProducts,
     'total' => 1,
     'categories' => [],
+    'available_categories' => [],
     'search' => '',
     'category_id' => 0,
     'page' => 1,
@@ -836,6 +837,31 @@ $nativeCatalogProducts = [[
         'low_stock' => false,
     ],
 ]];
+$sharedStorefrontActiveStoreFixture = [
+    'id' => 7,
+    'name' => 'Sunrise Bakery',
+    'description' => 'Fresh bread, slow fermentation, and a storefront that opens early.',
+];
+$sharedStorefrontBannerFixture = [
+    'headline' => 'Fresh from the ovens each morning',
+    'subtext' => 'Seasonal loaves, same-day pastries, and pickup windows for the neighborhood rush.',
+    'image_url' => '',
+    'cta_text' => 'Browse this store',
+    'cta_url' => '/ecommerce/shop?store=7',
+];
+$sharedStorefrontSocialFixture = [
+    ['label' => 'Instagram', 'url' => 'https://instagram.com/sunrise-bakery'],
+    ['label' => 'Facebook', 'url' => 'https://facebook.com/sunrise-bakery'],
+];
+$sharedStorefrontHoursFixture = [
+    ['key' => 'sun', 'label' => 'Sunday', 'open' => false, 'from' => '09:00', 'to' => '17:00', 'today' => false],
+    ['key' => 'mon', 'label' => 'Monday', 'open' => true, 'from' => '06:00', 'to' => '14:00', 'today' => false],
+    ['key' => 'tue', 'label' => 'Tuesday', 'open' => true, 'from' => '06:00', 'to' => '14:00', 'today' => false],
+    ['key' => 'wed', 'label' => 'Wednesday', 'open' => true, 'from' => '06:00', 'to' => '14:00', 'today' => true],
+    ['key' => 'thu', 'label' => 'Thursday', 'open' => true, 'from' => '06:00', 'to' => '14:00', 'today' => false],
+    ['key' => 'fri', 'label' => 'Friday', 'open' => true, 'from' => '06:00', 'to' => '16:00', 'today' => false],
+    ['key' => 'sat', 'label' => 'Saturday', 'open' => true, 'from' => '07:00', 'to' => '16:00', 'today' => false],
+];
 $nativeCatalogStorefront = ecBuildStorefrontCatalogContext($nativeCatalogProducts, [
     'route_kind' => 'shop_index',
     'presentation_mode' => 'traditional',
@@ -857,6 +883,7 @@ $nativeShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'products' => $nativeCatalogProducts,
     'total' => 1,
     'categories' => [],
+    'available_categories' => [],
     'search' => '',
     'category_id' => 0,
     'page' => 1,
@@ -867,10 +894,17 @@ $nativeShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'shop_index',
     'public_presentation_mode' => 'traditional',
+    'active_store' => $sharedStorefrontActiveStoreFixture,
+    'store_banner' => $sharedStorefrontBannerFixture,
+    'social_links' => $sharedStorefrontSocialFixture,
+    'store_hours_schedule' => $sharedStorefrontHoursFixture,
+    'store_is_open' => true,
+    'storefront_theme' => 'indigo',
 ]);
 t('native storefront shop render uses archive-product theme template', str_contains($nativeShopHtml, 'data-native-ecommerce-template="archive-product"'), $nativeShopHtml);
 t('native storefront shop render exposes storefront contract markers', str_contains($nativeShopHtml, 'data-storefront-route-kind="shop_index"') && str_contains($nativeShopHtml, 'data-storefront-page-kind="catalog"') && str_contains($nativeShopHtml, 'data-storefront-visible-count="1"'), $nativeShopHtml);
 t('native storefront shop render preserves theme stylesheet asset', str_contains($nativeShopHtml, 'assets/cms/themes/native-default/style.css'), $nativeShopHtml);
+t('native storefront shop render includes shared storefront chrome with banner, social links, and hours', str_contains($nativeShopHtml, 'data-storefront-chrome="shared"') && str_contains($nativeShopHtml, 'Fresh from the ovens each morning') && str_contains($nativeShopHtml, 'Instagram') && str_contains($nativeShopHtml, 'Store Hours') && str_contains($nativeShopHtml, 'Wednesday') && str_contains($nativeShopHtml, 'data-storefront-theme="indigo"'), $nativeShopHtml);
 
 $nativeDropdownStorefront = ecBuildStorefrontCatalogContext($nativeCatalogProducts, [
     'route_kind' => 'shop_index',
@@ -897,6 +931,10 @@ $nativeShopDropdownHtml = captureEcRender('modules/ecommerce/public/shop.disyl',
     'products' => $nativeCatalogProducts,
     'total' => 1,
     'categories' => [
+        ['id' => 12, 'name' => 'Bread', 'url' => '/ecommerce/shop?cat=12', 'is_active' => false],
+        ['id' => 18, 'name' => 'Wholegrain', 'url' => '/ecommerce/shop?cat=18', 'is_active' => true],
+    ],
+    'available_categories' => [
         ['id' => 12, 'name' => 'Bread', 'url' => '/ecommerce/shop?cat=12', 'is_active' => false],
         ['id' => 18, 'name' => 'Wholegrain', 'url' => '/ecommerce/shop?cat=18', 'is_active' => true],
     ],
@@ -936,7 +974,11 @@ $nativeProductFixture = [
         'in_stock' => true,
         'out_of_stock' => false,
         'low_stock' => false,
+        'badge' => ['label' => 'In stock', 'tone' => 'success'],
         'sku' => 'SKU-001',
+    ],
+    'badges' => [
+        'sale' => '',
     ],
 ];
 $nativeProductStorefront = ecBuildStorefrontDetailContext($nativeProductFixture, [
@@ -954,9 +996,16 @@ $nativeProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'product_detail',
     'public_presentation_mode' => 'traditional',
+    'active_store' => $sharedStorefrontActiveStoreFixture,
+    'store_banner' => $sharedStorefrontBannerFixture,
+    'social_links' => $sharedStorefrontSocialFixture,
+    'store_hours_schedule' => $sharedStorefrontHoursFixture,
+    'store_is_open' => true,
+    'storefront_theme' => 'indigo',
 ]);
 t('native storefront product render uses single-product theme template', str_contains($nativeProductHtml, 'data-native-ecommerce-template="single-product"'), $nativeProductHtml);
 t('native storefront product render exposes storefront contract markers', str_contains($nativeProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($nativeProductHtml, 'data-storefront-product-id="1"'), $nativeProductHtml);
+t('native storefront product render includes shared storefront chrome for store overrides', str_contains($nativeProductHtml, 'data-storefront-chrome="shared"') && str_contains($nativeProductHtml, 'Sunrise Bakery') && str_contains($nativeProductHtml, 'Fresh from the ovens each morning') && str_contains($nativeProductHtml, 'Store Hours'), $nativeProductHtml);
 
 $nativeCanonicalPageHtml = cmsPublicCanonicalRenderEntityView([
     'id' => 201,
@@ -1033,6 +1082,7 @@ $baseShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'products' => [],
     'total' => 0,
     'categories' => [],
+    'available_categories' => [],
     'search' => 'legacy',
     'category_id' => 0,
     'page' => 1,
@@ -1086,16 +1136,30 @@ $baseProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
     'product' => [
         'id' => 0,
         'title' => 'Legacy Product',
+        'slug' => 'legacy-product',
         'excerpt' => '',
         'body' => '',
         'primary_image_url' => '',
         'gallery_images' => [],
         'categories' => [],
-        'pricing' => [],
+        'pricing' => [
+            'on_sale' => false,
+            'formatted' => '',
+            'regular_fmt' => '',
+        ],
         'inventory' => [
             'track_stock' => false,
+            'low_stock' => false,
+            'stock_qty' => 0,
             'in_stock' => false,
             'out_of_stock' => true,
+            'badge' => [
+                'label' => '',
+                'tone' => 'muted',
+            ],
+        ],
+        'badges' => [
+            'sale' => '',
         ],
     ],
     'cart_count' => 99,
@@ -1107,12 +1171,15 @@ $baseProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
 t('base storefront product fallback consumes shared storefront content contract', str_contains($baseProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($baseProductHtml, 'data-storefront-product-id="42"') && str_contains($baseProductHtml, '>Contract Product Page<') && str_contains($baseProductHtml, 'href="/contract-shop"') && str_contains($baseProductHtml, '13% off') && str_contains($baseProductHtml, '>2 left<') && !str_contains($baseProductHtml, '>Legacy Product<'), $baseProductHtml);
 
 $nativeCartHtml = captureEcRender('modules/ecommerce/public/cart.disyl', [
+    'page_title' => 'Your Cart',
     'cart' => [
         'coupon_code' => '',
         'items' => [[
             'product_title' => 'Demo Product',
             'sku' => 'SKU-001',
             'qty' => 2,
+            'unit_price_fmt' => '$19.00',
+            'line_total_fmt' => '$38.00',
             'price_snapshot' => 19,
         ]],
         'totals' => [
@@ -1121,11 +1188,15 @@ $nativeCartHtml = captureEcRender('modules/ecommerce/public/cart.disyl', [
             'discount' => 0,
             'discount_fmt' => '$0.00',
             'tax' => 0,
+            'tax_label' => 'Tax',
+            'tax_breakdown' => [],
             'tax_rate' => 0,
             'tax_fmt' => '$0.00',
             'total_fmt' => '$38.00',
+            'coupon' => [],
         ],
     ],
+    'shipping_rates' => [],
     'cart_count' => 2,
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'cart',
@@ -1134,25 +1205,49 @@ $nativeCartHtml = captureEcRender('modules/ecommerce/public/cart.disyl', [
 t('native storefront cart render uses cart theme template', str_contains($nativeCartHtml, 'data-native-ecommerce-template="cart"'), $nativeCartHtml);
 
 $nativeCheckoutHtml = captureEcRender('modules/ecommerce/public/checkout.disyl', [
+    'page_title' => 'Checkout',
     'user' => ['first_name' => 'Ada', 'last_name' => 'Lovelace', 'email' => 'ada@example.test'],
     'shipping_rates' => [['id' => 1, 'name' => 'Standard', 'rate' => 0]],
     'payment_label' => 'Pay on delivery',
     'csrf_token' => 'token',
     'cart' => [
+        'coupon_code' => '',
         'items' => [[
             'product_title' => 'Demo Product',
             'qty' => 1,
+            'line_total_fmt' => '$19.00',
             'price_snapshot' => 19,
         ]],
         'totals' => [
+            'item_count' => 1,
             'subtotal_fmt' => '$19.00',
             'discount' => 0,
             'discount_fmt' => '$0.00',
             'tax' => 0,
+            'tax_label' => 'Tax',
+            'tax_breakdown' => [],
             'tax_fmt' => '$0.00',
             'total_fmt' => '$19.00',
+            'coupon' => [],
         ],
     ],
+    'checkout_totals' => [
+        'subtotal_fmt' => '$19.00',
+        'non_loyalty_discount_amount' => 0,
+        'non_loyalty_discount_amount_fmt' => '$0.00',
+        'loyalty_points_applied' => 0,
+        'loyalty_discount_amount_fmt' => '$0.00',
+        'tax' => 0,
+        'tax_label' => 'Tax',
+        'tax_fmt' => '$0.00',
+        'shipping_fmt' => '$0.00',
+        'total_fmt' => '$19.00',
+    ],
+    'requires_shipping' => false,
+    'cart_has_digital' => false,
+    'is_customer' => true,
+    'abandoned_cart_enabled' => false,
+    'shipping_defaults' => ['country' => 'US'],
     'cart_count' => 1,
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'checkout',
@@ -1161,19 +1256,29 @@ $nativeCheckoutHtml = captureEcRender('modules/ecommerce/public/checkout.disyl',
 t('native storefront checkout render uses checkout theme template', str_contains($nativeCheckoutHtml, 'data-native-ecommerce-template="checkout"'), $nativeCheckoutHtml);
 
 $nativeOrderConfirmationHtml = captureEcRender('modules/ecommerce/public/order-confirmation.disyl', [
+    'page_title' => 'Order Confirmed',
     'payment_label' => 'Pay on delivery',
     'is_logged_in' => true,
     'order' => [
         'order_number' => '1001',
+        'status' => 'processing',
         'customer_email' => 'ada@example.test',
         'currency_symbol' => '$',
         'discount_amount' => 0,
+        'non_loyalty_discount_amount' => 0,
+        'non_loyalty_discount_amount_fmt' => '$0.00',
+        'loyalty_points_redeemed' => 0,
+        'loyalty_discount_amount_fmt' => '$0.00',
         'tax_amount' => 0,
+        'tax_amount_fmt' => '$0.00',
         'shipping_amount' => 0,
-        'total_amount' => '19.00',
+        'shipping_amount_fmt' => '$0.00',
+        'total_amount' => 19.0,
+        'total_amount_fmt' => '$19.00',
         'items' => [[
             'product_title' => 'Demo Product',
             'qty' => 1,
+            'line_total_fmt' => '$19.00',
             'line_total' => '19.00',
         ]],
         'shipping' => [
@@ -1187,6 +1292,22 @@ $nativeOrderConfirmationHtml = captureEcRender('modules/ecommerce/public/order-c
             'country' => 'UK',
             'phone' => '',
         ],
+        'billing' => [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'email' => 'ada@example.test',
+            'address_line1' => '123 Example St',
+            'address_line2' => '',
+            'city' => 'London',
+            'state' => '',
+            'postal_code' => '1000',
+            'country' => 'UK',
+            'phone' => '',
+        ],
+        'payment' => [
+            'gateway' => 'cod',
+            'label' => 'Pay on delivery',
+        ],
     ],
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'order_confirmation',
@@ -1195,14 +1316,16 @@ $nativeOrderConfirmationHtml = captureEcRender('modules/ecommerce/public/order-c
 t('native storefront order confirmation render uses confirmation theme template', str_contains($nativeOrderConfirmationHtml, 'data-native-ecommerce-template="order-confirmation"'), $nativeOrderConfirmationHtml);
 
 $nativeOrdersHtml = captureEcRender('modules/ecommerce/public/my-orders.disyl', [
+    'page_title' => 'My Orders',
     'orders' => [[
         'id' => 1,
         'order_number' => '1001',
         'created_at' => '2026-03-29 12:00:00',
         'status' => 'processing',
         'currency_symbol' => '$',
-        'total_amount' => '19.00',
+        'total_amount' => 19.0,
     ]],
+    'total' => 1,
     'page' => 1,
     'total_pages' => 1,
     'public_render_origin' => 'ecommerce',
@@ -1212,16 +1335,25 @@ $nativeOrdersHtml = captureEcRender('modules/ecommerce/public/my-orders.disyl', 
 t('native storefront my orders render uses account theme template', str_contains($nativeOrdersHtml, 'data-native-ecommerce-template="my-orders"'), $nativeOrdersHtml);
 
 $nativeOrderDetailHtml = captureEcRender('modules/ecommerce/public/order-detail.disyl', [
+    'page_title' => 'Order Details',
     'order' => [
         'order_number' => '1001',
         'created_at' => '2026-03-29 12:00:00',
         'status' => 'processing',
         'currency_symbol' => '$',
         'subtotal_amount' => '19.00',
+        'subtotal_amount_fmt' => '$19.00',
         'discount_amount' => 0,
+        'non_loyalty_discount_amount' => 0,
+        'non_loyalty_discount_amount_fmt' => '$0.00',
+        'loyalty_points_redeemed' => 0,
+        'loyalty_discount_amount_fmt' => '$0.00',
         'tax_amount' => 0,
+        'tax_amount_fmt' => '$0.00',
         'shipping_amount' => 0,
-        'total_amount' => '19.00',
+        'shipping_amount_fmt' => '$0.00',
+        'total_amount' => 19.0,
+        'total_amount_fmt' => '$19.00',
         'items' => [[
             'product_title' => 'Demo Product',
             'variant_label' => '',
@@ -1253,6 +1385,18 @@ $nativeOrderDetailHtml = captureEcRender('modules/ecommerce/public/order-detail.
             'country' => 'UK',
             'phone' => '',
         ],
+        'payment' => [
+            'gateway' => 'cod',
+            'label' => 'Pay on delivery',
+        ],
+        'status_history' => [],
+        'refund_summary' => ['has_refunds' => false, 'total_refunded_amount_fmt' => '$0.00', 'refund_count' => 0],
+        'shipment_tracking' => ['has_tracking' => false, 'carrier' => '', 'tracking_number' => '', 'tracking_url' => ''],
+        'memberships' => [],
+        'bookings' => [],
+        'refunds' => [],
+        'return_summary' => ['pending_count' => 0],
+        'return_requests' => [],
     ],
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'order_detail',
@@ -1310,6 +1454,9 @@ $archiveTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/
 $singleTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/single.disyl') ?: '';
 $baseShopTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/shop.disyl') ?: '';
 $baseProductTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/product.disyl') ?: '';
+$baseStorePageTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/store-page.disyl') ?: '';
+$storefrontChromePartialContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/partials/storefront-chrome.disyl') ?: '';
+$storeAdminSettingsTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/admin/store-admin-settings.disyl') ?: '';
 $nativeCanonicalStylesContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/partials/canonical-entity-styles.disyl') ?: '';
 $nativeCanonicalEntityListTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/entity.list.disyl') ?: '';
 $nativeCanonicalEntityViewTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/entity.view.disyl') ?: '';
@@ -1324,6 +1471,7 @@ $nativeArchiveProductTemplateContent = file_get_contents(BASE_PATH . '/storage/c
 $nativeSingleProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/single-product.disyl') ?: '';
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, entity_presentation: false }'));
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
+t('shared storefront chrome partial exposes banner, social, and hours hooks', str_contains($storefrontChromePartialContent, 'data-storefront-chrome="shared"') && str_contains($storefrontChromePartialContent, 'social_links as sl') && str_contains($storefrontChromePartialContent, 'data-storefront-hours-day=') && str_contains($storefrontChromePartialContent, 'data-storefront-theme='), $storefrontChromePartialContent);
 t('canonical entity list template extends the canonical CMS public layout', str_contains($entityListTemplateContent, '{extends "modules/cms/layouts/public.disyl"}'), $entityListTemplateContent);
 t('canonical entity list template exposes dedicated card title hook for catalog overrides', str_contains($entityListTemplateContent, 'cms-entity-card__title'), $entityListTemplateContent);
 t('canonical entity list template exposes storefront contract markers and title bridge', str_contains($entityListTemplateContent, 'data-storefront-route-kind=') && str_contains($entityListTemplateContent, 'storefront.page.title|default:list_title'), $entityListTemplateContent);
@@ -1341,10 +1489,14 @@ t('native default theme ships dedicated archive-product storefront template', st
 t('native archive-product storefront template uses editorial catalog masthead and chip rail', str_contains($nativeArchiveProductTemplateContent, 'native-shop-masthead') && str_contains($nativeArchiveProductTemplateContent, 'native-shop-chip'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template supports category dropdown navigation mode', str_contains($nativeArchiveProductTemplateContent, "theme_settings.entity_list_category_navigation == 'dropdown'") && str_contains($nativeArchiveProductTemplateContent, 'native-shop-category-picker'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template consumes storefront contract markers and page title', str_contains($nativeArchiveProductTemplateContent, 'data-storefront-route-kind=') && str_contains($nativeArchiveProductTemplateContent, 'storefront.page.title|default:page_title'), $nativeArchiveProductTemplateContent);
+t('native archive-product storefront template includes the shared storefront chrome partial', str_contains($nativeArchiveProductTemplateContent, 'modules/ecommerce/public/partials/storefront-chrome.disyl'), $nativeArchiveProductTemplateContent);
 t('native default theme ships dedicated single-product storefront template', str_contains($nativeSingleProductTemplateContent, 'data-native-ecommerce-template="single-product"'), $nativeSingleProductTemplateContent);
 t('native single-product storefront template consumes storefront contract markers and cart count', str_contains($nativeSingleProductTemplateContent, 'data-storefront-product-id=') && str_contains($nativeSingleProductTemplateContent, 'storefront.cart.count|default:cart_count'), $nativeSingleProductTemplateContent);
+t('native single-product storefront template includes the shared storefront chrome partial', str_contains($nativeSingleProductTemplateContent, 'modules/ecommerce/public/partials/storefront-chrome.disyl'), $nativeSingleProductTemplateContent);
 t('base ecommerce shop template consumes storefront collection contract', str_contains($baseShopTemplateContent, 'data-storefront-route-kind=') && str_contains($baseShopTemplateContent, 'foreach storefront.collection.items as p') && str_contains($baseShopTemplateContent, 'storefront.navigation.search_action_url'), $baseShopTemplateContent);
 t('base ecommerce product template consumes storefront product contract', str_contains($baseProductTemplateContent, 'data-storefront-product-id=') && str_contains($baseProductTemplateContent, 'storefront.product.pricing') && str_contains($baseProductTemplateContent, 'storefront.navigation.shop_url'), $baseProductTemplateContent);
+t('base ecommerce storefront templates include the shared storefront chrome partial', str_contains($baseShopTemplateContent, 'modules/ecommerce/public/partials/storefront-chrome.disyl') && str_contains($baseProductTemplateContent, 'modules/ecommerce/public/partials/storefront-chrome.disyl') && str_contains($baseStorePageTemplateContent, 'modules/ecommerce/public/partials/storefront-chrome.disyl'), $baseShopTemplateContent . "\n---\n" . $baseProductTemplateContent . "\n---\n" . $baseStorePageTemplateContent);
+t('store-admin settings template explains live storefront chrome controls and hours schedule', str_contains($storeAdminSettingsTemplateContent, 'feed the live storefront chrome on shop, product, and store landing pages') && str_contains($storeAdminSettingsTemplateContent, 'Unchecked days render as closed on the storefront'), $storeAdminSettingsTemplateContent);
 t('ecommerce customizer presents shell-versus-entities workspace copy', str_contains($customizerTemplateContent, 'Shape the storefront shell here: header, navigation, sidebar, footer, palette, and shell layout. Use Entities for the canonical entity view and entity list contract.'));
 t('native customizer explains entities stay inside the active theme shell', str_contains($customizerTemplateContent, 'The active theme shell stays in charge here. Use Entities for canonical page, post, list, and commerce presentation inside that shell.'));
 t('native customizer describes canonical entity presentation inside the active theme shell', str_contains($customizerTemplateContent, 'Canonical entity presentation for pages, posts, lists, and commerce routes inside the active theme shell.'));
@@ -2577,12 +2729,41 @@ $pocListTemplateContent = file_get_contents(cmsThemesPath() . '/entity-commerce-
 $pocListStyles = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/style.css') ?: '';
 t('poc entity list template carries storefront metadata attributes', str_contains($pocListTemplateContent, 'data-public-render-origin="{public_render_origin|default:\'cms\'}"') && str_contains($pocListTemplateContent, 'data-public-route-kind="{public_route_kind|default:\'generic\'}"') && str_contains($pocListTemplateContent, 'data-public-presentation-mode="{public_presentation_mode|default:\'traditional\'}"'), $pocListTemplateContent);
 t('poc entity list template carries list metadata attributes', str_contains($pocListTemplateContent, 'data-list-search="{entity_list_context.search|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-category-slug="{entity_list_context.category_slug|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-result-count="{entity_list_context.result_count|default:0}"') && str_contains($pocListTemplateContent, 'data-entity-kind="list-item"'), $pocListTemplateContent);
+t('poc entity templates include the shared storefront chrome partial', str_contains($pocListTemplateContent, 'modules/ecommerce/public/partials/storefront-chrome.disyl') && str_contains($pocEntityTemplateContent, 'modules/ecommerce/public/partials/storefront-chrome.disyl'), $pocListTemplateContent . "\n---\n" . $pocEntityTemplateContent);
 t('poc entity list template renders handler-provided card fragments', str_contains($pocListTemplateContent, 'item.list_card_pricing_html') && str_contains($pocListTemplateContent, 'item.list_card_inventory_html') && str_contains($pocListTemplateContent, 'item.list_card_progress_html'), $pocListTemplateContent);
 t('poc entity list template exposes density and excerpt controls', str_contains($pocListTemplateContent, 'poc-entity-list--density-{entity_presentation.list_card_density|default:\'comfortable\'}') && str_contains($pocListTemplateContent, 'item.list_card_excerpt') && str_contains($pocListTemplateContent, 'entity_presentation.list_show_filter_summary'), $pocListTemplateContent);
 t('poc entity list template exposes storefront filter controls', str_contains($pocListTemplateContent, 'entity_list_context.available_categories') && str_contains($pocListTemplateContent, 'entity_list_context.search_action_url') && str_contains($pocListTemplateContent, 'poc-entity-list__search-input'), $pocListTemplateContent);
 t('poc entity list template supports category dropdown navigation mode', str_contains($pocListTemplateContent, "entity_presentation.list_category_navigation == 'dropdown'") && str_contains($pocListTemplateContent, 'poc-entity-list__category-picker') && str_contains($pocListTemplateContent, 'poc-entity-list__category-select'), $pocListTemplateContent);
 t('poc entity list stylesheet styles storefront filter controls', str_contains($pocListStyles, '.poc-entity-list__search') && str_contains($pocListStyles, '.poc-entity-list__category-link'), $pocListStyles);
 t('poc entity list stylesheet styles category picker controls', str_contains($pocListStyles, '.poc-entity-list__category-picker') && str_contains($pocListStyles, '.poc-entity-list__category-select') && str_contains($pocListStyles, '.poc-entity-list__category-submit'), $pocListStyles);
+
+saveModuleSettings('cms', array_merge($minimalScopeSettings, ['active_theme' => 'entity-commerce-poc']));
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('entity-commerce-poc');
+
+$pocStorefrontListHtml = cmsRender('_cms_active_theme/public/entity.list.disyl', array_merge($listTemplateContext, [
+    'active_store' => $sharedStorefrontActiveStoreFixture,
+    'store_banner' => $sharedStorefrontBannerFixture,
+    'social_links' => $sharedStorefrontSocialFixture,
+    'store_hours_schedule' => $sharedStorefrontHoursFixture,
+    'store_is_open' => true,
+    'storefront_theme' => 'indigo',
+]));
+t('poc canonical entity list render includes shared storefront chrome fixture', str_contains($pocStorefrontListHtml, 'data-storefront-chrome="shared"') && str_contains($pocStorefrontListHtml, 'Fresh from the ovens each morning') && str_contains($pocStorefrontListHtml, 'Instagram') && str_contains($pocStorefrontListHtml, 'Wednesday') && str_contains($pocStorefrontListHtml, 'data-storefront-theme="indigo"'), $pocStorefrontListHtml);
+
+$pocStorefrontViewHtml = cmsRender('_cms_active_theme/public/entity.view.disyl', array_merge($entityTemplateContext, [
+    'active_store' => $sharedStorefrontActiveStoreFixture,
+    'store_banner' => $sharedStorefrontBannerFixture,
+    'social_links' => $sharedStorefrontSocialFixture,
+    'store_hours_schedule' => $sharedStorefrontHoursFixture,
+    'store_is_open' => true,
+    'storefront_theme' => 'indigo',
+]));
+t('poc canonical entity view render includes shared storefront chrome fixture', str_contains($pocStorefrontViewHtml, 'data-storefront-chrome="shared"') && str_contains($pocStorefrontViewHtml, 'Sunrise Bakery') && str_contains($pocStorefrontViewHtml, 'Store Hours') && str_contains($pocStorefrontViewHtml, 'data-storefront-hours-day="wed"'), $pocStorefrontViewHtml);
+
+saveModuleSettings('cms', $minimalScopeSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('minimal');
 
 // ═══════════════════════════════════════════════════════════════════
 // 6b. Public render path must not depend on symlink repair
@@ -2638,7 +2819,7 @@ $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
 
 $appErrors = array_filter(explode("\n", $appLog), fn($l) => str_contains($l, '[error]') || str_contains($l, '[warning]'));
-$contractMismatchWarnings = array_values(array_filter(explode("\n", $appLog), static fn(string $line): bool => str_contains($line, 'cms.render_context.contract_mismatch')));
+$contractMismatchWarnings = array_values(array_filter(explode("\n", $appLog), static fn(string $line): bool => str_contains($line, 'cms.render_context.contract_mismatch') || str_contains($line, 'ecommerce.render_context.contract_mismatch')));
 $errLines = array_values(array_filter(explode("\n", $errLog), static function (string $line): bool {
     return trim($line) !== ''
         && !str_contains($line, 'storage/cache/kernel_bootstrap')

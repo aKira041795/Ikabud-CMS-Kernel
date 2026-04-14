@@ -379,7 +379,7 @@ function ecStoreSettingsJsonFromInput(array $input): ?string
     $themeOptions = ['orange', 'indigo', 'emerald', 'rose'];
     $bannerModeOptions = ['show', 'hide'];
     $socialModeOptions = ['custom', 'hide'];
-    $hoursModeOptions = ['custom'];
+    $hoursModeOptions = ['custom', 'hide'];
 
     foreach ($fields as $field) {
         $value = trim((string)($input['setting_' . $field] ?? ''));
@@ -422,10 +422,13 @@ function ecStoreSettingsJsonFromInput(array $input): ?string
         $settings['store_banner_mode'] = $bannerMode;
     }
 
-    foreach (['store_banner_headline', 'store_banner_subtext', 'store_banner_image_url', 'store_banner_cta_text', 'store_banner_cta_url'] as $field) {
-        $value = trim((string)($input['setting_' . $field] ?? ''));
-        if ($value !== '') {
-            $settings[$field] = $value;
+    // Only persist banner detail fields when the store actively uses its own banner.
+    if (($settings['store_banner_mode'] ?? '') === 'show') {
+        foreach (['store_banner_headline', 'store_banner_subtext', 'store_banner_image_url', 'store_banner_cta_text', 'store_banner_cta_url'] as $field) {
+            $value = trim((string)($input['setting_' . $field] ?? ''));
+            if ($value !== '') {
+                $settings[$field] = $value;
+            }
         }
     }
 
@@ -434,27 +437,32 @@ function ecStoreSettingsJsonFromInput(array $input): ?string
         $settings['social_links_mode'] = $socialMode;
     }
 
-    foreach (['social_facebook', 'social_instagram', 'social_tiktok', 'social_twitter', 'social_youtube'] as $field) {
-        $value = trim((string)($input['setting_' . $field] ?? ''));
-        if ($value !== '') {
-            $settings[$field] = $value;
+    // Only persist social URLs when the store actively uses its own links.
+    if (($settings['social_links_mode'] ?? '') === 'custom') {
+        foreach (['social_facebook', 'social_instagram', 'social_tiktok', 'social_twitter', 'social_youtube'] as $field) {
+            $value = trim((string)($input['setting_' . $field] ?? ''));
+            if ($value !== '') {
+                $settings[$field] = $value;
+            }
         }
     }
 
     $hoursMode = trim((string)($input['setting_store_hours_mode'] ?? ''));
     if (in_array($hoursMode, $hoursModeOptions, true)) {
         $settings['store_hours_mode'] = $hoursMode;
-        $hoursInput = $input['setting_store_hours'] ?? [];
-        $hours = [];
-        foreach (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as $day) {
-            $dayInput = is_array($hoursInput[$day] ?? null) ? $hoursInput[$day] : [];
-            $hours[$day] = [
-                'open' => !empty($dayInput['open']),
-                'from' => preg_replace('/[^0-9:]/', '', (string)($dayInput['from'] ?? '09:00')),
-                'to' => preg_replace('/[^0-9:]/', '', (string)($dayInput['to'] ?? '17:00')),
-            ];
+        if ($hoursMode === 'custom') {
+            $hoursInput = $input['setting_store_hours'] ?? [];
+            $hours = [];
+            foreach (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as $day) {
+                $dayInput = is_array($hoursInput[$day] ?? null) ? $hoursInput[$day] : [];
+                $hours[$day] = [
+                    'open' => !empty($dayInput['open']),
+                    'from' => preg_replace('/[^0-9:]/', '', (string)($dayInput['from'] ?? '09:00')),
+                    'to' => preg_replace('/[^0-9:]/', '', (string)($dayInput['to'] ?? '17:00')),
+                ];
+            }
+            $settings['store_hours'] = $hours;
         }
-        $settings['store_hours'] = $hours;
     }
 
     return $settings !== []

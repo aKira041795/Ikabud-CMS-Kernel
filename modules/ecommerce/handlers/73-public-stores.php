@@ -69,6 +69,7 @@ function ecPublicStorePage(array $params = []): void
         ecRender('modules/ecommerce/public/store-page.disyl', array_merge([
             'page_title'       => (string)($store['name'] ?? 'Store'),
             'store'            => $store,
+            'active_store'     => $store,
             'products'         => $products,
             'total'            => (int)$productResult['total'],
             'inventory_source' => $inventorySource,

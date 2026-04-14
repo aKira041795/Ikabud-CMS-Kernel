@@ -90,6 +90,9 @@ function ecStoreHoursConfigured(array|int|null $store = null): bool
 {
     $settings = ecStorefrontStoreSettings($store);
     $hoursMode = trim((string)($settings['store_hours_mode'] ?? ''));
+    if ($hoursMode === 'hide') {
+        return false;
+    }
     if ($hoursMode === 'custom') {
         return true;
     }
@@ -179,6 +182,9 @@ function ecStoreIsOpenNow(array|int|null $store = null): bool
 {
     $settings = ecStorefrontStoreSettings($store);
     $hoursMode = trim((string)($settings['store_hours_mode'] ?? ''));
+    if ($hoursMode === 'hide') {
+        return true; // store explicitly hides hours → assume always open
+    }
     $raw = $hoursMode === 'custom' ? ($settings['store_hours'] ?? []) : ecSettings('store_hours', '');
     if ((is_string($raw) && trim($raw) === '') || (is_array($raw) && $raw === [])) {
         return true; // no hours configured → assume always open
@@ -396,11 +402,24 @@ function ecStoreBanner(array|int|null $store = null): ?array
 
 function ecStorefrontRenderContext(array|int|null $store = null): array
 {
+    // In single-store mode, auto-resolve the default store so per-store settings
+    // configured through store-admin are applied on the main shop/product pages too,
+    // not only when accessed via ?store=X or /store/{slug}.
+    // Multi-store mode intentionally keeps global settings when no store filter is active.
+    if ($store === null
+        && function_exists('ecIsMultiStoreEnabled')
+        && !ecIsMultiStoreEnabled()
+        && function_exists('ecStoreDefault')
+    ) {
+        $store = ecStoreDefault();
+    }
+
     return [
         'store_banner' => ecStoreBanner($store) ?? [],
         'store_hours_schedule' => ecStoreHoursSchedule($store),
         'store_is_open' => ecStoreIsOpenNow($store),
         'social_links' => ecSocialLinks($store),
+        'storefront_theme' => ecStorefrontTheme($store),
         'storefront_theme_css' => ecStorefrontThemeCss($store),
     ];
 }

@@ -13,6 +13,8 @@
     data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
     data-storefront-visible-count="{storefront.collection.visible_count|default:visible_count|default:0}"
 >
+    {include "modules/ecommerce/public/partials/storefront-chrome.disyl"}
+
     <section class="native-shop-masthead">
         <div class="native-shop-masthead__copy">
             <div class="native-shop-masthead__eyebrow-row">

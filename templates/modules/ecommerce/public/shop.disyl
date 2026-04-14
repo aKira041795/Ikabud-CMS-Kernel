@@ -1,27 +1,7 @@
 {extends "modules/ecommerce/layouts/public.disyl"}
 
 {block content}
-{* ── Store Banner ────────────────────────────────────────────────────── *}
-{if store_banner.headline or store_banner.subtext}
-<div class="mb-8 relative overflow-hidden rounded-2xl {if store_banner.image_url}bg-gray-900{else}bg-orange-600{/if}"
-     {if store_banner.image_url}style="background-image:url('{store_banner.image_url | escape}');background-size:cover;background-position:center;"{/if}>
-    {if store_banner.image_url}<div class="absolute inset-0 bg-black/50"></div>{/if}
-    <div class="relative z-10 px-8 py-12 text-center text-white">
-        {if store_banner.headline}
-        <h2 class="text-3xl font-bold tracking-tight">{store_banner.headline | escape}</h2>
-        {/if}
-        {if store_banner.subtext}
-        <p class="mt-2 text-lg opacity-90">{store_banner.subtext | escape}</p>
-        {/if}
-        {if store_banner.cta_text}
-        <a href="{store_banner.cta_url | escape}"
-           class="mt-6 inline-flex items-center px-6 py-3 bg-white text-gray-900 font-semibold rounded-xl hover:bg-gray-100 transition-colors">
-            {store_banner.cta_text | escape}
-        </a>
-        {/if}
-    </div>
-</div>
-{/if}
+{include "modules/ecommerce/public/partials/storefront-chrome.disyl"}
 <div
     class="flex gap-8"
     data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'shop_index'}"
@@ -100,32 +80,6 @@
         </div>
         {else}
         {/if}
-        {if store_filter > 0 and store_hours_schedule | count > 0}
-        <div class="mt-6">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Store Hours</h3>
-            {if store_is_open}
-            <span class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5 mb-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> Open Now
-            </span>
-            {else}
-            <span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 rounded-full px-2 py-0.5 mb-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block"></span> Closed
-            </span>
-            {/if}
-            <div class="space-y-1">
-                {foreach store_hours_schedule as day}
-                <div class="flex items-center justify-between text-xs {if day.today}font-semibold text-gray-800{else}text-gray-500{/if}">
-                    <span>{day.label | substr:0:3}</span>
-                    {if day.open}
-                    <span>{day.from}–{day.to}</span>
-                    {else}
-                    <span class="text-gray-400">Closed</span>
-                    {/if}
-                </div>
-                {/foreach}
-            </div>
-        </div>
-        {/if}
     </aside>
     {elseif categories | count > 0}
     <aside class="w-44 shrink-0 hidden md:block">
@@ -136,32 +90,6 @@
             <a href="{base_url}/ecommerce/shop/category/{cat.slug}{if store_filter > 0}?store={store_filter}{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if category_id == cat.id}font-semibold text-orange-600{else}text-gray-700{/if}">{cat.name}</a>
             {/foreach}
         </nav>
-        {if store_hours_schedule | count > 0}
-        <div class="mt-6">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Store Hours</h3>
-            {if store_is_open}
-            <span class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5 mb-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> Open Now
-            </span>
-            {else}
-            <span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 rounded-full px-2 py-0.5 mb-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block"></span> Closed
-            </span>
-            {/if}
-            <div class="space-y-1">
-                {foreach store_hours_schedule as day}
-                <div class="flex items-center justify-between text-xs {if day.today}font-semibold text-gray-800{else}text-gray-500{/if}">
-                    <span>{day.label | substr:0:3}</span>
-                    {if day.open}
-                    <span>{day.from}–{day.to}</span>
-                    {else}
-                    <span class="text-gray-400">Closed</span>
-                    {/if}
-                </div>
-                {/foreach}
-            </div>
-        </div>
-        {/if}
     </aside>
     {/if}
 

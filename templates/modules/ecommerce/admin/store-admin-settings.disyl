@@ -127,7 +127,7 @@
 
         <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
             <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Storefront Overrides</h2>
-            <p class="text-xs text-slate-500">These settings apply only to this store. Leave each mode on default to inherit the platform storefront configuration.</p>
+            <p class="text-xs text-slate-500">These settings apply only to this store. Theme preset, banner, social links, and hours feed the live storefront chrome on shop, product, and store landing pages. Leave each mode on default to inherit the platform storefront configuration.</p>
 
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Theme Preset</label>
@@ -212,8 +212,10 @@
                     <select name="setting_store_hours_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
                         <option value="">Use platform default</option>
                         <option value="custom" {if input.setting_store_hours_mode == 'custom'}selected{/if}>Use store-specific hours</option>
+                        <option value="hide" {if input.setting_store_hours_mode == 'hide'}selected{/if}>Hide hours for this store</option>
                     </select>
                 </div>
+                <p class="text-xs text-slate-500">Turn on store-specific hours, then mark each open day below. Unchecked days render as closed on the storefront.</p>
                 <div class="space-y-3">
                     {foreach storefront_hours_form_schedule as day}
                     <div class="flex flex-wrap items-center gap-4 rounded-lg border border-gray-100 px-4 py-3">

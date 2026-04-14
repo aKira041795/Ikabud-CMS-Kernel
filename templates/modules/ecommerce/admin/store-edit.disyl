@@ -218,6 +218,7 @@
                     <select name="setting_store_hours_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
                         <option value="">Use platform default</option>
                         <option value="custom" {if input.setting_store_hours_mode == 'custom'}selected{/if}>Use store-specific hours</option>
+                        <option value="hide" {if input.setting_store_hours_mode == 'hide'}selected{/if}>Hide hours for this store</option>
                     </select>
                 </div>
                 <div class="space-y-3">
