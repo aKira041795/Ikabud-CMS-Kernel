@@ -55,6 +55,8 @@ return [
         '/ecommerce/store-admin/{id}'                    => 'ecommerce:ecStoreAdminDashboard',
         '/ecommerce/store-admin/{id}/notifications'      => 'ecommerce:ecStoreAdminNotifications',
         '/ecommerce/store-admin/{id}/orders'             => 'ecommerce:ecStoreAdminOrders',
+        '/ecommerce/store-admin/{id}/orders/{orderId}'   => 'ecommerce:ecStoreAdminOrderDetail',
+        '/ecommerce/store-admin/{id}/licenses/{licenseId}/download' => 'ecommerce:ecStoreAdminLicenseDownload',
         '/ecommerce/store-admin/{id}/messages'           => 'ecommerce:ecStoreAdminMessages',
         '/ecommerce/store-admin/{id}/products'           => 'ecommerce:ecStoreAdminProducts',
         '/ecommerce/store-admin/{id}/products/create'    => 'ecommerce:ecStoreAdminProductCreate',
@@ -125,6 +127,7 @@ return [
         // ── Per-Store Admin (POST actions) ──────────────────────────
         '/ecommerce/store-admin/{id}/products/create'    => 'ecommerce:ecStoreAdminProductCreate',
         '/ecommerce/store-admin/{id}/products/{productId}/edit' => 'ecommerce:ecStoreAdminProductEdit',
+        '/ecommerce/store-admin/{id}/orders/{orderId}'   => 'ecommerce:ecStoreAdminOrderDetail',
         '/ecommerce/store-admin/{id}/notifications'      => 'ecommerce:ecStoreAdminNotifications',
         '/ecommerce/store-admin/{id}/returns'            => 'ecommerce:ecStoreAdminReturns',
         '/ecommerce/store-admin/{id}/messages'           => 'ecommerce:ecStoreAdminMessages',

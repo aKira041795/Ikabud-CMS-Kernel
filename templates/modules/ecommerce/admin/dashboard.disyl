@@ -36,6 +36,9 @@
             <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium text-gray-900">{order.order_number}</div>
                 <div class="text-xs text-slate-500 truncate">{order.resolved_customer_name | default:order.guest_name | default:order.guest_email | default:'Guest'}</div>
+                {if order.authority_scope == 'store' && order.authority_store_name}
+                <div class="mt-1 text-[11px] font-medium text-orange-700 truncate">Store authority: {order.authority_store_name | escape}</div>
+                {/if}
             </div>
             <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
                 {if order.status == 'pending'}bg-amber-50 text-amber-700
@@ -43,7 +46,7 @@
                 {elseif order.status == 'shipped'}bg-purple-50 text-purple-700
                 {elseif order.status == 'delivered'}bg-emerald-50 text-emerald-700
                 {else}bg-gray-100 text-gray-600{/if}">{order.status}</span>
-            <span class="text-sm font-semibold text-gray-900">{ec_settings.currency_symbol}{order.total}</span>
+            <span class="text-sm font-semibold text-gray-900">{order.total_amount_fmt | default:(ec_settings.currency_symbol ~ order.total)}</span>
         </a>
         {/foreach}
     </div>

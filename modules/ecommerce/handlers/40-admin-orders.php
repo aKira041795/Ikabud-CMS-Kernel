@@ -28,9 +28,10 @@ function ecAdminOrders(): void
     ];
 
     $result = ecOrderList($filters);
+    $orders = ecOrdersAttachOperationalAuthority((array)($result['items'] ?? []));
 
     $ctx = ecAdminContext($user, 'orders', [
-        'orders'      => $result['items'],
+        'orders'      => $orders,
         'total'       => $result['total'],
         'total_pages' => (int)ceil($result['total'] / $limit),
         'page'        => $page,
@@ -56,7 +57,23 @@ function ecAdminOrderDetail(array $params = []): void
         return;
     }
 
+    $authority = ecOrderOperationalAuthority($orderId);
+    $authorityStore = is_array($authority['store'] ?? null) ? $authority['store'] : null;
+    $canManageOrder = !empty($authority['can_process_globally']);
+    $authorityStoreAdminUrl = $authorityStore
+        ? ecGetBaseUrl() . '/ecommerce/store-admin/' . (int)($authorityStore['id'] ?? 0) . '/orders/' . $orderId
+        : '';
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!$canManageOrder) {
+            $_SESSION['ec_message'] = [
+                'type' => 'error',
+                'text' => 'This order is store-owned. Review it here if needed, but process it from the assigned store admin workspace.',
+            ];
+            header('Location: /ecommerce/admin/orders/' . $orderId);
+            exit;
+        }
+
         csrf_verify();
         $input  = ecInput();
         $action = $input['action'] ?? '';
@@ -150,6 +167,10 @@ function ecAdminOrderDetail(array $params = []): void
         'refunds'         => $order['refunds'] ?? [],
         'refund_summary'  => $order['refund_summary'] ?? [],
         'order_bookings'  => $orderBookings,
+        'can_manage_order' => $canManageOrder,
+        'authority_scope' => (string)($authority['scope'] ?? 'global'),
+        'authority_store' => $authorityStore,
+        'authority_store_admin_url' => $authorityStoreAdminUrl,
         'message'         => $_SESSION['ec_message'] ?? null,
     ]);
     unset($_SESSION['ec_message']);
@@ -201,12 +222,7 @@ function ecAdminLicenseDownload(array $params = []): void
         return;
     }
 
-    $db  = ecDb();
-    $row = $db->query(
-        "SELECT id, order_id, product_id, target_module, target_tier, license_key, status, download_token
-           FROM ec_order_licenses WHERE id = ? LIMIT 1",
-        [$licenseId]
-    )->fetch(\PDO::FETCH_ASSOC);
+    $row = ecOrderLicenseFindById($licenseId);
 
     if (!$row) {
         http_response_code(404);
@@ -214,45 +230,5 @@ function ecAdminLicenseDownload(array $params = []): void
         return;
     }
 
-    // Try uploaded digital file first
-    $productId = (int)($row['product_id'] ?? 0);
-    if ($productId > 0) {
-        $filePath = (string)($db->query(
-            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_download_file_path' LIMIT 1",
-            [$productId]
-        )->fetchColumn() ?: '');
-        $fileName = (string)($db->query(
-            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_download_file_name' LIMIT 1",
-            [$productId]
-        )->fetchColumn() ?: '');
-
-        if ($filePath !== '') {
-            $storagePath = STORAGE_PATH . '/digital/' . ltrim($filePath, '/');
-            if (is_file($storagePath) && is_readable($storagePath)) {
-                $finfo    = new \finfo(FILEINFO_MIME_TYPE);
-                $mime     = (string)$finfo->file($storagePath);
-                $safeFile = $fileName !== '' ? basename($fileName) : basename($filePath);
-                $safeFile = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $safeFile) ?: 'download';
-
-                header('Content-Type: ' . $mime);
-                header('Content-Disposition: attachment; filename="' . $safeFile . '"');
-                header('Content-Length: ' . filesize($storagePath));
-                header('Cache-Control: no-store, no-cache, must-revalidate');
-                header('X-Content-Type-Options: nosniff');
-                readfile($storagePath);
-                exit;
-            }
-            write_log('ecAdminLicenseDownload: file missing on disk: ' . $storagePath, 'warning', ['module' => 'ecommerce']);
-        }
-    }
-
-    // Fallback: serve JWT license key as text
-    $module   = preg_replace('/[^a-z0-9_\-]/i', '', (string)($row['target_module'] ?? 'module'));
-    $filename = 'license-' . $module . '.jwt';
-
-    header('Content-Type: text/plain; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: no-store, no-cache, must-revalidate');
-    echo (string)($row['license_key'] ?? '');
-    exit;
+    ecOutputOrderLicenseDownload($row);
 }

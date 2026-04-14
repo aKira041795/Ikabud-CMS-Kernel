@@ -187,6 +187,7 @@ function ecStoreAdminPermissions(string $storeRole): array
         'notifications' => true,
         'messages' => true,
         'orders' => true,
+        'manage_orders' => $isManager,
         'returns' => $isManager,
         'abandoned_carts' => $isManager,
         'products' => true,

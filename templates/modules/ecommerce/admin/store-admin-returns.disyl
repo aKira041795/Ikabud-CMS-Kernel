@@ -82,7 +82,7 @@
                     </td>
                     <td class="px-4 py-3 text-slate-600">{request.created_at | date:'M j, Y g:i A'}</td>
                     <td class="px-4 py-3 text-right">
-                        <a href="{base_url}/ecommerce/store-admin/{store.id}/orders?search={request.order_number | url_encode}" class="text-orange-600 hover:text-orange-700 font-medium">{request.order_number | escape}</a>
+                        <a href="{base_url}/ecommerce/store-admin/{store.id}/orders/{request.order_id}" class="text-orange-600 hover:text-orange-700 font-medium">{request.order_number | escape}</a>
                     </td>
                 </tr>
                 {/foreach}

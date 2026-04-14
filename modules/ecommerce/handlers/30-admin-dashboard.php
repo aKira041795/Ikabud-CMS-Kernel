@@ -43,10 +43,11 @@ function ecAdminDashboard(): void
             [$monthStart, $monthEnd]
         )->fetchColumn();
 
-        $recentOrders = $db->query(
-            "SELECT id, order_number, guest_name, guest_email, status, payment_status, total, currency, created_at
-             FROM ec_orders ORDER BY created_at DESC LIMIT 10"
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $recentOrdersResult = ecOrderList([
+            'limit' => 10,
+            'offset' => 0,
+        ]);
+        $recentOrders = ecOrdersAttachOperationalAuthority((array)($recentOrdersResult['items'] ?? []));
 
         $lowStock = ecReportInventory(['limit' => 50]);
     } catch (\Throwable $e) {

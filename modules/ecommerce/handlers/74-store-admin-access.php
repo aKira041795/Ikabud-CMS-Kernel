@@ -180,6 +180,171 @@ function ecStoreAdminOrders(array $params = []): void
     ecRender('modules/ecommerce/admin/store-admin-orders.disyl', $ctx);
 }
 
+function ecStoreAdminOrderDetail(array $params = []): void
+{
+    $id = (int)($params['id'] ?? 0);
+    $orderId = (int)($params['orderId'] ?? 0);
+    $user = ecRequireStoreAccess($id);
+    $store = ecStoreAdminLoadStore($id);
+    $permissions = ecStoreAdminPermissions((string)($user['store_role'] ?? 'supervisor'));
+    $order = ecOrderGet($orderId);
+
+    if (!$order || !ecOrderBelongsToStore($orderId, $id)) {
+        http_response_code(404);
+        ecRender('modules/ecommerce/admin/404.disyl', ['message' => 'Order not found']);
+        return;
+    }
+
+    $canManageOrder = !empty($permissions['manage_orders']) && ecOrderIsExclusivelyOwnedByStore($orderId, $id);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!$canManageOrder) {
+            http_response_code(403);
+            exit;
+        }
+
+        csrf_verify();
+        $input = ecInput();
+        $action = (string)($input['action'] ?? '');
+
+        if ($action === 'update_status') {
+            $updated = ecOrderUpdateStatusWithOptions($orderId, (string)($input['status'] ?? ''), $input['note'] ?? null, [
+                'source' => 'ecommerce_store_admin',
+                'actor_user_id' => (int)($user['id'] ?? 0),
+                'tracking' => [
+                    'tracking_number' => $input['tracking_number'] ?? '',
+                    'carrier' => $input['tracking_carrier'] ?? '',
+                    'tracking_url' => $input['tracking_url'] ?? '',
+                ],
+            ]);
+            $_SESSION['ec_sa_message'] = $updated
+                ? ['type' => 'success', 'text' => 'Status updated.']
+                : ['type' => 'error', 'text' => 'Invalid status transition.'];
+        } elseif ($action === 'update_tracking') {
+            $updated = ecOrderUpdateStatusWithOptions($orderId, (string)($order['status'] ?? 'pending'), $input['tracking_note'] ?? null, [
+                'source' => 'ecommerce_store_admin',
+                'actor_user_id' => (int)($user['id'] ?? 0),
+                'tracking' => [
+                    'tracking_number' => $input['tracking_number'] ?? '',
+                    'carrier' => $input['tracking_carrier'] ?? '',
+                    'tracking_url' => $input['tracking_url'] ?? '',
+                ],
+            ]);
+            $_SESSION['ec_sa_message'] = $updated
+                ? ['type' => 'success', 'text' => 'Shipment tracking updated.']
+                : ['type' => 'error', 'text' => 'Shipment tracking could not be updated.'];
+        } elseif ($action === 'create_refund') {
+            try {
+                $result = ecOrderCreateRefund($orderId, (array)($input['refund_qty'] ?? []), [
+                    'amount' => $input['refund_amount'] ?? 0,
+                    'reason' => $input['refund_reason'] ?? '',
+                    'admin_note' => $input['refund_note'] ?? '',
+                    'restock_inventory' => !empty($input['restock_inventory']),
+                    'created_by_user_id' => (int)($user['id'] ?? 0),
+                ]);
+                $_SESSION['ec_sa_message'] = [
+                    'type' => 'success',
+                    'text' => 'Refund created: ' . (string)($result['refund']['refund_number'] ?? ''),
+                ];
+            } catch (\Throwable $e) {
+                $_SESSION['ec_sa_message'] = ['type' => 'error', 'text' => 'Refund failed: ' . $e->getMessage()];
+            }
+        } elseif ($action === 'review_return_request') {
+            $requestId = (int)($input['return_request_id'] ?? 0);
+            if ($requestId > 0 && ecReturnRequestBelongsToStore($requestId, $id)) {
+                try {
+                    $result = ecReturnRequestReview(
+                        $requestId,
+                        (string)($input['review_status'] ?? ''),
+                        [
+                            'admin_note' => $input['return_admin_note'] ?? '',
+                            'reviewed_by_user_id' => (int)($user['id'] ?? 0),
+                        ]
+                    );
+                    $status = (string)($result['request']['status'] ?? 'updated');
+                    $_SESSION['ec_sa_message'] = ['type' => 'success', 'text' => 'Return request ' . $status . '.'];
+                } catch (\Throwable $e) {
+                    $_SESSION['ec_sa_message'] = ['type' => 'error', 'text' => 'Return request review failed: ' . $e->getMessage()];
+                }
+            }
+        } elseif ($action === 'mark_paid') {
+            ecOrderMarkPaid($orderId, [
+                'source' => 'ecommerce_store_admin',
+                'actor_user_id' => (int)($user['id'] ?? 0),
+                'note' => 'Order marked as paid by store admin.',
+            ]);
+            $_SESSION['ec_sa_message'] = ['type' => 'success', 'text' => 'Order marked as paid.'];
+        } elseif ($action === 'regenerate_license') {
+            if (function_exists('ecOrderLicenseRegenerate') && !empty($input['license_id'])) {
+                $licenseId = (int)$input['license_id'];
+                $license = ecOrderLicenseFindById($licenseId);
+                if ($license && (int)($license['order_id'] ?? 0) === $orderId) {
+                    $regenerated = ecOrderLicenseRegenerate($licenseId);
+                    $_SESSION['ec_sa_message'] = $regenerated
+                        ? ['type' => 'success', 'text' => 'License key regenerated successfully.']
+                        : ['type' => 'error', 'text' => 'Failed to regenerate license key. Please ensure your private key is saved in module settings.'];
+                }
+            }
+        }
+
+        header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/orders/' . $orderId);
+        exit;
+    }
+
+    $allowedStatuses = $canManageOrder ? (EC_ORDER_STATUS_TRANSITIONS[$order['status']] ?? []) : [];
+    $symbol = (string)($order['currency_symbol'] ?? ecSettings('currency_symbol'));
+    $orderBookings = function_exists('ecBookingsForOrder') ? ecBookingsForOrder($orderId) : [];
+    if (function_exists('ecBookingHydrateForDisplay')) {
+        $orderBookings = array_map('ecBookingHydrateForDisplay', $orderBookings);
+    }
+
+    $ctx = ecStoreAdminContext($user, $store, 'orders', [
+        'page_title' => 'Order ' . (string)($order['order_number'] ?? ('#' . $orderId)),
+        'order' => $order,
+        'allowed_statuses' => $allowedStatuses,
+        'currency_symbol' => $symbol,
+        'refunds' => $order['refunds'] ?? [],
+        'refund_summary' => $order['refund_summary'] ?? [],
+        'order_bookings' => $orderBookings,
+        'can_manage_order' => $canManageOrder,
+        'can_review_returns' => !empty($permissions['review_returns']) && $canManageOrder,
+        'order_scope_warning' => $canManageOrder
+            ? null
+            : 'This order can be reviewed here, but operational updates remain disabled because it is not exclusively owned by this store or your role is read-only.',
+        'message' => $_SESSION['ec_sa_message'] ?? null,
+    ]);
+    unset($_SESSION['ec_sa_message']);
+
+    ecRender('modules/ecommerce/admin/store-admin-order-detail.disyl', $ctx);
+
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
+}
+
+function ecStoreAdminLicenseDownload(array $params = []): void
+{
+    $storeId = (int)($params['id'] ?? 0);
+    $licenseId = (int)($params['licenseId'] ?? 0);
+    ecRequireStoreAccess($storeId);
+
+    $license = ecOrderLicenseFindById($licenseId);
+    if (!$license) {
+        http_response_code(404);
+        ecRender('modules/ecommerce/admin/404.disyl', ['message' => 'License not found']);
+        return;
+    }
+
+    $orderId = (int)($license['order_id'] ?? 0);
+    if ($orderId <= 0 || !ecOrderBelongsToStore($orderId, $storeId)) {
+        http_response_code(404);
+        ecRender('modules/ecommerce/admin/404.disyl', ['message' => 'License not found']);
+        return;
+    }
+
+    ecOutputOrderLicenseDownload($license);
+}
+
 /**
  * GET /ecommerce/store-admin/{id}/products
  *

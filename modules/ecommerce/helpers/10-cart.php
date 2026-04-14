@@ -21,7 +21,7 @@ function ecCartItemsHasColumn(string $column): bool
     static $cache = [];
 
     $column = trim($column);
-    if ($column === '') {
+    if ($column === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column)) {
         return false;
     }
 
@@ -30,11 +30,8 @@ function ecCartItemsHasColumn(string $column): bool
     }
 
     try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $stmt->execute(['ec_cart_items', $column]);
-        $cache[$column] = (int)($stmt->fetchColumn() ?: 0) > 0;
+        ecDb()->query('SELECT ' . $column . ' FROM ec_cart_items WHERE 1 = 0');
+        $cache[$column] = true;
     } catch (\Throwable $e) {
         $cache[$column] = false;
     }

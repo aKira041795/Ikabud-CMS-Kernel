@@ -102,6 +102,7 @@ const DIGITAL_PROD = 1225; // "Guidance Monitoring" — _is_digital=1, _license_
 
 // ── Cleanup helpers ───────────────────────────────────────────────────────
 $createdOrderIds = [];
+$createdStoreIds = [];
 
 function cleanupTestOrders(array $orderIds): void
 {
@@ -115,6 +116,23 @@ function cleanupTestOrders(array $orderIds): void
         $db->execute('DELETE FROM ec_order_meta WHERE order_id = ?', [$oid]);
         $db->execute('DELETE FROM ec_payment_transactions WHERE order_id = ?', [$oid]);
         $db->execute('DELETE FROM ec_orders WHERE id = ?', [$oid]);
+    }
+}
+
+function cleanupTestStores(array $storeIds): void
+{
+    if (empty($storeIds)) {
+        return;
+    }
+
+    $db = ecDb();
+    foreach ($storeIds as $storeId) {
+        $db->execute('DELETE FROM ec_store_product_overrides WHERE store_id = ?', [(int)$storeId]);
+        $db->execute('DELETE FROM ec_store_users WHERE store_id = ?', [(int)$storeId]);
+        $db->execute('DELETE FROM ec_store_inventory_sources WHERE store_id = ?', [(int)$storeId]);
+        $db->execute('DELETE FROM ec_store_notifications WHERE store_id = ?', [(int)$storeId]);
+        $db->execute('DELETE FROM ec_store_messages WHERE store_id = ?', [(int)$storeId]);
+        $db->execute('DELETE FROM ec_stores WHERE id = ?', [(int)$storeId]);
     }
 }
 
@@ -361,9 +379,63 @@ try {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// Suite 4 — Store-owned digital order still issues license + email
+// ══════════════════════════════════════════════════════════════════════════
+echo "\n── Suite 4: Store-owned digital order retains license delivery ──\n";
+
+$capturedEmails = [];
+
+try {
+    $storeSeed = substr(bin2hex(random_bytes(4)), 0, 8);
+    $store = ecStoreCreate([
+        'name' => 'Digital Store ' . strtoupper($storeSeed),
+        'code' => 'digital-store-' . $storeSeed,
+        'slug' => 'digital-store-' . $storeSeed,
+        'description' => 'Digital store regression fixture',
+        'is_active' => true,
+        'is_default' => false,
+    ]);
+    $storeId = (int)($store['id'] ?? 0);
+    $createdStoreIds[] = $storeId;
+
+    $orderData = buildDigitalOrderData(TEST_EMAIL, DIGITAL_PROD);
+    $orderData['store_id'] = $storeId;
+    $orderData['cart_items'][0]['store_id'] = $storeId;
+
+    $result3 = ecOrderCreate($orderData);
+    $order3Id = (int)($result3['order_id'] ?? 0);
+    $createdOrderIds[] = $order3Id;
+    $capturedEmails = [];
+
+    ecOrderMarkPaid($order3Id, [
+        'source' => 'ecommerce_store_admin',
+        'note' => 'Store-admin payment completion regression',
+    ]);
+
+    $order3 = ecOrderGet($order3Id);
+    $authority3 = ecOrderOperationalAuthority($order3Id);
+    $license3 = ecDb()->query('SELECT * FROM ec_order_licenses WHERE order_id = ? LIMIT 1', [$order3Id])->fetch(PDO::FETCH_ASSOC);
+    $storeAdminTemplate = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/admin/store-admin-order-detail.disyl') ?: '';
+
+    t('Store-owned order exists', $order3Id > 0, 'order_id=' . $order3Id);
+    t('Store-owned order resolves to store authority', (string)($authority3['scope'] ?? '') === 'store' && (int)($authority3['store_id'] ?? 0) === $storeId, json_encode($authority3));
+    t('Store-owned paid order generates license row', is_array($license3), json_encode($license3 ?: []));
+    t('Store-owned paid order exposes licenses in order hydration', !empty($order3['licenses']), json_encode($order3['licenses'] ?? []));
+    t('Store-owned paid order still sends customer license email', count($capturedEmails) >= 1, 'emails=' . count($capturedEmails));
+    if (!empty($capturedEmails)) {
+        t('Store-owned email includes download link', str_contains((string)$capturedEmails[0]['body'], '/ecommerce/download/'), substr((string)$capturedEmails[0]['body'], 0, 200));
+    }
+    t('Store-admin order detail template exposes digital license section', str_contains($storeAdminTemplate, 'Digital Licenses'));
+    t('Store-admin order detail template exposes store license download route', str_contains($storeAdminTemplate, '/ecommerce/store-admin/{store.id}/licenses/{lic.id}/download'));
+} catch (Throwable $e) {
+    t('Suite 4 — no exception', false, $e->getMessage());
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // Cleanup
 // ══════════════════════════════════════════════════════════════════════════
 cleanupTestOrders($createdOrderIds);
+cleanupTestStores($createdStoreIds);
 
 // ══════════════════════════════════════════════════════════════════════════
 // Log validation

@@ -326,6 +326,7 @@ try {
     $managerPermissions = ecStoreAdminPermissions('manager');
     $supervisorPermissions = ecStoreAdminPermissions('supervisor');
     tStoreScope('owner can manage settings', !empty($ownerPermissions['manage_settings']));
+    tStoreScope('owner and manager can manage store-owned orders while supervisors remain read-only', !empty($ownerPermissions['manage_orders']) && !empty($managerPermissions['manage_orders']) && empty($supervisorPermissions['manage_orders']));
     tStoreScope('manager can edit products but cannot manage settings', !empty($managerPermissions['edit_products']) && empty($managerPermissions['manage_settings']));
     tStoreScope('supervisor is limited to the read-only core sections', empty($supervisorPermissions['edit_products']) && empty($supervisorPermissions['reports']) && empty($supervisorPermissions['customers']) && !empty($supervisorPermissions['reviews']));
 
@@ -388,6 +389,12 @@ try {
         );
 
     echo "\n§3 Sales and Customers\n";
+    tStoreScope('store order ownership resolves from line-item store context when order-level store_id is absent', ecOrderBelongsToStore((int)$orderTwo['order_id'], $storeAId) && !ecOrderBelongsToStore((int)$orderTwo['order_id'], $storeBId));
+    tStoreScope('store operational authority only allows exclusively owned orders', ecOrderIsExclusivelyOwnedByStore((int)$orderTwo['order_id'], $storeAId) && !ecOrderIsExclusivelyOwnedByStore((int)$orderOne['order_id'], $storeAId) && !ecOrderIsExclusivelyOwnedByStore((int)$orderOne['order_id'], $storeBId));
+    $mixedAuthority = ecOrderOperationalAuthority((int)$orderOne['order_id']);
+    $singleStoreAuthority = ecOrderOperationalAuthority((int)$orderTwo['order_id']);
+    tStoreScope('exclusive single-store orders disable global processing authority', (string)($singleStoreAuthority['scope'] ?? '') === 'store' && (int)($singleStoreAuthority['store_id'] ?? 0) === $storeAId && empty($singleStoreAuthority['can_process_globally']), json_encode($singleStoreAuthority));
+    tStoreScope('mixed-store orders remain globally processable to avoid cross-store mutation conflicts', (string)($mixedAuthority['scope'] ?? '') === 'global' && !empty($mixedAuthority['can_process_globally']) && count((array)($mixedAuthority['store_ids'] ?? [])) === 2, json_encode($mixedAuthority));
     $sales = ecReportSales([
         'period' => 'custom',
         'start_date' => date('Y-m-d', strtotime('-1 day')),

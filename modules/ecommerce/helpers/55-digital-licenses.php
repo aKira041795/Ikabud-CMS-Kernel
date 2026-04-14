@@ -50,6 +50,64 @@ function ec_license_public_base_url(): string
     return rtrim($configured, '/');
 }
 
+function ecOrderLicenseFindById(int $licenseId): ?array
+{
+    if ($licenseId <= 0) {
+        return null;
+    }
+
+    $row = ecDb()->query(
+        "SELECT id, order_id, order_item_id, product_id, customer_email, target_module, target_tier, license_key, status, download_token, downloaded_at
+           FROM ec_order_licenses WHERE id = ? LIMIT 1",
+        [$licenseId]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    return is_array($row) ? $row : null;
+}
+
+function ecOutputOrderLicenseDownload(array $license): never
+{
+    $productId = (int)($license['product_id'] ?? 0);
+    if ($productId > 0) {
+        $filePath = (string)(ecDb()->query(
+            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_download_file_path' LIMIT 1",
+            [$productId]
+        )->fetchColumn() ?: '');
+        $fileName = (string)(ecDb()->query(
+            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_download_file_name' LIMIT 1",
+            [$productId]
+        )->fetchColumn() ?: '');
+
+        if ($filePath !== '') {
+            $storagePath = STORAGE_PATH . '/digital/' . ltrim($filePath, '/');
+            if (is_file($storagePath) && is_readable($storagePath)) {
+                $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                $mime = (string)$finfo->file($storagePath);
+                $safeFile = $fileName !== '' ? basename($fileName) : basename($filePath);
+                $safeFile = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $safeFile) ?: 'download';
+
+                header('Content-Type: ' . $mime);
+                header('Content-Disposition: attachment; filename="' . $safeFile . '"');
+                header('Content-Length: ' . filesize($storagePath));
+                header('Cache-Control: no-store, no-cache, must-revalidate');
+                header('X-Content-Type-Options: nosniff');
+                readfile($storagePath);
+                exit;
+            }
+            write_log('ecOutputOrderLicenseDownload: file missing on disk: ' . $storagePath, 'warning', ['module' => 'ecommerce']);
+        }
+    }
+
+    $module = preg_replace('/[^a-z0-9_\-]/i', '', (string)($license['target_module'] ?? 'module'));
+    $filename = 'license-' . $module . '.jwt';
+
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    echo (string)($license['license_key'] ?? '');
+    exit;
+}
+
 // Hook into order paid
 app()->events()->listen('ecommerce.order.paid', function (array $payload) {
     $orderId = (int)($payload['order_id'] ?? 0);

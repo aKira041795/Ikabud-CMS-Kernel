@@ -42,13 +42,16 @@
                         <th class="px-4 py-2.5 text-left">Payment</th>
                         <th class="px-4 py-2.5 text-right">Total</th>
                         <th class="px-4 py-2.5 text-right">Date</th>
+                        <th class="px-4 py-2.5 text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {foreach orders as o}
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-4 py-2.5 font-mono text-xs text-orange-700 whitespace-nowrap">
-                            {o.order_number | escape}
+                            <a href="{base_url}/ecommerce/store-admin/{store.id}/orders/{o.id}" class="hover:text-orange-800 hover:underline">
+                                {o.order_number | escape}
+                            </a>
                         </td>
                         <td class="px-4 py-2.5 text-gray-700 max-w-[200px] truncate">
                             {if o.customer_display_name}{o.customer_display_name | escape}{elseif o.guest_name}{o.guest_name | escape}{else}{o.guest_email | escape}{/if}
@@ -64,8 +67,11 @@
                                 {o.payment_status | escape}
                             </span>
                         </td>
-                        <td class="px-4 py-2.5 text-right font-medium tabular-nums">{currency_sym}{o.total}</td>
+                        <td class="px-4 py-2.5 text-right font-medium tabular-nums">{o.total_amount_fmt}</td>
                         <td class="px-4 py-2.5 text-right text-slate-400 text-xs tabular-nums">{o.created_at}</td>
+                        <td class="px-4 py-2.5 text-right">
+                            <a href="{base_url}/ecommerce/store-admin/{store.id}/orders/{o.id}" class="text-xs font-semibold text-orange-700 hover:text-orange-800">Open</a>
+                        </td>
                     </tr>
                     {/foreach}
                 </tbody>

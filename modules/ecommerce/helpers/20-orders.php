@@ -45,11 +45,8 @@ function ecOrdersHasTokenExpiresAtColumn(): bool
         return $has;
     }
     try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $stmt->execute(['ec_orders', 'token_expires_at']);
-        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
+        ecDb()->query('SELECT token_expires_at FROM ec_orders WHERE 1 = 0');
+        $has = true;
     } catch (\Throwable $e) {
         $has = false;
     }
@@ -63,11 +60,8 @@ function ecOrderItemsHasSnapshotJsonColumn(): bool
         return $has;
     }
     try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $stmt->execute(['ec_order_items', 'snapshot_json']);
-        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
+        ecDb()->query('SELECT snapshot_json FROM ec_order_items WHERE 1 = 0');
+        $has = true;
     } catch (\Throwable $e) {
         $has = false;
     }
@@ -81,11 +75,8 @@ function ecOrdersHasWarehouseIdColumn(): bool
         return $has;
     }
     try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $stmt->execute(['ec_orders', 'warehouse_id']);
-        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
+        ecDb()->query('SELECT warehouse_id FROM ec_orders WHERE 1 = 0');
+        $has = true;
     } catch (\Throwable $e) {
         $has = false;
     }
@@ -99,15 +90,140 @@ function ecOrderItemsHasStoreIdColumn(): bool
         return $has;
     }
     try {
-        $stmt = app()->db()->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $stmt->execute(['ec_order_items', 'store_id']);
-        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
+        ecDb()->query('SELECT store_id FROM ec_order_items WHERE 1 = 0');
+        $has = true;
     } catch (\Throwable $e) {
         $has = false;
     }
     return $has;
+}
+
+function ecOrdersHasStoreIdColumn(): bool
+{
+    static $has = null;
+    if ($has !== null) {
+        return $has;
+    }
+    try {
+        ecDb()->query('SELECT store_id FROM ec_orders WHERE 1 = 0');
+        $has = true;
+    } catch (\Throwable $e) {
+        $has = false;
+    }
+    return $has;
+}
+
+function ecOrderAssignedStoreIds(int $orderId): array
+{
+    if ($orderId <= 0) {
+        return [];
+    }
+
+    $storeIds = [];
+
+    try {
+        if (ecOrdersHasStoreIdColumn()) {
+            $orderStoreId = (int)(ecDb()->query(
+                'SELECT store_id FROM ec_orders WHERE id = ? LIMIT 1',
+                [$orderId]
+            )->fetchColumn() ?: 0);
+            if ($orderStoreId > 0) {
+                $storeIds[] = $orderStoreId;
+            }
+        }
+
+        if (ecOrderItemsHasStoreIdColumn()) {
+            $itemStoreIds = ecDb()->query(
+                'SELECT DISTINCT store_id FROM ec_order_items WHERE order_id = ? AND store_id IS NOT NULL AND store_id > 0 ORDER BY store_id ASC',
+                [$orderId]
+            )->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+            foreach ($itemStoreIds as $itemStoreId) {
+                $normalizedStoreId = (int)$itemStoreId;
+                if ($normalizedStoreId > 0) {
+                    $storeIds[] = $normalizedStoreId;
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $storeIds = array_values(array_unique(array_map(static fn(mixed $value): int => (int)$value, $storeIds)));
+    sort($storeIds);
+
+    return $storeIds;
+}
+
+function ecOrderBelongsToStore(int $orderId, int $storeId): bool
+{
+    if ($orderId <= 0 || $storeId <= 0) {
+        return false;
+    }
+
+    return in_array($storeId, ecOrderAssignedStoreIds($orderId), true);
+}
+
+function ecOrderOperationalAuthority(int $orderId): array
+{
+    $storeIds = ecOrderAssignedStoreIds($orderId);
+    $exclusiveStoreId = count($storeIds) === 1 ? (int)($storeIds[0] ?? 0) : 0;
+    $authorityStore = null;
+    if ($exclusiveStoreId > 0 && function_exists('ecStoreById')) {
+        $authorityStore = ecStoreById($exclusiveStoreId);
+        if (!is_array($authorityStore)) {
+            $authorityStore = null;
+        }
+    }
+
+    return [
+        'scope' => $exclusiveStoreId > 0 ? 'store' : 'global',
+        'store_ids' => $storeIds,
+        'store_id' => $exclusiveStoreId,
+        'store' => $authorityStore,
+        'is_store_owned' => $storeIds !== [],
+        'is_exclusive_store_owned' => $exclusiveStoreId > 0,
+        'can_process_globally' => $exclusiveStoreId <= 0,
+    ];
+}
+
+function ecOrderAttachOperationalAuthority(array $order): array
+{
+    $orderId = (int)($order['id'] ?? $order['order_id'] ?? 0);
+    if ($orderId <= 0) {
+        $order['authority_scope'] = 'global';
+        $order['authority_store_id'] = 0;
+        $order['authority_store_name'] = '';
+        $order['authority_store_slug'] = '';
+        $order['can_process_globally'] = true;
+        return $order;
+    }
+
+    $authority = ecOrderOperationalAuthority($orderId);
+    $authorityStore = is_array($authority['store'] ?? null) ? $authority['store'] : null;
+    $order['authority_scope'] = (string)($authority['scope'] ?? 'global');
+    $order['authority_store_id'] = (int)($authority['store_id'] ?? 0);
+    $order['authority_store_name'] = (string)($authorityStore['name'] ?? '');
+    $order['authority_store_slug'] = (string)($authorityStore['slug'] ?? '');
+    $order['can_process_globally'] = !empty($authority['can_process_globally']);
+
+    return $order;
+}
+
+function ecOrdersAttachOperationalAuthority(array $orders): array
+{
+    return array_map(static fn(array $order): array => ecOrderAttachOperationalAuthority($order), $orders);
+}
+
+function ecOrderIsExclusivelyOwnedByStore(int $orderId, int $storeId): bool
+{
+    if ($orderId <= 0 || $storeId <= 0) {
+        return false;
+    }
+
+    $authority = ecOrderOperationalAuthority($orderId);
+
+    return !empty($authority['is_exclusive_store_owned'])
+        && (int)($authority['store_id'] ?? 0) === $storeId;
 }
 
 function ecRefundStorageAvailable(): bool

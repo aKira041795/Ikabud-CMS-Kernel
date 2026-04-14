@@ -18,6 +18,16 @@
                     {else}bg-gray-100 text-gray-600{/if}">{order.status}</span>
             </div>
 
+            {if authority_scope == 'store' && authority_store}
+            <div class="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+                <div class="font-semibold">Store-owned order</div>
+                <div class="mt-1">Global admin keeps visibility, but fulfillment authority belongs to {authority_store.name | escape}.</div>
+                {if authority_store_admin_url}
+                <a href="{authority_store_admin_url}" class="mt-2 inline-flex text-xs font-semibold text-orange-700 hover:text-orange-800">Open in store admin</a>
+                {/if}
+            </div>
+            {/if}
+
             <!-- Items -->
             <table class="w-full text-sm">
                 <thead class="border-b border-gray-200">
@@ -130,7 +140,7 @@
                         <div class="flex justify-between gap-3"><span>{item.product_title} × {item.qty_requested}</span><span>{item.condition_label}</span></div>
                         {/foreach}
                     </div>
-                    {if request.status == 'pending'}
+                    {if can_manage_order && request.status == 'pending'}
                     <form method="post" action="" class="space-y-3 border-t border-gray-200 pt-3">
                         <input type="hidden" name="_token" value="{csrf_token}">
                         <input type="hidden" name="action" value="review_return_request">
@@ -211,7 +221,17 @@
     <!-- Sidebar -->
     <div class="space-y-4">
         <!-- Update status -->
-        {if allowed_statuses | count > 0}
+        {if not can_manage_order}
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Order Authority</h3>
+            <p class="text-sm text-gray-600">This order is visible here for oversight, but operational changes are locked because the assigned store owns fulfillment.</p>
+            {if authority_store_admin_url}
+            <a href="{authority_store_admin_url}" class="mt-3 inline-flex text-sm font-medium text-orange-600 hover:text-orange-700">Open store workspace</a>
+            {/if}
+        </div>
+        {/if}
+
+        {if can_manage_order && allowed_statuses | count > 0}
         <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">Update Status</h3>
             <form method="post" action="" class="space-y-3">
@@ -235,7 +255,7 @@
         </div>
         {/if}
 
-             {if order.status == 'shipped' || order.status == 'delivered'}
+             {if can_manage_order && (order.status == 'shipped' || order.status == 'delivered')}
              <div class="bg-white rounded-xl border border-gray-200 p-5">
                  <h3 class="text-sm font-semibold text-gray-800 mb-3">Update Tracking</h3>
                  <form method="post" action="" class="space-y-3">
@@ -270,7 +290,7 @@
                 <div class="flex justify-between"><span>Still refundable</span><span>{refund_summary.refundable_amount_fmt}</span></div>
                 {/if}
             </div>
-            {if order.payment_status == 'pending'}
+            {if can_manage_order && order.payment_status == 'pending'}
             <form method="post" action="" class="mt-3">
                 <input type="hidden" name="_token" value="{csrf_token}">
                 <input type="hidden" name="action" value="mark_paid">
@@ -279,7 +299,7 @@
             {/if}
         </div>
 
-        {if refund_summary.refundable_amount > 0 and order.payment_status == 'paid'}
+        {if can_manage_order && refund_summary.refundable_amount > 0 and order.payment_status == 'paid'}
         <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">Create Refund</h3>
             <form method="post" action="" class="space-y-3">
@@ -367,6 +387,7 @@
                                 Download
                             </a>
                             {/if}
+                            {if can_manage_order}
                             <form action="" method="post" class="inline" onsubmit="return confirm('Are you sure you want to generate a new license key? The old key will be invalidated.')">
                                 <input type="hidden" name="_token" value="{csrf_token}">
                                 <input type="hidden" name="action" value="regenerate_license">
@@ -376,6 +397,7 @@
                                     Regenerate Key
                                 </button>
                             </form>
+                            {/if}
                         </div>
                     </div>
                 </div>
