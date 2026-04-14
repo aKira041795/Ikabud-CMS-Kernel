@@ -2355,6 +2355,9 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
                 'all_items_url' => (string)($options['all_items_url'] ?? $options['shop_url'] ?? '/ecommerce/shop'),
                 'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
                 'cart_count' => array_key_exists('cart_count', $options) ? (int)$options['cart_count'] : null,
+                // Thread the product's own store so per-store currency and overrides
+                // apply even when arriving from the global storefront (no ?store= param).
+                'store_context' => $activeStore ?? null,
             ]);
         }
 
