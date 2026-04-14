@@ -144,6 +144,7 @@
                             <p class="mt-1 text-xs text-slate-500" id="ec-product-sku-hint">Mirrors the slug until you set a custom SKU.</p>
                         </div>
                         <div class="flex items-center gap-2">
+                            <input type="hidden" name="track_stock" value="off">
                             <input type="checkbox" name="track_stock" id="track_stock" value="on" class="rounded"
                                    {if product.inventory.track_stock}checked{/if}>
                             <label for="track_stock" class="text-xs font-medium text-gray-700">Track stock quantity</label>
