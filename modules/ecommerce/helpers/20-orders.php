@@ -45,9 +45,11 @@ function ecOrdersHasTokenExpiresAtColumn(): bool
         return $has;
     }
     try {
-        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_orders LIKE ?');
-        $stmt->execute(['token_expires_at']);
-        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['ec_orders', 'token_expires_at']);
+        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
     } catch (\Throwable $e) {
         $has = false;
     }
@@ -57,13 +59,15 @@ function ecOrdersHasTokenExpiresAtColumn(): bool
 function ecOrderItemsHasSnapshotJsonColumn(): bool
 {
     static $has = null;
-    if ($has !== null) {
+    if ($has === true) {
         return $has;
     }
     try {
-        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_order_items LIKE ?');
-        $stmt->execute(['snapshot_json']);
-        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['ec_order_items', 'snapshot_json']);
+        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
     } catch (\Throwable $e) {
         $has = false;
     }
@@ -77,9 +81,11 @@ function ecOrdersHasWarehouseIdColumn(): bool
         return $has;
     }
     try {
-        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_orders LIKE ?');
-        $stmt->execute(['warehouse_id']);
-        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['ec_orders', 'warehouse_id']);
+        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
     } catch (\Throwable $e) {
         $has = false;
     }
@@ -93,9 +99,11 @@ function ecOrderItemsHasStoreIdColumn(): bool
         return $has;
     }
     try {
-        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_order_items LIKE ?');
-        $stmt->execute(['store_id']);
-        $has = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['ec_order_items', 'store_id']);
+        $has = (int)($stmt->fetchColumn() ?: 0) > 0;
     } catch (\Throwable $e) {
         $has = false;
     }

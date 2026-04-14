@@ -145,6 +145,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
     $payload          = is_array($envelope['payload'] ?? null) ? $envelope['payload'] : [];
     $authorId         = (int)($envelope['author_id'] ?? 0);
     $eventName        = 'cms.migration.content.upserted';
+    $action           = 'create';
 
     // ── 0. Bridge-state gate (reject writes when bridge is not active) ─
     if (function_exists('wpBridgeGetState')) {
@@ -153,6 +154,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
             return [
                 'ok'          => false,
                 'outcome'     => 'blocked',
+                'action'      => 'blocked',
                 'external_id' => $externalId,
                 'reason'      => 'bridge-' . $bridgeState,
             ];
@@ -165,13 +167,13 @@ function wpBridgeHandleContentUpserted(array $envelope): array
     if ($idempotencyResult === 'skip') {
         wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'skipped', null, $payload, 'Duplicate: already processed');
         write_log("Bridge skip: {$source}/{$externalId} already processed at {$externalModified}", 'info', ['source' => 'content-ingestion']);
-        return ['ok' => true, 'outcome' => 'skipped', 'external_id' => $externalId, 'reason' => 'duplicate'];
+        return ['ok' => true, 'outcome' => 'skipped', 'action' => 'skip', 'external_id' => $externalId, 'reason' => 'duplicate'];
     }
 
     if ($idempotencyResult === 'stale') {
         wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'skipped', null, $payload, 'Stale: older than stored version');
         write_log("Bridge skip: {$source}/{$externalId} is stale (older than stored)", 'info', ['source' => 'content-ingestion']);
-        return ['ok' => true, 'outcome' => 'stale', 'external_id' => $externalId, 'reason' => 'out-of-order'];
+        return ['ok' => true, 'outcome' => 'stale', 'action' => 'stale', 'external_id' => $externalId, 'reason' => 'out-of-order'];
     }
 
     // ── 2. Normalize payload ─────────────────────────────────────────
@@ -186,7 +188,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
 
     if ($title === '') {
         wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'failed', null, $payload, 'title is required');
-        return ['ok' => false, 'outcome' => 'failed', 'external_id' => $externalId, 'error' => 'title is required'];
+        return ['ok' => false, 'outcome' => 'failed', 'action' => 'failed', 'external_id' => $externalId, 'error' => 'title is required'];
     }
 
     if ($slug === '') {
@@ -212,8 +214,6 @@ function wpBridgeHandleContentUpserted(array $envelope): array
     // ── 3. Check for existing content (by provenance, not by slug) ───
     $existing = wpBridgeFindExistingByProvenance($source, $externalId);
     $cmsContentId = null;
-    $action = 'create';
-
     // Build shared capability fields (categories + tags passed through so CMS
     // module handles all cross-table writes in its own module context)
     $capCategories = is_array($payload['categories'] ?? null) ? $payload['categories'] : [];
@@ -232,7 +232,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
             if ($bridgeStatus === 'cms-managed' || $bridgeStatus === 'retired') {
                 // Content has been claimed by CMS or retired — do not overwrite
                 wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'skipped', $cmsContentId, $payload, "Content is {$bridgeStatus}, bridge sync disabled");
-                return ['ok' => true, 'outcome' => 'skipped', 'external_id' => $externalId, 'cms_content_id' => $cmsContentId, 'reason' => $bridgeStatus];
+                return ['ok' => true, 'outcome' => 'skipped', 'action' => 'skip', 'external_id' => $externalId, 'cms_content_id' => $cmsContentId, 'reason' => $bridgeStatus];
             }
 
             if (wpBridgeHasConflict($existing, $provenance)) {
@@ -240,7 +240,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
                 wpBridgeWriteProvenance($cmsContentId, $source, $externalId, $externalModified, 'review-required');
                 wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'skipped', $cmsContentId, $payload, 'Conflict detected: CMS modified since last sync');
                 write_log("Bridge conflict: {$source}/{$externalId} → cms_content.id={$cmsContentId}, marking review-required", 'warning', ['source' => 'content-ingestion']);
-                return ['ok' => true, 'outcome' => 'conflict', 'external_id' => $externalId, 'cms_content_id' => $cmsContentId, 'reason' => 'review-required'];
+                return ['ok' => true, 'outcome' => 'conflict', 'action' => 'conflict', 'external_id' => $externalId, 'cms_content_id' => $cmsContentId, 'reason' => 'review-required'];
             }
 
             // Safe to update via CMS capability (handles categories/tags in CMS context)
@@ -267,7 +267,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
                 $error = (string)($updateResult['error'] ?? 'Update capability failed');
                 wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'failed', $cmsContentId, $payload, $error);
                 write_log("Bridge failed: {$source}/{$externalId} — cms.content.update@1: {$error}", 'error', ['source' => 'content-ingestion']);
-                return ['ok' => false, 'outcome' => 'failed', 'external_id' => $externalId, 'error' => $error];
+                return ['ok' => false, 'outcome' => 'failed', 'action' => 'update', 'external_id' => $externalId, 'error' => $error];
             }
         } else {
             // ── Create path (via capability for boundary safety) ─────
@@ -297,7 +297,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
                 $error = (string)($capResult['error'] ?? 'Capability call failed');
                 wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'failed', null, $payload, $error);
                 write_log("Bridge failed: {$source}/{$externalId} — cms.content.create@1: {$error}", 'error', ['source' => 'content-ingestion']);
-                return ['ok' => false, 'outcome' => 'failed', 'external_id' => $externalId, 'error' => $error];
+                return ['ok' => false, 'outcome' => 'failed', 'action' => 'create', 'external_id' => $externalId, 'error' => $error];
             }
 
             $cmsContentId = (int)($capResult['id'] ?? 0);
@@ -334,7 +334,7 @@ function wpBridgeHandleContentUpserted(array $envelope): array
         wpBridgeLogIngestion($source, $externalId, $externalModified, $eventName, 'failed', $cmsContentId, $payload, $error);
         write_log("Bridge exception: {$source}/{$externalId} — {$error}", 'error', ['source' => 'content-ingestion']);
 
-        return ['ok' => false, 'outcome' => 'failed', 'external_id' => $externalId, 'error' => 'Ingestion failed'];
+        return ['ok' => false, 'outcome' => 'failed', 'action' => $action, 'external_id' => $externalId, 'error' => 'Ingestion failed'];
     }
 }
 

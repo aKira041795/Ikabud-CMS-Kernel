@@ -36,11 +36,11 @@ function wpBridgeIdempotencyCheck(string $source, string $externalId, string $ex
 {
     $db = wpBridgeDb();
 
-    // Look for any existing ingestion record for this source + external_id.
-    // Only a 'processed' entry counts as "done" — failed entries allow retry.
+        // Only a successfully processed entry counts as the authoritative version.
+        // Duplicate/stale/failed log rows must not mask the last successful sync.
     $stmt = $db->prepare(
         "SELECT external_modified, status FROM bridge_ingestion_log
-         WHERE source = :source AND external_id = :eid
+            WHERE source = :source AND external_id = :eid AND status = 'processed'
          ORDER BY created_at DESC LIMIT 1"
     );
     $stmt->execute([':source' => $source, ':eid' => $externalId]);
@@ -101,9 +101,15 @@ function wpBridgeLogIngestion(
          VALUES
             (:source, :eid, :emod, :event, :status, :cid, :payload, :err, :rid, NOW())
          ON DUPLICATE KEY UPDATE
-            status = VALUES(status),
-            cms_content_id = VALUES(cms_content_id),
-            error_message = VALUES(error_message),
+            status = CASE
+                WHEN bridge_ingestion_log.status = 'processed' THEN bridge_ingestion_log.status
+                ELSE VALUES(status)
+            END,
+            cms_content_id = COALESCE(bridge_ingestion_log.cms_content_id, VALUES(cms_content_id)),
+            error_message = CASE
+                WHEN bridge_ingestion_log.status = 'processed' THEN bridge_ingestion_log.error_message
+                ELSE VALUES(error_message)
+            END,
             request_id = VALUES(request_id)"
     )->execute([
         ':source'  => $source,

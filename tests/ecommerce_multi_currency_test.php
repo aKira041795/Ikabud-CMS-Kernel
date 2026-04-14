@@ -24,7 +24,8 @@ $pass = 0;
 $fail = 0;
 $errors = [];
 $cleanupProductIds = [];
-$cleanupOrderIds = [];
+$cleanupOrderIds  = [];
+$cleanupStoreIds  = [];
 $originalSettings = getModuleSettings('ecommerce');
 
 function tmc(string $label, bool $ok, string $detail = ''): void
@@ -51,13 +52,17 @@ function ecommerceMultiCurrencyUserId(): int
     return $userId;
 }
 
-function ecommerceMultiCurrencyCleanup(array $productIds, array $orderIds, array $originalSettings): void
+function ecommerceMultiCurrencyCleanup(array $productIds, array $orderIds, array $originalSettings, array $storeIds = []): void
 {
     ecCartClear();
     unset($_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY], $_SESSION['ec_message'], $_GET['currency'], $_REQUEST['currency']);
     if (function_exists('ecCurrencyResetRuntimeState')) {
         ecCurrencyResetRuntimeState();
     }
+    if (function_exists('ecStoreClearResolvedContext')) {
+        ecStoreClearResolvedContext();
+    }
+    unset($_GET['store'], $_REQUEST['store']);
 
     $db = ecDb();
     $appDb = app()->db();
@@ -74,6 +79,14 @@ function ecommerceMultiCurrencyCleanup(array $productIds, array $orderIds, array
         $appDb->prepare("DELETE FROM cms_content_meta WHERE content_id IN ({$placeholders})")->execute($productIds);
         $appDb->prepare("DELETE FROM cms_entity_capabilities WHERE entity_id IN ({$placeholders})")->execute($productIds);
         $appDb->prepare("DELETE FROM cms_content WHERE id IN ({$placeholders})")->execute($productIds);
+    }
+
+    if ($storeIds !== []) {
+        foreach ($storeIds as $sid) {
+            $db->execute('DELETE FROM ec_store_product_overrides WHERE store_id = ?', [$sid]);
+            $db->execute('DELETE FROM ec_store_users WHERE store_id = ?', [$sid]);
+            $db->execute('DELETE FROM ec_stores WHERE id = ?', [$sid]);
+        }
     }
 
     saveModuleSettings('ecommerce', is_array($originalSettings) ? $originalSettings : []);
@@ -207,7 +220,365 @@ $errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
 tmc('no app.log critical errors', !str_contains($appLog, '[critical]'), $appLog !== '' ? substr($appLog, 0, 200) : '');
 tmc('no PHP warnings or fatals in error.log', $errorLog === '' || (!str_contains($errorLog, 'PHP Warning') && !str_contains($errorLog, 'PHP Fatal')), $errorLog !== '' ? substr($errorLog, 0, 200) : '');
 
-ecommerceMultiCurrencyCleanup($cleanupProductIds, array_filter($cleanupOrderIds), is_array($originalSettings) ? $originalSettings : []);
+// ─── §2  Store-level currency override takes precedence over session/global ───
+// When a store has settings_json.currency = 'PHP', the cart must snapshot PHP
+// prices (not the shopper's active session currency selection such as EUR).
+echo "\n--- §2 Store currency override vs session currency ---\n";
+
+$storeSeed = substr(bin2hex(random_bytes(4)), 0, 6);
+$storeSlug = 'php-store-' . $storeSeed;
+
+ecDb()->query(
+    "INSERT INTO ec_stores (code, name, slug, is_active, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, NOW(), NOW())",
+    [
+        'PHP' . strtoupper($storeSeed),
+        'PHP Store ' . $storeSeed,
+        $storeSlug,
+        json_encode(['currency' => 'PHP', 'currency_symbol' => 'PHP ']),
+    ]
+);
+$phpStoreId = (int)ecDb()->query("SELECT LAST_INSERT_ID() AS id", [])->fetchColumn();
+$cleanupStoreIds[] = $phpStoreId;
+
+// Restore §1 multi-currency settings so ecCurrentCurrencyCode() can return EUR.
+saveModuleSettings('ecommerce', array_merge(is_array($originalSettings) ? $originalSettings : [], [
+    'currency' => 'USD',
+    'currency_symbol' => '$',
+    'enabled_currencies' => 'USD, EUR',
+    'currency_exchange_rates' => "EUR|0.92",
+]));
+invalidateTenantModuleSettingsCache();
+if (function_exists('ecSettingsResetCache')) {
+    ecSettingsResetCache();
+}
+
+$phpProductId = ecProductCreate([
+    'title'     => 'PHP Store Product ' . $storeSeed,
+    'slug'      => 'php-store-product-' . strtolower($storeSeed),
+    'excerpt'   => 'Product priced in PHP.',
+    'status'    => 'published',
+    'price'     => 1000.00,
+    'currency'  => 'PHP',
+    'stock_qty' => 10,
+    'track_stock' => true,
+], $userId);
+$cleanupProductIds[] = $phpProductId;
+
+// Assign the product to the PHP store so product['store_id'] is set.
+// ecProductGet() derives store_id from ec_store_product_overrides.
+if ($phpProductId > 0 && $phpStoreId > 0) {
+    ecDb()->execute(
+        "INSERT INTO ec_store_product_overrides (store_id, product_id, is_visible, created_at, updated_at)
+         VALUES (?, ?, 1, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE is_visible = 1",
+        [$phpStoreId, $phpProductId]
+    );
+}
+
+// Shopper selects EUR as their session currency — store PHP override must win.
+ecCartClear();
+$_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY] = 'EUR';
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+$_GET['store'] = $storeSlug;
+
+$phpProduct = ecProductGet($phpProductId) ?: [];
+$storeCtxCurrency = ecCurrentCurrencyCode(); // Still EUR from session
+$phpAddResult = ecCartAdd($phpProductId, 1);
+$phpCart = ecCartGet();
+
+$phpCartItemCurrency = (string)($phpCart['items'][0]['currency'] ?? '');
+$phpCartCurrency     = (string)($phpCart['currency'] ?? '');
+
+tmc('§2 session currency is still EUR (control check)', $storeCtxCurrency === 'EUR', $storeCtxCurrency);
+tmc('§2 cart item currency is PHP not session EUR (store override wins)', $phpCartItemCurrency === 'PHP', json_encode(['item_currency' => $phpCartItemCurrency, 'session_currency' => $storeCtxCurrency]));
+tmc('§2 cart-level currency tracks PHP', $phpCartCurrency === 'PHP', json_encode(['cart_currency' => $phpCartCurrency]));
+tmc('§2 cart item active_price unchanged (PHP is native, no conversion)', abs((float)($phpCart['items'][0]['price_snapshot'] ?? 0) - 1000.00) < 0.01, json_encode($phpCart['items'][0] ?? []));
+
+// Storefront display must also show PHP pricing.
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+$_GET['store'] = $storeSlug;
+$phpStorefront = ecBuildStorefrontDetailContext($phpProduct, ['route_kind' => 'product_detail']);
+$phpDisplayCurrency = (string)($phpStorefront['product']['pricing']['currency'] ?? '');
+tmc('§2 storefront detail pricing shows PHP (store override)', $phpDisplayCurrency === 'PHP', json_encode($phpStorefront['product']['pricing'] ?? []));
+
+// Order must persist PHP currency regardless of session EUR.
+$phpOrderResult = ecOrderCreate(ecommerceMultiCurrencyOrderData($phpCart, $userId));
+$cleanupOrderIds[] = (int)($phpOrderResult['order_id'] ?? 0);
+$phpOrder = ecOrderGet((int)($phpOrderResult['order_id'] ?? 0), $userId);
+tmc('§2 order persists PHP currency (not session EUR)', (string)($phpOrder['currency'] ?? '') === 'PHP', json_encode($phpOrder));
+
+echo "\n--- §3 Store-native numeric price is not FX-converted again ---\n";
+
+$nativeSeed = substr(bin2hex(random_bytes(4)), 0, 6);
+$nativeStoreSlug = 'native-price-store-' . $nativeSeed;
+
+ecDb()->query(
+    "INSERT INTO ec_stores (code, name, slug, is_active, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, NOW(), NOW())",
+    [
+        'NAT' . strtoupper($nativeSeed),
+        'Native Price Store ' . $nativeSeed,
+        $nativeStoreSlug,
+        json_encode(['currency' => 'PHP', 'currency_symbol' => 'PHP ']),
+    ]
+);
+$nativeStoreId = (int)ecDb()->query("SELECT LAST_INSERT_ID() AS id", [])->fetchColumn();
+$cleanupStoreIds[] = $nativeStoreId;
+
+$nativeProductId = ecProductCreate([
+    'title' => 'Native Price Product ' . $nativeSeed,
+    'slug' => 'native-price-product-' . strtolower($nativeSeed),
+    'excerpt' => 'Store-admin numeric price should remain native.',
+    'status' => 'published',
+    'price' => 1500.00,
+    'currency' => 'USD',
+    'stock_qty' => 10,
+    'track_stock' => true,
+], $userId);
+$cleanupProductIds[] = $nativeProductId;
+
+ecDb()->execute(
+    "INSERT INTO ec_store_product_overrides (store_id, product_id, is_visible, price_override, created_at, updated_at)
+     VALUES (?, ?, 1, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE is_visible = 1, price_override = VALUES(price_override), updated_at = NOW()",
+    [$nativeStoreId, $nativeProductId, 1500.00]
+);
+
+ecCartClear();
+unset($_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY], $_GET['store'], $_REQUEST['store']);
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+
+$nativeProduct = ecProductGet($nativeProductId) ?: [];
+$nativeStorefront = ecBuildStorefrontDetailContext($nativeProduct, ['route_kind' => 'product_detail']);
+$nativeAddResult = ecCartAdd($nativeProductId, 1);
+$nativeCart = ecCartGet();
+
+tmc('§3 storefront shows native PHP 1500 for store-owned product',
+    (string)($nativeStorefront['product']['pricing']['currency'] ?? '') === 'PHP'
+        && abs((float)($nativeStorefront['product']['pricing']['active_price'] ?? 0) - 1500.00) < 0.01,
+    json_encode($nativeStorefront['product']['pricing'] ?? [])
+);
+tmc('§3 cart add succeeds for store-owned native-price product', !empty($nativeAddResult['ok']), json_encode($nativeAddResult));
+tmc('§3 cart price_snapshot stays 1500 PHP instead of 84000 FX-converted',
+    (string)($nativeCart['items'][0]['currency'] ?? '') === 'PHP'
+        && abs((float)($nativeCart['items'][0]['price_snapshot'] ?? 0) - 1500.00) < 0.01,
+    json_encode($nativeCart['items'][0] ?? [])
+);
+tmc('§3 cart totals stay at PHP 1500 for qty 1',
+    (string)($nativeCart['currency'] ?? '') === 'PHP'
+        && abs((float)($nativeCart['totals']['total'] ?? 0) - 1500.00) < 0.01,
+    json_encode($nativeCart['totals'] ?? [])
+);
+
+echo "\n--- §4 Direct product page store context via X-Store-Slug ---\n";
+
+$headerSeed = substr(bin2hex(random_bytes(4)), 0, 6);
+$headerStoreSlug = 'header-store-' . $headerSeed;
+
+ecDb()->query(
+    "INSERT INTO ec_stores (code, name, slug, is_active, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, NOW(), NOW())",
+    [
+        'HDR' . strtoupper($headerSeed),
+        'Header Store ' . $headerSeed,
+        $headerStoreSlug,
+        json_encode(['currency' => 'PHP', 'currency_symbol' => 'PHP ']),
+    ]
+);
+$headerStoreId = (int)ecDb()->query("SELECT LAST_INSERT_ID() AS id", [])->fetchColumn();
+$cleanupStoreIds[] = $headerStoreId;
+
+$headerProductId = ecProductCreate([
+    'title' => 'Header Store Product ' . $headerSeed,
+    'slug' => 'header-store-product-' . strtolower($headerSeed),
+    'excerpt' => 'Global product viewed through a store-context product page.',
+    'status' => 'published',
+    'price' => 1500.00,
+    'currency' => 'USD',
+    'stock_qty' => 10,
+    'track_stock' => true,
+], $userId);
+$cleanupProductIds[] = $headerProductId;
+
+ecCartClear();
+unset($_GET['store'], $_REQUEST['store'], $_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY]);
+$_SERVER['HTTP_X_STORE_SLUG'] = $headerStoreSlug;
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+
+$headerProduct = ecProductGet($headerProductId) ?: [];
+$headerStorefront = ecBuildStorefrontDetailContext($headerProduct, [
+    'route_kind' => 'product_detail',
+    'store_context' => ecStoreBySlug($headerStoreSlug),
+]);
+$headerAddResult = ecCartAdd($headerProductId, 1);
+$headerCart = ecCartGet();
+
+tmc('§4 storefront detail preserves active store slug in route context',
+    (string)($headerStorefront['route']['store']['slug'] ?? '') === $headerStoreSlug,
+    json_encode($headerStorefront['route']['store'] ?? [])
+);
+tmc('§4 storefront shows PHP 1500 for direct product page store context',
+    (string)($headerStorefront['product']['pricing']['currency'] ?? '') === 'PHP'
+        && abs((float)($headerStorefront['product']['pricing']['active_price'] ?? 0) - 1500.00) < 0.01,
+    json_encode($headerStorefront['product']['pricing'] ?? [])
+);
+tmc('§4 cart add succeeds when store context is carried by X-Store-Slug', !empty($headerAddResult['ok']), json_encode($headerAddResult));
+tmc('§4 cart respects store currency via X-Store-Slug without FX multiplying',
+    (string)($headerCart['items'][0]['currency'] ?? '') === 'PHP'
+        && abs((float)($headerCart['items'][0]['price_snapshot'] ?? 0) - 1500.00) < 0.01
+        && abs((float)($headerCart['totals']['total'] ?? 0) - 1500.00) < 0.01,
+    json_encode(['item' => $headerCart['items'][0] ?? [], 'totals' => $headerCart['totals'] ?? []])
+);
+unset($_SERVER['HTTP_X_STORE_SLUG']);
+
+echo "\n--- §5 Cart currency does not silently rewrite browsing currency ---\n";
+
+$mixedSeed = substr(bin2hex(random_bytes(4)), 0, 6);
+$mixedStoreSlug = 'mixed-store-' . $mixedSeed;
+
+ecDb()->query(
+    "INSERT INTO ec_stores (code, name, slug, is_active, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, NOW(), NOW())",
+    [
+        'MIX' . strtoupper($mixedSeed),
+        'Mixed Store ' . $mixedSeed,
+        $mixedStoreSlug,
+        json_encode(['currency' => 'PHP', 'currency_symbol' => 'PHP ']),
+    ]
+);
+$mixedStoreId = (int)ecDb()->query("SELECT LAST_INSERT_ID() AS id", [])->fetchColumn();
+$cleanupStoreIds[] = $mixedStoreId;
+
+$globalProductId = ecProductCreate([
+    'title' => 'Global Currency Product ' . $mixedSeed,
+    'slug' => 'global-currency-product-' . strtolower($mixedSeed),
+    'excerpt' => 'Global USD product should stay USD while browsing.',
+    'status' => 'published',
+    'price' => 200.00,
+    'currency' => 'USD',
+    'stock_qty' => 10,
+    'track_stock' => true,
+], $userId);
+$cleanupProductIds[] = $globalProductId;
+
+$storeProductId = ecProductCreate([
+    'title' => 'Store Currency Product ' . $mixedSeed,
+    'slug' => 'store-currency-product-' . strtolower($mixedSeed),
+    'excerpt' => 'Store PHP product should stay PHP.',
+    'status' => 'published',
+    'price' => 1500.00,
+    'currency' => 'USD',
+    'stock_qty' => 10,
+    'track_stock' => true,
+], $userId);
+$cleanupProductIds[] = $storeProductId;
+
+ecDb()->execute(
+    "INSERT INTO ec_store_product_overrides (store_id, product_id, is_visible, price_override, created_at, updated_at)
+     VALUES (?, ?, 1, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE is_visible = 1, price_override = VALUES(price_override), updated_at = NOW()",
+    [$mixedStoreId, $storeProductId, 1500.00]
+);
+
+saveModuleSettings('ecommerce', array_merge(is_array($originalSettings) ? $originalSettings : [], [
+    'currency' => 'USD',
+    'currency_symbol' => '$',
+    'enabled_currencies' => 'USD, PHP, EUR',
+    'currency_exchange_rates' => "PHP|56\nEUR|0.92",
+]));
+invalidateTenantModuleSettingsCache();
+if (function_exists('ecSettingsResetCache')) {
+    ecSettingsResetCache();
+}
+
+ecCartClear();
+unset($_GET['store'], $_REQUEST['store'], $_SERVER['HTTP_X_STORE_SLUG']);
+$_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY] = 'USD';
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+
+$globalCatalogBefore = ecBuildStorefrontCatalogItem(ecProductGet($globalProductId) ?: [], ['item_base_url' => '/ecommerce/shop']);
+$storeCatalogBefore = ecBuildStorefrontCatalogItem(ecProductGet($storeProductId) ?: [], [
+    'item_base_url' => '/ecommerce/shop',
+    'store_context' => ecStoreById($mixedStoreId),
+]);
+
+$_SERVER['HTTP_X_STORE_SLUG'] = $mixedStoreSlug;
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+$mixedAddResult = ecCartAdd($storeProductId, 1);
+ecCartGet();
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+unset($_SERVER['HTTP_X_STORE_SLUG']);
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+
+$globalCatalogAfter = ecBuildStorefrontCatalogItem(ecProductGet($globalProductId) ?: [], ['item_base_url' => '/ecommerce/shop']);
+$storeCatalogAfter = ecBuildStorefrontCatalogItem(ecProductGet($storeProductId) ?: [], [
+    'item_base_url' => '/ecommerce/shop',
+    'store_context' => ecStoreById($mixedStoreId),
+]);
+
+tmc('§5 store product can still be added in PHP store context', !empty($mixedAddResult['ok']), json_encode($mixedAddResult));
+tmc('§5 global browsing product stays USD before cart visit',
+    (string)($globalCatalogBefore['pricing']['currency'] ?? '') === 'USD'
+        && abs((float)($globalCatalogBefore['pricing']['active_price'] ?? 0) - 200.00) < 0.01,
+    json_encode($globalCatalogBefore['pricing'] ?? [])
+);
+tmc('§5 store browsing product stays PHP before cart visit',
+    (string)($storeCatalogBefore['pricing']['currency'] ?? '') === 'PHP'
+        && abs((float)($storeCatalogBefore['pricing']['active_price'] ?? 0) - 1500.00) < 0.01,
+    json_encode($storeCatalogBefore['pricing'] ?? [])
+);
+tmc('§5 global browsing product remains USD after cart visit',
+    (string)($globalCatalogAfter['pricing']['currency'] ?? '') === 'USD'
+        && abs((float)($globalCatalogAfter['pricing']['active_price'] ?? 0) - 200.00) < 0.01,
+    json_encode($globalCatalogAfter['pricing'] ?? [])
+);
+tmc('§5 store browsing product remains PHP after cart visit',
+    (string)($storeCatalogAfter['pricing']['currency'] ?? '') === 'PHP'
+        && abs((float)($storeCatalogAfter['pricing']['active_price'] ?? 0) - 1500.00) < 0.01,
+    json_encode($storeCatalogAfter['pricing'] ?? [])
+);
+
+// Clean up store context state for subsequent operations.
+ecCartClear();
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+unset($_GET['store'], $_REQUEST['store']);
+unset($_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY]);
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+
+ecommerceMultiCurrencyCleanup($cleanupProductIds, array_filter($cleanupOrderIds), is_array($originalSettings) ? $originalSettings : [], $cleanupStoreIds);
 
 echo "\n════════════════════════════════════════════\n";
 echo "  Results: {$pass} passed, {$fail} failed\n";

@@ -70,11 +70,8 @@ try {
 
 // ── Clean up any previous test data ──────────────────────────────────────
 $pdo->exec("DELETE FROM bridge_ingestion_log WHERE source = 'wordpress_test'");
-// Find and delete test content by provenance
 $testContent = $pdo->query(
-    "SELECT c.id FROM cms_content c
-     INNER JOIN cms_content_meta m ON m.content_id = c.id
-     AND m.meta_key = 'bridge_source' AND m.meta_value = 'wordpress_test'"
+    "SELECT cms_content_id FROM bridge_content_map WHERE source = 'wordpress_test'"
 )->fetchAll(PDO::FETCH_COLUMN) ?: [];
 if (!empty($testContent)) {
     $ids = implode(',', array_map('intval', $testContent));
@@ -83,6 +80,7 @@ if (!empty($testContent)) {
     $pdo->exec("DELETE FROM cms_content_tags WHERE content_id IN ({$ids})");
     $pdo->exec("DELETE FROM cms_content WHERE id IN ({$ids})");
 }
+$pdo->exec("DELETE FROM bridge_content_map WHERE source = 'wordpress_test'");
 
 // ── Find a valid author ID ───────────────────────────────────────────────
 $authorId = (int)($pdo->query("SELECT id FROM cms_users WHERE is_active = 1 ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 0);

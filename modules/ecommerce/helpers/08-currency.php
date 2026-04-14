@@ -273,12 +273,6 @@ function ecCurrentCurrencyCode(): string
         return $requestedCurrency;
     }
 
-    if (ecCartHasStoredItemsRaw() && $cartCurrency !== '') {
-        $_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY] = $cartCurrency;
-        kernel_request_context_set('_ec_current_currency_code', $cartCurrency);
-        return $cartCurrency;
-    }
-
     $sessionCurrency = ecCurrencyNormalizeCode($_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY] ?? '');
     if ($sessionCurrency !== '' && in_array($sessionCurrency, ecCurrencyEnabledCodes(), true)) {
         kernel_request_context_set('_ec_current_currency_code', $sessionCurrency);

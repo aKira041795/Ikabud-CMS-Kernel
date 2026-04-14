@@ -431,9 +431,12 @@ function ecBuildStorefrontCatalogItem(array $product, array $options = []): arra
     // configured.  Pass it as both source and target so no exchange-rate conversion is
     // applied — prices entered through store-admin are native to the store's currency.
     $rawPricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+    if ($storeCtx !== null && function_exists('ecStoreApplyPricingCurrencyOverride')) {
+        $rawPricing = ecStoreApplyPricingCurrencyOverride($rawPricing, $storeCtx);
+    }
     if ($storeCurrencyOverride !== '' && function_exists('ecCurrencyPresentPricing')) {
         $pricing = ecCurrencyPresentPricing(
-            array_merge($rawPricing, ['currency' => $storeCurrencyOverride]),
+            $rawPricing,
             $storeCurrencyOverride
         );
     } else {
@@ -646,11 +649,12 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
     $galleryImages = ecProductNormalizeGalleryImages(is_array($product['gallery_images'] ?? null) ? $product['gallery_images'] : []);
     $bundleChildren = is_array($product['bundle_children'] ?? null) ? $product['bundle_children'] : [];
     $groupedChildren = is_array($product['grouped_children'] ?? null) ? $product['grouped_children'] : [];
+    $storeContext = is_array($options['store_context'] ?? null) ? $options['store_context'] : null;
     ecWmsInventoryWarmProductCollection($bundleChildren);
     ecWmsInventoryWarmProductCollection($groupedChildren);
     $catalogItem = ecBuildStorefrontCatalogItem($product, [
         'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
-        'store_context' => $options['store_context'] ?? null,
+        'store_context' => $storeContext,
     ]);
 
     return [
@@ -658,6 +662,11 @@ function ecBuildStorefrontDetailContext(array $product, array $options = []): ar
             'origin' => trim((string)($options['origin'] ?? 'ecommerce')),
             'kind' => $routeKind,
             'mode' => $presentationMode,
+            'store' => [
+                'id' => (int)($storeContext['id'] ?? 0),
+                'slug' => trim((string)($storeContext['slug'] ?? '')),
+                'name' => trim((string)($storeContext['name'] ?? '')),
+            ],
         ],
         'page' => [
             'kind' => 'detail',

@@ -25,14 +25,16 @@ function ecCartItemsHasColumn(string $column): bool
         return false;
     }
 
-    if (array_key_exists($column, $cache)) {
+    if (($cache[$column] ?? null) === true) {
         return $cache[$column];
     }
 
     try {
-        $stmt = ecDb()->prepare('SHOW COLUMNS FROM ec_cart_items LIKE ?');
-        $stmt->execute([$column]);
-        $cache[$column] = (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt = app()->db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['ec_cart_items', $column]);
+        $cache[$column] = (int)($stmt->fetchColumn() ?: 0) > 0;
     } catch (\Throwable $e) {
         $cache[$column] = false;
     }
@@ -133,15 +135,50 @@ function ecCartResolvedStore(array $items): ?array
     return is_array($store) ? $store : null;
 }
 
+function ecCartResolveStoreContextForProduct(array $product): ?array
+{
+    $storeCtx = null;
+    $storeId  = max(0, (int)($product['store_id'] ?? 0));
+    if ($storeId > 0 && function_exists('ecStoreById')) {
+        $storeCtx = ecStoreById($storeId);
+    }
+    if ($storeCtx === null) {
+        $requestSlug = trim((string)($_GET['store'] ?? ''));
+        if ($requestSlug === '') {
+            $requestSlug = trim((string)($_SERVER['HTTP_X_STORE_SLUG'] ?? ''));
+        }
+        if ($requestSlug !== '' && function_exists('ecStoreResolveContext')) {
+            $storeCtx = ecStoreResolveContext();
+        }
+    }
+
+    return is_array($storeCtx) ? $storeCtx : null;
+}
+
 function ecCartResolveTargetCurrencyForProduct(array $product): string
 {
-    $storeId = max(0, (int)($product['store_id'] ?? 0));
-    if ($storeId > 0 && function_exists('ecStoreSettingsArray')) {
-        $storeSettings = ecStoreSettingsArray($storeId);
-        $storeCurrency = ecCurrencyNormalizeCode($storeSettings['currency'] ?? '');
+    // Store-level currency is authoritative — prices entered through store-admin
+    // are native to that store's currency and must not be converted to whatever
+    // the global/session selection happens to be. Mirror the same resolution
+    // order used in ecBuildStorefrontCatalogItem() so cart and display agree.
+    //
+    // IMPORTANT: only resolve the request store context when the shopper
+    // explicitly selected a store (?store=slug or X-Store-Slug header). The
+    // default-store fallback in ecStoreResolveContext() must not impose a
+    // currency conversion on products that are not assigned to any store; doing
+    // so would apply the exchange-rate multiplier to already-native prices.
+    $storeCtx = ecCartResolveStoreContextForProduct($product);
+    if ($storeCtx !== null && function_exists('ecStoreSettingsArray')) {
+        $storeCurrency = ecCurrencyNormalizeCode(ecStoreSettingsArray($storeCtx)['currency'] ?? '');
         if ($storeCurrency !== '') {
             return $storeCurrency;
         }
+    }
+
+    // No store-level override — honour the shopper's active currency selection.
+    $currentCurrency = ecCurrencyNormalizeCode(function_exists('ecCurrentCurrencyCode') ? ecCurrentCurrencyCode() : '');
+    if ($currentCurrency !== '') {
+        return $currentCurrency;
     }
 
     $pricingCurrency = ecCurrencyNormalizeCode($product['pricing']['currency'] ?? '');
@@ -239,15 +276,16 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null,
         }
     }
 
+    $itemStore = function_exists('ecCartResolveStoreContextForProduct')
+        ? ecCartResolveStoreContextForProduct($product)
+        : null;
     $itemStoreId = max(0, (int)($product['store_id'] ?? 0));
-    if ($itemStoreId > 0 && function_exists('ecStoreById') && function_exists('ecStoreApplyProductOverrides')) {
-        $store = ecStoreById($itemStoreId);
-        if (is_array($store)) {
-            $product = ecStoreApplyProductOverrides($product, $store);
-            if (!is_array($product)) {
-                return ['ok' => false, 'error' => 'This product is not available in the selected store.'];
-            }
+    if ($itemStore !== null && function_exists('ecStoreApplyProductOverrides')) {
+        $product = ecStoreApplyProductOverrides($product, $itemStore);
+        if (!is_array($product)) {
+            return ['ok' => false, 'error' => 'This product is not available in the selected store.'];
         }
+        $itemStoreId = max(0, (int)($itemStore['id'] ?? $itemStoreId));
     }
     $targetCurrency = ecCartResolveTargetCurrencyForProduct($product);
     $existingCart = ecCartGet();
@@ -264,6 +302,9 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null,
     }
 
     $pricing   = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+    if ($itemStore !== null && function_exists('ecStoreApplyPricingCurrencyOverride')) {
+        $pricing = ecStoreApplyPricingCurrencyOverride($pricing, $itemStore);
+    }
     $inventory = $product['inventory'];
 
     if ($inventory['track_stock'] && !$inventory['in_stock']) {
@@ -314,6 +355,9 @@ function ecCartPrepareItem(int $productId, int $qty = 1, ?int $variantId = null,
         'addon_total' => round((float)($extendedData['addon_total'] ?? 0.0), 2),
         'booking' => is_array($extendedData['booking'] ?? null) ? $extendedData['booking'] : ['has_booking' => false],
     ];
+    if (!empty($options['bundle_parent_id'])) {
+        $item['bundle_parent_id'] = max(0, (int)$options['bundle_parent_id']);
+    }
     $item['options_json'] = function_exists('ecCartCanonicalOptionsJson') ? ecCartCanonicalOptionsJson($item) : '';
     $item['options_signature'] = sha1((string)$item['options_json']);
 
@@ -396,6 +440,12 @@ function ecCartPrepareBundleItems(array $product, int $bundleQty = 1): array
         if (!$prepared['ok']) {
             return $prepared;
         }
+
+        $prepared['item']['bundle_parent_id'] = (int)($product['id'] ?? 0);
+        $prepared['item']['options_json'] = function_exists('ecCartCanonicalOptionsJson')
+            ? ecCartCanonicalOptionsJson($prepared['item'])
+            : '';
+        $prepared['item']['options_signature'] = sha1((string)$prepared['item']['options_json']);
 
         $preparedItems[] = $prepared['item'];
         $childSubtotal += ((float)$prepared['item']['price_snapshot'] * (int)$prepared['item']['qty']);

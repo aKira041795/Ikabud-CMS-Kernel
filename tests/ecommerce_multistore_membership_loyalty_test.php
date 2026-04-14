@@ -201,9 +201,11 @@ unset($_GET['store'], $_SERVER['HTTP_X_STORE_SLUG']);
 $ctx = ecStoreResolveContext();
 tMsl('ecStoreResolveContext() returns default store (no param/header)', $ctx !== null && (int)($ctx['id'] ?? 0) === $storeId);
 
-// ecStoreIsMultiStoreActive — only one store, so should be false
+// Shared test state can leave additional active stores behind. The helper must
+// still reflect the actual active-store count for the tenant.
 $multiActive = ecStoreIsMultiStoreActive();
-tMsl('ecStoreIsMultiStoreActive = false with only one store', !$multiActive);
+$activeStoreCount = (int)(ecDb()->query('SELECT COUNT(*) FROM ec_stores WHERE is_active = 1')->fetchColumn() ?: 0);
+tMsl('ecStoreIsMultiStoreActive matches active store count', $multiActive === ($activeStoreCount > 1), (string)$activeStoreCount);
 
 // ─────────────────────────────────────────────────────────────────────────
 // §8  Product overrides

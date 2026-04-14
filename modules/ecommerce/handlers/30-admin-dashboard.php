@@ -48,7 +48,7 @@ function ecAdminDashboard(): void
              FROM ec_orders ORDER BY created_at DESC LIMIT 10"
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-        $lowStock = ecReportInventory();
+        $lowStock = ecReportInventory(['limit' => 50]);
     } catch (\Throwable $e) {
         $todayRevenue = $todayOrders = $pendingOrders = $monthRevenue = 0;
         $recentOrders = [];

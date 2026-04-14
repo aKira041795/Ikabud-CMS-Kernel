@@ -181,8 +181,7 @@ final class CapabilityTestRunner
         $resolver = $app->tenant();
 
         $originalAppConfig = $this->getPrivateProperty($app, 'config');
-        $originalDb = $this->getPrivateProperty($app, 'db');
-        $originalDbLastVerified = $this->getPrivateProperty($app, 'dbLastVerified');
+        $originalDatabaseManager = $this->getPrivateProperty($app, 'databaseManager');
         $originalResolver = [
             'enabled' => $this->getPrivateProperty($resolver, 'enabled'),
             'strategy' => $this->getPrivateProperty($resolver, 'strategy'),
@@ -207,8 +206,7 @@ final class CapabilityTestRunner
         $this->setPrivateProperty($resolver, 'enabled', true);
         $this->setPrivateProperty($resolver, 'strategy', (string)($appConfig['app']['multi_tenant']['strategy'] ?? 'control_host'));
         $resolver->setTenantId($tenantId);
-        $this->setPrivateProperty($app, 'db', null);
-        $this->setPrivateProperty($app, 'dbLastVerified', null);
+        $this->setPrivateProperty($app, 'databaseManager', null);
         if (function_exists('invalidateModuleContextCache')) {
             \invalidateModuleContextCache();
         }
@@ -222,8 +220,7 @@ final class CapabilityTestRunner
             $this->setPrivateProperty($resolver, 'default', $originalResolver['default']);
             $this->setPrivateProperty($resolver, 'resolvedTenantId', $originalResolver['resolvedTenantId']);
             $this->setPrivateProperty($resolver, 'resolved', $originalResolver['resolved']);
-            $this->setPrivateProperty($app, 'db', $originalDb);
-            $this->setPrivateProperty($app, 'dbLastVerified', $originalDbLastVerified);
+            $this->setPrivateProperty($app, 'databaseManager', $originalDatabaseManager);
             if (function_exists('invalidateModuleContextCache')) {
                 \invalidateModuleContextCache();
             }

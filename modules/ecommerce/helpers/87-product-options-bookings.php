@@ -348,6 +348,10 @@ function ecCartCanonicalOptionsJson(array $item): string
 {
     $payload = [];
 
+    if (!empty($item['bundle_parent_id'])) {
+        $payload['bundle_parent_id'] = max(0, (int)$item['bundle_parent_id']);
+    }
+
     if (!empty($item['selected_addons']) && is_array($item['selected_addons'])) {
         $payload['selected_addons'] = array_values(array_map(static function (array $addon): array {
             return [
@@ -423,6 +427,7 @@ function ecHydrateLineItemOptions(array $item, ?string $currencyCode = null): ar
     $item['addon_total'] = $addonTotal;
     $item['addon_total_fmt'] = ecCurrencyFormatAmount($addonTotal, $currencyCode);
     $item['booking'] = array_merge(['has_booking' => false], is_array($booking) ? $booking : []);
+    $item['bundle_parent_id'] = max(0, (int)($decoded['bundle_parent_id'] ?? $item['bundle_parent_id'] ?? 0));
 
     return $item;
 }

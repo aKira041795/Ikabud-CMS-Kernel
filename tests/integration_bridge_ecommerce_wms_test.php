@@ -65,6 +65,8 @@ loadModuleRoutes([
     'DELETE' => [],
 ]);
 
+$originalEcommerceSettings = getModuleSettings('ecommerce');
+
 $suffix = bridgeTestSuffix();
 $cleanup = [
     'reserve_integration_id' => 0,
@@ -87,6 +89,14 @@ $cleanup = [
 ];
 
 try {
+    saveModuleSettings('ecommerce', array_merge(
+        is_array($originalEcommerceSettings) ? $originalEcommerceSettings : [],
+        [
+            'payment_gateway' => 'manual',
+            'manual_payment_mode' => 'pay_on_delivery',
+        ]
+    ));
+
     $db->prepare('DELETE FROM kernel_integration_logs WHERE integration_id IN (SELECT id FROM kernel_integrations WHERE name IN (?, ?))')->execute([
         'test_bridge_reserve_' . $suffix,
         'test_bridge_order_create_' . $suffix,
@@ -659,6 +669,8 @@ try {
     t('Version-lock mismatch logs failure', (string)($versionLockLog['status'] ?? '') === 'failed', (string)($versionLockLog['status'] ?? ''));
     t('Version-lock mismatch error is explicit', str_contains((string)($versionLockLog['error_message'] ?? ''), 'version lock mismatch'), (string)($versionLockLog['error_message'] ?? ''));
 } finally {
+    saveModuleSettings('ecommerce', is_array($originalEcommerceSettings) ? $originalEcommerceSettings : []);
+
     foreach (['reserve_integration_id', 'order_create_integration_id', 'release_integration_id', 'cancel_order_integration_id', 'processing_integration_id', 'shipped_integration_id', 'delivered_integration_id', 'paid_integration_id'] as $integrationKey) {
         $integrationId = (int)($cleanup[$integrationKey] ?? 0);
         if ($integrationId <= 0) {

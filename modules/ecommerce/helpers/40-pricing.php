@@ -502,11 +502,18 @@ function ecShippingQuote(array $items, array $address = [], ?string $couponCode 
         'rates' => $rates,
         'selected_rate_id' => $resolvedRateId,
         'selected_rate' => $selectedRate,
-        'totals' => ecCalculateTotals($items, $couponCode, $resolvedRateId, $location, $options),
+        'totals' => ecCalculateTotals($items, $couponCode, $resolvedRateId, $location, array_merge($options, [
+            'enforce_current_prices' => true,
+        ])),
     ];
 }
-    function ecAuthoritativeCartItemPricing(array $item): ?array
+
+function ecAuthoritativeCartItemPricing(array $item): ?array
     {
+        if (max(0, (int)($item['bundle_parent_id'] ?? 0)) > 0) {
+            return null;
+        }
+
         $productId = max(0, (int)($item['product_id'] ?? 0));
         if ($productId <= 0 || !function_exists('ecProductGet')) {
             return null;
@@ -529,6 +536,7 @@ function ecShippingQuote(array $items, array $address = [], ?string $couponCode 
             }
         }
 
+        $store = null;
         if ($storeId > 0 && function_exists('ecStoreById') && function_exists('ecStoreApplyProductOverrides')) {
             $store = ecStoreById($storeId);
             if (is_array($store)) {
@@ -538,8 +546,10 @@ function ecShippingQuote(array $items, array $address = [], ?string $couponCode 
                 }
             }
         }
-
         $pricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+        if (is_array($store) && function_exists('ecStoreApplyPricingCurrencyOverride')) {
+            $pricing = ecStoreApplyPricingCurrencyOverride($pricing, $store);
+        }
         $segmentUserId = function_exists('ecSegmentCurrentUserId') ? ecSegmentCurrentUserId() : 0;
         if ($segmentUserId > 0 && function_exists('ecCustomerActiveSegments') && function_exists('ecSegmentApplyProductPrice')) {
             $activeSegments = ecCustomerActiveSegments($segmentUserId);
@@ -672,6 +682,9 @@ function ecEnforceCurrentPrices(array $items): array
         if ($pid <= 0) {
             continue;
         }
+        if (max(0, (int)($item['bundle_parent_id'] ?? 0)) > 0) {
+            continue;
+        }
 
         $authoritativePricing = ecAuthoritativeCartItemPricing($item);
         $vid = (int)($item['variant_id'] ?? 0);
@@ -716,10 +729,10 @@ function ecEnforceCurrentPrices(array $items): array
 
 function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shippingRateId = null, array $taxAddress = [], array $options = []): array
 {
-    // F3 Security: Re-fetch authoritative prices from DB to prevent cart price manipulation.
-    // price_snapshot is stored in session/DB and could be tampered with. We replace the base
-    // product price with the current DB price while preserving legitimate add-on adjustments.
-    $items = ecEnforceCurrentPrices($items);
+    // Live cart and checkout flows opt into authoritative pricing explicitly.
+    if (!empty($options['enforce_current_prices'])) {
+        $items = ecEnforceCurrentPrices($items);
+    }
 
     $subtotal = 0.00;
     $currencyCode = ecResolveCartItemsCurrencyCode($items);

@@ -228,6 +228,24 @@ function ecStoreApplyProductOverrides(array $product, array $store): ?array
     return $product;
 }
 
+function ecStoreApplyPricingCurrencyOverride(array $pricing, $store): array
+{
+    if ($pricing === [] || !function_exists('ecStoreSettingsArray')) {
+        return $pricing;
+    }
+
+    $storeSettings = ecStoreSettingsArray($store);
+    $storeCurrency = function_exists('ecCurrencyNormalizeCode')
+        ? ecCurrencyNormalizeCode($storeSettings['currency'] ?? '')
+        : trim((string)($storeSettings['currency'] ?? ''));
+    if ($storeCurrency === '') {
+        return $pricing;
+    }
+
+    $pricing['currency'] = $storeCurrency;
+    return $pricing;
+}
+
 /**
  * Returns the preferred active inventory source for a store (lowest priority value),
  * or null when none configured (fall back to local stock).

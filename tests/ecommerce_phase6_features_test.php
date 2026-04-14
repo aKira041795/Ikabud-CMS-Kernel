@@ -15,6 +15,23 @@ if ($tenantId > 0) {
     syncTenantCliMigrationsForTenant($tenantId, 'ecommerce');
 }
 
+function ecommercePhase6EnsureColumn(string $table, string $column, string $definition): void
+{
+    $db = app()->db();
+    try {
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+        $exists = (int)($stmt->fetchColumn() ?: 0) > 0;
+        if ($exists) {
+            return;
+        }
+        $db->exec("ALTER TABLE {$table} ADD COLUMN {$definition}");
+    } catch (Throwable $e) {
+    }
+}
+
 foreach ([
     __DIR__ . '/../modules/ecommerce/database/migrations/022_ec_subscriptions.sql',
     __DIR__ . '/../modules/ecommerce/database/migrations/025_ec_phase6_product_options_and_loyalty.sql',
@@ -23,6 +40,10 @@ foreach ([
         app()->db()->exec((string)file_get_contents($migrationFile));
     }
 }
+
+ecommercePhase6EnsureColumn('ec_cart_items', 'options_json', 'options_json LONGTEXT NULL AFTER sku');
+ecommercePhase6EnsureColumn('ec_order_items', 'snapshot_json', 'snapshot_json LONGTEXT NULL AFTER variant_label');
+ecommercePhase6EnsureColumn('ec_carts', 'loyalty_points', 'loyalty_points INT NOT NULL DEFAULT 0 AFTER coupon_discount');
 
 $pass = 0;
 $fail = 0;

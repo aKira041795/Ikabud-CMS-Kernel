@@ -152,6 +152,7 @@ function ecReportInventory(array $params = []): array
 {
     $threshold = (int)ecSettings('low_stock_threshold');
     $storeId = max(0, (int)($params['store_id'] ?? 0));
+    $limit = max(0, (int)($params['limit'] ?? 0));
 
     try {
         $join = '';
@@ -225,12 +226,15 @@ function ecReportInventory(array $params = []): array
             return [(int)($left['stock_qty'] ?? 0), (string)($left['title'] ?? '')]
                 <=> [(int)($right['stock_qty'] ?? 0), (string)($right['title'] ?? '')];
         });
-        $rows = array_slice($rows, 0, 50);
+        $count = count($rows);
+        if ($limit > 0) {
+            $rows = array_slice($rows, 0, $limit);
+        }
 
         return [
             'low_stock_threshold' => $threshold,
             'items'               => $rows,
-            'count'               => count($rows),
+            'count'               => $count,
         ];
     } catch (\Throwable $e) {
         write_log('ecReportInventory error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);

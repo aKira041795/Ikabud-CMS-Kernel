@@ -139,7 +139,7 @@ echo "\n=== WMS MODULE ===\n";
 
 t('wms manifest parses', is_array($manifest), 'module.json parse failed');
 t('wms manifest owns 29 tables', count((array)($manifest['owns_tables'] ?? [])) === 29, (string)count((array)($manifest['owns_tables'] ?? [])));
-t('wms manifest has 20 migrations', count((array)($manifest['migrations'] ?? [])) === 20, (string)count((array)($manifest['migrations'] ?? [])));
+t('wms manifest has 22 migrations', count((array)($manifest['migrations'] ?? [])) === 22, (string)count((array)($manifest['migrations'] ?? [])));
 t('wms manifest contains audit_logs ownership', in_array('audit_logs', (array)($manifest['owns_tables'] ?? []), true));
 t('wms manifest declares auth cookie', ($manifest['auth_cookie'] ?? '') === 'wms_token');
 t('wms routes expose login page', isset($routes['GET']['/wms/login']) && $routes['GET']['/wms/login'] === 'wms:wmsPageLogin');

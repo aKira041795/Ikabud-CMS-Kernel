@@ -3,6 +3,7 @@
     <div style="margin-bottom:1.25rem;">
         <p style="margin:0 0 0.2rem;font-size:0.78rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:#94a3b8;">Recently Viewed</p>
         <h2 style="margin:0;font-size:1.25rem;font-weight:700;color:#111827;line-height:1.2;">Back where you left off</h2>
+        <p style="margin:0.35rem 0 0;color:#6b7280;font-size:0.92rem;line-height:1.5;">Jump back into products you looked at during this session.</p>
     </div>
 
     <div class="{if recently_viewed_display_variant == 'horizontal'}{else}grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4{/if}" style="{if recently_viewed_display_variant == 'horizontal'}display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;align-items:stretch;{/if}">
