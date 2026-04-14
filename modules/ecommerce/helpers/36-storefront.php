@@ -171,15 +171,26 @@ function ecStorefrontNormalizeInventory(array $inventory): array
 {
     $trackStock = (bool)($inventory['track_stock'] ?? false);
     $stockQty = array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : 0;
-    $inStock = array_key_exists('in_stock', $inventory)
-        ? (bool)$inventory['in_stock']
-        : (!$trackStock || (($stockQty ?? 0) > 0));
-    $outOfStock = array_key_exists('out_of_stock', $inventory)
-        ? (bool)$inventory['out_of_stock']
-        : ($trackStock && (($stockQty ?? 0) <= 0));
-    $lowStock = array_key_exists('low_stock', $inventory)
-        ? (bool)$inventory['low_stock']
-        : ($trackStock && !$outOfStock && $stockQty !== null && $stockQty <= (int)ecSettings('low_stock_threshold'));
+
+    // When stock tracking is disabled the product is unconditionally available —
+    // ignore any stale in_stock/out_of_stock/low_stock flags that may have been
+    // written to the row while tracking was previously active.  This also covers
+    // digital/downloadable products which are never quantity-constrained.
+    if (!$trackStock) {
+        $inStock    = true;
+        $outOfStock = false;
+        $lowStock   = false;
+    } else {
+        $inStock = array_key_exists('in_stock', $inventory)
+            ? (bool)$inventory['in_stock']
+            : ($stockQty > 0);
+        $outOfStock = array_key_exists('out_of_stock', $inventory)
+            ? (bool)$inventory['out_of_stock']
+            : ($stockQty <= 0);
+        $lowStock = array_key_exists('low_stock', $inventory)
+            ? (bool)$inventory['low_stock']
+            : (!$outOfStock && $stockQty <= (int)ecSettings('low_stock_threshold'));
+    }
 
     return [
         'track_stock' => $trackStock,
