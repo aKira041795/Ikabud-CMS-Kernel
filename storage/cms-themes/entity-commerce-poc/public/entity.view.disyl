@@ -8,6 +8,43 @@
 {block content}
 <article class="poc-entity-view poc-entity-view--{entity_presentation.layout_profile|default:'default'}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if} data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}" data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}" data-storefront-page-kind="{storefront.page.kind|default:'entity'}" data-storefront-product-id="{storefront.product.id|default:entity.id|default:''}">
 
+    {if public_render_origin == 'ecommerce' and (store_banner.headline or store_banner.subtext or store_hours_schedule | count > 0)}
+    <div style="display:grid; gap:20px; margin-bottom:32px;{if store_hours_schedule | count > 0} grid-template-columns:minmax(0,1.8fr) minmax(260px,0.82fr); align-items:stretch;{/if}">
+        {if store_banner.headline or store_banner.subtext}
+        <section class="poc-entity-view__header" style="margin-bottom:0; padding:28px; align-items:flex-start; border:1px solid var(--poc-border-strong); border-radius:var(--radius-card); background:{if store_banner.image_url}linear-gradient(135deg, color-mix(in srgb, var(--color-text) 72%, transparent), color-mix(in srgb, var(--color-text) 36%, transparent)), url('{store_banner.image_url | escape}') center/cover no-repeat{else}linear-gradient(135deg, var(--poc-primary-soft), color-mix(in srgb, var(--poc-badge-bg) 70%, transparent)){/if}; box-shadow:var(--shadow-card);">
+            <div>
+                <p class="poc-kicker" style="margin-bottom:10px; color:{if store_banner.image_url}rgba(255,250,242,0.86){else}var(--color-primary){/if};">{if active_store.name}{active_store.name | escape}{else}Storefront{/if}</p>
+                {if store_banner.headline}<h2 class="poc-title" style="font-size:clamp(1.9rem,3.6vw,3.1rem); max-width:14ch; color:{if store_banner.image_url}#fffaf2{else}var(--color-text){/if};">{store_banner.headline | escape}</h2>{/if}
+                {if store_banner.subtext}<p class="poc-summary" style="margin:16px 0 0; max-width:42rem; color:{if store_banner.image_url}rgba(255,250,242,0.82){else}var(--color-muted){/if};">{store_banner.subtext | escape}</p>{/if}
+                {if store_banner.cta_text}
+                <div style="margin-top:18px;">
+                    <a href="{store_banner.cta_url | escape}" class="poc-entity-list__search-submit" style="display:inline-flex; text-decoration:none;">{store_banner.cta_text | escape}</a>
+                </div>
+                {/if}
+            </div>
+        </section>
+        {/if}
+
+        {if store_hours_schedule | count > 0}
+        <aside class="poc-entity-view__summary-card" style="margin:0; padding:24px; border:1px solid var(--poc-border-strong); border-radius:var(--radius-card); background:var(--poc-surface-panel); box-shadow:var(--shadow-card);">
+            <p class="poc-kicker" style="margin-bottom:10px;">Store Hours</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                <h2 style="margin:0; font-size:1.25rem; line-height:1.1;">{if store_is_open}Open now{else}Closed now{/if}</h2>
+                <span class="poc-entity-list__filter {if store_is_open}poc-entity-list__filter--category{else}poc-entity-list__filter--search{/if}">{if store_is_open}Open{else}Closed{/if}</span>
+            </div>
+            <div style="display:grid; gap:10px;">
+                {foreach store_hours_schedule as day}
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; border-radius:20px; background:{if day.today}var(--poc-primary-soft){else}var(--poc-surface-soft){/if}; border:1px solid {if day.today}var(--poc-primary-border){else}var(--poc-border-soft){/if}; font-family:'Helvetica Neue', Arial, sans-serif; font-size:0.9rem; color:var(--color-text);">
+                    <strong style="font-weight:700;">{day.label}</strong>
+                    <span style="color:var(--color-muted);">{if day.open}{day.from} - {day.to}{else}Closed{/if}</span>
+                </div>
+                {/foreach}
+            </div>
+        </aside>
+        {/if}
+    </div>
+    {/if}
+
     {if entity_presentation.layout_profile == 'commerce'}
 
     {* ── Commerce layout: media + info side-by-side ───────────────── *}

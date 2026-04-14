@@ -42,6 +42,16 @@ function ecStoreIsMultiStoreActive(): bool
 }
 
 /**
+ * Returns true when multi-store has been enabled in settings AND more than one
+ * active store exists. Use this everywhere instead of ecStoreIsMultiStoreActive()
+ * so the admin toggle is respected.
+ */
+function ecIsMultiStoreEnabled(): bool
+{
+    return (bool)ecSettings('feature_multistore_enabled', true) && ecStoreIsMultiStoreActive();
+}
+
+/**
  * Returns the default store row (is_default = 1), cached per request.
  * Returns null when no default store is configured or storage is unavailable.
  */
@@ -366,6 +376,10 @@ function ecStoreSettingsJsonFromInput(array $input): ?string
     $fields = ['currency', 'currency_symbol', 'timezone', 'tax_rate', 'checkout_note'];
     $shippingTextFields = ['shipping_label', 'shipping_carrier', 'shipping_estimated_days', 'shipping_default_country'];
     $shippingNumberFields = ['shipping_flat_rate', 'shipping_free_above'];
+    $themeOptions = ['orange', 'indigo', 'emerald', 'rose'];
+    $bannerModeOptions = ['show', 'hide'];
+    $socialModeOptions = ['custom', 'hide'];
+    $hoursModeOptions = ['custom'];
 
     foreach ($fields as $field) {
         $value = trim((string)($input['setting_' . $field] ?? ''));
@@ -396,6 +410,51 @@ function ecStoreSettingsJsonFromInput(array $input): ?string
     $tableRateRules = trim((string)($input['setting_shipping_table_rate_rules'] ?? ''));
     if ($tableRateRules !== '') {
         $settings['shipping_table_rate_rules'] = $tableRateRules;
+    }
+
+    $theme = trim((string)($input['setting_storefront_theme'] ?? ''));
+    if (in_array($theme, $themeOptions, true)) {
+        $settings['storefront_theme'] = $theme;
+    }
+
+    $bannerMode = trim((string)($input['setting_store_banner_mode'] ?? ''));
+    if (in_array($bannerMode, $bannerModeOptions, true)) {
+        $settings['store_banner_mode'] = $bannerMode;
+    }
+
+    foreach (['store_banner_headline', 'store_banner_subtext', 'store_banner_image_url', 'store_banner_cta_text', 'store_banner_cta_url'] as $field) {
+        $value = trim((string)($input['setting_' . $field] ?? ''));
+        if ($value !== '') {
+            $settings[$field] = $value;
+        }
+    }
+
+    $socialMode = trim((string)($input['setting_social_links_mode'] ?? ''));
+    if (in_array($socialMode, $socialModeOptions, true)) {
+        $settings['social_links_mode'] = $socialMode;
+    }
+
+    foreach (['social_facebook', 'social_instagram', 'social_tiktok', 'social_twitter', 'social_youtube'] as $field) {
+        $value = trim((string)($input['setting_' . $field] ?? ''));
+        if ($value !== '') {
+            $settings[$field] = $value;
+        }
+    }
+
+    $hoursMode = trim((string)($input['setting_store_hours_mode'] ?? ''));
+    if (in_array($hoursMode, $hoursModeOptions, true)) {
+        $settings['store_hours_mode'] = $hoursMode;
+        $hoursInput = $input['setting_store_hours'] ?? [];
+        $hours = [];
+        foreach (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as $day) {
+            $dayInput = is_array($hoursInput[$day] ?? null) ? $hoursInput[$day] : [];
+            $hours[$day] = [
+                'open' => !empty($dayInput['open']),
+                'from' => preg_replace('/[^0-9:]/', '', (string)($dayInput['from'] ?? '09:00')),
+                'to' => preg_replace('/[^0-9:]/', '', (string)($dayInput['to'] ?? '17:00')),
+            ];
+        }
+        $settings['store_hours'] = $hours;
     }
 
     return $settings !== []

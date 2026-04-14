@@ -6,7 +6,7 @@ declare(strict_types=1);
 // Ecommerce Module — Public Shop Handlers (handlers/10-public-shop.php)
 // ─────────────────────────────────────────────────────────────────────────
 
-function ecPublicStorefrontCategories(int $activeCategoryId = 0): array
+function ecPublicStorefrontCategories(int $activeCategoryId = 0, array $query = []): array
 {
     $categories = ecDb()->query(
         ecCmsCategorySelectSql('id, name, slug', 'name ASC')
@@ -21,13 +21,18 @@ function ecPublicStorefrontCategories(int $activeCategoryId = 0): array
         }
 
         $categorySlug = trim((string)($category['slug'] ?? ''));
+        $categoryBaseUrl = $categorySlug !== ''
+            ? '/ecommerce/shop/category/' . rawurlencode($categorySlug)
+            : '/ecommerce/shop';
+        $categoryQuery = $query;
+        if ($categorySlug === '') {
+            $categoryQuery['cat'] = $categoryId;
+        }
         $resolved[] = [
             'id' => $categoryId,
             'slug' => $categorySlug,
             'name' => $categoryName,
-            'url' => $categorySlug !== ''
-                ? '/ecommerce/shop/category/' . rawurlencode($categorySlug)
-                : '/ecommerce/shop?cat=' . $categoryId,
+            'url' => ecPublicStorefrontPageUrl($categoryBaseUrl, 1, $categoryQuery),
             'is_active' => $activeCategoryId === $categoryId,
         ];
     }
@@ -55,6 +60,51 @@ function ecPublicStorefrontPageUrl(string $basePath, int $page, array $query = [
     }
 
     return $basePath . '?' . $queryString;
+}
+
+function ecPublicStorefrontRequestedStoreFilter(bool $autoScope = true): int
+{
+    $storeInput = trim((string)(ecInput()['store'] ?? ''));
+    $storeFilter = 0;
+    if ($storeInput !== '') {
+        if (is_numeric($storeInput)) {
+            $storeFilter = (int)$storeInput;
+        } elseif (function_exists('ecStoreBySlug')) {
+            $storeBySlug = ecStoreBySlug($storeInput);
+            if (is_array($storeBySlug) && !empty($storeBySlug['id'])) {
+                $storeFilter = (int)$storeBySlug['id'];
+            }
+        }
+    }
+
+    if (!$autoScope || $storeFilter !== 0 || !function_exists('ecStoresForUser') || !function_exists('ecStoreStorageAvailable') || !ecStoreStorageAvailable()) {
+        return $storeFilter;
+    }
+
+    $shopUser = app()->user();
+    if (!is_array($shopUser)) {
+        return $storeFilter;
+    }
+
+    $shopRole   = (string)($shopUser['role'] ?? '');
+    $shopSource = (string)($shopUser['source'] ?? '');
+    $isCmsAdmin = $shopSource === 'kernel'
+        || (function_exists('cmsRoleAtLeast') && cmsRoleAtLeast($shopRole, 'administrator'));
+    if ($isCmsAdmin) {
+        return $storeFilter;
+    }
+
+    $shopUserId = (int)($shopUser['id'] ?? 0);
+    if ($shopUserId <= 0) {
+        return $storeFilter;
+    }
+
+    $userStores = ecStoresForUser($shopUserId);
+    if (count($userStores) === 1) {
+        return (int)($userStores[0]['store_id'] ?? 0);
+    }
+
+    return $storeFilter;
 }
 
 function ecPublicDecorateCatalogProducts(array $products): array
@@ -91,40 +141,7 @@ function ecPublicShop(): void
 {
     $search     = trim((string)(ecInput()['search'] ?? ''));
     $categoryId = (int)(ecInput()['cat'] ?? 0);
-    $storeInput = trim((string)(ecInput()['store'] ?? ''));
-    $storeFilter = 0;
-    if ($storeInput !== '') {
-        if (is_numeric($storeInput)) {
-            $storeFilter = (int)$storeInput;
-        } elseif (function_exists('ecStoreBySlug')) {
-            $storeBySlug = ecStoreBySlug($storeInput);
-            if (is_array($storeBySlug) && !empty($storeBySlug['id'])) {
-                $storeFilter = (int)$storeBySlug['id'];
-            }
-        }
-    }
-    // Auto-scope: if no ?store= param and the logged-in user is a store owner/manager/supervisor
-    // (but NOT a CMS admin), resolve their first assigned store automatically.
-    if ($storeFilter === 0 && function_exists('ecStoresForUser') && function_exists('ecStoreStorageAvailable') && ecStoreStorageAvailable()) {
-        $shopUser = app()->user();
-        if (is_array($shopUser)) {
-            $shopRole   = (string)($shopUser['role'] ?? '');
-            $shopSource = (string)($shopUser['source'] ?? '');
-            $isCmsAdmin = $shopSource === 'kernel'
-                || (function_exists('cmsRoleAtLeast') && cmsRoleAtLeast($shopRole, 'administrator'));
-            if (!$isCmsAdmin) {
-                $shopUserId = (int)($shopUser['id'] ?? 0);
-                if ($shopUserId > 0) {
-                    $userStores = ecStoresForUser($shopUserId);
-                    if (count($userStores) === 1) {
-                        // Single-store user: silently scope to their store.
-                        $storeFilter = (int)($userStores[0]['store_id'] ?? 0);
-                    }
-                    // Multi-store users keep the global view; they can append ?store= to scope.
-                }
-            }
-        }
-    }
+    $storeFilter = function_exists('ecPublicStorefrontRequestedStoreFilter') ? ecPublicStorefrontRequestedStoreFilter() : 0;
 
     $attributeFilters = function_exists('ecProductAttributeFiltersFromInput') ? ecProductAttributeFiltersFromInput(ecInput()) : [];
     $perPage    = (int)ecSettings('products_per_page');
@@ -136,8 +153,15 @@ function ecPublicShop(): void
 
     ecWithPublicThemeRouteContext($routeContext, static function () use ($search, $categoryId, $storeFilter, $attributeFilters, $perPage, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_index', $routeContext);
+        $activeStore = $storeFilter > 0 ? ecStoreById($storeFilter) : null;
+        $canonicalAllItemsUrl = ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
+            'store' => $storeFilter ?: null,
+        ]);
+        $canonicalSearchActionUrl = $canonicalAllItemsUrl;
 
-        $availableCategories = ecPublicStorefrontCategories($categoryId);
+        $availableCategories = ecPublicStorefrontCategories($categoryId, [
+            'store' => $storeFilter ?: null,
+        ]);
         $currentCategory = null;
         foreach ($availableCategories as $category) {
             if ((int)($category['id'] ?? 0) !== $categoryId) {
@@ -162,8 +186,8 @@ function ecPublicShop(): void
             'list_title' => trim((string)ecSettings('shop_page_title')),
             'available_categories' => $availableCategories,
             'attribute_filters' => $attributeFilters,
-            'all_items_url' => '/ecommerce/shop',
-            'search_action_url' => '/ecommerce/shop',
+            'all_items_url' => $canonicalAllItemsUrl,
+            'search_action_url' => $canonicalSearchActionUrl,
             'store_id' => $storeFilter ?: null,
             'public_render_origin' => 'ecommerce',
             'public_route_kind' => 'shop_index',
@@ -197,10 +221,9 @@ function ecPublicShop(): void
         $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
 
         // Phase 2 multi-store: load active stores for sidebar facet.
-        $activeStores = ecStoreIsMultiStoreActive()
+        $activeStores = (function_exists('ecIsMultiStoreEnabled') ? ecIsMultiStoreEnabled() : ecStoreIsMultiStoreActive())
             ? (ecStoreList(['active_only' => true])['items'] ?? [])
             : [];
-        $activeStore = $storeFilter > 0 ? ecStoreById($storeFilter) : null;
         $paginationFirstUrl = ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
             'search' => $search,
             'cat' => $categoryId,
@@ -250,7 +273,7 @@ function ecPublicShop(): void
             ],
         ]);
 
-        ecRender('modules/ecommerce/public/shop.disyl', [
+        ecRender('modules/ecommerce/public/shop.disyl', array_merge([
             'page_title' => trim((string)ecSettings('shop_page_title')) ?: 'Shop',
             'products' => $products,
             'total' => $productResult['total'],
@@ -281,7 +304,7 @@ function ecPublicShop(): void
             'active_stores' => $activeStores,
             'store_filter' => $storeFilter,
             'active_store' => $activeStore,
-        ]);
+        ], function_exists('ecStorefrontRenderContext') ? ecStorefrontRenderContext($activeStore) : []));
     });
 }
 
@@ -293,6 +316,7 @@ function ecPublicCategory(array $params = []): void
 {
     $slug = (string)($params['slug'] ?? '');
     $search = trim((string)(ecInput()['search'] ?? ''));
+    $storeFilter = function_exists('ecPublicStorefrontRequestedStoreFilter') ? ecPublicStorefrontRequestedStoreFilter() : 0;
     $attributeFilters = function_exists('ecProductAttributeFiltersFromInput') ? ecProductAttributeFiltersFromInput(ecInput()) : [];
     if (!$slug) {
         header('Location: /ecommerce/shop');
@@ -302,12 +326,23 @@ function ecPublicCategory(array $params = []): void
     $routeContext = [
         'public_render_origin' => 'ecommerce',
         'public_route_kind' => 'shop_category',
+        'store_id' => $storeFilter > 0 ? $storeFilter : null,
     ];
 
-    ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $attributeFilters, $routeContext): void {
+    ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $attributeFilters, $routeContext, $storeFilter): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_category', $routeContext);
         $search = trim((string)(ecInput()['search'] ?? ''));
         $perPage = (int)ecSettings('products_per_page');
+        $activeStore = $storeFilter > 0 ? ecStoreById($storeFilter) : null;
+        $canonicalAllItemsUrl = ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
+            'store' => $storeFilter ?: null,
+        ]);
+        $canonicalSearchActionUrl = ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), 1, [
+            'store' => $storeFilter ?: null,
+        ]);
+        $availableCategories = ecPublicStorefrontCategories(0, [
+            'store' => $storeFilter ?: null,
+        ]);
 
         if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityList', [
                 'type' => 'product',
@@ -316,10 +351,11 @@ function ecPublicCategory(array $params = []): void
                 'per_page' => $perPage,
                 'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
                 'item_base_url' => '/ecommerce/shop',
-                'all_items_url' => '/ecommerce/shop',
-                'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
-                'available_categories' => ecPublicStorefrontCategories(),
+                'all_items_url' => $canonicalAllItemsUrl,
+                'search_action_url' => $canonicalSearchActionUrl,
+                'available_categories' => $availableCategories,
                 'attribute_filters' => $attributeFilters,
+                'store_id' => $storeFilter ?: null,
                 'public_render_origin' => 'ecommerce',
                 'public_route_kind' => 'shop_category',
                 'public_presentation_mode' => $presentationMode,
@@ -341,7 +377,9 @@ function ecPublicCategory(array $params = []): void
 
         $page    = max(1, (int)(ecInput()['page'] ?? 1));
         $offset  = ($page - 1) * $perPage;
-        $availableCategories = ecPublicStorefrontCategories((int)$cat['id']);
+        $availableCategories = ecPublicStorefrontCategories((int)$cat['id'], [
+            'store' => $storeFilter ?: null,
+        ]);
         $attributeFacets = function_exists('ecProductAttributeFacetSummary')
             ? ecProductAttributeFacetSummary([
                 'category_id' => (int)$cat['id'],
@@ -355,6 +393,8 @@ function ecPublicCategory(array $params = []): void
             'category_id' => (int)$cat['id'],
             'search'      => $search,
             'attribute_filters' => $attributeFilters,
+            'store_id' => $storeFilter ?: null,
+            'store_owned_only' => $storeFilter > 0,
             'status'      => 'published',
             'limit'       => $perPage,
             'offset'      => $offset,
@@ -363,19 +403,25 @@ function ecPublicCategory(array $params = []): void
 
         $totalPages = $perPage > 0 ? (int)ceil($productResult['total'] / $perPage) : 1;
         $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
+        $activeStores = (function_exists('ecIsMultiStoreEnabled') ? ecIsMultiStoreEnabled() : ecStoreIsMultiStoreActive())
+            ? (ecStoreList(['active_only' => true])['items'] ?? [])
+            : [];
         $paginationFirstUrl = ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), 1, [
             'search' => $search,
+            'store' => $storeFilter ?: null,
             'attr' => $attributeFilters,
         ]);
         $paginationPrevUrl = $page > 1
             ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page - 1, [
                 'search' => $search,
+                'store' => $storeFilter ?: null,
                 'attr' => $attributeFilters,
             ])
             : '';
         $paginationNextUrl = $page < $totalPages
             ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page + 1, [
                 'search' => $search,
+                'store' => $storeFilter ?: null,
                 'attr' => $attributeFilters,
             ])
             : '';
@@ -407,7 +453,7 @@ function ecPublicCategory(array $params = []): void
             ],
         ]);
 
-        ecRender('modules/ecommerce/public/shop.disyl', [
+        ecRender('modules/ecommerce/public/shop.disyl', array_merge([
             'page_title'  => $cat['name'],
             'products'    => $products,
             'total'       => $productResult['total'],
@@ -435,7 +481,10 @@ function ecPublicCategory(array $params = []): void
             'storefront' => $storefront,
             'public_route_kind' => 'shop_category',
             'public_presentation_mode' => $presentationMode,
-        ]);
+            'active_stores' => $activeStores,
+            'store_filter' => $storeFilter,
+            'active_store' => $activeStore,
+        ], function_exists('ecStorefrontRenderContext') ? ecStorefrontRenderContext($activeStore) : []));
     });
 }
 
@@ -482,8 +531,9 @@ function ecPublicProduct(array $params = []): void
         }
 
         $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
-        $reviewSummary = function_exists('ecReviewSummary') ? ecReviewSummary((int)($product['id'] ?? 0)) : ecReviewDefaultSummary();
-        $reviews = function_exists('ecReviewList')
+        $reviewsEnabled = function_exists('ecReviewsEnabled') ? ecReviewsEnabled() : true;
+        $reviewSummary = ($reviewsEnabled && function_exists('ecReviewSummary')) ? ecReviewSummary((int)($product['id'] ?? 0)) : ecReviewDefaultSummary();
+        $reviews = ($reviewsEnabled && function_exists('ecReviewList'))
             ? (ecReviewList([
                 'product_id' => (int)($product['id'] ?? 0),
                 'status' => 'approved',
@@ -517,10 +567,13 @@ function ecPublicProduct(array $params = []): void
         $product['pricing'] = (array)($storefront['product']['pricing'] ?? $product['pricing'] ?? []);
         $product['bundle_summary'] = (array)($storefront['product']['bundle_summary'] ?? $product['bundle_summary'] ?? []);
         $product['subscription_summary'] = (array)($storefront['product']['subscription_summary'] ?? $product['subscription_summary'] ?? []);
+        $productStoreId = max(0, (int)($product['store_id'] ?? 0));
+        $productStore = $productStoreId > 0 && function_exists('ecStoreById') ? ecStoreById($productStoreId) : null;
 
-        ecRender('modules/ecommerce/public/product.disyl', [
+        ecRender('modules/ecommerce/public/product.disyl', array_merge([
             'page_title'  => $seoPageTitle,
             'product'     => $product,
+            'reviews_enabled' => $reviewsEnabled,
             'review_summary' => $reviewSummary,
             'reviews' => $reviews,
             'relation_sections' => $relationSections,
@@ -536,6 +589,6 @@ function ecPublicProduct(array $params = []): void
             'storefront' => $storefront,
             'public_route_kind' => 'product_detail',
             'public_presentation_mode' => $presentationMode,
-        ]);
+        ], function_exists('ecStorefrontRenderContext') ? ecStorefrontRenderContext($productStore) : []));
     });
 }

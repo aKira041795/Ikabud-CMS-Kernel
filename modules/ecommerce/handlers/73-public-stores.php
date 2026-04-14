@@ -20,11 +20,11 @@ function ecPublicStoreDirectory(): void
     ecWithPublicThemeRouteContext($routeContext, static function () use ($routeContext): void {
         $stores = ecStoreList(['active_only' => true])['items'] ?? [];
 
-        ecRender('modules/ecommerce/public/stores.disyl', [
+        ecRender('modules/ecommerce/public/stores.disyl', array_merge([
             'page_title'         => 'Our Stores',
             'stores'             => $stores,
             'public_route_kind'  => 'store_directory',
-        ]);
+        ], function_exists('ecStorefrontRenderContext') ? ecStorefrontRenderContext() : []));
     });
 }
 
@@ -66,7 +66,7 @@ function ecPublicStorePage(array $params = []): void
 
         $inventorySource = ecStoreInventorySource($storeId);
 
-        ecRender('modules/ecommerce/public/store-page.disyl', [
+        ecRender('modules/ecommerce/public/store-page.disyl', array_merge([
             'page_title'       => (string)($store['name'] ?? 'Store'),
             'store'            => $store,
             'products'         => $products,
@@ -74,6 +74,6 @@ function ecPublicStorePage(array $params = []): void
             'inventory_source' => $inventorySource,
             'shop_url'         => '/ecommerce/shop?store=' . $storeId,
             'public_route_kind' => 'store_page',
-        ]);
+        ], function_exists('ecStorefrontRenderContext') ? ecStorefrontRenderContext($store) : []));
     });
 }

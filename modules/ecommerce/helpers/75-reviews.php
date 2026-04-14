@@ -25,6 +25,11 @@ function ecReviewStorageAvailable(): bool
     return $ready;
 }
 
+function ecReviewsEnabled(): bool
+{
+    return ecReviewStorageAvailable() && (bool)ecSettings('feature_reviews_enabled', true);
+}
+
 function ecReviewNormalizeSummary(array $summary): array
 {
     $approvedCount = max(0, (int)($summary['approved_count'] ?? 0));

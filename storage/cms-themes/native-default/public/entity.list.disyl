@@ -27,6 +27,45 @@
     data-list-result-count="{entity_list_context.result_count|default:0}"
     data-list-active-filter-count="{entity_list_context.active_filter_count|default:0}"
 >
+    {if public_render_origin == 'ecommerce' and (store_banner.headline or store_banner.subtext or store_hours_schedule | count > 0)}
+    <div style="display:grid; gap:1rem; margin-bottom:1.25rem;{if store_hours_schedule | count > 0} grid-template-columns:minmax(0,1.65fr) minmax(280px,0.85fr); align-items:stretch;{/if}">
+        {if store_banner.headline or store_banner.subtext}
+        <section class="native-storefront-hero native-canonical-hero"{if store_banner.image_url} style="position:relative; overflow:hidden; color:#f8fafc; background-image:linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.35)), url('{store_banner.image_url | escape}'); background-size:cover; background-position:center;"{/if}>
+            <div style="position:relative; z-index:1;">
+                <p class="native-storefront-kicker">{if active_store.name}{active_store.name | escape}{else}Storefront{/if}</p>
+                {if store_banner.headline}<h2 style="margin:0; font-size:clamp(1.85rem,4vw,2.75rem); line-height:1.05;">{store_banner.headline | escape}</h2>{/if}
+                {if store_banner.subtext}<p class="native-storefront-subtitle"{if store_banner.image_url} style="color:rgba(248, 250, 252, 0.86);"{/if}>{store_banner.subtext | escape}</p>{/if}
+                {if store_banner.cta_text}
+                <div style="margin-top:1.25rem;">
+                    <a href="{store_banner.cta_url | escape}" class="button button-primary">{store_banner.cta_text | escape}</a>
+                </div>
+                {/if}
+            </div>
+        </section>
+        {/if}
+
+        {if store_hours_schedule | count > 0}
+        <aside class="native-storefront-panel">
+            <div class="native-inline-actions" style="justify-content:space-between; align-items:flex-start; gap:0.75rem;">
+                <div>
+                    <p class="native-storefront-kicker" style="margin-bottom:0.35rem;">Store Hours</p>
+                    <h2 class="native-panel-title" style="margin:0;">{if store_is_open}Open now{else}Closed now{/if}</h2>
+                </div>
+                <span class="native-pill {if store_is_open}native-pill--sale{else}native-pill--muted{/if}">{if store_is_open}Open{else}Closed{/if}</span>
+            </div>
+            <div class="native-stack" style="margin-top:1rem; gap:0.5rem;">
+                {foreach store_hours_schedule as day}
+                <div class="native-key-value" style="padding:0.7rem 0.85rem; border-radius:16px; background:{if day.today}rgba(241, 245, 249, 0.85){else}rgba(248, 250, 252, 0.9){/if}; border:1px solid rgba(15, 23, 42, 0.06);">
+                    <strong>{day.label}</strong>
+                    <span class="native-muted">{if day.open}{day.from} - {day.to}{else}Closed{/if}</span>
+                </div>
+                {/foreach}
+            </div>
+        </aside>
+        {/if}
+    </div>
+    {/if}
+
     {if list_title}
     <header class="native-storefront-hero native-canonical-hero">
         <div>

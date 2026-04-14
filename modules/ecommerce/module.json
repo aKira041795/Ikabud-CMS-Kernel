@@ -891,6 +891,152 @@
             "label": "Minimum Points to Redeem",
             "default": "100",
             "description": "Minimum loyalty point balance required before a customer can redeem. Set to 0 to disable minimum."
+        },
+        {
+            "key": "feature_reviews_enabled",
+            "type": "checkbox",
+            "label": "Customer Reviews",
+            "default": true,
+            "description": "Show customer reviews and the review submission form on product pages."
+        },
+        {
+            "key": "feature_loyalty_enabled",
+            "type": "checkbox",
+            "label": "Loyalty Program",
+            "default": true,
+            "description": "Enable loyalty point earning, redemption, and the customer rewards account tab."
+        },
+        {
+            "key": "feature_subscriptions_enabled",
+            "type": "checkbox",
+            "label": "Subscriptions",
+            "default": true,
+            "description": "Allow subscription products in the catalog and recurring cart and checkout flows."
+        },
+        {
+            "key": "feature_memberships_enabled",
+            "type": "checkbox",
+            "label": "Memberships",
+            "default": true,
+            "description": "Enable membership products, membership-gated catalog access, and CMS content gating."
+        },
+        {
+            "key": "feature_bookings_enabled",
+            "type": "checkbox",
+            "label": "Bookings & Appointments",
+            "default": true,
+            "description": "Enable bookable service products and appointment slot selection at checkout."
+        },
+        {
+            "key": "feature_pos_enabled",
+            "type": "checkbox",
+            "label": "Point of Sale (POS)",
+            "default": true,
+            "description": "Enable the POS terminal for in-store transactions."
+        },
+        {
+            "key": "feature_multistore_enabled",
+            "type": "checkbox",
+            "label": "Multi-Store",
+            "default": true,
+            "description": "Enable multi-store mode when more than one active store exists. Disabling hides store admin surfaces and forces single-store behavior."
+        },
+        {
+            "key": "storefront_theme",
+            "type": "select",
+            "label": "Color Theme",
+            "default": "orange",
+            "options": [
+                "orange",
+                "indigo",
+                "emerald",
+                "rose"
+            ],
+            "description": "Color scheme applied to buttons, links, and accents across the public storefront."
+        },
+        {
+            "key": "store_banner_enabled",
+            "type": "checkbox",
+            "label": "Show Store Banner",
+            "default": false,
+            "description": "Display a hero banner at the top of the shop page."
+        },
+        {
+            "key": "store_banner_headline",
+            "type": "text",
+            "label": "Banner Headline",
+            "default": "",
+            "description": "Large heading text shown in the banner."
+        },
+        {
+            "key": "store_banner_subtext",
+            "type": "text",
+            "label": "Banner Subtext",
+            "default": "",
+            "description": "Secondary line of text shown below the headline."
+        },
+        {
+            "key": "store_banner_image_url",
+            "type": "text",
+            "label": "Banner Image URL",
+            "default": "",
+            "description": "Full URL of the background image for the banner. Leave blank for a solid colour background."
+        },
+        {
+            "key": "store_banner_cta_text",
+            "type": "text",
+            "label": "CTA Button Text",
+            "default": "Shop Now",
+            "description": "Label for the call-to-action button in the banner. Leave blank to hide the button."
+        },
+        {
+            "key": "store_banner_cta_url",
+            "type": "text",
+            "label": "CTA Button URL",
+            "default": "",
+            "description": "Where the CTA button links to. Defaults to the shop page when blank."
+        },
+        {
+            "key": "social_facebook",
+            "type": "text",
+            "label": "Facebook URL",
+            "default": "",
+            "description": "Full URL to your Facebook page (e.g. https://facebook.com/yourpage)."
+        },
+        {
+            "key": "social_instagram",
+            "type": "text",
+            "label": "Instagram URL",
+            "default": "",
+            "description": "Full URL to your Instagram profile."
+        },
+        {
+            "key": "social_tiktok",
+            "type": "text",
+            "label": "TikTok URL",
+            "default": "",
+            "description": "Full URL to your TikTok profile."
+        },
+        {
+            "key": "social_twitter",
+            "type": "text",
+            "label": "X / Twitter URL",
+            "default": "",
+            "description": "Full URL to your X (Twitter) profile."
+        },
+        {
+            "key": "social_youtube",
+            "type": "text",
+            "label": "YouTube URL",
+            "default": "",
+            "description": "Full URL to your YouTube channel."
+        },
+        {
+            "key": "store_hours",
+            "type": "textarea",
+            "label": "Operating Hours (JSON)",
+            "default": "",
+            "description": "JSON map of weekly hours. Managed via the Hours tab — do not edit manually."
         }
     ],
     "events": [

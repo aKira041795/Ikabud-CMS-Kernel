@@ -135,6 +135,20 @@ function ecAdminSettings(): void
         }
 
         try {
+            // Build store_hours JSON from day-by-day form inputs
+            if (isset($input['hours']) && is_array($input['hours'])) {
+                $hoursData = [];
+                foreach (function_exists('ecStoreHoursDayKeys') ? ecStoreHoursDayKeys() : ['sun','mon','tue','wed','thu','fri','sat'] as $day) {
+                    $dayInput = $input['hours'][$day] ?? [];
+                    $hoursData[$day] = [
+                        'open' => !empty($dayInput['open']),
+                        'from' => preg_replace('/[^0-9:]/', '', (string)($dayInput['from'] ?? '09:00')),
+                        'to'   => preg_replace('/[^0-9:]/', '', (string)($dayInput['to']   ?? '17:00')),
+                    ];
+                }
+                $settings['store_hours'] = json_encode($hoursData, JSON_UNESCAPED_UNICODE);
+            }
+
             ecSyncWmsFulfillmentBridges(!empty($settings['wms_fulfillment_bridge_enabled']));
             saveModuleSettings('ecommerce', $settings);
             invalidateTenantModuleSettingsCache();
@@ -159,6 +173,7 @@ function ecAdminSettings(): void
             }
             return $map;
         })(),
+        'store_hours_schedule' => function_exists('ecStoreHoursSchedule') ? ecStoreHoursSchedule() : [],
     ]);
     unset($_SESSION['ec_message']);
 

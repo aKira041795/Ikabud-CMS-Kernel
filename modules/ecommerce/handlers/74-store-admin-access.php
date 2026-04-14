@@ -89,7 +89,12 @@ function ecStoreAdminDashboard(array $params = []): void
 
     $productCount = 0;
     try {
-        $pc = ecProductList(['store_id' => $id, 'limit' => 1, 'offset' => 0]);
+        $pc = ecProductList([
+            'store_id' => $id,
+            'store_owned_only' => true,
+            'limit' => 1,
+            'offset' => 0,
+        ]);
         $productCount = (int)($pc['total'] ?? 0);
     } catch (\Throwable $e) {}
 
@@ -1007,6 +1012,7 @@ function ecStoreAdminSettings(array $params = []): void
         'cms_users_list' => $cmsUsersList,
         'inventory_source' => ecStoreInventorySource($id),
         'warehouses' => ecStoreInventoryWarehouseOptions(),
+        'storefront_hours_form_schedule' => function_exists('ecStorefrontHoursFormSchedule') ? ecStorefrontHoursFormSchedule($inputData, $store) : [],
         'message' => $_SESSION['ec_sa_message'] ?? null,
     ]);
     unset($_SESSION['ec_sa_message']);

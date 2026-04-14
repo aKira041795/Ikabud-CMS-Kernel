@@ -179,6 +179,25 @@ tScf(
     'total=' . ($leftJoinResult['total'] ?? 'n/a') . ' — confirms INNER JOIN fix is necessary'
 );
 
+$storeAdminHandler = (string)@file_get_contents(__DIR__ . '/../modules/ecommerce/handlers/74-store-admin-access.php');
+$dashboardSlice = '';
+if ($storeAdminHandler !== '') {
+    $dashboardStart = strpos($storeAdminHandler, 'function ecStoreAdminDashboard(');
+    $dashboardEnd = strpos($storeAdminHandler, 'function ecStoreAdminNotifications(');
+    if ($dashboardStart !== false) {
+        $dashboardSlice = $dashboardEnd !== false && $dashboardEnd > $dashboardStart
+            ? substr($storeAdminHandler, $dashboardStart, $dashboardEnd - $dashboardStart)
+            : substr($storeAdminHandler, $dashboardStart);
+    }
+}
+tScf(
+    'Store admin dashboard product count enforces store_owned_only',
+    $dashboardSlice !== ''
+        && str_contains($dashboardSlice, "'store_id' => " . '$id')
+        && str_contains($dashboardSlice, "'store_owned_only' => true"),
+    'dashboard handler must count only products assigned to the active store'
+);
+
 // ─────────────────────────────────────────────────────────────────────────
 // §3  Store with one product assigned returns exactly that product
 // ─────────────────────────────────────────────────────────────────────────

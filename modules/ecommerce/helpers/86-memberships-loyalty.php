@@ -143,6 +143,11 @@ function ecMembershipStorageAvailable(): bool
     }
 }
 
+function ecMembershipsEnabled(): bool
+{
+    return ecMembershipStorageAvailable() && (bool)ecSettings('feature_memberships_enabled', true);
+}
+
 function ecMembershipProductMetaMap(array $productIds): array
 {
     $productIds = array_values(array_unique(array_filter(array_map('intval', $productIds))));
@@ -365,6 +370,11 @@ function ecLoyaltyStorageAvailable(): bool
     } catch (\Throwable $e) {
         return false;
     }
+}
+
+function ecLoyaltyEnabled(): bool
+{
+    return ecLoyaltyStorageAvailable() && (bool)ecSettings('feature_loyalty_enabled', true);
 }
 
 function ecLoyaltyEarnRatePerCurrencyUnit(): int

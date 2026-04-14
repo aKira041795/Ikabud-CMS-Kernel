@@ -68,6 +68,7 @@ function ecAdminStoreCreate(): void
             'store'   => null,
             'input'   => $input,
             'is_new'  => true,
+            'storefront_hours_form_schedule' => function_exists('ecStorefrontHoursFormSchedule') ? ecStorefrontHoursFormSchedule($input) : [],
             'message' => ['type' => 'error', 'text' => $result['error']],
         ]);
         ecRender('modules/ecommerce/admin/store-edit.disyl', $ctx);
@@ -78,6 +79,7 @@ function ecAdminStoreCreate(): void
         'store'   => null,
         'input'   => [],
         'is_new'  => true,
+        'storefront_hours_form_schedule' => function_exists('ecStorefrontHoursFormSchedule') ? ecStorefrontHoursFormSchedule([]) : [],
         'message' => null,
     ]);
     ecRender('modules/ecommerce/admin/store-edit.disyl', $ctx);
@@ -193,6 +195,7 @@ function ecAdminStoreEdit(array $params = []): void
             'store'   => $store,
             'input'   => $input,
             'is_new'  => false,
+            'storefront_hours_form_schedule' => function_exists('ecStorefrontHoursFormSchedule') ? ecStorefrontHoursFormSchedule($input, $store) : [],
             'message' => ['type' => 'error', 'text' => $result['error']],
         ]);
         ecRender('modules/ecommerce/admin/store-edit.disyl', $ctx);
@@ -227,6 +230,7 @@ function ecAdminStoreEdit(array $params = []): void
         'store_users'      => ecStoreUserList($id),
         'cms_users_list'   => $cmsUsersList,
         'inventory_source' => ecStoreInventorySource($id),
+        'storefront_hours_form_schedule' => function_exists('ecStorefrontHoursFormSchedule') ? ecStorefrontHoursFormSchedule($inputData, $store) : [],
         'message'          => $_SESSION['ec_message'] ?? null,
     ]);
     unset($_SESSION['ec_message']);
@@ -240,13 +244,19 @@ function ecAdminStoreEdit(array $params = []): void
  */
 function _ecStoreSettingsFromInput(array $input): ?string
 {
+    if (function_exists('ecStoreSettingsJsonFromInput')) {
+        return ecStoreSettingsJsonFromInput($input);
+    }
+
     $settings = [];
-    $fields   = ['currency', 'currency_symbol', 'timezone', 'tax_rate', 'checkout_note'];
-    foreach ($fields as $f) {
-        $v = trim((string)($input['setting_' . $f] ?? ''));
-        if ($v !== '') {
-            $settings[$f] = $v;
+    foreach (['currency', 'currency_symbol', 'timezone', 'tax_rate', 'checkout_note'] as $field) {
+        $value = trim((string)($input['setting_' . $field] ?? ''));
+        if ($value !== '') {
+            $settings[$field] = $value;
         }
     }
-    return $settings !== [] ? json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+
+    return $settings !== []
+        ? json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        : null;
 }

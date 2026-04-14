@@ -7,6 +7,7 @@
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
+    {if storefront_theme_css}{storefront_theme_css|raw}{/if}
     {if custom_css}{custom_css|raw}{/if}
     {if head_code}{head_code|raw}{/if}
     <style>

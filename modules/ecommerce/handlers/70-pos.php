@@ -11,6 +11,11 @@ declare(strict_types=1);
  */
 function ecPosTerminal(): void
 {
+    if (function_exists('ecPosEnabled') && !ecPosEnabled()) {
+        http_response_code(404);
+        exit;
+    }
+
     $user = ecRequireAdmin();
 
     ecRender('modules/ecommerce/admin/pos.disyl', [

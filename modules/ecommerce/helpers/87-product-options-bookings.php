@@ -437,6 +437,11 @@ function ecBookingStorageAvailable(): bool
     }
 }
 
+function ecBookingsEnabled(): bool
+{
+    return ecBookingStorageAvailable() && (bool)ecSettings('feature_bookings_enabled', true);
+}
+
 function ecBookingsForOrder(int $orderId): array
 {
     if ($orderId <= 0 || !ecBookingStorageAvailable()) {

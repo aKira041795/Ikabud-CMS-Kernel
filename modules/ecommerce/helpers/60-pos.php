@@ -9,6 +9,11 @@ declare(strict_types=1);
 // POS orders are ec_orders with source='pos', payment_status='paid'.
 // ─────────────────────────────────────────────────────────────────────────
 
+function ecPosEnabled(): bool
+{
+    return (bool)ecSettings('feature_pos_enabled', true);
+}
+
 /**
  * Search products for the POS product picker.
  *

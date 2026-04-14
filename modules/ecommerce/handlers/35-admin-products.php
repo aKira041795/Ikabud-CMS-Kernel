@@ -34,7 +34,7 @@ function ecAdminProducts(): void
         ecCmsCategorySelectSql('id, name, slug', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-    $stores = ecStoreIsMultiStoreActive()
+    $stores = (function_exists('ecIsMultiStoreEnabled') ? ecIsMultiStoreEnabled() : ecStoreIsMultiStoreActive())
         ? ecStoreList(['active_only' => false])['items']
         : [];
 
@@ -292,7 +292,7 @@ function ecAdminProductEdit(array $params = []): void
             ecProductSaveDigitalMeta($productId, array_merge($input, $digitalFileMeta));
 
             // Phase 1 multi-store: save store assignments when multi-store is active.
-            if (ecStoreIsMultiStoreActive()) {
+            if ((function_exists('ecIsMultiStoreEnabled') ? ecIsMultiStoreEnabled() : ecStoreIsMultiStoreActive())) {
                 $assignedStoreIds = array_map('intval', (array)($input['store_ids'] ?? []));
                 ecProductSaveStoreAssignments($productId, $assignedStoreIds);
             }
@@ -313,7 +313,7 @@ function ecAdminProductEdit(array $params = []): void
     $product = ecProductGet($productId);
 
     // Phase 1 multi-store: load stores and current assignments.
-    $allStores = ecStoreIsMultiStoreActive() ? (ecStoreList(['active_only' => false])['items'] ?? []) : [];
+    $allStores = (function_exists('ecIsMultiStoreEnabled') ? ecIsMultiStoreEnabled() : ecStoreIsMultiStoreActive()) ? (ecStoreList(['active_only' => false])['items'] ?? []) : [];
     $currentStoreAssignmentMap = count($allStores) > 0 ? ecProductStoreAssignmentMap([$productId]) : [];
     $currentAssignedStoreIds = array_column($currentStoreAssignmentMap[$productId] ?? [], 'id');
     $selectedStoreIds = isset($input) && isset($input['store_ids'])

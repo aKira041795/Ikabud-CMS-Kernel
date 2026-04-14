@@ -160,6 +160,11 @@ function ecSubscriptionStorageAvailable(): bool
     }
 }
 
+function ecSubscriptionsEnabled(): bool
+{
+    return ecSubscriptionStorageAvailable() && (bool)ecSettings('feature_subscriptions_enabled', true);
+}
+
 function ecSubscriptionAddPeriod(string $startAt, int $intervalCount, string $intervalUnit): string
 {
     try {

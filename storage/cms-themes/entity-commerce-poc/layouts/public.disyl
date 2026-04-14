@@ -7,6 +7,7 @@
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
+    {if storefront_theme_css}{storefront_theme_css|raw}{/if}
     {if custom_css}{custom_css|raw}{/if}
     {if head_code}{head_code|raw}{/if}
     <noscript><style>body{opacity:1!important;}</style></noscript>
@@ -68,6 +69,13 @@
                     <p class="poc-footer__copy">{site_title|default:gui.app_name|default:"Ikabud"}</p>
                 </div>
                 <div class="poc-footer__meta">
+                    {if social_links | count > 0}
+                    <div class="poc-footer__social">
+                        {foreach social_links as sl}
+                        <a href="{sl.url}" target="_blank" rel="noopener noreferrer">{sl.label}</a>
+                        {/foreach}
+                    </div>
+                    {/if}
                     {if footer_menu}
                     <div class="poc-footer__menu">{footer_menu|raw}</div>
                     {/if}

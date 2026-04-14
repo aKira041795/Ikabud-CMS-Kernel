@@ -1499,6 +1499,24 @@ body.entity-commerce-poc {
     align-items: flex-end;
 }
 
+.poc-footer__social {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.poc-footer__social a {
+    color: var(--footer-link, var(--color-text));
+    text-decoration: none;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.82rem;
+}
+
+.poc-footer__social a:hover {
+    color: var(--footer-link-hover, var(--color-primary));
+}
+
 .header-wrapper,
 .footer-widgets,
 .footer-bottom {

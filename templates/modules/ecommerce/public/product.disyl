@@ -459,11 +459,13 @@
 
             {include "modules/cms/public/blocks/ecommerce-product-wishlist.block.disyl"}
             {include "modules/cms/public/blocks/ecommerce-product-compare.block.disyl"}
-            {include "modules/cms/public/blocks/ecommerce-reviews.block.disyl"}
-            {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
-            {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
         </div>
     </div>
+    {include "modules/cms/public/blocks/ecommerce-product-relations.block.disyl"}
+    {include "modules/cms/public/blocks/ecommerce-recently-viewed.block.disyl"}
+    {if reviews_enabled}
+    {include "modules/cms/public/blocks/ecommerce-reviews.block.disyl"}
+    {/if}
 </div>
 
 <script>

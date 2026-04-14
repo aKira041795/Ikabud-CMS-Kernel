@@ -25,7 +25,7 @@ function ecAdminReports(): void
     $inventory = ecReportInventory();
 
     // Phase 5 multi-store: pass active stores for filter dropdown.
-    $stores = ecStoreIsMultiStoreActive() ? (ecStoreList(['active_only' => false])['items'] ?? []) : [];
+    $stores = (function_exists('ecIsMultiStoreEnabled') ? ecIsMultiStoreEnabled() : ecStoreIsMultiStoreActive()) ? (ecStoreList(['active_only' => false])['items'] ?? []) : [];
 
     $ctx = ecAdminContext($user, 'reports', [
         'sales'      => $sales,

@@ -1427,6 +1427,30 @@ function cmsEntityListPageUrl(string $baseUrl, int $page, array $query = []): st
     return $baseUrl . $separator . http_build_query($query);
 }
 
+function cmsAppendQueryParams(string $baseUrl, array $query = []): string
+{
+    $baseUrl = trim($baseUrl);
+    if ($baseUrl === '') {
+        return '';
+    }
+
+    $query = array_filter($query, static function ($value): bool {
+        if ($value === null) {
+            return false;
+        }
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+        return true;
+    });
+    if ($query === []) {
+        return $baseUrl;
+    }
+
+    $separator = str_contains($baseUrl, '?') ? '&' : '?';
+    return $baseUrl . $separator . http_build_query($query);
+}
+
 function cmsEntityListResultLabel(int $count): string
 {
     return number_format(max(0, $count)) . (max(0, $count) === 1 ? ' result' : ' results');
@@ -1654,6 +1678,9 @@ function cmsPublicEntityList(array $params = []): void
 
         $totalPages = max(1, (int)ceil($total / $perPage));
         $listBase = $baseListUrl !== '' ? $baseListUrl : ($baseUrl . '/cms/' . rawurlencode($type));
+        $storeQueryValue = $storeId > 0 ? (string)$storeId : '';
+        $resolvedAllItemsUrl = $allItemsUrl !== '' ? $allItemsUrl : '/ecommerce/shop';
+        $resolvedSearchActionUrl = $searchActionUrl !== '' ? $searchActionUrl : $listBase;
         $paginationQuery = [];
         if ($search !== '') {
             $paginationQuery['search'] = $search;
@@ -1663,6 +1690,11 @@ function cmsPublicEntityList(array $params = []): void
         }
         if ($attributeFilters !== []) {
             $paginationQuery['attr'] = $attributeFilters;
+        }
+        if ($storeId > 0) {
+            $paginationQuery['store'] = $storeQueryValue;
+            $resolvedAllItemsUrl = cmsAppendQueryParams($resolvedAllItemsUrl, ['store' => $storeQueryValue]);
+            $resolvedSearchActionUrl = cmsAppendQueryParams($resolvedSearchActionUrl, ['store' => $storeQueryValue]);
         }
         $pagination = [
             'current'  => $page,
@@ -1694,8 +1726,8 @@ function cmsPublicEntityList(array $params = []): void
             'active_filter_count' => $activeFilterCount,
             'summary_text' => $listDescription,
             'available_categories' => $availableCategories,
-            'all_items_url' => $allItemsUrl,
-            'search_action_url' => $searchActionUrl,
+            'all_items_url' => $resolvedAllItemsUrl,
+            'search_action_url' => $resolvedSearchActionUrl,
             'search_placeholder' => 'Search products',
             'search_button_label' => 'Search',
             'category_navigation_label' => 'Shop Categories',
@@ -1703,6 +1735,7 @@ function cmsPublicEntityList(array $params = []): void
             'category_submit_label' => 'Browse',
             'empty_title' => 'No items found.',
             'empty_link_label' => 'Browse all products',
+            'store_id' => $storeId,
         ];
 
         $storefront = function_exists('ecBuildStorefrontCatalogContext')
@@ -1714,8 +1747,8 @@ function cmsPublicEntityList(array $params = []): void
                 'base_list_url' => $listBase,
                 'item_base_url' => $itemBaseUrl,
                 'search' => $search,
-                'search_action_url' => $searchActionUrl,
-                'all_items_url' => $allItemsUrl,
+                'search_action_url' => $resolvedSearchActionUrl,
+                'all_items_url' => $resolvedAllItemsUrl,
                 'category_id' => $categoryId,
                 'category_slug' => $categorySlug,
                 'current_category' => is_array($activeCategory) ? $activeCategory : [],
@@ -1728,6 +1761,18 @@ function cmsPublicEntityList(array $params = []): void
             ])
             : [];
 
+        $templateContext = ['storefront' => $storefront];
+        $activeStore = null;
+        if ($storeId > 0 && function_exists('ecStoreById')) {
+            $activeStore = ecStoreById($storeId);
+        }
+        if ($activeStore !== null) {
+            $templateContext['active_store'] = $activeStore;
+        }
+        if (function_exists('ecStorefrontRenderContext')) {
+            $templateContext = array_merge($templateContext, ecStorefrontRenderContext($activeStore));
+        }
+
         $html = cmsPublicCanonicalRenderEntityList($items, [
             'default_type' => $type,
             'page_title' => $listTitle,
@@ -1735,7 +1780,7 @@ function cmsPublicEntityList(array $params = []): void
             'list_description' => $listDescription,
             'pagination' => $pagination,
             'entity_list_context' => $listContext,
-            'template_context' => ['storefront' => $storefront],
+            'template_context' => $templateContext,
             'cart_count' => function_exists('ecCartGet') ? (int)(ecCartGet()['totals']['item_count'] ?? 0) : 0,
             'public_render_origin' => $publicRenderOrigin,
             'public_route_kind' => $publicRouteKind,
@@ -2235,9 +2280,35 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
         $sidebarTemplateKey
     ): string {
         $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
+        $reviewsEnabled = true;
+        if ($publicRenderOrigin === 'ecommerce' && $type === 'product') {
+            if (function_exists('ecReviewsEnabled')) {
+                $reviewsEnabled = ecReviewsEnabled();
+            }
+            if (!array_key_exists('reviews_enabled', $templateContext)) {
+                $templateContext['reviews_enabled'] = $reviewsEnabled;
+            }
+
+            $activeStore = null;
+            $storeId = max(0, (int)($entity['store_id'] ?? 0));
+            if ($storeId > 0 && function_exists('ecStoreById')) {
+                $activeStore = ecStoreById($storeId);
+            }
+            if ($activeStore !== null && !array_key_exists('active_store', $templateContext)) {
+                $templateContext['active_store'] = $activeStore;
+            }
+            if (function_exists('ecStorefrontRenderContext')) {
+                foreach (ecStorefrontRenderContext($activeStore) as $key => $value) {
+                    if (!array_key_exists($key, $templateContext)) {
+                        $templateContext[$key] = $value;
+                    }
+                }
+            }
+        }
         if (
             $publicRenderOrigin === 'ecommerce'
             && $type === 'product'
+            && $reviewsEnabled
             && function_exists('ecReviewSummary')
             && !array_key_exists('review_summary', $templateContext)
         ) {
@@ -2246,6 +2317,7 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
         if (
             $publicRenderOrigin === 'ecommerce'
             && $type === 'product'
+            && $reviewsEnabled
             && function_exists('ecReviewList')
             && !array_key_exists('reviews', $templateContext)
         ) {
