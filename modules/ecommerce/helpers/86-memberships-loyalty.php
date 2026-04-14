@@ -18,6 +18,10 @@ function ecMembershipNormalizeTier(string $tier): string
 function ecMembershipNormalizeTierList(mixed $tiers): array
 {
     if (is_string($tiers)) {
+        $tiers = trim($tiers);
+        if ($tiers === '') {
+            return [];
+        }
         $decoded = json_decode($tiers, true);
         if (is_array($decoded)) {
             $tiers = $decoded;
@@ -32,7 +36,11 @@ function ecMembershipNormalizeTierList(mixed $tiers): array
 
     $normalized = [];
     foreach ($tiers as $tier) {
-        $value = ecMembershipNormalizeTier((string)$tier);
+        $raw = trim((string)$tier);
+        if ($raw === '') {
+            continue;
+        }
+        $value = ecMembershipNormalizeTier($raw);
         if ($value === '' || in_array($value, $normalized, true)) {
             continue;
         }
