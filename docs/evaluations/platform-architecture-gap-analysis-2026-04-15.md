@@ -592,17 +592,17 @@ Organized by priority tier. Each item includes estimated complexity (S/M/L/XL) a
 
 ### Tier 4 — Strategic Evolution (Quarterly Plan)
 
-| # | Item | Complexity | Area |
-|---|------|-----------|------|
-| 4.1 | Multi-store phase 1-5 (marketplace) | XL | Ecommerce module |
-| 4.2 | Multi-language / i18n infrastructure | XL | CMS + kernel + templates |
-| 4.3 | OpenAPI spec generation + Swagger UI | L | New tooling |
-| 4.4 | Tenant self-service provisioning API | L | Control plane |
-| 4.5 | Module dependency graph visualization | M | CLI + tooling |
-| 4.6 | DiSyL security audit + fuzz testing | L | DiSyL subsystem |
-| 4.7 | Workflow transition guards | M | `WorkflowRuntime.php` |
-| 4.8 | Content revision diffing | M | Builder UI + backend |
-| 4.9 | POS expansion (if needed) | XL | Ecommerce POS subsystem |
+| # | Item | Complexity | Area | Status |
+|---|------|-----------|------|--------|
+| 4.1 | Multi-store phase 1-5 (marketplace) | XL | Ecommerce module | ✅ Foundation schema (vendors, payouts, product-vendor mapping) — `040_ec_marketplace_foundation.sql` |
+| 4.2 | Multi-language / i18n infrastructure | XL | CMS + kernel + templates | ✅ Foundation: `kernel_locales` + `kernel_translations` schema, `LocaleResolver` service — `008_kernel_i18n_foundation.sql`, `kernel/Services/LocaleResolver.php` |
+| 4.3 | OpenAPI spec generation + Swagger UI | L | New tooling | ✅ `kernel/Services/OpenApiGenerator.php` + `openapi:generate` CLI command |
+| 4.4 | Tenant self-service provisioning API | L | Control plane | ✅ `kernel/Services/TenantProvisioner.php` — consolidated provisioning pipeline |
+| 4.5 | Module dependency graph visualization | M | CLI + tooling | ✅ `--format=mermaid\|dot\|json` output in `module:graph` CLI command |
+| 4.6 | DiSyL security audit + fuzz testing | L | DiSyL subsystem | ✅ `tests/disyl_security_fuzz_test.php` — 64 payloads (XSS, injection, DoS, unicode, filters) |
+| 4.7 | Workflow transition guards | M | `WorkflowRuntime.php` | ✅ Declarative (10 operators), callable, string guards in `allowedActions()` |
+| 4.8 | Content revision diffing | M | Builder UI + backend | ✅ `cmsBuilderRevisionDiff()`, `cmsBuilderRevisionRestore()`, list/get helpers |
+| 4.9 | POS expansion (if needed) | XL | Ecommerce POS subsystem | ✅ Foundation schema (terminals, cash drawers, split-tender payments) — `041_ec_pos_expansion.sql` |
 
 ---
 
