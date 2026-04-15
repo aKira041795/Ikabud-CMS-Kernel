@@ -928,6 +928,76 @@ function kernelEmitLoginRateLimitJson(array $rateLimit, string $message = 'Too m
     ]);
 }
 
+/**
+ * Generic rate limiter for any action. Uses the same rate_limits table as login rate limiting.
+ *
+ * @param string $action     Action identifier (e.g. 'password_reset', 'coupon_apply')
+ * @param int    $maxAttempts Max attempts within the window
+ * @param int    $windowSeconds Time window in seconds
+ * @param string|null $ip    Override IP (defaults to REMOTE_ADDR)
+ * @return array {limited: bool, retry_after: int, enforced: bool}
+ */
+function kernelRateLimit(string $action, int $maxAttempts = 5, int $windowSeconds = 3600, ?string $ip = null): array
+{
+    $ip = $ip ?? ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    $tenantId = 0;
+    try { $tenantId = (int)(app()->tenantId ?? 0); } catch (\Throwable $e) {}
+    $identifier = "t{$tenantId}:{$action}:ip:{$ip}";
+
+    try {
+        $db = app()->db();
+        $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
+
+        $db->prepare(
+            'INSERT INTO rate_limits (identifier, action, attempts, window_start)
+             VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+                 attempts = IF(window_start >= :cutoff, attempts + 1, 1),
+                 window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
+        )->execute([
+            ':id' => $identifier,
+            ':action' => $action,
+            ':cutoff' => $cutoff,
+            ':cutoff2' => $cutoff,
+        ]);
+
+        $stmt = $db->prepare('SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1');
+        $stmt->execute([':id' => $identifier, ':action' => $action]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (is_array($row) && ($row['window_start'] ?? '') >= $cutoff && (int)($row['attempts'] ?? 0) > $maxAttempts) {
+            $retryAfter = max(1, $windowSeconds - (time() - strtotime((string)$row['window_start'])));
+            write_log("rate_limit.{$action}", 'warning', [
+                'identifier' => $identifier,
+                'action' => $action,
+                'max_attempts' => $maxAttempts,
+                'window_seconds' => $windowSeconds,
+                'retry_after' => $retryAfter,
+            ]);
+            return ['limited' => true, 'retry_after' => $retryAfter, 'enforced' => true];
+        }
+    } catch (\Throwable $e) {
+        return ['limited' => false, 'retry_after' => 0, 'enforced' => false];
+    }
+
+    return ['limited' => false, 'retry_after' => 0, 'enforced' => true];
+}
+
+/**
+ * Emit a 429 JSON response for rate-limited requests.
+ */
+function kernelEmitRateLimitJson(array $rateLimit, string $message = 'Too many requests. Try again later.'): void
+{
+    $retryAfter = max(1, (int)($rateLimit['retry_after'] ?? 1));
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Retry-After: ' . $retryAfter);
+        header('X-Request-Id: ' . request_id());
+        http_response_code(429);
+    }
+    echo json_encode(['ok' => false, 'error' => $message, 'retry_after' => $retryAfter]);
+}
+
 function release_session_lock_if_active(): bool
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {

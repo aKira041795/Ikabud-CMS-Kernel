@@ -98,6 +98,30 @@ function ecPaymentGatewayVerify(string $reference, array $options = []): array
 }
 
 /**
+ * Record a webhook event for idempotency. Returns false if already processed.
+ */
+function ecWebhookEventRecord(string $gateway, string $eventId, string $eventType = ''): bool
+{
+    if ($eventId === '' || $gateway === '') {
+        return true; // no event ID to dedup — allow processing
+    }
+    try {
+        ecDb()->execute(
+            'INSERT IGNORE INTO ec_webhook_events (gateway, event_id, event_type, processed_at) VALUES (?, ?, ?, NOW())',
+            [$gateway, $eventId, $eventType]
+        );
+        // INSERT IGNORE returns 0 affected rows if the unique key already exists
+        return ecDb()->rowCount() > 0;
+    } catch (\Throwable $e) {
+        // Table may not exist yet — allow processing but log
+        write_log('Webhook idempotency check failed (table may not exist): ' . $e->getMessage(), 'warning', [
+            'module' => 'ecommerce', 'gateway' => $gateway, 'event_id' => $eventId,
+        ]);
+        return true;
+    }
+}
+
+/**
  * Handle an incoming webhook payload from the gateway.
  *
  * @param string $gateway   The gateway identifier (e.g. 'paymongo').
@@ -107,6 +131,12 @@ function ecPaymentGatewayVerify(string $reference, array $options = []): array
  */
 function ecPaymentGatewayWebhookHandle(string $gateway, string $rawBody, string $signature): array
 {
+    // Extract event ID for idempotency before dispatching to gateway-specific handler
+    $eventId = _ecWebhookExtractEventId($gateway, $rawBody);
+    if ($eventId !== '' && !ecWebhookEventRecord($gateway, $eventId, '')) {
+        return ['ok' => true, 'action' => 'duplicate_skipped', 'event_id' => $eventId];
+    }
+
     if ($gateway === 'paymongo') {
         return _ecGatewayPaymongoWebhookHandle($rawBody, $signature);
     }
@@ -120,6 +150,23 @@ function ecPaymentGatewayWebhookHandle(string $gateway, string $rawBody, string 
     }
 
     return ['ok' => false, 'error' => 'Unknown webhook gateway: ' . $gateway];
+}
+
+/**
+ * Extract a stable event identifier from the raw webhook body.
+ */
+function _ecWebhookExtractEventId(string $gateway, string $rawBody): string
+{
+    $payload = @json_decode($rawBody, true);
+    if (!is_array($payload)) {
+        return '';
+    }
+    return match ($gateway) {
+        'stripe'   => trim((string)($payload['id'] ?? '')),              // evt_xxx
+        'paypal'   => trim((string)($payload['id'] ?? '')),              // WH-xxx
+        'paymongo' => trim((string)($payload['data']['id'] ?? '')),      // evt_xxx
+        default    => '',
+    };
 }
 
 /**

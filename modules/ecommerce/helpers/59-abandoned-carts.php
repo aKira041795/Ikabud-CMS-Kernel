@@ -147,6 +147,20 @@ function ecAbandonedCartRestoreSnapshot(array $snapshot, ?int $userId = null): v
     }
 
     $couponCode = trim((string)($snapshot['coupon_code'] ?? ''));
+
+    // Validate coupon before restoring — expired/disabled coupons from abandoned carts
+    // should not silently apply. Calculate rough subtotal from restored items.
+    if ($couponCode !== '' && function_exists('ecCouponValidate')) {
+        $subtotal = 0.0;
+        foreach ($items as $item) {
+            $subtotal += round((float)($item['price_snapshot'] ?? 0), 2) * max(1, (int)($item['qty'] ?? 1));
+        }
+        $validation = ecCouponValidate($couponCode, $subtotal);
+        if (!($validation['valid'] ?? false)) {
+            $couponCode = ''; // strip invalid/expired coupon
+        }
+    }
+
     if ($userId > 0) {
         if ($couponCode !== '') {
             ecDbCartSetCoupon($userId, $couponCode);

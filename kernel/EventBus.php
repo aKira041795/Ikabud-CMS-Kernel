@@ -255,7 +255,15 @@ class EventBus implements EventBusContract
                 && !str_starts_with($event, 'kernel.database.')
                 && !str_starts_with($event, 'integration.result.')
             ) {
+                $bridgeStart = microtime(true);
                 IntegrationBridge::handle($payload, $event);
+                $bridgeDurationMs = (microtime(true) - $bridgeStart) * 1000;
+                if ($bridgeDurationMs >= 200 && function_exists('write_log')) {
+                    write_log("EventBus: slow IntegrationBridge on '{$event}'", 'warning', [
+                        'event' => $event,
+                        'duration_ms' => round($bridgeDurationMs, 1),
+                    ]);
+                }
             }
         } catch (\Throwable $e) {
             if (function_exists('write_log')) {
@@ -269,7 +277,9 @@ class EventBus implements EventBusContract
 
         // Fire listeners after the bridge so slow notification work does not
         // block critical integration side effects like reserve/order-create.
+        $slowListenerThresholdMs = (float)($_ENV['SLOW_LISTENER_THRESHOLD_MS'] ?? 200);
         foreach ($matched as $entry) {
+            $listenerStart = microtime(true);
             try {
                 $listenerModule = (string)($entry['module'] ?? '');
                 if ($listenerModule !== '' && \function_exists('moduleWithContext')) {
@@ -296,6 +306,16 @@ class EventBus implements EventBusContract
                         'trace'  => $e->getTraceAsString(),
                     ]);
                 }
+            }
+            // Slow listener detection
+            $listenerDurationMs = (microtime(true) - $listenerStart) * 1000;
+            if ($listenerDurationMs >= $slowListenerThresholdMs && function_exists('write_log')) {
+                write_log("EventBus: slow listener on '{$event}' from module '{$entry['module']}'", 'warning', [
+                    'event' => $event,
+                    'module' => $entry['module'] ?? '',
+                    'duration_ms' => round($listenerDurationMs, 1),
+                    'threshold_ms' => $slowListenerThresholdMs,
+                ]);
             }
         }
 

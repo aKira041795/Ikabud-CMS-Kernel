@@ -154,7 +154,7 @@ function ecProductUpdateInventory(int $productId, array $data): void
     }
 }
 
-function ecProductDecrementStock(int $productId, int $qty): void
+function ecProductDecrementStock(int $productId, int $qty): bool
 {
     $db = ecDb();
 
@@ -164,7 +164,7 @@ function ecProductDecrementStock(int $productId, int $qty): void
         [$productId]
     )->fetch(\PDO::FETCH_ASSOC);
     if (($digitalMeta['meta_value'] ?? '') === '1') {
-        return;
+        return true;
     }
 
     // Read is fine via ecDb() (reads_tables), but update needs CMS context
@@ -174,25 +174,45 @@ function ecProductDecrementStock(int $productId, int $qty): void
     )->fetch(\PDO::FETCH_ASSOC);
 
     if (!$row) {
-        return;
+        return true; // no inventory capability — nothing to decrement
     }
 
     $config     = (array)json_decode($row['config'] ?? '{}', true);
     $trackStock = (bool)($config['track_stock'] ?? true);
     if (!$trackStock) {
-        return;
+        return true;
     }
 
-    $newQty = max(0, (int)($config['stock_qty'] ?? 0) - $qty);
-    $config['stock_qty'] = $newQty;
-
-    // Write to CMS-owned table requires CMS module context
-    moduleWithContext('cms', static function () use ($config, $row): void {
+    // Atomic decrement: UPDATE with WHERE stock >= qty prevents overselling.
+    // Uses JSON_SET to decrement in-place so concurrent requests cannot both
+    // read the same value and clobber each other.
+    $rowId = (int)$row['id'];
+    $decremented = moduleWithContext('cms', static function () use ($rowId, $qty): bool {
         cmsDb()->execute(
-            "UPDATE cms_entity_capabilities SET config = ?, updated_at = NOW() WHERE id = ?",
-            [json_encode($config), (int)$row['id']]
+            "UPDATE cms_entity_capabilities
+             SET config = JSON_SET(
+                 config,
+                 '$.stock_qty',
+                 GREATEST(0, CAST(COALESCE(JSON_EXTRACT(config, '$.stock_qty'), 0) AS SIGNED) - ?)
+             ),
+             updated_at = NOW()
+             WHERE id = ?
+               AND CAST(COALESCE(JSON_EXTRACT(config, '$.stock_qty'), 0) AS SIGNED) >= ?",
+            [$qty, $rowId, $qty]
         );
+        return cmsDb()->rowCount() > 0;
     });
+
+    if (!$decremented) {
+        return false; // insufficient stock
+    }
+
+    // Re-read to check if out of stock for event
+    $updatedRow = $db->query(
+        "SELECT config FROM cms_entity_capabilities WHERE id = ? LIMIT 1",
+        [$rowId]
+    )->fetch(\PDO::FETCH_ASSOC);
+    $newQty = (int)(json_decode($updatedRow['config'] ?? '{}', true)['stock_qty'] ?? 0);
 
     // Fire out-of-stock event if reached zero
     if ($newQty === 0) {
@@ -203,6 +223,8 @@ function ecProductDecrementStock(int $productId, int $qty): void
             'sku'           => $config['sku']    ?? '',
         ]);
     }
+
+    return true;
 }
 
 function ecProductIncrementStock(int $productId, int $qty): void

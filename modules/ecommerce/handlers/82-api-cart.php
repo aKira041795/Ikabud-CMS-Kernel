@@ -118,6 +118,20 @@ function ecApiCartRemove(): void
 function ecApiCartApplyCoupon(): void
 {
     ecApiCartCsrfEnforce();
+
+    // Rate limit coupon validation to prevent brute-force guessing of coupon codes
+    if (function_exists('kernelRateLimit')) {
+        $rl = kernelRateLimit('coupon_apply', 15, 300); // 15 attempts per 5 minutes
+        if ($rl['limited']) {
+            if (function_exists('kernelEmitRateLimitJson')) {
+                kernelEmitRateLimitJson($rl, 'Too many coupon attempts. Please wait.');
+            } else {
+                ecJsonError('Too many coupon attempts. Please wait.', 429);
+            }
+            exit;
+        }
+    }
+
     $input = ecInput();
     $code  = trim((string)($input['code'] ?? ''));
 

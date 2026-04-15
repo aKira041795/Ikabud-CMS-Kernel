@@ -32,6 +32,24 @@ if (session_status() === PHP_SESSION_NONE) {
 
 register_shutdown_function('kernelFireShutdownHooks');
 
+// ── Request timing: log slow requests (>1s) at shutdown ──────────────
+register_shutdown_function(static function (): void {
+    $startTime = $_SERVER['REQUEST_TIME_FLOAT'] ?? 0;
+    if ($startTime <= 0) {
+        return;
+    }
+    $duration = microtime(true) - (float)$startTime;
+    $threshold = (float)($_ENV['SLOW_REQUEST_THRESHOLD'] ?? 1.0);
+    if ($duration >= $threshold && function_exists('write_log')) {
+        write_log('slow_request', 'warning', [
+            'duration_ms' => round($duration * 1000, 1),
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+        ]);
+    }
+});
+
 if (should_enforce_https() && !is_https()) {
     $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
     if ($host !== '') {
