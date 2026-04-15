@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title} — CMS</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.14.3/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -218,17 +219,22 @@
                 {if ext_nav_items && ext_nav_items | count > 0}
                 {foreach ext_nav_items as enav}
                 {if enav.section}
-                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{enav.label}</span>
+                <div x-data="{ open: false }" class="pt-2">
+                    <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-md text-sm hover:bg-slate-800 text-slate-300 transition-colors" x-show="sidebarOpen" x-cloak>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{enav.label}</span>
+                        <svg class="w-3.5 h-3.5 text-slate-500 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    {if enav.children}
+                    <div x-show="open" x-collapse x-cloak class="space-y-px">
+                    {foreach enav.children as child}
+                    <a href="{child.url}" class="flex items-center px-3 py-1.5 pl-5 rounded-md text-sm hover:bg-slate-800 {if current_page == child.active_key}bg-slate-800 text-white{else}text-slate-300{/if}">
+                        {if child.icon}<span class="w-5 h-5 shrink-0 flex items-center justify-center text-xs">{child.icon}</span>{else}<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
+                        <span class="ml-3" x-show="sidebarOpen" x-cloak>{child.label}</span>
+                    </a>
+                    {/foreach}
+                    </div>
+                    {/if}
                 </div>
-                {if enav.children}
-                {foreach enav.children as child}
-                <a href="{child.url}" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == child.active_key}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    {if child.icon}<span class="w-5 h-5 shrink-0 flex items-center justify-center text-xs">{child.icon}</span>{else}<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>{child.label}</span>
-                </a>
-                {/foreach}
-                {/if}
                 {else}
                 {if loop.first}
                 <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
@@ -312,17 +318,22 @@
                     {if ext_nav_items && ext_nav_items | count > 0}
                     {foreach ext_nav_items as menav}
                     {if menav.section}
-                    <div class="pt-3 pb-1 px-3">
-                        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{menav.label}</span>
+                    <div x-data="{ open: false }" class="pt-2">
+                        <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-md text-sm hover:bg-slate-800 text-slate-300 transition-colors">
+                            <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{menav.label}</span>
+                            <svg class="w-3.5 h-3.5 text-slate-500 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        {if menav.children}
+                        <div x-show="open" x-collapse x-cloak class="space-y-px">
+                        {foreach menav.children as mchild}
+                        <a href="{mchild.url}" class="flex items-center px-3 py-1.5 pl-5 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                            {if mchild.icon}<span class="w-5 h-5 shrink-0 flex items-center justify-center text-xs">{mchild.icon}</span>{else}<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
+                            <span class="ml-3">{mchild.label}</span>
+                        </a>
+                        {/foreach}
+                        </div>
+                        {/if}
                     </div>
-                    {if menav.children}
-                    {foreach menav.children as mchild}
-                    <a href="{mchild.url}" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        {if mchild.icon}<span class="w-5 h-5 shrink-0 flex items-center justify-center text-xs">{mchild.icon}</span>{else}<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
-                        <span class="ml-3">{mchild.label}</span>
-                    </a>
-                    {/foreach}
-                    {/if}
                     {else}
                     <a href="{menav.url}" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         {if menav.icon}<span class="w-5 h-5 shrink-0 flex items-center justify-center text-xs">{menav.icon}</span>{else}<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
