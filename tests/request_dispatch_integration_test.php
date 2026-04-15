@@ -551,6 +551,36 @@ t(
     $storeProductCreatePage['raw']
 );
 
+$storeCouponsPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/coupons',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store-admin coupons page renders a CSRF field for coupon mutations',
+    preg_match('/name="_token"\s+value="[a-f0-9]{64}"/', $storeCouponsPage['body'] ?? '') === 1,
+    $storeCouponsPage['raw']
+);
+
+$cartCouponApplyNoCsrf = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/api/v1/ecommerce/cart/coupon',
+        'HTTP_HOST' => 'applicationos.test',
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+    ],
+    null,
+    '$_POST = ' . var_export(['code' => 'NOCSRFTEST'], true) . ';' . "\n" . '$_REQUEST = array_merge($_REQUEST ?? [], $_POST);'
+);
+t(
+    'cart coupon API rejects invalid CSRF tokens before coupon validation',
+    str_contains($cartCouponApplyNoCsrf['body'] ?? '', 'Invalid CSRF token'),
+    $cartCouponApplyNoCsrf['raw']
+);
+
 $storeCreateProductPayload = [
     'title' => 'Dispatch Store Product ' . strtoupper($storeProductSeed),
     'slug' => 'dispatch-store-product-' . strtolower($storeProductSeed),

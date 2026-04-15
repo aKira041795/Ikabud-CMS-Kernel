@@ -216,7 +216,7 @@ function ecShippingCartMetrics(array $items, ?string $couponCode = null): array
 
     $discount = 0.0;
     if ($couponCode !== null && trim($couponCode) !== '') {
-        $coupon = ecCouponValidate($couponCode, $subtotal, $currencyCode);
+        $coupon = ecCouponValidate($couponCode, $subtotal, $currencyCode, $items);
         if (!empty($coupon['valid']) && ($coupon['type'] ?? '') !== 'gift_card') {
             $discount = (float)($coupon['discount_amount'] ?? 0.0);
         }
@@ -746,7 +746,7 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
     $couponData  = [];
     $couponDiscount = 0.00;
     if ($couponCode !== null) {
-        $validation = ecCouponValidate($couponCode, $subtotal, $currencyCode);
+        $validation = ecCouponValidate($couponCode, $subtotal, $currencyCode, $items);
         if ($validation['valid']) {
             $couponData = $validation;
             if (($validation['type'] ?? '') === 'gift_card') {
@@ -902,7 +902,99 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
  * Validate a coupon code against a given subtotal.
  * Returns ['valid' => bool, 'error' => string|null, 'discount_amount' => float]
  */
-function ecCouponValidate(string $code, float $subtotal, ?string $currencyCode = null): array
+function ecCouponsHasStoreIdColumn(): bool
+{
+    static $has = null;
+    if ($has !== null) {
+        return $has;
+    }
+
+    try {
+        ecDb()->query('SELECT store_id FROM ec_coupons WHERE 1 = 0');
+        $has = true;
+    } catch (\Throwable $e) {
+        $has = false;
+    }
+
+    return $has;
+}
+
+function ecCouponResolvedStoreId(array $items = [], ?int $storeId = null): int
+{
+    if ($storeId !== null && $storeId > 0) {
+        return (int)$storeId;
+    }
+
+    if ($items !== [] && function_exists('ecCartResolvedStoreId')) {
+        return ecCartResolvedStoreId($items);
+    }
+
+    if (function_exists('ecStoreResolveContext')) {
+        $store = ecStoreResolveContext();
+        if (is_array($store)) {
+            return max(0, (int)($store['id'] ?? 0));
+        }
+    }
+
+    return 0;
+}
+
+function ecCouponLookupByCode(string $code, ?int $storeId = null): ?array
+{
+    $normalizedCode = strtoupper(trim($code));
+    if ($normalizedCode === '') {
+        return null;
+    }
+
+    try {
+        if (ecCouponsHasStoreIdColumn()) {
+            if ((int)$storeId > 0) {
+                $row = ecDb()->query(
+                    "SELECT *
+                     FROM ec_coupons
+                     WHERE code = ?
+                       AND (store_id = ? OR store_id IS NULL)
+                     ORDER BY CASE WHEN store_id = ? THEN 0 ELSE 1 END
+                     LIMIT 1",
+                    [$normalizedCode, (int)$storeId, (int)$storeId]
+                )->fetch(\PDO::FETCH_ASSOC) ?: null;
+
+                return is_array($row) ? $row : null;
+            }
+
+            $row = ecDb()->query(
+                'SELECT * FROM ec_coupons WHERE code = ? AND store_id IS NULL LIMIT 1',
+                [$normalizedCode]
+            )->fetch(\PDO::FETCH_ASSOC) ?: null;
+
+            return is_array($row) ? $row : null;
+        }
+
+        $row = ecDb()->query(
+            'SELECT * FROM ec_coupons WHERE code = ? LIMIT 1',
+            [$normalizedCode]
+        )->fetch(\PDO::FETCH_ASSOC) ?: null;
+
+        return is_array($row) ? $row : null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function ecCouponSourceCurrencyCode(array $coupon): string
+{
+    $storeId = max(0, (int)($coupon['store_id'] ?? 0));
+    if ($storeId > 0 && function_exists('ecStoreSetting')) {
+        $storeCurrency = ecCurrencyNormalizeCode((string)ecStoreSetting($storeId, 'currency', ''));
+        if ($storeCurrency !== '') {
+            return $storeCurrency;
+        }
+    }
+
+    return ecStoreBaseCurrencyCode();
+}
+
+function ecCouponValidate(string $code, float $subtotal, ?string $currencyCode = null, array $items = [], ?int $storeId = null): array
 {
     if (trim($code) === '') {
         return ['valid' => false, 'error' => 'No coupon code provided'];
@@ -910,15 +1002,8 @@ function ecCouponValidate(string $code, float $subtotal, ?string $currencyCode =
 
     $currencyCode = ecCurrencyNormalizeCode($currencyCode ?? ecStoreBaseCurrencyCode()) ?: ecStoreBaseCurrencyCode();
 
-    try {
-        $row = ecDb()->query(
-            "SELECT * FROM ec_coupons WHERE code = ? LIMIT 1",
-            [strtoupper(trim($code))]
-        )->fetch(\PDO::FETCH_ASSOC);
-    } catch (\Throwable $e) {
-        return ['valid' => false, 'error' => 'Could not validate coupon'];
-    }
-
+    $resolvedStoreId = ecCouponResolvedStoreId($items, $storeId);
+    $row = ecCouponLookupByCode($code, $resolvedStoreId);
     if (!$row) {
         return ['valid' => false, 'error' => 'Invalid coupon code'];
     }
@@ -931,7 +1016,9 @@ function ecCouponValidate(string $code, float $subtotal, ?string $currencyCode =
     if ($row['max_uses'] !== null && $row['uses_count'] >= $row['max_uses']) {
         return ['valid' => false, 'error' => 'Coupon usage limit reached'];
     }
-    $minimumAmount = ecCurrencyConvertAmount((float)($row['min_order_amount'] ?? 0), ecStoreBaseCurrencyCode(), $currencyCode);
+
+    $sourceCurrencyCode = ecCouponSourceCurrencyCode($row);
+    $minimumAmount = ecCurrencyConvertAmount((float)($row['min_order_amount'] ?? 0), $sourceCurrencyCode, $currencyCode);
     if ($minimumAmount > 0 && $subtotal < $minimumAmount) {
         return ['valid' => false, 'error' => 'Order minimum not met for this coupon'];
     }
@@ -942,7 +1029,7 @@ function ecCouponValidate(string $code, float $subtotal, ?string $currencyCode =
     if ($type === 'percent') {
         $discount = $subtotal * ((float)$row['value'] / 100);
     } else {
-        $convertedValue = ecCurrencyConvertAmount((float)$row['value'], ecStoreBaseCurrencyCode(), $currencyCode);
+        $convertedValue = ecCurrencyConvertAmount((float)$row['value'], $sourceCurrencyCode, $currencyCode);
         $discount = min($convertedValue, $subtotal);
     }
 
@@ -951,13 +1038,15 @@ function ecCouponValidate(string $code, float $subtotal, ?string $currencyCode =
         'error'           => null,
         'code'            => $row['code'],
         'type'            => $type,
+        'store_id'        => isset($row['store_id']) ? (int)$row['store_id'] : null,
+        'source_currency' => $sourceCurrencyCode,
         'currency'        => $currencyCode,
         'value'           => $type === 'percent'
             ? (float)$row['value']
-            : ecCurrencyConvertAmount((float)$row['value'], ecStoreBaseCurrencyCode(), $currencyCode),
+            : ecCurrencyConvertAmount((float)$row['value'], $sourceCurrencyCode, $currencyCode),
         'discount_amount' => round($discount, 2),
         'remaining_balance' => $type === 'gift_card'
-            ? ecCurrencyConvertAmount((float)$row['value'], ecStoreBaseCurrencyCode(), $currencyCode)
+            ? ecCurrencyConvertAmount((float)$row['value'], $sourceCurrencyCode, $currencyCode)
             : null,
         'description'     => $row['description'] ?? '',
     ];
@@ -977,21 +1066,22 @@ function ecCouponNormalizeType(string $type): string
 /**
  * Increment coupon uses_count. Called after order is placed.
  */
-function ecCouponUse(string $code, ?float $appliedAmount = null): void
+function ecCouponUse(string $code, ?float $appliedAmount = null, ?string $appliedCurrencyCode = null, ?int $storeId = null): void
 {
     try {
         $normalizedCode = strtoupper(trim($code));
-        $coupon = ecDb()->query(
-            "SELECT code, type, value FROM ec_coupons WHERE code = ? LIMIT 1",
-            [$normalizedCode]
-        )->fetch(\PDO::FETCH_ASSOC) ?: null;
+        $coupon = ecCouponLookupByCode($normalizedCode, $storeId);
 
         if (!$coupon) {
             return;
         }
 
+        $sourceCurrencyCode = ecCouponSourceCurrencyCode($coupon);
+        $appliedCurrencyCode = ecCurrencyNormalizeCode($appliedCurrencyCode ?? $sourceCurrencyCode) ?: $sourceCurrencyCode;
+
         if (ecCouponNormalizeType((string)($coupon['type'] ?? '')) === 'gift_card') {
-            $amount = max(0.0, round((float)($appliedAmount ?? 0.0), 2));
+            $amount = ecCurrencyConvertAmount(max(0.0, (float)($appliedAmount ?? 0.0)), $appliedCurrencyCode, $sourceCurrencyCode);
+            $amount = max(0.0, round($amount, 2));
             if ($amount <= 0) {
                 return;
             }
@@ -1005,15 +1095,15 @@ function ecCouponUse(string $code, ?float $appliedAmount = null): void
                      uses_count = uses_count + 1,
                      is_active = ?,
                      updated_at = NOW()
-                 WHERE code = ?",
-                [$remainingBalance, $isActive, $normalizedCode]
+                 WHERE id = ?",
+                [$remainingBalance, $isActive, (int)($coupon['id'] ?? 0)]
             );
             return;
         }
 
         ecDb()->execute(
-            "UPDATE ec_coupons SET uses_count = uses_count + 1 WHERE code = ?",
-            [$normalizedCode]
+            "UPDATE ec_coupons SET uses_count = uses_count + 1 WHERE id = ?",
+            [(int)($coupon['id'] ?? 0)]
         );
     } catch (\Throwable $e) {
         write_log('ecCouponUse error: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);

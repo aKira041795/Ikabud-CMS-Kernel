@@ -650,13 +650,18 @@ function ecCartClear(): void
  */
 function ecCartApplyCoupon(string $code): array
 {
-    $coupon = ecCouponValidate($code, ecCartSubtotal(), ecCurrentCartCurrencyCode());
+    $user   = app()->user();
+    $userId = ($user && ($user['source'] ?? '') === 'cms') ? (int)$user['id'] : 0;
+    $items = $userId ? ecDbCartItems($userId) : ecSessionCartGet();
+    $items = ecCartHydrateStoreIds($items);
+    if (function_exists('ecEnforceCurrentPrices')) {
+        $items = ecEnforceCurrentPrices($items);
+    }
+
+    $coupon = ecCouponValidate($code, ecCartSubtotal(), ecCurrentCartCurrencyCode(), $items);
     if (!$coupon['valid']) {
         return ['ok' => false, 'error' => $coupon['error']];
     }
-
-    $user   = app()->user();
-    $userId = ($user && ($user['source'] ?? '') === 'cms') ? (int)$user['id'] : 0;
 
     if ($userId) {
         ecDbCartSetCoupon($userId, $code);

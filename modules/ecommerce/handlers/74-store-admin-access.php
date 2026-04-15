@@ -1208,6 +1208,9 @@ function ecStoreAdminCoupons(array $params = []): void
 
     $permissions = ecStoreAdminPermissions((string)($user['store_role'] ?? 'supervisor'));
     $canEdit   = !empty($permissions['manage_coupons']);
+    $storeSettings = function_exists('ecStoreSettingsArray') ? ecStoreSettingsArray($store) : [];
+    $couponCurrencyCode = ecCurrencyNormalizeCode((string)($storeSettings['currency'] ?? ecStoreBaseCurrencyCode())) ?: ecStoreBaseCurrencyCode();
+    $couponCurrencySymbol = trim((string)($storeSettings['currency_symbol'] ?? '')) ?: ecCurrencySymbolFor($couponCurrencyCode);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$canEdit) {
@@ -1276,6 +1279,8 @@ function ecStoreAdminCoupons(array $params = []): void
         'coupons'  => $coupons,
         'message'  => $_SESSION['ec_sa_message'] ?? null,
         'can_edit' => $canEdit,
+        'coupon_currency_code' => $couponCurrencyCode,
+        'coupon_currency_symbol' => $couponCurrencySymbol,
     ]);
     unset($_SESSION['ec_sa_message']);
     ecRender('modules/ecommerce/admin/store-admin-coupons.disyl', $ctx);

@@ -959,7 +959,12 @@ function ecOrderCreate(array $data): array
 
         // Increment coupon uses
         if (!empty($data['coupon_code'])) {
-            ecCouponUse((string)$data['coupon_code'], (float)($data['discount_amount'] ?? 0));
+            ecCouponUse(
+                (string)$data['coupon_code'],
+                (float)($data['discount_amount'] ?? 0),
+                $currency,
+                $storeId > 0 ? $storeId : null
+            );
         }
 
         $db->commit();

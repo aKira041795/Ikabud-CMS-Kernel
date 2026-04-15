@@ -26,6 +26,7 @@ $errors = [];
 $cleanupProductIds = [];
 $cleanupOrderIds  = [];
 $cleanupStoreIds  = [];
+$cleanupCouponCodes = [];
 $originalSettings = getModuleSettings('ecommerce');
 
 function tmc(string $label, bool $ok, string $detail = ''): void
@@ -52,7 +53,7 @@ function ecommerceMultiCurrencyUserId(): int
     return $userId;
 }
 
-function ecommerceMultiCurrencyCleanup(array $productIds, array $orderIds, array $originalSettings, array $storeIds = []): void
+function ecommerceMultiCurrencyCleanup(array $productIds, array $orderIds, array $originalSettings, array $storeIds = [], array $couponCodes = []): void
 {
     ecCartClear();
     unset($_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY], $_SESSION['ec_message'], $_GET['currency'], $_REQUEST['currency']);
@@ -72,6 +73,11 @@ function ecommerceMultiCurrencyCleanup(array $productIds, array $orderIds, array
         $db->execute('DELETE FROM ec_order_meta WHERE order_id = ?', [$orderId]);
         $db->execute('DELETE FROM ec_payment_transactions WHERE order_id = ?', [$orderId]);
         $db->execute('DELETE FROM ec_orders WHERE id = ?', [$orderId]);
+    }
+
+    if ($couponCodes !== []) {
+        $placeholders = implode(', ', array_fill(0, count($couponCodes), '?'));
+        $db->prepare("DELETE FROM ec_coupons WHERE code IN ({$placeholders})")->execute($couponCodes);
     }
 
     if ($productIds !== []) {
@@ -567,6 +573,169 @@ tmc('§5 store browsing product remains PHP after cart visit',
     json_encode($storeCatalogAfter['pricing'] ?? [])
 );
 
+echo "\n--- §6 Store coupon currency resolves from store settings ---\n";
+
+$couponSeed = substr(bin2hex(random_bytes(4)), 0, 6);
+$couponStoreSlug = 'coupon-store-' . $couponSeed;
+
+ecDb()->query(
+    "INSERT INTO ec_stores (code, name, slug, is_active, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, NOW(), NOW())",
+    [
+        'CPN' . strtoupper($couponSeed),
+        'Coupon Store ' . $couponSeed,
+        $couponStoreSlug,
+        json_encode(['currency' => 'PHP', 'currency_symbol' => 'PHP ']),
+    ]
+);
+$couponStoreId = (int)ecDb()->query("SELECT LAST_INSERT_ID() AS id", [])->fetchColumn();
+$cleanupStoreIds[] = $couponStoreId;
+
+$couponOtherStoreSlug = 'coupon-other-store-' . $couponSeed;
+ecDb()->query(
+    "INSERT INTO ec_stores (code, name, slug, is_active, settings_json, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, NOW(), NOW())",
+    [
+        'CPNALT' . strtoupper($couponSeed),
+        'Coupon Other Store ' . $couponSeed,
+        $couponOtherStoreSlug,
+        json_encode(['currency' => 'PHP', 'currency_symbol' => 'PHP ']),
+    ]
+);
+$couponOtherStoreId = (int)ecDb()->query("SELECT LAST_INSERT_ID() AS id", [])->fetchColumn();
+$cleanupStoreIds[] = $couponOtherStoreId;
+
+$couponProductId = ecProductCreate([
+    'title' => 'Coupon Currency Product ' . $couponSeed,
+    'slug' => 'coupon-currency-product-' . strtolower($couponSeed),
+    'excerpt' => 'Store coupon currency fixture.',
+    'status' => 'published',
+    'price' => 1500.00,
+    'currency' => 'USD',
+    'stock_qty' => 10,
+    'track_stock' => true,
+], $userId);
+$cleanupProductIds[] = $couponProductId;
+
+$couponOtherProductId = ecProductCreate([
+    'title' => 'Coupon Other Store Product ' . $couponSeed,
+    'slug' => 'coupon-other-store-product-' . strtolower($couponSeed),
+    'excerpt' => 'Mixed store coupon rejection fixture.',
+    'status' => 'published',
+    'price' => 900.00,
+    'currency' => 'USD',
+    'stock_qty' => 10,
+    'track_stock' => true,
+], $userId);
+$cleanupProductIds[] = $couponOtherProductId;
+
+ecDb()->execute(
+    "INSERT INTO ec_store_product_overrides (store_id, product_id, is_visible, price_override, created_at, updated_at)
+     VALUES (?, ?, 1, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE is_visible = 1, price_override = VALUES(price_override), updated_at = NOW()",
+    [$couponStoreId, $couponProductId, 1500.00]
+);
+ecDb()->execute(
+    "INSERT INTO ec_store_product_overrides (store_id, product_id, is_visible, price_override, created_at, updated_at)
+     VALUES (?, ?, 1, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE is_visible = 1, price_override = VALUES(price_override), updated_at = NOW()",
+    [$couponOtherStoreId, $couponOtherProductId, 900.00]
+);
+
+$fixedCouponCode = 'STOREFIX' . strtoupper($couponSeed);
+$giftCouponCode = 'STOREGFT' . strtoupper($couponSeed);
+$cleanupCouponCodes = array_merge($cleanupCouponCodes, [$fixedCouponCode, $giftCouponCode]);
+
+ecDb()->execute(
+    "INSERT INTO ec_coupons (store_id, code, type, value, min_order_amount, max_uses, expires_at, description, is_active, created_at, updated_at)
+     VALUES (?, ?, 'fixed', ?, ?, NULL, NULL, ?, 1, NOW(), NOW())",
+    [$couponStoreId, $fixedCouponCode, 100.00, 1000.00, 'Store-fixed coupon fixture']
+);
+ecDb()->execute(
+    "INSERT INTO ec_coupons (store_id, code, type, value, min_order_amount, max_uses, expires_at, description, is_active, created_at, updated_at)
+     VALUES (?, ?, 'gift_card', ?, 0, NULL, NULL, ?, 1, NOW(), NOW())",
+    [$couponStoreId, $giftCouponCode, 150.00, 'Store gift-card fixture']
+);
+
+ecCartClear();
+$_GET['store'] = $couponStoreSlug;
+$_REQUEST['store'] = $couponStoreSlug;
+$_SESSION[EC_SESSION_SELECTED_CURRENCY_KEY] = 'USD';
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+
+$couponAddResult = ecCartAdd($couponProductId, 1);
+$couponApplyResult = ecCartApplyCoupon($fixedCouponCode);
+$couponCart = ecCartGet();
+
+tmc('§6 store coupon add fixture succeeds', !empty($couponAddResult['ok']), json_encode($couponAddResult));
+tmc('§6 fixed store coupon applies using the store currency instead of the platform base currency',
+    !empty($couponApplyResult['ok'])
+        && (string)($couponApplyResult['coupon']['source_currency'] ?? '') === 'PHP'
+        && abs((float)($couponCart['totals']['coupon_discount_amount'] ?? 0) - 100.00) < 0.01
+        && abs((float)($couponCart['totals']['total'] ?? 0) - 1400.00) < 0.01,
+    json_encode(['apply' => $couponApplyResult, 'cart' => $couponCart])
+);
+
+ecCartClear();
+$_GET['store'] = $couponOtherStoreSlug;
+$_REQUEST['store'] = $couponOtherStoreSlug;
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+
+$otherStoreAddResult = ecCartAdd($couponOtherProductId, 1);
+$otherStoreCouponApplyResult = ecCartApplyCoupon($fixedCouponCode);
+$otherStoreCouponCart = ecCartGet();
+
+tmc('§6 other-store cart fixture add succeeds before coupon rejection',
+    !empty($otherStoreAddResult['ok']),
+    json_encode($otherStoreAddResult)
+);
+tmc('§6 store coupon is rejected outside the store that created it',
+    empty($otherStoreCouponApplyResult['ok'])
+        && str_contains((string)($otherStoreCouponApplyResult['error'] ?? ''), 'Invalid coupon')
+        && (string)($otherStoreCouponCart['coupon_code'] ?? '') === '',
+    json_encode(['apply' => $otherStoreCouponApplyResult, 'cart' => $otherStoreCouponCart])
+);
+
+ecCartClear();
+$_GET['store'] = $couponStoreSlug;
+$_REQUEST['store'] = $couponStoreSlug;
+if (function_exists('ecCurrencyResetRuntimeState')) {
+    ecCurrencyResetRuntimeState();
+}
+if (function_exists('ecStoreClearResolvedContext')) {
+    ecStoreClearResolvedContext();
+}
+
+ecCartAdd($couponProductId, 1);
+$giftApplyResult = ecCartApplyCoupon($giftCouponCode);
+$giftCart = ecCartGet();
+$giftOrderResult = ecOrderCreate(ecommerceMultiCurrencyOrderData($giftCart, $userId));
+$cleanupOrderIds[] = (int)($giftOrderResult['order_id'] ?? 0);
+$giftCouponRow = ecDb()->query('SELECT value, uses_count, is_active FROM ec_coupons WHERE code = ? LIMIT 1', [$giftCouponCode])->fetch(PDO::FETCH_ASSOC) ?: [];
+
+tmc('§6 store gift card applies in the store currency before order placement',
+    !empty($giftApplyResult['ok'])
+        && abs((float)($giftCart['totals']['gift_card_amount'] ?? 0) - 150.00) < 0.01
+        && abs((float)($giftCart['totals']['total'] ?? 0) - 1350.00) < 0.01,
+    json_encode(['apply' => $giftApplyResult, 'cart' => $giftCart])
+);
+tmc('§6 store gift card redemption decrements remaining balance in the store currency',
+    abs((float)($giftCouponRow['value'] ?? 0) - 0.00) < 0.01
+        && (int)($giftCouponRow['uses_count'] ?? 0) === 1
+        && (int)($giftCouponRow['is_active'] ?? 0) === 0,
+    json_encode($giftCouponRow)
+);
+
 // Clean up store context state for subsequent operations.
 ecCartClear();
 if (function_exists('ecStoreClearResolvedContext')) {
@@ -578,7 +747,7 @@ if (function_exists('ecCurrencyResetRuntimeState')) {
     ecCurrencyResetRuntimeState();
 }
 
-ecommerceMultiCurrencyCleanup($cleanupProductIds, array_filter($cleanupOrderIds), is_array($originalSettings) ? $originalSettings : [], $cleanupStoreIds);
+ecommerceMultiCurrencyCleanup($cleanupProductIds, array_filter($cleanupOrderIds), is_array($originalSettings) ? $originalSettings : [], $cleanupStoreIds, $cleanupCouponCodes);
 
 echo "\n════════════════════════════════════════════\n";
 echo "  Results: {$pass} passed, {$fail} failed\n";
