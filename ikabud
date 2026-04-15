@@ -150,6 +150,10 @@ switch ($command) {
         out('    ' . green('disyl:lint') . ' [path]           Lint templates for syntax errors');
         out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
         out('');
+        out('  ' . bold('API'));
+        out('    ' . green('openapi:generate') . '            Generate OpenAPI 3.0 spec from routes');
+        out('    ' . green('openapi:generate') . ' --format=json|yaml   Output format (default: json)');
+        out('');
         out('  ' . bold('Debug'));
         out('    ' . green('event:list') . '                  List registered event listeners');
         out('    ' . green('event:trace') . ' <name>          Show listeners, emitters, and flow for an event');
@@ -1932,6 +1936,81 @@ switch ($command) {
 
         // Display graph
         $targetModule = paramsWithoutFlags($params)[0] ?? '';
+        $format = getFlagValue('--format=') ?? 'text';
+
+        // 4.5: Machine-readable graph output formats
+        if ($format === 'mermaid') {
+            out('graph TD');
+            foreach ($allMods as $mid => $manifest) {
+                $nodeId = str_replace('-', '_', $mid);
+                $exp = $exposesMap[$mid] ?? [];
+                $label = $mid . ($exp ? '\\n(' . count($exp) . ' caps)' : '');
+                out('    ' . $nodeId . '["' . $label . '"]');
+            }
+            foreach ($edges as $from => $targets) {
+                $fromId = str_replace('-', '_', $from);
+                foreach (array_keys($targets) as $to) {
+                    $toId = str_replace('-', '_', $to);
+                    out('    ' . $fromId . ' --> ' . $toId);
+                }
+            }
+            foreach ($kernelDeps as $mid => $deps) {
+                $nodeId = str_replace('-', '_', $mid);
+                out('    ' . $nodeId . ' -.-> kernel');
+            }
+            out('    kernel["kernel"]');
+            out('    style kernel fill:#f9f,stroke:#333');
+            break;
+        }
+
+        if ($format === 'dot') {
+            out('digraph modules {');
+            out('    rankdir=LR;');
+            out('    node [shape=box, style=filled, fillcolor="#e8f4fd"];');
+            out('    kernel [fillcolor="#ffe0f0"];');
+            foreach ($allMods as $mid => $manifest) {
+                $nodeId = str_replace('-', '_', $mid);
+                out('    ' . $nodeId . ' [label="' . $mid . '"];');
+            }
+            foreach ($edges as $from => $targets) {
+                $fromId = str_replace('-', '_', $from);
+                foreach (array_keys($targets) as $to) {
+                    $toId = str_replace('-', '_', $to);
+                    out('    ' . $fromId . ' -> ' . $toId . ';');
+                }
+            }
+            foreach ($kernelDeps as $mid => $deps) {
+                $nodeId = str_replace('-', '_', $mid);
+                out('    ' . $nodeId . ' -> kernel [style=dashed];');
+            }
+            out('}');
+            break;
+        }
+
+        if ($format === 'json') {
+            $graphJson = [
+                'modules' => [],
+                'edges' => [],
+                'kernel_deps' => [],
+            ];
+            foreach ($allMods as $mid => $manifest) {
+                $graphJson['modules'][] = [
+                    'id' => $mid,
+                    'exposes' => $exposesMap[$mid] ?? [],
+                    'depends' => $dependsMap[$mid] ?? [],
+                ];
+            }
+            foreach ($edges as $from => $targets) {
+                foreach (array_keys($targets) as $to) {
+                    $graphJson['edges'][] = ['from' => $from, 'to' => $to];
+                }
+            }
+            foreach ($kernelDeps as $mid => $deps) {
+                $graphJson['kernel_deps'][] = ['module' => $mid, 'capabilities' => $deps];
+            }
+            out(json_encode($graphJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            break;
+        }
 
         if ($targetModule !== '') {
             out('  ' . bold('Impact analysis: ') . cyan($targetModule));
@@ -3042,6 +3121,42 @@ MD;
             out('');
         }
         out("  Total: {$total} route(s)");
+        out('');
+        break;
+
+    // ── openapi:generate ─────────────────────────────────────────
+    case 'openapi:generate':
+        banner();
+        out('  ' . bold('OpenAPI 3.0 Spec Generator'));
+        out('');
+
+        // Load route maps
+        $openApiRoutes = kernelCoreRoutes();
+        $openApiRoutes = loadModuleRoutes($openApiRoutes);
+
+        $gen = new \Ikabud\Kernel\Services\OpenApiGenerator(
+            $openApiRoutes,
+            trim((string)(getFlagValue('--title=') ?? 'Ikabud Platform API')),
+            trim((string)(getFlagValue('--version=') ?? '1.0.0'))
+        );
+
+        $outFile = getFlagValue('--output=');
+        $spec = $gen->toJson();
+
+        if ($outFile !== null) {
+            $outFile = trim($outFile);
+            $dir = dirname($outFile);
+            if ($dir !== '' && !is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            file_put_contents($outFile, $spec);
+            out('  ' . green('✓') . ' Spec written to ' . bold($outFile));
+            $decoded = json_decode($spec, true);
+            $pathCount = is_array($decoded['paths'] ?? null) ? count($decoded['paths']) : 0;
+            out('  Paths: ' . cyan((string)$pathCount));
+        } else {
+            echo $spec . "\n";
+        }
         out('');
         break;
 

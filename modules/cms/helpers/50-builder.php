@@ -1744,6 +1744,193 @@ function cmsBuilderPruneRevisions(int $builderDocumentId, int $maxRevisions = 50
     }
 }
 
+// ── 4.8: Content Revision Diffing & Restore ──
+
+/**
+ * List all revisions for a builder document.
+ */
+function cmsBuilderRevisionList(int $builderDocumentId, int $limit = 50): array
+{
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT id, builder_document_id, revision_number, note, created_by, created_at
+             FROM cms_builder_revisions
+             WHERE builder_document_id = :id
+             ORDER BY revision_number DESC
+             LIMIT :lim"
+        );
+        $stmt->bindValue(':id', $builderDocumentId, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Get a specific revision snapshot.
+ */
+function cmsBuilderRevisionGet(int $builderDocumentId, int $revisionNumber): ?array
+{
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT * FROM cms_builder_revisions
+             WHERE builder_document_id = :id AND revision_number = :rev"
+        );
+        $stmt->execute([':id' => $builderDocumentId, ':rev' => $revisionNumber]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) return null;
+        $row['snapshot'] = json_decode((string)($row['snapshot_json'] ?? '{}'), true);
+        return $row;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * Compare two revision snapshots and return a structured diff.
+ *
+ * Returns array of changes: added/removed/modified nodes, prop changes, style changes.
+ */
+function cmsBuilderRevisionDiff(array $docA, array $docB): array
+{
+    $nodesA = _cmsBuilderFlattenNodes($docA);
+    $nodesB = _cmsBuilderFlattenNodes($docB);
+
+    $idsA = array_keys($nodesA);
+    $idsB = array_keys($nodesB);
+
+    $added = array_diff($idsB, $idsA);
+    $removed = array_diff($idsA, $idsB);
+    $common = array_intersect($idsA, $idsB);
+
+    $changes = [];
+    foreach ($added as $id) {
+        $changes[] = ['type' => 'added', 'node_id' => $id, 'node_type' => (string)($nodesB[$id]['type'] ?? '')];
+    }
+    foreach ($removed as $id) {
+        $changes[] = ['type' => 'removed', 'node_id' => $id, 'node_type' => (string)($nodesA[$id]['type'] ?? '')];
+    }
+    foreach ($common as $id) {
+        $nodeA = $nodesA[$id];
+        $nodeB = $nodesB[$id];
+
+        $propDiffs = _cmsBuilderDiffAssoc(
+            is_array($nodeA['props'] ?? null) ? $nodeA['props'] : [],
+            is_array($nodeB['props'] ?? null) ? $nodeB['props'] : []
+        );
+        $styleDiffs = _cmsBuilderDiffAssoc(
+            is_array($nodeA['styles'] ?? null) ? $nodeA['styles'] : [],
+            is_array($nodeB['styles'] ?? null) ? $nodeB['styles'] : []
+        );
+
+        if (!empty($propDiffs) || !empty($styleDiffs)) {
+            $changes[] = [
+                'type' => 'modified',
+                'node_id' => $id,
+                'node_type' => (string)($nodeB['type'] ?? ''),
+                'prop_changes' => $propDiffs,
+                'style_changes' => $styleDiffs,
+            ];
+        }
+    }
+
+    return [
+        'total_changes' => count($changes),
+        'added' => count($added),
+        'removed' => count($removed),
+        'modified' => count($changes) - count($added) - count($removed),
+        'changes' => $changes,
+    ];
+}
+
+/**
+ * Flatten a node tree into id => node map for diffing.
+ */
+function _cmsBuilderFlattenNodes(array $node, array &$result = []): array
+{
+    $id = (string)($node['id'] ?? '');
+    if ($id !== '') {
+        $flat = $node;
+        unset($flat['children']);
+        $result[$id] = $flat;
+    }
+    foreach (($node['children'] ?? []) as $child) {
+        if (is_array($child)) {
+            _cmsBuilderFlattenNodes($child, $result);
+        }
+    }
+    return $result;
+}
+
+/**
+ * Diff two associative arrays — returns list of changed keys.
+ */
+function _cmsBuilderDiffAssoc(array $a, array $b): array
+{
+    $diffs = [];
+    $allKeys = array_unique(array_merge(array_keys($a), array_keys($b)));
+    foreach ($allKeys as $key) {
+        $va = $a[$key] ?? null;
+        $vb = $b[$key] ?? null;
+        if ($va !== $vb) {
+            $diffs[] = [
+                'key' => $key,
+                'old' => $va,
+                'new' => $vb,
+            ];
+        }
+    }
+    return $diffs;
+}
+
+/**
+ * Restore a revision as the current document.
+ * Creates a new revision of the current state before restoring.
+ */
+function cmsBuilderRevisionRestore(int $builderDocumentId, int $revisionNumber, ?int $userId = null): array
+{
+    $revision = cmsBuilderRevisionGet($builderDocumentId, $revisionNumber);
+    if (!$revision || !is_array($revision['snapshot'] ?? null)) {
+        return ['ok' => false, 'error' => 'Revision not found'];
+    }
+
+    $snapshot = $revision['snapshot'];
+    $normalized = cmsBuilderNormalizeDocument($snapshot);
+    if (!$normalized) {
+        return ['ok' => false, 'error' => 'Invalid revision snapshot'];
+    }
+
+    try {
+        $db = cmsDb();
+
+        // Save current state as a revision first (backup before restore)
+        $current = $db->prepare("SELECT draft_document FROM cms_builder_documents WHERE id = :id");
+        $current->execute([':id' => $builderDocumentId]);
+        $currentJson = $current->fetchColumn();
+        if ($currentJson) {
+            $currentDoc = json_decode((string)$currentJson, true);
+            if (is_array($currentDoc)) {
+                cmsBuilderCreateRevision($builderDocumentId, $currentDoc, $userId, 'Auto-backup before restore to rev #' . $revisionNumber);
+            }
+        }
+
+        // Restore the revision as the new draft
+        $json = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $db->prepare(
+            "UPDATE cms_builder_documents SET draft_document = :doc, document_version = document_version + 1, updated_at = NOW() WHERE id = :id"
+        )->execute([':doc' => $json, ':id' => $builderDocumentId]);
+
+        // Create a revision for the restored state
+        cmsBuilderCreateRevision($builderDocumentId, $normalized, $userId, 'Restored from revision #' . $revisionNumber);
+
+        return ['ok' => true, 'restored_revision' => $revisionNumber];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => 'Restore failed: ' . $e->getMessage()];
+    }
+}
+
 /**
  * Prune old content revisions (classic revisions table).
  */

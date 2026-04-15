@@ -54,7 +54,13 @@
         "ec_saved_payment_methods",
         "ec_report_cache",
         "ec_order_edits",
-        "rate_limits"
+        "rate_limits",
+        "ec_marketplace_vendors",
+        "ec_marketplace_payouts",
+        "ec_marketplace_product_vendors",
+        "ec_pos_terminals",
+        "ec_pos_cash_drawers",
+        "ec_pos_payments"
     ],
     "reads_tables": [
         "cms_content",
@@ -107,7 +113,9 @@
         "modules/ecommerce/database/migrations/034_ec_order_item_store.sql",
         "modules/ecommerce/database/migrations/035_ec_stores_branding_coupons.sql",
         "modules/ecommerce/database/migrations/036_ec_store_notifications_messages.sql",
-        "modules/ecommerce/database/migrations/039_ec_tier3_features.sql"
+        "modules/ecommerce/database/migrations/039_ec_tier3_features.sql",
+        "modules/ecommerce/database/migrations/040_ec_marketplace_foundation.sql",
+        "modules/ecommerce/database/migrations/041_ec_pos_expansion.sql"
     ],
     "capabilities": {
         "exposes": [

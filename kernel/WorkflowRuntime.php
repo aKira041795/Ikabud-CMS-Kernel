@@ -188,7 +188,7 @@ final class WorkflowRuntime
         }
     }
 
-    public function allowedActions(array $definition, string $state, ?string $role): array
+    public function allowedActions(array $definition, string $state, ?string $role, array $guardContext = []): array
     {
         $decoded = json_decode((string)($definition['transitions_json'] ?? '[]'), true);
         if (!is_array($decoded)) {
@@ -205,6 +205,12 @@ final class WorkflowRuntime
             if ($role !== null && $roles !== [] && !in_array($role, $roles, true)) {
                 continue;
             }
+
+            // 4.7: Evaluate guard if present
+            if (!$this->evaluateGuard($transition, $guardContext)) {
+                continue;
+            }
+
             $action = [
                 'action' => (string)($transition['action'] ?? ''),
                 'to' => (string)($transition['to'] ?? ''),
@@ -219,6 +225,83 @@ final class WorkflowRuntime
         }
 
         return $out;
+    }
+
+    /**
+     * Evaluate a guard condition on a transition.
+     *
+     * Guard types:
+     *  - callable: 'guard' => callable — invoked with ($guardContext), must return truthy
+     *  - string:   'guard' => 'functionName' — resolved as global function name
+     *  - array:    'guard' => ['field' => 'status', 'operator' => 'eq', 'value' => 'paid']
+     *              Operators: eq, neq, in, not_in, gt, gte, lt, lte, empty, not_empty
+     *
+     * No guard key = always passes.
+     */
+    private function evaluateGuard(array $transition, array $context): bool
+    {
+        if (!array_key_exists('guard', $transition)) {
+            return true;
+        }
+
+        $guard = $transition['guard'];
+
+        // Callable guard
+        if (is_callable($guard)) {
+            try {
+                return (bool)$guard($context);
+            } catch (Throwable $e) {
+                $this->log('workflow guard callable threw: ' . $e->getMessage());
+                return false;
+            }
+        }
+
+        // String guard — global function name
+        if (is_string($guard) && $guard !== '') {
+            if (function_exists($guard)) {
+                try {
+                    return (bool)$guard($context);
+                } catch (Throwable $e) {
+                    $this->log('workflow guard function threw: ' . $e->getMessage());
+                    return false;
+                }
+            }
+            // Unknown function — fail closed
+            return false;
+        }
+
+        // Declarative guard: ['field' => ..., 'operator' => ..., 'value' => ...]
+        if (is_array($guard)) {
+            return $this->evaluateDeclarativeGuard($guard, $context);
+        }
+
+        return true;
+    }
+
+    private function evaluateDeclarativeGuard(array $guard, array $context): bool
+    {
+        $field = (string)($guard['field'] ?? '');
+        if ($field === '') {
+            return true;
+        }
+
+        $actual = $context[$field] ?? null;
+        $expected = $guard['value'] ?? null;
+        $operator = strtolower(trim((string)($guard['operator'] ?? 'eq')));
+
+        return match ($operator) {
+            'eq' => $actual == $expected,
+            'neq', 'ne' => $actual != $expected,
+            'in' => is_array($expected) && in_array($actual, $expected, false),
+            'not_in' => is_array($expected) && !in_array($actual, $expected, false),
+            'gt' => $actual > $expected,
+            'gte', 'ge' => $actual >= $expected,
+            'lt' => $actual < $expected,
+            'lte', 'le' => $actual <= $expected,
+            'empty' => empty($actual),
+            'not_empty' => !empty($actual),
+            default => true,
+        };
     }
 
     public function getOrCreateInstance(string $workflowKey, string $module, string $entityType, string $entityId, string $defaultState): ?array
@@ -325,7 +408,17 @@ final class WorkflowRuntime
         $caller = $this->resolveCaller($payload);
         $from = (string)($instance['state'] ?? '');
         $to = null;
-        foreach ($this->allowedActions($definition, $from, $caller['role']) as $allowedAction) {
+
+        // Build guard context from payload + entity state
+        $guardContext = is_array($payload['guard_context'] ?? null) ? $payload['guard_context'] : [];
+        $guardContext['_from'] = $from;
+        $guardContext['_action'] = $action;
+        $guardContext['_entity_type'] = $entityType;
+        $guardContext['_entity_id'] = $entityId;
+        $guardContext['_module'] = $module;
+        $guardContext['_caller'] = $caller;
+
+        foreach ($this->allowedActions($definition, $from, $caller['role'], $guardContext) as $allowedAction) {
             if ((string)($allowedAction['action'] ?? '') === $action) {
                 $to = (string)($allowedAction['to'] ?? '');
                 break;

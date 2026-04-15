@@ -1,0 +1,314 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Ikabud\Kernel\Services;
+
+use Ikabud\Kernel\Crypto;
+use Ikabud\Kernel\Database\MigrationRunner;
+use PDO;
+use Throwable;
+
+/**
+ * 4.4: Tenant Provisioning Service
+ *
+ * Consolidates the multi-step tenant provisioning workflow into a reusable service.
+ * Steps: validate tenant → create DB → connect → run migrations → seed admin user.
+ *
+ * Used by `php ikabud tenant:provision` CLI and can be invoked from admin APIs.
+ */
+class TenantProvisioner
+{
+    private PDO $controlDb;
+    private array $log = [];
+    private array $errors = [];
+
+    public function __construct(PDO $controlDb)
+    {
+        $this->controlDb = $controlDb;
+    }
+
+    /**
+     * Full provisioning pipeline.
+     *
+     * @param int    $tenantId
+     * @param array  $options  Keys: skip_db_create, admin_user, admin_pass, admin_name
+     * @return array ['ok' => bool, 'log' => [...], 'errors' => [...], 'migrations' => int]
+     */
+    public function provision(int $tenantId, array $options = []): array
+    {
+        $this->log = [];
+        $this->errors = [];
+        $migrationCount = 0;
+
+        try {
+            // Step 1: Load tenant record
+            $tenant = $this->loadTenant($tenantId);
+            if ($tenant === null) {
+                return $this->result(false, 0);
+            }
+
+            $tenantKey = (string)($tenant['tenant_key'] ?? '');
+            $this->log('Provisioning tenant #' . $tenantId . ' (' . $tenantKey . ')');
+
+            // Step 2: Resolve DB credentials
+            $creds = $this->resolveDbCredentials($tenant);
+            if ($creds === null) {
+                return $this->result(false, 0);
+            }
+
+            // Step 3: Create database (unless skipped)
+            if (empty($options['skip_db_create'])) {
+                $ok = $this->createDatabase($creds);
+                if (!$ok) {
+                    return $this->result(false, 0);
+                }
+            } else {
+                $this->log('Skipping database creation (skip_db_create)');
+            }
+
+            // Step 4: Connect to tenant DB
+            $tenantPdo = $this->connectTenantDb($creds);
+            if ($tenantPdo === null) {
+                return $this->result(false, 0);
+            }
+            $this->log('Connected to tenant database');
+
+            // Step 5: Set tenant context
+            app()->tenant()->setTenantId($tenantId);
+
+            // Step 6: Run module migrations
+            $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
+            $migrationCount = $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
+
+            // Step 7: Run kernel migrations
+            $kernelCount = $this->runKernelMigrations($tenantPdo);
+            $migrationCount += $kernelCount;
+
+            // Step 8: Seed admin user
+            $adminUser = trim((string)($options['admin_user'] ?? ''));
+            $adminPass = trim((string)($options['admin_pass'] ?? ''));
+            $adminName = trim((string)($options['admin_name'] ?? 'Admin'));
+            if ($adminUser !== '' && $adminPass !== '') {
+                $this->seedAdminUser($tenantPdo, $adminUser, $adminPass, $adminName, $entryModule);
+            }
+
+            $this->log('Provisioning complete for tenant #' . $tenantId);
+            return $this->result(true, $migrationCount);
+
+        } catch (Throwable $e) {
+            $this->error('Provisioning failed: ' . $e->getMessage());
+            return $this->result(false, $migrationCount);
+        }
+    }
+
+    /**
+     * Validate that a tenant can be provisioned (dry-run check).
+     */
+    public function validate(int $tenantId): array
+    {
+        $issues = [];
+
+        $tenant = $this->loadTenant($tenantId);
+        if ($tenant === null) {
+            $issues[] = 'Tenant not found';
+            return ['ok' => false, 'issues' => $issues];
+        }
+
+        $creds = $this->resolveDbCredentials($tenant);
+        if ($creds === null) {
+            $issues[] = 'No DB connection configured';
+        }
+
+        if (trim((string)($tenant['entry_module_id'] ?? '')) === '') {
+            $issues[] = 'No entry module configured';
+        }
+
+        return ['ok' => empty($issues), 'issues' => $issues, 'tenant_key' => (string)($tenant['tenant_key'] ?? '')];
+    }
+
+    // ── Internal steps ──────────────────────────────────────────
+
+    private function loadTenant(int $tenantId): ?array
+    {
+        $stmt = $this->controlDb->prepare(
+            'SELECT t.id, t.tenant_key, t.status, t.entry_module_id, '
+            . 'c.db_driver, c.db_host, c.db_port, c.db_name, c.db_user, c.db_pass, c.db_charset, '
+            . 'c.db_pass_ciphertext, c.db_pass_iv, c.db_pass_tag '
+            . 'FROM kernel_tenants t '
+            . 'LEFT JOIN kernel_tenant_db_connections c ON c.tenant_id = t.id '
+            . 'WHERE t.id = :tid LIMIT 1'
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        $tenant = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!is_array($tenant)) {
+            $this->error('Tenant not found: ' . $tenantId);
+            return null;
+        }
+        return $tenant;
+    }
+
+    private function resolveDbCredentials(array $tenant): ?array
+    {
+        $host = (string)($tenant['db_host'] ?? '');
+        $port = (string)($tenant['db_port'] ?? '3306');
+        $name = (string)($tenant['db_name'] ?? '');
+        $user = (string)($tenant['db_user'] ?? '');
+        $charset = (string)($tenant['db_charset'] ?? 'utf8mb4');
+
+        if ($host === '' || $name === '' || $user === '') {
+            $this->error('Incomplete DB connection: host/name/user required');
+            return null;
+        }
+
+        // Decrypt password
+        $pass = (string)($tenant['db_pass'] ?? '');
+        $cipher = (string)($tenant['db_pass_ciphertext'] ?? '');
+        $iv = (string)($tenant['db_pass_iv'] ?? '');
+        $tag = (string)($tenant['db_pass_tag'] ?? '');
+        if ($cipher !== '' && $iv !== '' && $tag !== '') {
+            $pass = (new Crypto())->decryptString($cipher, $iv, $tag);
+        }
+
+        return compact('host', 'port', 'name', 'user', 'pass', 'charset');
+    }
+
+    private function createDatabase(array $creds): bool
+    {
+        try {
+            $dsn = 'mysql:host=' . $creds['host'] . ';port=' . $creds['port'] . ';charset=' . $creds['charset'];
+            $pdo = new PDO($dsn, $creds['user'], $creds['pass'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ]);
+            $safeName = preg_replace('/[^a-zA-Z0-9_]/', '', $creds['name']);
+            $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . $safeName . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+            $this->log('Database created (or already exists)');
+            return true;
+        } catch (Throwable $e) {
+            $this->error('Could not create database: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function connectTenantDb(array $creds): ?PDO
+    {
+        try {
+            $dsn = 'mysql:host=' . $creds['host'] . ';port=' . $creds['port']
+                . ';dbname=' . $creds['name'] . ';charset=' . $creds['charset'];
+            return new PDO($dsn, $creds['user'], $creds['pass'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
+            ]);
+        } catch (Throwable $e) {
+            $this->error('Cannot connect to tenant DB: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function runModuleMigrations(PDO $tenantPdo, ?string $entryModule): int
+    {
+        $runner = new MigrationRunner($tenantPdo);
+        $plan = tenantProvisionModulePlan($entryModule);
+        $total = 0;
+
+        foreach ($plan as $moduleId) {
+            $result = $runner->migrate($moduleId);
+            if (!empty($result)) {
+                $this->log("Migrated $moduleId: " . count($result) . ' file(s)');
+                $total += count($result);
+            }
+        }
+
+        $this->log("Module migrations: $total total");
+        return $total;
+    }
+
+    private function runKernelMigrations(PDO $tenantPdo): int
+    {
+        $applied = tenantSyncKernelMigrations($tenantPdo);
+        if (!empty($applied)) {
+            $this->log('Kernel migrations: ' . count($applied) . ' applied');
+        }
+        return count($applied);
+    }
+
+    private function seedAdminUser(PDO $tenantPdo, string $user, string $pass, string $name, string $entryModule): void
+    {
+        $table = ($entryModule === 'cms') ? 'cms_users' : 'users';
+
+        try {
+            $tableCheck = $tenantPdo->query("SHOW TABLES LIKE '{$table}'")->fetchColumn();
+            if ($tableCheck === false) {
+                $this->log("Table '$table' does not exist — skipping user seed");
+                return;
+            }
+
+            $exists = $tenantPdo->prepare("SELECT id FROM `{$table}` WHERE username = :u LIMIT 1");
+            $exists->execute([':u' => $user]);
+            if ($exists->fetch()) {
+                $this->log("User '$user' already exists in $table");
+                return;
+            }
+
+            $hash = password_hash($pass, PASSWORD_BCRYPT);
+            if ($table === 'cms_users') {
+                $stmt = $tenantPdo->prepare(
+                    "INSERT INTO `cms_users` (username, email, password_hash, display_name, role, is_active) "
+                    . "VALUES (:u, :e, :p, :n, 'administrator', 1)"
+                );
+                $stmt->execute([':u' => $user, ':e' => $user . '@localhost', ':p' => $hash, ':n' => $name]);
+            } else {
+                $stmt = $tenantPdo->prepare(
+                    "INSERT INTO `users` (username, password, full_name, role, status) "
+                    . "VALUES (:u, :p, :n, 'admin', 'active')"
+                );
+                $stmt->execute([':u' => $user, ':p' => $hash, ':n' => $name]);
+            }
+
+            $this->log("Admin user '$user' seeded in $table");
+        } catch (Throwable $e) {
+            $this->error('User seed failed: ' . $e->getMessage());
+        }
+    }
+
+    // ── Logging helpers ─────────────────────────────────────────
+
+    private function log(string $msg): void
+    {
+        $this->log[] = $msg;
+    }
+
+    private function error(string $msg): void
+    {
+        $this->errors[] = $msg;
+    }
+
+    private function result(bool $ok, int $migrations): array
+    {
+        return [
+            'ok' => $ok,
+            'log' => $this->log,
+            'errors' => $this->errors,
+            'migrations' => $migrations,
+        ];
+    }
+
+    /**
+     * Get accumulated log messages.
+     */
+    public function getLog(): array
+    {
+        return $this->log;
+    }
+
+    /**
+     * Get accumulated errors.
+     */
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
+}
