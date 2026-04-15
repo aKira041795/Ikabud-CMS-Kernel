@@ -100,6 +100,19 @@ file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 const TEST_EMAIL   = 'noah2.omamalin@gmail.com';
 const DIGITAL_PROD = 1225; // "Guidance Monitoring" — _is_digital=1, _license_module=guidance
 
+// ── Ensure a license signing key exists (CI has no pre-seeded key) ────────
+$_origEcSettings = readTenantModuleSettings('ecommerce');
+$_hadPemKey = array_key_exists('license_private_key_pem', $_origEcSettings);
+$_origPemValue = $_origEcSettings['license_private_key_pem'] ?? null;
+
+if (empty(trim((string)($_origEcSettings['license_private_key_pem'] ?? '')))) {
+    $_rsaKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+    openssl_pkey_export($_rsaKey, $_generatedPem);
+    saveTenantModuleSettings('ecommerce', ['license_private_key_pem' => $_generatedPem]);
+    invalidateTenantModuleSettingsCache();
+    ecSettingsResetCache();
+}
+
 // ── Cleanup helpers ───────────────────────────────────────────────────────
 $createdOrderIds = [];
 $createdStoreIds = [];
@@ -436,6 +449,25 @@ try {
 // ══════════════════════════════════════════════════════════════════════════
 cleanupTestOrders($createdOrderIds);
 cleanupTestStores($createdStoreIds);
+
+// Restore original PEM key state
+if (!$_hadPemKey) {
+    $tid = moduleTenantSettingsTenantId();
+    if ($tid !== null) {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $db = app()->db();
+            $stmt = $db->prepare('DELETE FROM ' . moduleTenantSettingsTable() . ' WHERE tenant_id = :tid AND module_id = :mid AND setting_key = :skey');
+            $stmt->execute([':tid' => $tid, ':mid' => 'ecommerce', ':skey' => 'license_private_key_pem']);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
+    }
+} elseif ($_origPemValue !== null) {
+    saveTenantModuleSettings('ecommerce', ['license_private_key_pem' => $_origPemValue]);
+}
+invalidateTenantModuleSettingsCache();
+ecSettingsResetCache();
 
 // ══════════════════════════════════════════════════════════════════════════
 // Log validation
