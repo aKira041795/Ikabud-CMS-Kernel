@@ -1,0 +1,16 @@
+parameters:
+    level: 5
+    paths:
+        - kernel
+        - src
+        - modules
+    excludePaths:
+        - modules/*/builder-ui
+        - modules/*/node_modules
+        - vendor
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        # Bootstrap global functions used before class-based resolution
+        - '#Function [a-zA-Z_]+ not found#'
+        # Dynamic module loading patterns
+        - '#Variable \$[a-zA-Z_]+ might not be defined#'

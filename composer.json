@@ -6,12 +6,20 @@
         "test": "php scripts/run-tests.php",
         "test:single": "php",
         "benchmark:disyl": "php scripts/benchmark-disyl.php",
-        "guard:manifests": "php scripts/guard-module-manifests.php"
+        "guard:manifests": "php scripts/guard-module-manifests.php",
+        "analyse": "phpstan analyse --memory-limit=512M",
+        "lint": "php-cs-fixer fix --dry-run --diff",
+        "lint:fix": "php-cs-fixer fix",
+        "coverage": "bash scripts/collect-coverage.sh"
     },
     "require": {
         "php": "^8.2",
         "phpoffice/phpword": "^1.2",
         "phpmailer/phpmailer": "^7.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.0",
+        "friendsofphp/php-cs-fixer": "^3.0"
     },
     "license": "GPL-3.0-only"
 }
