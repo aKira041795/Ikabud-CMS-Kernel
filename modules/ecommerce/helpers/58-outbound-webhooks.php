@@ -347,10 +347,54 @@ function ecOutboundWebhooksDispatchEvent(string $eventName, array $payload): arr
         if (!ecOutboundWebhookMatchesEvent($eventName, (array)($webhook['event_patterns'] ?? []))) {
             continue;
         }
+
+        // Dispatch via job queue for async delivery when available
+        if (function_exists('kernelDispatchJob')) {
+            $jobId = kernelDispatchJob('ecommerce:ecOutboundWebhookDeliverJob', [
+                'webhook_id' => (int)$webhook['id'],
+                'event_name' => $eventName,
+                'payload' => $payload,
+            ], 'webhooks', 0, 3);
+
+            $results[] = ['ok' => $jobId > 0, 'status' => $jobId > 0 ? 'queued' : 'queue_failed', 'job_id' => $jobId];
+            continue;
+        }
+
+        // Fallback: synchronous delivery if job queue is unavailable
         $results[] = ecOutboundWebhookDeliver($webhook, $eventName, $payload);
     }
 
     return $results;
+}
+
+/**
+ * Job handler for async webhook delivery.
+ * Called by the queue worker with payload from kernelDispatchJob.
+ */
+function ecOutboundWebhookDeliverJob(array $jobPayload): void
+{
+    $webhookId = (int)($jobPayload['webhook_id'] ?? 0);
+    $eventName = trim((string)($jobPayload['event_name'] ?? ''));
+    $payload = (array)($jobPayload['payload'] ?? []);
+
+    if ($webhookId <= 0 || $eventName === '') {
+        throw new \RuntimeException('Invalid webhook delivery job payload.');
+    }
+
+    $webhook = ecOutboundWebhookGet($webhookId);
+    if (!is_array($webhook)) {
+        // Webhook was deleted between dispatch and delivery — skip silently
+        return;
+    }
+
+    if (empty($webhook['is_active'])) {
+        return;
+    }
+
+    $result = ecOutboundWebhookDeliver($webhook, $eventName, $payload);
+    if (empty($result['ok'])) {
+        throw new \RuntimeException('Webhook delivery failed: HTTP ' . ($result['http_status'] ?? 0));
+    }
 }
 
 function ecOutboundWebhookSendTest(int $webhookId): array

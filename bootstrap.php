@@ -536,13 +536,41 @@ function write_log(string $message, string $level = 'error', array $context = []
         @mkdir($logDir, 0775, true);
     }
 
-    $line = sprintf(
-        "[%s] [%s] %s %s\n",
-        date('Y-m-d H:i:s'),
-        $level,
-        $message,
-        $context ? json_encode($context, JSON_UNESCAPED_SLASHES) : ''
-    );
+    $logFormat = strtolower(trim((string)($_ENV['LOG_FORMAT'] ?? '')));
+
+    if ($logFormat === 'json') {
+        $tenantId = 0;
+        try {
+            if (function_exists('app')) {
+                $tenantId = (int)(app()->tenantId ?? 0);
+            }
+        } catch (\Throwable $e) {
+        }
+        $entry = [
+            'timestamp' => date('c'),
+            'level' => $level,
+            'message' => $message,
+            'request_id' => $context['request_id'] ?? '',
+            'tenant_id' => $tenantId,
+        ];
+        if ($context !== [] && $context !== ['request_id' => $entry['request_id']]) {
+            $filtered = $context;
+            unset($filtered['request_id']);
+            if ($filtered !== []) {
+                $entry['context'] = $filtered;
+            }
+        }
+        $line = json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+    } else {
+        $line = sprintf(
+            "[%s] [%s] %s %s\n",
+            date('Y-m-d H:i:s'),
+            $level,
+            $message,
+            $context ? json_encode($context, JSON_UNESCAPED_SLASHES) : ''
+        );
+    }
+
     @file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX);
 }
 
@@ -996,6 +1024,271 @@ function kernelEmitRateLimitJson(array $rateLimit, string $message = 'Too many r
         http_response_code(429);
     }
     echo json_encode(['ok' => false, 'error' => $message, 'retry_after' => $retryAfter]);
+}
+
+// ── Job Queue Infrastructure ─────────────────────────────────────────
+
+/**
+ * Dispatch a job to the kernel job queue.
+ *
+ * @param string $handler  Callable reference: 'functionName' or 'module:functionName'
+ * @param array  $payload  JSON-serializable data passed to the handler
+ * @param string $queue    Queue name (default: 'default')
+ * @param int    $delaySeconds  Delay before job becomes available
+ * @param int    $maxAttempts   Max retry attempts
+ * @return int  Inserted job ID (0 on failure)
+ */
+function kernelDispatchJob(string $handler, array $payload = [], string $queue = 'default', int $delaySeconds = 0, int $maxAttempts = 3): int
+{
+    try {
+        $db = app()->db();
+        $availableAt = $delaySeconds > 0
+            ? date('Y-m-d H:i:s', time() + $delaySeconds)
+            : date('Y-m-d H:i:s');
+
+        $stmt = $db->prepare(
+            'INSERT INTO kernel_jobs (queue, handler, payload_json, max_attempts, available_at, created_at)
+             VALUES (?, ?, ?, ?, ?, NOW())'
+        );
+        $stmt->execute([
+            $queue,
+            $handler,
+            json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            max(1, $maxAttempts),
+            $availableAt,
+        ]);
+
+        return (int)$db->lastInsertId();
+    } catch (\Throwable $e) {
+        write_log('kernelDispatchJob failed: ' . $e->getMessage(), 'error', [
+            'handler' => $handler,
+            'queue' => $queue,
+        ]);
+        return 0;
+    }
+}
+
+/**
+ * Claim and process the next available job from a queue.
+ * Uses SELECT…FOR UPDATE SKIP LOCKED for safe concurrent worker support.
+ *
+ * @return array|null  Processed job row or null if queue is empty
+ */
+function kernelProcessNextJob(string $queue = 'default', int $lockTimeoutSeconds = 300): ?array
+{
+    try {
+        $db = app()->db();
+        $now = date('Y-m-d H:i:s');
+
+        // Claim a job atomically
+        $db->beginTransaction();
+
+        $stmt = $db->prepare(
+            'SELECT id, handler, payload_json, attempts, max_attempts
+               FROM kernel_jobs
+              WHERE queue = ?
+                AND available_at <= ?
+                AND reserved_at IS NULL
+                AND failed_at IS NULL
+              ORDER BY available_at ASC, id ASC
+              LIMIT 1
+              FOR UPDATE SKIP LOCKED'
+        );
+        $stmt->execute([$queue, $now]);
+        $job = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$job) {
+            $db->commit();
+            return null;
+        }
+
+        $jobId = (int)$job['id'];
+        $upd = $db->prepare('UPDATE kernel_jobs SET reserved_at = ?, attempts = attempts + 1 WHERE id = ?');
+        $upd->execute([$now, $jobId]);
+        $db->commit();
+
+        // Execute the handler
+        $handler = trim((string)$job['handler']);
+        $payload = json_decode((string)$job['payload_json'], true) ?: [];
+        $error = null;
+
+        try {
+            kernelJobInvokeHandler($handler, $payload);
+        } catch (\Throwable $e) {
+            $error = substr($e->getMessage(), 0, 4000);
+        }
+
+        if ($error === null) {
+            // Success — remove from queue
+            $del = $db->prepare('DELETE FROM kernel_jobs WHERE id = ?');
+            $del->execute([$jobId]);
+            return array_merge($job, ['status' => 'completed', 'error' => null]);
+        }
+
+        // Failure — check attempts
+        $attempts = (int)$job['attempts'] + 1;
+        $maxAttempts = (int)$job['max_attempts'];
+
+        if ($attempts >= $maxAttempts) {
+            // Move to failed_jobs
+            $ins = $db->prepare(
+                'INSERT INTO kernel_failed_jobs (queue, handler, payload_json, attempts, failed_at, error)
+                 VALUES (?, ?, ?, ?, NOW(), ?)'
+            );
+            $ins->execute([$queue, $handler, (string)$job['payload_json'], $attempts, $error]);
+            $del = $db->prepare('DELETE FROM kernel_jobs WHERE id = ?');
+            $del->execute([$jobId]);
+            write_log('Job permanently failed after ' . $attempts . ' attempts', 'error', [
+                'job_id' => $jobId,
+                'handler' => $handler,
+                'error' => $error,
+            ]);
+            return array_merge($job, ['status' => 'failed', 'error' => $error]);
+        }
+
+        // Retry with exponential backoff: 30s, 120s, 480s…
+        $retryDelay = (int)(30 * pow(4, $attempts - 1));
+        $nextAvailable = date('Y-m-d H:i:s', time() + $retryDelay);
+        $retry = $db->prepare('UPDATE kernel_jobs SET reserved_at = NULL, available_at = ?, failed_at = NULL, error = ? WHERE id = ?');
+        $retry->execute([$nextAvailable, $error, $jobId]);
+
+        write_log('Job failed, retrying in ' . $retryDelay . 's (attempt ' . $attempts . '/' . $maxAttempts . ')', 'warning', [
+            'job_id' => $jobId,
+            'handler' => $handler,
+            'error' => $error,
+        ]);
+
+        return array_merge($job, ['status' => 'retrying', 'error' => $error]);
+    } catch (\Throwable $e) {
+        if (isset($db) && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        write_log('kernelProcessNextJob error: ' . $e->getMessage(), 'error', ['queue' => $queue]);
+        return null;
+    }
+}
+
+/**
+ * Invoke a job handler by reference string.
+ * Supports: 'functionName' or 'module:functionName'
+ */
+function kernelJobInvokeHandler(string $handler, array $payload): void
+{
+    if (str_contains($handler, ':')) {
+        [$moduleId, $functionName] = explode(':', $handler, 2);
+        // Ensure module helpers are loaded via discoverModules + loadModuleHelpers
+        if (function_exists('discoverModules') && function_exists('loadModuleHelpers')) {
+            $modules = discoverModules();
+            if (isset($modules[$moduleId])) {
+                loadModuleHelpers($modules[$moduleId]);
+            }
+        }
+        if (!function_exists($functionName)) {
+            throw new \RuntimeException("Job handler function '{$functionName}' not found for module '{$moduleId}'.");
+        }
+        $functionName($payload);
+        return;
+    }
+
+    if (!function_exists($handler)) {
+        throw new \RuntimeException("Job handler function '{$handler}' not found.");
+    }
+    $handler($payload);
+}
+
+/**
+ * Run the queue worker loop (called from CLI).
+ * Processes jobs until interrupted or --once flag is set.
+ */
+function kernelQueueWorker(string $queue = 'default', int $sleepSeconds = 3, bool $once = false): void
+{
+    write_log('Queue worker started', 'info', ['queue' => $queue, 'pid' => getmypid()]);
+
+    while (true) {
+        $result = kernelProcessNextJob($queue);
+
+        if ($result !== null) {
+            $status = $result['status'] ?? 'unknown';
+            $handler = $result['handler'] ?? 'unknown';
+            if (PHP_SAPI === 'cli') {
+                echo date('[H:i:s]') . " [{$status}] {$handler}\n";
+            }
+
+            // Immediately try the next job
+            continue;
+        }
+
+        if ($once) {
+            break;
+        }
+
+        // No jobs available — sleep before polling again
+        sleep($sleepSeconds);
+    }
+}
+
+/**
+ * Get queue statistics.
+ */
+function kernelJobQueueStats(string $queue = 'default'): array
+{
+    try {
+        $db = app()->db();
+        $now = date('Y-m-d H:i:s');
+
+        $s1 = $db->prepare('SELECT COUNT(*) FROM kernel_jobs WHERE queue = ? AND reserved_at IS NULL AND failed_at IS NULL AND available_at <= ?');
+        $s1->execute([$queue, $now]);
+        $pending = (int)$s1->fetchColumn();
+
+        $s2 = $db->prepare('SELECT COUNT(*) FROM kernel_jobs WHERE queue = ? AND reserved_at IS NULL AND failed_at IS NULL AND available_at > ?');
+        $s2->execute([$queue, $now]);
+        $delayed = (int)$s2->fetchColumn();
+
+        $s3 = $db->prepare('SELECT COUNT(*) FROM kernel_jobs WHERE queue = ? AND reserved_at IS NOT NULL');
+        $s3->execute([$queue]);
+        $reserved = (int)$s3->fetchColumn();
+
+        $s4 = $db->prepare('SELECT COUNT(*) FROM kernel_failed_jobs WHERE queue = ?');
+        $s4->execute([$queue]);
+        $failed = (int)$s4->fetchColumn();
+
+        return [
+            'queue' => $queue,
+            'pending' => $pending,
+            'delayed' => $delayed,
+            'reserved' => $reserved,
+            'failed' => $failed,
+        ];
+    } catch (\Throwable $e) {
+        return ['queue' => $queue, 'pending' => 0, 'delayed' => 0, 'reserved' => 0, 'failed' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+// ── Schedule Infrastructure ──────────────────────────────────────────
+
+/**
+ * Check if a schedule frequency is due at the current minute.
+ * Designed to be called once per minute via `* * * * * php ikabud schedule:run`.
+ *
+ * Supported frequencies: every_minute, every_5_minutes, every_15_minutes,
+ * every_30_minutes, hourly, daily, weekly.
+ */
+function kernelScheduleIsDue(string $frequency): bool
+{
+    $minute = (int)date('i');
+    $hour = (int)date('G');
+    $dow = (int)date('w'); // 0 = Sunday
+
+    return match ($frequency) {
+        'every_minute' => true,
+        'every_5_minutes' => $minute % 5 === 0,
+        'every_15_minutes' => $minute % 15 === 0,
+        'every_30_minutes' => $minute % 30 === 0,
+        'hourly' => $minute === 0,
+        'daily' => $hour === 0 && $minute === 0,
+        'weekly' => $dow === 0 && $hour === 0 && $minute === 0,
+        default => false,
+    };
 }
 
 function release_session_lock_if_active(): bool

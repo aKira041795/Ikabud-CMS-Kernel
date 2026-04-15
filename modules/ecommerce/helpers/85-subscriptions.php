@@ -430,6 +430,188 @@ function ecSubscriptionCreateForPaidOrder(int $orderId): array
     return ['ok' => true, 'created' => $created];
 }
 
+/**
+ * Process all subscriptions that are due for renewal.
+ * Called by the scheduler: ecommerce:ecProcessDueSubscriptionRenewals
+ *
+ * Since saved payment method / auto-charge is not yet implemented (Tier 3),
+ * this engine transitions subscriptions through their lifecycle:
+ * - Advances billing periods for subscriptions past their renewal date
+ * - Marks subscriptions as 'past_due' when renewal date has passed
+ * - Marks subscriptions as 'suspended' when grace period has expired
+ * - Respects max_cycles limits
+ * - Fires events for each transition
+ *
+ * @param array $jobPayload  Optional payload from scheduler (ignored)
+ */
+function ecProcessDueSubscriptionRenewals(array $jobPayload = []): array
+{
+    if (!ecSubscriptionStorageAvailable()) {
+        return ['ok' => false, 'error' => 'Subscription storage unavailable'];
+    }
+
+    $db = ecDb();
+    $now = date('Y-m-d H:i:s');
+    $processed = 0;
+    $suspended = 0;
+    $pastDue = 0;
+    $completed = 0;
+    $errors = 0;
+
+    try {
+        // 1. Find active subscriptions past their renewal date
+        $dueRows = $db->query(
+            'SELECT * FROM ec_subscriptions
+              WHERE status IN (\'active\', \'past_due\')
+                AND next_renewal_at IS NOT NULL
+                AND next_renewal_at <= ?
+              ORDER BY next_renewal_at ASC
+              LIMIT 100',
+            [$now]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        write_log('ecProcessDueSubscriptionRenewals query error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+
+    foreach ($dueRows as $row) {
+        $subId = (int)$row['id'];
+        $status = (string)($row['status'] ?? 'active');
+        $graceDays = max(0, (int)($row['grace_period_days'] ?? 7));
+        $maxCycles = (int)($row['max_cycles'] ?? 0);
+        $renewalCount = (int)($row['renewal_count'] ?? 0);
+        $intervalCount = max(1, (int)($row['interval_count'] ?? 1));
+        $intervalUnit = (string)($row['interval_unit'] ?? 'month');
+        $nextRenewalAt = (string)($row['next_renewal_at'] ?? '');
+
+        try {
+            // Check max_cycles limit
+            if ($maxCycles > 0 && ($renewalCount + 1) >= $maxCycles) {
+                $db->execute(
+                    'UPDATE ec_subscriptions SET status = \'completed\', updated_at = NOW() WHERE id = ?',
+                    [$subId]
+                );
+                $completed++;
+                $processed++;
+                app()->events()->fire('ecommerce.subscription.completed', [
+                    'subscription_id' => $subId,
+                    'renewal_count' => $renewalCount,
+                    'max_cycles' => $maxCycles,
+                ], 'ecommerce');
+                continue;
+            }
+
+            // For active subscriptions: transition to past_due (payment needed)
+            if ($status === 'active') {
+                $db->execute(
+                    'UPDATE ec_subscriptions SET status = \'past_due\', updated_at = NOW() WHERE id = ?',
+                    [$subId]
+                );
+                $pastDue++;
+                $processed++;
+                app()->events()->fire('ecommerce.subscription.past_due', [
+                    'subscription_id' => $subId,
+                    'customer_id' => (int)($row['customer_id'] ?? 0),
+                    'customer_email' => (string)($row['customer_email'] ?? ''),
+                    'recurring_amount' => (float)($row['recurring_amount'] ?? 0),
+                    'currency' => (string)($row['currency'] ?? ''),
+                ], 'ecommerce');
+                continue;
+            }
+
+            // For past_due subscriptions: check if grace period expired
+            if ($status === 'past_due') {
+                $graceExpiry = strtotime($nextRenewalAt . ' +' . $graceDays . ' days');
+                if ($graceExpiry !== false && time() > $graceExpiry) {
+                    $db->execute(
+                        'UPDATE ec_subscriptions SET status = \'suspended\', updated_at = NOW() WHERE id = ?',
+                        [$subId]
+                    );
+                    $suspended++;
+                    $processed++;
+                    app()->events()->fire('ecommerce.subscription.suspended', [
+                        'subscription_id' => $subId,
+                        'customer_id' => (int)($row['customer_id'] ?? 0),
+                        'customer_email' => (string)($row['customer_email'] ?? ''),
+                        'reason' => 'grace_period_expired',
+                    ], 'ecommerce');
+                }
+                continue;
+            }
+        } catch (\Throwable $e) {
+            $errors++;
+            write_log('Subscription renewal error for #' . $subId . ': ' . $e->getMessage(), 'error', [
+                'module' => 'ecommerce',
+                'subscription_id' => $subId,
+            ]);
+        }
+    }
+
+    $summary = [
+        'ok' => true,
+        'processed' => $processed,
+        'past_due' => $pastDue,
+        'suspended' => $suspended,
+        'completed' => $completed,
+        'errors' => $errors,
+    ];
+
+    if ($processed > 0) {
+        write_log('Subscription renewal sweep completed', 'info', array_merge(['module' => 'ecommerce'], $summary));
+    }
+
+    return $summary;
+}
+
+/**
+ * Manually renew a past_due subscription (e.g., after manual payment).
+ * Advances the billing period and resets to active.
+ */
+function ecSubscriptionRenew(int $subscriptionId): array
+{
+    if ($subscriptionId <= 0 || !ecSubscriptionStorageAvailable()) {
+        return ['ok' => false, 'error' => 'Invalid subscription or storage unavailable'];
+    }
+
+    $db = ecDb();
+    $row = $db->query('SELECT * FROM ec_subscriptions WHERE id = ? LIMIT 1', [$subscriptionId])->fetch(\PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return ['ok' => false, 'error' => 'Subscription not found'];
+    }
+
+    $status = (string)($row['status'] ?? '');
+    if (!in_array($status, ['active', 'past_due'], true)) {
+        return ['ok' => false, 'error' => 'Subscription cannot be renewed in status: ' . $status];
+    }
+
+    $intervalCount = max(1, (int)($row['interval_count'] ?? 1));
+    $intervalUnit = (string)($row['interval_unit'] ?? 'month');
+    $currentPeriodEnd = (string)($row['current_period_end_at'] ?? date('Y-m-d H:i:s'));
+    $newPeriodStart = $currentPeriodEnd;
+    $newPeriodEnd = ecSubscriptionAddPeriod($newPeriodStart, $intervalCount, $intervalUnit);
+    $renewalCount = (int)($row['renewal_count'] ?? 0) + 1;
+
+    $db->execute(
+        'UPDATE ec_subscriptions
+            SET status = \'active\',
+                current_period_start_at = ?,
+                current_period_end_at = ?,
+                next_renewal_at = ?,
+                renewal_count = ?,
+                updated_at = NOW()
+          WHERE id = ?',
+        [$newPeriodStart, $newPeriodEnd, $newPeriodEnd, $renewalCount, $subscriptionId]
+    );
+
+    app()->events()->fire('ecommerce.subscription.renewed', [
+        'subscription_id' => $subscriptionId,
+        'renewal_count' => $renewalCount,
+        'new_period_end' => $newPeriodEnd,
+    ], 'ecommerce');
+
+    return ['ok' => true, 'renewal_count' => $renewalCount, 'new_period_end' => $newPeriodEnd];
+}
+
 app()->events()->listen('ecommerce.order.paid', function (array $payload): void {
     $orderId = (int)($payload['order_id'] ?? 0);
     if ($orderId <= 0) {

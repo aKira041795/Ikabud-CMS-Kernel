@@ -804,4 +804,80 @@ function ecMembershipContentGateCapabilityHandler(array $payload): array
     return ecMembershipGateForContent($contentId, $user);
 }
 
+/**
+ * Sweep expired memberships and mark them as 'expired'.
+ * Called by the scheduler: ecommerce:ecMembershipExpiryCleanup
+ *
+ * Finds active memberships where ends_at has passed, updates their status,
+ * and fires events for downstream listeners (email notifications, etc.).
+ *
+ * @param array $jobPayload  Optional payload from scheduler (ignored)
+ */
+function ecMembershipExpiryCleanup(array $jobPayload = []): array
+{
+    if (!ecMembershipStorageAvailable()) {
+        return ['ok' => false, 'error' => 'Membership storage unavailable'];
+    }
+
+    $db = ecDb();
+    $now = date('Y-m-d H:i:s');
+    $expired = 0;
+    $errors = 0;
+
+    try {
+        $rows = $db->query(
+            'SELECT id, customer_id, customer_email, product_id, product_title, membership_tier, ends_at
+               FROM ec_memberships
+              WHERE status = \'active\'
+                AND ends_at IS NOT NULL
+                AND ends_at <= ?
+              ORDER BY ends_at ASC
+              LIMIT 200',
+            [$now]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        write_log('ecMembershipExpiryCleanup query error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+
+    foreach ($rows as $row) {
+        $membershipId = (int)$row['id'];
+
+        try {
+            $db->execute(
+                'UPDATE ec_memberships SET status = \'expired\', updated_at = NOW() WHERE id = ? AND status = \'active\'',
+                [$membershipId]
+            );
+            $expired++;
+
+            app()->events()->fire('ecommerce.membership.expired', [
+                'membership_id' => $membershipId,
+                'customer_id' => (int)($row['customer_id'] ?? 0),
+                'customer_email' => (string)($row['customer_email'] ?? ''),
+                'membership_tier' => (string)($row['membership_tier'] ?? ''),
+                'product_title' => (string)($row['product_title'] ?? ''),
+                'ended_at' => (string)($row['ends_at'] ?? ''),
+            ], 'ecommerce');
+        } catch (\Throwable $e) {
+            $errors++;
+            write_log('Membership expiry error for #' . $membershipId . ': ' . $e->getMessage(), 'error', [
+                'module' => 'ecommerce',
+                'membership_id' => $membershipId,
+            ]);
+        }
+    }
+
+    $summary = [
+        'ok' => true,
+        'expired' => $expired,
+        'errors' => $errors,
+    ];
+
+    if ($expired > 0) {
+        write_log('Membership expiry sweep completed', 'info', array_merge(['module' => 'ecommerce'], $summary));
+    }
+
+    return $summary;
+}
+
 // ecommerce.membership.content_gate@1 is registered via ecommerce_capability_handlers() in helpers.php

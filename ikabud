@@ -21,6 +21,9 @@
  *   php ikabud routes                    List all registered routes
  *   php ikabud disyl:lint [path]         Lint templates for errors
  *   php ikabud tinker <sql>              Run a raw SQL query
+ *   php ikabud work:queue [name]         Run queue worker (--sleep=N, --once)
+ *   php ikabud queue:stats [name]        Show queue statistics
+ *   php ikabud schedule:run              Run due scheduled tasks (--dry-run)
  * 
  * @package Ikabud\Kernel
  * @version 1.0.0
@@ -3192,6 +3195,83 @@ MD;
         ];
 
         echo json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+        break;
+
+    // ── work:queue ───────────────────────────────────────────────
+    case 'work:queue':
+        $queue = paramsWithoutFlags($params)[0] ?? 'default';
+        $sleep = (int)(getFlagValue('--sleep=') ?? 3);
+        $once = hasFlag('--once');
+
+        out(bold('  Queue Worker'));
+        out('  Queue: ' . cyan($queue) . '  Sleep: ' . cyan((string)$sleep . 's') . ($once ? '  ' . yellow('(single run)') : ''));
+        out('  Press Ctrl+C to stop.');
+        out('');
+
+        kernelQueueWorker($queue, max(1, $sleep), $once);
+        break;
+
+    // ── queue:stats ──────────────────────────────────────────────
+    case 'queue:stats':
+        $queue = paramsWithoutFlags($params)[0] ?? 'default';
+        $stats = kernelJobQueueStats($queue);
+
+        out(bold('  Queue Stats: ') . cyan($queue));
+        out('  Pending:  ' . green((string)$stats['pending']));
+        out('  Delayed:  ' . yellow((string)$stats['delayed']));
+        out('  Reserved: ' . cyan((string)$stats['reserved']));
+        out('  Failed:   ' . red((string)$stats['failed']));
+        if (!empty($stats['error'])) {
+            out('  Error:    ' . red((string)$stats['error']));
+        }
+        break;
+
+    // ── schedule:run ─────────────────────────────────────────────
+    case 'schedule:run':
+        $dryRun = hasFlag('--dry-run');
+
+        out(bold('  Schedule Runner') . ($dryRun ? '  ' . yellow('(dry run)') : ''));
+        out('');
+
+        $modules = discoverModules();
+        $dispatched = 0;
+
+        foreach ($modules as $moduleId => $manifest) {
+            if (empty($manifest['_enabled'])) {
+                continue;
+            }
+            $schedules = $manifest['schedules'] ?? [];
+            if (!is_array($schedules) || $schedules === []) {
+                continue;
+            }
+
+            foreach ($schedules as $schedule) {
+                $frequency = trim((string)($schedule['frequency'] ?? ''));
+                $handler = trim((string)($schedule['handler'] ?? ''));
+                $queue = trim((string)($schedule['queue'] ?? 'default'));
+                if ($frequency === '' || $handler === '') {
+                    continue;
+                }
+
+                if (!kernelScheduleIsDue($frequency)) {
+                    continue;
+                }
+
+                out('  ' . green('◆') . " [{$moduleId}] {$handler} ({$frequency}) → queue:{$queue}");
+
+                if (!$dryRun) {
+                    kernelDispatchJob($handler, ['_scheduled' => true, '_frequency' => $frequency], $queue);
+                }
+                $dispatched++;
+            }
+        }
+
+        if ($dispatched === 0) {
+            out('  ' . dim('No tasks due at this time.'));
+        } else {
+            out('');
+            out('  ' . green("Dispatched {$dispatched} task(s)."));
+        }
         break;
 
     default:

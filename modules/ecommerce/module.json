@@ -1237,5 +1237,22 @@
         "customers": {
             "authority": true
         }
-    }
+    },
+    "schedules": [
+        {
+            "frequency": "hourly",
+            "handler": "ecommerce:ecProcessDueSubscriptionRenewals",
+            "queue": "default"
+        },
+        {
+            "frequency": "daily",
+            "handler": "ecommerce:ecMembershipExpiryCleanup",
+            "queue": "default"
+        },
+        {
+            "frequency": "every_15_minutes",
+            "handler": "ecommerce:ecAbandonedCartProcessDueReminders",
+            "queue": "default"
+        }
+    ]
 }
