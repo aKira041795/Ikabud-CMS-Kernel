@@ -199,3 +199,48 @@ function _ecStripeRequest(string $method, string $endpoint, ?array $body = null)
         'http_code' => $httpCode,
     ];
 }
+
+// ─── Stripe Customer + Saved Payment Methods (Tier 3.1) ────────────────
+
+function ecStripeCreateCustomer(string $email, array $options = []): array
+{
+    $body = ['email' => $email];
+    if (!empty($options['name'])) {
+        $body['name'] = (string)$options['name'];
+    }
+    if (!empty($options['metadata']) && is_array($options['metadata'])) {
+        foreach ($options['metadata'] as $k => $v) {
+            $body['metadata[' . $k . ']'] = (string)$v;
+        }
+    }
+    return _ecStripeRequest('POST', '/customers', $body);
+}
+
+function ecStripeRetrieveCustomer(string $customerId): array
+{
+    return _ecStripeRequest('GET', '/customers/' . urlencode($customerId));
+}
+
+function ecStripeAttachPaymentMethod(string $paymentMethodId, string $customerId): array
+{
+    return _ecStripeRequest('POST', '/payment_methods/' . urlencode($paymentMethodId) . '/attach', [
+        'customer' => $customerId,
+    ]);
+}
+
+function ecStripeDetachPaymentMethod(string $paymentMethodId): array
+{
+    return _ecStripeRequest('POST', '/payment_methods/' . urlencode($paymentMethodId) . '/detach');
+}
+
+function ecStripeListPaymentMethods(string $customerId, string $type = 'card'): array
+{
+    return _ecStripeRequest('GET', '/payment_methods?customer=' . urlencode($customerId) . '&type=' . urlencode($type));
+}
+
+function ecStripeSetDefaultPaymentMethod(string $customerId, string $paymentMethodId): array
+{
+    return _ecStripeRequest('POST', '/customers/' . urlencode($customerId), [
+        'invoice_settings[default_payment_method]' => $paymentMethodId,
+    ]);
+}

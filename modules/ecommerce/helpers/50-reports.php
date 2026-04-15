@@ -269,3 +269,148 @@ function ecReportDateRange(array $params): array
         default  => [date('Y-m-01'), $today],  // month
     };
 }
+
+// ─── Report Caching (Tier 3.7) ─────────────────────────────────────────
+
+function ecReportCacheAvailable(): bool
+{
+    static $available = null;
+    if ($available !== null) return $available;
+    try {
+        ecDb()->query('SELECT 1 FROM ec_report_cache LIMIT 1');
+        $available = true;
+    } catch (\Throwable $e) {
+        $available = false;
+    }
+    return $available;
+}
+
+function ecReportCacheKey(string $reportType, array $params): string
+{
+    $storeId = (int)($params['store_id'] ?? 0);
+    $tz = trim((string)($params['timezone'] ?? ''));
+    $hash = hash('sha256', json_encode($params));
+    return "{$reportType}:{$storeId}:{$hash}" . ($tz ? ":{$tz}" : '');
+}
+
+function ecReportCacheGet(string $cacheKey): ?array
+{
+    if (!ecReportCacheAvailable()) return null;
+    try {
+        $row = ecDb()->query(
+            'SELECT data_json FROM ec_report_cache WHERE cache_key = ? AND expires_at > NOW() LIMIT 1',
+            [$cacheKey]
+        );
+        if ($row instanceof \PDOStatement) $row = $row->fetch(\PDO::FETCH_ASSOC);
+        if (is_array($row) && !empty($row['data_json'])) {
+            $decoded = json_decode($row['data_json'], true);
+            return is_array($decoded) ? $decoded : null;
+        }
+    } catch (\Throwable $e) {}
+    return null;
+}
+
+function ecReportCacheSet(string $cacheKey, string $reportType, array $params, array $data, int $ttlSeconds = 300): void
+{
+    if (!ecReportCacheAvailable()) return;
+    try {
+        $paramsHash = hash('sha256', json_encode($params));
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        ecDb()->execute(
+            'INSERT INTO ec_report_cache (cache_key, report_type, params_hash, data_json, expires_at, created_at)
+             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), NOW())
+             ON DUPLICATE KEY UPDATE
+                data_json = VALUES(data_json),
+                expires_at = VALUES(expires_at),
+                created_at = NOW()',
+            [$cacheKey, $reportType, $paramsHash, $json, $ttlSeconds]
+        );
+    } catch (\Throwable $e) {
+        write_log('ecReportCacheSet error: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
+    }
+}
+
+function ecReportCacheInvalidate(string $reportType): void
+{
+    if (!ecReportCacheAvailable()) return;
+    try {
+        ecDb()->execute('DELETE FROM ec_report_cache WHERE report_type = ?', [$reportType]);
+    } catch (\Throwable $e) {}
+}
+
+function ecReportCachePurgeExpired(): int
+{
+    if (!ecReportCacheAvailable()) return 0;
+    try {
+        return (int)ecDb()->execute('DELETE FROM ec_report_cache WHERE expires_at <= NOW()');
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+function ecReportSalesCached(array $params = []): array
+{
+    $cacheKey = ecReportCacheKey('sales', $params);
+    $cached = ecReportCacheGet($cacheKey);
+    if ($cached !== null) {
+        $cached['_cached'] = true;
+        return $cached;
+    }
+    $data = ecReportSales($params);
+    $ttl = (int)($params['cache_ttl'] ?? 300);
+    if ($ttl > 0 && !empty($data['order_count'])) {
+        ecReportCacheSet($cacheKey, 'sales', $params, $data, $ttl);
+    }
+    $data['_cached'] = false;
+    return $data;
+}
+
+function ecReportInventoryCached(array $params = []): array
+{
+    $cacheKey = ecReportCacheKey('inventory', $params);
+    $cached = ecReportCacheGet($cacheKey);
+    if ($cached !== null) {
+        $cached['_cached'] = true;
+        return $cached;
+    }
+    $data = ecReportInventory($params);
+    $ttl = (int)($params['cache_ttl'] ?? 600);
+    if ($ttl > 0) {
+        ecReportCacheSet($cacheKey, 'inventory', $params, $data, $ttl);
+    }
+    $data['_cached'] = false;
+    return $data;
+}
+
+// ─── Timezone Support (Tier 3.7) ───────────────────────────────────────
+
+function ecReportTimezone(array $params): string
+{
+    $tz = trim((string)($params['timezone'] ?? ''));
+    if ($tz !== '' && in_array($tz, timezone_identifiers_list(), true)) {
+        return $tz;
+    }
+    $settingsTz = trim((string)ecSettings('report_timezone'));
+    if ($settingsTz !== '' && in_array($settingsTz, timezone_identifiers_list(), true)) {
+        return $settingsTz;
+    }
+    return date_default_timezone_get();
+}
+
+function ecReportDateRangeWithTimezone(array $params): array
+{
+    [$dateFrom, $dateTo] = ecReportDateRange($params);
+    $tz = ecReportTimezone($params);
+    return [$dateFrom, $dateTo, $tz];
+}
+
+function ecReportConvertDateToTimezone(string $date, string $fromTz, string $toTz): string
+{
+    try {
+        $dt = new \DateTime($date, new \DateTimeZone($fromTz));
+        $dt->setTimezone(new \DateTimeZone($toTz));
+        return $dt->format('Y-m-d H:i:s');
+    } catch (\Throwable $e) {
+        return $date;
+    }
+}

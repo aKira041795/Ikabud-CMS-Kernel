@@ -474,6 +474,13 @@ final class CapabilityBus implements CapabilityBusContract
             throw new CapabilityCallException('Capability circuit open', $capabilityId, $providerId);
         }
 
+        // Track probe request in half-open state
+        $breakerKey = $this->breakerKey($capabilityId, $providerId);
+        $bState = &$this->breakerState();
+        if (!empty($bState[$breakerKey]['half_open'] ?? false)) {
+            $bState[$breakerKey]['probe_count'] = (int)($bState[$breakerKey]['probe_count'] ?? 0) + 1;
+        }
+
         $attempts = max(1, 1 + max(0, (int)$settings['retries']));
         $lastError = null;
 
@@ -939,6 +946,9 @@ final class CapabilityBus implements CapabilityBusContract
             $state[$key]['failures'] = 0;
             $state[$key]['first_failure'] = 0;
             $state[$key]['open_until'] = 0;
+            $state[$key]['half_open'] = false;
+            $state[$key]['manual_trip'] = false;
+            $state[$key]['probe_count'] = 0;
         }
     }
 
@@ -951,6 +961,9 @@ final class CapabilityBus implements CapabilityBusContract
             'failures' => 0,
             'first_failure' => $now,
             'open_until' => 0,
+            'half_open' => false,
+            'manual_trip' => false,
+            'probe_count' => 0,
         ];
 
         if (!is_array($entry)) {
@@ -958,7 +971,20 @@ final class CapabilityBus implements CapabilityBusContract
                 'failures' => 0,
                 'first_failure' => $now,
                 'open_until' => 0,
+                'half_open' => false,
+                'manual_trip' => false,
+                'probe_count' => 0,
             ];
+        }
+
+        // If currently half-open, a failure means the probe failed — re-open breaker
+        if (!empty($entry['half_open'])) {
+            $cooldown = max(1, (int)($settings['breaker_cooldown_sec'] ?? 60));
+            $entry['open_until'] = $now + $cooldown;
+            $entry['half_open'] = false;
+            $entry['probe_count'] = 0;
+            $state[$key] = $entry;
+            return;
         }
 
         $window = max(1, (int)($settings['breaker_window_sec'] ?? 30));
@@ -977,6 +1003,11 @@ final class CapabilityBus implements CapabilityBusContract
         $state[$key] = $entry;
     }
 
+    /**
+     * Check if the circuit breaker is open.
+     * After cooldown expires the breaker enters half-open state: one probe
+     * request is allowed. If that probe fails, the breaker re-opens.
+     */
     private function isBreakerOpen(string $capabilityId, string $providerId): bool
     {
         $state = &$this->breakerState();
@@ -985,16 +1016,52 @@ final class CapabilityBus implements CapabilityBusContract
         if (!is_array($entry)) {
             return false;
         }
+
+        // Manual override — permanently tripped until manual reset
+        if (!empty($entry['manual_trip'])) {
+            return true;
+        }
+
         $openUntil = (int)($entry['open_until'] ?? 0);
-        return $openUntil > time();
+        $now = time();
+
+        if ($openUntil <= 0) {
+            return false;
+        }
+
+        // Still within cooldown — fully open
+        if ($openUntil > $now) {
+            return true;
+        }
+
+        // Cooldown expired — enter half-open state: allow exactly one probe
+        if (empty($entry['half_open'])) {
+            $state[$key]['half_open'] = true;
+            $state[$key]['probe_count'] = 0;
+            $this->fireBreakerEvent('capability.breaker.half_open', $capabilityId, $providerId);
+            return false;  // Allow the probe request through
+        }
+
+        // Already in half-open and another request arrives — block until probe resolves
+        $probeCount = (int)($entry['probe_count'] ?? 0);
+        if ($probeCount > 0) {
+            return true;  // Only one probe at a time
+        }
+
+        return false;
     }
 
     private function recordBreakerSuccess(string $capabilityId, string $providerId): void
     {
         $key = $this->breakerKey($capabilityId, $providerId);
         $state = &$this->breakerState();
+        $wasOpen = $this->breakerWasOpen($state, $key);
         $this->applyBreakerSuccess($state, $key);
         $this->breakerOperations[$key][] = ['type' => 'success'];
+
+        if ($wasOpen) {
+            $this->fireBreakerEvent('capability.breaker.closed', $capabilityId, $providerId);
+        }
     }
 
     private function recordBreakerFailure(string $capabilityId, string $providerId, array $settings): void
@@ -1003,12 +1070,88 @@ final class CapabilityBus implements CapabilityBusContract
         $now = time();
 
         $state = &$this->breakerState();
+        $wasOpen = $this->breakerWasOpen($state, $key);
+        $wasHalfOpen = !empty($state[$key]['half_open'] ?? false);
         $this->applyBreakerFailure($state, $key, $settings, $now);
         $this->breakerOperations[$key][] = [
             'type' => 'failure',
             'now' => $now,
             'settings' => $settings,
         ];
+
+        $isNowOpen = $this->breakerWasOpen($state, $key);
+        if ($isNowOpen && !$wasOpen) {
+            $this->fireBreakerEvent('capability.breaker.opened', $capabilityId, $providerId);
+        } elseif ($wasHalfOpen && $isNowOpen) {
+            // Half-open probe failed — re-opened
+            $this->fireBreakerEvent('capability.breaker.opened', $capabilityId, $providerId);
+        }
+    }
+
+    /**
+     * Manually trip a circuit breaker (admin override). Stays open until manualReset().
+     */
+    public function manualTrip(string $capabilityId, string $providerId): void
+    {
+        $key = $this->breakerKey($capabilityId, $providerId);
+        $state = &$this->breakerState();
+        $entry = $state[$key] ?? [];
+        if (!is_array($entry)) {
+            $entry = [];
+        }
+        $entry['manual_trip'] = true;
+        $entry['open_until'] = PHP_INT_MAX;
+        $entry['half_open'] = false;
+        $state[$key] = $entry;
+        $this->breakerOperations[$key][] = ['type' => 'manual_trip'];
+        $this->fireBreakerEvent('capability.breaker.opened', $capabilityId, $providerId, ['manual' => true]);
+    }
+
+    /**
+     * Manually reset a circuit breaker (admin override). Clears manual trip and failure state.
+     */
+    public function manualReset(string $capabilityId, string $providerId): void
+    {
+        $key = $this->breakerKey($capabilityId, $providerId);
+        $state = &$this->breakerState();
+        $state[$key] = [
+            'failures' => 0,
+            'first_failure' => 0,
+            'open_until' => 0,
+            'half_open' => false,
+            'manual_trip' => false,
+            'probe_count' => 0,
+        ];
+        $this->breakerOperations[$key][] = ['type' => 'manual_reset'];
+        $this->fireBreakerEvent('capability.breaker.closed', $capabilityId, $providerId, ['manual' => true]);
+    }
+
+    private function breakerWasOpen(array $state, string $key): bool
+    {
+        $entry = $state[$key] ?? null;
+        if (!is_array($entry)) {
+            return false;
+        }
+        if (!empty($entry['manual_trip'])) {
+            return true;
+        }
+        return (int)($entry['open_until'] ?? 0) > time();
+    }
+
+    private function fireBreakerEvent(string $event, string $capabilityId, string $providerId, array $extra = []): void
+    {
+        if (!\function_exists('app')) {
+            return;
+        }
+        try {
+            app()->events()->fire($event, array_merge([
+                'capability_id' => $capabilityId,
+                'provider' => $providerId,
+                'timestamp' => time(),
+            ], $extra));
+        } catch (\Throwable $ignored) {
+            // Never let event firing break the breaker itself
+        }
     }
 
     private function updateMetrics(string $capabilityId, string $providerId, int $durationMs, bool $ok, int $maxSamples): void
@@ -1096,7 +1239,9 @@ final class CapabilityBus implements CapabilityBusContract
             'errors' => is_array($m) ? (int)($m['errors'] ?? 0) : 0,
             'p95_ms' => is_array($m) ? (int)($m['p95_ms'] ?? 0) : 0,
             'last_ms' => is_array($m) ? (int)($m['last_ms'] ?? 0) : 0,
-            'breaker_open' => is_array($b) && (int)($b['open_until'] ?? 0) > $now,
+            'breaker_open' => is_array($b) && ((int)($b['open_until'] ?? 0) > $now || !empty($b['manual_trip'])),
+            'breaker_half_open' => is_array($b) && !empty($b['half_open']),
+            'breaker_manual_trip' => is_array($b) && !empty($b['manual_trip']),
             'breaker_failures' => is_array($b) ? (int)($b['failures'] ?? 0) : 0,
         ];
     }
@@ -1124,7 +1269,9 @@ final class CapabilityBus implements CapabilityBusContract
                 'errors' => is_array($m) ? (int)($m['errors'] ?? 0) : 0,
                 'p95_ms' => is_array($m) ? (int)($m['p95_ms'] ?? 0) : 0,
                 'last_ms' => is_array($m) ? (int)($m['last_ms'] ?? 0) : 0,
-                'breaker_open' => is_array($b) && (int)($b['open_until'] ?? 0) > $now,
+                'breaker_open' => is_array($b) && ((int)($b['open_until'] ?? 0) > $now || !empty($b['manual_trip'])),
+                'breaker_half_open' => is_array($b) && !empty($b['half_open']),
+                'breaker_manual_trip' => is_array($b) && !empty($b['manual_trip']),
                 'breaker_failures' => is_array($b) ? (int)($b['failures'] ?? 0) : 0,
             ];
         }

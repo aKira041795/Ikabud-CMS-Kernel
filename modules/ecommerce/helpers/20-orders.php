@@ -2555,3 +2555,168 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
         return ['items' => [], 'total' => 0];
     }
 }
+
+// ─── Order Editing (Tier 3.3) ──────────────────────────────────────────
+
+const EC_ORDER_EDITABLE_STATUSES = ['pending', 'processing'];
+
+function ecOrderEditsAvailable(): bool
+{
+    static $available = null;
+    if ($available !== null) return $available;
+    try {
+        ecDb()->query('SELECT 1 FROM ec_order_edits LIMIT 1');
+        $available = true;
+    } catch (\Throwable $e) {
+        $available = false;
+    }
+    return $available;
+}
+
+function ecOrderIsEditable(array $order): bool
+{
+    $status = strtolower(trim((string)($order['status'] ?? '')));
+    return in_array($status, EC_ORDER_EDITABLE_STATUSES, true);
+}
+
+function ecOrderAddItem(int $orderId, int $productId, int $qty, float $unitPrice, array $options = []): array
+{
+    $db = ecDb();
+    $order = ecOrderGet($orderId);
+    if (!$order || !ecOrderIsEditable($order)) {
+        return ['ok' => false, 'error' => 'Order is not editable'];
+    }
+    if ($qty <= 0) return ['ok' => false, 'error' => 'Quantity must be positive'];
+
+    $lineTotal = round($unitPrice * $qty, 2);
+    $title = trim((string)($options['product_title'] ?? 'Product'));
+    $sku = trim((string)($options['sku'] ?? ''));
+    $storeId = isset($options['store_id']) ? (int)$options['store_id'] : null;
+
+    $previousTotal = (float)($order['total'] ?? 0);
+
+    $cols = 'order_id, product_id, product_title, sku, qty, unit_price, line_total';
+    $vals = '?, ?, ?, ?, ?, ?, ?';
+    $params = [$orderId, $productId, $title, $sku, $qty, $unitPrice, $lineTotal];
+
+    if ($storeId !== null && ecOrderItemsHasStoreIdColumn()) {
+        $cols .= ', store_id';
+        $vals .= ', ?';
+        $params[] = $storeId;
+    }
+
+    $db->execute("INSERT INTO ec_order_items ({$cols}) VALUES ({$vals})", $params);
+    $itemId = (int)$db->lastInsertId();
+
+    $newTotal = $previousTotal + $lineTotal;
+    $db->execute('UPDATE ec_orders SET total = ?, updated_at = NOW() WHERE id = ?', [$newTotal, $orderId]);
+
+    ecOrderRecordEdit($orderId, 'add_item', [
+        'item_id' => $itemId, 'product_id' => $productId, 'qty' => $qty, 'unit_price' => $unitPrice,
+    ], $previousTotal, $newTotal);
+
+    return ['ok' => true, 'item_id' => $itemId, 'new_total' => $newTotal];
+}
+
+function ecOrderRemoveItem(int $orderId, int $itemId): array
+{
+    $db = ecDb();
+    $order = ecOrderGet($orderId);
+    if (!$order || !ecOrderIsEditable($order)) {
+        return ['ok' => false, 'error' => 'Order is not editable'];
+    }
+
+    $items = $order['items'] ?? [];
+    if (count($items) <= 1) {
+        return ['ok' => false, 'error' => 'Cannot remove the last item; cancel the order instead'];
+    }
+
+    $item = null;
+    foreach ($items as $i) {
+        if ((int)($i['id'] ?? 0) === $itemId) {
+            $item = $i;
+            break;
+        }
+    }
+    if (!$item) return ['ok' => false, 'error' => 'Item not found in this order'];
+
+    $previousTotal = (float)($order['total'] ?? 0);
+    $lineTotal = (float)($item['line_total'] ?? 0);
+    $newTotal = max(0, $previousTotal - $lineTotal);
+
+    $db->execute('DELETE FROM ec_order_items WHERE id = ? AND order_id = ?', [$itemId, $orderId]);
+    $db->execute('UPDATE ec_orders SET total = ?, updated_at = NOW() WHERE id = ?', [$newTotal, $orderId]);
+
+    ecOrderRecordEdit($orderId, 'remove_item', [
+        'item_id' => $itemId, 'product_id' => $item['product_id'] ?? null,
+        'qty' => $item['qty'] ?? 0, 'unit_price' => $item['unit_price'] ?? 0,
+    ], $previousTotal, $newTotal);
+
+    return ['ok' => true, 'new_total' => $newTotal];
+}
+
+function ecOrderUpdateItemQty(int $orderId, int $itemId, int $newQty): array
+{
+    $db = ecDb();
+    $order = ecOrderGet($orderId);
+    if (!$order || !ecOrderIsEditable($order)) {
+        return ['ok' => false, 'error' => 'Order is not editable'];
+    }
+    if ($newQty <= 0) return ['ok' => false, 'error' => 'Quantity must be positive'];
+
+    $item = null;
+    foreach ($order['items'] ?? [] as $i) {
+        if ((int)($i['id'] ?? 0) === $itemId) {
+            $item = $i;
+            break;
+        }
+    }
+    if (!$item) return ['ok' => false, 'error' => 'Item not found in this order'];
+
+    $unitPrice = (float)($item['unit_price'] ?? 0);
+    $oldQty = (int)($item['qty'] ?? 0);
+    $oldLineTotal = (float)($item['line_total'] ?? 0);
+    $newLineTotal = round($unitPrice * $newQty, 2);
+    $previousTotal = (float)($order['total'] ?? 0);
+    $newTotal = max(0, $previousTotal - $oldLineTotal + $newLineTotal);
+
+    $db->execute(
+        'UPDATE ec_order_items SET qty = ?, line_total = ? WHERE id = ? AND order_id = ?',
+        [$newQty, $newLineTotal, $itemId, $orderId]
+    );
+    $db->execute('UPDATE ec_orders SET total = ?, updated_at = NOW() WHERE id = ?', [$newTotal, $orderId]);
+
+    ecOrderRecordEdit($orderId, 'update_qty', [
+        'item_id' => $itemId, 'old_qty' => $oldQty, 'new_qty' => $newQty,
+        'old_line_total' => $oldLineTotal, 'new_line_total' => $newLineTotal,
+    ], $previousTotal, $newTotal);
+
+    return ['ok' => true, 'new_total' => $newTotal];
+}
+
+function ecOrderRecordEdit(int $orderId, string $editType, array $editData, float $previousTotal, float $newTotal): void
+{
+    if (!ecOrderEditsAvailable()) return;
+    $userId = null;
+    try { $userId = app()->auth()->id(); } catch (\Throwable $e) {}
+
+    ecDb()->execute(
+        'INSERT INTO ec_order_edits (order_id, edit_type, edit_data, previous_total, new_total, edited_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW())',
+        [$orderId, $editType, json_encode($editData), $previousTotal, $newTotal, $userId]
+    );
+}
+
+function ecOrderEditHistory(int $orderId): array
+{
+    if (!ecOrderEditsAvailable()) return [];
+    $rows = ecDb()->query(
+        'SELECT * FROM ec_order_edits WHERE order_id = ? ORDER BY created_at ASC',
+        [$orderId]
+    );
+    if ($rows instanceof \PDOStatement) $rows = $rows->fetchAll(\PDO::FETCH_ASSOC);
+    return is_array($rows) ? array_map(function ($r) {
+        $r['edit_data'] = json_decode($r['edit_data'] ?? '{}', true);
+        return $r;
+    }, $rows) : [];
+}

@@ -334,6 +334,85 @@ function cmsBuilderValidateDocument(mixed $document): array
     ];
 }
 
+// ─── Builder Schema Versioning (Tier 3.5) ──────────────────────────────
+
+const CMS_BUILDER_CURRENT_SCHEMA_VERSION = '1.1';
+
+function cmsBuilderSchemaVersionCompare(string $a, string $b): int
+{
+    return version_compare($a, $b);
+}
+
+function cmsBuilderSchemaMigrations(): array
+{
+    return [
+        '1.0' => '1.1',
+    ];
+}
+
+function cmsBuilderSchemaMigrators(): array
+{
+    return [
+        '1.0->1.1' => function (array $document): array {
+            // v1.0 → v1.1: Add meta.schema_migrated_at, ensure all nodes have 'meta' key
+            $root = $document['document'] ?? [];
+            $document['document'] = _cmsBuilderSchemaEnsureNodeMeta($root);
+            $document['schema_version'] = '1.1';
+            $document['document']['meta'] = array_merge(
+                $document['document']['meta'] ?? [],
+                ['schema_migrated_at' => date('c'), 'schema_migrated_from' => '1.0']
+            );
+            return $document;
+        },
+    ];
+}
+
+function _cmsBuilderSchemaEnsureNodeMeta(array $node): array
+{
+    if (!isset($node['meta']) || !is_array($node['meta'])) {
+        $node['meta'] = [];
+    }
+    if (isset($node['children']) && is_array($node['children'])) {
+        $node['children'] = array_map('_cmsBuilderSchemaEnsureNodeMeta', $node['children']);
+    }
+    return $node;
+}
+
+function cmsBuilderSchemaMigrateDocument(array $document): array
+{
+    $version = (string)($document['schema_version'] ?? '1.0');
+    $target = CMS_BUILDER_CURRENT_SCHEMA_VERSION;
+
+    if (cmsBuilderSchemaVersionCompare($version, $target) >= 0) {
+        return $document;
+    }
+
+    $migrations = cmsBuilderSchemaMigrations();
+    $migrators = cmsBuilderSchemaMigrators();
+    $current = $version;
+    $steps = 0;
+    $maxSteps = 20;
+
+    while (cmsBuilderSchemaVersionCompare($current, $target) < 0 && $steps < $maxSteps) {
+        if (!isset($migrations[$current])) {
+            write_log("Builder schema migration path not found from {$current}", 'warning');
+            break;
+        }
+        $next = $migrations[$current];
+        $migratorKey = "{$current}->{$next}";
+        if (!isset($migrators[$migratorKey])) {
+            write_log("Builder schema migrator not found: {$migratorKey}", 'warning');
+            break;
+        }
+        $document = ($migrators[$migratorKey])($document);
+        $current = $next;
+        $steps++;
+    }
+
+    $document['schema_version'] = $current;
+    return $document;
+}
+
 function cmsBuilderLoadDocumentRow(int $contentId, string $status = 'draft'): ?array
 {
     try {
@@ -355,20 +434,22 @@ function cmsBuilderLoadDraftDocument(int $contentId, ?array $contentRow = null, 
 {
     $row = cmsBuilderLoadDocumentRow($contentId, 'draft');
     if ($row && !empty($row['document_json'])) {
-        return cmsBuilderNormalizeDocument((string)$row['document_json']);
+        $doc = cmsBuilderNormalizeDocument((string)$row['document_json']);
+        return cmsBuilderSchemaMigrateDocument($doc);
     }
 
-    return cmsBuilderDefaultDocument();
+    return cmsBuilderDefaultDocument(['schema_version' => CMS_BUILDER_CURRENT_SCHEMA_VERSION]);
 }
 
 function cmsBuilderLoadPublishedDocument(int $contentId, ?array $contentRow = null, array $meta = []): array
 {
     $row = cmsBuilderLoadDocumentRow($contentId, 'published');
     if ($row && !empty($row['document_json'])) {
-        return cmsBuilderNormalizeDocument((string)$row['document_json']);
+        $doc = cmsBuilderNormalizeDocument((string)$row['document_json']);
+        return cmsBuilderSchemaMigrateDocument($doc);
     }
 
-    return cmsBuilderDefaultDocument();
+    return cmsBuilderDefaultDocument(['schema_version' => CMS_BUILDER_CURRENT_SCHEMA_VERSION]);
 }
 
 function cmsBuilderNextRevisionNumber(int $builderDocumentId): int

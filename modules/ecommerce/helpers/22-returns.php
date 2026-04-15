@@ -601,6 +601,21 @@ function ecReturnRequestReview(int $requestId, string $status, array $options = 
 
     ecReturnRequestPersistMeta($requestId, $meta);
 
+    // ─── Auto-Refund on Approval (Tier 3.4) ────────────────────────────
+    $autoRefundResult = null;
+    if ($status === 'approved' && !empty($options['auto_refund'])) {
+        $autoRefundResult = ecReturnRequestAutoRefund($request, $order, $options);
+        if (!empty($autoRefundResult['ok'])) {
+            $meta['refund_id'] = $autoRefundResult['refund_id'] ?? null;
+            $meta['refund_status'] = 'created';
+            ecReturnRequestPersistMeta($requestId, $meta);
+        } else {
+            $meta['refund_status'] = 'failed';
+            $meta['refund_error'] = (string)($autoRefundResult['error'] ?? 'Auto-refund failed');
+            ecReturnRequestPersistMeta($requestId, $meta);
+        }
+    }
+
     $updatedRequest = ecReturnRequestGet($requestId);
     if ($updatedRequest === null) {
         throw new \RuntimeException('Return request could not be reloaded after review.');
@@ -639,6 +654,7 @@ function ecReturnRequestReview(int $requestId, string $status, array $options = 
         'request' => $updatedRequest,
         'order' => ecOrderGet((int)$request['order_id']) ?: $order,
         'wms_sync' => $wmsSync,
+        'auto_refund' => $autoRefundResult,
     ];
 }
 
@@ -712,4 +728,74 @@ function ecReturnRequestList(array $filters = []): array
         'items' => $items,
         'total' => $total,
     ];
+}
+
+// ─── Return → Refund Auto-Link (Tier 3.4) ──────────────────────────────
+
+function ecReturnRequestAutoRefund(array $request, array $order, array $options = []): array
+{
+    $requestItems = ecReturnRequestItemRows((int)$request['id']);
+    if (empty($requestItems)) {
+        return ['ok' => false, 'error' => 'No return items to refund'];
+    }
+
+    $orderId = (int)$request['order_id'];
+    $orderItems = $order['items'] ?? [];
+    $orderItemMap = [];
+    foreach ($orderItems as $oi) {
+        $orderItemMap[(int)$oi['id']] = $oi;
+    }
+
+    $refundItems = [];
+    $refundTotal = 0.0;
+    foreach ($requestItems as $ri) {
+        $oiId = (int)($ri['order_item_id'] ?? 0);
+        $qty = (int)($ri['qty'] ?? 0);
+        if ($qty <= 0 || !isset($orderItemMap[$oiId])) continue;
+
+        $oi = $orderItemMap[$oiId];
+        $unitPrice = (float)($oi['unit_price'] ?? 0);
+        $lineRefund = round($unitPrice * $qty, 2);
+        $refundTotal += $lineRefund;
+
+        $refundItems[] = [
+            'order_item_id' => $oiId,
+            'qty' => $qty,
+            'amount' => $lineRefund,
+        ];
+    }
+
+    if (empty($refundItems)) {
+        return ['ok' => false, 'error' => 'No refundable items'];
+    }
+
+    $refundOptions = [
+        'reason' => 'Return approved: ' . ($request['request_number'] ?? 'RET-?'),
+        'restock' => $options['auto_restock'] ?? true,
+    ];
+
+    try {
+        $result = ecOrderCreateRefund($orderId, $refundItems, $refundOptions);
+        if (!empty($result['ok']) || isset($result['refund_id'])) {
+            write_log('Auto-refund created for return request', 'info', [
+                'return_request_id' => $request['id'],
+                'order_id' => $orderId,
+                'refund_total' => $refundTotal,
+                'refund_id' => $result['refund_id'] ?? null,
+            ]);
+            return [
+                'ok' => true,
+                'refund_id' => $result['refund_id'] ?? null,
+                'refund_total' => $refundTotal,
+            ];
+        }
+        return ['ok' => false, 'error' => $result['error'] ?? 'Refund creation returned no refund ID'];
+    } catch (\Throwable $e) {
+        write_log('Auto-refund failed for return request', 'error', [
+            'return_request_id' => $request['id'],
+            'order_id' => $orderId,
+            'error' => $e->getMessage(),
+        ]);
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
 }

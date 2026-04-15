@@ -275,3 +275,154 @@ function ecCustomerAddresses(int $customerId): array
         [$customerId]
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 }
+
+// ─── Customer Address Book CRUD (Tier 3.2) ─────────────────────────────
+
+function ecCustomerAddressGet(int $id, int $customerId): ?array
+{
+    if (!ecTableExists('ec_customer_addresses')) return null;
+    $rows = ecDb()->query(
+        'SELECT * FROM ec_customer_addresses WHERE id = ? AND user_id = ?',
+        [$id, $customerId]
+    );
+    if ($rows instanceof \PDOStatement) $rows = $rows->fetchAll(\PDO::FETCH_ASSOC);
+    return is_array($rows) && count($rows) > 0 ? $rows[0] : null;
+}
+
+function ecCustomerAddressCreate(int $customerId, array $data): array
+{
+    if (!ecTableExists('ec_customer_addresses')) {
+        return ['ok' => false, 'error' => 'Address table not available'];
+    }
+
+    $label = trim((string)($data['label'] ?? ''));
+    $firstName = trim((string)($data['first_name'] ?? ''));
+    $lastName = trim((string)($data['last_name'] ?? ''));
+    $company = trim((string)($data['company'] ?? ''));
+    $addressLine1 = trim((string)($data['address_line_1'] ?? ''));
+    $addressLine2 = trim((string)($data['address_line_2'] ?? ''));
+    $city = trim((string)($data['city'] ?? ''));
+    $state = trim((string)($data['state'] ?? ''));
+    $postalCode = trim((string)($data['postal_code'] ?? ''));
+    $country = trim((string)($data['country'] ?? ''));
+    $phone = trim((string)($data['phone'] ?? ''));
+    $isDefault = !empty($data['is_default']);
+
+    if ($addressLine1 === '' || $city === '' || $country === '') {
+        return ['ok' => false, 'error' => 'Address line 1, city, and country are required'];
+    }
+
+    if ($isDefault) {
+        ecDb()->execute(
+            'UPDATE ec_customer_addresses SET is_default = 0 WHERE user_id = ?',
+            [$customerId]
+        );
+    }
+
+    ecDb()->execute(
+        'INSERT INTO ec_customer_addresses
+            (user_id, label, first_name, last_name, company,
+             address_line_1, address_line_2, city, state, postal_code, country, phone,
+             is_default, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+        [
+            $customerId, $label ?: null, $firstName, $lastName, $company ?: null,
+            $addressLine1, $addressLine2 ?: null, $city, $state, $postalCode, $country, $phone ?: null,
+            $isDefault ? 1 : 0,
+        ]
+    );
+
+    $id = ecDb()->lastInsertId();
+    return ['ok' => true, 'id' => (int)$id];
+}
+
+function ecCustomerAddressUpdate(int $id, int $customerId, array $data): bool
+{
+    if (!ecTableExists('ec_customer_addresses')) return false;
+    $existing = ecCustomerAddressGet($id, $customerId);
+    if (!$existing) return false;
+
+    $fields = ['label', 'first_name', 'last_name', 'company', 'address_line_1',
+               'address_line_2', 'city', 'state', 'postal_code', 'country', 'phone'];
+    $sets = [];
+    $params = [];
+
+    foreach ($fields as $field) {
+        if (array_key_exists($field, $data)) {
+            $sets[] = "{$field} = ?";
+            $params[] = trim((string)$data[$field]) ?: null;
+        }
+    }
+
+    if (isset($data['is_default'])) {
+        if (!empty($data['is_default'])) {
+            ecDb()->execute(
+                'UPDATE ec_customer_addresses SET is_default = 0 WHERE user_id = ?',
+                [$customerId]
+            );
+        }
+        $sets[] = 'is_default = ?';
+        $params[] = !empty($data['is_default']) ? 1 : 0;
+    }
+
+    if (empty($sets)) return false;
+
+    $sets[] = 'updated_at = NOW()';
+    $params[] = $id;
+    $params[] = $customerId;
+
+    $affected = ecDb()->execute(
+        'UPDATE ec_customer_addresses SET ' . implode(', ', $sets) . ' WHERE id = ? AND user_id = ?',
+        $params
+    );
+
+    return $affected > 0;
+}
+
+function ecCustomerAddressDelete(int $id, int $customerId): bool
+{
+    if (!ecTableExists('ec_customer_addresses')) return false;
+    $affected = ecDb()->execute(
+        'DELETE FROM ec_customer_addresses WHERE id = ? AND user_id = ?',
+        [$id, $customerId]
+    );
+    return $affected > 0;
+}
+
+function ecCustomerAddressSetDefault(int $id, int $customerId): bool
+{
+    if (!ecTableExists('ec_customer_addresses')) return false;
+    $existing = ecCustomerAddressGet($id, $customerId);
+    if (!$existing) return false;
+
+    ecDb()->execute(
+        'UPDATE ec_customer_addresses SET is_default = 0 WHERE user_id = ?',
+        [$customerId]
+    );
+    ecDb()->execute(
+        'UPDATE ec_customer_addresses SET is_default = 1, updated_at = NOW() WHERE id = ? AND user_id = ?',
+        [$id, $customerId]
+    );
+    return true;
+}
+
+function ecCustomerDefaultAddress(int $customerId): ?array
+{
+    if (!ecTableExists('ec_customer_addresses')) return null;
+    $rows = ecDb()->query(
+        'SELECT * FROM ec_customer_addresses WHERE user_id = ? AND is_default = 1 LIMIT 1',
+        [$customerId]
+    );
+    if ($rows instanceof \PDOStatement) $rows = $rows->fetchAll(\PDO::FETCH_ASSOC);
+    return is_array($rows) && count($rows) > 0 ? $rows[0] : null;
+}
+
+function ecCheckoutPrefillAddress(int $customerId): ?array
+{
+    $address = ecCustomerDefaultAddress($customerId);
+    if (!$address) {
+        $all = ecCustomerAddresses($customerId);
+        $address = !empty($all) ? $all[0] : null;
+    }
+    return $address;
+}
