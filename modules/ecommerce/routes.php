@@ -40,6 +40,7 @@ return [
         '/ecommerce/admin/categories'             => 'ecommerce:ecAdminCategories',
         '/ecommerce/admin/coupons'                => 'ecommerce:ecAdminCoupons',
         '/ecommerce/admin/reports'                => 'ecommerce:ecAdminReports',
+        '/ecommerce/admin/inventory'              => 'ecommerce:ecAdminInventory',
         '/ecommerce/admin/email-templates'        => 'ecommerce:ecAdminEmailTemplates',
         '/ecommerce/admin/webhooks'               => 'ecommerce:ecAdminWebhooks',
         '/ecommerce/admin/abandoned-carts'        => 'ecommerce:ecAdminAbandonedCarts',

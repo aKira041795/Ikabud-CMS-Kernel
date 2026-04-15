@@ -1,0 +1,112 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<!-- Toolbar -->
+<div class="flex flex-wrap items-center gap-3 mb-5">
+    <form method="get" action="" class="flex flex-wrap items-center gap-3 flex-1">
+        <input type="text" name="search" value="{search}" placeholder="Search by product name or SKU…"
+               class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-64 focus:border-orange-500 outline-none">
+        <select name="filter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="all" {if filter == 'all' || filter == ''}selected{/if}>All Tracked</option>
+            <option value="low" {if filter == 'low'}selected{/if}>Low Stock</option>
+            <option value="out" {if filter == 'out'}selected{/if}>Out of Stock</option>
+        </select>
+        {if multi_store}
+        <select name="store_id" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="0">All Stores</option>
+            {foreach stores as store}
+            <option value="{store.id}" {if store_id == store.id}selected{/if}>{store.name}</option>
+            {/foreach}
+        </select>
+        {/if}
+        <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700">Filter</button>
+    </form>
+    {if integration_mode}
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+        {if integration_mode == 'wms_authoritative_products'}WMS is source of truth{/if}
+        {if integration_mode == 'ecommerce_authoritative_products'}Ecommerce is source of truth{/if}
+    </span>
+    {/if}
+</div>
+
+<!-- Summary -->
+<div class="text-sm text-gray-500 mb-3">
+    {total} tracked product{if total != 1}s{/if}
+    {if filter == 'low'} with low stock{/if}
+    {if filter == 'out'} out of stock{/if}
+    {if search} matching "<strong class="text-gray-700">{search}</strong>"{/if}
+</div>
+
+<!-- Inventory table -->
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th class="px-4 py-3">Product</th>
+                    <th class="px-4 py-3">SKU</th>
+                    <th class="px-4 py-3 text-right">Stock Qty</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3">Source</th>
+                    <th class="px-4 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {if total == 0}
+                <tr>
+                    <td colspan="6" class="px-4 py-10 text-center text-gray-400">No tracked products found.</td>
+                </tr>
+                {/if}
+                {foreach items as item}
+                <tr class="hover:bg-gray-50/60">
+                    <td class="px-4 py-3">
+                        <div class="font-medium text-gray-900">{item.title}</div>
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 font-mono text-xs">{item.sku}</td>
+                    <td class="px-4 py-3 text-right font-semibold {if item.out_of_stock}text-red-600{elseif item.low_stock}text-amber-600{else}text-gray-900{/if}">
+                        {item.stock_qty}
+                    </td>
+                    <td class="px-4 py-3">
+                        {if item.out_of_stock}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">Out of Stock</span>
+                        {elseif item.low_stock}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Low Stock</span>
+                        {else}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">In Stock</span>
+                        {/if}
+                    </td>
+                    <td class="px-4 py-3">
+                        {if item.source == 'wms'}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">WMS</span>
+                        {else}
+                        <span class="text-xs text-gray-400">Local</span>
+                        {/if}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{base_url}/ecommerce/admin/products/{item.id}/edit" class="text-orange-600 hover:text-orange-800 text-xs font-medium">Edit</a>
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{if total_pages > 1}
+<div class="flex items-center justify-between mt-4 text-sm">
+    <div class="text-gray-500">Page {page} of {total_pages}</div>
+    <div class="flex gap-1">
+        {if page > 1}
+        <a href="?search={search}&filter={filter}&store_id={store_id}&page={page - 1}"
+           class="px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50">← Prev</a>
+        {/if}
+        {if page < total_pages}
+        <a href="?search={search}&filter={filter}&store_id={store_id}&page={page + 1}"
+           class="px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Next →</a>
+        {/if}
+    </div>
+</div>
+{/if}
+
+{/block}
