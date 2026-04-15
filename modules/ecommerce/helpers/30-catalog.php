@@ -208,10 +208,12 @@ function ecProductList(array $filters = []): array
             }
         }
 
-        // Read settings once before loop
-        $currencySetting = ecSettings('currency');
-        $currencySymbol = (string)ecSettings('currency_symbol');
-        $lowStockThreshold = (int)ecSettings('low_stock_threshold');
+        // Read settings once before loop — resolve per-store when a store filter is active
+        $catalogStoreId = isset($filters['store_id']) ? max(0, (int)$filters['store_id']) : 0;
+        $catalogStore = $catalogStoreId > 0 && function_exists('ecStoreById') ? ecStoreById($catalogStoreId) : null;
+        $currencySetting = ecStoreAwareSetting('currency', $catalogStore, 'USD');
+        $currencySymbol = (string)ecStoreAwareCurrencySymbol($catalogStore);
+        $lowStockThreshold = (int)ecStoreAwareSetting('low_stock_threshold', $catalogStore, 5);
         ecWmsInventorySnapshotMapForSkus(array_map(
             static fn(array $config): string => (string)($config['sku'] ?? ''),
             $inventoryMap

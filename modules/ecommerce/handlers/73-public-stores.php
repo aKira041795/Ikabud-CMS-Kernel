@@ -53,7 +53,7 @@ function ecPublicStorePage(array $params = []): void
     ];
 
     ecWithPublicThemeRouteContext($routeContext, static function () use ($store, $storeId, $routeContext): void {
-        $perPage = min(24, max(4, (int)ecSettings('products_per_page')));
+        $perPage = min(24, max(4, (int)ecStoreAwareSetting('products_per_page', $store, 12)));
         $productResult = ecProductList([
             'store_id' => $storeId,
             'store_owned_only' => true,

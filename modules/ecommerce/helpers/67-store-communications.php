@@ -179,7 +179,7 @@ function ecStoreCreateOrderNotifications(array $payload): void
         return;
     }
 
-    $currencySymbol = (string)($order['currency_symbol'] ?? ecSettings('currency_symbol'));
+    $currencySymbol = (string)($order['currency_symbol'] ?? ecCurrencySymbolFor((string)($order['currency'] ?? '')));
     $storeItems = [];
     foreach ((array)($order['items'] ?? []) as $item) {
         $storeId = max(0, (int)($item['store_id'] ?? 0));
@@ -454,6 +454,25 @@ function ecStoreLoyaltySummary(int $storeId, int $limit = 50): array
 
 app()->events()->listen('ecommerce.order.created', static function (array $payload): void {
     ecStoreCreateOrderNotifications($payload);
+});
+
+app()->events()->listen('ecommerce.order.paid', static function (array $payload): void {
+    $storeId = (int)($payload['store_id'] ?? 0);
+    $orderId = (int)($payload['order_id'] ?? 0);
+    if ($storeId <= 0 || $orderId <= 0) {
+        return;
+    }
+    $orderNumber = (string)($payload['order_number'] ?? '');
+    $currencySymbol = (string)($payload['currency_symbol'] ?? ecCurrencySymbolFor((string)($payload['currency'] ?? '')));
+    $total = (float)($payload['total'] ?? 0);
+
+    ecStoreNotificationCreate($storeId, [
+        'type' => 'order_paid',
+        'title' => 'Order #' . ($orderNumber ?: (string)$orderId) . ' paid',
+        'body' => 'Payment of ' . $currencySymbol . number_format($total, 2) . ' received for order #' . ($orderNumber ?: (string)$orderId) . '.',
+        'action_url' => ecGetBaseUrl() . '/ecommerce/store-admin/' . $storeId . '/orders?search=' . urlencode($orderNumber),
+        'related_order_id' => $orderId,
+    ]);
 });
 
 app()->events()->listen('ecommerce.return.requested', static function (array $payload): void {

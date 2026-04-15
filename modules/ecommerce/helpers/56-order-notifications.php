@@ -24,7 +24,18 @@ function ecSendAdminOrderNotification(array $payload): void
         ? readTenantModuleSettingsForTenant('ecommerce', (int)$_ENV['TEST_TENANT_ID'])
         : readTenantModuleSettings('ecommerce');
 
-    $adminEmail = trim((string)($settings['admin_notification_email'] ?? ''));
+    // Resolve store context from order so we can route to store-specific admin email.
+    $storeAdminEmail = '';
+    $store = null;
+    if (function_exists('ecOrderOperationalAuthority')) {
+        $authority = ecOrderOperationalAuthority($orderId);
+        $store = is_array($authority['store'] ?? null) ? $authority['store'] : null;
+        if ($store !== null && function_exists('ecStoreSetting')) {
+            $storeAdminEmail = trim((string)ecStoreSetting($store, 'admin_notification_email'));
+        }
+    }
+
+    $adminEmail = $storeAdminEmail !== '' ? $storeAdminEmail : trim((string)($settings['admin_notification_email'] ?? ''));
     if ($adminEmail === '' || !function_exists('sendEmail')) {
         return;
     }

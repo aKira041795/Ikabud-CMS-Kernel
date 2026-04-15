@@ -103,14 +103,15 @@ function ecApiCheckout(): void
     }
 
     // Guest checkout — ensure allowed
-    if (!$customerId && !(bool)ecSettings('guest_checkout')) {
+    $checkoutStore = function_exists('ecCartResolvedStore') ? ecCartResolvedStore((array)($cart['items'] ?? [])) : null;
+    if (!$customerId && !(bool)ecStoreAwareSetting('guest_checkout', $checkoutStore)) {
         ecJsonError('Guest checkout is not enabled', 403);
     }
 
     // Digital product enforcement — auto-register guest when required
     $cartHasDigital = ecCartHasDigitalItems($cart['items']);
     if ($cartHasDigital && !$customerId) {
-        if ((bool)ecSettings('require_account_for_digital')) {
+        if ((bool)ecStoreAwareSetting('require_account_for_digital', $checkoutStore)) {
             // Rate-limit account creation from this IP to prevent bulk account floods.
             // Re-uses the kernel rate_limits table with a distinct 'checkout_register' action.
             try {

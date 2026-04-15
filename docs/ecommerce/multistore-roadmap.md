@@ -213,6 +213,48 @@ Make the store-admin UI reflect role boundaries instead of showing one generic s
 - File attachments and moderation workflows
 - Seller SLA/performance integration
 
+### Phase G — Store-Specific Settings Override Hardening
+**Status:** Complete
+
+Multiple public handlers and helpers read global `ecSettings()` in contexts where a store is active, bypassing per-store overrides. This phase centralizes the resolution and expands the overridable field set.
+
+**Work items**
+1. **`ecStoreAwareSetting()`** — centralized resolver: store override → global → default. Added to `helpers/38-stores.php`. Convenience wrappers: `ecStoreAwareCurrencySymbol()`, `ecStoreAwareCurrencyCode()`.
+2. **Expanded `ecStoreSettingsJsonFromInput()`** — new store-overridable fields: `products_per_page`, `shop_page_title`, `guest_checkout`, `payment_method_label`, `require_account_for_digital`, `low_stock_threshold`, `order_number_prefix`.
+3. **Public shop handlers** (`10-public-shop.php`) — `ecPublicShop()` and `ecPublicCategory()` now resolve `products_per_page` and `shop_page_title` through `ecStoreAwareSetting()` using the active store filter.
+4. **Public store page** (`73-public-stores.php`) — `ecPublicStorePage()` now resolves `products_per_page` per-store.
+5. **API products** (`80-api-products.php`) — catalog search payload resolves per-store settings when `store_id` is provided.
+6. **Checkout handler** (`20-public-checkout.php`) — `guest_checkout`, `payment_method_label`, `require_account_for_digital` resolved per the cart's store.
+7. **API checkout** (`86-api-checkout.php`) — `guest_checkout` and `require_account_for_digital` resolved per the cart's store.
+8. **Catalog helper** (`30-catalog.php`) — `ecProductList()` resolves `currency`, `currency_symbol`, `low_stock_threshold` from the `store_id` filter when present.
+9. **Store admin settings template** — three new sections: "Catalog & Display", "Checkout & Payments", "Inventory". Each field shows the platform default as placeholder text.
+10. **Handler context** — `ecStoreAdminSettings()` passes `global_defaults` to the template for platform-default hints.
+
+**New overridable fields (7 additions)**
+
+| Field | Type | Section |
+|-------|------|---------|
+| `products_per_page` | int (4-100) | Catalog & Display |
+| `shop_page_title` | string | Catalog & Display |
+| `order_number_prefix` | string | Catalog & Display |
+| `guest_checkout` | bool | Checkout & Payments |
+| `payment_method_label` | string | Checkout & Payments |
+| `require_account_for_digital` | bool | Checkout & Payments |
+| `low_stock_threshold` | int (0-999) | Inventory |
+
+**Specification:** See `docs/ecommerce/store-settings-override-spec.md`
+
+**Files changed**
+- `modules/ecommerce/helpers/38-stores.php`
+- `modules/ecommerce/handlers/10-public-shop.php`
+- `modules/ecommerce/handlers/20-public-checkout.php`
+- `modules/ecommerce/handlers/73-public-stores.php`
+- `modules/ecommerce/handlers/74-store-admin-access.php`
+- `modules/ecommerce/handlers/80-api-products.php`
+- `modules/ecommerce/handlers/86-api-checkout.php`
+- `modules/ecommerce/helpers/30-catalog.php`
+- `templates/modules/ecommerce/admin/store-admin-settings.disyl`
+
 ### Relevant Files
 
 - `modules/cms/handlers/10-auth.php` — login redirect logic
@@ -255,6 +297,7 @@ Make the store-admin UI reflect role boundaries instead of showing one generic s
 
 **In scope now**
 - Phases A through F for the current multi-location retail scope
+- Phase G — Store-Specific Settings Override Hardening (see below)
 
 **Deferred**
 - Seller performance scoring, payout settlement, and marketplace-vendor governance

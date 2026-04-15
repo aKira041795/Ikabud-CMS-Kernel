@@ -388,12 +388,56 @@ function ecStoreSetting(array|int|null $store, string $key, mixed $default = nul
     return array_key_exists($key, $settings) ? $settings[$key] : $default;
 }
 
+/**
+ * Resolve a setting with store → global → default fallback.
+ *
+ * When a store has an explicit override for $key in its settings_json that is
+ * non-empty, that value wins.  Otherwise falls back to the global
+ * ecSettings($key), then to $default.
+ */
+function ecStoreAwareSetting(string $key, array|int|null $store = null, mixed $default = null): mixed
+{
+    if ($store !== null) {
+        $storeValue = ecStoreSetting($store, $key);
+        if ($storeValue !== null && $storeValue !== '') {
+            return $storeValue;
+        }
+    }
+
+    $global = ecSettings($key);
+    if ($global !== null && $global !== '' && $global !== false) {
+        return $global;
+    }
+
+    return $default;
+}
+
+/**
+ * Convenience: resolve currency symbol with store → global → '$' fallback.
+ */
+function ecStoreAwareCurrencySymbol(array|int|null $store = null): string
+{
+    return (string)ecStoreAwareSetting('currency_symbol', $store, '$');
+}
+
+/**
+ * Convenience: resolve currency code with store → global → 'USD' fallback.
+ */
+function ecStoreAwareCurrencyCode(array|int|null $store = null): string
+{
+    return (string)ecStoreAwareSetting('currency', $store, 'USD');
+}
+
 function ecStoreSettingsJsonFromInput(array $input): ?string
 {
     $settings = [];
-    $fields = ['currency', 'currency_symbol', 'timezone', 'tax_rate', 'checkout_note'];
+    $fields = ['currency', 'currency_symbol', 'timezone', 'tax_rate', 'checkout_note',
+               'shop_page_title', 'payment_method_label', 'order_number_prefix',
+               'admin_email', 'admin_notification_email', 'store_url'];
     $shippingTextFields = ['shipping_label', 'shipping_carrier', 'shipping_estimated_days', 'shipping_default_country'];
     $shippingNumberFields = ['shipping_flat_rate', 'shipping_free_above'];
+    $integerFields = ['products_per_page' => [4, 100], 'low_stock_threshold' => [0, 999]];
+    $booleanFields = ['guest_checkout', 'require_account_for_digital'];
     $themeOptions = ['orange', 'indigo', 'emerald', 'rose'];
     $bannerModeOptions = ['show', 'hide'];
     $socialModeOptions = ['custom', 'hide'];
@@ -403,6 +447,28 @@ function ecStoreSettingsJsonFromInput(array $input): ?string
         $value = trim((string)($input['setting_' . $field] ?? ''));
         if ($value !== '') {
             $settings[$field] = $value;
+        }
+    }
+
+    // PEM key fields: preserve newlines, only store when non-empty.
+    $pemValue = trim((string)($input['setting_license_private_key_pem'] ?? ''));
+    if ($pemValue !== '') {
+        $settings['license_private_key_pem'] = $pemValue;
+    }
+
+    // Integer fields with min/max clamping
+    foreach ($integerFields as $field => [$min, $max]) {
+        $value = trim((string)($input['setting_' . $field] ?? ''));
+        if ($value !== '' && is_numeric($value)) {
+            $settings[$field] = max($min, min($max, (int)$value));
+        }
+    }
+
+    // Boolean fields: '1' = override-on, '0' = override-off, '' = inherit global
+    foreach ($booleanFields as $field) {
+        $raw = $input['setting_' . $field] ?? null;
+        if ($raw !== null && $raw !== '') {
+            $settings[$field] = in_array((string)$raw, ['1', 'on', 'true', 'yes'], true) ? '1' : '0';
         }
     }
 

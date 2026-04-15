@@ -198,7 +198,7 @@ function ecSubscriptionNormalizeRow(array $row): array
     $row['renewal_count'] = max(0, (int)($row['renewal_count'] ?? 0));
     $row['recurring_amount'] = (float)($row['recurring_amount'] ?? 0.0);
     $row['interval_label'] = ecSubscriptionIntervalLabel($intervalUnit, $intervalCount);
-    $row['recurring_amount_fmt'] = (string)ecSettings('currency_symbol') . number_format((float)$row['recurring_amount'], 2);
+    $row['recurring_amount_fmt'] = ecCurrencySymbolFor((string)($row['currency'] ?? ecStoreBaseCurrencyCode())) . number_format((float)$row['recurring_amount'], 2);
     $row['recurring_label'] = $row['recurring_amount_fmt'] . ' every ' . $row['interval_label'];
     $row['trial_label'] = $row['trial_days'] > 0
         ? $row['trial_days'] . ' day' . ($row['trial_days'] === 1 ? '' : 's') . ' free trial'

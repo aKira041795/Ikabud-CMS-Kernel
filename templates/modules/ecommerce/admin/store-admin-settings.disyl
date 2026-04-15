@@ -125,6 +125,88 @@
             </div>
         </div>
 
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Catalog & Display</h2>
+            <p class="text-xs text-slate-500">Override how the storefront catalog appears for this store. Leave blank to inherit platform defaults.</p>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Products Per Page</label>
+                    <input type="number" name="setting_products_per_page" min="4" max="100" value="{input.setting_products_per_page | escape}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none" placeholder="{global_defaults.products_per_page | escape}">
+                    <p class="mt-1 text-xs text-slate-400">Platform default: {global_defaults.products_per_page | escape}</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Shop Page Title</label>
+                    <input type="text" name="setting_shop_page_title" value="{input.setting_shop_page_title | escape}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="{global_defaults.shop_page_title | escape}">
+                    <p class="mt-1 text-xs text-slate-400">Platform default: {global_defaults.shop_page_title | escape}</p>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Order Number Prefix</label>
+                <input type="text" name="setting_order_number_prefix" value="{input.setting_order_number_prefix | escape}" class="w-full max-w-xs border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none" placeholder="{global_defaults.order_number_prefix | escape}">
+                <p class="mt-1 text-xs text-slate-400">Platform default: {global_defaults.order_number_prefix | escape}</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Checkout & Payments</h2>
+            <p class="text-xs text-slate-500">Override checkout behavior for this store. Leave on default to inherit platform settings.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Guest Checkout</label>
+                    <select name="setting_guest_checkout" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                        <option value="">Use platform default ({if global_defaults.guest_checkout}enabled{else}disabled{/if})</option>
+                        <option value="1" {if input.setting_guest_checkout == '1'}selected{/if}>Enabled</option>
+                        <option value="0" {if input.setting_guest_checkout == '0'}selected{/if}>Disabled</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Require Account for Digital</label>
+                    <select name="setting_require_account_for_digital" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none bg-white">
+                        <option value="">Use platform default ({if global_defaults.require_account_for_digital}required{else}not required{/if})</option>
+                        <option value="1" {if input.setting_require_account_for_digital == '1'}selected{/if}>Required</option>
+                        <option value="0" {if input.setting_require_account_for_digital == '0'}selected{/if}>Not Required</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Payment Method Label</label>
+                <input type="text" name="setting_payment_method_label" value="{input.setting_payment_method_label | escape}" class="w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="{global_defaults.payment_method_label | escape}">
+                <p class="mt-1 text-xs text-slate-400">Platform default: {global_defaults.payment_method_label | escape}</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Inventory</h2>
+            <p class="text-xs text-slate-500">Override inventory thresholds for this store. Leave blank to inherit platform defaults.</p>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Low Stock Threshold</label>
+                <input type="number" name="setting_low_stock_threshold" min="0" max="999" value="{input.setting_low_stock_threshold | escape}" class="w-full max-w-xs border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none" placeholder="{global_defaults.low_stock_threshold | escape}">
+                <p class="mt-1 text-xs text-slate-400">Platform default: {global_defaults.low_stock_threshold | escape}</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store Contact & Notifications</h2>
+            <p class="text-xs text-slate-500">Override the email addresses used for order notifications and customer reply-to for this store. Leave blank to inherit platform defaults.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Admin Email (reply-to)</label>
+                    <input type="email" name="setting_admin_email" value="{input.setting_admin_email | escape}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="{global_defaults.admin_email | escape}">
+                    <p class="mt-1 text-xs text-slate-400">Used as reply-to in customer emails for this store's orders.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Admin Notification Email</label>
+                    <input type="email" name="setting_admin_notification_email" value="{input.setting_admin_notification_email | escape}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none" placeholder="{global_defaults.admin_notification_email | escape}">
+                    <p class="mt-1 text-xs text-slate-400">Receives new-order and paid-order alerts for this store.</p>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Store URL</label>
+                <input type="url" name="setting_store_url" value="{input.setting_store_url | escape}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none" placeholder="https://store.example.com">
+                <p class="mt-1 text-xs text-slate-400">Used as the license issuer URL and download base URL for digital products sold through this store.</p>
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
             <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Storefront Overrides</h2>
             <p class="text-xs text-slate-500">These settings apply only to this store. Theme preset, banner, social links, and hours feed the live storefront chrome on shop, product, and store landing pages. Leave each mode on default to inherit the platform storefront configuration.</p>

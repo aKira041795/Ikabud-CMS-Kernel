@@ -43,7 +43,17 @@ function ecSendCustomerOrderConfirmation(array $payload): void
             ? readTenantModuleSettingsForTenant('ecommerce', (int)$_ENV['TEST_TENANT_ID'])
             : readTenantModuleSettings('ecommerce');
 
-        $adminEmail = trim((string)($settings['admin_email'] ?? ''));
+        // Prefer store-specific admin email for reply-to when order belongs to a store.
+        $storeAdminEmail = '';
+        if (function_exists('ecOrderOperationalAuthority')) {
+            $authority = ecOrderOperationalAuthority($orderId);
+            $authorityStore = is_array($authority['store'] ?? null) ? $authority['store'] : null;
+            if ($authorityStore !== null && function_exists('ecStoreSetting')) {
+                $storeAdminEmail = trim((string)ecStoreSetting($authorityStore, 'admin_email'));
+            }
+        }
+
+        $adminEmail = $storeAdminEmail !== '' ? $storeAdminEmail : trim((string)($settings['admin_email'] ?? ''));
         $options = [];
         if ($adminEmail !== '' && filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
             $options['reply_to'] = $adminEmail;

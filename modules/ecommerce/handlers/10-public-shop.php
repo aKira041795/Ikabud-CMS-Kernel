@@ -144,7 +144,8 @@ function ecPublicShop(): void
     $storeFilter = function_exists('ecPublicStorefrontRequestedStoreFilter') ? ecPublicStorefrontRequestedStoreFilter() : 0;
 
     $attributeFilters = function_exists('ecProductAttributeFiltersFromInput') ? ecProductAttributeFiltersFromInput(ecInput()) : [];
-    $perPage    = (int)ecSettings('products_per_page');
+    $activeStoreForSettings = $storeFilter > 0 && function_exists('ecStoreById') ? ecStoreById($storeFilter) : null;
+    $perPage    = (int)ecStoreAwareSetting('products_per_page', $activeStoreForSettings, 12);
     $routeContext = [
         'public_render_origin' => 'ecommerce',
         'public_route_kind' => 'shop_index',
@@ -183,7 +184,7 @@ function ecPublicShop(): void
             'per_page' => $perPage,
             'base_list_url' => '/ecommerce/shop',
             'item_base_url' => '/ecommerce/shop',
-            'list_title' => trim((string)ecSettings('shop_page_title')),
+            'list_title' => trim((string)ecStoreAwareSetting('shop_page_title', $activeStore, 'Shop')),
             'available_categories' => $availableCategories,
             'attribute_filters' => $attributeFilters,
             'all_items_url' => $canonicalAllItemsUrl,
@@ -249,7 +250,7 @@ function ecPublicShop(): void
         $storefront = ecBuildStorefrontCatalogContext($products, [
             'route_kind' => 'shop_index',
             'presentation_mode' => $presentationMode,
-            'page_title' => trim((string)ecSettings('shop_page_title')) ?: 'Shop',
+            'page_title' => trim((string)ecStoreAwareSetting('shop_page_title', $activeStore, 'Shop')),
             'current_category' => $currentCategory ?? [],
             'categories' => $availableCategories,
             'search' => $search,
@@ -274,7 +275,7 @@ function ecPublicShop(): void
         ]);
 
         ecRender('modules/ecommerce/public/shop.disyl', array_merge([
-            'page_title' => trim((string)ecSettings('shop_page_title')) ?: 'Shop',
+            'page_title' => trim((string)ecStoreAwareSetting('shop_page_title', $activeStore, 'Shop')),
             'products' => $products,
             'total' => $productResult['total'],
             'categories' => $availableCategories,
@@ -332,8 +333,8 @@ function ecPublicCategory(array $params = []): void
     ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $attributeFilters, $routeContext, $storeFilter): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_category', $routeContext);
         $search = trim((string)(ecInput()['search'] ?? ''));
-        $perPage = (int)ecSettings('products_per_page');
         $activeStore = $storeFilter > 0 ? ecStoreById($storeFilter) : null;
+        $perPage = (int)ecStoreAwareSetting('products_per_page', $activeStore, 12);
         $canonicalAllItemsUrl = ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
             'store' => $storeFilter ?: null,
         ]);

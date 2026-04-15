@@ -55,7 +55,10 @@ function ecPaymentReturn(): void
 
         if (!empty($result['ok']) && ($result['status'] ?? '') === 'succeeded') {
             if (($order['payment_status'] ?? '') !== 'paid') {
-                ecOrderMarkPaid($orderId);
+                ecOrderMarkPaid($orderId, [
+                    'source' => $gateway . '_return',
+                    'note' => 'Paid via ' . $gateway . ' payment return.',
+                ]);
             }
         }
     }

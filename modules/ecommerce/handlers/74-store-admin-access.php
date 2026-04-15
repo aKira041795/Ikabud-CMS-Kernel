@@ -1175,8 +1175,22 @@ function ecStoreAdminSettings(array $params = []): void
     } catch (\Throwable $ignored) {
     }
 
+    $globalSettings = ecSettings();
+    $globalDefaults = [
+        'products_per_page' => (string)($globalSettings['products_per_page'] ?? '12'),
+        'shop_page_title' => (string)($globalSettings['shop_page_title'] ?? 'Shop'),
+        'order_number_prefix' => (string)($globalSettings['order_number_prefix'] ?? ''),
+        'guest_checkout' => !empty($globalSettings['guest_checkout']),
+        'require_account_for_digital' => !empty($globalSettings['require_account_for_digital']),
+        'payment_method_label' => (string)($globalSettings['payment_method_label'] ?? 'Manual'),
+        'low_stock_threshold' => (string)($globalSettings['low_stock_threshold'] ?? '5'),
+        'admin_email' => (string)($globalSettings['admin_email'] ?? ''),
+        'admin_notification_email' => (string)($globalSettings['admin_notification_email'] ?? ''),
+    ];
+
     $ctx = ecStoreAdminContext($user, $store, 'settings', [
         'input' => $inputData,
+        'global_defaults' => $globalDefaults,
         'store_users' => ecStoreUserList($id),
         'store_branding_supported' => ecStoreBrandingColumnsAvailable(),
         'cms_users_list' => $cmsUsersList,

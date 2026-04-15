@@ -19,7 +19,10 @@ function ecPublicCheckout(): void
 
     $user            = app()->user();
     $isCustomer      = $user && in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true);
-    $guestAllowed    = (bool)ecSettings('guest_checkout');
+
+    $cartStore = function_exists('ecCartResolvedStore') ? ecCartResolvedStore((array)($cart['items'] ?? [])) : null;
+    $cartStoreSettings = is_array($cartStore) && function_exists('ecStoreSettingsArray') ? ecStoreSettingsArray($cartStore) : [];
+    $guestAllowed    = (bool)ecStoreAwareSetting('guest_checkout', $cartStore);
     $loyaltyPoints = function_exists('ecCartSelectedLoyaltyPoints') ? ecCartSelectedLoyaltyPoints() : 0;
 
     if (!$isCustomer && !$guestAllowed) {
@@ -28,17 +31,15 @@ function ecPublicCheckout(): void
     }
 
     $shippingDefaults = ['country' => function_exists('ecShippingDefaultCountry') ? ecShippingDefaultCountry() : ''];
-    $cartStore = function_exists('ecCartResolvedStore') ? ecCartResolvedStore((array)($cart['items'] ?? [])) : null;
-    $cartStoreSettings = is_array($cartStore) && function_exists('ecStoreSettingsArray') ? ecStoreSettingsArray($cartStore) : [];
     $shippingQuote   = function_exists('ecShippingQuote')
         ? ecShippingQuote($cart['items'], $shippingDefaults, (string)($cart['coupon_code'] ?? ''), null, [
             'customer_id' => $isCustomer ? (int)($user['id'] ?? 0) : null,
             'loyalty_points' => $loyaltyPoints,
         ])
         : ['requires_shipping' => false, 'rates' => [], 'selected_rate_id' => null, 'selected_rate' => null, 'totals' => $cart['totals']];
-    $paymentLabel    = (string)ecSettings('payment_method_label');
+    $paymentLabel    = (string)ecStoreAwareSetting('payment_method_label', $cartStore, 'Manual');
     $cartHasDigital  = ecCartHasDigitalItems($cart['items']);
-    $requireAccount  = (bool)ecSettings('require_account_for_digital');
+    $requireAccount  = (bool)ecStoreAwareSetting('require_account_for_digital', $cartStore);
 
     ecRender('modules/ecommerce/public/checkout.disyl', [
         'page_title'                 => 'Checkout',

@@ -50,6 +50,41 @@ function ec_license_public_base_url(): string
     return rtrim($configured, '/');
 }
 
+/**
+ * Resolve the license issuer base URL with store awareness.
+ * If the store has a `store_url` override in settings_json it takes precedence,
+ * otherwise falls back to the tenant default (ec_license_public_base_url).
+ */
+function ec_license_store_aware_base_url(array|null $store): string
+{
+    if (is_array($store) && function_exists('ecStoreSetting')) {
+        $storeUrl = trim((string)ecStoreSetting($store, 'store_url'));
+        if ($storeUrl !== '') {
+            return rtrim($storeUrl, '/');
+        }
+    }
+
+    return ec_license_public_base_url();
+}
+
+/**
+ * Check whether ec_order_licenses has the store_id column.
+ */
+function ec_license_has_store_id_column(): bool
+{
+    static $has = null;
+    if ($has !== null) {
+        return $has;
+    }
+    try {
+        ecDb()->query('SELECT store_id FROM ec_order_licenses WHERE 1 = 0');
+        $has = true;
+    } catch (\Throwable $e) {
+        $has = false;
+    }
+    return $has;
+}
+
 function ecOrderLicenseFindById(int $licenseId): ?array
 {
     if ($licenseId <= 0) {
@@ -113,11 +148,17 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
     $orderId = (int)($payload['order_id'] ?? 0);
     if ($orderId <= 0) return;
 
-    // Load ecommerce settings to check if digital fulfillment is configured
+    // Resolve store context from event payload (enriched by ecOrderMarkPaid).
+    $storeId = (int)($payload['store_id'] ?? 0);
+    $store   = ($storeId > 0 && function_exists('ecStoreById')) ? ecStoreById($storeId) : null;
+
+    // Load ecommerce settings — prefer store-specific private key, fall back to global.
     $settings = isset($_ENV['TEST_TENANT_ID']) ? \readTenantModuleSettingsForTenant('ecommerce', (int)$_ENV['TEST_TENANT_ID']) : \readTenantModuleSettings('ecommerce');
-    $privateKey = trim((string)($settings['license_private_key_pem'] ?? ''));
+    $privateKey = function_exists('ecStoreAwareSetting')
+        ? trim((string)ecStoreAwareSetting('license_private_key_pem', $store, ''))
+        : trim((string)($settings['license_private_key_pem'] ?? ''));
     if ($privateKey === '') {
-        return; // Store hasn't configured a key to sign licenses.
+        return; // Neither store nor global has a key to sign licenses.
     }
 
     try {
@@ -131,7 +172,9 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
         $email      = trim((string)($order['customer_email'] ?? ''));
         $customerId = isset($order['customer_id']) ? (int)$order['customer_id'] : null;
         $items      = $order['items'] ?? [];
-        $issuerUrl  = ec_license_public_base_url();
+
+        // Use store-specific base URL for issuer when available, otherwise tenant default.
+        $issuerUrl  = ec_license_store_aware_base_url($store);
 
         if (empty($items)) return;
 
@@ -191,22 +234,42 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
 
                 $downloadToken = bin2hex(random_bytes(32));
 
-                // Insert into ec_order_licenses
-                $db->execute(
-                    'INSERT INTO ec_order_licenses (order_id, order_item_id, customer_email, customer_id, product_id, target_module, target_tier, license_key, download_token, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [
-                        $orderId,
-                        (int)$item['id'],
-                        $email,
-                        $customerId,
-                        $prodId,
-                        $targetModule,
-                        $targetTier,
-                        $licenseKey,
-                        $downloadToken,
-                        'active',
-                    ]
-                );
+                // Insert into ec_order_licenses (include store_id when column exists)
+                $hasStoreIdCol = ec_license_has_store_id_column();
+                if ($hasStoreIdCol && $storeId > 0) {
+                    $db->execute(
+                        'INSERT INTO ec_order_licenses (order_id, order_item_id, customer_email, customer_id, product_id, target_module, target_tier, license_key, download_token, status, store_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [
+                            $orderId,
+                            (int)$item['id'],
+                            $email,
+                            $customerId,
+                            $prodId,
+                            $targetModule,
+                            $targetTier,
+                            $licenseKey,
+                            $downloadToken,
+                            'active',
+                            $storeId,
+                        ]
+                    );
+                } else {
+                    $db->execute(
+                        'INSERT INTO ec_order_licenses (order_id, order_item_id, customer_email, customer_id, product_id, target_module, target_tier, license_key, download_token, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [
+                            $orderId,
+                            (int)$item['id'],
+                            $email,
+                            $customerId,
+                            $prodId,
+                            $targetModule,
+                            $targetTier,
+                            $licenseKey,
+                            $downloadToken,
+                            'active',
+                        ]
+                    );
+                }
 
                 $issuedKeys[] = [
                     'module'         => $targetModule,
@@ -219,7 +282,7 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
 
         // Send license delivery email if any keys were issued and email is configured.
         if (!empty($issuedKeys) && $email !== '' && function_exists('sendEmail')) {
-            $baseUrl  = ec_license_public_base_url();
+            $baseUrl  = ec_license_store_aware_base_url($store);
             $orderNum = (string)($order['order_number'] ?? '');
 
             $rows = '';
@@ -314,17 +377,27 @@ function ecOrderLicenseRegenerate(int $licenseId): bool
     $row = $db->query("SELECT id, order_id, customer_email, target_module, target_tier FROM ec_order_licenses WHERE id = ? LIMIT 1", [$licenseId])->fetch(\PDO::FETCH_ASSOC);
     if (!$row) return false;
 
-    // Load ecommerce settings to check if digital fulfillment is configured
+    // Resolve store context from the order for store-aware settings + issuer URL.
+    $orderId = (int)($row['order_id'] ?? 0);
+    $store = null;
+    if ($orderId > 0 && function_exists('ecOrderOperationalAuthority')) {
+        $authority = ecOrderOperationalAuthority($orderId);
+        $store = is_array($authority['store'] ?? null) ? $authority['store'] : null;
+    }
+
+    // Load ecommerce settings — prefer store-specific private key, fall back to global.
     $settings = isset($_ENV['TEST_TENANT_ID']) ? \readTenantModuleSettingsForTenant('ecommerce', (int)$_ENV['TEST_TENANT_ID']) : \readTenantModuleSettings('ecommerce');
-    $privateKey = trim((string)($settings['license_private_key_pem'] ?? ''));
+    $privateKey = function_exists('ecStoreAwareSetting')
+        ? trim((string)ecStoreAwareSetting('license_private_key_pem', $store, ''))
+        : trim((string)($settings['license_private_key_pem'] ?? ''));
     if ($privateKey === '') {
-        return false; // Store hasn't configured a key to sign licenses.
+        return false; // Neither store nor global has a key to sign licenses.
     }
 
     $email = trim((string)($row['customer_email'] ?? ''));
     $targetModule = trim((string)$row['target_module']);
     $targetTier   = trim((string)($row['target_tier'] ?? 'pro'));
-    $issuerUrl  = ec_license_public_base_url();
+    $issuerUrl  = ec_license_store_aware_base_url($store);
 
     // Default 1-year duration
     $expiresAt = time() + (365 * 86400);

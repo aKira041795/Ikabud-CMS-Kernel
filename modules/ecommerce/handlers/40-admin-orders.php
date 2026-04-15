@@ -137,7 +137,11 @@ function ecAdminOrderDetail(array $params = []): void
                 $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Return request review failed: ' . $e->getMessage()];
             }
         } elseif ($action === 'mark_paid') {
-            ecOrderMarkPaid($orderId);
+            ecOrderMarkPaid($orderId, [
+                'source' => 'ecommerce_admin',
+                'actor_user_id' => (int)($user['id'] ?? 0),
+                'note' => 'Order marked as paid by admin.',
+            ]);
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Order marked as paid.'];
         } elseif ($action === 'regenerate_license') {
             if (function_exists('ecOrderLicenseRegenerate') && !empty($input['license_id'])) {

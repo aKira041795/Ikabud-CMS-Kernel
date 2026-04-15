@@ -261,7 +261,11 @@ function _ecGatewayPaymongoWebhookHandle(string $rawBody, string $signature): ar
         // Mark order as paid (idempotent — ecOrderMarkPaid checks current status)
         $order = ecOrderGet($orderId);
         if ($order && ($order['payment_status'] ?? '') !== 'paid') {
-            ecOrderMarkPaid($orderId);
+            ecOrderMarkPaid($orderId, [
+                'source' => 'paymongo_webhook',
+                'event' => $eventType,
+                'note' => 'Paid via PayMongo webhook (intent: ' . $intentId . ')',
+            ]);
         }
 
         try {
@@ -377,7 +381,11 @@ function _ecGatewayMarkOrderPaidFromWebhook(string $gateway, int $orderId, strin
 {
     $order = ecOrderGet($orderId);
     if ($order && ($order['payment_status'] ?? '') !== 'paid') {
-        ecOrderMarkPaid($orderId);
+        ecOrderMarkPaid($orderId, [
+            'source' => $gateway . '_webhook',
+            'event' => $eventType,
+            'note' => 'Paid via ' . $gateway . ' webhook (ref: ' . $referenceId . ')',
+        ]);
     }
 
     try {

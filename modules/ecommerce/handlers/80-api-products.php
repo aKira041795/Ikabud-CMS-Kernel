@@ -92,7 +92,9 @@ function ecBuildCatalogSearchPayload(array $input = []): array
         ? ecProductAttributeFiltersFromInput($input)
         : [];
     $page = max(1, (int)($input['page'] ?? 1));
-    $perPage = min(60, max(1, (int)($input['limit'] ?? ecSettings('products_per_page'))));
+    $storeId = (int)($input['store_id'] ?? 0);
+    $apiStore = $storeId > 0 && function_exists('ecStoreById') ? ecStoreById($storeId) : null;
+    $perPage = min(60, max(1, (int)($input['limit'] ?? ecStoreAwareSetting('products_per_page', $apiStore, 12))));
     $offset = ($page - 1) * $perPage;
     $routeKind = trim((string)($input['route_kind'] ?? 'shop_index')) ?: 'shop_index';
     $presentationMode = trim((string)($input['presentation_mode'] ?? 'traditional')) ?: 'traditional';
@@ -100,7 +102,7 @@ function ecBuildCatalogSearchPayload(array $input = []): array
     $searchActionUrl = trim((string)($input['search_action_url'] ?? $baseListUrl)) ?: $baseListUrl;
     $allItemsUrl = trim((string)($input['all_items_url'] ?? '/ecommerce/shop')) ?: '/ecommerce/shop';
     $itemBaseUrl = trim((string)($input['item_base_url'] ?? '/ecommerce/shop')) ?: '/ecommerce/shop';
-    $requestedListTitle = trim((string)($input['list_title'] ?? (string)ecSettings('shop_page_title')));
+    $requestedListTitle = trim((string)($input['list_title'] ?? (string)ecStoreAwareSetting('shop_page_title', $apiStore, 'Shop')));
     if ($requestedListTitle === '') {
         $requestedListTitle = 'Shop';
     }

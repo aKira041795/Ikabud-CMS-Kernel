@@ -2052,11 +2052,22 @@ function ecOrderMarkPaid(int $orderId, array $options = []): void
 
     $order = ecOrderGet($orderId);
     if ($order) {
+        // Resolve store authority so downstream listeners can read store-specific settings.
+        $authority = function_exists('ecOrderOperationalAuthority')
+            ? ecOrderOperationalAuthority($orderId)
+            : ['scope' => 'global', 'store_id' => 0, 'store' => null];
+
         try {
             app()->events()->fire('ecommerce.order.paid', [
-                'order_id'     => $orderId,
-                'order_number' => $order['order_number'],
-                'total'        => $order['total'],
+                'order_id'        => $orderId,
+                'order_number'    => $order['order_number'],
+                'total'           => $order['total'],
+                'currency'        => (string)($order['currency'] ?? ''),
+                'currency_symbol' => (string)($order['currency_symbol'] ?? ''),
+                'customer_email'  => (string)($order['customer_email'] ?? ''),
+                'store_id'        => (int)($authority['store_id'] ?? 0),
+                'authority_scope' => (string)($authority['scope'] ?? 'global'),
+                'store'           => $authority['store'] ?? null,
             ]);
         } catch (\Throwable $e) {}
     }
