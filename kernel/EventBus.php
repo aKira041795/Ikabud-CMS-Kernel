@@ -38,7 +38,9 @@
 
 namespace Ikabud\Kernel;
 
-class EventBus
+use Ikabud\Kernel\Contracts\EventBusContract;
+
+class EventBus implements EventBusContract
 {
     private static ?EventBus $instance = null;
 

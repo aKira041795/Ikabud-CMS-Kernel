@@ -37,6 +37,18 @@ class ComponentLoader
      */
     public function load(string $name): ?SingleFileComponent
     {
+        // Validate component name to prevent path traversal.
+        // Allow alphanumeric, hyphens, underscores, and forward slashes
+        // (for namespaced components like "ui/Button").
+        if (!preg_match('/^[a-zA-Z0-9_\-\/]+$/', $name)) {
+            return null;
+        }
+
+        // Block directory traversal sequences even within valid characters.
+        if (str_contains($name, '..')) {
+            return null;
+        }
+
         // Check cache
         if (isset($this->components[$name])) {
             return $this->components[$name];

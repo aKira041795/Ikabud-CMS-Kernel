@@ -11,6 +11,50 @@ class IntegrationBridge
 {
     private static int $activeDepth = 0;
 
+    /**
+     * Per-request cache for integration configs (avoids DB query per event fire).
+     * Keyed by trigger_event. null = not loaded yet, [] = loaded but no configs.
+     * @var array<string, array>|null
+     */
+    private static ?array $integrationCache = null;
+
+    // ── Instance wrapper methods (for use via app()->integrationBridge()) ──
+
+    public function validate(array $definition): array
+    {
+        return static::validateDefinition($definition);
+    }
+
+    public function upsert(array $definition): int
+    {
+        return static::upsertBridge($definition);
+    }
+
+    public function deleteByNames(array $names): int
+    {
+        return static::deleteBridgesByNames($names);
+    }
+
+    public function hasActive(string $event, string $targetCapability): bool
+    {
+        return static::hasActiveBridge($event, $targetCapability);
+    }
+
+    public function dispatch(array $payload, string $event): void
+    {
+        static::handle($payload, $event);
+    }
+
+    // ── Static methods (backward-compatible) ──
+
+    /**
+     * Reset the per-request cache (call on request teardown or in tests).
+     */
+    public static function resetRequestCache(): void
+    {
+        self::$integrationCache = null;
+    }
+
     private static function withKernelDbUnguarded(callable $callback): mixed
     {
         KernelPDO::kernelEscalationEnter();
@@ -239,9 +283,20 @@ class IntegrationBridge
             $requestId = function_exists('request_id') ? request_id() : null;
             $correlationId = self::correlationId();
 
-            $stmt = $db->prepare('SELECT * FROM kernel_integrations WHERE trigger_event = ? AND is_active = 1 ORDER BY id ASC');
-            $stmt->execute([$event]);
-            $integrations = $stmt->fetchAll();
+            // Per-request cache: skip DB query if we already fetched this event's configs.
+            if (self::$integrationCache !== null && array_key_exists($event, self::$integrationCache)) {
+                $integrations = self::$integrationCache[$event];
+            } else {
+                $stmt = $db->prepare('SELECT * FROM kernel_integrations WHERE trigger_event = ? AND is_active = 1 ORDER BY id ASC');
+                $stmt->execute([$event]);
+                $integrations = $stmt->fetchAll();
+
+                // Cache the result for subsequent fires of the same event this request.
+                if (self::$integrationCache === null) {
+                    self::$integrationCache = [];
+                }
+                self::$integrationCache[$event] = $integrations;
+            }
 
             foreach ($integrations as $intg) {
                 $startedAt = microtime(true);

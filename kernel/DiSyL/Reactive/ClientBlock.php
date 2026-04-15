@@ -55,10 +55,13 @@ class ClientBlock
     
     public function toModule(): string
     {
+        // Reject code containing </script> to prevent breaking out of
+        // the script tag boundary when this output is embedded in HTML.
+        $safeCode = str_replace('</script', '<\/script', $this->code);
         return <<<JS
 // DiSyL Client Block: {$this->id}
 (function() {
-{$this->code}
+{$safeCode}
 })();
 JS;
     }
@@ -83,6 +86,19 @@ class EventHandler
     
     public static function compile(string $event, ?string $modifier, string $handler, string $elementId): string
     {
+        // Validate event name against known-safe event names.
+        if (!self::isValidEvent($event)) {
+            return '// DiSyL: unknown event "' . addslashes($event) . '"';
+        }
+
+        // Escape elementId for safe embedding in JS string literal.
+        $safeElementId = addcslashes($elementId, "\\'\"");
+
+        // Escape handler: only allow simple expressions (no script tags, no closing script).
+        if (preg_match('/<\/script/i', $handler)) {
+            return '// DiSyL: handler rejected (script breakout attempt)';
+        }
+
         $options = [];
         $preCode = '';
         
@@ -98,7 +114,7 @@ class EventHandler
         $optionsJSON = empty($options) ? '' : ', ' . json_encode($options);
         
         return <<<JS
-document.getElementById('{$elementId}').addEventListener('{$event}', function(e) {
+document.getElementById('{$safeElementId}').addEventListener('{$event}', function(e) {
     {$preCode}
     {$handler}
 }{$optionsJSON});

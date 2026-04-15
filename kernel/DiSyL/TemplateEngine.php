@@ -40,6 +40,8 @@ class TemplateEngine
     private string $cacheDir;
     private bool $cacheEnabled;
     private bool $debug = false;
+    private bool $compiledMode = false;
+    private ?Compiler\TemplateCache $compiledCache = null;
     private array $components = [];
     private array $filters = [];
     private array $globals = [];
@@ -58,6 +60,41 @@ class TemplateEngine
     public function setDebug(bool $debug): void
     {
         $this->debug = $debug;
+    }
+
+    /**
+     * Enable the opt-in compiled template mode.
+     *
+     * When enabled and the v4 Compiler pipeline is available, render() will
+     * attempt to use pre-compiled PHP classes via TemplateCache before falling
+     * back to the interpreted pipeline.  This is a no-op when the v4 Parser
+     * class does not exist.
+     */
+    public function enableCompiledMode(bool $enable = true): void
+    {
+        $this->compiledMode = $enable;
+        if ($enable && $this->compiledCache === null) {
+            // Only instantiate if the v4 pipeline is loadable
+            if (class_exists(Compiler\TemplateCache::class, true)) {
+                try {
+                    $this->compiledCache = new Compiler\TemplateCache(
+                        $this->cacheDir . '/compiled',
+                        $this->debug
+                    );
+                } catch (\Throwable $e) {
+                    // Pipeline not ready (missing v4 Parser, etc.) — stay interpreted
+                    $this->compiledMode = false;
+                    $this->logError('Compiled mode unavailable: ' . $e->getMessage());
+                }
+            } else {
+                $this->compiledMode = false;
+            }
+        }
+    }
+
+    public function isCompiledMode(): bool
+    {
+        return $this->compiledMode && $this->compiledCache !== null;
     }
     
     public function getErrors(): array
@@ -87,6 +124,9 @@ class TemplateEngine
 
     /** Maximum number of ancestor templates allowed in an {extends} chain */
     private const EXTENDS_CHAIN_MAX = 20;
+
+    /** Maximum output size in bytes (5 MB default — prevents runaway templates) */
+    private const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
     
     public function render(string $template, array $context = []): string
     {
@@ -96,6 +136,25 @@ class TemplateEngine
         if (!file_exists($templatePath)) {
             $this->logError("Template not found: {$template}");
             throw new \RuntimeException("Template not found: {$template}");
+        }
+
+        // Compiled-mode fast path: use pre-compiled PHP class when available
+        if ($this->compiledMode && $this->compiledCache !== null) {
+            try {
+                $compiled = $this->compiledCache->get($templatePath);
+                $mergedContext = array_merge($this->globals, $context);
+                $result = $compiled->render($mergedContext);
+                if (strlen($result) > self::MAX_OUTPUT_BYTES) {
+                    $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
+                    throw new \RuntimeException("Template output exceeds maximum allowed size");
+                }
+                return $result;
+            } catch (\RuntimeException $e) {
+                throw $e; // re-throw size limit errors
+            } catch (\Throwable $e) {
+                // Compiled path failed — fall through to interpreted path
+                $this->logError("Compiled render failed, falling back: " . $e->getMessage());
+            }
         }
         
         $content = $this->readTemplateSource($templatePath);
@@ -114,6 +173,11 @@ class TemplateEngine
             
             $result = $this->compile($content, $context);
 
+            if (strlen($result) > self::MAX_OUTPUT_BYTES) {
+                $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
+                throw new \RuntimeException("Template output exceeds maximum allowed size");
+            }
+
             // Evict oldest entry when cache is full to bound memory growth
             if (count($this->outputCache) >= self::OUTPUT_CACHE_MAX) {
                 reset($this->outputCache);
@@ -123,7 +187,14 @@ class TemplateEngine
             return $result;
         }
         
-        return $this->compile($content, $context);
+        $result = $this->compile($content, $context);
+
+        if (strlen($result) > self::MAX_OUTPUT_BYTES) {
+            $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
+            throw new \RuntimeException("Template output exceeds maximum allowed size");
+        }
+
+        return $result;
     }
 
     private function buildOutputCacheKey(string $templatePath, array $context): string
@@ -2226,7 +2297,14 @@ class TemplateEngine
 
         if (str_starts_with($template, '/')) {
             // Absolute paths are used by trusted kernel/module callers only.
-            return $template;
+            // Block path traversal even in absolute paths: normalize and verify
+            // no '..' segments remain that could escape expected directories.
+            $normalized = $this->normalizePath($template);
+            if (str_contains($normalized, '/../') || str_ends_with($normalized, '/..')) {
+                $this->logError("Path traversal attempt blocked in absolute path: {$template}");
+                return '';
+            }
+            return $normalized;
         }
 
         // Normalize to detect and block path traversal (e.g. ../../etc/passwd.disyl)

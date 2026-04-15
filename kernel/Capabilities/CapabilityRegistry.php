@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Ikabud\Kernel\Capabilities;
 
-final class CapabilityRegistry
+use Ikabud\Kernel\Contracts\CapabilityRegistryContract;
+
+final class CapabilityRegistry implements CapabilityRegistryContract
 {
+    use CapabilityIdTrait;
+
     /**
      * @var array<string, array<int, array{cap: string, provider: string, priority: int, modes: string[], handler: callable, meta: array, registration_order: int}>>
      */
@@ -147,19 +151,7 @@ final class CapabilityRegistry
         });
     }
 
-    private function baseId(string $capabilityId): string
-    {
-        return (string)preg_replace('/@\d+$/', '', $capabilityId);
-    }
-
-    private function majorVersion(string $capabilityId): ?int
-    {
-        if (!preg_match('/@(\d+)$/', $capabilityId, $matches)) {
-            return null;
-        }
-
-        return (int)$matches[1];
-    }
+    // baseId() and majorVersion() provided by CapabilityIdTrait
 
     private function normalizeOrigin(array $entry): array
     {

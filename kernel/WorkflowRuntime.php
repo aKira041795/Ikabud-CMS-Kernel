@@ -9,8 +9,33 @@ use Throwable;
 
 final class WorkflowRuntime
 {
+    /**
+     * Modules that have registered themselves as workflow callers.
+     * @var array<string, true>
+     */
+    private array $registeredCallers = [
+        'cms' => true,
+        'guidance' => true,
+        'workflow' => true,
+        'kernel' => true,
+    ];
+
     public function __construct(private readonly App $app)
     {
+    }
+
+    /**
+     * Register a module as an allowed workflow caller.
+     *
+     * Modules call this during bootstrap to gain access to workflow
+     * capabilities without requiring a code change in WorkflowRuntime.
+     */
+    public function registerCaller(string $moduleId): void
+    {
+        $moduleId = trim($moduleId);
+        if ($moduleId !== '') {
+            $this->registeredCallers[$moduleId] = true;
+        }
     }
 
     public function declaredEvents(): array
@@ -24,9 +49,10 @@ final class WorkflowRuntime
 
     public function capabilityPolicy(): array
     {
+        $callers = array_keys($this->registeredCallers);
         return ['capabilities' => [
-            'workflow.state.get@1' => ['allow_callers' => ['cms', 'guidance', 'workflow', 'kernel']],
-            'workflow.transition@1' => ['allow_callers' => ['cms', 'guidance', 'workflow', 'kernel']],
+            'workflow.state.get@1' => ['allow_callers' => $callers],
+            'workflow.transition@1' => ['allow_callers' => $callers],
         ]];
     }
 

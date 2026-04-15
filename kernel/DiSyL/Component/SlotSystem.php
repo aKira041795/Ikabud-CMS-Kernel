@@ -38,9 +38,11 @@
 namespace Ikabud\Kernel\DiSyL\Component;
 
 /**
- * Slot definition in a component
+ * Slot definition in a component.
+ *
+ * This is the canonical SlotDefinition — imported by ComponentDefinition.php.
  */
-class SlotDefinition
+class SlotDefinition implements \JsonSerializable
 {
     /** @var string Slot name */
     public readonly string $name;
@@ -86,6 +88,25 @@ class SlotDefinition
             'required' => $this->required,
             'isScoped' => $this->isScoped(),
         ];
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
+
+    /**
+     * Create from AST node array (backward-compatible factory).
+     */
+    public static function fromAST(array $node): self
+    {
+        $slot = new self(
+            $node['name'] ?? 'default',
+            $node['params'] ?? $node['parameters'] ?? [],
+            $node['fallback'] ?? $node['defaultContent'] ?? null,
+            (bool)($node['required'] ?? false)
+        );
+        return $slot;
     }
 }
 

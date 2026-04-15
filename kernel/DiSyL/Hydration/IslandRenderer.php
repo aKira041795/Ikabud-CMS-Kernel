@@ -33,7 +33,8 @@ class IslandRenderer
         ];
         
         if ($island->mediaQuery) {
-            $attrs[] = "data-media=\"{$island->mediaQuery}\"";
+            $safeMedia = htmlspecialchars($island->mediaQuery, ENT_QUOTES, 'UTF-8');
+            $attrs[] = "data-media=\"{$safeMedia}\"";
         }
         
         $attrString = implode(' ', $attrs);
@@ -56,7 +57,8 @@ class IslandRenderer
         ];
         
         if ($island->mediaQuery) {
-            $attrs[] = "data-media=\"{$island->mediaQuery}\"";
+            $safeMedia = htmlspecialchars($island->mediaQuery, ENT_QUOTES, 'UTF-8');
+            $attrs[] = "data-media=\"{$safeMedia}\"";
         }
         
         $attrString = implode(' ', $attrs);

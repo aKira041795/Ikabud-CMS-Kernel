@@ -70,10 +70,16 @@ class TurboStreamResponse
     
     private function createStream(string $action, string $target, string $content): string
     {
+        $safeAction = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
+        $safeTarget = htmlspecialchars($target, ENT_QUOTES, 'UTF-8');
+
         if ($action === 'remove') {
-            return "<turbo-stream action=\"{$action}\" target=\"{$target}\"></turbo-stream>";
+            return "<turbo-stream action=\"{$safeAction}\" target=\"{$safeTarget}\"></turbo-stream>";
         }
-        
-        return "<turbo-stream action=\"{$action}\" target=\"{$target}\"><template>{$content}</template></turbo-stream>";
+
+        // Content goes inside <template> which the browser treats as inert, but
+        // we still escape to prevent breaking out of the turbo-stream tag.
+        $safeContent = htmlspecialchars($content, ENT_QUOTES, 'UTF-8');
+        return "<turbo-stream action=\"{$safeAction}\" target=\"{$safeTarget}\"><template>{$safeContent}</template></turbo-stream>";
     }
 }

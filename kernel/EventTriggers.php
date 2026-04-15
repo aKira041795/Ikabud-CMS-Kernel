@@ -41,7 +41,7 @@ function kernelEventAvailableVars(string $eventKey): array
         $raw = $stmt->fetchColumn();
         if ($raw === false || $raw === null || trim((string)$raw) === '') {
             // Fallback: check deferred registrations not yet flushed to DB
-            $pending = $GLOBALS['_kernel_pending_event_registrations'] ?? [];
+            $pending = app()->triggers()->getPendingRegistrations();
             foreach ($pending as $moduleEvents) {
                 foreach ($moduleEvents as $e) {
                     if (is_array($e) && trim((string)($e['key'] ?? '')) === $eventKey) {
@@ -219,7 +219,7 @@ function kernelRegisterModuleEvents(string $moduleId, array $events): void
     }
 
     // Collect events for deferred batch sync instead of syncing per-module
-    $GLOBALS['_kernel_pending_event_registrations'][$moduleId] = $events;
+    app()->triggers()->addPendingRegistration($moduleId, $events);
 }
 
 /**
@@ -228,8 +228,7 @@ function kernelRegisterModuleEvents(string $moduleId, array $events): void
  */
 function kernelFlushPendingEventRegistrations(): void
 {
-    $pending = $GLOBALS['_kernel_pending_event_registrations'] ?? [];
-    unset($GLOBALS['_kernel_pending_event_registrations']);
+    $pending = app()->triggers()->consumePendingRegistrations();
     if (empty($pending)) {
         return;
     }
@@ -452,21 +451,29 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
     // Always fire the kernel EventBus so module-to-module listeners work.
     app()->events()->fire($eventKey, $payload, $module);
 
-    // Dispatch capability triggers
+    // Dispatch capability triggers — use per-request cache to avoid DB query per fire.
     try {
-        // kernel_event_triggers is a kernel-owned table; escalate to bypass
-        // module-level ModuleDB access enforcement for this kernel-internal query.
-        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
-        try {
-            $stmt = app()->db()->prepare(
-                "SELECT * FROM kernel_event_triggers\n"
-                . "WHERE event_key = ? AND is_enabled = 1\n"
-                . "ORDER BY priority ASC, id ASC"
-            );
-            $stmt->execute([$eventKey]);
-            $triggers = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } finally {
-            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        // Check per-request cache first.
+        $svc = app()->triggers();
+        if ($svc->hasCachedTriggers($eventKey)) {
+            $triggers = $svc->getCachedTriggers($eventKey);
+        } else {
+            // kernel_event_triggers is a kernel-owned table; escalate to bypass
+            // module-level ModuleDB access enforcement for this kernel-internal query.
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+            try {
+                $stmt = app()->db()->prepare(
+                    "SELECT * FROM kernel_event_triggers\n"
+                    . "WHERE event_key = ? AND is_enabled = 1\n"
+                    . "ORDER BY priority ASC, id ASC"
+                );
+                $stmt->execute([$eventKey]);
+                $triggers = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            } finally {
+                \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+            }
+            // Cache for subsequent fires of the same event this request.
+            $svc->cacheTriggers($eventKey, $triggers);
         }
     } catch (Throwable $e) {
         write_log("kernelEmitEvent: trigger lookup failed for '{$eventKey}': " . $e->getMessage(), 'error', [
@@ -576,23 +583,65 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
 
         $capPayload = kernelBuildTriggerCapabilityPayload($eventKey, $capId, $payload, is_string($template) ? $template : null, $meta);
 
+        $retryCount = max(0, (int)($trigger['retry_count'] ?? 0));
+        $timeoutMs  = max(0, (int)($trigger['timeout_ms'] ?? 0));
+
         $t0 = microtime(true);
         $triggerOk = false;
         $triggerError = null;
         $capResult = null;
-        try {
-            $capResult = app()->cap()->call($capId, $capPayload, [
-                'caller' => $module !== '' ? $module : '_kernel',
-                'correlation_id' => $correlationId,
-                'request_id' => $requestId,
-            ]);
-            $triggerOk = true;
-        } catch (Throwable $e) {
-            $triggerError = $e->getMessage();
-            // Continue: one failed trigger must not block others.
+        $attempts = 0;
+        $maxAttempts = $retryCount + 1; // first attempt + retries
+
+        while ($attempts < $maxAttempts) {
+            $attempts++;
+            $triggerOk = false;
+            $triggerError = null;
+            $capResult = null;
+
+            try {
+                $capResult = app()->cap()->call($capId, $capPayload, [
+                    'caller' => $module !== '' ? $module : '_kernel',
+                    'correlation_id' => $correlationId,
+                    'request_id' => $requestId,
+                ]);
+                $triggerOk = true;
+                break; // success — no retry needed
+            } catch (Throwable $e) {
+                $triggerError = $e->getMessage();
+                // Continue: one failed trigger must not block others.
+            }
+
+            // Enforce per-call timeout: if elapsed time already exceeds the
+            // configured timeout, stop retrying even if retries remain.
+            if ($timeoutMs > 0) {
+                $elapsedMs = (microtime(true) - $t0) * 1000;
+                if ($elapsedMs >= $timeoutMs) {
+                    $triggerError = ($triggerError ? $triggerError . ' | ' : '')
+                        . "Trigger timeout ({$timeoutMs}ms) exceeded after {$attempts} attempt(s)";
+                    break;
+                }
+            }
+
+            // Brief backoff between retries (50ms * attempt, capped at 200ms)
+            if ($attempts < $maxAttempts) {
+                usleep(min($attempts * 50000, 200000));
+            }
         }
 
         $durationMs = (int)round((microtime(true) - $t0) * 1000);
+
+        // Post-execution timeout warning (even on success)
+        if ($timeoutMs > 0 && $durationMs > $timeoutMs && $triggerOk) {
+            write_log('trigger.timeout_warning', 'warning', [
+                'correlation_id' => $correlationId,
+                'trigger_id' => $triggerId,
+                'event' => $eventKey,
+                'capability' => $capId,
+                'timeout_ms' => $timeoutMs,
+                'actual_ms' => $durationMs,
+            ]);
+        }
         kernelTriggerRecordExecution([
             'trigger_id' => $triggerId,
             'module' => $module !== '' ? $module : '_kernel',

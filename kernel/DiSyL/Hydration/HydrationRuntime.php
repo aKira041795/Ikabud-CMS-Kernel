@@ -28,18 +28,9 @@ enum HydrationMarker: string
     case SLOT = 'disyl-slot';
 }
 
-/**
- * Hydration strategy
- */
-enum HydrationStrategy: string
-{
-    case IMMEDIATE = 'immediate';      // Hydrate on page load
-    case IDLE = 'idle';                // Hydrate when browser is idle
-    case VISIBLE = 'visible';          // Hydrate when component is visible
-    case INTERACTION = 'interaction';  // Hydrate on first interaction
-    case MEDIA = 'media';              // Hydrate based on media query
-    case NEVER = 'never';              // Static, never hydrate
-}
+// HydrationStrategy enum is defined in HydrationStrategy.php (canonical).
+// Both HydrationStrategy::LOAD and HydrationStrategy::IMMEDIATE are available.
+require_once __DIR__ . '/HydrationStrategy.php';
 
 /**
  * Component hydration data
@@ -512,31 +503,8 @@ trait HydrationRendererTrait
     }
 }
 
-/**
- * Island component marker
- */
-class Island
-{
-    public function __construct(
-        public readonly string $component,
-        public readonly array $props = [],
-        public readonly HydrationStrategy $strategy = HydrationStrategy::VISIBLE,
-        public readonly array $options = []
-    ) {}
-    
-    /**
-     * Create from array
-     */
-    public static function fromArray(array $data): self
-    {
-        return new self(
-            $data['component'] ?? '',
-            $data['props'] ?? [],
-            HydrationStrategy::tryFrom($data['strategy'] ?? 'visible') ?? HydrationStrategy::VISIBLE,
-            $data['options'] ?? []
-        );
-    }
-}
+// Canonical Island class lives in Island.php — do not duplicate.
+require_once __DIR__ . '/Island.php';
 
 /**
  * Progressive hydration helper
@@ -568,7 +536,7 @@ class ProgressiveHydration
      */
     public function immediate(string $component, array $props = []): Island
     {
-        $island = new Island($component, $props, HydrationStrategy::IMMEDIATE);
+        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::IMMEDIATE);
         $this->islands[] = $island;
         return $island;
     }
@@ -578,7 +546,7 @@ class ProgressiveHydration
      */
     public function idle(string $component, array $props = []): Island
     {
-        $island = new Island($component, $props, HydrationStrategy::IDLE);
+        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::IDLE);
         $this->islands[] = $island;
         return $island;
     }
@@ -588,7 +556,7 @@ class ProgressiveHydration
      */
     public function visible(string $component, array $props = []): Island
     {
-        $island = new Island($component, $props, HydrationStrategy::VISIBLE);
+        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::VISIBLE);
         $this->islands[] = $island;
         return $island;
     }
@@ -598,7 +566,7 @@ class ProgressiveHydration
      */
     public function interaction(string $component, array $props = []): Island
     {
-        $island = new Island($component, $props, HydrationStrategy::INTERACTION);
+        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::INTERACTION);
         $this->islands[] = $island;
         return $island;
     }
@@ -608,7 +576,7 @@ class ProgressiveHydration
      */
     public function static(string $component, array $props = []): Island
     {
-        $island = new Island($component, $props, HydrationStrategy::NEVER);
+        $island = new Island(uniqid('island_'), $component, $props, HydrationStrategy::NEVER);
         $this->islands[] = $island;
         return $island;
     }

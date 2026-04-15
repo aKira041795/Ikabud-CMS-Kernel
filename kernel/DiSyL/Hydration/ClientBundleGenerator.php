@@ -32,13 +32,15 @@ class ClientBundleGenerator
             if ($island->strategy === HydrationStrategy::LOAD) {
                 $modulePath = $this->registry->getComponentModule($island->component);
                 if ($modulePath) {
-                    $output .= "<link rel=\"modulepreload\" href=\"{$modulePath}\">\n";
+                    $safePath = htmlspecialchars($modulePath, ENT_QUOTES, 'UTF-8');
+                    $output .= "<link rel=\"modulepreload\" href=\"{$safePath}\">\n";
                 }
             }
         }
         
         // Add runtime script
-        $output .= "<script type=\"module\" src=\"{$this->runtimePath}\"></script>\n";
+        $safeRuntimePath = htmlspecialchars($this->runtimePath, ENT_QUOTES, 'UTF-8');
+        $output .= "<script type=\"module\" src=\"{$safeRuntimePath}\"></script>\n";
         
         return $output;
     }

@@ -27,6 +27,19 @@ final class ContextRegistry
     private array $capabilityDefinitions = [];
 
     /**
+     * Phase 3B introspection stores — schemas, profiles and modes registered
+     * via future registerSchema() / registerProfile() / registerMode() methods.
+     * @var array<string, mixed>
+     */
+    private array $schemas = [];
+
+    /** @var array<string, mixed> */
+    private array $profiles = [];
+
+    /** @var array<string, mixed> */
+    private array $modes = [];
+
+    /**
      * @param array<string, mixed> $definition
      */
     public function registerContext(string $contextId, array $definition, string $providerId = 'kernel', int $priority = 10): void

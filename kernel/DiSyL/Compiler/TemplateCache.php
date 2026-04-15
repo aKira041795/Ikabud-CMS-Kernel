@@ -67,7 +67,7 @@ class TemplateCache
         
         // Load and instantiate
         require_once $cachePath;
-        $fullClassName = "Ikabud\Kernel\\Core\\DiSyL\\Compiled\\{$className}";
+        $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
         
         $template = new $fullClassName();
         $this->loaded[$className] = $template;
@@ -106,7 +106,7 @@ class TemplateCache
         }
         
         require_once $cachePath;
-        $fullClassName = "Ikabud\Kernel\\Core\\DiSyL\\Compiled\\{$className}";
+        $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
         
         $template = new $fullClassName();
         $this->loaded[$className] = $template;
@@ -181,8 +181,14 @@ class TemplateCache
      */
     private function buildSentinel(string $code): string
     {
-        $secret = 'DISYL_CACHE_' . sha1($this->cacheDir);
-        return hash_hmac('sha256', $code, $secret);
+        // Use a real application secret when available so that knowing the
+        // cache directory path is not sufficient to forge a sentinel.
+        $appSecret = $_ENV['APP_KEY'] ?? getenv('APP_KEY') ?: '';
+        if ($appSecret === '') {
+            // Fallback: derive from cache dir (legacy behavior, weaker).
+            $appSecret = 'DISYL_CACHE_' . sha1($this->cacheDir);
+        }
+        return hash_hmac('sha256', $code, $appSecret);
     }
 
     /**

@@ -6,6 +6,8 @@ namespace Ikabud\Kernel\Capabilities;
 
 final class CapabilityCatalog
 {
+    use CapabilityIdTrait;
+
     private CapabilityRegistry $registry;
 
     /**
@@ -568,17 +570,5 @@ final class CapabilityCatalog
         return ltrim($normalized, '/');
     }
 
-    private function baseId(string $capabilityId): string
-    {
-        return (string)preg_replace('/@\d+$/', '', $capabilityId);
-    }
-
-    private function majorVersion(string $capabilityId): ?int
-    {
-        if (preg_match('/@(\d+)$/', $capabilityId, $matches) !== 1) {
-            return null;
-        }
-
-        return (int)$matches[1];
-    }
+    // baseId() and majorVersion() provided by CapabilityIdTrait
 }

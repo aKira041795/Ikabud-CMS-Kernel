@@ -46,6 +46,20 @@ class App
     private ?ContextRegistry $entityContextRegistry = null;
     private ?EntityAuthorityRegistry $entityAuthorityRegistry = null;
     private ?SyncContractRegistry $syncContractRegistry = null;
+    private ?IntegrationBridge $integrationBridge = null;
+    private ?TriggerService $triggerService = null;
+
+    /**
+     * Module-declared source→user-table mapping.
+     * Seeded with built-in defaults; modules extend via registerAuthTable().
+     * @var array<string, string>
+     */
+    private array $authTableMap = [
+        'kernel'       => 'users',
+        'cms'          => 'cms_users',
+        'guidance'     => 'gm_users',
+        'daily-ledger' => 'dl_admins',
+    ];
 
     private ?array $currentUser = null;
     private bool $resolvingCurrentUser = false;
@@ -363,6 +377,41 @@ class App
             $this->workflowRuntime = new WorkflowRuntime($this);
         }
         return $this->workflowRuntime;
+    }
+
+    /**
+     * Register a module's auth user table for JWT token-version checks.
+     * Modules call this during bootstrap: app()->registerAuthTable('mymod', 'mymod_users');
+     */
+    public function registerAuthTable(string $source, string $tableName): void
+    {
+        $source = trim($source);
+        $tableName = trim($tableName);
+        if ($source !== '' && $tableName !== '' && preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)) {
+            $this->authTableMap[$source] = $tableName;
+        }
+    }
+
+    /**
+     * Get the integration bridge instance.
+     */
+    public function integrationBridge(): IntegrationBridge
+    {
+        if ($this->integrationBridge === null) {
+            $this->integrationBridge = new IntegrationBridge();
+        }
+        return $this->integrationBridge;
+    }
+
+    /**
+     * Get the trigger service (per-request caching and registration state).
+     */
+    public function triggers(): TriggerService
+    {
+        if ($this->triggerService === null) {
+            $this->triggerService = new TriggerService();
+        }
+        return $this->triggerService;
     }
 
     /**
@@ -1064,13 +1113,7 @@ class App
                     $source = $this->currentUser['source'] ?? 'kernel';
                     if ($userId > 0) {
                         // Map JWT source to the user table that holds token_version.
-                        $sourceTableMap = [
-                            'kernel'       => 'users',
-                            'cms'          => 'cms_users',
-                            'guidance'     => 'gm_users',
-                            'daily-ledger' => 'dl_admins',
-                        ];
-                        $userTable = $sourceTableMap[$source] ?? null;
+                        $userTable = $this->authTableMap[$source] ?? null;
                         if ($userTable !== null) {
                             try {
                                 $stmt = $this->db()->prepare(

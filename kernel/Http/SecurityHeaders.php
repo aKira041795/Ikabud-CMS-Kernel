@@ -57,15 +57,6 @@ class SecurityHeaders
     }
     
     /**
-     * Get base domain for frame-ancestors
-     */
-    private function getBaseDomain(): string
-    {
-        $hostParts = explode('.', $this->currentHost);
-        return implode('.', array_slice($hostParts, -2));
-    }
-    
-    /**
      * Apply security headers to the response
      * 
      * @return bool True if headers were applied, false if skipped

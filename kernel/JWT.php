@@ -75,6 +75,13 @@ class JWT
         if (!hash_equals($signature, $expectedSignature)) {
             return null;
         }
+
+        // Validate algorithm matches what this instance expects to prevent
+        // algorithm confusion attacks (e.g. switching HS256 ↔ RS256).
+        $header = json_decode($this->base64UrlDecode($headerEncoded), true);
+        if (!is_array($header) || ($header['alg'] ?? '') !== $this->algorithm) {
+            return null;
+        }
         
         // Decode payload
         $payload = json_decode($this->base64UrlDecode($payloadEncoded), true);

@@ -435,39 +435,7 @@ class PropDefinition implements \JsonSerializable
     }
 }
 
-/**
- * Slot Definition
- */
-class SlotDefinition implements \JsonSerializable
-{
-    public string $name;
-    public array $params = [];
-    public ?array $fallback = null;
-    
-    public function __construct(string $name)
-    {
-        $this->name = $name;
-    }
-    
-    public function toArray(): array
-    {
-        return [
-            'name' => $this->name,
-            'params' => $this->params,
-            'fallback' => $this->fallback,
-        ];
-    }
-    
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
-    }
-    
-    public static function fromAST(array $node): self
-    {
-        $slot = new self($node['name'] ?? 'default');
-        $slot->params = $node['params'] ?? [];
-        $slot->fallback = $node['fallback'] ?? null;
-        return $slot;
-    }
-}
+// SlotDefinition is canonically defined in SlotSystem.php.
+// Import it here so ComponentDefinition consumers get the class without a
+// separate require.
+require_once __DIR__ . '/SlotSystem.php';

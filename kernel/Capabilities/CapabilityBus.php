@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Ikabud\Kernel\Capabilities;
 
-final class CapabilityBus
+use Ikabud\Kernel\Contracts\CapabilityBusContract;
+
+final class CapabilityBus implements CapabilityBusContract
 {
     /** @var array<string, array<string, mixed>>|null */
     private ?array $metricsStateCache = null;
@@ -38,33 +40,57 @@ final class CapabilityBus
 
     public function flushRuntimeState(): void
     {
+        $useApcu = function_exists('apcu_enabled') && apcu_enabled();
+
         if ($this->breakerOperations !== []) {
             $operations = $this->breakerOperations;
-            $this->breakerStateCache = $this->mutateJsonFile($this->breakerFile(), function (array $state) use ($operations): array {
+
+            if ($useApcu) {
+                // APCu: atomic read-modify-write via fetch + store (no flock).
+                $state = $this->loadState('breakers');
                 foreach ($operations as $key => $events) {
                     foreach ($events as $event) {
                         $type = (string)($event['type'] ?? '');
                         if ($type === 'success') {
                             $this->applyBreakerSuccess($state, (string)$key);
-                            continue;
-                        }
-
-                        if ($type === 'failure') {
+                        } elseif ($type === 'failure') {
                             $settings = is_array($event['settings'] ?? null) ? $event['settings'] : [];
                             $now = (int)($event['now'] ?? time());
                             $this->applyBreakerFailure($state, (string)$key, $settings, $now);
                         }
                     }
                 }
+                $this->breakerStateCache = $state;
+                $this->saveState('breakers', $state);
+            } else {
+                $this->breakerStateCache = $this->mutateJsonFile($this->breakerFile(), function (array $state) use ($operations): array {
+                    foreach ($operations as $key => $events) {
+                        foreach ($events as $event) {
+                            $type = (string)($event['type'] ?? '');
+                            if ($type === 'success') {
+                                $this->applyBreakerSuccess($state, (string)$key);
+                                continue;
+                            }
 
-                return $state;
-            });
+                            if ($type === 'failure') {
+                                $settings = is_array($event['settings'] ?? null) ? $event['settings'] : [];
+                                $now = (int)($event['now'] ?? time());
+                                $this->applyBreakerFailure($state, (string)$key, $settings, $now);
+                            }
+                        }
+                    }
+
+                    return $state;
+                });
+            }
             $this->breakerOperations = [];
         }
 
         if ($this->metricsDeltas !== []) {
             $deltas = $this->metricsDeltas;
-            $this->metricsStateCache = $this->mutateJsonFile($this->metricsFile(), function (array $metrics) use ($deltas): array {
+
+            // Closure that merges deltas into the given metrics state.
+            $mergeMetrics = function (array $metrics) use ($deltas): array {
                 foreach ($deltas as $key => $delta) {
                     $entry = $metrics[$key] ?? [
                         'count' => 0,
@@ -104,7 +130,16 @@ final class CapabilityBus
                 }
 
                 return $metrics;
-            });
+            };
+
+            if ($useApcu) {
+                $metrics = $this->loadState('metrics');
+                $metrics = $mergeMetrics($metrics);
+                $this->metricsStateCache = $metrics;
+                $this->saveState('metrics', $metrics);
+            } else {
+                $this->metricsStateCache = $this->mutateJsonFile($this->metricsFile(), $mergeMetrics);
+            }
             $this->metricsDeltas = [];
         }
     }
@@ -762,7 +797,7 @@ final class CapabilityBus
     private function &metricsState(): array
     {
         if ($this->metricsStateCache === null) {
-            $this->metricsStateCache = $this->loadJsonFile($this->metricsFile());
+            $this->metricsStateCache = $this->loadState('metrics');
         }
 
         return $this->metricsStateCache;
@@ -774,10 +809,42 @@ final class CapabilityBus
     private function &breakerState(): array
     {
         if ($this->breakerStateCache === null) {
-            $this->breakerStateCache = $this->loadJsonFile($this->breakerFile());
+            $this->breakerStateCache = $this->loadState('breakers');
         }
 
         return $this->breakerStateCache;
+    }
+
+    /**
+     * Load breaker/metrics state from APCu (preferred) or file fallback.
+     */
+    private function loadState(string $kind): array
+    {
+        $apcuKey = 'ikabud_capbus_' . $kind;
+        if (function_exists('apcu_enabled') && apcu_enabled()) {
+            $success = false;
+            $data = apcu_fetch($apcuKey, $success);
+            if ($success && is_array($data)) {
+                return $data;
+            }
+        }
+        return $this->loadJsonFile($kind === 'metrics' ? $this->metricsFile() : $this->breakerFile());
+    }
+
+    /**
+     * Save breaker/metrics state to APCu (preferred) and file fallback.
+     */
+    private function saveState(string $kind, array $data): void
+    {
+        $apcuKey = 'ikabud_capbus_' . $kind;
+        if (function_exists('apcu_enabled') && apcu_enabled()) {
+            // APCu is atomic per key — no flock contention.
+            apcu_store($apcuKey, $data, 3600);
+            return;
+        }
+        // Fallback to file-based storage.
+        $path = $kind === 'metrics' ? $this->metricsFile() : $this->breakerFile();
+        $this->saveJsonFile($path, $data);
     }
 
     private function loadJsonFile(string $path): array

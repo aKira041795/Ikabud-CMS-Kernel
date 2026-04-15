@@ -22,6 +22,8 @@ class OOBSwap
     public function render(): string
     {
         $swap = $this->strategy->value;
-        return "<div id=\"{$this->targetId}\" hx-swap-oob=\"{$swap}\">{$this->content}</div>";
+        $safeId = htmlspecialchars($this->targetId, ENT_QUOTES, 'UTF-8');
+        $safeContent = htmlspecialchars($this->content, ENT_QUOTES, 'UTF-8');
+        return "<div id=\"{$safeId}\" hx-swap-oob=\"{$swap}\">{$safeContent}</div>";
     }
 }

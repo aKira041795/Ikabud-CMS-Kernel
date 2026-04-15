@@ -67,9 +67,37 @@ class MigrationRunner
 
     /**
      * Run all pending migrations for a specific module.
+     * Uses a MySQL advisory lock to prevent concurrent migration runs.
      * Returns array of executed migration filenames.
      */
     public function migrate(string $moduleId): array
+    {
+        $lockName = 'ikabud_migrate_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $moduleId);
+        $lockTimeout = 10; // seconds
+
+        // Acquire advisory lock — blocks concurrent migrate() for same module.
+        $lockStmt = $this->pdo->prepare('SELECT GET_LOCK(?, ?)');
+        $lockStmt->execute([$lockName, $lockTimeout]);
+        $lockAcquired = (int) $lockStmt->fetchColumn();
+
+        if ($lockAcquired !== 1) {
+            throw new \RuntimeException(
+                "Could not acquire migration lock for module '{$moduleId}' within {$lockTimeout}s. "
+                . "Another migration may be running concurrently."
+            );
+        }
+
+        try {
+            return $this->migrateUnlocked($moduleId);
+        } finally {
+            $this->pdo->exec("SELECT RELEASE_LOCK(" . $this->pdo->quote($lockName) . ")");
+        }
+    }
+
+    /**
+     * Internal: run pending migrations (caller must hold advisory lock).
+     */
+    private function migrateUnlocked(string $moduleId): array
     {
         $pending = $this->getPending($moduleId);
         if (empty($pending)) {

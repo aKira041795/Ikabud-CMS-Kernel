@@ -42,7 +42,11 @@ class IslandManifest
     
     public function generateScriptTag(): string
     {
-        $json = $this->generate();
+        // Use JSON_HEX_TAG to prevent </script> breakout in embedded JSON.
+        $json = json_encode(
+            json_decode($this->generate(), true),
+            JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+        );
         return "<script type=\"application/json\" id=\"disyl-islands-manifest\">{$json}</script>";
     }
 }

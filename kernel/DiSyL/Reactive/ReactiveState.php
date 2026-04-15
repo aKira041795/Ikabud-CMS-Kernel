@@ -60,6 +60,6 @@ class ReactiveState
         return json_encode([
             'id' => $this->componentId,
             'state' => $this->state,
-        ]);
+        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     }
 }
