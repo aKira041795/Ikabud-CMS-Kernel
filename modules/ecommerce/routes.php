@@ -72,6 +72,7 @@ return [
         '/ecommerce/store-admin/{id}/import-export'      => 'ecommerce:ecStoreAdminImportExport',
         '/ecommerce/store-admin/{id}/import-export/{resource}' => 'ecommerce:ecStoreAdminExportCsv',
         '/ecommerce/store-admin/{id}/settings'           => 'ecommerce:ecStoreAdminSettings',
+        '/ecommerce/store-admin/{id}/pos'                => 'ecommerce:ecStoreAdminPos',
         '/ecommerce/admin/memberships'            => 'ecommerce:ecAdminMemberships',
         '/ecommerce/admin/loyalty'                => 'ecommerce:ecAdminLoyalty',
         '/ecommerce/admin/import-export'          => 'ecommerce:ecAdminImportExport',

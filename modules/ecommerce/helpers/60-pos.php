@@ -101,7 +101,9 @@ function ecPosSale(array $items, array $options = []): array
         'tax_amount'       => $totals['tax'],
         'shipping_amount'  => 0.00,
         'total'            => $totals['total'],
-        'currency'         => ecSettings('currency'),
+        'currency'         => function_exists('ecStoreAwareCurrencyCode')
+            ? ecStoreAwareCurrencyCode()
+            : ecSettings('currency'),
         'coupon_code'      => $couponCode,
         'source'           => 'pos',
         'placed_by_user_id' => $cashierUserId ?: null,
