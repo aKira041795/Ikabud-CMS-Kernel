@@ -90,7 +90,14 @@ class MigrationRunner
         try {
             return $this->migrateUnlocked($moduleId);
         } finally {
-            $this->pdo->exec("SELECT RELEASE_LOCK(" . $this->pdo->quote($lockName) . ")");
+            // Use query()+fetchColumn() instead of exec() to fully consume the
+            // result set.  exec("SELECT ...") leaves an unconsumed result that
+            // triggers "unbuffered queries" on the next use of the connection.
+            $rel = $this->pdo->query("SELECT RELEASE_LOCK(" . $this->pdo->quote($lockName) . ")");
+            if ($rel) {
+                $rel->fetchColumn();
+                $rel->closeCursor();
+            }
         }
     }
 
@@ -518,6 +525,19 @@ class MigrationRunner
             // Non-fatal: if SET SESSION fails (unlikely), proceed anyway.
         }
 
-        $this->pdo->exec($sql);
+        // Split multi-statement SQL into individual statements and execute
+        // each separately.  PDO::exec() on multi-statement SQL can leave
+        // unconsumed result sets, causing "Cannot execute queries while
+        // other unbuffered queries are active" on the next query.
+        // PDO::query() doesn't support multi-statement SQL at all (MySQL
+        // server-side parsing rejects the second statement).
+        $statements = preg_split('/;\s*$/m', $sql, -1, PREG_SPLIT_NO_EMPTY);
+        foreach ($statements as $statement) {
+            $statement = trim($statement);
+            if ($statement === '') {
+                continue;
+            }
+            $this->pdo->exec($statement);
+        }
     }
 }
