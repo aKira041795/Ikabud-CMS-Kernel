@@ -485,6 +485,22 @@ t(
     $storeMessagesPage['raw']
 );
 
+$storeReviewsPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/ecommerce/store-admin/' . $storeId . '/reviews',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $storeRedirectUser
+);
+t(
+    'store reviews route renders for a store user without admin-only fallback',
+    ($storeReviewsPage['exit_code'] ?? 1) === 0
+        && str_contains($storeReviewsPage['body'] ?? '', 'Reviews')
+        && !str_contains($storeReviewsPage['body'] ?? '', 'Access Denied'),
+    $storeReviewsPage['raw']
+);
+
 $storeImportExportPage = runRequestThroughEntrypoint(
     [
         'REQUEST_METHOD' => 'GET',

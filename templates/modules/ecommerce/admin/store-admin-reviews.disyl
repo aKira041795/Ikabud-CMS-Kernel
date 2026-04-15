@@ -5,6 +5,12 @@
 
     <h1 class="text-xl font-bold text-gray-900">Reviews — {store.name | escape}</h1>
 
+    {if message}
+    <div class="rounded-xl border px-4 py-3 text-sm {if message.type == 'success'}border-emerald-200 bg-emerald-50 text-emerald-800{else}border-red-200 bg-red-50 text-red-700{/if}">
+        {message.text | escape}
+    </div>
+    {/if}
+
     {if !can_edit}
     <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
         You have read-only access. Contact an owner or manager to moderate reviews.
@@ -77,6 +83,9 @@
                                 {else}bg-slate-100 text-slate-500{/if}">
                                 {r.status | escape | default: 'pending'}
                             </span>
+                            {if r.verified_purchase}
+                            <div class="mt-1 text-[11px] font-medium text-emerald-700">Verified purchase</div>
+                            {/if}
                         </td>
                         <td class="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
                             {r.created_at | escape}

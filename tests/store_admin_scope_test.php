@@ -20,6 +20,7 @@ foreach ([
     __DIR__ . '/../modules/ecommerce/database/migrations/018_ec_abandoned_carts.sql',
     __DIR__ . '/../modules/ecommerce/database/migrations/024_ec_return_requests.sql',
     __DIR__ . '/../modules/ecommerce/database/migrations/036_ec_store_notifications_messages.sql',
+    __DIR__ . '/../modules/ecommerce/database/migrations/013_ec_reviews.sql',
 ] as $migrationFile) {
     if (is_file($migrationFile)) {
         try {
@@ -72,21 +73,31 @@ function storeScopeInsertCategory(string $name, string $slug): int
 
 function storeScopeInsertOrder(array $data): array
 {
-    ecDb()->execute(
-        "INSERT INTO ec_orders (order_number, customer_id, guest_email, guest_name, source, status, payment_status, subtotal, discount_amount, tax_amount, shipping_amount, total, currency, coupon_code, customer_note, confirmation_token, placed_by_user_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'web', ?, 'paid', ?, 0.00, 0.00, 0.00, ?, 'PHP', NULL, '', ?, ?, NOW(), NOW())",
-        [
-            $data['order_number'],
-            $data['customer_id'],
-            $data['guest_email'],
-            $data['guest_name'],
-            $data['status'],
-            $data['subtotal'],
-            $data['total'],
-            $data['token'],
-            $data['placed_by_user_id'],
-        ]
-    );
+    $orderParams = [
+        $data['order_number'],
+        $data['customer_id'],
+        $data['guest_email'],
+        $data['guest_name'],
+        $data['status'],
+        $data['subtotal'],
+        $data['total'],
+        $data['token'],
+        $data['placed_by_user_id'],
+    ];
+
+    if (ecOrdersHasStoreIdColumn()) {
+        ecDb()->execute(
+            "INSERT INTO ec_orders (order_number, customer_id, guest_email, guest_name, source, status, payment_status, subtotal, discount_amount, tax_amount, shipping_amount, total, currency, coupon_code, customer_note, confirmation_token, placed_by_user_id, store_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'web', ?, 'paid', ?, 0.00, 0.00, 0.00, ?, 'PHP', NULL, '', ?, ?, ?, NOW(), NOW())",
+            array_merge($orderParams, [isset($data['order_store_id']) ? (int)$data['order_store_id'] : null])
+        );
+    } else {
+        ecDb()->execute(
+            "INSERT INTO ec_orders (order_number, customer_id, guest_email, guest_name, source, status, payment_status, subtotal, discount_amount, tax_amount, shipping_amount, total, currency, coupon_code, customer_note, confirmation_token, placed_by_user_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'web', ?, 'paid', ?, 0.00, 0.00, 0.00, ?, 'PHP', NULL, '', ?, ?, NOW(), NOW())",
+            $orderParams
+        );
+    }
     $orderId = (int)ecDb()->lastInsertId();
 
     $hasStoreId = false;
@@ -136,6 +147,7 @@ $cleanup = [
     'order_ids' => [],
     'cart_emails' => [],
     'return_request_ids' => [],
+    'review_ids' => [],
 ];
 
 try {
@@ -203,6 +215,16 @@ try {
     ecProductSaveStoreAssignments($productAId, [$storeAId]);
     ecProductSaveStoreAssignments($productBId, [$storeBId]);
 
+    $reviewA = ecReviewCreate($productAId, [
+        'rating' => 5,
+        'review_body' => 'Store scoped review for product A validates store moderation coverage.',
+    ], $existingUser);
+    $reviewB = ecReviewCreate($productBId, [
+        'rating' => 3,
+        'review_body' => 'Store scoped review for product B should stay outside store A moderation.',
+    ], $existingUser);
+    $cleanup['review_ids'] = [(int)($reviewA['review_id'] ?? 0), (int)($reviewB['review_id'] ?? 0)];
+
     $orderOne = storeScopeInsertOrder([
         'order_number' => 'STORE-SCOPE-1-' . strtoupper($seed),
         'customer_id' => (int)$existingUser['id'],
@@ -244,6 +266,7 @@ try {
         'total' => 30.00,
         'token' => bin2hex(random_bytes(12)),
         'placed_by_user_id' => (int)$existingUser['id'],
+        'order_store_id' => $storeAId,
         'items' => [
             [
                 'product_id' => $productAId,
@@ -252,7 +275,7 @@ try {
                 'unit_price' => 30.00,
                 'qty' => 1,
                 'line_total' => 30.00,
-                'store_id' => $storeAId,
+                'store_id' => null,
             ],
         ],
     ]);
@@ -393,8 +416,11 @@ try {
     tStoreScope('store operational authority only allows exclusively owned orders', ecOrderIsExclusivelyOwnedByStore((int)$orderTwo['order_id'], $storeAId) && !ecOrderIsExclusivelyOwnedByStore((int)$orderOne['order_id'], $storeAId) && !ecOrderIsExclusivelyOwnedByStore((int)$orderOne['order_id'], $storeBId));
     $mixedAuthority = ecOrderOperationalAuthority((int)$orderOne['order_id']);
     $singleStoreAuthority = ecOrderOperationalAuthority((int)$orderTwo['order_id']);
+    $storeOrders = ecOrderList(['store_id' => $storeAId, 'limit' => 10, 'offset' => 0]);
+    $storeOrderNumbers = array_column($storeOrders['items'] ?? [], 'order_number');
     tStoreScope('exclusive single-store orders disable global processing authority', (string)($singleStoreAuthority['scope'] ?? '') === 'store' && (int)($singleStoreAuthority['store_id'] ?? 0) === $storeAId && empty($singleStoreAuthority['can_process_globally']), json_encode($singleStoreAuthority));
     tStoreScope('mixed-store orders remain globally processable to avoid cross-store mutation conflicts', (string)($mixedAuthority['scope'] ?? '') === 'global' && !empty($mixedAuthority['can_process_globally']) && count((array)($mixedAuthority['store_ids'] ?? [])) === 2, json_encode($mixedAuthority));
+    tStoreScope('store order list includes mixed item-scoped orders and order-level store fallback orders', (int)($storeOrders['total'] ?? 0) === 2 && in_array('STORE-SCOPE-1-' . strtoupper($seed), $storeOrderNumbers, true) && in_array('STORE-SCOPE-2-' . strtoupper($seed), $storeOrderNumbers, true), json_encode($storeOrders));
     $sales = ecReportSales([
         'period' => 'custom',
         'start_date' => date('Y-m-d', strtotime('-1 day')),
@@ -442,6 +468,14 @@ try {
     tStoreScope('store loyalty summary aggregates earned and redeemed points from store orders', (int)($loyaltySummary['total_earned'] ?? 0) === 15 && (int)($loyaltySummary['total_redeemed'] ?? 0) === 5 && (int)($loyaltySummary['unique_customers'] ?? 0) === 1, json_encode($loyaltySummary));
     tStoreScope('store CSV export definition includes only products assigned to the store', (string)($productExport['label'] ?? '') === 'Products' && count((array)($productExport['rows'] ?? [])) === 1 && (int)($productExport['rows'][0]['id'] ?? 0) === $productAId, json_encode($productExport));
 
+    echo "\n§3C Reviews and Messaging Wiring\n";
+    $storeAReviews = ecReviewList(['store_id' => $storeAId, 'status' => 'pending', 'limit' => 10, 'offset' => 0]);
+    $reviewProductIds = array_map('intval', array_column((array)($storeAReviews['items'] ?? []), 'product_id'));
+    $orderDetailTemplate = (string)file_get_contents(__DIR__ . '/../templates/modules/ecommerce/admin/store-admin-order-detail.disyl');
+    tStoreScope('store review moderation list only includes products assigned to the active store', (int)($storeAReviews['total'] ?? 0) === 1 && $reviewProductIds === [$productAId], json_encode($storeAReviews));
+    tStoreScope('store review ownership helper blocks cross-store moderation attempts', ecReviewBelongsToStore((int)($reviewA['review_id'] ?? 0), $storeAId) && !ecReviewBelongsToStore((int)($reviewB['review_id'] ?? 0), $storeAId));
+    tStoreScope('store order detail exposes a deep link into the order message thread', str_contains($orderDetailTemplate, '/messages?order={order.id}'));
+
     echo "\n§4 Returns and Abandoned Carts\n";
     $returns = ecReturnRequestList(['store_id' => $storeAId, 'limit' => 10, 'offset' => 0]);
     $storeCarts = ecStoreAbandonedCartList($storeAId, 10);
@@ -456,6 +490,9 @@ try {
 foreach (array_filter($cleanup['return_request_ids']) as $requestId) {
     $db->prepare('DELETE FROM ec_return_request_items WHERE request_id = ?')->execute([(int)$requestId]);
     $db->prepare('DELETE FROM ec_return_requests WHERE id = ?')->execute([(int)$requestId]);
+}
+foreach (array_filter($cleanup['review_ids']) as $reviewId) {
+    $db->prepare('DELETE FROM ec_reviews WHERE id = ?')->execute([(int)$reviewId]);
 }
 foreach ($cleanup['order_ids'] as $orderId) {
     $db->prepare('DELETE FROM ec_store_messages WHERE order_id = ?')->execute([(int)$orderId]);

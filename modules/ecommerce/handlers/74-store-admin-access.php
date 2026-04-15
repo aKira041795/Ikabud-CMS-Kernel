@@ -964,6 +964,11 @@ function ecStoreAdminMessages(array $params = []): void
 
     $threads = ecStoreMessageThreadList($id, 50);
     $selectedOrderId = max(0, (int)(ecInput()['order'] ?? 0));
+    $inlineMessage = null;
+    if ($selectedOrderId > 0 && !ecOrderBelongsToStore($selectedOrderId, $id)) {
+        $selectedOrderId = 0;
+        $inlineMessage = ['type' => 'error', 'text' => 'Order thread not found for this store.'];
+    }
     if ($selectedOrderId <= 0 && isset($threads[0]['order_id'])) {
         $selectedOrderId = (int)$threads[0]['order_id'];
     }
@@ -976,7 +981,7 @@ function ecStoreAdminMessages(array $params = []): void
         'selected_messages' => $selectedOrderId > 0 ? ecStoreMessagesForOrder($id, $selectedOrderId) : [],
         'message_storage_available' => ecStoreMessagesStorageAvailable(),
         'can_reply' => !empty($permissions['manage_messages']),
-        'message' => $_SESSION['ec_sa_message'] ?? null,
+        'message' => $_SESSION['ec_sa_message'] ?? $inlineMessage,
     ]);
     unset($_SESSION['ec_sa_message']);
 
@@ -1306,8 +1311,13 @@ function ecStoreAdminReviews(array $params = []): void
             'pending' => 'pending',
             default   => '',
         };
-        if ($reviewId > 0 && $newStatus !== '' && function_exists('ecReviewSetStatus')) {
-            ecReviewSetStatus($reviewId, $newStatus, (int)($user['id'] ?? 0));
+        if ($reviewId > 0 && $newStatus !== '' && function_exists('ecReviewSetStatus') && function_exists('ecReviewBelongsToStore') && ecReviewBelongsToStore($reviewId, $id)) {
+            $updated = ecReviewSetStatus($reviewId, $newStatus, (int)($user['id'] ?? 0));
+            $_SESSION['ec_sa_message'] = $updated
+                ? ['type' => 'success', 'text' => 'Review updated.']
+                : ['type' => 'error', 'text' => 'Review could not be updated.'];
+        } else {
+            $_SESSION['ec_sa_message'] = ['type' => 'error', 'text' => 'Review not found for this store.'];
         }
         header('Location: ' . ecGetBaseUrl() . '/ecommerce/store-admin/' . $id . '/reviews');
         exit;
@@ -1335,7 +1345,9 @@ function ecStoreAdminReviews(array $params = []): void
         'status'      => $status,
         'search'      => $search,
         'can_edit'    => $canEdit,
+        'message'     => $_SESSION['ec_sa_message'] ?? null,
     ]);
+    unset($_SESSION['ec_sa_message']);
     ecRender('modules/ecommerce/admin/store-admin-reviews.disyl', $ctx);
 }
 

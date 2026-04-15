@@ -70,6 +70,8 @@ function ecStoreCustomerList(int $storeId, array $filters = []): array
     $offset = max(0, (int)($filters['offset'] ?? 0));
 
     try {
+        $orderScope = ecStoreOrderScopePredicate('o', 'store_customer_scope_items');
+        $itemScope = ecStoreOwnedLineItemPredicate('o', 'oi', 'store_customer_tagged_items');
         $orders = $db->query(
             "SELECT o.id AS order_id,
                     o.order_number,
@@ -82,15 +84,21 @@ function ecStoreCustomerList(int $storeId, array $filters = []): array
                     u.display_name,
                     u.is_active,
                     u.created_at AS user_created_at,
-                    SUM(oi.line_total) AS order_total
-             FROM ec_order_items oi
-             INNER JOIN ec_orders o ON o.id = oi.order_id
+                    (
+                        SELECT COALESCE(SUM(oi.line_total), 0)
+                        FROM ec_order_items oi
+                        WHERE oi.order_id = o.id
+                          AND {$itemScope['sql']}
+                    ) AS order_total
+             FROM ec_orders o
              LEFT JOIN cms_users u ON u.id = o.customer_id
-             WHERE oi.store_id = ?
+             WHERE {$orderScope['sql']}
                AND o.status NOT IN ('cancelled')
-             GROUP BY o.id, o.order_number, o.customer_id, o.guest_email, o.guest_name, o.created_at, u.username, u.email, u.display_name, u.is_active, u.created_at
              ORDER BY o.created_at DESC",
-            [$storeId]
+            array_merge(
+                ecStoreScopeQueryParams($storeId, (int)$itemScope['params_per_store']),
+                ecStoreScopeQueryParams($storeId, (int)$orderScope['params_per_store'])
+            )
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
         return ['items' => [], 'total' => 0];

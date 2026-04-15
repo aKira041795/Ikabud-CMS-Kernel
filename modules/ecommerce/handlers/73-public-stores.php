@@ -56,6 +56,7 @@ function ecPublicStorePage(array $params = []): void
         $perPage = min(24, max(4, (int)ecSettings('products_per_page')));
         $productResult = ecProductList([
             'store_id' => $storeId,
+            'store_owned_only' => true,
             'status'   => 'published',
             'limit'    => $perPage,
             'offset'   => 0,

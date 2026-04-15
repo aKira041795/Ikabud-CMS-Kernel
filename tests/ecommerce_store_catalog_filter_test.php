@@ -198,6 +198,22 @@ tScf(
     'dashboard handler must count only products assigned to the active store'
 );
 
+$publicStoreHandler = (string)@file_get_contents(__DIR__ . '/../modules/ecommerce/handlers/73-public-stores.php');
+$publicStoreSlice = '';
+if ($publicStoreHandler !== '') {
+    $publicStoreStart = strpos($publicStoreHandler, 'function ecPublicStorePage(');
+    if ($publicStoreStart !== false) {
+        $publicStoreSlice = substr($publicStoreHandler, $publicStoreStart);
+    }
+}
+tScf(
+    'Public store page enforces store_owned_only for store catalog visibility',
+    $publicStoreSlice !== ''
+        && str_contains($publicStoreSlice, "'store_id' => " . '$storeId')
+        && str_contains($publicStoreSlice, "'store_owned_only' => true"),
+    'public store page must only list products explicitly assigned to the active store'
+);
+
 // ─────────────────────────────────────────────────────────────────────────
 // §3  Store with one product assigned returns exactly that product
 // ─────────────────────────────────────────────────────────────────────────

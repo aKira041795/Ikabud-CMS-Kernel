@@ -26,13 +26,17 @@ function ecReportSales(array $params = []): array
         $baseParams = [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'];
 
         if ($storeId > 0) {
-            $storeParams = array_merge([$storeId], $baseParams);
+            $itemScope = ecStoreOwnedLineItemPredicate('o', 'oi', 'store_sales_scope_items');
+            $storeParams = array_merge(
+                ecStoreScopeQueryParams($storeId, (int)$itemScope['params_per_store']),
+                $baseParams
+            );
 
             $totalRevenue = (float)$db->query(
                 "SELECT COALESCE(SUM(oi.line_total), 0)
                  FROM ec_order_items oi
                  INNER JOIN ec_orders o ON o.id = oi.order_id
-                 WHERE oi.store_id = ?
+                 WHERE {$itemScope['sql']}
                    AND o.status NOT IN ('cancelled', 'refunded')
                    AND o.created_at >= ? AND o.created_at <= ?",
                 $storeParams
@@ -42,7 +46,7 @@ function ecReportSales(array $params = []): array
                 "SELECT COUNT(DISTINCT o.id)
                  FROM ec_order_items oi
                  INNER JOIN ec_orders o ON o.id = oi.order_id
-                 WHERE oi.store_id = ?
+                                 WHERE {$itemScope['sql']}
                    AND o.status NOT IN ('cancelled', 'refunded')
                    AND o.created_at >= ? AND o.created_at <= ?",
                 $storeParams
@@ -54,7 +58,7 @@ function ecReportSales(array $params = []): array
                         SUM(oi.line_total) AS revenue
                  FROM ec_order_items oi
                  INNER JOIN ec_orders o ON o.id = oi.order_id
-                 WHERE oi.store_id = ?
+                                 WHERE {$itemScope['sql']}
                    AND o.status NOT IN ('cancelled', 'refunded')
                    AND o.created_at >= ? AND o.created_at <= ?
                  GROUP BY oi.product_id, oi.product_title, oi.sku
@@ -69,7 +73,7 @@ function ecReportSales(array $params = []): array
                         COALESCE(SUM(oi.line_total), 0) AS revenue
                  FROM ec_order_items oi
                  INNER JOIN ec_orders o ON o.id = oi.order_id
-                 WHERE oi.store_id = ?
+                                 WHERE {$itemScope['sql']}
                    AND o.status NOT IN ('cancelled', 'refunded')
                    AND o.created_at >= ? AND o.created_at <= ?
                  GROUP BY DATE(o.created_at)

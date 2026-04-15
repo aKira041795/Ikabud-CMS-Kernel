@@ -163,6 +163,85 @@ function ecOrderBelongsToStore(int $orderId, int $storeId): bool
     return in_array($storeId, ecOrderAssignedStoreIds($orderId), true);
 }
 
+function ecStoreOrderTaggedItemsPredicate(string $orderAlias = 'o', string $itemAlias = 'store_scope_items'): string
+{
+    if (!ecOrderItemsHasStoreIdColumn()) {
+        return '0=1';
+    }
+
+    return 'EXISTS (SELECT 1 FROM ec_order_items ' . $itemAlias
+        . ' WHERE ' . $itemAlias . '.order_id = ' . $orderAlias . '.id'
+        . ' AND ' . $itemAlias . '.store_id IS NOT NULL'
+        . ' AND ' . $itemAlias . '.store_id > 0)';
+}
+
+function ecStoreOrderScopePredicate(string $orderAlias = 'o', string $itemAlias = 'store_scope_items'): array
+{
+    $clauses = [];
+    $paramsPerStore = 0;
+
+    if (ecOrdersHasStoreIdColumn()) {
+        $clauses[] = $orderAlias . '.store_id = ?';
+        $paramsPerStore++;
+    }
+
+    if (ecOrderItemsHasStoreIdColumn()) {
+        $clauses[] = 'EXISTS (SELECT 1 FROM ec_order_items ' . $itemAlias
+            . ' WHERE ' . $itemAlias . '.order_id = ' . $orderAlias . '.id'
+            . ' AND ' . $itemAlias . '.store_id = ?)';
+        $paramsPerStore++;
+    }
+
+    if ($clauses === []) {
+        return ['sql' => '1=0', 'params_per_store' => 0];
+    }
+
+    return [
+        'sql' => '(' . implode(' OR ', $clauses) . ')',
+        'params_per_store' => $paramsPerStore,
+    ];
+}
+
+function ecStoreOwnedLineItemPredicate(string $orderAlias = 'o', string $itemAlias = 'oi', string $scopedAlias = 'store_scope_items'): array
+{
+    $clauses = [];
+    $paramsPerStore = 0;
+
+    if (ecOrderItemsHasStoreIdColumn()) {
+        $clauses[] = $itemAlias . '.store_id = ?';
+        $paramsPerStore++;
+    }
+
+    if (ecOrdersHasStoreIdColumn()) {
+        $fallback = $orderAlias . '.store_id = ?';
+        $paramsPerStore++;
+
+        if (ecOrderItemsHasStoreIdColumn()) {
+            $fallback .= ' AND NOT ' . ecStoreOrderTaggedItemsPredicate($orderAlias, $scopedAlias);
+        }
+
+        $clauses[] = '(' . $fallback . ')';
+    }
+
+    if ($clauses === []) {
+        return ['sql' => '1=0', 'params_per_store' => 0];
+    }
+
+    return [
+        'sql' => '(' . implode(' OR ', $clauses) . ')',
+        'params_per_store' => $paramsPerStore,
+    ];
+}
+
+function ecStoreScopeQueryParams(int $storeId, int $paramsPerStore): array
+{
+    if ($storeId <= 0 || $paramsPerStore <= 0) {
+        return [];
+    }
+
+    return array_fill(0, $paramsPerStore, $storeId);
+}
+
 function ecOrderOperationalAuthority(int $orderId): array
 {
     $storeIds = ecOrderAssignedStoreIds($orderId);
@@ -1487,7 +1566,7 @@ function ecOrderList(array $filters = []): array
         $hasCmsUsers = true;
     } catch (\Throwable $ignored) {}
 
-    $tbl = $hasCmsUsers ? 'o.' : '';
+    $tbl = 'o.';
 
     $where  = ['1=1'];
     $params = [];
@@ -1514,7 +1593,7 @@ function ecOrderList(array $filters = []): array
             $params[] = $s;
             $params[] = $s;
         } else {
-            $where[]  = '(order_number LIKE ? OR guest_email LIKE ? OR guest_name LIKE ?)';
+            $where[]  = '(o.order_number LIKE ? OR o.guest_email LIKE ? OR o.guest_name LIKE ?)';
             $params[] = $s;
             $params[] = $s;
             $params[] = $s;
@@ -1529,8 +1608,9 @@ function ecOrderList(array $filters = []): array
         $params[] = $filters['date_to'];
     }
     if (!empty($filters['store_id'])) {
-        $where[]  = $tbl . 'store_id = ?';
-        $params[] = (int)$filters['store_id'];
+        $storeScope = ecStoreOrderScopePredicate('o', 'store_scope_items');
+        $where[] = $storeScope['sql'];
+        $params = array_merge($params, ecStoreScopeQueryParams((int)$filters['store_id'], (int)$storeScope['params_per_store']));
     }
 
     $limit  = min(100, max(1, (int)($filters['limit']  ?? 25)));
@@ -1539,7 +1619,12 @@ function ecOrderList(array $filters = []): array
     $whereStr = implode(' AND ', $where);
 
     try {
-        $total = (int)$db->query("SELECT COUNT(*) FROM ec_orders" . ($hasCmsUsers ? ' o LEFT JOIN cms_users cu ON cu.id = o.customer_id' : '') . " WHERE $whereStr", $params)->fetchColumn();
+        $total = (int)$db->query(
+            "SELECT COUNT(*) FROM ec_orders o"
+            . ($hasCmsUsers ? ' LEFT JOIN cms_users cu ON cu.id = o.customer_id' : '')
+            . " WHERE $whereStr",
+            $params
+        )->fetchColumn();
 
         if ($hasCmsUsers) {
             $rows = $db->query(
@@ -1555,10 +1640,10 @@ function ecOrderList(array $filters = []): array
             )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         } else {
             $rows = $db->query(
-                "SELECT id, order_number, customer_id, guest_email, guest_name, source, status, payment_status, total, currency, created_at
-                 FROM ec_orders
+                "SELECT o.id, o.order_number, o.customer_id, o.guest_email, o.guest_name, o.source, o.status, o.payment_status, o.total, o.currency, o.created_at
+                 FROM ec_orders o
                  WHERE $whereStr
-                 ORDER BY created_at DESC
+                 ORDER BY o.created_at DESC
                  LIMIT ? OFFSET ?",
                 array_merge($params, [$limit, $offset])
             )->fetchAll(\PDO::FETCH_ASSOC) ?: [];

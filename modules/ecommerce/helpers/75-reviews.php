@@ -348,6 +348,25 @@ function ecReviewGet(int $reviewId): ?array
     return is_array($row) ? ecReviewNormalizeRow($row) : null;
 }
 
+function ecReviewBelongsToStore(int $reviewId, int $storeId): bool
+{
+    if ($reviewId <= 0 || $storeId <= 0 || !ecReviewStorageAvailable()) {
+        return false;
+    }
+
+    try {
+        return (int)(ecDb()->query(
+            'SELECT COUNT(*)
+             FROM ec_reviews r
+             INNER JOIN ec_store_product_overrides store_po ON store_po.product_id = r.product_id
+             WHERE r.id = ? AND store_po.store_id = ? AND store_po.is_visible = 1',
+            [$reviewId, $storeId]
+        )->fetchColumn() ?: 0) > 0;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
 function ecReviewCreate(int $productId, array $input, ?array $actorUser = null): array
 {
     if (!ecReviewStorageAvailable()) {

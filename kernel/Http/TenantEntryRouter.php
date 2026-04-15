@@ -180,6 +180,12 @@ class TenantEntryRouter
             return true;
         }
 
+        // Preserve public module routes even when they do not start with the
+        // module ID, such as ecommerce's /store/{slug} storefront pages.
+        if ($this->matchesEnabledModuleRoute($uri)) {
+            return true;
+        }
+
         if ($uri === '/' . $entry || str_starts_with($uri, '/' . $entry . '/')) {
             return true;
         }
@@ -192,6 +198,68 @@ class TenantEntryRouter
         }
 
         return false;
+    }
+
+    private function matchesEnabledModuleRoute(string $uri): bool
+    {
+        if (!function_exists('getEnabledModules')) {
+            return false;
+        }
+
+        $method = strtoupper(trim((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')));
+        if ($method === 'HEAD') {
+            $method = 'GET';
+        }
+        if ($method === '') {
+            $method = 'GET';
+        }
+
+        $modules = getEnabledModules();
+        $moduleIds = array_keys($modules);
+        sort($moduleIds);
+
+        static $patternsByCacheKey = [];
+        $cacheKey = $method . ':' . implode(',', $moduleIds);
+        if (!isset($patternsByCacheKey[$cacheKey])) {
+            $patterns = [];
+            foreach ($modules as $module) {
+                $routesFile = rtrim((string)($module['_path'] ?? ''), '/') . '/routes.php';
+                if ($routesFile === '' || !is_file($routesFile)) {
+                    continue;
+                }
+
+                $routes = require $routesFile;
+                $modulePatterns = is_array($routes) ? array_keys((array)($routes[$method] ?? [])) : [];
+                foreach ($modulePatterns as $pattern) {
+                    if (is_string($pattern) && $pattern !== '') {
+                        $patterns[] = $pattern;
+                    }
+                }
+            }
+            $patternsByCacheKey[$cacheKey] = array_values(array_unique($patterns));
+        }
+
+        foreach ($patternsByCacheKey[$cacheKey] as $pattern) {
+            if ($this->routePatternMatches($pattern, $uri)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function routePatternMatches(string $pattern, string $uri): bool
+    {
+        if ($pattern === $uri) {
+            return true;
+        }
+
+        $regex = preg_replace('/\{(\w+)\}/', '(?P<$1>[^/]+)', $pattern);
+        if (!is_string($regex) || $regex === '') {
+            return false;
+        }
+
+        return preg_match('#^' . $regex . '$#', $uri) === 1;
     }
 
     private function shouldFastReject(string $uri): bool

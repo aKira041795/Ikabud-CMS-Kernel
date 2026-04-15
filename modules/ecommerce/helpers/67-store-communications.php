@@ -401,43 +401,44 @@ function ecStoreLoyaltySummary(int $storeId, int $limit = 50): array
     }
 
     try {
+        $orderScope = ecStoreOrderScopePredicate('o', 'store_loyalty_scope_items');
+        $scopeParams = ecStoreScopeQueryParams($storeId, (int)$orderScope['params_per_store']);
         $entries = ecDb()->query(
             'SELECT l.*, u.display_name, u.email
              FROM ec_loyalty_ledger l
              INNER JOIN ec_orders o ON o.id = l.order_id
-             INNER JOIN ec_order_items oi ON oi.order_id = o.id AND oi.store_id = ?
              LEFT JOIN cms_users u ON u.id = l.customer_id
-             GROUP BY l.id, u.display_name, u.email
+             WHERE ' . $orderScope['sql'] . '
              ORDER BY l.created_at DESC, l.id DESC
              LIMIT ?',
-            [$storeId, max(1, min(200, $limit))]
+            array_merge($scopeParams, [max(1, min(200, $limit))])
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $totalEarned = (int)(ecDb()->query(
             "SELECT COALESCE(SUM(l.points), 0)
              FROM ec_loyalty_ledger l
              INNER JOIN ec_orders o ON o.id = l.order_id
-             INNER JOIN ec_order_items oi ON oi.order_id = o.id AND oi.store_id = ?
-             WHERE l.entry_type = 'earn'",
-            [$storeId]
+             WHERE {$orderScope['sql']}
+               AND l.entry_type = 'earn'",
+            $scopeParams
         )->fetchColumn() ?: 0);
 
         $totalRedeemed = abs((int)(ecDb()->query(
             "SELECT COALESCE(SUM(l.points), 0)
              FROM ec_loyalty_ledger l
              INNER JOIN ec_orders o ON o.id = l.order_id
-             INNER JOIN ec_order_items oi ON oi.order_id = o.id AND oi.store_id = ?
-             WHERE l.entry_type = 'redeem'",
-            [$storeId]
+             WHERE {$orderScope['sql']}
+               AND l.entry_type = 'redeem'",
+            $scopeParams
         )->fetchColumn() ?: 0));
 
         $uniqueCustomers = (int)(ecDb()->query(
             'SELECT COUNT(DISTINCT l.customer_id)
              FROM ec_loyalty_ledger l
              INNER JOIN ec_orders o ON o.id = l.order_id
-             INNER JOIN ec_order_items oi ON oi.order_id = o.id AND oi.store_id = ?
-             WHERE l.customer_id IS NOT NULL',
-            [$storeId]
+             WHERE ' . $orderScope['sql'] . '
+               AND l.customer_id IS NOT NULL',
+            $scopeParams
         )->fetchColumn() ?: 0);
 
         return [

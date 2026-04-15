@@ -7,6 +7,12 @@
         <p class="mt-1 text-sm text-slate-500">Order-scoped conversations between the buyer and this store team.</p>
     </div>
 
+    {if message}
+    <div class="rounded-xl border px-4 py-3 text-sm {if message.type == 'success'}border-emerald-200 bg-emerald-50 text-emerald-800{else}border-red-200 bg-red-50 text-red-700{/if}">
+        {message.text | escape}
+    </div>
+    {/if}
+
     {if not message_storage_available}
     <div class="rounded-xl border border-dashed border-gray-300 bg-white px-5 py-6 text-sm text-slate-500">
         Messaging storage is not available yet. Run the latest ecommerce migrations to enable customer conversations.

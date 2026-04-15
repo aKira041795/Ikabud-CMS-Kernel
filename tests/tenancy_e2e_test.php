@@ -272,6 +272,12 @@ $_SERVER['HTTP_HOST'] = 'cmsnew.test';
 $rewritten5 = $router->rewriteUri('/cms/admin');
 ok($rewritten5 === '/cms/admin', '"/cms/admin" is NOT rewritten (CMS routes skip) (got: ' . $rewritten5 . ')');
 
+$resolver->reset();
+$_SERVER['HTTP_HOST'] = 'cmsnew.test';
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$rewrittenStore = $router->rewriteUri('/store/akira');
+ok($rewrittenStore === '/store/akira', '"/store/akira" is NOT rewritten when an enabled module owns the public route (got: ' . $rewrittenStore . ')');
+
 // Kernel URL — no domain match, no rewrite
 $resolver->reset();
 $_SERVER['HTTP_HOST'] = 'applicationkernel.test';

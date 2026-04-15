@@ -11,6 +11,7 @@
                     <p class="mt-1 text-sm text-slate-500">Placed {order.created_at}</p>
                 </div>
                 <div class="flex items-center gap-3">
+                    <a href="{base_url}/ecommerce/store-admin/{store.id}/messages?order={order.id}" class="text-sm font-medium text-slate-600 hover:text-slate-800">Messages</a>
                     <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold
                         {if order.status == 'pending'}bg-amber-50 text-amber-700
                         {elseif order.status == 'processing'}bg-blue-50 text-blue-700
