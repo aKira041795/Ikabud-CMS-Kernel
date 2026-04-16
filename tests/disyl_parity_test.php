@@ -33,12 +33,8 @@ $current_section = '';
  * or adjust the compiled engine when addressing them.
  */
 $KNOWN_DIVERGENCES = [
-    'negation with not' =>
-        'Interpreted engine evaluates {if not <var>} differently when var is boolean false. '
-        . 'Compiled path: !isTruthy(false)=true (correct). Interpreted path: evaluates to false (quirk).',
-    'set then use in condition' =>
-        'Interpreted engine {set flag = true} likely resolves `true` as a variable name (empty), '
-        . 'not a boolean literal. Compiled path treats `true` as LiteralNode(true).',
+    // All previous divergences resolved — this array should stay empty.
+    // If you add an entry here, file a tracking issue.
 ];
 
 function section(string $title): void

@@ -1952,6 +1952,12 @@ class TemplateEngine
     {
         $path = trim($path);
         if ($path === '') return null;
+
+        // Boolean and null literals
+        $lower = strtolower($path);
+        if ($lower === 'true') return true;
+        if ($lower === 'false') return false;
+        if ($lower === 'null') return null;
         
         $parts = explode('.', $path);
         $value = $context;
@@ -2025,8 +2031,11 @@ class TemplateEngine
             }
         }
         
-        // Handle negation (with optional space after !)
+        // Handle negation: ! prefix or 'not' keyword
         if (preg_match('/^!\s*(.+)$/', $condition, $nm)) {
+            return !$this->evaluateCondition($nm[1], $context);
+        }
+        if (preg_match('/^not\s+(.+)$/i', $condition, $nm)) {
             return !$this->evaluateCondition($nm[1], $context);
         }
         
