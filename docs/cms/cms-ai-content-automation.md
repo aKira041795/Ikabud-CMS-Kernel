@@ -192,8 +192,109 @@ The page provides:
 - View run history
 - Search grounding configuration status
 
+## Featured Image Media Browser
+
+The CMS content editor includes a media browser modal for selecting and managing featured images with integrated free web image search.
+
+### Modes
+
+- **Uploaded**: Browse and search local media library
+- **Free Web**: Search and import free images from multiple sources
+
+### Free Image Sources
+
+The system aggregates free images from:
+
+| Source | Provider | Coverage | Availability |
+|--------|----------|----------|---------------|
+| **Openverse** | Creative Commons licensed | 690M+ images | Always available |
+| **Wikimedia Commons** | Wikimedia Foundation | 90M+ images | Always available |
+| **Pexels** | Pexels Inc. | 500K+ high-quality photos | Requires `PEXELS_API_KEY` env var |
+
+### Search APIs
+
+#### GET /api/v1/cms/media/free-search
+
+Free web image search across Openverse and Wikimedia Commons.
+
+**Query Parameters:**
+- `q` (required): Search query string
+- `limit` (optional, default 30): Maximum results per source
+
+**Response:**
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "url": "https://...",
+      "thumbnail_url": "https://...",
+      "original_name": "filename",
+      "source": "openverse",
+      "external": true,
+      "attribution": "Author name",
+      "license": "CC BY-SA 4.0"
+    }
+  ]
+}
+```
+
+#### POST /api/v1/cms/ai/featured-image-suggest
+
+AI-powered featured image suggestion using content metadata.
+
+**Request Body:**
+```json
+{
+  "title": "Content title",
+  "excerpt": "Short description",
+  "tags": "tag1, tag2",
+  "type": "article|product|...",
+  "search_keywords": "optional override keywords"
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "suggestions": [
+    {
+      "url": "https://...",
+      "source": "openverse",
+      "external": true,
+      ...additional fields
+    }
+  ],
+  "openverse_count": 12,
+  "wikimedia_count": 8,
+  "pexels_count": 0
+}
+```
+
+### Source Filtering
+
+The media browser includes a dropdown filter in web mode (All / Openverse / Wikimedia) to bias results by source library. This allows users to control visual style consistency—for example, selecting Wikimedia for more encyclopedic imagery or Openverse for diverse Creative Commons content.
+
+The filter is applied client-side and resets to "All" when opening the modal or starting a new search.
+
+### Import Workflow
+
+When a free web image is selected, the system:
+1. Downloads the image to local storage via the import handler
+2. Creates a `cms_media` entry with source attribution and license metadata
+3. Links the featured image to the content's `featured_image_id`
+4. Stores the original external URL in media metadata for reference
+
+This ensures featured images remain available even if the external source changes.
+
+### Keyword Override
+
+Users can provide custom keywords via the `featured_image_keywords` field in the content editor, which overrides AI-generated suggestions when using the web search or AI suggest buttons. This is useful when the content title alone doesn't capture the desired visual style.
+
 ## Current Limitations
 
 - No per-plan recipient override yet; approval goes to active editors/administrators
 - No AI image generation yet; visuals are suggested from existing media only
 - Duplicate detection is intentionally basic in v1s
+- Free image sources are limited to Openverse, Wikimedia, and Pexels; additional providers would require API integration and key management
