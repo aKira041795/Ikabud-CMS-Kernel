@@ -104,8 +104,20 @@ class TenantEntryRouter
             return $landingCache[$entry];
         }
 
+        // Check APCu for cross-process cache before expensive routes.php load
+        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
+        $apcuKey = 'ikabud:entry_landing:' . sha1($entry);
+        if ($apcuEnabled) {
+            $cached = apcu_fetch($apcuKey, $success);
+            if ($success && is_string($cached)) {
+                $landingCache[$entry] = $cached;
+                return $cached;
+            }
+        }
+
         $entryRoot = '/' . $entry;
         $entryLogin = '/' . $entry . '/login';
+        $result = $entryRoot; // default
 
         // If the entry module declares an explicit root route, prefer it.
         // Otherwise prefer a conventional login route if it exists.
@@ -117,12 +129,9 @@ class TenantEntryRouter
                     $get = is_array($routes) ? ($routes['GET'] ?? []) : [];
                     if (is_array($get)) {
                         if (array_key_exists($entryRoot, $get)) {
-                            $landingCache[$entry] = $entryRoot;
-                            return $landingCache[$entry];
-                        }
-                        if (array_key_exists($entryLogin, $get)) {
-                            $landingCache[$entry] = $entryLogin;
-                            return $landingCache[$entry];
+                            $result = $entryRoot;
+                        } elseif (array_key_exists($entryLogin, $get)) {
+                            $result = $entryLogin;
                         }
                     }
                 }
@@ -134,8 +143,13 @@ class TenantEntryRouter
             ]);
         }
 
-        $landingCache[$entry] = $entryRoot;
-        return $landingCache[$entry];
+        // Store in both caches for future lookups
+        $landingCache[$entry] = $result;
+        if ($apcuEnabled) {
+            apcu_store($apcuKey, $result, 3600); // 1 hour TTL
+        }
+
+        return $result;
     }
 
     private function entryModuleAvailable(string $entry): bool
