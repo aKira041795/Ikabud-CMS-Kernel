@@ -1,6 +1,23 @@
 {extends "modules/ecommerce/layouts/admin.disyl"}
 
 {block content}
+<!-- Flash message -->
+{if message}
+<div class="mb-4 rounded-lg px-4 py-3 text-sm {if message.type == 'success'}bg-emerald-50 text-emerald-800 border border-emerald-200{elseif message.type == 'warning'}bg-amber-50 text-amber-800 border border-amber-200{else}bg-red-50 text-red-800 border border-red-200{/if}">
+    {message.text}
+</div>
+{/if}
+{if import_errors && import_errors | count > 0}
+<div class="mb-4 rounded-lg px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200">
+    <div class="font-semibold mb-1">Import errors (first {import_errors | count}):</div>
+    <ul class="list-disc list-inside space-y-0.5">
+    {foreach import_errors as err}
+        <li>{err}</li>
+    {/foreach}
+    </ul>
+</div>
+{/if}
+
 <!-- Toolbar -->
 <div class="flex flex-wrap items-center gap-3 mb-5">
     <form method="get" action="" class="flex flex-wrap items-center gap-3 flex-1">
@@ -27,6 +44,32 @@
         {if integration_mode == 'ecommerce_authoritative_products'}Ecommerce is source of truth{/if}
     </span>
     {/if}
+</div>
+
+<!-- Import / Export bar -->
+<div x-data="{ showImport: false }" class="flex flex-wrap items-center gap-3 mb-4">
+    <a href="{base_url}/ecommerce/admin/inventory/export?search={search}&filter={filter}&store_id={store_id}"
+       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+        Export CSV
+    </a>
+    <button @click="showImport = !showImport" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 6l-4-4-4 4M12 2v13"/></svg>
+        Import CSV
+    </button>
+
+    <div x-show="showImport" x-cloak class="w-full mt-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <form method="post" action="{base_url}/ecommerce/admin/inventory/import" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
+            {csrf_field}
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">CSV file (columns: SKU, Stock Qty)</label>
+                <input type="file" name="inventory_csv" accept=".csv,text/csv" required
+                       class="block text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-gray-300 file:text-sm file:font-medium file:bg-white file:text-gray-700 hover:file:bg-gray-50">
+            </div>
+            <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700">Upload &amp; Import</button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">Tip: Export first to get the correct format, then update the <strong>Stock Qty</strong> column and re-import.</p>
+    </div>
 </div>
 
 <!-- Summary -->

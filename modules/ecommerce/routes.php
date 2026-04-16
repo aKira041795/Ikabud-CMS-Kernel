@@ -41,6 +41,7 @@ return [
         '/ecommerce/admin/coupons'                => 'ecommerce:ecAdminCoupons',
         '/ecommerce/admin/reports'                => 'ecommerce:ecAdminReports',
         '/ecommerce/admin/inventory'              => 'ecommerce:ecAdminInventory',
+        '/ecommerce/admin/inventory/export'       => 'ecommerce:ecAdminInventoryExportCsv',
         '/ecommerce/admin/email-templates'        => 'ecommerce:ecAdminEmailTemplates',
         '/ecommerce/admin/webhooks'               => 'ecommerce:ecAdminWebhooks',
         '/ecommerce/admin/abandoned-carts'        => 'ecommerce:ecAdminAbandonedCarts',
@@ -137,6 +138,7 @@ return [
         '/ecommerce/store-admin/{id}/reviews'       => 'ecommerce:ecStoreAdminReviews',
         '/ecommerce/store-admin/{id}/import-export' => 'ecommerce:ecStoreAdminImportExport',
         '/ecommerce/store-admin/{id}/settings'      => 'ecommerce:ecStoreAdminSettings',
+        '/ecommerce/admin/inventory/import'        => 'ecommerce:ecAdminInventoryImportCsv',
         '/ecommerce/admin/import-export'            => 'ecommerce:ecAdminImportExport',
         '/ecommerce/admin/settings'                 => 'ecommerce:ecAdminSettings',
         // ── REST API — Store User Assignments ─────────────────────────────

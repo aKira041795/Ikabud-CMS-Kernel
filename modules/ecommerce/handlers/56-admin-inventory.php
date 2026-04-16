@@ -51,7 +51,10 @@ function ecAdminInventory(): void
         'total_pages'      => (int)ceil(max(1, $inventory['total']) / $perPage),
         'low_stock_threshold' => (int)ecSettings('low_stock_threshold'),
         'integration_mode' => $integrationMode,
+        'message'          => $_SESSION['ec_message'] ?? null,
+        'import_errors'    => $_SESSION['ec_inventory_import_errors'] ?? null,
     ]);
+    unset($_SESSION['ec_message'], $_SESSION['ec_inventory_import_errors']);
 
     ecRender('modules/ecommerce/admin/inventory.disyl', $ctx);
 }
