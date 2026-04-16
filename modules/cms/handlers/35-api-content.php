@@ -468,6 +468,131 @@ function cmsApiContentAiSeo(array $params = []): void
     }
 }
 
+function cmsApiAiFeaturedImageSuggest(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user  = cmsRequireCap('content.create');
+    $input = cmsInput();
+
+    $title   = trim(strip_tags((string)($input['title']   ?? '')));
+    $excerpt = trim(strip_tags((string)($input['excerpt'] ?? '')));
+    $tags    = trim(strip_tags((string)($input['tags']    ?? '')));
+    $type    = trim((string)($input['type'] ?? 'post'));
+
+    if ($title === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Title is required for AI image suggestions']);
+        exit;
+    }
+
+    $db = cmsDb();
+
+    // Load recent images from media library (images only, capped at 60)
+    $mediaRows = [];
+    try {
+        $stmt = $db->prepare(
+            "SELECT id, original_name, alt_text, file_path
+             FROM cms_media
+             WHERE mime_type LIKE 'image/%'
+             ORDER BY created_at DESC
+             LIMIT 60"
+        );
+        $stmt->execute();
+        $mediaRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        write_log('cms ai featured image suggest: media fetch failed: ' . $e->getMessage(), 'error');
+    }
+
+    if (empty($mediaRows)) {
+        echo json_encode(['ok' => true, 'suggestions' => [], 'reason' => 'No images in media library']);
+        exit;
+    }
+
+    // Resolve URLs for all candidates
+    foreach ($mediaRows as &$mr) {
+        $mr['url'] = cmsResolveUploadUrl((string)($mr['file_path'] ?? ''));
+    }
+    unset($mr);
+
+    // Build compact image list for AI (id + name + alt)
+    $imageList = [];
+    foreach ($mediaRows as $mr) {
+        $label = trim((string)($mr['original_name'] ?? ''));
+        $alt   = trim((string)($mr['alt_text']      ?? ''));
+        $imageList[] = [
+            'id'   => (int)$mr['id'],
+            'name' => $label !== '' ? $label : basename((string)($mr['file_path'] ?? '')),
+            'alt'  => $alt,
+        ];
+    }
+
+    $contextParts = ["Title: {$title}"];
+    if ($excerpt !== '') $contextParts[] = "Excerpt: {$excerpt}";
+    if ($tags    !== '') $contextParts[] = "Tags: {$tags}";
+    if ($type    !== '') $contextParts[] = "Content type: {$type}";
+    $context = implode("\n", $contextParts);
+
+    $systemPrompt = 'You are a CMS image curator. Given a piece of content and a list of images from a media library, select up to 3 images that would be most suitable as the featured image for that content.' . "\n"
+        . 'Return ONLY valid JSON with this exact schema: {"suggestions":[{"id":1,"reason":"Brief reason why this image fits"}]}' . "\n"
+        . 'Return between 0 and 3 suggestions. Prioritise relevance by filename and alt text. If no image is a good fit, return an empty suggestions array.';
+
+    $userPrompt = "Content:\n{$context}\n\nAvailable images:\n" . json_encode($imageList, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    try {
+        $res = app()->cap()->call('ai.text.generate@1', [
+            'messages' => [
+                ['role' => 'system', 'content' => $systemPrompt],
+                ['role' => 'user',   'content' => $userPrompt],
+            ],
+            'temperature'    => 0.2,
+            'json'           => true,
+            'timeout_ms'     => 20000,
+            'max_tokens'     => 400,
+            'preferred_tier' => 'free',
+        ], ['caller_module' => 'cms', 'caller_user' => $user, 'timeout_ms' => 20000]);
+
+        if (empty($res['ok'])) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => (string)($res['error'] ?? 'AI provider error')]);
+            exit;
+        }
+
+        $decoded = json_decode((string)($res['content'] ?? ''), true);
+        $rawSuggestions = is_array($decoded['suggestions'] ?? null) ? $decoded['suggestions'] : [];
+
+        // Build a map for fast lookup and validate IDs
+        $mediaMap = [];
+        foreach ($mediaRows as $mr) {
+            $mediaMap[(int)$mr['id']] = $mr;
+        }
+
+        $suggestions = [];
+        foreach ($rawSuggestions as $s) {
+            $sid = (int)($s['id'] ?? 0);
+            if ($sid <= 0 || !isset($mediaMap[$sid])) continue;
+            $mr = $mediaMap[$sid];
+            $suggestions[] = [
+                'id'            => $sid,
+                'url'           => $mr['url'],
+                'original_name' => (string)($mr['original_name'] ?? ''),
+                'alt_text'      => (string)($mr['alt_text']      ?? ''),
+                'reason'        => trim(strip_tags((string)($s['reason'] ?? ''))),
+            ];
+            if (count($suggestions) >= 3) break;
+        }
+
+        echo json_encode(['ok' => true, 'suggestions' => $suggestions]);
+        exit;
+    } catch (Throwable $e) {
+        write_log('cms ai featured image suggest failed: ' . $e->getMessage(), 'error', [
+            'user_id' => (int)($user['id'] ?? 0),
+        ]);
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'AI capability call failed']);
+        exit;
+    }
+}
+
 function cmsApiContentCreate(array $params = []): void
 {
     header('Content-Type: application/json');
@@ -523,6 +648,8 @@ function cmsApiContentCreate(array $params = []): void
         ? cmsCalculateReadingTime($wordCount)
         : 0;
 
+    $featuredImageId = !empty($input['featured_image_id']) ? (int)$input['featured_image_id'] : null;
+
     // Contributors can only create drafts
     $role   = (string)($user['role'] ?? '');
     $source = (string)($user['source'] ?? '');
@@ -567,13 +694,13 @@ function cmsApiContentCreate(array $params = []): void
              type, status, author_id, parent_id,
              comment_status, is_sticky, is_featured, post_format,
              password, word_count, reading_time,
-             published_at, created_at)
+             featured_image_id, published_at, created_at)
          VALUES
             (:uuid, :title, :slug, :body, :blocks_json, :excerpt,
              :type, :status, :author_id, :parent_id,
              :comment_status, :is_sticky, :is_featured, :post_format,
              :password, :word_count, :reading_time,
-             :pub, NOW())"
+             :featured_image_id, :pub, NOW())"
     );
     $stmt->execute([
         ':uuid'          => $uuid,
@@ -593,6 +720,7 @@ function cmsApiContentCreate(array $params = []): void
         ':password'      => $passwordHash,
         ':word_count'    => $wordCount,
         ':reading_time'  => $readingTime,
+        ':featured_image_id' => $featuredImageId,
         ':pub'           => $publishedAt,
     ]);
     $contentId = (int)$db->lastInsertId();
