@@ -40,8 +40,11 @@ class IncrementalCompiler
         $hash = $this->getFileHash($templatePath);
         $entry = $this->manifest[$templatePath] ?? null;
         
-        // Check if recompilation needed
-        if ($entry && $entry['hash'] === $hash && file_exists($entry['output'])) {
+        // Check if recompilation needed (hash match + same compiler version + output exists)
+        if ($entry
+            && $entry['hash'] === $hash
+            && ($entry['compilerVersion'] ?? 0) === TemplateCompiler::COMPILER_VERSION
+            && file_exists($entry['output'])) {
             return new CompileResult($entry['output'], false, 0);
         }
         
@@ -70,6 +73,7 @@ class IncrementalCompiler
             'className' => $className,
             'dependencies' => $deps,
             'compiledAt' => time(),
+            'compilerVersion' => TemplateCompiler::COMPILER_VERSION,
         ];
         $this->saveManifest();
         
@@ -148,8 +152,9 @@ class IncrementalCompiler
     
     private function getClassName(string $path): string
     {
+        $version = TemplateCompiler::COMPILER_VERSION;
         $name = preg_replace('/[^a-zA-Z0-9]/', '_', basename($path, '.disyl'));
-        return 'Template_' . $name . '_' . substr(md5($path), 0, 8);
+        return 'Template_' . $name . '_v' . $version . '_' . substr(md5($path . ':v' . $version), 0, 8);
     }
     
     public function invalidate(string $templatePath): void

@@ -32,6 +32,13 @@ use Ikabud\Kernel\DiSyL\v4\AST\FilterChain;
  */
 class TemplateCompiler
 {
+    /**
+     * Compiler version — bump whenever AST structure or code generation logic
+     * changes.  TemplateCache includes this in cache filenames so stale
+     * compiled files are automatically bypassed after an upgrade.
+     */
+    public const COMPILER_VERSION = 1;
+
     private int $indentLevel = 0;
     private string $indent = '    ';
     

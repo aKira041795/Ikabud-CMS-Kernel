@@ -255,13 +255,15 @@ class TemplateCache
     }
     
     /**
-     * Generate class name from template path
+     * Generate class name from template path.
+     * Includes compiler version so stale compiled files are bypassed on upgrade.
      */
     private function getClassName(string $templatePath): string
     {
-        $hash = md5($templatePath);
+        $version = TemplateCompiler::COMPILER_VERSION;
+        $hash = md5($templatePath . ':v' . $version);
         $name = preg_replace('/[^a-zA-Z0-9]/', '_', basename($templatePath, '.disyl'));
-        return 'Template_' . $name . '_' . substr($hash, 0, 8);
+        return 'Template_' . $name . '_v' . $version . '_' . substr($hash, 0, 8);
     }
     
     /**
@@ -301,6 +303,49 @@ class TemplateCache
     }
     
     /**
+     * Remove stale compiled files that don't match the current compiler version
+     * or are older than the given TTL (seconds). Returns count of removed files.
+     */
+    public function cleanup(int $ttlSeconds = 0): int
+    {
+        $files = glob($this->cacheDir . '/Template_*.php');
+        if (!$files) {
+            return 0;
+        }
+
+        $currentVersionTag = '_v' . TemplateCompiler::COMPILER_VERSION . '_';
+        $removed = 0;
+        $now = time();
+
+        foreach ($files as $file) {
+            $basename = basename($file);
+            $stale = false;
+
+            // Remove files from a different compiler version
+            if (strpos($basename, $currentVersionTag) === false) {
+                $stale = true;
+            }
+
+            // Remove files older than TTL (if TTL > 0)
+            if (!$stale && $ttlSeconds > 0) {
+                $age = $now - filemtime($file);
+                if ($age > $ttlSeconds) {
+                    $stale = true;
+                }
+            }
+
+            if ($stale && @unlink($file)) {
+                $removed++;
+                if (function_exists('opcache_invalidate')) {
+                    opcache_invalidate($file, true);
+                }
+            }
+        }
+
+        return $removed;
+    }
+
+    /**
      * Get cache statistics
      */
     public function getStats(): array
@@ -318,6 +363,7 @@ class TemplateCache
             'total_size' => $totalSize,
             'loaded_in_memory' => count($this->loaded),
             'debug_mode' => $this->debug,
+            'compiler_version' => TemplateCompiler::COMPILER_VERSION,
         ];
     }
 }
