@@ -18,10 +18,40 @@ function wmsIntelligenceSlottingSuggest(int $warehouseId, int $days = 30): array
         [$warehouseId, $days]
     );
     
+    // Batch-load locations and products instead of N+1 queries
+    if (empty($movements)) {
+        return [];
+    }
+    
+    $locationIds = array_unique(array_column($movements, 'location_id'));
+    $productIds = array_unique(array_column($movements, 'product_id'));
+    
+    $locations = [];
+    if (!empty($locationIds)) {
+        $locList = wmsFetchAll(
+            "SELECT id, code, name FROM wms_locations WHERE id IN (" . implode(',', array_fill(0, count($locationIds), '?')) . ")",
+            $locationIds
+        );
+        foreach ($locList as $loc) {
+            $locations[(int)$loc['id']] = $loc;
+        }
+    }
+    
+    $products = [];
+    if (!empty($productIds)) {
+        $prodList = wmsFetchAll(
+            "SELECT id, sku, name FROM wms_products WHERE id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")",
+            $productIds
+        );
+        foreach ($prodList as $prod) {
+            $products[(int)$prod['id']] = $prod;
+        }
+    }
+    
     $suggestions = [];
     foreach ($movements as $m) {
-        $loc = wmsFetchOne('SELECT code, name FROM wms_locations WHERE id = ?', [(int)$m['location_id']]);
-        $prod = wmsFetchOne('SELECT sku, name FROM wms_products WHERE id = ?', [(int)$m['product_id']]);
+        $loc = $locations[(int)$m['location_id']] ?? ['code' => '', 'name' => ''];
+        $prod = $products[(int)$m['product_id']] ?? ['sku' => '', 'name' => ''];
         
         $suggestions[] = [
             'product_id' => $m['product_id'],
@@ -47,28 +77,53 @@ function wmsIntelligenceForecast(int $warehouseId, int $days = 30): array
         "SELECT product_id, SUM(ABS(qty)) as total_out_qty 
          FROM wms_movements 
          WHERE warehouse_id = ? 
-           AND movement_type IN ('out', 'transfer_out') 
+           AND movement_type IN ('out', 'transfer_out')
            AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
          GROUP BY product_id",
         [$warehouseId, $days]
     );
+
+    if (empty($movements)) {
+        return [];
+    }
+
+    // Batch-load product data instead of N+1 queries
+    $productIds = array_column($movements, 'product_id');
+    $products = [];
+    if (!empty($productIds)) {
+        $prodList = wmsFetchAll(
+            "SELECT id, sku, name, reorder_point FROM wms_products WHERE id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")",
+            $productIds
+        );
+        foreach ($prodList as $prod) {
+            $products[(int)$prod['id']] = $prod;
+        }
+    }
+    
+    // Batch-load stock aggregates instead of N+1 queries
+    $stocks = [];
+    if (!empty($productIds)) {
+        $stockList = wmsFetchAll(
+            "SELECT product_id, SUM(qty_available) as total_available 
+             FROM wms_stocks 
+             WHERE warehouse_id = ? AND product_id IN (" . implode(',', array_fill(0, count($productIds), '?')) . ")
+             GROUP BY product_id",
+            array_merge([$warehouseId], $productIds)
+        );
+        foreach ($stockList as $stock) {
+            $stocks[(int)$stock['product_id']] = (float)($stock['total_available'] ?? 0);
+        }
+    }
 
     $forecast = [];
     foreach ($movements as $m) {
         $pid = (int)$m['product_id'];
         $totalOut = (float)$m['total_out_qty'];
         $dailyRunRate = $totalOut / max(1, $days);
-        
-        $stock = wmsFetchOne(
-            'SELECT SUM(qty_available) as total_available 
-             FROM wms_stocks 
-             WHERE warehouse_id = ? AND product_id = ?',
-            [$warehouseId, $pid]
-        );
-        $available = (float)($stock['total_available'] ?? 0);
+        $available = $stocks[$pid] ?? 0;
         $daysRemaining = $dailyRunRate > 0 ? ($available / $dailyRunRate) : 999;
         
-        $prod = wmsFetchOne('SELECT sku, name, reorder_point FROM wms_products WHERE id = ?', [$pid]);
+        $prod = $products[$pid] ?? ['sku' => '', 'name' => '', 'reorder_point' => 0];
         
         $forecast[] = [
             'product_id' => $pid,

@@ -127,6 +127,24 @@ class TemplateEngine
 
     /** Maximum output size in bytes (5 MB default — prevents runaway templates) */
     private const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
+
+    /** Shared APCu rendered-output cache TTL (seconds). 0 = disabled. */
+    private int $sharedOutputCacheTtl = 0;
+
+    /** @var array<string,int> Aggregate cache metrics for the current FPM worker */
+    private static array $cacheMetrics = [
+        'output_hits' => 0,
+        'output_misses' => 0,
+        'source_hits' => 0,
+        'source_misses' => 0,
+        'compiles' => 0,
+    ];
+
+    /** @var int Render calls since last metrics log */
+    private static int $rendersSinceMetricsLog = 0;
+
+    /** Emit cache metrics log every N renders */
+    private const CACHE_METRICS_LOG_INTERVAL = 100;
     
     public function render(string $template, array $context = []): string
     {
@@ -138,15 +156,37 @@ class TemplateEngine
             throw new \RuntimeException("Template not found: {$template}");
         }
 
+        $context = array_merge($this->globals, $context);
+        $sharedCacheKey = null;
+        if ($this->sharedOutputCacheTtl > 0 && $this->cacheEnabled && $this->hasApcuCache()) {
+            $sharedCacheKey = $this->buildSharedOutputCacheKey($templatePath, $context);
+            $shared = apcu_fetch($sharedCacheKey, $sharedHit);
+            if ($sharedHit && is_string($shared)) {
+                self::$cacheMetrics['output_hits']++;
+                $this->logCacheMetricsPeriodic();
+                if (function_exists('log_timing')) {
+                    log_timing('disyl.render.breakdown', microtime(true) - 0.0001, [
+                        'template' => $template,
+                        'cache_path' => 'apcu_output_hit',
+                        'output_bytes' => strlen($shared),
+                    ]);
+                }
+                return $shared;
+            }
+            self::$cacheMetrics['output_misses']++;
+        }
+
         // Compiled-mode fast path: use pre-compiled PHP class when available
         if ($this->compiledMode && $this->compiledCache !== null) {
             try {
                 $compiled = $this->compiledCache->get($templatePath);
-                $mergedContext = array_merge($this->globals, $context);
-                $result = $compiled->render($mergedContext);
+                $result = $compiled->render($context);
                 if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                     $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
                     throw new \RuntimeException("Template output exceeds maximum allowed size");
+                }
+                if ($sharedCacheKey !== null) {
+                    apcu_store($sharedCacheKey, $result, $this->sharedOutputCacheTtl);
                 }
                 return $result;
             } catch (\RuntimeException $e) {
@@ -157,12 +197,13 @@ class TemplateEngine
             }
         }
         
+        $sourceReadStart = microtime(true);
         $content = $this->readTemplateSource($templatePath);
         if ($content === false) {
             $this->logError("Failed to read template: {$template}");
             throw new \RuntimeException("Failed to read template: {$template}");
         }
-        $context = array_merge($this->globals, $context);
+        $sourceReadMs = round((microtime(true) - $sourceReadStart) * 1000, 2);
         
         // In-memory cache for repeated renders within same request (e.g., HTMX partials)
         if ($this->cacheEnabled) {
@@ -172,6 +213,15 @@ class TemplateEngine
             }
             
             $result = $this->compile($content, $context);
+            if (function_exists('log_timing')) {
+                log_timing('disyl.render.breakdown', $sourceReadStart, [
+                    'template' => $template,
+                    'source_read_ms' => $sourceReadMs,
+                    'source_bytes' => strlen($content),
+                    'output_bytes' => strlen($result),
+                    'cache_path' => 'interpreted_cached',
+                ]);
+            }
 
             if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                 $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
@@ -184,6 +234,10 @@ class TemplateEngine
                 unset($this->outputCache[key($this->outputCache)]);
             }
             $this->outputCache[$memKey] = $result;
+            if ($sharedCacheKey !== null) {
+                apcu_store($sharedCacheKey, $result, $this->sharedOutputCacheTtl);
+            }
+            $this->logCacheMetricsPeriodic();
             return $result;
         }
         
@@ -194,6 +248,11 @@ class TemplateEngine
             throw new \RuntimeException("Template output exceeds maximum allowed size");
         }
 
+        if ($sharedCacheKey !== null) {
+            apcu_store($sharedCacheKey, $result, $this->sharedOutputCacheTtl);
+        }
+
+        $this->logCacheMetricsPeriodic();
         return $result;
     }
 
@@ -204,7 +263,64 @@ class TemplateEngine
             return $templatePath . '|' . $fastFingerprint;
         }
 
-        return $templatePath . '|' . md5(serialize($context));
+        try {
+            return $templatePath . '|' . md5(serialize($context));
+        } catch (\Throwable $e) {
+            // Non-serializable context payloads (e.g. closures) should not explode render path.
+            return $templatePath . '|uncacheable|' . md5(spl_object_hash($this) . '|' . (string)microtime(true));
+        }
+    }
+
+    private function buildSharedOutputCacheKey(string $templatePath, array $context): string
+    {
+        $mtime = (int)@filemtime($templatePath);
+        return 'disyl:render:' . md5($templatePath . '|' . $mtime . '|' . $this->buildOutputCacheKey($templatePath, $context));
+    }
+
+    private function hasApcuCache(): bool
+    {
+        return extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled();
+    }
+
+    public function setSharedOutputCacheTtl(int $seconds): void
+    {
+        $this->sharedOutputCacheTtl = max(0, $seconds);
+    }
+
+    /** Return aggregate cache hit/miss counters for the current FPM worker. */
+    public static function getCacheMetrics(): array
+    {
+        return self::$cacheMetrics;
+    }
+
+    /** Reset aggregate cache counters. */
+    public static function resetCacheMetrics(): void
+    {
+        self::$cacheMetrics = array_map(fn() => 0, self::$cacheMetrics);
+        self::$rendersSinceMetricsLog = 0;
+    }
+
+    /** Emit a periodic cache metrics log entry. */
+    private function logCacheMetricsPeriodic(): void
+    {
+        if (++self::$rendersSinceMetricsLog < self::CACHE_METRICS_LOG_INTERVAL) {
+            return;
+        }
+        self::$rendersSinceMetricsLog = 0;
+        if (function_exists('write_log')) {
+            $m = self::$cacheMetrics;
+            $totalOutput = $m['output_hits'] + $m['output_misses'];
+            $totalSource = $m['source_hits'] + $m['source_misses'];
+            write_log('disyl.cache.metrics', 'info', [
+                'output_hit_pct' => $totalOutput > 0 ? round($m['output_hits'] / $totalOutput * 100, 1) : null,
+                'source_hit_pct' => $totalSource > 0 ? round($m['source_hits'] / $totalSource * 100, 1) : null,
+                'compiles' => $m['compiles'],
+                'output_hits' => $m['output_hits'],
+                'output_misses' => $m['output_misses'],
+                'source_hits' => $m['source_hits'],
+                'source_misses' => $m['source_misses'],
+            ]);
+        }
     }
 
     private function tryBuildFastContextFingerprint(array $context): ?string
@@ -294,67 +410,95 @@ class TemplateEngine
      */
     private function compile(string $content, array $context): string
     {
+        self::$cacheMetrics['compiles']++;
+        $compileStartedAt = microtime(true);
+        $phases = [];
+
         if (!str_contains($content, '{') && stripos($content, '<script') === false) {
             return $content;
         }
 
         // 0. Extract {verbatim}...{/verbatim} blocks — truly inert, restored last
         $verbatims = [];
-        $content = preg_replace_callback('/\{verbatim\}(.*?)\{\/verbatim\}/s', function($match) use (&$verbatims) {
-            $key = '___VERBATIM_' . count($verbatims) . '___';
-            $verbatims[$key] = $match[1];
-            return $key;
-        }, $content);
+        if (str_contains($content, '{verbatim')) {
+            $content = preg_replace_callback('/\{verbatim\}(.*?)\{\/verbatim\}/s', function($match) use (&$verbatims) {
+                $key = '___VERBATIM_' . count($verbatims) . '___';
+                $verbatims[$key] = $match[1];
+                return $key;
+            }, $content);
+        }
         
         // 1. Remove comments first
-        $content = $this->removeComments($content);
+        if (str_contains($content, '{!--') || str_contains($content, '{*')) {
+            $content = $this->removeComments($content);
+        }
         
         // 2. Process extends/layouts (merges child blocks into layout)
-        $content = $this->processExtends($content, $context);
+        if (str_contains($content, '{extends ')) {
+            $t = microtime(true);
+            $content = $this->processExtends($content, $context);
+            $phases['extends_ms'] = round((microtime(true) - $t) * 1000, 2);
+        }
         
         // 3. Remove comments again (layout may have comments)
-        $content = $this->removeComments($content);
+        if (str_contains($content, '{!--') || str_contains($content, '{*')) {
+            $content = $this->removeComments($content);
+        }
         
         // 4. Process blocks (standalone)
-        $content = $this->processBlocks($content, $context);
+        if (str_contains($content, '{block ')) {
+            $content = $this->processBlocks($content, $context);
+        }
         
         // 4b. Extract <script> blocks and process them with full DiSyL support.
         //     JS curly braces that are NOT DiSyL tags are protected by temporarily
         //     converting them to markers before control structure processing.
         $scripts = [];
-        $content = preg_replace_callback('/<script\b([^>]*)>(.*?)<\/script>/si', function($match) use (&$scripts, $context) {
-            $attrs = $match[1];
-            $body = $match[2];
-            
-            // Resolve DiSyL variables in tag attributes (e.g. src="{base_url}/...")
-            $attrs = $this->processVariables($attrs, $context);
-            
-            // Compile the script body with full DiSyL support
-            $body = $this->compileScriptBody($body, $context);
-            
-            $key = '___SCRIPT_' . count($scripts) . '___';
-            $scripts[$key] = '<script' . $attrs . '>' . $body . '</script>';
-            return $key;
-        }, $content);
+        if (stripos($content, '<script') !== false) {
+            $t = microtime(true);
+            $content = preg_replace_callback('/<script\b([^>]*)>(.*?)<\/script>/si', function($match) use (&$scripts, $context) {
+                $attrs = $match[1];
+                $body = $match[2];
+                
+                // Resolve DiSyL variables in tag attributes (e.g. src="{base_url}/...")
+                $attrs = $this->processVariables($attrs, $context);
+                
+                // Compile the script body with full DiSyL support
+                $body = $this->compileScriptBody($body, $context);
+                
+                $key = '___SCRIPT_' . count($scripts) . '___';
+                $scripts[$key] = '<script' . $attrs . '>' . $body . '</script>';
+                return $key;
+            }, $content);
+            $phases['scripts_ms'] = round((microtime(true) - $t) * 1000, 2);
+        }
         
         // 5. Extract {literal}...{/literal} blocks — after extends/blocks but before
         //    control structures, so they work correctly inside loop bodies
         $literals = [];
-        $content = preg_replace_callback('/\{literal\}(.*?)\{\/literal\}/s', function($match) use (&$literals) {
-            $key = '___LITERAL_' . count($literals) . '___';
-            $literals[$key] = $match[1];
-            return $key;
-        }, $content);
+        if (str_contains($content, '{literal')) {
+            $content = preg_replace_callback('/\{literal\}(.*?)\{\/literal\}/s', function($match) use (&$literals) {
+                $key = '___LITERAL_' . count($literals) . '___';
+                $literals[$key] = $match[1];
+                return $key;
+            }, $content);
+        }
         
         // 6. Process {set var = expr} assignments (mutates context)
-        $content = $this->processSetStatements($content, $context);
+        if (str_contains($content, '{set ')) {
+            $content = $this->processSetStatements($content, $context);
+        }
         
         // 7. Process control structures (if/for/foreach) - token-based for proper nesting
+        $t = microtime(true);
         $content = $this->processControlStructures($content, $context);
+        $phases['control_ms'] = round((microtime(true) - $t) * 1000, 2);
         
         // 8. Process includes
         if (str_contains($content, '{include ')) {
+            $t = microtime(true);
             $content = $this->processIncludes($content, $context);
+            $phases['includes_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
         // 9. Process components
@@ -364,7 +508,9 @@ class TemplateEngine
         
         // 10. Process remaining variables (including arithmetic and ternary expressions)
         if (str_contains($content, '{')) {
+            $t = microtime(true);
             $content = $this->processVariables($content, $context);
+            $phases['variables_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
         // 11. Restore {literal} blocks (raw, no processing)
@@ -380,6 +526,13 @@ class TemplateEngine
         // 13. Restore {verbatim} blocks last (completely raw)
         if (!empty($verbatims)) {
             $content = str_replace(array_keys($verbatims), array_values($verbatims), $content);
+        }
+
+        // Emit phase breakdown (guarded by APP_TIMING_LOGS)
+        $phases['total_ms'] = round((microtime(true) - $compileStartedAt) * 1000, 2);
+        $phases['content_bytes'] = strlen($content);
+        if (function_exists('log_timing')) {
+            log_timing('disyl.compile.phases', $compileStartedAt, $phases);
         }
         
         return $content;
@@ -473,7 +626,9 @@ class TemplateEngine
         $body = $this->processControlStructures($body, $context);
         
         // Process includes
-        $body = $this->processIncludes($body, $context);
+        if (str_contains($body, '{include ')) {
+            $body = $this->processIncludes($body, $context);
+        }
         
         // Process variables (raw output in script context)
         $body = $this->processScriptVariables($body, $context);
@@ -799,92 +954,276 @@ class TemplateEngine
             return $content;
         }
 
-        $maxIterations = 100;
-        $iteration = 0;
-        
-        while ($iteration < $maxIterations) {
-            $processed = $this->processOneControlStructure($content, $context);
-            if ($processed === $content) {
-                break; // No more changes
-            }
-            $content = $processed;
-            $iteration++;
-        }
-        
-        return $content;
+        return $this->processControlStructuresSinglePass($content, $context);
     }
-    
+
     /**
-     * Process one control structure per iteration.
-     * 
-     * Loops (for/foreach/each) are processed OUTERMOST-FIRST so that
-     * compile() on the loop body can resolve inner loops with the
-     * correct iteration context.
-     * 
-     * Conditionals (if) are processed INNERMOST-FIRST so that nested
-     * conditions evaluate correctly bottom-up.
+     * Single-pass control structure processor.
+     *
+     * Scans left-to-right for top-level control structures, processes each
+     * in-place, and concatenates the results.  Nested structures inside loop
+     * bodies are handled by the recursive compile() call; nested structures
+     * inside chosen if-branches are handled by recursive invocation of this
+     * method.
+     *
+     * Replaces the former O(N²) while-loop that rescanned the full string
+     * after every single structure evaluation.
      */
-    private function processOneControlStructure(string $content, array $context): string
+    private function processControlStructuresSinglePass(string $content, array $context): string
     {
-        $result = $this->processFirstLoopStructure($content, $context);
-        if ($result !== null) {
-            return $result;
-        }
-
-        $result = $this->processLastIfStructure($content, $context);
-        if ($result !== null) {
-            return $result;
-        }
-
-        return $content;
-    }
-
-    private function processFirstLoopStructure(string $content, array $context): ?string
-    {
+        $result = '';
         $offset = 0;
         $len = strlen($content);
+        $allTypes = ['for', 'foreach', 'each', 'if'];
 
         while ($offset < $len) {
-            $tag = $this->findNextOpeningControlTag($content, $offset, ['for', 'foreach', 'each']);
+            $tag = $this->findNextOpeningControlTag($content, $offset, $allTypes);
+
             if ($tag === null) {
+                $result .= substr($content, $offset);
                 break;
             }
 
-            $result = $this->extractAndProcessStructure($content, $tag, $context);
-            if ($result !== null) {
-                return $result;
+            // Append literal text before this structure
+            if ($tag['pos'] > $offset) {
+                $result .= substr($content, $offset, $tag['pos'] - $offset);
             }
 
-            $offset = $tag['pos'] + 1;
+            $afterOpen = $tag['pos'] + $tag['len'];
+            $closePos = $this->findMatchingClose($content, $afterOpen, $tag['type']);
+
+            if ($closePos === false) {
+                // No matching close — output the opening tag as literal text
+                $result .= $tag['full'];
+                $offset = $afterOpen;
+                continue;
+            }
+
+            $closeLen = strlen('{/' . $tag['type'] . '}');
+            $innerContent = substr($content, $afterOpen, $closePos - $afterOpen);
+
+            $result .= $this->evaluateStructureBody($tag, $innerContent, $context);
+            $offset = $closePos + $closeLen;
         }
 
-        return null;
+        return $result;
     }
 
-    private function processLastIfStructure(string $content, array $context): ?string
+    /**
+     * Dispatch a matched control structure to the appropriate evaluator.
+     */
+    private function evaluateStructureBody(array $tag, string $innerContent, array $context): string
     {
-        $ifTags = [];
-        $offset = 0;
-        $len = strlen($content);
+        return match ($tag['type']) {
+            'if'      => $this->evaluateIfBody($tag['expr'], $innerContent, $context),
+            'for'     => $this->evaluateForBody($tag['expr'], $innerContent, $context),
+            'foreach' => $this->evaluateForeachBody($tag['expr'], $innerContent, $context),
+            'each'    => $this->evaluateEachBody($tag['expr'], $innerContent, $context),
+            default   => '',
+        };
+    }
 
-        while ($offset < $len) {
-            $tag = $this->findNextOpeningControlTag($content, $offset, ['if']);
-            if ($tag === null) {
+    /**
+     * Evaluate an {if}/{elseif}/{else}/{/if} structure.
+     *
+     * Picks the winning branch, then recursively processes any nested
+     * control structures inside the chosen content.
+     */
+    private function evaluateIfBody(string $condition, string $innerContent, array $context): string
+    {
+        $branches = $this->parseIfBranches($innerContent, $condition);
+        $chosenContent = '';
+        foreach ($branches as $branch) {
+            if ($branch['type'] === 'else' || $this->evaluateCondition($branch['condition'], $context)) {
+                $chosenContent = $branch['content'];
                 break;
             }
+        }
+        if ($chosenContent === '') {
+            return '';
+        }
+        // Recursively process any nested control structures in the chosen branch
+        if (
+            str_contains($chosenContent, '{if')
+            || str_contains($chosenContent, '{for')
+            || str_contains($chosenContent, '{foreach')
+            || str_contains($chosenContent, '{each')
+        ) {
+            return $this->processControlStructuresSinglePass($chosenContent, $context);
+        }
+        return $chosenContent;
+    }
 
-            $ifTags[] = $tag;
-            $offset = $tag['pos'] + 1;
+    /**
+     * Evaluate a {for item in list}...{empty}...{/for} body.
+     */
+    private function evaluateForBody(string $expr, string $innerContent, array $context): string
+    {
+        if (!preg_match('/^(\w+)\s+in\s+(.+)$/s', trim($expr), $parts)) {
+            return '';
         }
 
-        for ($index = count($ifTags) - 1; $index >= 0; $index--) {
-            $result = $this->extractAndProcessStructure($content, $ifTags[$index], $context);
-            if ($result !== null) {
-                return $result;
+        $itemName = $parts[1];
+        $listExpr = trim($parts[2]);
+
+        $body = $innerContent;
+        $emptyContent = '';
+        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
+            $emptyContent = substr($body, $emptyTagPos + 7);
+            $body = substr($body, 0, $emptyTagPos);
+        }
+
+        $list = $this->resolveValue($listExpr, $context);
+        if (!is_array($list)) {
+            $list = [];
+        }
+
+        if (empty($list)) {
+            return $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
+        }
+
+        $result = '';
+        $index = 0;
+        $count = count($list);
+
+        foreach ($list as $key => $item) {
+            $loopContext = array_merge($context, [
+                $itemName => $item,
+                'loop' => [
+                    'index' => $index,
+                    'index1' => $index + 1,
+                    'first' => $index === 0,
+                    'last' => $index === $count - 1,
+                    'key' => $key,
+                    'length' => $count,
+                ],
+            ]);
+            $result .= $this->compile($body, $loopContext);
+            $index++;
+        }
+        return $result;
+    }
+
+    /**
+     * Evaluate a {foreach list as [key =>] value}...{empty}...{/foreach} body.
+     */
+    private function evaluateForeachBody(string $expr, string $innerContent, array $context): string
+    {
+        $keyName = null;
+        $itemName = null;
+        $listExpr = null;
+
+        if (preg_match('/^(.+)\s+as\s+(\w+)\s*=>\s*(\w+)$/s', $expr, $parts)) {
+            $listExpr = trim($parts[1]);
+            $keyName = $parts[2];
+            $itemName = $parts[3];
+        } elseif (preg_match('/^(.+)\s+as\s+(\w+)$/s', $expr, $parts)) {
+            $listExpr = trim($parts[1]);
+            $itemName = $parts[2];
+        } else {
+            return '';
+        }
+
+        $body = $innerContent;
+        $emptyContent = '';
+        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
+            $emptyContent = substr($body, $emptyTagPos + 7);
+            $body = substr($body, 0, $emptyTagPos);
+        }
+
+        $list = $this->resolveValue($listExpr, $context);
+        if (!is_array($list)) {
+            $list = [];
+        }
+
+        if (empty($list)) {
+            return $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
+        }
+
+        $result = '';
+        $index = 0;
+        $count = count($list);
+
+        foreach ($list as $key => $item) {
+            $loopContext = array_merge($context, [
+                $itemName => $item,
+                'loop' => [
+                    'index' => $index,
+                    'index1' => $index + 1,
+                    'first' => $index === 0,
+                    'last' => $index === $count - 1,
+                    'key' => $key,
+                    'length' => $count,
+                ],
+            ]);
+            if ($keyName) {
+                $loopContext[$keyName] = $key;
             }
+            $result .= $this->compile($body, $loopContext);
+            $index++;
+        }
+        return $result;
+    }
+
+    /**
+     * Evaluate a {each list as [key =>] value}...{empty}...{/each} body.
+     */
+    private function evaluateEachBody(string $expr, string $innerContent, array $context): string
+    {
+        $keyName = null;
+        $itemName = null;
+        $listExpr = null;
+
+        if (preg_match('/^(.+)\s+as\s+(\w+)\s*=>\s*(\w+)$/s', $expr, $parts)) {
+            $listExpr = trim($parts[1]);
+            $keyName = $parts[2];
+            $itemName = $parts[3];
+        } elseif (preg_match('/^(.+)\s+as\s+(\w+)$/s', $expr, $parts)) {
+            $listExpr = trim($parts[1]);
+            $itemName = $parts[2];
+        } else {
+            return '';
         }
 
-        return null;
+        $body = $innerContent;
+        $emptyContent = '';
+        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
+            $emptyContent = substr($body, $emptyTagPos + 7);
+            $body = substr($body, 0, $emptyTagPos);
+        }
+
+        $list = $this->resolveValue($listExpr, $context);
+        if (!is_array($list)) {
+            $list = [];
+        }
+
+        if (empty($list)) {
+            return $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
+        }
+
+        $result = '';
+        $index = 0;
+        $count = count($list);
+
+        foreach ($list as $key => $item) {
+            $loopContext = array_merge($context, [
+                $itemName => $item,
+                'loop' => [
+                    'index' => $index,
+                    'index1' => $index + 1,
+                    'first' => $index === 0,
+                    'last' => $index === $count - 1,
+                    'key' => $key,
+                    'length' => $count,
+                ],
+            ]);
+            if ($keyName !== null) {
+                $loopContext[$keyName] = $key;
+            }
+            $result .= $this->compile($body, $loopContext);
+            $index++;
+        }
+        return $result;
     }
 
     /**
@@ -957,61 +1296,6 @@ class TemplateEngine
         }
 
         return null;
-    }
-    
-    /**
-     * Extract and process a single control structure
-     */
-    private function extractAndProcessStructure(string $content, array $tag, array $context): ?string
-    {
-        $type = $tag['type'];
-        $startPos = $tag['pos'];
-        $afterOpen = $startPos + $tag['len'];
-        
-        if ($type === 'if') {
-            return $this->processIfStructure($content, $tag, $context);
-        } elseif ($type === 'for') {
-            return $this->processForStructure($content, $tag, $context);
-        } elseif ($type === 'foreach') {
-            return $this->processForeachStructure($content, $tag, $context);
-        } elseif ($type === 'each') {
-            return $this->processEachStructure($content, $tag, $context);
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Process {if}...{elseif}...{else}...{/if} structure
-     */
-    private function processIfStructure(string $content, array $tag, array $context): ?string
-    {
-        $startPos = $tag['pos'];
-        $afterOpen = $startPos + $tag['len'];
-        
-        // Find the matching {/if} - accounting for nesting
-        $closePos = $this->findMatchingClose($content, $afterOpen, 'if');
-        if ($closePos === false) {
-            return null;
-        }
-        
-        $innerContent = substr($content, $afterOpen, $closePos - $afterOpen);
-        
-        // Parse the if/elseif/else structure
-        $branches = $this->parseIfBranches($innerContent, $tag['expr']);
-        
-        // Evaluate and get result
-        $result = '';
-        foreach ($branches as $branch) {
-            if ($branch['type'] === 'else' || $this->evaluateCondition($branch['condition'], $context)) {
-                $result = $branch['content'];
-                break;
-            }
-        }
-        
-        // Replace the entire structure with result
-        $closeLen = strlen('{/if}');
-        return substr($content, 0, $startPos) . $result . substr($content, $closePos + $closeLen);
     }
     
     /**
@@ -1134,241 +1418,6 @@ class TemplateEngine
     }
     
     /**
-     * Process {for item in list}...{/for} structure
-     */
-    private function processForStructure(string $content, array $tag, array $context): ?string
-    {
-        $startPos = $tag['pos'];
-        $afterOpen = $startPos + $tag['len'];
-        
-        // Parse: item in list
-        if (!preg_match('/^(\w+)\s+in\s+(.+)$/s', trim($tag['expr']), $parts)) {
-            return null;
-        }
-        
-        $itemName = $parts[1];
-        $listExpr = trim($parts[2]);
-        
-        // Find matching {/for}
-        $closePos = $this->findMatchingClose($content, $afterOpen, 'for');
-        if ($closePos === false) {
-            return null;
-        }
-        
-        $body = substr($content, $afterOpen, $closePos - $afterOpen);
-
-        // Extract optional {empty} clause (content shown when list is empty)
-        $emptyContent = '';
-        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
-            $emptyContent = substr($body, $emptyTagPos + 7);
-            $body = substr($body, 0, $emptyTagPos);
-        }
-
-        // Get the list
-        $list = $this->resolveValue($listExpr, $context);
-        if (!is_array($list)) {
-            $list = [];
-        }
-
-        $closeLen = strlen('{/for}');
-
-        // Empty list — render {empty} clause if present
-        if (empty($list)) {
-            $emptyResult = $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
-            return substr($content, 0, $startPos) . $emptyResult . substr($content, $closePos + $closeLen);
-        }
-
-        // Iterate
-        $result = '';
-        $index = 0;
-        $count = count($list);
-        
-        foreach ($list as $key => $item) {
-            $loopContext = array_merge($context, [
-                $itemName => $item,
-                'loop' => [
-                    'index' => $index,
-                    'index1' => $index + 1,
-                    'first' => $index === 0,
-                    'last' => $index === $count - 1,
-                    'key' => $key,
-                    'length' => $count,
-                ],
-            ]);
-            $result .= $this->compile($body, $loopContext);
-            $index++;
-        }
-        
-        return substr($content, 0, $startPos) . $result . substr($content, $closePos + $closeLen);
-    }
-    
-    /**
-     * Process {foreach list as item} or {foreach list as key => value}...{/foreach} structure
-     */
-    private function processForeachStructure(string $content, array $tag, array $context): ?string
-    {
-        $startPos = $tag['pos'];
-        $afterOpen = $startPos + $tag['len'];
-        
-        $expr = trim($tag['expr']);
-        $keyName = null;
-        $itemName = null;
-        $listExpr = null;
-        
-        // Parse: list as key => value
-        if (preg_match('/^(.+)\s+as\s+(\w+)\s*=>\s*(\w+)$/s', $expr, $parts)) {
-            $listExpr = trim($parts[1]);
-            $keyName = $parts[2];
-            $itemName = $parts[3];
-        }
-        // Parse: list as item
-        elseif (preg_match('/^(.+)\s+as\s+(\w+)$/s', $expr, $parts)) {
-            $listExpr = trim($parts[1]);
-            $itemName = $parts[2];
-        } else {
-            return null;
-        }
-        
-        // Find matching {/foreach}
-        $closePos = $this->findMatchingClose($content, $afterOpen, 'foreach');
-        if ($closePos === false) {
-            return null;
-        }
-        
-        $body = substr($content, $afterOpen, $closePos - $afterOpen);
-
-        // Extract optional {empty} clause (content shown when list is empty)
-        $emptyContent = '';
-        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
-            $emptyContent = substr($body, $emptyTagPos + 7);
-            $body = substr($body, 0, $emptyTagPos);
-        }
-
-        // Get the list
-        $list = $this->resolveValue($listExpr, $context);
-        if (!is_array($list)) {
-            $list = [];
-        }
-
-        $closeLen = strlen('{/foreach}');
-
-        // Empty list — render {empty} clause if present
-        if (empty($list)) {
-            $emptyResult = $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
-            return substr($content, 0, $startPos) . $emptyResult . substr($content, $closePos + $closeLen);
-        }
-
-        // Iterate
-        $result = '';
-        $index = 0;
-        $count = count($list);
-        
-        foreach ($list as $key => $item) {
-            $loopContext = array_merge($context, [
-                $itemName => $item,
-                'loop' => [
-                    'index' => $index,
-                    'index1' => $index + 1,
-                    'first' => $index === 0,
-                    'last' => $index === $count - 1,
-                    'key' => $key,
-                    'length' => $count,
-                ],
-            ]);
-            if ($keyName) {
-                $loopContext[$keyName] = $key;
-            }
-            $result .= $this->compile($body, $loopContext);
-            $index++;
-        }
-        
-        return substr($content, 0, $startPos) . $result . substr($content, $closePos + $closeLen);
-    }
-    
-    /**
-     * Process {each list as item} or {each list as key => value}...{/each} structure
-     */
-    private function processEachStructure(string $content, array $tag, array $context): ?string
-    {
-        $startPos = $tag['pos'];
-        $afterOpen = $startPos + $tag['len'];
-        
-        $expr = trim($tag['expr']);
-        $keyName = null;
-        $itemName = null;
-        $listExpr = null;
-        
-        // Parse: list as key => value
-        if (preg_match('/^(.+)\s+as\s+(\w+)\s*=>\s*(\w+)$/s', $expr, $parts)) {
-            $listExpr = trim($parts[1]);
-            $keyName = $parts[2];
-            $itemName = $parts[3];
-        }
-        // Parse: list as item
-        elseif (preg_match('/^(.+)\s+as\s+(\w+)$/s', $expr, $parts)) {
-            $listExpr = trim($parts[1]);
-            $itemName = $parts[2];
-        } else {
-            return null;
-        }
-        
-        // Find matching {/each}
-        $closePos = $this->findMatchingClose($content, $afterOpen, 'each');
-        if ($closePos === false) {
-            return null;
-        }
-        
-        $body = substr($content, $afterOpen, $closePos - $afterOpen);
-
-        // Extract optional {empty} clause (content shown when list is empty)
-        $emptyContent = '';
-        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
-            $emptyContent = substr($body, $emptyTagPos + 7);
-            $body = substr($body, 0, $emptyTagPos);
-        }
-
-        // Get the list
-        $list = $this->resolveValue($listExpr, $context);
-        if (!is_array($list)) {
-            $list = [];
-        }
-
-        $closeLen = strlen('{/each}');
-
-        // Empty list — render {empty} clause if present
-        if (empty($list)) {
-            $emptyResult = $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
-            return substr($content, 0, $startPos) . $emptyResult . substr($content, $closePos + $closeLen);
-        }
-
-        // Iterate
-        $result = '';
-        $index = 0;
-        $count = count($list);
-        
-        foreach ($list as $key => $item) {
-            $loopContext = array_merge($context, [
-                $itemName => $item,
-                'loop' => [
-                    'index' => $index,
-                    'index1' => $index + 1,
-                    'first' => $index === 0,
-                    'last' => $index === $count - 1,
-                    'key' => $key,
-                    'length' => $count,
-                ],
-            ]);
-            if ($keyName !== null) {
-                $loopContext[$keyName] = $key;
-            }
-            $result .= $this->compile($body, $loopContext);
-            $index++;
-        }
-        
-        return substr($content, 0, $startPos) . $result . substr($content, $closePos + $closeLen);
-    }
-    
-    /**
      * Find matching closing tag, accounting for nesting
      */
     private function findMatchingClose(string $content, int $start, string $tagName): int|false
@@ -1473,13 +1522,26 @@ class TemplateEngine
     private function readIncludeSource(string $includePath): string|false
     {
         if ($this->cacheEnabled && isset($this->includeSourceCache[$includePath])) {
+            self::$cacheMetrics['source_hits']++;
             return $this->includeSourceCache[$includePath];
+        }
+
+        if ($this->cacheEnabled && $this->hasApcuCache()) {
+            $mtime = (int)@filemtime($includePath);
+            $apcuKey = 'disyl:source:' . md5($includePath . '|' . $mtime);
+            $cached = apcu_fetch($apcuKey, $ok);
+            if ($ok && is_string($cached)) {
+                self::$cacheMetrics['source_hits']++;
+                $this->includeSourceCache[$includePath] = $cached;
+                return $cached;
+            }
         }
 
         $includeContent = file_get_contents($includePath);
         if ($includeContent === false) {
             return false;
         }
+        self::$cacheMetrics['source_misses']++;
 
         if ($this->cacheEnabled) {
             if (count($this->includeSourceCache) >= self::TEMPLATE_SOURCE_CACHE_MAX) {
@@ -1487,6 +1549,11 @@ class TemplateEngine
                 unset($this->includeSourceCache[key($this->includeSourceCache)]);
             }
             $this->includeSourceCache[$includePath] = $includeContent;
+            if ($this->hasApcuCache()) {
+                $mtime = (int)@filemtime($includePath);
+                $apcuKey = 'disyl:source:' . md5($includePath . '|' . $mtime);
+                apcu_store($apcuKey, $includeContent, 300);
+            }
         }
 
         return $includeContent;
@@ -1495,8 +1562,22 @@ class TemplateEngine
     private function readTemplateSource(string $templatePath): string|false
     {
         if ($this->cacheEnabled && isset($this->templateSourceCache[$templatePath])) {
+            self::$cacheMetrics['source_hits']++;
             return $this->templateSourceCache[$templatePath];
         }
+
+        if ($this->cacheEnabled && $this->hasApcuCache()) {
+            $mtime = (int)@filemtime($templatePath);
+            $apcuKey = 'disyl:source:' . md5($templatePath . '|' . $mtime);
+            $cached = apcu_fetch($apcuKey, $ok);
+            if ($ok && is_string($cached)) {
+                self::$cacheMetrics['source_hits']++;
+                $this->templateSourceCache[$templatePath] = $cached;
+                return $cached;
+            }
+        }
+
+        self::$cacheMetrics['source_misses']++;
 
         $content = file_get_contents($templatePath);
         if ($content === false) {
@@ -1509,6 +1590,11 @@ class TemplateEngine
                 unset($this->templateSourceCache[key($this->templateSourceCache)]);
             }
             $this->templateSourceCache[$templatePath] = $content;
+            if ($this->hasApcuCache()) {
+                $mtime = (int)@filemtime($templatePath);
+                $apcuKey = 'disyl:source:' . md5($templatePath . '|' . $mtime);
+                apcu_store($apcuKey, $content, 300);
+            }
         }
 
         return $content;
@@ -1664,15 +1750,9 @@ class TemplateEngine
      * Process variables with filters, arithmetic, and ternary expressions.
      * Skips JavaScript template literals (${...}).
      * 
-     * Supports:
-     * - Simple variables: {name}, {user.email}
-     * - Filters: {name | upper}, {date | date:'M d, Y'}
-     * - Arithmetic: {page + 1}, {total - count}, {price * qty}
-     * - Ternary: {active ? 'Yes' : 'No'}
-     * - Raw output: {html_content | raw}
-     * 
-     * Auto-escape: All variables are HTML-escaped by default.
-     * Use the | raw filter to output unescaped content.
+     * Single-pass implementation: one regex scan classifies each {expression}
+     * as ternary, arithmetic, or standard variable. A per-call resolution
+     * cache avoids re-resolving the same variable path multiple times.
      */
     private function processVariables(string $content, array $context): string
     {
@@ -1680,54 +1760,59 @@ class TemplateEngine
             return $content;
         }
 
-        // First pass: ternary expressions {condition ? 'trueVal' : 'falseVal'}
-        if (str_contains($content, '?') && str_contains($content, ':')) {
-            $content = preg_replace_callback(
-                '/\{([^}]+\?[^}]+:[^}]+)\}/',
-                function($match) use ($context) {
-                    return $this->evaluateTernary(trim($match[1]), $context);
-                },
-                $content
-            );
-        }
-        
-        // Second pass: arithmetic expressions {var + num}, {var - num}, etc.
-        if (strpbrk($content, '+-*/%') !== false) {
-            $content = preg_replace_callback(
-                '/\{([a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+)\}/',
-                function($match) use ($context) {
-                    $result = $this->evaluateArithmetic(trim($match[1]), $context);
-                    if ($result !== null) {
-                        return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
-                    }
-                    // Unresolvable arithmetic — output empty to avoid leaking tag syntax
-                    return '';
-                },
-                $content
-            );
-        }
-        
-        // Third pass: standard variables with filters
+        // Resolution cache: avoid re-resolving the same variable path
+        $resolveCache = [];
+
         $content = preg_replace_callback(
-            '/(?<!\$)\{([a-zA-Z_][\w.]*(?:\s*\|\s*[^}]+)?)\}/',
-            function($match) use ($context) {
+            '/(?<!\$)\{([a-zA-Z_][\w.]*[^}]*)\}/',
+            function($match) use ($context, &$resolveCache) {
                 $expr = trim($match[1]);
+
+                // 1. Ternary: {condition ? trueVal : falseVal}
+                //    Only if ? appears before any | (avoid matching filter args containing ?)
+                if (str_contains($expr, '?') && str_contains($expr, ':')) {
+                    $pipePos = strpos($expr, '|');
+                    $qPos = strpos($expr, '?');
+                    if ($pipePos === false || $qPos < $pipePos) {
+                        return $this->evaluateTernary($expr, $context);
+                    }
+                }
+
+                // 2. Arithmetic: {var + num}, {var - num}, etc.
+                //    Only check if no pipe (filters) and operator-like chars exist
+                if (!str_contains($expr, '|') && strpbrk($expr, '+-*/%') !== false) {
+                    if (preg_match('/^[a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+$/', $expr)) {
+                        $result = $this->evaluateArithmetic($expr, $context);
+                        if ($result !== null) {
+                            return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
+                        }
+                        return '';
+                    }
+                }
+
+                // 3. Simple variable (no filters)
                 if (!str_contains($expr, '|')) {
-                    $value = $this->resolveValue($expr, $context);
+                    if (!array_key_exists($expr, $resolveCache)) {
+                        $resolveCache[$expr] = $this->resolveValue($expr, $context);
+                    }
+                    $value = $resolveCache[$expr];
 
                     if (!is_scalar($value)) {
                         return '';
                     }
-
                     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
                 }
 
-                // Check if | raw filter is present (bypass auto-escape)
+                // 4. Variable with filters
                 $hasRaw = false;
                 $filterNames = [];
                 $filters = $this->splitByPipe($expr);
                 $varPath = trim((string) array_shift($filters));
-                $value = $this->resolveValue($varPath, $context);
+
+                if (!array_key_exists($varPath, $resolveCache)) {
+                    $resolveCache[$varPath] = $this->resolveValue($varPath, $context);
+                }
+                $value = $resolveCache[$varPath];
 
                 foreach ($filters as $filter) {
                     $filter = trim($filter);
@@ -1744,21 +1829,21 @@ class TemplateEngine
                     $filterNames[] = $filterName;
                     $value = $this->applyFilter($filter, $value, $context);
                 }
-                
+
                 if (!is_scalar($value)) {
                     return '';
                 }
-                
+
                 // Auto-escape unless | raw was specified or another escape filter was used
                 if (!$hasRaw && !$this->hasEscapeFilter($expr, $filterNames)) {
                     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
                 }
-                
+
                 return (string) $value;
             },
             $content
         );
-        
+
         return $content;
     }
     

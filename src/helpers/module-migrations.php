@@ -204,16 +204,40 @@ function tenantEntryModuleIdForTenant(int $tenantId): ?string
         return null;
     }
 
+    static $requestCache = [];
+    if (array_key_exists($tenantId, $requestCache)) {
+        return $requestCache[$tenantId];
+    }
+
+    if (extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled()) {
+        $cacheKey = 'tenant:entry_module:' . $tenantId;
+        $cached = apcu_fetch($cacheKey, $hit);
+        if ($hit) {
+            $resolved = is_string($cached) && $cached !== '' ? $cached : null;
+            $requestCache[$tenantId] = $resolved;
+            return $resolved;
+        }
+    }
+
     try {
         $stmt = app()->controlDb()->prepare('SELECT entry_module_id FROM kernel_tenants WHERE id = :tenant_id LIMIT 1');
         $stmt->execute([':tenant_id' => $tenantId]);
         $value = $stmt->fetchColumn();
         if (!is_string($value)) {
+            $requestCache[$tenantId] = null;
             return null;
         }
         $value = trim($value);
-        return $value !== '' ? $value : null;
+        $resolved = $value !== '' ? $value : null;
+        $requestCache[$tenantId] = $resolved;
+        if (extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled()) {
+            $cacheKey = 'tenant:entry_module:' . $tenantId;
+            // Short TTL balances freshness with burst protection.
+            apcu_store($cacheKey, $resolved ?? '', 30);
+        }
+        return $resolved;
     } catch (Throwable $e) {
+        $requestCache[$tenantId] = null;
         return null;
     }
 }

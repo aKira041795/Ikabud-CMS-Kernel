@@ -451,7 +451,7 @@ Clean value object. No issues.
 | If/Else | `processIfStructure()`, `parseIfBranches()` | — |
 | Includes | `processIncludes()` | 20 iteration max, circular detection |
 | Components | `processComponents()` | 200 iteration max, 30 depth max |
-| Variables | `processVariables()` | Auto-escape by default |
+| Variables | `processVariables()` | Single-pass regex, per-call resolution cache, auto-escape |
 | Ternary | `evaluateTernary()` | — |
 | Arithmetic | `evaluateArithmetic()` | — |
 | Conditions | `evaluateCondition()`, `resolveConditionOperand()` | — |
@@ -771,15 +771,19 @@ The request critical path for a template render is:
 
 ```
 index.php → App::render() → TemplateEngine::render()
-  → output cache check (fast path if hit)
-  → compile() [regex pipeline, recursive for loops]
-  → processControlStructures() [up to 100 iterations, full-string scan each]
-  → processIncludes() [file I/O per include, up to 20]
-  → processComponents() [up to 200 iterations, depth 30]
-  → processVariables() [regex per variable, auto-escape per value]
+  → Handler-level cache (login 60s, health 2s — authoritative full-page cache)
+  → APCu shared output cache (disabled by default; opt-in via DISYL_SHARED_OUTPUT_TTL)
+  → readTemplateSource() [APCu source cache, 300s TTL; hit ratio instrumented]
+  → compile() [stage-gated pipeline, recursive for loop bodies]
+    → processControlStructures() [single-pass O(N) scanner]
+    → processIncludes() [file I/O per include, up to 20]
+    → processComponents() [up to 200 iterations, depth 30]
+    → processVariables() [single-pass regex, per-call resolution cache]
 ```
 
-Each `processControlStructures` iteration scans the entire remaining content string for the next control tag. For a template with N control structures, this is O(N²) in the worst case.
+**Update (2026-04-16):** `processControlStructures` was rewritten from an O(N²) while-loop (one structure per iteration, full rescan) to a single-pass O(N) left-to-right scanner. The new implementation finds all top-level structures in one traversal and processes each in-place. Nested structures in loop bodies are still handled via recursive `compile()` calls; nested structures in chosen if-branches are handled by recursive single-pass invocation. Benchmarks show control_ms avg dropped from 40.5ms → 9ms (−78%), total compile avg from 53ms → 28ms (−47%).
+
+**Update (2026-04-16, cont.):** `processVariables` rewritten from three sequential regex passes to a single unified pass with a per-call resolution cache. variables_ms max dropped from 148ms → ~14ms (−90%). Cache authority simplified: handler-level caches are primary, APCu shared output cache disabled by default. Cache hit ratio instrumentation added (`TemplateEngine::getCacheMetrics()`). Compiled mode env-gated via `DISYL_COMPILED_MODE` (awaiting v4 Parser).
 
 ### Ranked Performance Bottlenecks
 
@@ -787,7 +791,8 @@ Each `processControlStructures` iteration scans the entire remaining content str
 |---|-----------|--------|----------|
 | P1 | DB query per event fire (×3 systems) | Every event fire → at least 1 DB query (IntegrationBridge) + 1 DB query (EventTriggers) | EventBus, IntegrationBridge, EventTriggers |
 | P2 | TemplateEngine interpreted, not compiled | Every render re-parses via regex | TemplateEngine.php |
-| P3 | processControlStructures O(N²) | Full-string scan per iteration | TemplateEngine.php |
+| P3 | ~~processControlStructures O(N²)~~ | **RESOLVED 2026-04-16** — Rewritten as single-pass O(N) scanner. control_ms avg 40.5→9ms (−78%). | TemplateEngine.php |
+| P3a | ~~processVariables multi-pass + no cache~~ | **RESOLVED 2026-04-16** — Rewritten as single-pass with resolution cache. variables_ms max 148→14ms (−90%). | TemplateEngine.php |
 | P4 | File-based capability metrics with flock | Serial bottleneck under concurrency | CapabilityBus.php |
 | P5 | debug_backtrace() per module query | Expensive; cached but cliff-edge flush | KernelPDO.php |
 | P6 | Cache clearByUrlPattern O(n) full scan | Reads + decompresses every cache file | Cache.php |

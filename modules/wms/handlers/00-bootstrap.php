@@ -23,3 +23,13 @@ function wmsResponseGuard(callable $callback): void
         wmsJsonError($e->getMessage(), 422);
     }
 }
+
+function wmsApiHealth(): void
+{
+    $tenantId = app()->tenant()->current();
+    wmsJsonOk([
+        'service' => 'wms',
+        'tenant_id' => $tenantId,
+        'time' => gmdate('c'),
+    ]);
+}

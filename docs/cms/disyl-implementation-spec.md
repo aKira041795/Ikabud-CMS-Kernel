@@ -610,3 +610,96 @@ The harness covers these scenarios:
 - output-cache key generation for both the fast fingerprint path and the serialize fallback path
 
 Results are reported in microseconds per operation. Compare medians on the same machine, PHP version, and iteration count rather than comparing absolute numbers across different environments.
+
+### Caching Layers
+
+DiSyL uses a tiered caching strategy with clear authority:
+
+| Layer | Scope | TTL | Status | What it caches |
+|-------|-------|-----|--------|----------------|
+| **Handler-level caches** (login, health) | Cross-request | 60s / 2s | **Primary authority** | Full rendered HTML at the handler level |
+| APCu shared output cache | Cross-request (shared memory) | 0 (disabled by default, env: `DISYL_SHARED_OUTPUT_TTL`) | Opt-in for fragments | Full rendered HTML keyed by template path + context fingerprint |
+| APCu template source cache | Cross-request (shared memory) | 300s | Active | Raw template file contents, keyed by path + mtime |
+| In-memory output cache | Per-request | Request lifetime | Active | Compiled output for repeated renders (max 200 entries, FIFO eviction) |
+| In-memory source cache | Per-request | Request lifetime | Active | Template source strings (max 100 entries) |
+
+**Cache authority rule:** Handler-level caches are the single authoritative full-page cache. The DiSyL shared output cache is disabled by default to avoid competing cache layers. Enable via `DISYL_SHARED_OUTPUT_TTL=N` only for fragment/partial rendering or brief burst smoothing.
+
+### Cache Hit Ratio Instrumentation
+
+Static counters track cache performance across the FPM worker lifetime:
+
+- `output_hits` / `output_misses` — APCu shared output cache (when enabled)
+- `source_hits` / `source_misses` — Template source cache (APCu + in-memory)
+- `compiles` — Actual `compile()` invocations
+
+Access programmatically: `TemplateEngine::getCacheMetrics()` / `::resetCacheMetrics()`.
+
+A `disyl.cache.metrics` log entry fires every 100 renders with:
+`output_hit_pct`, `source_hit_pct`, `compiles`, `output_hits`, `output_misses`, `source_hits`, `source_misses`.
+
+### Compile Pipeline Stages & Stage-Gating
+
+Each stage in the `compile()` pipeline is guarded by a `str_contains()` check so that stages irrelevant to a given template are skipped entirely (zero-cost when the template doesn't use that feature):
+
+1. Verbatim extraction (`{verbatim}`)
+2. Comment removal (`{!--`, `{*`)
+3. Extends/layout resolution (`{extends}`)
+4. Block processing (`{block}`)
+5. Script extraction and compilation (`<script>`)
+6. Literal extraction (`{literal}`)
+7. Set statements (`{set}`)
+8. **Control structures** (`{if}`, `{for}`, `{foreach}`, `{each}`) — single-pass O(N) scanner
+9. Includes (`{include}`)
+10. Components (`{ikb_`, `{island}`)
+11. **Variable resolution** (`{...}`) — single-pass with resolution cache
+12. Literal restore, script restore, verbatim restore
+
+### Control Structure Processing — Single-Pass Algorithm
+
+As of 2026-04-16, control structures use a **single-pass left-to-right scanner** (`processControlStructuresSinglePass`). The previous implementation used a while-loop that processed one structure per iteration and rescanned the entire string afterward — O(N²) for N structures.
+
+The new algorithm:
+1. Scans left-to-right for the next top-level `{if}`, `{for}`, `{foreach}`, or `{each}` tag
+2. Finds the matching close tag via `findMatchingClose()` (nesting-aware)
+3. Evaluates the structure body in-place and appends the result
+4. Advances past the close tag and continues scanning — no rescan
+
+Nested structures inside **loop bodies** are handled by the recursive `compile()` call on each iteration. Nested structures inside **chosen if-branches** are handled by recursive invocation of the single-pass scanner.
+
+**Measured impact** (100-request concurrent load test):
+
+| Metric | Before (O(N²)) | After (O(N)) | Change |
+|--------|----------------|--------------|--------|
+| control_ms avg | 40.5ms | 9ms | −78% |
+| control_ms p95 | 158ms | 30ms | −81% |
+| total compile avg | 53ms | 28ms | −47% |
+| total compile max | 301ms | 65–91ms | −70–78% |
+
+### Variable Processing — Single-Pass with Resolution Cache
+
+As of 2026-04-16, variable processing uses a **single unified regex pass** instead of three sequential passes (ternary, arithmetic, standard). Each `{expression}` is classified in the callback:
+
+1. **Ternary** — `?` appears before any `|` → `evaluateTernary()`
+2. **Arithmetic** — operator chars present, no filters → `evaluateArithmetic()`
+3. **Standard variable** — no filters → cached `resolveValue()` + auto-escape
+4. **Filtered variable** — pipe-split → cached base resolve + filter chain
+
+A per-call **resolution cache** (`$resolveCache`) maps variable paths to their resolved values. Templates referencing `{user.name}` 10 times resolve the path once.
+
+**Measured impact:** `variables_ms` max spike dropped from 148ms to ~14ms (−90%).
+
+### Compiled Mode
+
+Env-gated via `DISYL_COMPILED_MODE=true`. When active and the v4 Parser pipeline is available, `render()` uses pre-compiled PHP classes (`CompiledTemplate::render()`) for near-zero runtime cost. Falls back to interpreted mode silently if the v4 Parser is not yet implemented.
+
+The compiler infrastructure exists under `kernel/DiSyL/Compiler/` (TemplateCache, TemplateCompiler, TreeShaker, IncrementalCompiler) but requires the v4 AST Parser to activate.
+
+### Timing Instrumentation
+
+When `APP_TIMING_LOGS=true` (set in `.env`), the engine emits structured timing data:
+
+- **`disyl.compile.phases`** — Per-compile breakdown: `extends_ms`, `scripts_ms`, `control_ms`, `includes_ms`, `variables_ms`, `total_ms`, `content_bytes`
+- **`disyl.render.breakdown`** — Per-render: `template` name, `source_read_ms`, `source_bytes`, `output_bytes`, `cache_path`
+
+Timing entries are gated by `APP_TIMING_THRESHOLD_MS` (default 10ms) to avoid log noise. Set to `0` for full capture during profiling.

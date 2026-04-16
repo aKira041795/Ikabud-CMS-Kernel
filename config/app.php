@@ -78,6 +78,14 @@ return [
         'log_invalidations' => filter_var($_ENV['APP_CACHE_LOG_INVALIDATIONS'] ?? false, FILTER_VALIDATE_BOOL),
     ],
 
+    'disyl' => [
+        // Cross-request APCu render cache TTL (seconds).
+        // 0 = disabled (default). Handler-level caches are the authoritative
+        // full-page caches; enable this only for fragment/partial rendering
+        // or to smooth brief concurrent bursts on non-handler paths.
+        'shared_output_ttl' => (int)($_ENV['DISYL_SHARED_OUTPUT_TTL'] ?? 0),
+    ],
+
     'crypto' => [
         'control_db_enc_key' => $_ENV['CONTROL_DB_ENC_KEY'] ?? ($_ENV['APP_ENCRYPTION_KEY'] ?? null),
     ],

@@ -41,10 +41,39 @@ register_shutdown_function(static function (): void {
     $duration = microtime(true) - (float)$startTime;
     $threshold = (float)($_ENV['SLOW_REQUEST_THRESHOLD'] ?? 1.0);
     if ($duration >= $threshold && function_exists('write_log')) {
+        $requestUri = (string)($_SERVER['REQUEST_URI'] ?? '');
+        $requestPath = parse_url($requestUri !== '' ? $requestUri : '/', PHP_URL_PATH) ?: '/';
+        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+        $tenantId = null;
+        $entryModuleId = null;
+
+        if (function_exists('app')) {
+            try {
+                $tenantId = app()->tenant()->current();
+                if ($tenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
+                    $entryModuleId = tenantEntryModuleIdForTenant((int)$tenantId);
+                }
+            } catch (Throwable $ignored) {
+            }
+        }
+
+        $endpointTag = 'other';
+        if ($requestPath === '/login' || $requestPath === '/wms/login') {
+            $endpointTag = 'login';
+        } elseif ($requestPath === '/api/v1/health' || $requestPath === '/api/v1/wms/health') {
+            $endpointTag = 'health';
+        }
+
         write_log('slow_request', 'warning', [
             'duration_ms' => round($duration * 1000, 1),
             'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'uri' => $requestUri,
+            'path' => $requestPath,
+            'host' => $host,
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId,
+            'endpoint_tag' => $endpointTag,
+            'request_id' => function_exists('request_id') ? request_id() : null,
             'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
         ]);
     }

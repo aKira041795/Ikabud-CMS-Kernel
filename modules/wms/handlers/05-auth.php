@@ -4,14 +4,67 @@ declare(strict_types=1);
 
 function wmsPageLogin(array $params = []): void
 {
-    $user = app()->user();
-    if (is_array($user)) {
-        $home = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/wms';
-        app()->redirect($home);
-        return;
+    $loginStartedAt = microtime(true);
+    $kernelJwtCookie = (string)config('app.jwt.cookie', 'token');
+    $hasAuthHint = isset($_SERVER['HTTP_AUTHORIZATION'])
+        || isset($_COOKIE[wmsCookieName()])
+        || isset($_COOKIE[$kernelJwtCookie]);
+
+    $tenantId = app()->tenant()->current();
+
+    if ($hasAuthHint) {
+        $user = app()->user();
+        if (is_array($user)) {
+            $home = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/wms';
+            log_timing('wms.login.path', $loginStartedAt, [
+                'phase' => 'redirect_authenticated',
+                'tenant_id' => $tenantId,
+                'cache_hit' => false,
+            ]);
+            app()->redirect($home);
+            return;
+        }
     }
 
-    echo app()->render('pages/login.disyl', wmsLoginPageContext());
+    // Cache key: fixed identifier for login page (same across all tenants for this module)
+    $cacheKey = 'wms:login:html';
+
+    if (extension_loaded('apcu') && apcu_enabled()) {
+        $cachedHtml = apcu_fetch($cacheKey);
+        if (is_string($cachedHtml) && $cachedHtml !== '') {
+            log_timing('wms.login.path', $loginStartedAt, [
+                'phase' => 'cache_hit',
+                'tenant_id' => $tenantId,
+                'cache_hit' => true,
+                'cache_key' => $cacheKey,
+            ]);
+            echo $cachedHtml;
+            return;
+        }
+    }
+
+    $ctxBuildStart = microtime(true);
+    $wmsCtx = wmsLoginPageContext();
+    $ctxBuildMs = round((microtime(true) - $ctxBuildStart) * 1000, 2);
+
+    $renderStart = microtime(true);
+    $html = app()->render('pages/login.disyl', $wmsCtx);
+    $renderMs = round((microtime(true) - $renderStart) * 1000, 2);
+    if (extension_loaded('apcu') && apcu_enabled()) {
+        apcu_store($cacheKey, $html, 60);  // 60-second TTL for higher hit rate under concurrency
+    }
+
+    log_timing('wms.login.path', $loginStartedAt, [
+        'phase' => 'render',
+        'tenant_id' => $tenantId,
+        'cache_hit' => false,
+        'cache_key' => $cacheKey,
+        'ctx_build_ms' => $ctxBuildMs,
+        'render_ms' => $renderMs,
+        'html_bytes' => strlen($html),
+    ]);
+
+    echo $html;
 }
 
 function wmsAuthLogin(): void

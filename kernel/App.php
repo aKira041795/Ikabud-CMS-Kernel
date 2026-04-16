@@ -476,6 +476,19 @@ class App
      */
     public function platformIdentity(): array
     {
+        static $requestCache = null;
+        if (is_array($requestCache)) {
+            return $requestCache;
+        }
+
+        if (extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled()) {
+            $cached = apcu_fetch('kernel:platform_identity:v1', $hit);
+            if ($hit && is_array($cached)) {
+                $requestCache = $cached;
+                return $cached;
+            }
+        }
+
         $capCount = count($this->capabilities()->capabilityIds());
         $providerCount = 0;
         foreach ($this->capabilities()->capabilityIds() as $cid) {
@@ -494,7 +507,7 @@ class App
         } catch (\Throwable $e) {
         }
 
-        return [
+        $identity = [
             'kernel' => [
                 'version' => self::KERNEL_VERSION,
                 'codename' => self::KERNEL_CODENAME,
@@ -513,6 +526,14 @@ class App
                 'multi_tenant_enabled' => $multiTenant,
             ],
         ];
+
+        $requestCache = $identity;
+        if (extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled()) {
+            // Short TTL keeps admin/runtime changes fresh while collapsing bursts.
+            apcu_store('kernel:platform_identity:v1', $identity, 15);
+        }
+
+        return $identity;
     }
 
     /**
@@ -760,6 +781,16 @@ class App
                 $this->config('paths.cache', STORAGE_PATH . '/cache/disyl'),
                 !$this->config('app.debug', false)
             );
+
+            $this->templateEngine->setSharedOutputCacheTtl(
+                (int)$this->config('disyl.shared_output_ttl', 0)
+            );
+
+            // Compiled mode (env-gated): uses pre-compiled PHP classes when
+            // the v4 Parser pipeline is available. No-op otherwise.
+            if (filter_var($_ENV['DISYL_COMPILED_MODE'] ?? false, FILTER_VALIDATE_BOOL)) {
+                $this->templateEngine->enableCompiledMode(true);
+            }
             
             $this->templateEngine->setGlobals([
                 'app_name' => $this->config('app.name', 'Ikabud System'),

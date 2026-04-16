@@ -5,25 +5,89 @@ declare(strict_types=1);
 if (!function_exists('kernelHandlePageLogin')) {
     function kernelHandlePageLogin(): void
     {
-        $loginUser = app()->user();
-        if ($loginUser) {
-            $loginHome = kernelResolveAuthenticatedHomeRedirect($loginUser, true) ?? '/';
-            app()->redirect($loginHome);
-            return;
-        }
-
-        $loginContext = [
-            'page_title' => 'Sign In',
-        ];
-        $loginTenantId = app()->tenant()->current();
-        if ($loginTenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
-            $entryModuleId = tenantEntryModuleIdForTenant((int)$loginTenantId);
-            if ($entryModuleId === 'wms' && function_exists('wmsLoginPageContext')) {
-                $loginContext = wmsLoginPageContext();
+        $loginStartedAt = microtime(true);
+        $kernelJwtCookie = (string)config('app.jwt.cookie', 'token');
+        $hasAuthHint = isset($_SERVER['HTTP_AUTHORIZATION']) || isset($_COOKIE[$kernelJwtCookie]);
+        if (!$hasAuthHint) {
+            foreach (array_keys($_COOKIE ?? []) as $cookieName) {
+                if (stripos((string)$cookieName, 'token') !== false) {
+                    $hasAuthHint = true;
+                    break;
+                }
             }
         }
 
-        echo app()->render('pages/login.disyl', $loginContext);
+        $entryModuleId = 'kernel';
+        $loginTenantId = app()->tenant()->current();
+        if ($loginTenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
+            $resolvedEntryModuleId = tenantEntryModuleIdForTenant((int)$loginTenantId);
+            if (is_string($resolvedEntryModuleId) && $resolvedEntryModuleId !== '') {
+                $entryModuleId = $resolvedEntryModuleId;
+            }
+        }
+
+        if ($hasAuthHint) {
+            $loginUser = app()->user();
+            if ($loginUser) {
+                $loginHome = kernelResolveAuthenticatedHomeRedirect($loginUser, true) ?? '/';
+                log_timing('kernel.login.path', $loginStartedAt, [
+                    'phase' => 'redirect_authenticated',
+                    'tenant_id' => $loginTenantId,
+                    'entry_module_id' => $entryModuleId,
+                    'cache_hit' => false,
+                ]);
+                app()->redirect($loginHome);
+                return;
+            }
+        }
+
+        $ctxBuildStart = microtime(true);
+        $loginContext = [
+            'page_title' => 'Sign In',
+        ];
+        if ($entryModuleId === 'wms' && function_exists('wmsLoginPageContext')) {
+            $loginContext = wmsLoginPageContext();
+        }
+        $ctxBuildMs = round((microtime(true) - $ctxBuildStart) * 1000, 2);
+
+        // Cache key includes entry module (login UI varies by entry point)
+        $cacheKey = 'kernel:login:html:' . $entryModuleId;
+
+        if (extension_loaded('apcu') && apcu_enabled()) {
+            $cachedHtml = apcu_fetch($cacheKey);
+            if (is_string($cachedHtml) && $cachedHtml !== '') {
+                log_timing('kernel.login.path', $loginStartedAt, [
+                    'phase' => 'cache_hit',
+                    'tenant_id' => $loginTenantId,
+                    'entry_module_id' => $entryModuleId,
+                    'cache_hit' => true,
+                    'cache_key' => $cacheKey,
+                    'ctx_build_ms' => $ctxBuildMs,
+                ]);
+                echo $cachedHtml;
+                return;
+            }
+        }
+
+        $renderStart = microtime(true);
+        $html = app()->render('pages/login.disyl', $loginContext);
+        $renderMs = round((microtime(true) - $renderStart) * 1000, 2);
+        if (extension_loaded('apcu') && apcu_enabled()) {
+            apcu_store($cacheKey, $html, 60);  // 60-second TTL for higher hit rate under concurrency
+        }
+
+        log_timing('kernel.login.path', $loginStartedAt, [
+            'phase' => 'render',
+            'tenant_id' => $loginTenantId,
+            'entry_module_id' => $entryModuleId,
+            'cache_hit' => false,
+            'cache_key' => $cacheKey,
+            'ctx_build_ms' => $ctxBuildMs,
+            'render_ms' => $renderMs,
+            'html_bytes' => strlen($html),
+        ]);
+
+        echo $html;
     }
 }
 
@@ -524,9 +588,38 @@ function kernelHandleApiAdminCheckUpdates(): void
 if (!function_exists('kernelHandleApiHealth')) {
 function kernelHandleApiHealth(): void
 {
+    $healthStartedAt = microtime(true);
+    $tenantId = null;
+    $entryModuleId = null;
+    try {
+        $tenantId = app()->tenant()->current();
+        if ($tenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
+            $entryModuleId = tenantEntryModuleIdForTenant((int)$tenantId);
+        }
+    } catch (Throwable $ignored) {
+    }
+
+    if (extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled()) {
+        $cacheKey = 'kernel:api_health:payload';
+        $cached = apcu_fetch($cacheKey, $hit);
+        if ($hit && is_array($cached)) {
+            log_timing('kernel.api.health.path', $healthStartedAt, [
+                'phase' => 'cache_hit',
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'cache_hit' => true,
+                'cache_key' => $cacheKey,
+            ]);
+            app()->json($cached);
+            return;
+        }
+    }
+
+    $identityStartedAt = microtime(true);
     $identity = app()->platformIdentity();
+    $identityMs = round((microtime(true) - $identityStartedAt) * 1000, 2);
     $skippedModules = array_values(getSkippedModules());
-    app()->json([
+    $payload = [
         'ok' => true,
         'app' => $identity['app']['name'] ?? config('app.name', 'Ikabud'),
         'kernel_version' => $identity['kernel']['version'] ?? '0.0.0',
@@ -535,6 +628,21 @@ function kernelHandleApiHealth(): void
             'skipped_count' => count($skippedModules),
         ],
         'time' => gmdate('c'),
+    ];
+
+    if (extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled()) {
+        // Very short TTL: enough to collapse bursts, short enough to stay fresh.
+        apcu_store('kernel:api_health:payload', $payload, 2);
+    }
+
+    log_timing('kernel.api.health.path', $healthStartedAt, [
+        'phase' => 'render',
+        'tenant_id' => $tenantId,
+        'entry_module_id' => $entryModuleId,
+        'cache_hit' => false,
+        'identity_ms' => $identityMs,
     ]);
+
+    app()->json($payload);
 }
 }

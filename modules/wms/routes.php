@@ -61,6 +61,7 @@ return [
         '/api/v1/wms/onboarding/status' => 'wms:wmsApiOnboardingStatus',
         '/api/v1/wms/diagnostics/trace' => 'wms:wmsApiDiagnosticsTrace',
         '/api/v1/wms/diagnostics/reservations' => 'wms:wmsApiDiagnosticsReservations',
+        '/api/v1/wms/health' => 'wms:wmsApiHealth',
         '/api/v1/wms/financial/valuation' => 'wms:wmsApiFinancialValuation',
         '/api/v1/wms/purchase-orders' => 'wms:wmsApiPurchaseOrdersList',
         '/api/v1/wms/exports/products.csv' => 'wms:wmsApiExportProductsCsv',
