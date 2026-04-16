@@ -60,7 +60,7 @@
 
     <div x-show="showImport" x-cloak class="w-full mt-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
         <form method="post" action="{base_url}/ecommerce/admin/inventory/import" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
-            {csrf_field}
+            <input type="hidden" name="_token" value="{csrf_token}">
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">CSV file (columns: SKU, Stock Qty)</label>
                 <input type="file" name="inventory_csv" accept=".csv,text/csv" required
