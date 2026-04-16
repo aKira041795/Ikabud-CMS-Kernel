@@ -188,7 +188,7 @@ function ecProductDecrementStock(int $productId, int $qty): bool
     // read the same value and clobber each other.
     $rowId = (int)$row['id'];
     $decremented = moduleWithContext('cms', static function () use ($rowId, $qty): bool {
-        cmsDb()->execute(
+        $stmt = cmsDb()->query(
             "UPDATE cms_entity_capabilities
              SET config = JSON_SET(
                  config,
@@ -200,7 +200,7 @@ function ecProductDecrementStock(int $productId, int $qty): bool
                AND CAST(COALESCE(JSON_EXTRACT(config, '$.stock_qty'), 0) AS SIGNED) >= ?",
             [$qty, $rowId, $qty]
         );
-        return cmsDb()->rowCount() > 0;
+        return $stmt->rowCount() > 0;
     });
 
     if (!$decremented) {
