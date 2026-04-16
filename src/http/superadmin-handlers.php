@@ -635,6 +635,41 @@ if (!function_exists('kernelHandleApiSuperadminPerf')) {
     $perfResults['cache_roundtrip_ms'] = round((microtime(true) - $t) * 1000, 2);
     $perfResults['cache_ok'] = $perfCacheOk;
 
+    // ── 5b. Cache metrics snapshot ────────────────────────────
+    try {
+        $cacheStats = app()->cache()->getStats();
+        $cacheInstances = app()->cache()->listInstances();
+
+        $hits = (int)($cacheStats['hits'] ?? 0);
+        $misses = (int)($cacheStats['misses'] ?? 0);
+        $bypasses = (int)($cacheStats['bypasses'] ?? 0);
+        $served = $hits + $misses;
+        $total = $served + $bypasses;
+
+        $perfResults['cache_metrics'] = [
+            'hits' => $hits,
+            'misses' => $misses,
+            'bypasses' => $bypasses,
+            'served_requests' => $served,
+            'total_tracked_requests' => $total,
+            'hit_rate_pct' => $served > 0 ? round(($hits / $served) * 100, 2) : 0.0,
+            'miss_rate_pct' => $served > 0 ? round(($misses / $served) * 100, 2) : 0.0,
+            'bypass_rate_pct' => $total > 0 ? round(($bypasses / $total) * 100, 2) : 0.0,
+            'cached_files' => (int)($cacheStats['cached_files'] ?? 0),
+            'active_files' => (int)($cacheStats['active_files'] ?? 0),
+            'expired_files' => (int)($cacheStats['expired_files'] ?? 0),
+            'total_size_mb' => (float)($cacheStats['total_size_mb'] ?? 0),
+            'apcu_available' => !empty($cacheStats['apcu_available']),
+            'apcu_entries' => (int)($cacheStats['apcu_entries'] ?? 0),
+            'apcu_memory_bytes' => (int)($cacheStats['apcu_memory_bytes'] ?? 0),
+            'instances' => $cacheInstances,
+        ];
+    } catch (Throwable $e) {
+        $perfResults['cache_metrics'] = [
+            'error' => $e->getMessage(),
+        ];
+    }
+
     // ── 6. DiSyL template render ──────────────────────────────
     $t = microtime(true);
     try {

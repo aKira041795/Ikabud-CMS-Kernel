@@ -29,6 +29,27 @@ declare(strict_types=1);
 
 $BASE_URL = getenv('LOAD_TEST_BASE_URL') ?: 'http://cmsnew.test';
 
+/**
+ * Comma-separated tenant hostnames to simulate in round-robin mode.
+ * Example: LOAD_TEST_TENANT_HOSTS="tenant-a.test,tenant-b.test,tenant-c.test"
+ */
+$rawTenantHosts = trim((string)(getenv('LOAD_TEST_TENANT_HOSTS') ?: ''));
+$tenantHosts = [];
+if ($rawTenantHosts !== '') {
+    foreach (explode(',', $rawTenantHosts) as $tenantHost) {
+        $tenantHost = trim($tenantHost);
+        if ($tenantHost !== '') {
+            $tenantHosts[] = $tenantHost;
+        }
+    }
+}
+if (empty($tenantHosts)) {
+    $baseHost = (string)(parse_url($BASE_URL, PHP_URL_HOST) ?? '');
+    if ($baseHost !== '') {
+        $tenantHosts[] = $baseHost;
+    }
+}
+
 $selectedProfile  = $argv[1] ?? 'all';
 $concurrency      = max(1, min(200, (int)($argv[2] ?? 10)));
 $requestsPerBatch = max($concurrency, (int)($argv[3] ?? 100));
@@ -39,6 +60,7 @@ echo "╠═══════════════════════�
 echo "║  Base URL:     {$BASE_URL}\n";
 echo "║  Concurrency:  {$concurrency}\n";
 echo "║  Requests:     {$requestsPerBatch} per profile\n";
+echo "║  Tenants:      " . count($tenantHosts) . " (" . implode(', ', $tenantHosts) . ")\n";
 echo "╚══════════════════════════════════════════════════════╝\n\n";
 
 // ── Connectivity check ───────────────────────────────────────────────────
@@ -95,6 +117,7 @@ function loadTestBatch(array $requests, int $concurrency): array
 
             $results[] = [
                 'url'    => $req['url'],
+                'tenant' => (string)($req['tenant'] ?? ''),
                 'status' => (int)curl_getinfo($ch, CURLINFO_HTTP_CODE),
                 'time'   => (float)curl_getinfo($ch, CURLINFO_TOTAL_TIME),
                 'size'   => (int)curl_getinfo($ch, CURLINFO_SIZE_DOWNLOAD),
@@ -153,6 +176,16 @@ function loadTestCreateHandle(array $req): CurlHandle
     return $ch;
 }
 
+function loadTestBuildHeaders(array $headers, ?string $tenantHost): array
+{
+    $out = $headers;
+    if (is_string($tenantHost) && $tenantHost !== '') {
+        $out[] = 'Host: ' . $tenantHost;
+        $out[] = 'X-Tenant-Host: ' . $tenantHost;
+    }
+    return $out;
+}
+
 
 // ═════════════════════════════════════════════════════════════════════════
 //  REPORTING
@@ -171,7 +204,7 @@ function loadTestReport(string $profile, array $batch): void
 
     $times   = array_column($results, 'time');
     $statuses = array_count_values(array_column($results, 'status'));
-    $errors  = array_filter($results, fn($r) => $r['error'] !== null || $r['status'] >= 500);
+    $errors  = array_filter($results, fn($r) => $r['error'] !== null || $r['status'] >= 400);
     $success = array_filter($results, fn($r) => $r['error'] === null && $r['status'] < 400);
 
     sort($times);
@@ -209,6 +242,38 @@ function loadTestReport(string $profile, array $batch): void
     $tag = $errRate > 5 ? '✗' : ($errRate > 0 ? '⚠' : '✓');
     echo "  │ Success: {$successCount}/{$total}  Errors: {$errCount}/{$total} ({$errRate}%)\n";
     echo "  │ Verdict: {$tag} " . ($errRate === 0.0 ? 'CLEAN' : ($errRate <= 5 ? 'ACCEPTABLE' : 'DEGRADED')) . "\n";
+
+    $tenantBuckets = [];
+    foreach ($results as $row) {
+        $tenant = (string)($row['tenant'] ?? '');
+        if ($tenant === '') {
+            $tenant = (string)(parse_url((string)($row['url'] ?? ''), PHP_URL_HOST) ?? 'unknown');
+        }
+        if (!isset($tenantBuckets[$tenant])) {
+            $tenantBuckets[$tenant] = [
+                'count' => 0,
+                'errors' => 0,
+                'times' => [],
+            ];
+        }
+        $tenantBuckets[$tenant]['count']++;
+        $tenantBuckets[$tenant]['times'][] = (float)($row['time'] ?? 0);
+        if (($row['error'] ?? null) !== null || (int)($row['status'] ?? 0) >= 400) {
+            $tenantBuckets[$tenant]['errors']++;
+        }
+    }
+
+    if (count($tenantBuckets) > 1) {
+        echo "  │\n";
+        echo "  │ Per-tenant breakdown:\n";
+        foreach ($tenantBuckets as $tenant => $bucket) {
+            $tCount = max(1, (int)$bucket['count']);
+            sort($bucket['times']);
+            $tP95 = $bucket['times'][(int)floor($tCount * 0.95)] ?? 0;
+            $tErrPct = round(((int)$bucket['errors'] / $tCount) * 100, 1);
+            echo "  │   {$tenant}: " . $bucket['count'] . " req, p95=" . round($tP95 * 1000) . "ms, err=" . $tErrPct . "%\n";
+        }
+    }
     echo "  └─────────────────────────────────────────────────\n\n";
 }
 
@@ -217,7 +282,7 @@ function loadTestReport(string $profile, array $batch): void
 //  PROFILE: Storefront (public GET pages)
 // ═════════════════════════════════════════════════════════════════════════
 
-function buildStorefrontRequests(string $baseUrl, int $count): array
+function buildStorefrontRequests(string $baseUrl, int $count, array $tenantHosts = []): array
 {
     $pages = [
         '/',
@@ -250,9 +315,16 @@ function buildStorefrontRequests(string $baseUrl, int $count): array
     // Blog posts may not be available via API — just use /cms/blog
 
     $requests = [];
+    $tenantCount = max(1, count($tenantHosts));
     for ($i = 0; $i < $count; $i++) {
         $page = $pages[$i % count($pages)];
-        $requests[] = ['method' => 'GET', 'url' => $baseUrl . $page];
+        $tenant = $tenantHosts[$i % $tenantCount] ?? '';
+        $requests[] = [
+            'method' => 'GET',
+            'url' => $baseUrl . $page,
+            'headers' => loadTestBuildHeaders([], $tenant),
+            'tenant' => $tenant,
+        ];
     }
     return $requests;
 }
@@ -262,7 +334,7 @@ function buildStorefrontRequests(string $baseUrl, int $count): array
 //  PROFILE: API (REST JSON endpoints)
 // ═════════════════════════════════════════════════════════════════════════
 
-function buildApiRequests(string $baseUrl, int $count): array
+function buildApiRequests(string $baseUrl, int $count, array $tenantHosts = []): array
 {
     $endpoints = [
         '/api/v1/ecommerce/products',
@@ -287,12 +359,15 @@ function buildApiRequests(string $baseUrl, int $count): array
     }
 
     $requests = [];
+    $tenantCount = max(1, count($tenantHosts));
     for ($i = 0; $i < $count; $i++) {
         $ep = $endpoints[$i % count($endpoints)];
+        $tenant = $tenantHosts[$i % $tenantCount] ?? '';
         $requests[] = [
             'method'  => 'GET',
             'url'     => $baseUrl . $ep,
-            'headers' => ['Accept: application/json'],
+            'headers' => loadTestBuildHeaders(['Accept: application/json'], $tenant),
+            'tenant' => $tenant,
         ];
     }
     return $requests;
@@ -303,11 +378,11 @@ function buildApiRequests(string $baseUrl, int $count): array
 //  PROFILE: Mixed (storefront + API interleaved)
 // ═════════════════════════════════════════════════════════════════════════
 
-function buildMixedRequests(string $baseUrl, int $count): array
+function buildMixedRequests(string $baseUrl, int $count, array $tenantHosts = []): array
 {
     $half = (int)ceil($count / 2);
-    $sf   = buildStorefrontRequests($baseUrl, $half);
-    $api  = buildApiRequests($baseUrl, $count - $half);
+    $sf   = buildStorefrontRequests($baseUrl, $half, $tenantHosts);
+    $api  = buildApiRequests($baseUrl, $count - $half, $tenantHosts);
 
     // Interleave
     $mixed = [];
@@ -330,7 +405,7 @@ function buildMixedRequests(string $baseUrl, int $count): array
 //  PROFILE: Shopping Journey (sequential multi-page session navigation)
 // ═════════════════════════════════════════════════════════════════════════
 
-function runCheckoutProfile(string $baseUrl, int $iterations): array
+function runCheckoutProfile(string $baseUrl, int $iterations, array $tenantHosts = []): array
 {
     // Discover product slugs for detail page visits
     $ch = curl_init("{$baseUrl}/api/v1/ecommerce/products?limit=5");
@@ -357,10 +432,12 @@ function runCheckoutProfile(string $baseUrl, int $iterations): array
 
     $results   = [];
     $wallStart = microtime(true);
+    $tenantCount = max(1, count($tenantHosts));
 
     for ($i = 0; $i < $iterations; $i++) {
         $cookieFile = tempnam(sys_get_temp_dir(), 'lt_cookie_');
         $slug = $productSlugs[$i % count($productSlugs)];
+        $tenant = $tenantHosts[$i % $tenantCount] ?? '';
 
         $journey = [
             '/ecommerce/shop',
@@ -380,10 +457,12 @@ function runCheckoutProfile(string $baseUrl, int $iterations): array
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS      => 3,
                 CURLOPT_USERAGENT      => 'LoadTest/1.0',
+                CURLOPT_HTTPHEADER     => loadTestBuildHeaders([], $tenant),
             ]);
             curl_exec($ch);
             $results[] = [
                 'url'    => "{$baseUrl}{$path}",
+                'tenant' => $tenant,
                 'status' => (int)curl_getinfo($ch, CURLINFO_HTTP_CODE),
                 'time'   => (float)curl_getinfo($ch, CURLINFO_TOTAL_TIME),
                 'size'   => (int)curl_getinfo($ch, CURLINFO_SIZE_DOWNLOAD),
@@ -406,7 +485,7 @@ function runCheckoutProfile(string $baseUrl, int $iterations): array
 //  CONCURRENCY RAMP — find breaking point
 // ═════════════════════════════════════════════════════════════════════════
 
-function runConcurrencyRamp(string $baseUrl): void
+function runConcurrencyRamp(string $baseUrl, array $tenantHosts = []): void
 {
     echo "══ Concurrency Ramp (finding limits) ══\n\n";
 
@@ -422,15 +501,19 @@ function runConcurrencyRamp(string $baseUrl): void
 
     foreach ($levels as $conc) {
         $requests = [];
+        $tenantCount = max(1, count($tenantHosts));
         for ($i = 0; $i < $perLevel; $i++) {
+            $tenant = $tenantHosts[$i % $tenantCount] ?? '';
             $requests[] = ['method' => 'GET', 'url' => $endpoint, 'headers' => ['Accept: application/json']];
+            $requests[$i]['headers'] = loadTestBuildHeaders($requests[$i]['headers'], $tenant);
+            $requests[$i]['tenant'] = $tenant;
         }
 
         $batch  = loadTestBatch($requests, $conc);
         $res    = $batch['results'];
         $wall   = $batch['wall_time'];
         $total  = count($res);
-        $errors = count(array_filter($res, fn($r) => $r['error'] !== null || $r['status'] >= 500));
+        $errors = count(array_filter($res, fn($r) => $r['error'] !== null || $r['status'] >= 400));
 
         $times = array_column($res, 'time');
         sort($times);
@@ -463,25 +546,36 @@ $profiles = [];
 
 if ($selectedProfile === 'all' || $selectedProfile === 'storefront') {
     $profiles['Storefront (HTML pages)'] = fn() => loadTestBatch(
-        buildStorefrontRequests($BASE_URL, $requestsPerBatch), $concurrency
+        buildStorefrontRequests($BASE_URL, $requestsPerBatch, $tenantHosts), $concurrency
     );
 }
 
 if ($selectedProfile === 'all' || $selectedProfile === 'api') {
     $profiles['API (JSON endpoints)'] = fn() => loadTestBatch(
-        buildApiRequests($BASE_URL, $requestsPerBatch), $concurrency
+        buildApiRequests($BASE_URL, $requestsPerBatch, $tenantHosts), $concurrency
     );
 }
 
 if ($selectedProfile === 'all' || $selectedProfile === 'mixed') {
     $profiles['Mixed (storefront + API)'] = fn() => loadTestBatch(
-        buildMixedRequests($BASE_URL, $requestsPerBatch), $concurrency
+        buildMixedRequests($BASE_URL, $requestsPerBatch, $tenantHosts), $concurrency
     );
+}
+
+if ($selectedProfile === 'all' || $selectedProfile === 'multitenant') {
+    if (count($tenantHosts) > 1) {
+        $profiles['Multi-Tenant Mixed (tenant round-robin)'] = fn() => loadTestBatch(
+            buildMixedRequests($BASE_URL, $requestsPerBatch, $tenantHosts), $concurrency
+        );
+    } else {
+        echo "  ⚠ Multi-tenant profile requested but only one tenant host is configured.\n";
+        echo "    Set LOAD_TEST_TENANT_HOSTS to a comma-separated list to enable true multi-tenant simulation.\n\n";
+    }
 }
 
 if ($selectedProfile === 'all' || $selectedProfile === 'checkout') {
     $checkoutIter = min(20, (int)ceil($requestsPerBatch / 4));
-    $profiles['Shopping Journey (sequential sessions)'] = fn() => runCheckoutProfile($BASE_URL, $checkoutIter);
+    $profiles['Shopping Journey (sequential sessions)'] = fn() => runCheckoutProfile($BASE_URL, $checkoutIter, $tenantHosts);
 }
 
 foreach ($profiles as $name => $runner) {
@@ -492,7 +586,7 @@ foreach ($profiles as $name => $runner) {
 
 // Concurrency ramp always runs in 'all' mode
 if ($selectedProfile === 'all' || $selectedProfile === 'ramp') {
-    runConcurrencyRamp($BASE_URL);
+    runConcurrencyRamp($BASE_URL, $tenantHosts);
 }
 
 

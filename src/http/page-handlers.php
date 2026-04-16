@@ -136,6 +136,30 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['cache_roundtrip_ms'] = round((microtime(true) - $t) * 1000, 2);
         $perfData['cache_ok'] = $perfCacheOk;
 
+        $cacheStats = [];
+        try {
+            $cacheStats = app()->cache()->getStats();
+        } catch (Throwable $e) {
+            $cacheStats = [];
+        }
+
+        $cacheHits = (int)($cacheStats['hits'] ?? 0);
+        $cacheMisses = (int)($cacheStats['misses'] ?? 0);
+        $cacheBypasses = (int)($cacheStats['bypasses'] ?? 0);
+        $cacheServed = $cacheHits + $cacheMisses;
+
+        $perfData['cache_hit_rate_pct'] = $cacheServed > 0 ? round(($cacheHits / $cacheServed) * 100, 2) : 0.0;
+        $perfData['cache_miss_rate_pct'] = $cacheServed > 0 ? round(($cacheMisses / $cacheServed) * 100, 2) : 0.0;
+        $perfData['cache_bypass_rate_pct'] = ($cacheServed + $cacheBypasses) > 0
+            ? round(($cacheBypasses / ($cacheServed + $cacheBypasses)) * 100, 2)
+            : 0.0;
+        $perfData['cache_cached_files'] = (int)($cacheStats['cached_files'] ?? 0);
+        $perfData['cache_active_files'] = (int)($cacheStats['active_files'] ?? 0);
+        $perfData['cache_expired_files'] = (int)($cacheStats['expired_files'] ?? 0);
+        $perfData['cache_total_size_mb'] = (float)($cacheStats['total_size_mb'] ?? 0);
+        $perfData['cache_apcu_entries'] = (int)($cacheStats['apcu_entries'] ?? 0);
+        $perfData['cache_apcu_available'] = !empty($cacheStats['apcu_available']);
+
         $t = microtime(true);
         try {
             ob_start();
@@ -161,6 +185,12 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ['Module discover (cold)', $perfData['module_discover_cold_ms'], 'ms', ''],
             ['Settings preload', $perfData['settings_preload_ms'], 'ms', ''],
             ['Cache round-trip', $perfData['cache_roundtrip_ms'], 'ms', $perfData['cache_ok'] ? '' : 'FAIL'],
+            ['Cache hit rate', $perfData['cache_hit_rate_pct'], '%', ''],
+            ['Cache miss rate', $perfData['cache_miss_rate_pct'], '%', ''],
+            ['Cache bypass rate', $perfData['cache_bypass_rate_pct'], '%', ''],
+            ['Cache files (active/expired)', $perfData['cache_active_files'] . '/' . $perfData['cache_expired_files'], '', ''],
+            ['Cache disk usage', $perfData['cache_total_size_mb'], 'MB', ''],
+            ['APCu entries', $perfData['cache_apcu_entries'], $perfData['cache_apcu_available'] ? 'entries' : 'entries (APCu off)', ''],
             ['DiSyL render (login page)', $perfData['disyl_render_ms'], 'ms', $perfData['disyl_ok'] ? '' : 'FAIL'],
             ['Total wall time', $perfData['total_ms'], 'ms', ''],
             ['Peak memory', $perfData['peak_memory_kb'], 'KB', ''],
