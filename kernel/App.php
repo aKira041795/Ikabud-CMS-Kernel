@@ -1116,12 +1116,20 @@ class App
                         $userTable = $this->authTableMap[$source] ?? null;
                         if ($userTable !== null) {
                             try {
-                                $stmt = $this->db()->prepare(
-                                    'SELECT COALESCE(token_version, 0) AS token_version FROM `' . $userTable . '` WHERE id = ? LIMIT 1'
-                                );
-                                $stmt->execute([$userId]);
-                                $tvRow = $stmt->fetch(\PDO::FETCH_ASSOC);
-                                if (is_array($tvRow) && (int)$tvRow['token_version'] !== (int)$this->currentUser['token_version']) {
+                                // Memoize token_version validation per request to avoid repeated queries
+                                static $tokenVersionCache = [];
+                                $cacheKey = $source . ':' . $userId;
+                                
+                                if (!isset($tokenVersionCache[$cacheKey])) {
+                                    $stmt = $this->db()->prepare(
+                                        'SELECT COALESCE(token_version, 0) AS token_version FROM `' . $userTable . '` WHERE id = ? LIMIT 1'
+                                    );
+                                    $stmt->execute([$userId]);
+                                    $tvRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+                                    $tokenVersionCache[$cacheKey] = is_array($tvRow) ? (int)$tvRow['token_version'] : 0;
+                                }
+                                
+                                if ($tokenVersionCache[$cacheKey] !== (int)$this->currentUser['token_version']) {
                                     $this->currentUser = null;
                                     return null;
                                 }
