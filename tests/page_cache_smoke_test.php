@@ -73,6 +73,7 @@ echo "\n§1  Page cache function availability\n";
 $funcs = [
     'pageCacheInstance',
     'pageCacheTtl',
+    'pageCacheTtlForModule',
     'pageCacheShouldCache',
     'pageCacheKey',
     'pageCacheTags',
@@ -95,7 +96,13 @@ t('Instance contains pagecache', str_contains($instance, 'pagecache'));
 t('Instance is tenant-scoped', str_contains($instance, '_t'));
 $ttl = pageCacheTtl();
 t('TTL is positive', $ttl > 0);
-t('TTL is 300 (event-driven)', $ttl === 300);
+t('TTL is 300 (default)', $ttl === 300);
+
+// Per-module TTL segmentation
+t('CMS TTL is 600 (10 min)', pageCacheTtlForModule('cms') === 600);
+t('Ecommerce TTL is 180 (3 min)', pageCacheTtlForModule('ecommerce') === 180);
+t('Unknown module falls back to default', pageCacheTtlForModule('unknown') === 300);
+t('Empty module falls back to default', pageCacheTtlForModule('') === 300);
 
 // ── §3 Eligibility checks ───────────────────────────────────────────
 

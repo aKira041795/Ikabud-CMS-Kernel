@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+// ── Fast-path page cache: serve cached pages WITHOUT booting the kernel ──
+// This runs before bootstrap.php / autoloader / module-manager / DB.
+// On a cache hit the response is served in ~5–20 ms and PHP exits.
+require_once __DIR__ . '/../src/helpers/fast-path-cache.php';
+
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/security.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';

@@ -20,7 +20,17 @@ declare(strict_types=1);
 // ─────────────────────────────────────────────────────────────────────────
 
 define('PAGE_CACHE_INSTANCE', 'pagecache');
-define('PAGE_CACHE_TTL', 300); // 5 minutes — event-driven invalidation handles freshness
+define('PAGE_CACHE_TTL', 300); // 5 minutes — default for most pages
+
+// ── Per-module TTL overrides (seconds) ───────────────────────────────
+// Static/CMS pages change infrequently and are event-invalidated on edit,
+// so they get a long TTL.  Product listings change more often (price,
+// stock, reviews) and ecommerce invalidation is coarser-grained, so a
+// shorter TTL provides a better freshness/performance balance.
+define('PAGE_CACHE_MODULE_TTLS', [
+    'cms'        => 600,  // 10 min — static pages, blog posts
+    'ecommerce'  => 180,  // 3 min — product listings, shop pages
+]);
 
 // ── Routes that must NEVER be page-cached ────────────────────────────
 // Session-dependent, user-specific, or mutation-triggering pages.
@@ -61,6 +71,17 @@ function pageCacheTtl(): int
     }
     $ttl = PAGE_CACHE_TTL;
     return $ttl;
+}
+
+/**
+ * Get the TTL for a specific module, falling back to the default.
+ */
+function pageCacheTtlForModule(string $moduleId): int
+{
+    if ($moduleId !== '' && isset(PAGE_CACHE_MODULE_TTLS[$moduleId])) {
+        return PAGE_CACHE_MODULE_TTLS[$moduleId];
+    }
+    return pageCacheTtl();
 }
 
 // ── Eligibility check ────────────────────────────────────────────────
@@ -192,7 +213,7 @@ function pageCacheSet(string $uri, string $html, string $moduleId, int $status =
         'uri' => $uri,
         'module' => $moduleId,
     ];
-    app()->cache()->setWithTags(pageCacheInstance(), $key, $data, $tags, pageCacheTtl());
+    app()->cache()->setWithTags(pageCacheInstance(), $key, $data, $tags, pageCacheTtlForModule($moduleId));
 }
 
 // ── Serve from cache ─────────────────────────────────────────────────

@@ -11,9 +11,13 @@ The Ikabud Kernel Application OS platform was subjected to a two-part evaluation
 - **Latency degrades linearly** beyond 5 concurrent users. At 50 concurrent, median response time is ~11 seconds.
 - **Estimated real-world capacity**: 15–25 simultaneous page-viewing users before user experience degrades noticeably.
 - **Ecommerce catalog caching** implemented: file-based, tag-invalidated, 300s TTL. Micro-benchmarks show **70–187× speedup** on cache hits at the query layer.
-- **Page-level output cache** implemented: kernel-level file cache with 300s TTL (event-driven invalidation) for all public GET pages, plus cache stampede protection via flock(). Cumulative HTTP-level improvements: **+44% storefront throughput**, **−50% p99 tail latency**, **+31% throughput ceiling** at max concurrency.
+- **Page-level output cache** implemented: kernel-level file cache with 300s TTL (event-driven invalidation) for all public GET pages, plus cache stampede protection via flock().
 - **DiSyL extends resolution cache** implemented: cross-request file cache for template inheritance chain resolution, reducing per-request CPU on cache misses.
 - **Stock gate enforced** in `ecOrderCreate()`: orders now fail with 409 when stock is insufficient instead of silently accepting.
+- **OPcache enabled** (was disabled on this server): eliminates 300–500ms of PHP compilation overhead per request.
+- **APCu installed**: in-memory L1 cache tier now active for kernel cache reads (tenant host records, page cache metadata).
+- **Fast-path pre-bootstrap cache** implemented (`src/helpers/fast-path-cache.php`): serves cached pages **before kernel boot** — no autoloading, no module-manager, no DB. Cache hits served in **~2ms** via direct file read + APCu L1 promotion. Cumulative HTTP-level improvements (vs baseline, now with OPcache+fast-path): **+541% storefront throughput**, **−99% p50 storefront latency** (3,465ms → 44ms), **+792% shopping journey throughput**.
+- **Cache TTL segmentation**: CMS pages → 600s, ecommerce pages → 180s, default → 300s.
 - **Bluehost shared hosting projection**: ~1.5–3 req/s effective throughput with 2–8 concurrent PHP workers. Acceptable for up to ~10 simultaneous users on Plus/Choice Plus plans; Basic plan caps at ~40,000 visits/month (~55/hour average).
 
 ---
@@ -28,6 +32,8 @@ The Ikabud Kernel Application OS platform was subjected to a two-part evaluation
 | OS             | Ubuntu 24.04 LTS                                   |
 | Web Server     | Apache 2.4.58 (prefork MPM)                        |
 | PHP            | 8.3.6 (mod_php, NTS)                               |
+| OPcache        | Enabled (128 MB, revalidate_freq=2s)               |
+| APCu           | Enabled (in-memory L1 cache)                       |
 | Database       | MySQL 8.0.45                                       |
 | Network        | Loopback (127.0.0.1 → cmsnew.test)                |
 
@@ -421,13 +427,16 @@ Since Bluehost already provides OPcache and NVMe SSD (our two biggest dev-server
 
 | Priority | Optimization | Expected Impact | Effort |
 |----------|-------------|----------------|--------|
-| 1 | ~~**Add page-level caching**~~ | **DONE** — kernel-level page cache, 300s TTL + stampede protection + ETag/304 (see Section 11). Cumulative measured: +44% storefront throughput, −50% p99 latency | ✅ Complete |
+| 1 | ~~**Add page-level caching**~~ | **DONE** — kernel-level page cache, 300s TTL + stampede protection + ETag/304 (see Section 11) | ✅ Complete |
 | 2 | ~~**Add query result caching**~~ | **DONE** — ecommerce catalog cache implemented (70–187× on cache hits) | ✅ Complete |
-| 3 | **Enable Cloudflare CDN** (free, included with Bluehost) for static assets | Reduces server load by 30–50% for repeat visitors | Low |
-| 4 | **Implement HTTP cache headers** (`Cache-Control: public, max-age=300`) on public pages | Browser caching eliminates repeat page loads | Low |
-| 5 | ~~**Optimize DiSyL template compilation**~~ | **DONE** — cross-request extends resolution cache (file-based, filemtime-validated). Eliminates repeated file I/O and regex processing for template inheritance chains | ✅ Complete |
-| 6 | ~~**Add stock gate to `ecOrderCreate()`**~~ | **DONE** — orders now fail with 409 when stock is insufficient. Transaction rolled back, user-friendly error returned | ✅ Complete |
-| 7 | **Lazy-load product images** and paginate API responses | Reduces page weight and DB query load | Low |
+| 3 | ~~**Enable OPcache**~~ | **DONE** — enabled on local server (was disabled). Eliminates 300–500ms PHP compilation per request. Combined with fast-path: storefront p50 3,465ms → 44ms | ✅ Complete |
+| 4 | ~~**Pre-bootstrap fast-path cache**~~ | **DONE** — `src/helpers/fast-path-cache.php` serves cache hits in ~2ms before kernel boots. +541% storefront throughput vs baseline (see Section 14) | ✅ Complete |
+| 5 | ~~**APCu in-memory L1 cache**~~ | **DONE** — installed and wired as L1 tier. Tenant host records + page cache entries promoted to APCu on first file read | ✅ Complete |
+| 6 | ~~**Optimize DiSyL template compilation**~~ | **DONE** — cross-request extends resolution cache (file-based, filemtime-validated) | ✅ Complete |
+| 7 | ~~**Add stock gate to `ecOrderCreate()`**~~ | **DONE** — orders now fail with 409 when stock is insufficient. Transaction rolled back, user-friendly error returned | ✅ Complete |
+| 8 | **Enable Cloudflare CDN** (free, included with Bluehost) for static assets | Reduces server load by 30–50% for repeat visitors | Low |
+| 9 | **Implement HTTP cache headers** (`Cache-Control: public, max-age=300`) on public pages | Browser caching eliminates repeat page loads from same user | Low |
+| 10 | **Lazy-load product images** and paginate API responses | Reduces page weight and DB query load | Low |
 
 With optimizations 1–4 implemented, projected Bluehost Plus performance:
 
@@ -614,58 +623,60 @@ Routes matching these prefixes are excluded from page caching:
 | Category CRUD | `ecCacheInvalidateCategory()` | `pagecache:module:ecommerce` |
 | Ecommerce cache flush | `ecCacheFlushAll()` | `pagecache:module:ecommerce` |
 
-### 11.5 HTTP-Level Load Test Results — Before vs After
+### 11.5 HTTP-Level Load Test Results — Cumulative Across All Rounds
 
 All tests: 10 concurrent connections, 100 requests per profile.
 
-#### Profile Comparison
+#### Profile Comparison (5 rounds)
 
-| Profile | Metric | Baseline (catalog cache only) | + Page cache v1 (60s TTL) | + TTL 300s, stampede, extends cache | Cumulative change |
-|---------|--------|-------------------------------|--------------------------|-------------------------------------|-------------------|
-| **Storefront** | Throughput | 2.7 req/s | 3.5 req/s | 3.9 req/s | **+44%** |
-| | p50 | 3,465 ms | 2,751 ms | 2,322 ms | **−33%** |
-| | p95 | 6,332 ms | 4,304 ms | 4,071 ms | **−36%** |
-| | p99 | 9,137 ms | 4,710 ms | 4,562 ms | **−50%** |
-| | Wall time | 36.7s | 28.9s | 25.4s | **−31%** |
-| **API** | Throughput | 3.9 req/s | 4.4 req/s | 4.8 req/s | **+23%** |
-| | p50 | 2,442 ms | 2,226 ms | 1,993 ms | **−18%** |
-| | p95 | 4,121 ms | 3,539 ms | 3,076 ms | **−25%** |
-| | p99 | 4,232 ms | 4,158 ms | 3,461 ms | **−18%** |
-| **Mixed** | Throughput | 3.2 req/s | 3.8 req/s | 4.3 req/s | **+34%** |
-| | p50 | 2,906 ms | 2,419 ms | 2,310 ms | **−21%** |
-| | p95 | 5,365 ms | 4,264 ms | 3,501 ms | **−35%** |
-| | p99 | 6,994 ms | 4,818 ms | 4,214 ms | **−40%** |
-| **Shopping Journey** | Throughput | 1.3 req/s | 1.8 req/s | 2.1 req/s | **+62%** |
-| | p50 | 689 ms | 552 ms | 479 ms | **−30%** |
-| | p95 | 1,387 ms | 708 ms | 543 ms | **−61%** |
-| | p99 | 1,609 ms | 805 ms | 640 ms | **−60%** |
+| Profile | Metric | Baseline | + Page cache | + TTL/stampede/extends | + OPcache + fast-path | Cumulative change |
+|---------|--------|----------|-------------|----------------------|----------------------|-------------------|
+| **Storefront** | Throughput | 2.7 req/s | 3.5 req/s | 3.9 req/s | **17.3 req/s** | **+541%** |
+| | p50 | 3,465 ms | 2,751 ms | 2,322 ms | **44 ms** | **−99%** |
+| | p95 | 6,332 ms | 4,304 ms | 4,071 ms | **2,875 ms** | **−55%** |
+| | p99 | 9,137 ms | 4,710 ms | 4,562 ms | **3,175 ms** | **−65%** |
+| | Wall time | 36.7s | 28.9s | 25.4s | **5.8s** | **−84%** |
+| **API** | Throughput | 3.9 req/s | 4.4 req/s | 4.8 req/s | **8.3 req/s** | **+113%** |
+| | p50 | 2,442 ms | 2,226 ms | 1,993 ms | **1,172 ms** | **−52%** |
+| | p95 | 4,121 ms | 3,539 ms | 3,076 ms | **1,859 ms** | **−55%** |
+| | p99 | 4,232 ms | 4,158 ms | 3,461 ms | **2,284 ms** | **−46%** |
+| **Mixed** | Throughput | 3.2 req/s | 3.8 req/s | 4.3 req/s | **12.7 req/s** | **+297%** |
+| | p50 | 2,906 ms | 2,419 ms | 2,310 ms | **627 ms** | **−78%** |
+| | p95 | 5,365 ms | 4,264 ms | 3,501 ms | **1,945 ms** | **−64%** |
+| | p99 | 6,994 ms | 4,818 ms | 4,214 ms | **2,692 ms** | **−61%** |
+| **Shopping Journey** | Throughput | 1.3 req/s | 1.8 req/s | 2.1 req/s | **11.6 req/s** | **+792%** |
+| | p50 | 689 ms | 552 ms | 479 ms | **2 ms** | **−99.7%** |
+| | p95 | 1,387 ms | 708 ms | 543 ms | **428 ms** | **−69%** |
+| | p99 | 1,609 ms | 805 ms | 640 ms | **555 ms** | **−65%** |
+
+> Shopping journey p50 dropped to **2ms** — the fast-path cache serves repeated page loads directly from APCu or file, bypassing the entire kernel stack.
 
 #### Concurrency Ramp Comparison
 
 | Concurrency | Baseline RPS | Current RPS | Baseline p50 | Current p50 | Baseline p99 | Current p99 |
 |-------------|-------------|-------------|-------------|-------------|-------------|-------------|
-| 1 | 2.0/s | 2.7/s (+35%) | 475 ms | 369 ms (−22%) | 777 ms | 443 ms (−43%) |
-| 5 | 3.8/s | 4.9/s (+29%) | 1,272 ms | 975 ms (−23%) | 1,847 ms | 1,479 ms (−20%) |
-| 10 | 3.8/s | 4.9/s (+29%) | 2,542 ms | 1,969 ms (−23%) | 4,799 ms | 2,917 ms (−39%) |
-| 25 | 4.1/s | 4.9/s (+20%) | 5,471 ms | 4,161 ms (−24%) | 10,619 ms | 9,478 ms (−11%) |
-| 50 | 3.9/s | 5.1/s (+31%) | 11,033 ms | 7,488 ms (−32%) | 12,933 ms | 9,880 ms (−24%) |
+| 1 | 2.0/s | 4.0/s (+100%) | 475 ms | 238 ms (−50%) | 777 ms | 474 ms (−39%) |
+| 5 | 3.8/s | 7.0/s (+84%) | 1,272 ms | 692 ms (−46%) | 1,847 ms | 1,149 ms (−38%) |
+| 10 | 3.8/s | 7.7/s (+103%) | 2,542 ms | 1,196 ms (−53%) | 4,799 ms | 2,401 ms (−50%) |
+| 25 | 4.1/s | 8.2/s (+100%) | 5,471 ms | 2,587 ms (−53%) | 10,619 ms | 5,953 ms (−44%) |
+| 50 | 3.9/s | 7.8/s (+100%) | 11,033 ms | 3,793 ms (−66%) | 12,933 ms | 6,424 ms (−50%) |
 
 #### Key Observations
 
-- **Shopping journey improved 62%** throughput and 60% lower p99 — repeated page loads within the 300s TTL are served entirely from file cache, skipping all PHP handler logic, DB queries, and template rendering.
-- **Storefront p99 halved** (9.1s → 4.6s) — the page cache eliminates worst-case stacking when multiple concurrent requests hit the same expensive template render; stampede protection prevents redundant rebuilds.
-- **Throughput ceiling rose 31%** at max concurrency (3.9 → 5.1 req/s at 50 concurrent) — cached responses free PHP workers faster, and the extends resolution cache reduces per-miss CPU cost.
-- **API endpoints see 23% improvement** even though they're not page-cached — reduced CPU contention from faster page-cached HTML requests freeing workers sooner, plus the extends cache reducing template compilation cost on API-served pages.
-- **Mid-range concurrency (5–10) saw the largest absolute RPS gains** — this is the sweet spot where stampede protection prevents concurrent processes from all rebuilding the same pages.
+- **Storefront p50 dropped 99%** (3,465ms → 44ms) — OPcache eliminates compilation overhead; the fast-path cache serves HTML in ~2ms; the bimodal distribution (some misses at ~3s, most hits at ~2ms) yields a p50 of 44ms at 10 concurrent.
+- **Shopping journey is essentially free** on cache hits (p50 = 2ms) — repeated product page / shop views within the 300s TTL hit APCu L1 and bypass everything.
+- **API throughput doubled** (3.9 → 8.3 req/s) even though API endpoints are not page-cached — OPcache eliminates PHP compilation cost and freed CPU from faster HTML responses reduces contention.
+- **Throughput ceiling doubled at all concurrency levels** (3.9–5.1 → 7.8–8.2 req/s) — the fast-path releases Apache workers in microseconds on cache hits instead of seconds, allowing far more parallel capacity.
+- **The bottleneck has shifted**: previously CPU-bound on PHP compilation. Now the ceiling is Apache prefork worker count on cache misses. With nginx+PHP-FPM, this would improve further.
 
 ### 11.6 Test Coverage
 
 | Test File | Assertions | Status |
 |-----------|-----------|--------|
-| `tests/page_cache_smoke_test.php` | 62 | All pass |
+| `tests/page_cache_smoke_test.php` | 67 | All pass |
 | `tests/stress_architecture_test.php` | 57 | All pass (stock gate verified in Scenario 1) |
 
-Test sections (page cache): function availability (11), instance/TTL (4), eligibility checks (16), key determinism (4), cache tags (4), set/get round-trip (7), per-module invalidation (5), URL-specific invalidation (2), full flush (3), cross-module hooks (3), log checks (2).
+Test sections (page cache): function availability (12, +`pageCacheTtlForModule`), instance/TTL (8, +4 per-module TTL assertions), eligibility checks (16), key determinism (4), cache tags (4), set/get round-trip (7), per-module invalidation (5), URL-specific invalidation (2), full flush (3), cross-module hooks (3), log checks (2).
 
 ---
 
@@ -728,12 +739,93 @@ On cache miss (first request or after template file edit), the full extends chai
 
 ---
 
+## 14. OPcache, APCu, and Pre-Bootstrap Fast-Path Cache
+
+### 14.1 OPcache
+
+OPcache was installed but **explicitly disabled** on this server via `/etc/php/8.3/apache2/conf.d/99-disable-opcache.ini`. Re-enabled with:
+
+```ini
+opcache.enable=1
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+opcache.validate_timestamps=1
+```
+
+**Impact:** Eliminates ~300–500ms of PHP file compilation overhead per request. Warm requests dropped from ~1.3s to ~330ms (4× improvement on single-user latency) before any page caching.
+
+### 14.2 APCu
+
+Installed via `apt install php8.3-apcu`. No code changes required — the kernel `Cache` class already had APCu detection and dual-write/dual-read logic in place (see `kernel/Cache.php`). APCu now serves as:
+
+- **L1 for tenant host lookups** — `ikabud:tenant_host:{sha1(host)}` (30s TTL)
+- **L1 for page cache metadata** — promoted from file on first read, valid for remaining TTL
+- **L1 for capability/admin caches** — same auto-promotion pattern
+
+### 14.3 Pre-Bootstrap Fast-Path Cache
+
+**File:** `src/helpers/fast-path-cache.php`
+
+A self-contained page cache reader that runs **before `bootstrap.php`** — before Composer autoloader, before the App singleton, before module-manager, before any DB connection.
+
+#### How It Works
+
+| Step | Code path | Cost |
+|------|-----------|------|
+| 1. Parse URI + eligibility check | `$_SERVER` only | ~0.01ms |
+| 2. Auth cookie scan | .env line scan + `$_COOKIE` | ~0.1ms |
+| 3. Tenant ID from APCu | `apcu_fetch('ikabud:tenant_host:...')` | ~0.01ms |
+| 4. Build cache file path | `md5()` operations only | ~0.01ms |
+| 5a. APCu L1 read | `apcu_fetch()` | ~0.01ms → **exit** |
+| 5b. File L2 read | `file_get_contents()` + `gzuncompress()` + `unserialize()` | ~1–5ms → **exit** |
+| Promote to APCu L1 | `apcu_store()` | ~0.01ms (async to caller) |
+
+On a fast-path cache hit: **no bootstrap.php, no autoload, no App, no DB, no module-manager, no event bus**.
+
+#### Fallback Safety
+
+Any condition that can't be resolved without the kernel causes the fast-path to `return` (not `exit`), letting the full kernel handle the request normally:
+- APCu not available → fall through
+- Tenant not in APCu yet (cold start) → fall through  
+- Cache miss or expired entry → fall through
+- Authenticated user (any auth cookie present) → fall through
+- POST/non-GET request → fall through
+
+#### APCu L1 Promotion
+
+On a file cache hit, the entry is stored in APCu with its remaining TTL. Subsequent requests for the same URI skip even the file read — served entirely from memory.
+
+### 14.4 Cache TTL Segmentation
+
+`pageCacheTtlForModule()` returns a per-module TTL instead of a global constant:
+
+| Module | TTL | Rationale |
+|--------|-----|-----------|
+| `cms` | 600s (10 min) | Static pages and blog posts change infrequently; event-driven invalidation handles explicit edits |
+| `ecommerce` | 180s (3 min) | Product pages change more often (pricing, stock, reviews); shorter TTL as safety net |
+| *(default)* | 300s (5 min) | All other modules |
+
+### 14.5 Measured Results
+
+| Metric | No OPcache (before) | + OPcache only | + OPcache + fast-path |
+|--------|---------------------|----------------|-----------------------|
+| Single request (warm, cached) | 330ms | 330ms | **2ms** |
+| Storefront throughput (10 conc) | 3.9 req/s | ~6 req/s est. | **17.3 req/s** |
+| Shopping journey p50 | 479ms | ~300ms est. | **2ms** |
+| Concurrency ceiling (50 conc) | 5.1 req/s | ~6 req/s est. | **7.8 req/s** |
+
+---
+
 ## Appendix A: Test File Inventory
 
 | File | Purpose |
 |------|---------|
 | `tests/stress_architecture_test.php` | 8-scenario architectural stress test (57 assertions, including stock gate verification) |
-| `tests/load_test.php` | HTTP load test with 4 profiles + concurrency ramp || `tests/page_cache_smoke_test.php` | Page-level cache smoke test (62 assertions) || `tests/ecommerce_cache_smoke_test.php` | Ecommerce cache layer smoke test (25 assertions) |
+| `tests/load_test.php` | HTTP load test with 4 profiles + concurrency ramp |
+| `tests/page_cache_smoke_test.php` | Page-level cache smoke test (67 assertions, including per-module TTL segmentation) |
+| `tests/ecommerce_cache_smoke_test.php` | Ecommerce cache layer smoke test (25 assertions) |
 | `tests/ecommerce_cache_benchmark.php` | Cache hit vs miss micro-benchmarks |
 | `modules/ecommerce/helpers/31-inventory.php` | Fixed: `cmsDb()->rowCount()` → `query()->rowCount()` |
 
@@ -777,13 +869,14 @@ Conc  RPS    p50     p95      p99      Max      Errors
 50    5.1    8015ms  9799ms   9872ms   9872ms   0
 ```
 
-### Current (catalog cache + page cache 300s + stampede protection + extends cache)
+### Previous (catalog cache + page cache 300s + stampede protection + extends cache)
 
 ```
 Requests per level: 50
 Ecommerce catalog cache: ACTIVE (file-based, 300s TTL)
 Page-level cache: ACTIVE (file-based, 300s TTL, stampede protection)
 DiSyL extends cache: ACTIVE (file-based, filemtime-validated)
+OPcache: INACTIVE  APCu: INACTIVE  Fast-path: INACTIVE
 
 Conc  RPS    p50     p95      p99      Max      Errors
 1     2.7    369ms   404ms    443ms    443ms    0
@@ -793,9 +886,29 @@ Conc  RPS    p50     p95      p99      Max      Errors
 50    5.1    7488ms  9848ms   9880ms   9880ms   0
 ```
 
+### Current (all caches + OPcache + APCu L1 + pre-bootstrap fast-path)
+
+```
+Requests per level: 50
+Ecommerce catalog cache: ACTIVE (file-based, 300s TTL)
+Page-level cache: ACTIVE (file-based, CMS=600s / EC=180s / default=300s, stampede protection)
+DiSyL extends cache: ACTIVE (file-based, filemtime-validated)
+OPcache: ACTIVE (128 MB, revalidate_freq=2s)
+APCu: ACTIVE (in-memory L1 for tenant host + page cache entries)
+Fast-path cache: ACTIVE (pre-bootstrap, ~2ms cache hits)
+
+Conc  RPS    p50     p95      p99      Max      Errors
+1     4.0    238ms   379ms    474ms    474ms    0
+5     7.0    692ms   988ms    1149ms   1149ms   0
+10    7.7    1196ms  1984ms   2401ms   2401ms   0
+25    8.2    2587ms  5347ms   5953ms   5953ms   0
+50    7.8    3793ms  6379ms   6424ms   6424ms   0
+```
+
 ---
 
 *Updated: April 16, 2026*
 *Ecommerce cache layer added: April 16, 2026*
 *Page-level output cache added: April 16, 2026*
 *TTL increase (60→300s), stampede protection, stock gate, extends cache: April 16, 2026*
+*OPcache enabled, APCu installed, fast-path cache, TTL segmentation: April 16, 2026*
