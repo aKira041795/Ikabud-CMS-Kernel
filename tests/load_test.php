@@ -34,6 +34,9 @@ declare(strict_types=1);
  *    LOAD_TEST_ISOLATION_MAX_P95_RATIO=1.5     max p95 latency ratio vs median peer
  *    LOAD_TEST_ISOLATION_MIN_REQUESTS=10        min requests per tenant before judging
  *
+ *  Tenant entry routing map env var:
+ *    LOAD_TEST_TENANT_ENTRY_MAP="wms.test:wms,guidancemonitoring.test:guidance,baronledger.test:daily-ledger,cmsnew.test:cms"
+ *
  * ══════════════════════════════════════════════════════════════════════════
  */
 
@@ -57,6 +60,22 @@ if (empty($tenantHosts)) {
     $baseHost = (string)(parse_url($BASE_URL, PHP_URL_HOST) ?? '');
     if ($baseHost !== '') {
         $tenantHosts[] = $baseHost;
+    }
+}
+
+$tenantEntryMap = [];
+$rawTenantEntryMap = trim((string)(getenv('LOAD_TEST_TENANT_ENTRY_MAP') ?: ''));
+if ($rawTenantEntryMap !== '') {
+    foreach (explode(',', $rawTenantEntryMap) as $pair) {
+        $pair = trim($pair);
+        if ($pair === '' || strpos($pair, ':') === false) {
+            continue;
+        }
+        [$host, $entry] = array_map('trim', explode(':', $pair, 2));
+        if ($host === '' || $entry === '') {
+            continue;
+        }
+        $tenantEntryMap[strtolower($host)] = strtolower($entry);
     }
 }
 
@@ -99,6 +118,14 @@ echo "║  Requests:     {$requestsPerBatch} per profile\n";
 echo "║  Tenants:      " . count($tenantHosts) . " (" . implode(', ', $tenantHosts) . ")\n";
 echo "║  Isolation:    " . ($assertTenantIsolation ? 'ON' : 'OFF') . "\n";
 echo "╚══════════════════════════════════════════════════════╝\n\n";
+
+if (!empty($tenantEntryMap)) {
+    echo "  Tenant entry map:\n";
+    foreach ($tenantEntryMap as $host => $entry) {
+        echo "    {$host} => {$entry}\n";
+    }
+    echo "\n";
+}
 
 if ($assertTenantIsolation) {
     echo "  Tenant isolation thresholds:\n";
@@ -229,6 +256,75 @@ function loadTestBuildHeaders(array $headers, ?string $tenantHost): array
         $out[] = 'X-Tenant-Host: ' . $tenantHost;
     }
     return $out;
+}
+
+function loadTestEntryPathPools(string $entry): array
+{
+    $entry = strtolower(trim($entry));
+    $commonApi = ['/api/v1/health', '/api/v1/platform'];
+    $commonPages = ['/', '/login'];
+
+    if ($entry === 'cms') {
+        return [
+            'storefront' => ['/', '/cms/blog', '/cms/page/why-ikabud-is-reliable', '/login'],
+            'api' => ['/api/v1/health', '/api/v1/platform', '/api/v1/cms/content?type=post&status=published&limit=10'],
+        ];
+    }
+
+    if ($entry === 'daily-ledger') {
+        return [
+            'storefront' => ['/', '/login', '/daily-ledger'],
+            'api' => array_merge($commonApi, ['/api/v1/daily-ledger/entries']),
+        ];
+    }
+
+    if ($entry === 'guidance') {
+        return [
+            'storefront' => ['/', '/login', '/guidance'],
+            'api' => array_merge($commonApi, ['/api/v1/guidance/public/booking-config']),
+        ];
+    }
+
+    if ($entry === 'wms') {
+        return [
+            'storefront' => ['/', '/login', '/wms'],
+            'api' => array_merge($commonApi, ['/api/v1/wms/health']),
+        ];
+    }
+
+    return [
+        'storefront' => $commonPages,
+        'api' => $commonApi,
+    ];
+}
+
+function buildTenantAwareMixedRequests(string $baseUrl, int $count, array $tenantHosts, array $tenantEntryMap = []): array
+{
+    $requests = [];
+    $tenantCount = max(1, count($tenantHosts));
+
+    for ($i = 0; $i < $count; $i++) {
+        $tenant = $tenantHosts[$i % $tenantCount] ?? '';
+        $entry = strtolower((string)($tenantEntryMap[strtolower($tenant)] ?? ''));
+        $pools = loadTestEntryPathPools($entry);
+
+        $useApi = ($i % 2) === 1;
+        $paths = $useApi ? $pools['api'] : $pools['storefront'];
+        if (empty($paths)) {
+            $paths = $useApi ? ['/api/v1/health'] : ['/'];
+        }
+
+        $path = $paths[$i % count($paths)];
+        $headers = $useApi ? ['Accept: application/json'] : [];
+        $requests[] = [
+            'method' => 'GET',
+            'url' => $baseUrl . $path,
+            'headers' => loadTestBuildHeaders($headers, $tenant),
+            'tenant' => $tenant,
+        ];
+    }
+
+    return $requests;
 }
 
 function loadTestTenantBuckets(array $results): array
@@ -734,7 +830,8 @@ if ($selectedProfile === 'all' || $selectedProfile === 'mixed') {
 if ($selectedProfile === 'all' || $selectedProfile === 'multitenant') {
     if (count($tenantHosts) > 1) {
         $profiles['Multi-Tenant Mixed (tenant round-robin)'] = fn() => loadTestBatch(
-            buildMixedRequests($BASE_URL, $requestsPerBatch, $tenantHosts), $concurrency
+            buildTenantAwareMixedRequests($BASE_URL, $requestsPerBatch, $tenantHosts, $tenantEntryMap),
+            $concurrency
         );
     } else {
         echo "  ⚠ Multi-tenant profile requested but only one tenant host is configured.\n";
@@ -745,7 +842,7 @@ if ($selectedProfile === 'all' || $selectedProfile === 'multitenant') {
 if ($selectedProfile === 'multitenant-assert' || $selectedProfile === 'isolation') {
     if (count($tenantHosts) > 1) {
         $profiles['Multi-Tenant Assertion Probe'] = fn() => loadTestBatch(
-            buildMixedRequests($BASE_URL, $requestsPerBatch, $tenantHosts),
+            buildTenantAwareMixedRequests($BASE_URL, $requestsPerBatch, $tenantHosts, $tenantEntryMap),
             $concurrency
         );
     } else {
