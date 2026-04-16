@@ -19,6 +19,9 @@ class DatabaseManager
 {
     private const DB_IDLE_VALIDATION_SECONDS = 60;
 
+    /** @var array<int, array<string, mixed>|null> */
+    private static array $tenantDbConnectionRowCache = [];
+
     private ?PDO $db = null;
     private ?int $dbTenantTarget = null;
     private ?int $dbLastVerified = null;
@@ -68,6 +71,11 @@ class DatabaseManager
     private function tenantDbPoolMax(): int
     {
         return max(1, (int)($this->config['app']['multi_tenant']['db_pool_max'] ?? 20));
+    }
+
+    private function tenantDbConnectionCacheTtl(): int
+    {
+        return max(1, (int)($_ENV['TENANT_DB_CONFIG_CACHE_TTL'] ?? 30));
     }
 
     private function dbIdleValidationSeconds(): int
@@ -139,6 +147,41 @@ class DatabaseManager
         }
     }
 
+    /** @return array<string,mixed>|null */
+    private function fetchTenantDbConnectionRow(int $tenantId): ?array
+    {
+        if (array_key_exists($tenantId, self::$tenantDbConnectionRowCache)) {
+            return self::$tenantDbConnectionRowCache[$tenantId];
+        }
+
+        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && (bool)ini_get('apc.enabled');
+        $apcuKey = 'ikabud:tenant_db_conn:' . $tenantId;
+        if ($apcuEnabled) {
+            $cached = apcu_fetch($apcuKey, $success);
+            if ($success) {
+                $row = is_array($cached) ? $cached : null;
+                self::$tenantDbConnectionRowCache[$tenantId] = $row;
+                return $row;
+            }
+        }
+
+        $stmt = $this->controlDb()->prepare(
+            'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
+            . 'db_pass_ciphertext, db_pass_iv, db_pass_tag '
+            . 'FROM kernel_tenant_db_connections WHERE tenant_id = :tid LIMIT 1'
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $resolved = is_array($row) ? $row : null;
+
+        self::$tenantDbConnectionRowCache[$tenantId] = $resolved;
+        if ($apcuEnabled) {
+            apcu_store($apcuKey, $resolved, $this->tenantDbConnectionCacheTtl());
+        }
+
+        return $resolved;
+    }
+
     private function touchTenantDbPoolEntry(int $tenantId): ?PDO
     {
         $entry = $this->tenantDbPool[$tenantId] ?? null;
@@ -202,13 +245,7 @@ class DatabaseManager
 
         \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         try {
-            $stmt = $this->controlDb()->prepare(
-                'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
-                . 'db_pass_ciphertext, db_pass_iv, db_pass_tag '
-                . 'FROM kernel_tenant_db_connections WHERE tenant_id = :tid LIMIT 1'
-            );
-            $stmt->execute([':tid' => $tenantId]);
-            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $row = $this->fetchTenantDbConnectionRow((int)$tenantId);
             if (!is_array($row) || empty($row['db_host']) || empty($row['db_name']) || empty($row['db_user'])) {
                 throw new \UnexpectedValueException('Tenant database configuration is missing or incomplete for tenant ' . $tenantId);
             }
@@ -353,13 +390,7 @@ class DatabaseManager
 
         \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         try {
-            $stmt = $this->controlDb()->prepare(
-                'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
-                . 'db_pass_ciphertext, db_pass_iv, db_pass_tag '
-                . 'FROM kernel_tenant_db_connections WHERE tenant_id = :tid LIMIT 1'
-            );
-            $stmt->execute([':tid' => $tenantId]);
-            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $row = $this->fetchTenantDbConnectionRow((int)$tenantId);
             if (!is_array($row) || empty($row['db_host']) || empty($row['db_name']) || empty($row['db_user'])) {
                 return null;
             }
@@ -428,6 +459,13 @@ class DatabaseManager
             $this->dbTenantTarget = null;
         }
         unset($this->tenantDbPool[$tenantId]);
+        unset(self::$tenantDbConnectionRowCache[$tenantId]);
+
+        $apcuEnabled = function_exists('apcu_delete') && (bool)ini_get('apc.enabled');
+        if ($apcuEnabled) {
+            apcu_delete('ikabud:tenant_db_conn:' . $tenantId);
+        }
+
         return $this->dbForTenant($tenantId);
     }
 

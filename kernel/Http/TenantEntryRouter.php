@@ -99,6 +99,11 @@ class TenantEntryRouter
             return '/';
         }
 
+        static $landingCache = [];
+        if (isset($landingCache[$entry])) {
+            return $landingCache[$entry];
+        }
+
         $entryRoot = '/' . $entry;
         $entryLogin = '/' . $entry . '/login';
 
@@ -112,10 +117,12 @@ class TenantEntryRouter
                     $get = is_array($routes) ? ($routes['GET'] ?? []) : [];
                     if (is_array($get)) {
                         if (array_key_exists($entryRoot, $get)) {
-                            return $entryRoot;
+                            $landingCache[$entry] = $entryRoot;
+                            return $landingCache[$entry];
                         }
                         if (array_key_exists($entryLogin, $get)) {
-                            return $entryLogin;
+                            $landingCache[$entry] = $entryLogin;
+                            return $landingCache[$entry];
                         }
                     }
                 }
@@ -127,7 +134,8 @@ class TenantEntryRouter
             ]);
         }
 
-        return $entryRoot;
+        $landingCache[$entry] = $entryRoot;
+        return $landingCache[$entry];
     }
 
     private function entryModuleAvailable(string $entry): bool
@@ -158,6 +166,12 @@ class TenantEntryRouter
 
     private function shouldSkipRewrite(string $uri, string $entry): bool
     {
+        // Root should always resolve through entryLandingPath() and does not need
+        // expensive enabled-module route scanning.
+        if ($uri === '/') {
+            return false;
+        }
+
         if (str_starts_with($uri, '/api/') || str_starts_with($uri, '/admin/') || str_starts_with($uri, '/assets/') || str_starts_with($uri, '/superadmin/')) {
             return true;
         }
@@ -174,6 +188,12 @@ class TenantEntryRouter
             return true;
         }
 
+        // Requests already under the entry module prefix should skip rewrite and
+        // should not pay the cost of cross-module route pattern scanning.
+        if ($uri === '/' . $entry || str_starts_with($uri, '/' . $entry . '/')) {
+            return true;
+        }
+
         // Never rewrite CMS module routes. CMS is an in-app module that must remain
         // accessible even when a host maps to an entry module via tenant domains.
         if ($uri === '/cms' || str_starts_with($uri, '/cms/') || str_starts_with($uri, '/api/v1/cms/')) {
@@ -183,10 +203,6 @@ class TenantEntryRouter
         // Preserve public module routes even when they do not start with the
         // module ID, such as ecommerce's /store/{slug} storefront pages.
         if ($this->matchesEnabledModuleRoute($uri)) {
-            return true;
-        }
-
-        if ($uri === '/' . $entry || str_starts_with($uri, '/' . $entry . '/')) {
             return true;
         }
 

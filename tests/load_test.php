@@ -3,6 +3,51 @@
 declare(strict_types=1);
 
 /**
+ * Load .env key/value pairs for CLI runs where variables are not exported.
+ */
+function loadTestLoadDotEnvFile(string $path): void
+{
+    if (!is_file($path) || !is_readable($path)) {
+        return;
+    }
+
+    $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_array($lines)) {
+        return;
+    }
+
+    foreach ($lines as $line) {
+        $line = trim((string)$line);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        if (strpos($line, '=') === false) {
+            continue;
+        }
+
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value);
+        if ($key === '') {
+            continue;
+        }
+
+        if ((str_starts_with($value, '"') && str_ends_with($value, '"')) || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+            $value = substr($value, 1, -1);
+        }
+
+        // Do not override explicit process-level env vars.
+        if (getenv($key) === false) {
+            putenv($key . '=' . $value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+}
+
+loadTestLoadDotEnvFile(dirname(__DIR__) . '/.env');
+
+/**
  * ══════════════════════════════════════════════════════════════════════════
  *  HTTP Load Test — Concurrent Users Simulation
  * ──────────────────────────────────────────────────────────────────────────
@@ -108,6 +153,7 @@ $failFastOnIsolation = loadTestEnvBool('LOAD_TEST_FAIL_FAST', true);
 $isolationMaxErrorGapPct = max(0.0, (float)(getenv('LOAD_TEST_ISOLATION_MAX_ERROR_GAP_PCT') ?: 5.0));
 $isolationMaxP95Ratio = max(1.0, (float)(getenv('LOAD_TEST_ISOLATION_MAX_P95_RATIO') ?: 1.5));
 $isolationMinRequests = max(1, (int)(getenv('LOAD_TEST_ISOLATION_MIN_REQUESTS') ?: 10));
+$followRedirects = loadTestEnvBool('LOAD_TEST_FOLLOW_REDIRECTS', false);
 
 echo "\n╔══════════════════════════════════════════════════════╗\n";
 echo "║            HTTP LOAD TEST                            ║\n";
@@ -117,6 +163,7 @@ echo "║  Concurrency:  {$concurrency}\n";
 echo "║  Requests:     {$requestsPerBatch} per profile\n";
 echo "║  Tenants:      " . count($tenantHosts) . " (" . implode(', ', $tenantHosts) . ")\n";
 echo "║  Isolation:    " . ($assertTenantIsolation ? 'ON' : 'OFF') . "\n";
+echo "║  Redirects:    " . ($followRedirects ? 'follow' : 'no-follow') . "\n";
 echo "╚══════════════════════════════════════════════════════╝\n\n";
 
 if (!empty($tenantEntryMap)) {
@@ -224,12 +271,17 @@ function loadTestBatch(array $requests, int $concurrency): array
 
 function loadTestCreateHandle(array $req): CurlHandle
 {
+    static $followRedirects = null;
+    if (!is_bool($followRedirects)) {
+        $followRedirects = loadTestEnvBool('LOAD_TEST_FOLLOW_REDIRECTS', false);
+    }
+
     $ch = curl_init($req['url']);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 30,
         CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_FOLLOWLOCATION => $followRedirects,
         CURLOPT_MAXREDIRS      => 3,
         CURLOPT_ENCODING       => '',  // accept gzip
         CURLOPT_USERAGENT      => 'LoadTest/1.0',
@@ -298,15 +350,113 @@ function loadTestEntryPathPools(string $entry): array
     ];
 }
 
+function loadTestProbeTenantPath(string $baseUrl, string $tenantHost, string $path): array
+{
+    $ch = curl_init($baseUrl . $path);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 8,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_NOBODY => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_HTTPHEADER => loadTestBuildHeaders([], $tenantHost),
+    ]);
+    curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $timeMs = (float)curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000;
+    $err = curl_errno($ch) ? curl_error($ch) : null;
+    curl_close($ch);
+
+    return [
+        'status' => $status,
+        'time_ms' => round($timeMs, 2),
+        'error' => $err,
+    ];
+}
+
+function loadTestBuildTenantRouteCatalog(string $baseUrl, array $tenantHosts, array $tenantEntryMap = [], bool $printSummary = true): array
+{
+    $catalog = [];
+    foreach ($tenantHosts as $tenantHost) {
+        $entry = strtolower((string)($tenantEntryMap[strtolower((string)$tenantHost)] ?? ''));
+        $pools = loadTestEntryPathPools($entry);
+        $catalog[$tenantHost] = [
+            'entry' => $entry !== '' ? $entry : 'unknown',
+            'storefront' => [],
+            'api' => [],
+            'rejected' => [],
+        ];
+
+        foreach (['storefront', 'api'] as $poolKey) {
+            $paths = is_array($pools[$poolKey] ?? null) ? $pools[$poolKey] : [];
+            $accepted2xx = [];
+            $accepted3xx = [];
+            foreach ($paths as $path) {
+                $probe = loadTestProbeTenantPath($baseUrl, (string)$tenantHost, (string)$path);
+                $status = (int)($probe['status'] ?? 0);
+                $candidate = [
+                    'path' => (string)$path,
+                    'status' => $status,
+                    'time_ms' => (float)($probe['time_ms'] ?? 0),
+                ];
+
+                if ($status >= 200 && $status < 300) {
+                    $accepted2xx[] = $candidate;
+                    continue;
+                }
+
+                if ($status >= 300 && $status < 400) {
+                    $accepted3xx[] = $candidate;
+                    continue;
+                }
+
+                $catalog[$tenantHost]['rejected'][] = $candidate;
+            }
+
+            $selected = !empty($accepted2xx) ? $accepted2xx : $accepted3xx;
+            usort($selected, static fn(array $a, array $b): int => ($a['time_ms'] <=> $b['time_ms']));
+            foreach ($selected as $candidate) {
+                $catalog[$tenantHost][$poolKey][] = (string)$candidate['path'];
+            }
+        }
+
+        if (empty($catalog[$tenantHost]['storefront'])) {
+            $catalog[$tenantHost]['storefront'] = ['/'];
+        }
+        if (empty($catalog[$tenantHost]['api'])) {
+            $catalog[$tenantHost]['api'] = ['/api/v1/health'];
+        }
+    }
+
+    if ($printSummary) {
+        echo "  Route review (tenant-aware preflight):\n";
+        foreach ($catalog as $tenantHost => $row) {
+            $rejectedCount = count((array)($row['rejected'] ?? []));
+            echo "    {$tenantHost} [" . ($row['entry'] ?? 'unknown') . "]: "
+                . count((array)($row['storefront'] ?? [])) . " storefront, "
+                . count((array)($row['api'] ?? [])) . " api, "
+                . $rejectedCount . " rejected\n";
+        }
+        echo "\n";
+    }
+
+    return $catalog;
+}
+
 function buildTenantAwareMixedRequests(string $baseUrl, int $count, array $tenantHosts, array $tenantEntryMap = []): array
 {
     $requests = [];
     $tenantCount = max(1, count($tenantHosts));
+    static $routeCatalogCache = null;
+
+    if (!is_array($routeCatalogCache)) {
+        $printSummary = loadTestEnvBool('LOAD_TEST_ROUTE_REVIEW', true);
+        $routeCatalogCache = loadTestBuildTenantRouteCatalog($baseUrl, $tenantHosts, $tenantEntryMap, $printSummary);
+    }
 
     for ($i = 0; $i < $count; $i++) {
         $tenant = $tenantHosts[$i % $tenantCount] ?? '';
-        $entry = strtolower((string)($tenantEntryMap[strtolower($tenant)] ?? ''));
-        $pools = loadTestEntryPathPools($entry);
+        $pools = $routeCatalogCache[$tenant] ?? ['storefront' => ['/'], 'api' => ['/api/v1/health']];
 
         $useApi = ($i % 2) === 1;
         $paths = $useApi ? $pools['api'] : $pools['storefront'];
@@ -710,7 +860,7 @@ function runCheckoutProfile(string $baseUrl, int $iterations, array $tenantHosts
                 CURLOPT_TIMEOUT        => 15,
                 CURLOPT_COOKIEJAR      => $cookieFile,
                 CURLOPT_COOKIEFILE     => $cookieFile,
-                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_FOLLOWLOCATION => loadTestEnvBool('LOAD_TEST_FOLLOW_REDIRECTS', false),
                 CURLOPT_MAXREDIRS      => 3,
                 CURLOPT_USERAGENT      => 'LoadTest/1.0',
                 CURLOPT_HTTPHEADER     => loadTestBuildHeaders([], $tenant),
