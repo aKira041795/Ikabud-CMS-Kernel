@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The Ikabud/Baron Bakeshop platform was subjected to a two-part evaluation: (1) an architectural stress test exercising 8 internal scenarios with 56 assertions, and (2) an HTTP-level load test measuring real concurrent user performance across 4 traffic profiles and 5 concurrency levels.
+The Ikabud Kernel Application OS platform was subjected to a two-part evaluation: (1) an architectural stress test exercising 8 internal scenarios with 56 assertions, and (2) an HTTP-level load test measuring real concurrent user performance across 4 traffic profiles and 5 concurrency levels.
 
 **Key findings:**
 - **Zero data corruption** across all stress scenarios. Oversell prevention, tenant isolation, and cross-module failure isolation all hold under pressure.
@@ -337,7 +337,7 @@ These align well with Bluehost's published TTFB of 462ms for WordPress — our a
 | 10 | 2.0–3.0 | 3,000–5,000 | 5,000–10,000 | 15–30% | Very Poor |
 
 **Monthly capacity:** ~40,000 pageviews. At 5 pages/visit average = ~8,000 visits/month = ~267 visits/day.
-**Verdict:** Suitable for a new bakery site with light traffic (< 50 visits/day). Will struggle with any marketing spike.
+**Verdict:** Suitable for a single low-traffic tenant site (< 50 visits/day). Will struggle with any marketing spike.
 
 #### Plus / Choice Plus Plan ($4.95–5.45/mo intro → $9.99–11.99/mo renewal)
 
@@ -353,7 +353,7 @@ These align well with Bluehost's published TTFB of 462ms for WordPress — our a
 | 25 | 2.5–4.0 | 5,000–8,000 | timeout | 25–50% | Unusable |
 
 **Monthly capacity:** ~200,000 pageviews = ~40,000 visits/month = ~1,333 visits/day.
-**Verdict:** Workable for a small–medium bakery/shop with steady daily traffic. Handles small social media spikes but will degrade on viral traffic.
+**Verdict:** Workable for a small–medium tenant site with steady daily traffic. Handles small social media spikes but will degrade on viral traffic.
 
 #### Pro Plan ($13.95/mo intro → $19.99/mo renewal)
 
@@ -405,8 +405,8 @@ These align well with Bluehost's published TTFB of 462ms for WordPress — our a
 
 | Use Case | Recommended Plan | Monthly Budget | Notes |
 |----------|-----------------|---------------|-------|
-| Single bakery site, < 50 visits/day | Basic | $6.99/mo | Adequate but no headroom |
-| Small bakery/shop, < 500 visits/day | Plus | $9.99/mo | Good fit, handles small social spikes |
+| Single tenant site, < 50 visits/day | Basic | $6.99/mo | Adequate but no headroom |
+| Small tenant site (CMS + ecommerce), < 500 visits/day | Plus | $9.99/mo | Good fit, handles small social spikes |
 | Growing business, < 2,000 visits/day | Pro | $19.99/mo | Works with optimization (caching needed) |
 | Marketing-driven, unpredictable traffic | **Cloud hosting** | $29.99+/mo | Shared hosting is not viable |
 | Multiple tenant sites | **VPS or Cloud** | $46.99+/mo | Shared plans can't handle multi-tenant load |
