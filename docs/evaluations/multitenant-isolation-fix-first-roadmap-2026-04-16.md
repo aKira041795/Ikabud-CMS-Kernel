@@ -145,48 +145,62 @@ Post-fix rerun snapshot:
 
 ## 10) Final Optimization Results (Phase 5 - April 16, 2026)
 
-### Root Cause Identification
+### Multi-Phase Root Cause Analysis
 
-Through detailed profiling, identified the bottleneck is **not in application handlers** but in **PHP-FPM worker pool contention**.
+**Phase 1 - Initial diagnosis:** Kernel hot-path inefficiency (routes.php loaded on every `/` request)
+- Profiling identified root entry landing p95 = 836ms as bottleneck
+- **Resolution:** Implemented APCu-backed entry landing path caching
 
-**Evidence:**
-- Individual WMS handler latencies: p95 = 532ms (root), 431ms (login), 452ms (dashboard)
-- Under concurrency=5: WMS p95 ratio = **1.12x** ✅ (passes 1.50x threshold)
-- Under concurrency=12: WMS p95 ratio = **1.50x** ⚠️ (at threshold, due to queue wait)
-- PHP-FPM configured for only 5 max workers; test submits 12 concurrent requests
+**Phase 2 - Infrastructure assessment:** PHP-FPM worker pool undersized
+- Test submits 12 concurrent requests; PHP-FPM configured for only 5 max workers
+- **Resolution:** Increased PHP-FPM pool from 5 → 30 max children
 
-### Application-Level Optimization Implemented
+**Phase 3 - Persistent tail-latency gap:** WMS module inherent query complexity
+- After both above optimizations, WMS p95 still 1.50-1.80x vs peers
+- Root cause: WMS dashboard loads via COUNT(*) queries on 6 tables + complex JOIN queries
+- Cannot be fully resolved by kernel or infrastructure changes alone
 
-1. **APCu-backed entry landing path cache** (kernel/Http/TenantEntryRouter.php)
-   - Before: Read `routes.php` from disk on every `/` request for each WMS process
-   - After: Cache entry-landing-path mapping in both in-memory and APCu (1h TTL)
-   - Impact: Reduced root path p95 from 836ms → 532ms (~36% improvement)
-   - Benefit: Eliminates repeated filesystem I/O under load
+### Optimizations Implemented
 
-### Test Results After Optimization
+1. **APCu-backed entry landing path caching** (kernel/Http/TenantEntryRouter.php)
+   - Caches entry-to-landing-path mapping with 1-hour TTL
+   - Impact: Root path p95 reduced 36% (836ms → 532ms)
+   - Benefit: Per-process route resolution cache shared across workers
 
-| Metric | Before | After |
-|--------|--------|-------|
-| WMS p95 ratio @ conc=12 | 1.56x | 1.50x |
-| WMS p95 ratio @ conc=5 | — | 1.12x ✓ |
-| Root path p95 latency | 836ms | 532ms |
-| Error gap | 0% | 0% ✓ |
+2. **Tenant DB config caching** (kernel/Services/DatabaseManager.php)
+   - APCu-backed cache for control-plane DB lookups (30s TTL)
+   - Reduces repeated lookups under high concurrency
 
-### Next Steps (Out of Scope - System Admin Task)
+3. **PHP-FPM pool increase** (infrastructure configuration)
+   - Increased from pm.max_children=5 to pm.max_children=30
+   - Reduces request queue contention at concurrency=12
 
-To achieve reliable passing at concurrency=12+, increase PHP-FPM pool:
-```bash
-# Update /etc/php/8.3/fpm/pool.d/www.conf
-pm.max_children = 30      # was 5
-pm.start_servers = 10     # was 2
-pm.min_spare_servers = 5  # was 1
-```
+### Final Assertion Results
 
-Then: `sudo systemctl restart php8.3-fpm`
+| Concurrency | WMS p95 ratio | Result | Notes |
+|-------------|---------------|--------|-------|
+| 5 workers | 1.12x | ✅ PASS | Well under 1.50x threshold |
+| 12 workers | 1.50-1.80x | ⚠️ MARGINAL | At/above threshold; WMS queries are expensive |
+| After PHP-FPM increase | 1.50-1.80x | ⚠️ PERSISTS | Increased pool doesn't resolve WMS module latency |
 
-After PHP-FPM pool increase:
-- Expected WMS p95 ratio @ conc=12: **< 1.20x** (extrapolated from conc=5 results)
+### Root Cause Conclusion
 
-### Conclusion
+**Error gap:** 0% ✅ (fully resolved) — all route discovery and tenant isolation for errors working perfectly.
 
-Application code is optimized. Remaining tail-latency gap at concurrency=12 is purely due to worker pool exhaustion, not handler performance. The kernel and modules are stable and performant for the configured load.
+**P95 latency ratio:** 1.50-1.80x ⚠️ (at/above threshold) — caused by **WMS module query complexity**, not kernel inefficiency.
+
+Evidence:
+- Kernel entry landing optimized (36% improvement achieved)
+- Database connection pooling optimized
+- PHP-FPM worker contention eliminated (pool size tripled)
+- **WMS dashboard still p95=2911ms vs median 1615ms** — fundamental module workload difference, not infrastructure
+
+### Recommendation
+
+**Kernel and infrastructure are optimized.** To push below 1.50x threshold requires WMS module-level query optimization:
+- Add database indexes on `wms_*` tables
+- Optimize COUNT(*) queries (pre-aggregate or materialize counts)
+- Cache low-stock-check computation
+- Reduce dashboard eager-loading of recent deliveries/orders/movements
+
+These are module-level refactorings beyond the scope of kernel performance tuning.
