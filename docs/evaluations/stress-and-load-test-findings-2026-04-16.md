@@ -10,6 +10,7 @@ The Ikabud/Baron Bakeshop platform was subjected to a two-part evaluation: (1) a
 - **Throughput ceiling** at approximately **4.3 req/s** — the server saturates at ~5 concurrent users and additional connections only add latency, not throughput.
 - **Latency degrades linearly** beyond 5 concurrent users. At 50 concurrent, median response time is ~10 seconds.
 - **Estimated real-world capacity**: 15–25 simultaneous page-viewing users before user experience degrades noticeably.
+- **Bluehost shared hosting projection**: ~1.5–3 req/s effective throughput with 2–8 concurrent PHP workers. Acceptable for up to ~10 simultaneous users on Plus/Choice Plus plans; Basic plan caps at ~40,000 visits/month (~55/hour average).
 
 ---
 
@@ -258,7 +259,187 @@ Adding Redis/APCu for rendered page fragments and query caching. Expected throug
 
 ---
 
-## 6. Bottleneck Analysis
+## 6. Bluehost Shared Hosting — Projected Performance
+
+### 6.1 Bluehost Shared Hosting Environment Profile
+
+Data sourced from Bluehost plan documentation and independent benchmarks (Cybernews, WebsitePlanet, ToolTester — all 2024–2026 testing cycles).
+
+| Component | Bluehost Shared | Our Dev Server | Impact |
+|-----------|----------------|----------------|--------|
+| CPU | Shared Xeon (oversubscribed, fractional core) | Dedicated i3-2100, 2 cores | Bluehost worse (~0.5–1 effective core per account) |
+| RAM | Shared, ~512 MB–1 GB per account | 16 GB (8 GB available) | Bluehost much more constrained |
+| Disk | NVMe SSD | HDD, 93% full | **Bluehost significantly better** (~100× less I/O latency) |
+| PHP | 8.x with OPcache enabled | 8.3.6, no OPcache | **Bluehost better** (OPcache = 2–3× less compile overhead) |
+| Web Server | Apache (suPHP or PHP-FPM with per-account limits) | Apache prefork (no process caps) | Bluehost has hard worker limits |
+| PHP Workers | ~2–5 concurrent per account (plan dependent) | Unlimited (limited only by CPU/RAM) | Bluehost has hard ceiling |
+| MySQL | Shared, max 150 concurrent connections | Dedicated, no practical limit | Comparable for low traffic |
+| Memory Limit | 128–256 MB per PHP process | 512 MB+ per process | Bluehost tighter |
+| Max Execution | 30–60 seconds | No limit | Bluehost will kill slow requests |
+| Network | Utah DC → internet (real latency) | Loopback (0ms RTT) | Bluehost adds 20–200ms RTT |
+| Neighbors | Hundreds of co-hosted accounts | None (dedicated) | Bluehost has "noisy neighbor" risk |
+
+### 6.2 Known Bluehost Performance Benchmarks (Third-Party)
+
+Independent test results for WordPress sites on Bluehost shared hosting:
+
+| Source | Metric | Result | Year |
+|--------|--------|--------|------|
+| Cybernews | TTFB | 462 ms | 2025 |
+| Cybernews | LCP (Largest Contentful Paint) | 897 ms | 2025 |
+| Cybernews | Stress test (50 VU) | Passed, flat response curve | 2025 |
+| Cybernews | HTTP failures under 50 VU | 0 | 2025 |
+| Cybernews | Uptime (30 days) | 100% | 2025 |
+| WebsitePlanet | Typical page load | ~2 seconds | 2025 |
+| WebsitePlanet | TTFB range (24h) | 1.0–2.5 seconds | 2025 |
+| WebsitePlanet | Load time range (24h) | 1.2–4.5 seconds | 2025 |
+| WebsitePlanet | US West Coast (Sucuri) | ~500 ms full load | 2025 |
+| WebsitePlanet | Uptime (30 days) | 100% | 2025 |
+| ToolTester | Page load time | 2.07 seconds | 2022 |
+| ToolTester | Page load (previous year) | 2.87 seconds | 2021 |
+| ToolTester | Uptime | 99.95% | 2022 |
+
+> **Key observation:** These benchmarks are for lightweight WordPress sites with caching plugins. Our app (custom PHP framework + DiSyL templating + no page cache) is significantly heavier per request. WordPress with object caching can serve pages in ~50–100ms of PHP time; our app uses ~400–700ms of PHP time per storefront page.
+
+### 6.3 Adjustment Methodology: Dev Server → Bluehost Shared
+
+To translate our measured performance to Bluehost shared hosting, we apply these factors:
+
+| Factor | Effect | Multiplier |
+|--------|--------|-----------|
+| NVMe SSD vs HDD | Faster file I/O, faster MySQL reads | **0.7×** latency (30% faster) |
+| OPcache enabled | Eliminates PHP recompilation (~100+ files/request) | **0.5×** latency (50% faster) |
+| Shared CPU (oversubscribed) | Fractional core vs dedicated 2-core | **1.5–2.5×** latency (slower) |
+| Memory pressure | Swapping risk, smaller buffers | **1.1–1.3×** latency |
+| Network RTT | Real internet vs loopback | **+30–150ms** per request |
+| Noisy neighbors | Unpredictable CPU/IO spikes | **1.0–2.0×** variance |
+| PHP worker cap | Hard limit on concurrent requests | Queuing + 503 errors at limit |
+
+**Net single-user adjustment:** 0.7 × 0.5 × 2.0 × 1.2 + 80ms RTT ≈ **0.84× our p50 + 80ms**
+
+For our API endpoint (p50 = 377ms on dev): 377 × 0.84 + 80 ≈ **397ms** on Bluehost (single user, calm server)
+For our storefront (p50 = 691ms on dev): 691 × 0.84 + 80 ≈ **660ms** on Bluehost (single user, calm server)
+
+These align well with Bluehost's published TTFB of 462ms for WordPress — our app is heavier, and we're predicting ~400–660ms baseline. Under neighbor pressure, add 50–200% variance.
+
+### 6.4 Bluehost Plan Comparison — Predicted Performance for This App
+
+#### Basic Plan ($2.95/mo intro → $6.99/mo renewal)
+
+10 GB NVMe | 40,000 visits/month | ~2 effective PHP workers | Standard CPU
+
+| Concurrent Users | Est. RPS | Est. p50 (ms) | Est. p95 (ms) | Error Rate | UX Rating |
+|-----------------|----------|---------------|---------------|------------|-----------|
+| 1 | 1.5–2.5 | 400–700 | 800–1,500 | 0% | Good |
+| 2 | 2.0–3.0 | 600–1,000 | 1,200–2,000 | 0% | Good |
+| 3 | 2.0–3.0 | 900–1,500 | 1,800–3,000 | 0–5% | Acceptable |
+| 5 | 2.0–3.0 | 1,500–2,500 | 3,000–5,000 | 5–15% | Poor |
+| 10 | 2.0–3.0 | 3,000–5,000 | 5,000–10,000 | 15–30% | Very Poor |
+
+**Monthly capacity:** ~40,000 pageviews. At 5 pages/visit average = ~8,000 visits/month = ~267 visits/day.
+**Verdict:** Suitable for a new bakery site with light traffic (< 50 visits/day). Will struggle with any marketing spike.
+
+#### Plus / Choice Plus Plan ($4.95–5.45/mo intro → $9.99–11.99/mo renewal)
+
+50 GB NVMe | 200,000 visits/month | ~3–5 effective PHP workers | Standard CPU
+
+| Concurrent Users | Est. RPS | Est. p50 (ms) | Est. p95 (ms) | Error Rate | UX Rating |
+|-----------------|----------|---------------|---------------|------------|-----------|
+| 1 | 2.0–3.0 | 350–600 | 700–1,200 | 0% | Good |
+| 3 | 3.0–5.0 | 600–1,000 | 1,200–2,000 | 0% | Good |
+| 5 | 3.0–5.0 | 1,000–1,800 | 2,000–3,500 | 0–3% | Acceptable |
+| 10 | 3.0–5.0 | 2,000–3,500 | 4,000–6,000 | 3–10% | Poor |
+| 15 | 3.0–5.0 | 3,000–5,000 | 6,000–10,000 | 10–20% | Very Poor |
+| 25 | 2.5–4.0 | 5,000–8,000 | timeout | 25–50% | Unusable |
+
+**Monthly capacity:** ~200,000 pageviews = ~40,000 visits/month = ~1,333 visits/day.
+**Verdict:** Workable for a small–medium bakery/shop with steady daily traffic. Handles small social media spikes but will degrade on viral traffic.
+
+#### Pro Plan ($13.95/mo intro → $19.99/mo renewal)
+
+100 GB NVMe | 400,000 visits/month | ~5–8 effective PHP workers | Optimized CPU
+
+| Concurrent Users | Est. RPS | Est. p50 (ms) | Est. p95 (ms) | Error Rate | UX Rating |
+|-----------------|----------|---------------|---------------|------------|-----------|
+| 1 | 2.5–4.0 | 300–500 | 600–1,000 | 0% | Excellent |
+| 5 | 4.0–6.0 | 700–1,200 | 1,400–2,500 | 0% | Good |
+| 10 | 4.0–6.0 | 1,400–2,500 | 3,000–5,000 | 0–5% | Acceptable |
+| 15 | 4.0–6.0 | 2,000–3,500 | 4,000–7,000 | 3–10% | Poor |
+| 25 | 3.5–5.0 | 3,500–6,000 | 7,000–12,000 | 10–25% | Very Poor |
+| 50 | 3.0–4.5 | timeout | timeout | 30–60% | Unusable |
+
+**Monthly capacity:** ~400,000 pageviews = ~80,000 visits/month = ~2,667 visits/day.
+**Verdict:** Best shared option. Handles moderate daily traffic and small spikes. Still not viable for sustained high concurrency (> 15 simultaneous users).
+
+### 6.5 Dev Server vs Bluehost — Side-by-Side
+
+| Metric | Dev Server (measured) | Bluehost Basic (est.) | Bluehost Plus (est.) | Bluehost Pro (est.) |
+|--------|----------------------|----------------------|---------------------|-------------------|
+| Single-user p50 (API) | 377 ms | 400–700 ms | 350–600 ms | 300–500 ms |
+| Single-user p50 (storefront) | 691 ms | 700–1,200 ms | 600–1,000 ms | 500–800 ms |
+| Max effective RPS | 4.3 | 2.0–3.0 | 3.0–5.0 | 4.0–6.0 |
+| Max concurrent (good UX) | ~5 | ~2 | ~5 | ~8 |
+| Max concurrent (acceptable UX) | ~10 | ~3 | ~8 | ~12 |
+| Max concurrent (before errors) | 50+ | ~5–8 | ~12–15 | ~20–25 |
+| Monthly visit capacity | Unlimited | 8,000 | 40,000 | 80,000 |
+| Error behavior at overload | Latency degrades, 0% errors | 503 Service Unavailable | 503 Service Unavailable | 503 Service Unavailable |
+| Disk I/O | HDD (slow) | NVMe SSD (fast) | NVMe SSD (fast) | NVMe SSD (fast) |
+| OPcache | Disabled | Enabled | Enabled | Enabled |
+
+> **Critical difference:** Our dev server degrades gracefully — latency climbs but requests never fail (0% error at 50 concurrent). Bluehost shared hosting has a hard PHP worker ceiling. When all workers are busy, additional requests receive **503 Service Unavailable** immediately rather than queuing.
+
+### 6.6 Bluehost-Specific Risk Factors
+
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|-----------|-----------|
+| **Noisy neighbor** — co-hosted site gets traffic spike | 2–5× latency increase, possible 503 | Medium-High | None (move to VPS/cloud) |
+| **PHP worker exhaustion** — all workers busy | Immediate 503 for new requests | High at >10 concurrent | Page caching, reduce per-request time |
+| **30-second execution timeout** — heavy page takes too long | Request killed, blank page or 500 | Medium (storefront pages ~0.7–1s normally) | OPcache + query cache reduce to <0.5s |
+| **Memory limit (128–256MB)** — large CMS pages or product lists | Fatal error, white screen | Low-Medium (our app uses ~50–100MB) | Optimize memory, paginate queries |
+| **Visit cap enforcement** — Basic 40K, Plus 200K, Pro 400K/month | Account throttled or suspended | Medium (depends on marketing success) | Monitor usage, upgrade plan proactively |
+| **No uptime SLA on shared plans** — extended outages | Site down, no compensation | Low (100% measured by reviewers) | Accept risk or move to cloud plan (has SLA) |
+| **TTFB variance** — 0.5s to 2.5s throughout the day | Inconsistent user experience | High (documented by WebsitePlanet) | CDN, page cache, or move to VPS |
+| **Rate limiting** — Bluehost may throttle sustained API traffic | API consumers get 429/503 | Medium for API-heavy use cases | Cache API responses, reduce call frequency |
+
+### 6.7 Recommended Bluehost Plan by Use Case
+
+| Use Case | Recommended Plan | Monthly Budget | Notes |
+|----------|-----------------|---------------|-------|
+| Single bakery site, < 50 visits/day | Basic | $6.99/mo | Adequate but no headroom |
+| Small bakery/shop, < 500 visits/day | Plus | $9.99/mo | Good fit, handles small social spikes |
+| Growing business, < 2,000 visits/day | Pro | $19.99/mo | Works with optimization (caching needed) |
+| Marketing-driven, unpredictable traffic | **Cloud hosting** | $29.99+/mo | Shared hosting is not viable |
+| Multiple tenant sites | **VPS or Cloud** | $46.99+/mo | Shared plans can't handle multi-tenant load |
+
+### 6.8 Performance Optimization Priority for Bluehost Deployment
+
+Since Bluehost already provides OPcache and NVMe SSD (our two biggest dev-server bottlenecks are already solved), the optimization priority shifts:
+
+| Priority | Optimization | Expected Impact | Effort |
+|----------|-------------|----------------|--------|
+| 1 | **Add page-level caching** (file-based, 60s TTL) for `/ecommerce/shop`, `/cms/blog`, product detail pages | 5–10× faster for cached pages; frees PHP workers | Medium |
+| 2 | **Add query result caching** (APCu or file) for product lists, categories, blog posts | 2–3× faster per request | Low-Medium |
+| 3 | **Enable Cloudflare CDN** (free, included with Bluehost) for static assets | Reduces server load by 30–50% for repeat visitors | Low |
+| 4 | **Implement HTTP cache headers** (`Cache-Control: public, max-age=300`) on public pages | Browser caching eliminates repeat page loads | Low |
+| 5 | **Optimize DiSyL template compilation** — cache compiled templates to file | Reduces per-request PHP work | Medium |
+| 6 | **Add stock gate to `ecOrderCreate()`** | Prevents wasted DB writes on out-of-stock items | Low |
+| 7 | **Lazy-load product images** and paginate API responses | Reduces page weight and DB query load | Low |
+
+With optimizations 1–4 implemented, projected Bluehost Plus performance:
+
+| Concurrent Users | Est. RPS | Est. p50 (ms) | Est. p95 (ms) | Error Rate | UX Rating |
+|-----------------|----------|---------------|---------------|------------|-----------|
+| 1 | 10–20 | 50–150 (cached) | 300–600 | 0% | Excellent |
+| 5 | 15–30 | 100–300 (cached) | 500–1,000 | 0% | Excellent |
+| 10 | 15–30 | 300–600 | 800–1,500 | 0% | Good |
+| 25 | 10–20 | 800–1,500 | 2,000–3,500 | 0–5% | Acceptable |
+| 50 | 8–15 | 2,000–3,500 | 4,000–7,000 | 5–15% | Poor |
+
+> With caching, a Bluehost Plus plan can realistically serve 15–25 concurrent users with acceptable latency — a 3–5× improvement over uncached.
+
+---
+
+## 7. Bottleneck Analysis (Dev Server)
 
 ### Primary Bottlenecks (in order of impact)
 
@@ -281,7 +462,7 @@ Adding Redis/APCu for rendered page fragments and query caching. Expected throug
 
 ---
 
-## 7. Security Observations from Load Testing
+## 8. Security Observations from Load Testing
 
 | Finding | Status |
 |---------|--------|
@@ -294,7 +475,7 @@ Adding Redis/APCu for rendered page fragments and query caching. Expected throug
 
 ---
 
-## 8. Recommendations — Priority Order
+## 9. Recommendations — Priority Order
 
 ### Immediate (No code changes)
 1. **Enable OPcache** — `opcache.enable=1`, `opcache.memory_consumption=128`, `opcache.max_accelerated_files=10000`. Expected: 2–3× throughput.
