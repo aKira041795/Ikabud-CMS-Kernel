@@ -53,6 +53,7 @@ return [
         '/api/v1/cms/content/{id}/revisions'  => 'cms:cmsApiRevisionList',
         '/api/v1/cms/revisions/{id}'          => 'cms:cmsApiRevisionGet',
         '/api/v1/cms/media'               => 'cms:cmsApiMediaList',
+        '/api/v1/cms/media/free-search'   => 'cms:cmsApiMediaFreeSearch',
         '/api/v1/cms/builder/reusable-sections' => 'cms:cmsApiBuilderReusableList',
         '/api/v1/cms/builder/templates' => 'cms:cmsApiBuilderTemplateList',
         '/api/v1/cms/builder/templates/{id}' => 'cms:cmsApiBuilderTemplateGet',

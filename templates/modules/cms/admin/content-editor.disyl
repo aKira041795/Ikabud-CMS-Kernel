@@ -609,13 +609,13 @@
             <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                 <span class="text-sm font-semibold text-gray-700">Featured Image</span>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="aiSuggestFeaturedImage()" :disabled="featuredImageSuggest.loading || !capabilities.ai_tools" class="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600 hover:text-violet-800 disabled:opacity-40 transition-colors" title="AI suggest from media library">
+                    <button type="button" @click="aiSuggestFeaturedImage()" :disabled="featuredImageSuggest.loading || !capabilities.ai_tools" class="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600 hover:text-violet-800 disabled:opacity-40 transition-colors" title="AI suggest from media + free web images">
                         <svg class="w-3 h-3" x-show="!featuredImageSuggest.loading" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                         <svg class="w-3 h-3 animate-spin" x-show="featuredImageSuggest.loading" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                         <span x-text="featuredImageSuggest.loading ? 'Asking AI…' : 'AI Suggest'"></span>
                     </button>
-                    <template x-if="form.featured_image_id">
-                        <button type="button" @click="form.featured_image_id = null; form.featured_image_url = ''; featuredImageSuggest.open = false; featuredImageSuggest.results = [];" class="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
+                    <template x-if="form.featured_image_id || form.featured_image_url">
+                        <button type="button" @click="form.featured_image_id = null; form.featured_image_url = ''; form.featured_image_alt = ''; featuredImageSuggest.open = false; featuredImageSuggest.results = [];" class="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
                     </template>
                 </div>
             </div>
@@ -650,16 +650,25 @@
                         <div class="grid grid-cols-3 gap-2">
                             <template x-for="(s, si) in featuredImageSuggest.results" :key="si">
                                 <div class="group relative cursor-pointer rounded-lg overflow-hidden border-2 border-transparent hover:border-violet-400 transition-colors" @click="applyFeaturedImageSuggestion(s)" :title="s.reason">
-                                    <img :src="s.url" :alt="s.original_name" class="w-full aspect-square object-cover">
+                                    <img :src="s.thumbnail_url || s.url" :alt="s.original_name" class="w-full aspect-square object-cover">
                                     <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <p class="text-[9px] text-white leading-tight line-clamp-2" x-text="s.reason"></p>
+                                    </div>
+                                    <div class="absolute left-1 top-1 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-white" x-show="s.external" x-cloak>
+                                        Free Web
                                     </div>
                                 </div>
                             </template>
                         </div>
-                        <p class="text-[10px] text-gray-400 mt-1.5">Click a suggestion to set it as featured image.</p>
+                        <p class="text-[10px] text-gray-400 mt-1.5">Click a suggestion to set it. Web images are imported into your media library on save.</p>
                     </div>
                 </template>
+
+                <div>
+                    <label class="block text-[11px] font-medium text-gray-500 mb-1">Image Search Keywords (optional)</label>
+                    <input type="text" x-model="form.featured_image_keywords" placeholder="Override AI/media search (e.g., server room, abstract tech, startup office)" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[10px] text-gray-400 mt-1">Use this to search outside the content topic.</p>
+                </div>
 
                 <button type="button" @click="openMediaBrowser('featured_image')" class="w-full px-3 py-2 text-xs font-medium text-sky-700 border border-sky-200 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors" x-text="form.featured_image_url ? 'Replace Image' : 'Set Featured Image'"></button>
             </div>
@@ -1127,9 +1136,13 @@
             <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                 <div>
                     <h3 class="text-base font-semibold text-gray-900">Media Library</h3>
-                    <p class="text-xs text-gray-400 mt-0.5" x-text="mediaBrowser.items.length + ' file(s)'"></p>
+                    <p class="text-xs text-gray-400 mt-0.5" x-text="mediaActiveItems().length + ' file(s)'"></p>
                 </div>
                 <div class="flex items-center gap-3">
+                    <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                        <button type="button" @click="mediaBrowser.mode='library'; mediaBrowser.selectedId=null; mediaBrowser.selectedItem=null; mediaBrowser.search='';" :class="mediaBrowser.mode === 'library' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'" class="px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors">Uploaded</button>
+                        <button type="button" @click="mediaBrowser.mode='web'; mediaBrowser.selectedId=null; mediaBrowser.selectedItem=null; mediaBrowser.search='';" :class="mediaBrowser.mode === 'web' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'" class="px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors">Free Web</button>
+                    </div>
                     <div class="relative">
                         <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                         <input type="text" x-model="mediaBrowser.search" placeholder="Search..." class="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
@@ -1141,22 +1154,42 @@
             </div>
             <!-- Upload bar -->
             <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
-                <label class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 text-white text-xs font-medium rounded-lg hover:bg-sky-700 cursor-pointer transition-colors">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                    Upload
-                    <input type="file" multiple accept="image/*" @change="mediaUpload($event)" class="hidden">
-                </label>
-                <span x-show="mediaBrowser.uploading" class="text-xs text-gray-500">Uploading...</span>
+                <template x-if="mediaBrowser.mode === 'library'">
+                    <div class="flex items-center gap-3">
+                        <label class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 text-white text-xs font-medium rounded-lg hover:bg-sky-700 cursor-pointer transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                            Upload
+                            <input type="file" multiple accept="image/*" @change="mediaUpload($event)" class="hidden">
+                        </label>
+                        <span x-show="mediaBrowser.uploading" class="text-xs text-gray-500">Uploading...</span>
+                    </div>
+                </template>
+                <template x-if="mediaBrowser.mode === 'web'">
+                    <div class="flex flex-1 items-center gap-2">
+                        <input type="text" x-model="mediaBrowser.webSearch" @keydown.enter.prevent="mediaSearchFreeWeb()" placeholder="Search free web images (e.g., bakery storefront)" class="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <select x-model="mediaBrowser.sourceFilter" class="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="all">All</option>
+                            <option value="openverse">Openverse</option>
+                            <option value="wikimedia">Wikimedia</option>
+                        </select>
+                        <button type="button" @click="mediaSearchFreeWeb()" :disabled="mediaBrowser.loadingWeb" class="px-3 py-1.5 text-xs font-medium text-sky-700 border border-sky-200 bg-white rounded-lg hover:bg-sky-50 disabled:opacity-40 transition-colors">Search Web</button>
+                        <button type="button" @click="mediaAiSuggestWeb()" :disabled="mediaBrowser.loadingWeb || !capabilities.ai_tools" class="px-3 py-1.5 text-xs font-medium text-violet-700 border border-violet-200 bg-white rounded-lg hover:bg-violet-50 disabled:opacity-40 transition-colors">AI Suggest Web</button>
+                        <span x-show="mediaBrowser.loadingWeb" class="text-xs text-gray-500">Loading...</span>
+                    </div>
+                </template>
+            </div>
+            <div class="px-5 py-2 border-b border-gray-100 bg-white" x-show="mediaBrowser.mode === 'web' && mediaBrowser.webError">
+                <p class="text-xs text-amber-700" x-text="mediaBrowser.webError"></p>
             </div>
             <!-- Grid -->
             <div class="flex-1 overflow-y-auto p-5">
                 <div class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3" x-show="mediaFilteredItems().length > 0">
-                    <template x-for="item in mediaFilteredItems()" :key="item.id">
+                    <template x-for="item in mediaFilteredItems()" :key="item.id || item.url">
                         <div @click="mediaSelect(item)"
                              class="relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all hover:shadow-md"
-                             :class="mediaBrowser.selectedId === item.id ? 'border-sky-500 ring-2 ring-sky-500/30' : 'border-gray-200 hover:border-gray-300'">
+                             :class="mediaBrowser.selectedId === (item.id || item.url) ? 'border-sky-500 ring-2 ring-sky-500/30' : 'border-gray-200 hover:border-gray-300'">
                             <template x-if="item.mime_type && item.mime_type.startsWith('image/')">
-                                <img :src="item.url" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full bg-gray-100 text-gray-400 text-xs\'>Error</div>'">
+                                <img :src="item.thumbnail_url || item.url" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full bg-gray-100 text-gray-400 text-xs\'>Error</div>'">
                             </template>
                             <template x-if="!item.mime_type || !item.mime_type.startsWith('image/')">
                                 <div class="flex items-center justify-center h-full bg-gray-100">
@@ -1166,7 +1199,8 @@
                             <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1">
                                 <p class="text-[10px] text-white truncate" x-text="item.original_name || item.file_path"></p>
                             </div>
-                            <div x-show="mediaBrowser.selectedId === item.id" class="absolute top-1 right-1 w-5 h-5 bg-sky-500 rounded-full flex items-center justify-center">
+                            <div x-show="item.external" class="absolute top-1 left-1 text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white">Web</div>
+                            <div x-show="mediaBrowser.selectedId === (item.id || item.url)" class="absolute top-1 right-1 w-5 h-5 bg-sky-500 rounded-full flex items-center justify-center">
                                 <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
                             </div>
                         </div>
@@ -1174,7 +1208,7 @@
                 </div>
                 <div x-show="mediaFilteredItems().length === 0" class="flex flex-col items-center justify-center py-12 text-gray-400">
                     <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    <p class="text-sm">No media files found</p>
+                    <p class="text-sm" x-text="mediaBrowser.mode === 'web' ? 'No free web images found' : 'No media files found'"></p>
                 </div>
             </div>
             <!-- Footer -->
@@ -1182,7 +1216,7 @@
                 <p class="text-xs text-gray-400" x-show="mediaBrowser.selectedItem" x-text="mediaBrowser.selectedItem ? (mediaBrowser.selectedItem.original_name || mediaBrowser.selectedItem.file_path) : ''"></p>
                 <div class="flex gap-2">
                     <button @click="closeMediaBrowser()" class="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
-                    <button @click="mediaConfirmSelection()" :disabled="!mediaBrowser.selectedId" class="px-4 py-2 text-xs font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">Select</button>
+                    <button @click="mediaConfirmSelection()" :disabled="!mediaBrowser.selectedItem" class="px-4 py-2 text-xs font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">Select</button>
                 </div>
             </div>
         </div>
@@ -1303,6 +1337,8 @@ function cmsEditor() {
             entity_preset_id: {recommended_entity_preset_default | json},
             featured_image_id: {if content && content.featured_image_id}{content.featured_image_id | json}{else}null{/if},
             featured_image_url: {featured_image_url | json},
+            featured_image_alt: '',
+            featured_image_keywords: '',
         },
         recommendedEntityPresets: {recommended_entity_presets | json},
         meta: {
@@ -1335,7 +1371,13 @@ function cmsEditor() {
         mediaBrowser: {
             open: false,
             items: [],
+            webItems: [],
             search: '',
+            webSearch: '',
+            mode: 'library',
+            sourceFilter: 'all',
+            loadingWeb: false,
+            webError: '',
             selectedId: null,
             selectedItem: null,
             target: '', // 'block_image', 'block_gallery', 'block_bg', 'tinymce_file_picker', 'featured_image'
@@ -2248,10 +2290,18 @@ function cmsEditor() {
             this.mediaBrowser.selectedId = null;
             this.mediaBrowser.selectedItem = null;
             this.mediaBrowser.search = '';
+            this.mediaBrowser.webSearch = '';
+            this.mediaBrowser.sourceFilter = 'all';
+            this.mediaBrowser.webError = '';
+            this.mediaBrowser.mode = 'library';
             this.mediaBrowser.open = true;
             if (!this.mediaBrowser.loaded) {
                 await this._loadMediaItems();
             }
+        },
+
+        mediaActiveItems() {
+            return this.mediaBrowser.mode === 'web' ? this.mediaBrowser.webItems : this.mediaBrowser.items;
         },
 
         async _loadMediaItems() {
@@ -2266,17 +2316,91 @@ function cmsEditor() {
         },
 
         mediaFilteredItems() {
-            const items = this.mediaBrowser.items;
-            if (!this.mediaBrowser.search) return items;
+            const items = this.mediaActiveItems();
+            const sourceFilter = (this.mediaBrowser.sourceFilter || 'all').toLowerCase();
+            let filtered = items;
+            if (this.mediaBrowser.mode === 'web' && sourceFilter !== 'all') {
+                filtered = filtered.filter(i => ((i.source || '').toLowerCase() === sourceFilter));
+            }
+
+            if (!this.mediaBrowser.search) return filtered;
             const q = this.mediaBrowser.search.toLowerCase();
-            return items.filter(i =>
+            return filtered.filter(i =>
                 (i.original_name || '').toLowerCase().includes(q) ||
                 (i.file_path || '').toLowerCase().includes(q)
             );
         },
 
+        async mediaSearchFreeWeb() {
+            const q = (this.mediaBrowser.webSearch || '').trim();
+            if (!q) { toast('Enter search terms for free web images', 'error'); return; }
+            this.mediaBrowser.loadingWeb = true;
+            this.mediaBrowser.webError = '';
+            this.mediaBrowser.selectedId = null;
+            this.mediaBrowser.selectedItem = null;
+            this.mediaBrowser.mode = 'web';
+            this.mediaBrowser.sourceFilter = 'all';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/media/free-search?q=' + encodeURIComponent(q) + '&limit=30');
+                const data = await res.json();
+                if (data.ok) {
+                    this.mediaBrowser.webItems = Array.isArray(data.data) ? data.data : [];
+                    if (this.mediaBrowser.webItems.length === 0) {
+                        this.mediaBrowser.webError = 'No free web images found for this search.';
+                    }
+                } else {
+                    this.mediaBrowser.webError = data.error || 'Web image search failed';
+                    this.mediaBrowser.webItems = [];
+                }
+            } catch (e) {
+                this.mediaBrowser.webError = 'Web image search failed';
+                this.mediaBrowser.webItems = [];
+            } finally {
+                this.mediaBrowser.loadingWeb = false;
+            }
+        },
+
+        async mediaAiSuggestWeb() {
+            if (!this.form.title.trim()) { toast('Add a title first so AI can suggest web images', 'error'); return; }
+            this.mediaBrowser.loadingWeb = true;
+            this.mediaBrowser.webError = '';
+            this.mediaBrowser.selectedId = null;
+            this.mediaBrowser.selectedItem = null;
+            this.mediaBrowser.mode = 'web';
+            this.mediaBrowser.sourceFilter = 'all';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/ai/featured-image-suggest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({
+                        title: this.form.title,
+                        excerpt: this.form.excerpt,
+                        tags: this.tagNames.join(', '),
+                        type: this.form.type,
+                        search_keywords: this.mediaBrowser.webSearch || this.form.featured_image_keywords || '',
+                    }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+                    this.mediaBrowser.webItems = suggestions.filter(s => !!s.external);
+                    if (this.mediaBrowser.webItems.length === 0) {
+                        this.mediaBrowser.webError = 'AI did not return web suggestions. Try Search Web with a specific query.';
+                    }
+                } else {
+                    this.mediaBrowser.webError = data.error || 'AI web suggestion failed';
+                    this.mediaBrowser.webItems = [];
+                }
+            } catch (e) {
+                this.mediaBrowser.webError = 'AI web suggestion failed';
+                this.mediaBrowser.webItems = [];
+            } finally {
+                this.mediaBrowser.loadingWeb = false;
+            }
+        },
+
         mediaSelect(item) {
-            this.mediaBrowser.selectedId = item.id;
+            this.mediaBrowser.selectedId = item.id || item.url;
             this.mediaBrowser.selectedItem = item;
         },
 
@@ -2299,8 +2423,9 @@ function cmsEditor() {
             } else if (target === 'block_bg' && this.blocks[idx]) {
                 this.blocks[idx].bg_image = url;
             } else if (target === 'featured_image') {
-                this.form.featured_image_id = item.id;
+                this.form.featured_image_id = item.external ? null : item.id;
                 this.form.featured_image_url = url;
+                this.form.featured_image_alt = item.alt_text || item.original_name || '';
             }
 
             this.mediaBrowser.open = false;
@@ -2354,12 +2479,13 @@ function cmsEditor() {
                         excerpt: this.form.excerpt,
                         tags:    this.tagNames.join(', '),
                         type:    this.form.type,
+                        search_keywords: this.form.featured_image_keywords || '',
                     }),
                 });
                 const data = await res.json();
                 if (data.ok) {
                     if (!data.suggestions || data.suggestions.length === 0) {
-                        toast('No matching images found in media library', 'error');
+                        toast('No matching images found from media or free web sources', 'error');
                     } else {
                         this.featuredImageSuggest.results = data.suggestions;
                         this.featuredImageSuggest.open = true;
@@ -2375,8 +2501,9 @@ function cmsEditor() {
         },
 
         applyFeaturedImageSuggestion(item) {
-            this.form.featured_image_id  = item.id;
+            this.form.featured_image_id  = item.external ? null : item.id;
             this.form.featured_image_url = item.url;
+            this.form.featured_image_alt = item.alt_text || item.original_name || '';
             this.featuredImageSuggest.open    = false;
             this.featuredImageSuggest.results = [];
             toast('Featured image set');

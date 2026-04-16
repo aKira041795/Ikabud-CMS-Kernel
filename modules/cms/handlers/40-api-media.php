@@ -2,6 +2,270 @@
 
 declare(strict_types=1);
 
+function cmsMediaFetchOpenverseResults(string $query, int $limit = 24): array
+{
+    if (!function_exists('curl_init')) {
+        return [];
+    }
+
+    $q = trim($query);
+    if ($q === '') {
+        return [];
+    }
+
+    $callOpenverse = static function (string $search, int $limit) {
+        $url = 'https://api.openverse.org/v1/images/?q=' . rawurlencode($search)
+            . '&license_type=all&page_size=' . max(1, min(30, $limit));
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_TIMEOUT        => 12,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_USERAGENT      => 'Ikabud-CMS/1.0 (+https://ikabud.com)',
+        ]);
+        $raw = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if (!is_string($raw) || $raw === '' || $status < 200 || $status >= 300) {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+        return is_array($decoded['results'] ?? null) ? $decoded['results'] : [];
+    };
+
+    $queryVariants = [$q];
+    $simplified = trim((string)preg_replace('/[^\p{L}\p{N}\s,]+/u', ' ', $q));
+    if ($simplified !== '' && $simplified !== $q) {
+        $queryVariants[] = $simplified;
+    }
+    $parts = array_values(array_filter(array_map('trim', explode(',', $q))));
+    if (!empty($parts)) {
+        $queryVariants[] = implode(' ', array_slice($parts, 0, 3));
+        $queryVariants[] = (string)($parts[0] ?? '');
+    }
+    $words = preg_split('/\s+/', $simplified !== '' ? $simplified : $q);
+    if (is_array($words) && count($words) > 6) {
+        $queryVariants[] = implode(' ', array_slice($words, 0, 6));
+    }
+
+    $results = [];
+    $seen = [];
+    foreach ($queryVariants as $variant) {
+        $variant = trim((string)$variant);
+        if ($variant === '') {
+            continue;
+        }
+        $key = mb_strtolower($variant);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $results = $callOpenverse($variant, $limit);
+        if ($results !== []) {
+            break;
+        }
+    }
+
+    if ($results === []) {
+        $combined = mb_strtolower($q);
+        $fallbackQueries = [];
+        if (str_contains($combined, 'kernel') || str_contains($combined, 'modular') || str_contains($combined, 'architecture')) {
+            $fallbackQueries[] = 'software architecture';
+        }
+        if (str_contains($combined, 'web') || str_contains($combined, 'website')) {
+            $fallbackQueries[] = 'web development';
+        }
+        if (str_contains($combined, 'code') || str_contains($combined, 'developer') || str_contains($combined, 'program')) {
+            $fallbackQueries[] = 'computer code';
+        }
+        $fallbackQueries[] = 'technology';
+
+        $seenFallback = [];
+        foreach ($fallbackQueries as $fq) {
+            $fq = trim($fq);
+            if ($fq === '' || isset($seenFallback[$fq])) {
+                continue;
+            }
+            $seenFallback[$fq] = true;
+            $results = $callOpenverse($fq, $limit);
+            if ($results !== []) {
+                break;
+            }
+        }
+    }
+
+    if ($results === []) {
+        return [];
+    }
+
+    $rows = [];
+    foreach ($results as $r) {
+        $imgUrl = trim((string)($r['url'] ?? ''));
+        if ($imgUrl === '' || !preg_match('/^https?:\/\//i', $imgUrl)) {
+            continue;
+        }
+
+        $title = trim((string)($r['title'] ?? ''));
+        $thumb = trim((string)($r['thumbnail'] ?? ''));
+        $creator = trim((string)($r['creator'] ?? ''));
+        $license = trim((string)($r['license'] ?? ''));
+        $licenseVersion = trim((string)($r['license_version'] ?? ''));
+        $licenseUrl = trim((string)($r['license_url'] ?? ''));
+        $landingUrl = trim((string)($r['foreign_landing_url'] ?? ''));
+
+        $rows[] = [
+            'id' => 'ov:' . (string)($r['id'] ?? md5($imgUrl)),
+            'url' => $imgUrl,
+            'thumbnail_url' => $thumb !== '' ? $thumb : $imgUrl,
+            'original_name' => $title !== '' ? $title : basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'image'),
+            'file_path' => '',
+            'mime_type' => 'image/jpeg',
+            'alt_text' => $title,
+            'creator' => $creator,
+            'license' => trim($license . ($licenseVersion !== '' ? ' ' . $licenseVersion : '')),
+            'license_url' => $licenseUrl,
+            'source' => 'openverse',
+            'source_url' => $landingUrl,
+            'external' => true,
+        ];
+
+        if (count($rows) >= $limit) {
+            break;
+        }
+    }
+
+    return $rows;
+}
+
+function cmsMediaFetchWikimediaResults(string $query, int $limit = 24): array
+{
+    if (!function_exists('curl_init')) {
+        return [];
+    }
+
+    $q = trim($query);
+    if ($q === '') {
+        return [];
+    }
+
+    $url = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search'
+        . '&gsrnamespace=6&gsrsearch=' . rawurlencode($q)
+        . '&gsrlimit=' . max(1, min(30, $limit))
+        . '&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640&format=json';
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 3,
+        CURLOPT_TIMEOUT        => 12,
+        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        CURLOPT_USERAGENT      => 'Ikabud-CMS/1.0 (+https://ikabud.com)',
+    ]);
+    $raw = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (!is_string($raw) || $raw === '' || $status < 200 || $status >= 300) {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    $pages = is_array($decoded['query']['pages'] ?? null) ? $decoded['query']['pages'] : [];
+    if ($pages === []) {
+        return [];
+    }
+
+    $rows = [];
+    foreach ($pages as $p) {
+        $ii = is_array($p['imageinfo'][0] ?? null) ? $p['imageinfo'][0] : null;
+        if (!is_array($ii)) {
+            continue;
+        }
+        $imgUrl = trim((string)($ii['url'] ?? ''));
+        if ($imgUrl === '' || !preg_match('/^https?:\/\//i', $imgUrl)) {
+            continue;
+        }
+
+        $title = trim((string)($p['title'] ?? ''));
+        $thumb = trim((string)($ii['thumburl'] ?? ''));
+        $meta = is_array($ii['extmetadata'] ?? null) ? $ii['extmetadata'] : [];
+        $artist = trim(strip_tags((string)($meta['Artist']['value'] ?? '')));
+        $license = trim(strip_tags((string)($meta['LicenseShortName']['value'] ?? '')));
+        $licenseUrl = trim((string)($meta['LicenseUrl']['value'] ?? ''));
+        $sourceUrl = trim((string)($ii['descriptionurl'] ?? ''));
+
+        $rows[] = [
+            'id' => 'wc:' . (string)($p['pageid'] ?? md5($imgUrl)),
+            'url' => $imgUrl,
+            'thumbnail_url' => $thumb !== '' ? $thumb : $imgUrl,
+            'original_name' => $title !== '' ? preg_replace('/^File:/i', '', $title) : basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'image'),
+            'file_path' => '',
+            'mime_type' => 'image/jpeg',
+            'alt_text' => $title,
+            'creator' => $artist,
+            'license' => $license,
+            'license_url' => $licenseUrl,
+            'source' => 'wikimedia',
+            'source_url' => $sourceUrl,
+            'external' => true,
+        ];
+
+        if (count($rows) >= $limit) {
+            break;
+        }
+    }
+
+    return $rows;
+}
+
+function cmsApiMediaFreeSearch(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('media.list');
+    $input = cmsInput();
+
+    $q = trim((string)($input['q'] ?? ''));
+    $limit = min(30, max(1, (int)($input['limit'] ?? 24)));
+    if ($q === '') {
+        echo json_encode(['ok' => true, 'data' => []]);
+        exit;
+    }
+
+    try {
+        $openverseRows = cmsMediaFetchOpenverseResults($q, $limit);
+        $wikimediaRows = cmsMediaFetchWikimediaResults($q, $limit);
+
+        $rows = [];
+        $seen = [];
+        foreach (array_merge($openverseRows, $wikimediaRows) as $row) {
+            $url = trim((string)($row['url'] ?? ''));
+            if ($url === '' || isset($seen[$url])) {
+                continue;
+            }
+            $seen[$url] = true;
+            $rows[] = $row;
+            if (count($rows) >= $limit) {
+                break;
+            }
+        }
+        echo json_encode(['ok' => true, 'data' => $rows]);
+        exit;
+    } catch (Throwable $e) {
+        write_log('cms media free search failed: ' . $e->getMessage(), 'warning', [
+            'user_id' => (int)($user['id'] ?? 0),
+            'query' => $q,
+        ]);
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Free image search failed']);
+        exit;
+    }
+}
+
 function cmsApiMediaList(array $params = []): void
 {
     header('Content-Type: application/json');

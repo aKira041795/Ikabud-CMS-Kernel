@@ -468,6 +468,507 @@ function cmsApiContentAiSeo(array $params = []): void
     }
 }
 
+function cmsAiFetchOpenverseImageCandidates(string $query, int $limit = 12): array
+{
+    if (!function_exists('curl_init')) {
+        return [];
+    }
+
+    $q = trim($query);
+    if ($q === '') {
+        return [];
+    }
+
+    $url = 'https://api.openverse.org/v1/images/?q=' . rawurlencode($q)
+        . '&license_type=all&page_size=' . max(1, min(20, $limit));
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 3,
+        CURLOPT_TIMEOUT        => 12,
+        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        CURLOPT_USERAGENT      => 'Ikabud-CMS/1.0 (+https://ikabud.com)',
+    ]);
+    $raw = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (!is_string($raw) || $raw === '' || $status < 200 || $status >= 300) {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    $items = is_array($decoded['results'] ?? null) ? $decoded['results'] : [];
+    if ($items === []) {
+        return [];
+    }
+
+    $candidates = [];
+    foreach ($items as $item) {
+        $imgUrl = trim((string)($item['url'] ?? ''));
+        if ($imgUrl === '' || !preg_match('/^https?:\/\//i', $imgUrl)) {
+            continue;
+        }
+
+        $title = trim((string)($item['title'] ?? ''));
+        $creator = trim((string)($item['creator'] ?? ''));
+        $license = trim((string)($item['license'] ?? ''));
+        $licenseVersion = trim((string)($item['license_version'] ?? ''));
+        $licenseUrl = trim((string)($item['license_url'] ?? ''));
+        $thumb = trim((string)($item['thumbnail'] ?? ''));
+        $pageUrl = trim((string)($item['foreign_landing_url'] ?? ''));
+
+        $candidates[] = [
+            'id'            => 'ov:' . (string)($item['id'] ?? md5($imgUrl)),
+            'url'           => $imgUrl,
+            'thumbnail_url' => $thumb !== '' ? $thumb : $imgUrl,
+            'original_name' => $title !== '' ? $title : basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'image'),
+            'alt_text'      => $title,
+            'creator'       => $creator,
+            'license'       => trim($license . ($licenseVersion !== '' ? ' ' . $licenseVersion : '')),
+            'license_url'   => $licenseUrl,
+            'source'        => 'openverse',
+            'source_url'    => $pageUrl,
+            'external'      => true,
+        ];
+
+        if (count($candidates) >= $limit) {
+            break;
+        }
+    }
+
+    return $candidates;
+}
+
+function cmsAiFetchWikimediaImageCandidates(string $query, int $limit = 12): array
+{
+    if (!function_exists('curl_init')) {
+        return [];
+    }
+
+    $q = trim($query);
+    if ($q === '') {
+        return [];
+    }
+
+    $url = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search'
+        . '&gsrnamespace=6&gsrsearch=' . rawurlencode($q)
+        . '&gsrlimit=' . max(1, min(20, $limit))
+        . '&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640&format=json';
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 3,
+        CURLOPT_TIMEOUT        => 12,
+        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        CURLOPT_USERAGENT      => 'Ikabud-CMS/1.0 (+https://ikabud.com)',
+    ]);
+    $raw = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (!is_string($raw) || $raw === '' || $status < 200 || $status >= 300) {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    $pages = is_array($decoded['query']['pages'] ?? null) ? $decoded['query']['pages'] : [];
+    if ($pages === []) {
+        return [];
+    }
+
+    $rows = [];
+    foreach ($pages as $page) {
+        $ii = is_array($page['imageinfo'][0] ?? null) ? $page['imageinfo'][0] : null;
+        if (!is_array($ii)) {
+            continue;
+        }
+
+        $imgUrl = trim((string)($ii['url'] ?? ''));
+        if ($imgUrl === '' || !preg_match('/^https?:\/\//i', $imgUrl)) {
+            continue;
+        }
+
+        $thumbUrl = trim((string)($ii['thumburl'] ?? ''));
+        $pageId = (int)($page['pageid'] ?? 0);
+        $title = trim((string)($page['title'] ?? ''));
+        $meta = is_array($ii['extmetadata'] ?? null) ? $ii['extmetadata'] : [];
+
+        $artist = trim(strip_tags((string)($meta['Artist']['value'] ?? '')));
+        $license = trim(strip_tags((string)($meta['LicenseShortName']['value'] ?? '')));
+        $licenseUrl = trim((string)($meta['LicenseUrl']['value'] ?? ''));
+        $sourceUrl = trim((string)($ii['descriptionurl'] ?? ''));
+
+        $rows[] = [
+            'id'            => 'wc:' . ($pageId > 0 ? (string)$pageId : md5($imgUrl)),
+            'url'           => $imgUrl,
+            'thumbnail_url' => $thumbUrl !== '' ? $thumbUrl : $imgUrl,
+            'original_name' => $title !== '' ? preg_replace('/^File:/i', '', $title) : basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'image'),
+            'alt_text'      => $title,
+            'creator'       => $artist,
+            'license'       => $license,
+            'license_url'   => $licenseUrl,
+            'source'        => 'wikimedia',
+            'source_url'    => $sourceUrl,
+            'external'      => true,
+        ];
+
+        if (count($rows) >= $limit) {
+            break;
+        }
+    }
+
+    return $rows;
+}
+
+function cmsAiFetchWikimediaImageCandidatesFromQueries(array $queries, int $limit = 12): array
+{
+    $seenQueries = [];
+    $seenUrls = [];
+    $merged = [];
+
+    foreach ($queries as $query) {
+        $q = trim((string)$query);
+        if ($q === '') {
+            continue;
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', mb_strtolower($q));
+        if ($normalized === '' || isset($seenQueries[$normalized])) {
+            continue;
+        }
+        $seenQueries[$normalized] = true;
+
+        $variants = [$q];
+        $simplified = trim((string)preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $q));
+        if ($simplified !== '' && $simplified !== $q) {
+            $variants[] = $simplified;
+        }
+        $parts = array_values(array_filter(array_map('trim', explode(',', $q))));
+        if (!empty($parts)) {
+            $variants[] = implode(' ', array_slice($parts, 0, 3));
+            $variants[] = (string)($parts[0] ?? '');
+        }
+
+        foreach ($variants as $variant) {
+            $variant = trim($variant);
+            if ($variant === '') {
+                continue;
+            }
+            $rows = cmsAiFetchWikimediaImageCandidates($variant, $limit);
+            foreach ($rows as $row) {
+                $url = trim((string)($row['url'] ?? ''));
+                if ($url === '' || isset($seenUrls[$url])) {
+                    continue;
+                }
+                $seenUrls[$url] = true;
+                $merged[] = $row;
+                if (count($merged) >= $limit) {
+                    return $merged;
+                }
+            }
+        }
+
+        if (count($merged) >= 3) {
+            break;
+        }
+    }
+
+    if ($merged !== []) {
+        return $merged;
+    }
+
+    foreach (['software architecture', 'web development', 'computer code', 'technology'] as $fallback) {
+        $rows = cmsAiFetchWikimediaImageCandidates($fallback, $limit);
+        foreach ($rows as $row) {
+            $url = trim((string)($row['url'] ?? ''));
+            if ($url === '' || isset($seenUrls[$url])) {
+                continue;
+            }
+            $seenUrls[$url] = true;
+            $merged[] = $row;
+            if (count($merged) >= $limit) {
+                return $merged;
+            }
+        }
+        if ($merged !== []) {
+            break;
+        }
+    }
+
+    return $merged;
+}
+
+function cmsAiPexelsApiKey(): string
+{
+    $key = trim((string)(getenv('PEXELS_API_KEY') ?: ''));
+    if ($key !== '') {
+        return $key;
+    }
+    if (isset($_ENV['PEXELS_API_KEY'])) {
+        $key = trim((string)$_ENV['PEXELS_API_KEY']);
+    }
+    return $key;
+}
+
+function cmsAiFetchPexelsImageCandidates(string $query, int $limit = 12): array
+{
+    if (!function_exists('curl_init')) {
+        return [];
+    }
+    $apiKey = cmsAiPexelsApiKey();
+    if ($apiKey === '') {
+        return [];
+    }
+
+    $q = trim($query);
+    if ($q === '') {
+        return [];
+    }
+
+    $url = 'https://api.pexels.com/v1/search?query=' . rawurlencode($q)
+        . '&per_page=' . max(1, min(40, $limit));
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 3,
+        CURLOPT_TIMEOUT        => 12,
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json',
+            'Authorization: ' . $apiKey,
+        ],
+        CURLOPT_USERAGENT      => 'Ikabud-CMS/1.0 (+https://ikabud.com)',
+    ]);
+    $raw = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (!is_string($raw) || $raw === '' || $status < 200 || $status >= 300) {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    $photos = is_array($decoded['photos'] ?? null) ? $decoded['photos'] : [];
+    if ($photos === []) {
+        return [];
+    }
+
+    $rows = [];
+    foreach ($photos as $photo) {
+        $src = is_array($photo['src'] ?? null) ? $photo['src'] : [];
+        $imgUrl = trim((string)($src['large2x'] ?? $src['large'] ?? $src['medium'] ?? $src['original'] ?? ''));
+        if ($imgUrl === '' || !preg_match('/^https?:\/\//i', $imgUrl)) {
+            continue;
+        }
+        $thumb = trim((string)($src['medium'] ?? $src['small'] ?? $imgUrl));
+        $id = (int)($photo['id'] ?? 0);
+        $title = trim((string)($photo['alt'] ?? ''));
+        $creator = trim((string)($photo['photographer'] ?? ''));
+        $sourceUrl = trim((string)($photo['url'] ?? ''));
+
+        $rows[] = [
+            'id'            => 'px:' . ($id > 0 ? (string)$id : md5($imgUrl)),
+            'url'           => $imgUrl,
+            'thumbnail_url' => $thumb,
+            'original_name' => $title !== '' ? $title : basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'image'),
+            'alt_text'      => $title,
+            'creator'       => $creator,
+            'license'       => 'Pexels License',
+            'license_url'   => 'https://www.pexels.com/license/',
+            'source'        => 'pexels',
+            'source_url'    => $sourceUrl,
+            'external'      => true,
+        ];
+
+        if (count($rows) >= $limit) {
+            break;
+        }
+    }
+
+    return $rows;
+}
+
+function cmsAiFetchPexelsImageCandidatesFromQueries(array $queries, int $limit = 12): array
+{
+    if (cmsAiPexelsApiKey() === '') {
+        return [];
+    }
+
+    $seenQueries = [];
+    $seenUrls = [];
+    $merged = [];
+
+    foreach ($queries as $query) {
+        $q = trim((string)$query);
+        if ($q === '') {
+            continue;
+        }
+        $normalized = preg_replace('/\s+/', ' ', mb_strtolower($q));
+        if ($normalized === '' || isset($seenQueries[$normalized])) {
+            continue;
+        }
+        $seenQueries[$normalized] = true;
+
+        $variants = [$q];
+        $simplified = trim((string)preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $q));
+        if ($simplified !== '' && $simplified !== $q) {
+            $variants[] = $simplified;
+        }
+        $parts = array_values(array_filter(array_map('trim', explode(',', $q))));
+        if (!empty($parts)) {
+            $variants[] = implode(' ', array_slice($parts, 0, 3));
+            $variants[] = (string)($parts[0] ?? '');
+        }
+
+        foreach ($variants as $variant) {
+            $rows = cmsAiFetchPexelsImageCandidates($variant, $limit);
+            foreach ($rows as $row) {
+                $url = trim((string)($row['url'] ?? ''));
+                if ($url === '' || isset($seenUrls[$url])) {
+                    continue;
+                }
+                $seenUrls[$url] = true;
+                $merged[] = $row;
+                if (count($merged) >= $limit) {
+                    return $merged;
+                }
+            }
+        }
+
+        if (count($merged) >= 3) {
+            break;
+        }
+    }
+
+    if ($merged !== []) {
+        return $merged;
+    }
+
+    foreach (['software architecture', 'web development', 'computer code', 'technology'] as $fallback) {
+        $rows = cmsAiFetchPexelsImageCandidates($fallback, $limit);
+        foreach ($rows as $row) {
+            $url = trim((string)($row['url'] ?? ''));
+            if ($url === '' || isset($seenUrls[$url])) {
+                continue;
+            }
+            $seenUrls[$url] = true;
+            $merged[] = $row;
+            if (count($merged) >= $limit) {
+                return $merged;
+            }
+        }
+        if ($merged !== []) {
+            break;
+        }
+    }
+
+    return $merged;
+}
+
+function cmsAiFetchOpenverseImageCandidatesFromQueries(array $queries, int $limit = 12): array
+{
+    $seenQueries = [];
+    $merged = [];
+    $seenUrls = [];
+
+    foreach ($queries as $query) {
+        $q = trim((string)$query);
+        if ($q === '') {
+            continue;
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', mb_strtolower($q));
+        if ($normalized === '' || isset($seenQueries[$normalized])) {
+            continue;
+        }
+        $seenQueries[$normalized] = true;
+
+        $variants = [$q];
+        $simplified = trim((string)preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $q));
+        if ($simplified !== '' && $simplified !== $q) {
+            $variants[] = $simplified;
+        }
+        $parts = array_values(array_filter(array_map('trim', explode(',', $q))));
+        if (!empty($parts)) {
+            $variants[] = implode(' ', array_slice($parts, 0, 3));
+            $variants[] = (string)($parts[0] ?? '');
+        }
+
+        foreach ($variants as $variant) {
+            $variant = trim($variant);
+            if ($variant === '') {
+                continue;
+            }
+            $rows = cmsAiFetchOpenverseImageCandidates($variant, $limit);
+            foreach ($rows as $row) {
+                $url = trim((string)($row['url'] ?? ''));
+                if ($url === '' || isset($seenUrls[$url])) {
+                    continue;
+                }
+                $seenUrls[$url] = true;
+                $merged[] = $row;
+                if (count($merged) >= $limit) {
+                    return $merged;
+                }
+            }
+        }
+
+        // Keep latency bounded: stop early once we have useful results.
+        if (count($merged) >= 3) {
+            break;
+        }
+    }
+
+    if ($merged !== []) {
+        return $merged;
+    }
+
+    $combined = mb_strtolower(implode(' ', array_map(static fn($q) => trim((string)$q), $queries)));
+    $fallbackQueries = [];
+    if (str_contains($combined, 'kernel') || str_contains($combined, 'modular') || str_contains($combined, 'architecture')) {
+        $fallbackQueries[] = 'software architecture';
+    }
+    if (str_contains($combined, 'web') || str_contains($combined, 'website')) {
+        $fallbackQueries[] = 'web development';
+    }
+    if (str_contains($combined, 'code') || str_contains($combined, 'developer') || str_contains($combined, 'program')) {
+        $fallbackQueries[] = 'computer code';
+    }
+    $fallbackQueries[] = 'technology';
+
+    $fallbackSeen = [];
+    foreach ($fallbackQueries as $fallbackQuery) {
+        $fq = trim($fallbackQuery);
+        if ($fq === '' || isset($fallbackSeen[$fq])) {
+            continue;
+        }
+        $fallbackSeen[$fq] = true;
+        $rows = cmsAiFetchOpenverseImageCandidates($fq, $limit);
+        foreach ($rows as $row) {
+            $url = trim((string)($row['url'] ?? ''));
+            if ($url === '' || isset($seenUrls[$url])) {
+                continue;
+            }
+            $seenUrls[$url] = true;
+            $merged[] = $row;
+            if (count($merged) >= $limit) {
+                return $merged;
+            }
+        }
+        if ($merged !== []) {
+            break;
+        }
+    }
+
+    return $merged;
+}
+
 function cmsApiAiFeaturedImageSuggest(array $params = []): void
 {
     header('Content-Type: application/json');
@@ -478,10 +979,11 @@ function cmsApiAiFeaturedImageSuggest(array $params = []): void
     $excerpt = trim(strip_tags((string)($input['excerpt'] ?? '')));
     $tags    = trim(strip_tags((string)($input['tags']    ?? '')));
     $type    = trim((string)($input['type'] ?? 'post'));
+    $searchKeywords = trim(strip_tags((string)($input['search_keywords'] ?? '')));
 
-    if ($title === '') {
+    if ($title === '' && $searchKeywords === '') {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'Title is required for AI image suggestions']);
+        echo json_encode(['ok' => false, 'error' => 'Title or search keywords are required for AI image suggestions']);
         exit;
     }
 
@@ -503,40 +1005,89 @@ function cmsApiAiFeaturedImageSuggest(array $params = []): void
         write_log('cms ai featured image suggest: media fetch failed: ' . $e->getMessage(), 'error');
     }
 
-    if (empty($mediaRows)) {
-        echo json_encode(['ok' => true, 'suggestions' => [], 'reason' => 'No images in media library']);
-        exit;
-    }
-
-    // Resolve URLs for all candidates
+    // Resolve URLs for all local candidates
     foreach ($mediaRows as &$mr) {
         $mr['url'] = cmsResolveUploadUrl((string)($mr['file_path'] ?? ''));
     }
     unset($mr);
 
-    // Build compact image list for AI (id + name + alt)
-    $imageList = [];
+    // Build compact local image list for AI (id + name + alt)
+    $localImageList = [];
     foreach ($mediaRows as $mr) {
         $label = trim((string)($mr['original_name'] ?? ''));
         $alt   = trim((string)($mr['alt_text']      ?? ''));
-        $imageList[] = [
+        $localImageList[] = [
             'id'   => (int)$mr['id'],
             'name' => $label !== '' ? $label : basename((string)($mr['file_path'] ?? '')),
             'alt'  => $alt,
+            'kind' => 'local_media',
         ];
     }
 
-    $contextParts = ["Title: {$title}"];
+    $contextParts = [];
+    if ($title !== '') $contextParts[] = "Title: {$title}";
     if ($excerpt !== '') $contextParts[] = "Excerpt: {$excerpt}";
     if ($tags    !== '') $contextParts[] = "Tags: {$tags}";
     if ($type    !== '') $contextParts[] = "Content type: {$type}";
+    if ($searchKeywords !== '') $contextParts[] = "Search keywords override: {$searchKeywords}";
     $context = implode("\n", $contextParts);
 
-    $systemPrompt = 'You are a CMS image curator. Given a piece of content and a list of images from a media library, select up to 3 images that would be most suitable as the featured image for that content.' . "\n"
-        . 'Return ONLY valid JSON with this exact schema: {"suggestions":[{"id":1,"reason":"Brief reason why this image fits"}]}' . "\n"
-        . 'Return between 0 and 3 suggestions. Prioritise relevance by filename and alt text. If no image is a good fit, return an empty suggestions array.';
+    // Pull free/licensed web images from Openverse + Wikimedia as additional candidates.
+    $searchQueries = [];
+    if ($searchKeywords !== '') {
+        $searchQueries[] = $searchKeywords;
+    }
+    if ($tags !== '') {
+        $searchQueries[] = $tags;
+    }
+    if ($title !== '') {
+        $searchQueries[] = $title;
+    }
+    if ($title !== '' && $tags !== '') {
+        $searchQueries[] = $title . ' ' . $tags;
+    }
+    if ($type !== '') {
+        $searchQueries[] = $tags !== '' ? ($tags . ' ' . $type) : ($title . ' ' . $type);
+    }
+    $openverseCandidates = cmsAiFetchOpenverseImageCandidatesFromQueries($searchQueries, 8);
+    $wikimediaCandidates = cmsAiFetchWikimediaImageCandidatesFromQueries($searchQueries, 8);
+    $pexelsCandidates = cmsAiFetchPexelsImageCandidatesFromQueries($searchQueries, 8);
+    $webCandidates = [];
+    $seenWebUrls = [];
+    foreach (array_merge($openverseCandidates, $wikimediaCandidates, $pexelsCandidates) as $wc) {
+        $u = trim((string)($wc['url'] ?? ''));
+        if ($u === '' || isset($seenWebUrls[$u])) {
+            continue;
+        }
+        $seenWebUrls[$u] = true;
+        $webCandidates[] = $wc;
+        if (count($webCandidates) >= 12) {
+            break;
+        }
+    }
+    $webImageList = [];
+    foreach ($webCandidates as $ov) {
+        $webImageList[] = [
+            'id'   => (string)($ov['id'] ?? ''),
+            'name' => (string)($ov['original_name'] ?? ''),
+            'alt'  => (string)($ov['alt_text'] ?? ''),
+            'kind' => 'openverse_web',
+            'creator' => (string)($ov['creator'] ?? ''),
+            'license' => (string)($ov['license'] ?? ''),
+        ];
+    }
 
-    $userPrompt = "Content:\n{$context}\n\nAvailable images:\n" . json_encode($imageList, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $candidateList = array_merge($localImageList, $webImageList);
+    if ($candidateList === []) {
+        echo json_encode(['ok' => true, 'suggestions' => [], 'reason' => 'No image candidates available']);
+        exit;
+    }
+
+    $systemPrompt = 'You are a CMS image curator. Given a piece of content and a list of image candidates (from local media and free web image sources), select up to 3 images that would be most suitable as the featured image for that content.' . "\n"
+        . 'Return ONLY valid JSON with this exact schema: {"suggestions":[{"id":"candidate-id","reason":"Brief reason why this image fits"}]}' . "\n"
+        . 'Return between 0 and 3 suggestions. Prioritise relevance by filename and alt text. You may return IDs from either local media or web candidates. If no image is a good fit, return an empty suggestions array.';
+
+    $userPrompt = "Content:\n{$context}\n\nAvailable images:\n" . json_encode($candidateList, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
     try {
         $res = app()->cap()->call('ai.text.generate@1', [
@@ -560,28 +1111,140 @@ function cmsApiAiFeaturedImageSuggest(array $params = []): void
         $decoded = json_decode((string)($res['content'] ?? ''), true);
         $rawSuggestions = is_array($decoded['suggestions'] ?? null) ? $decoded['suggestions'] : [];
 
-        // Build a map for fast lookup and validate IDs
+        // Build local-media map for fast lookup and validate IDs
         $mediaMap = [];
         foreach ($mediaRows as $mr) {
             $mediaMap[(int)$mr['id']] = $mr;
         }
 
+        // Build web-candidate map for fast lookup
+        $webMap = [];
+        foreach ($webCandidates as $ov) {
+            $oid = (string)($ov['id'] ?? '');
+            if ($oid !== '') {
+                $webMap[$oid] = $ov;
+            }
+        }
+
         $suggestions = [];
         foreach ($rawSuggestions as $s) {
-            $sid = (int)($s['id'] ?? 0);
-            if ($sid <= 0 || !isset($mediaMap[$sid])) continue;
-            $mr = $mediaMap[$sid];
-            $suggestions[] = [
-                'id'            => $sid,
-                'url'           => $mr['url'],
-                'original_name' => (string)($mr['original_name'] ?? ''),
-                'alt_text'      => (string)($mr['alt_text']      ?? ''),
-                'reason'        => trim(strip_tags((string)($s['reason'] ?? ''))),
-            ];
+            $reason = trim(strip_tags((string)($s['reason'] ?? '')));
+            $rawId = $s['id'] ?? null;
+            $idStr = trim((string)$rawId);
+
+            $sid = (int)$rawId;
+            if ($sid > 0 && isset($mediaMap[$sid])) {
+                $mr = $mediaMap[$sid];
+                $suggestions[] = [
+                    'id'            => $sid,
+                    'url'           => $mr['url'],
+                    'original_name' => (string)($mr['original_name'] ?? ''),
+                    'alt_text'      => (string)($mr['alt_text']      ?? ''),
+                    'reason'        => $reason,
+                    'source'        => 'media',
+                    'external'      => false,
+                ];
+                if (count($suggestions) >= 3) break;
+                continue;
+            }
+
+            if ($idStr !== '' && isset($webMap[$idStr])) {
+                $ov = $webMap[$idStr];
+                $suggestions[] = [
+                    'id'            => null,
+                    'url'           => (string)($ov['url'] ?? ''),
+                    'thumbnail_url' => (string)($ov['thumbnail_url'] ?? ''),
+                    'original_name' => (string)($ov['original_name'] ?? ''),
+                    'alt_text'      => (string)($ov['alt_text'] ?? ''),
+                    'reason'        => $reason,
+                    'source'        => (string)($ov['source'] ?? 'openverse'),
+                    'source_url'    => (string)($ov['source_url'] ?? ''),
+                    'creator'       => (string)($ov['creator'] ?? ''),
+                    'license'       => (string)($ov['license'] ?? ''),
+                    'license_url'   => (string)($ov['license_url'] ?? ''),
+                    'external'      => true,
+                ];
+            }
+
             if (count($suggestions) >= 3) break;
         }
 
-        echo json_encode(['ok' => true, 'suggestions' => $suggestions]);
+        // Ensure we still surface free web options so suggestions are not local-only.
+        if ($webCandidates !== []) {
+            $existingUrls = [];
+            $hasExternal = false;
+            foreach ($suggestions as $s) {
+                $u = (string)($s['url'] ?? '');
+                if ($u !== '') {
+                    $existingUrls[$u] = true;
+                }
+                if (!empty($s['external'])) {
+                    $hasExternal = true;
+                }
+            }
+
+            $buildExternalSuggestion = static function (array $ov): array {
+                return [
+                    'id'            => null,
+                    'url'           => (string)($ov['url'] ?? ''),
+                    'thumbnail_url' => (string)($ov['thumbnail_url'] ?? ''),
+                    'original_name' => (string)($ov['original_name'] ?? ''),
+                    'alt_text'      => (string)($ov['alt_text'] ?? ''),
+                    'reason'        => 'Free web image candidate from Openverse.',
+                    'source'        => (string)($ov['source'] ?? 'openverse'),
+                    'source_url'    => (string)($ov['source_url'] ?? ''),
+                    'creator'       => (string)($ov['creator'] ?? ''),
+                    'license'       => (string)($ov['license'] ?? ''),
+                    'license_url'   => (string)($ov['license_url'] ?? ''),
+                    'external'      => true,
+                ];
+            };
+
+            $firstExternal = null;
+            foreach ($webCandidates as $ov) {
+                $url = (string)($ov['url'] ?? '');
+                if ($url === '' || isset($existingUrls[$url])) {
+                    continue;
+                }
+                $firstExternal = $buildExternalSuggestion($ov);
+                break;
+            }
+
+            if ($firstExternal !== null && !$hasExternal) {
+                if (count($suggestions) >= 3) {
+                    $suggestions[count($suggestions) - 1] = $firstExternal;
+                } else {
+                    $suggestions[] = $firstExternal;
+                }
+                $existingUrls[(string)$firstExternal['url']] = true;
+                $hasExternal = true;
+            }
+
+            if (count($suggestions) < 3) {
+                foreach ($webCandidates as $ov) {
+                    $url = (string)($ov['url'] ?? '');
+                    if ($url === '' || isset($existingUrls[$url])) {
+                        continue;
+                    }
+                    $suggestions[] = $buildExternalSuggestion($ov);
+                    $existingUrls[$url] = true;
+                    if (count($suggestions) >= 3) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'suggestions' => $suggestions,
+            'sources' => [
+                'local_media_count' => count($localImageList),
+                'openverse_count'   => count($openverseCandidates),
+                'wikimedia_count'   => count($wikimediaCandidates),
+                'pexels_count'      => count($pexelsCandidates),
+            ],
+        ]);
         exit;
     } catch (Throwable $e) {
         write_log('cms ai featured image suggest failed: ' . $e->getMessage(), 'error', [
@@ -649,6 +1312,8 @@ function cmsApiContentCreate(array $params = []): void
         : 0;
 
     $featuredImageId = !empty($input['featured_image_id']) ? (int)$input['featured_image_id'] : null;
+    $featuredImageUrl = trim((string)($input['featured_image_url'] ?? ''));
+    $featuredImageAlt = trim((string)($input['featured_image_alt'] ?? ''));
 
     // Contributors can only create drafts
     $role   = (string)($user['role'] ?? '');
@@ -688,6 +1353,20 @@ function cmsApiContentCreate(array $params = []): void
     }
 
     $db = cmsDb();
+    if (($featuredImageId === null || $featuredImageId <= 0)
+        && $featuredImageUrl !== ''
+        && function_exists('cmsImportMediaFromUrl')) {
+        try {
+            $importedId = cmsImportMediaFromUrl($featuredImageUrl, $featuredImageAlt, $authorId, $db);
+            if (is_int($importedId) && $importedId > 0) {
+                $featuredImageId = $importedId;
+            }
+        } catch (Throwable $e) {
+            write_log('cms content create featured-image import failed: ' . $e->getMessage(), 'warning', [
+                'author_id' => $authorId,
+            ]);
+        }
+    }
     $stmt = $db->prepare(
         "INSERT INTO cms_content
             (uuid, title, slug, body, blocks_json, excerpt,
@@ -741,7 +1420,7 @@ function cmsApiContentCreate(array $params = []): void
     }
 
     // Sync media usage
-    cmsSyncMediaUsage($contentId, ['featured_image_id' => $input['featured_image_id'] ?? null], $blocksJson);
+    cmsSyncMediaUsage($contentId, ['featured_image_id' => $featuredImageId], $blocksJson);
 
     $presetApplied = false;
     if ($entityPresetId !== '') {
@@ -867,6 +1546,28 @@ function cmsApiContentUpdate(array $params = []): void
         $fid = $input['featured_image_id'];
         $fields[] = 'featured_image_id = :fimg';
         $bind[':fimg'] = $fid !== null && $fid !== '' ? (int)$fid : null;
+    }
+
+    $featuredImageUrl = trim((string)($input['featured_image_url'] ?? ''));
+    $featuredImageAlt = trim((string)($input['featured_image_alt'] ?? ''));
+    if ($featuredImageUrl !== '' && function_exists('cmsImportMediaFromUrl')) {
+        $uploadedBy = (int)($existing['author_id'] ?? ($user['id'] ?? 0));
+        if ($uploadedBy > 0) {
+            try {
+                $importedId = cmsImportMediaFromUrl($featuredImageUrl, $featuredImageAlt, $uploadedBy, $db);
+                if (is_int($importedId) && $importedId > 0) {
+                    if (!in_array('featured_image_id = :fimg', $fields, true)) {
+                        $fields[] = 'featured_image_id = :fimg';
+                    }
+                    $bind[':fimg'] = $importedId;
+                }
+            } catch (Throwable $e) {
+                write_log('cms content update featured-image import failed: ' . $e->getMessage(), 'warning', [
+                    'content_id' => $id,
+                    'user_id' => (int)($user['id'] ?? 0),
+                ]);
+            }
+        }
     }
 
     // New enrichment fields
