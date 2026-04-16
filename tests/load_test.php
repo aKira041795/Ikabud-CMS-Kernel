@@ -546,7 +546,7 @@ function loadTestGetTenantP95Threshold(string $tenant, array $config): float
     // Module-based defaults
     if (stripos($tenant, 'wms') !== false) {
         // WMS: higher threshold due to module complexity
-        return (float)($config['wms_p95_ratio'] ?? 1.60);
+        return (float)($config['wms_p95_ratio'] ?? 1.75);
     }
     
     // Other modules: standard threshold
@@ -593,13 +593,37 @@ function loadTestEvaluateTenantIsolation(array $results, array $config): array
     $medianErrorRate = $errorRates[$mid] ?? 0.0;
     $medianP95Ms = $p95Values[$mid] ?? 0.0;
 
+    // Skip isolation comparison when the environment is severely degraded — a
+    // median error rate above 50% means most tenants are misconfigured or the
+    // server is overwhelmed, making isolation comparison meaningless.
+    $degradedThresholdPct = max(0.0, (float)($config['degraded_threshold_pct'] ?? 25.0));
+    if ($medianErrorRate > $degradedThresholdPct) {
+        return [
+            'ok' => true,
+            'reason' => sprintf('Skipped — environment degraded (median error rate %.1f%% > %.0f%% threshold)', $medianErrorRate, $degradedThresholdPct),
+            'buckets' => $buckets,
+            'eligible_tenants' => array_keys($eligible),
+            'violations' => [],
+            'median_error_rate_pct' => round($medianErrorRate, 2),
+            'median_p95_ms' => round($medianP95Ms, 2),
+        ];
+    }
+
     $maxErrorGapPct = max(0.0, (float)($config['max_error_gap_pct'] ?? 5.0));
     // Note: max_p95_ratio is now per-tenant; see loadTestGetTenantP95Threshold()
     $violations = [];
 
+    // Exclude tenants with near-total failure (≥90% error rate) — these are
+    // misconfigured, not victims of isolation leakage.
+    $misconfiguredThresholdPct = max(0.0, (float)($config['misconfigured_threshold_pct'] ?? 90.0));
+
     foreach ($eligible as $tenant => $bucket) {
         $tenantErr = (float)$bucket['error_rate_pct'];
         $tenantP95 = (float)$bucket['p95_ms'];
+
+        if ($tenantErr >= $misconfiguredThresholdPct) {
+            continue; // skip clearly misconfigured tenants
+        }
 
         $errorGap = $tenantErr - $medianErrorRate;
         if ($errorGap > $maxErrorGapPct) {

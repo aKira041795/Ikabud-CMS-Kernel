@@ -59,6 +59,22 @@ file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 // ── Constants ──────────────────────────────────────────────────────────────
 const TEST_CUSTOMER_EMAIL = 'noah2.omamalin@gmail.com';
 const ADMIN_NOTIFY_EMAIL  = 'storeadmin@cmsnew.test';
+// ── Ensure digital product fixture exists ──────────────────────────────────
+$_digitalProdRow = app()->db()->prepare('SELECT id FROM cms_content WHERE id = ?');
+$_digitalProdRow->execute([1225]);
+if (!$_digitalProdRow->fetch(PDO::FETCH_ASSOC)) {
+    $_stmt = app()->db()->prepare('INSERT INTO cms_content (id, uuid, title, slug, type, status, author_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
+    $_stmt->execute([1225, bin2hex(random_bytes(16)), 'Guidance Monitoring', 'guidance-monitoring-test-' . bin2hex(random_bytes(4)), 'product', 'published', 1]);
+}
+foreach ([['_is_digital', '1'], ['_license_module', 'guidance'], ['_license_tier', 'pro'], ['_license_duration_days', '365']] as $_m) {
+    $_chk = app()->db()->prepare('SELECT 1 FROM cms_content_meta WHERE content_id = ? AND meta_key = ?');
+    $_chk->execute([1225, $_m[0]]);
+    if (!$_chk->fetch()) {
+        $_ins = app()->db()->prepare('INSERT INTO cms_content_meta (content_id, meta_key, meta_value) VALUES (?, ?, ?)');
+        $_ins->execute([1225, $_m[0], $_m[1]]);
+    }
+}
+
 const DIGITAL_PROD_ID     = 1225;
 
 // ── Ensure a license signing key exists (CI has no pre-seeded key) ────────

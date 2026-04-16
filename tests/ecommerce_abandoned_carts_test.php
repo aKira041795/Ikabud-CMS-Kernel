@@ -87,6 +87,14 @@ app()->db()->prepare('DELETE FROM ec_abandoned_carts WHERE guest_email = ?')->ex
 ecSessionCartClear();
 ecAbandonedCartClearRecoveryToken();
 
+// Ensure SAVE10 coupon exists so the restore validation passes
+$_save10Exists = ecDb()->query("SELECT id FROM ec_coupons WHERE code = 'SAVE10' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+if (!$_save10Exists) {
+    ecDb()->execute(
+        "INSERT INTO ec_coupons (code, type, value, min_order_amount, max_uses, expires_at, description, is_active, created_at, updated_at) VALUES ('SAVE10', 'percent', 10.00, 0, NULL, NULL, 'Test coupon for abandoned cart', 1, NOW(), NOW())"
+    );
+}
+
 $cart = [
     'items' => [[
         'product_id' => 321,

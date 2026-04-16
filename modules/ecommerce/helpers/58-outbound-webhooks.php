@@ -356,8 +356,11 @@ function ecOutboundWebhooksDispatchEvent(string $eventName, array $payload): arr
                 'payload' => $payload,
             ], 'webhooks', 0, 3);
 
-            $results[] = ['ok' => $jobId > 0, 'status' => $jobId > 0 ? 'queued' : 'queue_failed', 'job_id' => $jobId];
-            continue;
+            if ($jobId > 0) {
+                $results[] = ['ok' => true, 'status' => 'queued', 'job_id' => $jobId];
+                continue;
+            }
+            // Job queue dispatch failed — fall through to synchronous delivery
         }
 
         // Fallback: synchronous delivery if job queue is unavailable

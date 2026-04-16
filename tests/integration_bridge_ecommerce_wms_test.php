@@ -646,6 +646,7 @@ try {
     t('Stale WMS picked event does not move delivered order backward', (string)($secondOrderState['status'] ?? '') === 'delivered', (string)($secondOrderState['status'] ?? ''));
 
     $db->prepare('UPDATE kernel_integrations SET version_lock = ? WHERE id = ?')->execute(['wms.stock.reserve@999', $cleanup['reserve_integration_id']]);
+    \Ikabud\Kernel\IntegrationBridge::resetRequestCache();
     app()->events()->fire('ecommerce.order.created', [
         'order_id' => $cleanup['order_id'] + 100000,
         'order_number' => 'BRIDGE-LOCK-' . strtoupper($suffix),
