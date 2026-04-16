@@ -17,12 +17,22 @@ declare(strict_types=1);
  *    storefront  — public shop/product/blog pages  (GET)
  *    api         — REST API product list + detail   (GET)
  *    mixed       — interleaved storefront + API     (GET)
+ *    multitenant — mixed profile with tenant host round-robin (GET)
+ *    multitenant-assert — multitenant + tenant-isolation assertions
  *    checkout    — shopping journey: shop → product → blog → cart (GET, sequential)
  *
  *  Usage:
  *    php tests/load_test.php                  # all profiles, default concurrency
  *    php tests/load_test.php storefront 20    # storefront only, 20 concurrent
  *    php tests/load_test.php api 50           # API only, 50 concurrent
+ *    php tests/load_test.php multitenant-assert 20 200
+ *
+ *  Tenant isolation assertion env vars:
+ *    LOAD_TEST_ASSERT_TENANT_ISOLATION=1       enable assertions globally
+ *    LOAD_TEST_FAIL_FAST=1                      exit non-zero on first violation (default: 1)
+ *    LOAD_TEST_ISOLATION_MAX_ERROR_GAP_PCT=5   max error-rate gap vs median peer
+ *    LOAD_TEST_ISOLATION_MAX_P95_RATIO=1.5     max p95 latency ratio vs median peer
+ *    LOAD_TEST_ISOLATION_MIN_REQUESTS=10        min requests per tenant before judging
  *
  * ══════════════════════════════════════════════════════════════════════════
  */
@@ -54,6 +64,32 @@ $selectedProfile  = $argv[1] ?? 'all';
 $concurrency      = max(1, min(200, (int)($argv[2] ?? 10)));
 $requestsPerBatch = max($concurrency, (int)($argv[3] ?? 100));
 
+function loadTestEnvBool(string $name, bool $default): bool
+{
+    $raw = getenv($name);
+    if ($raw === false) {
+        return $default;
+    }
+    $value = strtolower(trim((string)$raw));
+    if ($value === '') {
+        return $default;
+    }
+    if (in_array($value, ['1', 'true', 'yes', 'on'], true)) {
+        return true;
+    }
+    if (in_array($value, ['0', 'false', 'no', 'off'], true)) {
+        return false;
+    }
+    return $default;
+}
+
+$assertTenantIsolation = in_array($selectedProfile, ['multitenant-assert', 'isolation'], true)
+    || loadTestEnvBool('LOAD_TEST_ASSERT_TENANT_ISOLATION', false);
+$failFastOnIsolation = loadTestEnvBool('LOAD_TEST_FAIL_FAST', true);
+$isolationMaxErrorGapPct = max(0.0, (float)(getenv('LOAD_TEST_ISOLATION_MAX_ERROR_GAP_PCT') ?: 5.0));
+$isolationMaxP95Ratio = max(1.0, (float)(getenv('LOAD_TEST_ISOLATION_MAX_P95_RATIO') ?: 1.5));
+$isolationMinRequests = max(1, (int)(getenv('LOAD_TEST_ISOLATION_MIN_REQUESTS') ?: 10));
+
 echo "\n╔══════════════════════════════════════════════════════╗\n";
 echo "║            HTTP LOAD TEST                            ║\n";
 echo "╠══════════════════════════════════════════════════════╣\n";
@@ -61,7 +97,16 @@ echo "║  Base URL:     {$BASE_URL}\n";
 echo "║  Concurrency:  {$concurrency}\n";
 echo "║  Requests:     {$requestsPerBatch} per profile\n";
 echo "║  Tenants:      " . count($tenantHosts) . " (" . implode(', ', $tenantHosts) . ")\n";
+echo "║  Isolation:    " . ($assertTenantIsolation ? 'ON' : 'OFF') . "\n";
 echo "╚══════════════════════════════════════════════════════╝\n\n";
+
+if ($assertTenantIsolation) {
+    echo "  Tenant isolation thresholds:\n";
+    echo "    max_error_gap_pct = {$isolationMaxErrorGapPct}%\n";
+    echo "    max_p95_ratio     = {$isolationMaxP95Ratio}x\n";
+    echo "    min_requests      = {$isolationMinRequests}\n";
+    echo "    fail_fast         = " . ($failFastOnIsolation ? 'yes' : 'no') . "\n\n";
+}
 
 // ── Connectivity check ───────────────────────────────────────────────────
 
@@ -186,6 +231,143 @@ function loadTestBuildHeaders(array $headers, ?string $tenantHost): array
     return $out;
 }
 
+function loadTestTenantBuckets(array $results): array
+{
+    $tenantBuckets = [];
+    foreach ($results as $row) {
+        $tenant = (string)($row['tenant'] ?? '');
+        if ($tenant === '') {
+            $tenant = (string)(parse_url((string)($row['url'] ?? ''), PHP_URL_HOST) ?? 'unknown');
+        }
+        if (!isset($tenantBuckets[$tenant])) {
+            $tenantBuckets[$tenant] = [
+                'count' => 0,
+                'errors' => 0,
+                'times' => [],
+            ];
+        }
+        $tenantBuckets[$tenant]['count']++;
+        $tenantBuckets[$tenant]['times'][] = (float)($row['time'] ?? 0);
+        if (($row['error'] ?? null) !== null || (int)($row['status'] ?? 0) >= 400) {
+            $tenantBuckets[$tenant]['errors']++;
+        }
+    }
+
+    foreach ($tenantBuckets as $tenant => $bucket) {
+        $count = max(1, (int)$bucket['count']);
+        sort($bucket['times']);
+        $p95 = (float)($bucket['times'][(int)floor($count * 0.95)] ?? 0);
+        $tenantBuckets[$tenant]['p95_ms'] = round($p95 * 1000, 2);
+        $tenantBuckets[$tenant]['error_rate_pct'] = round(((int)$bucket['errors'] / $count) * 100, 2);
+    }
+
+    return $tenantBuckets;
+}
+
+function loadTestEvaluateTenantIsolation(array $results, array $config): array
+{
+    $buckets = loadTestTenantBuckets($results);
+    if (count($buckets) < 2) {
+        return [
+            'ok' => true,
+            'reason' => 'Need at least 2 tenants for isolation assertions',
+            'buckets' => $buckets,
+            'eligible_tenants' => [],
+            'violations' => [],
+        ];
+    }
+
+    $minRequests = max(1, (int)($config['min_requests'] ?? 10));
+    $eligible = [];
+    foreach ($buckets as $tenant => $bucket) {
+        if ((int)$bucket['count'] >= $minRequests) {
+            $eligible[$tenant] = $bucket;
+        }
+    }
+
+    if (count($eligible) < 2) {
+        return [
+            'ok' => true,
+            'reason' => 'Not enough tenant samples meeting min_requests=' . $minRequests,
+            'buckets' => $buckets,
+            'eligible_tenants' => array_keys($eligible),
+            'violations' => [],
+        ];
+    }
+
+    $errorRates = array_map(static fn($v) => (float)$v['error_rate_pct'], array_values($eligible));
+    $p95Values = array_map(static fn($v) => (float)$v['p95_ms'], array_values($eligible));
+    sort($errorRates);
+    sort($p95Values);
+
+    $mid = (int)floor(count($errorRates) / 2);
+    $medianErrorRate = $errorRates[$mid] ?? 0.0;
+    $medianP95Ms = $p95Values[$mid] ?? 0.0;
+
+    $maxErrorGapPct = max(0.0, (float)($config['max_error_gap_pct'] ?? 5.0));
+    $maxP95Ratio = max(1.0, (float)($config['max_p95_ratio'] ?? 1.5));
+    $violations = [];
+
+    foreach ($eligible as $tenant => $bucket) {
+        $tenantErr = (float)$bucket['error_rate_pct'];
+        $tenantP95 = (float)$bucket['p95_ms'];
+
+        $errorGap = $tenantErr - $medianErrorRate;
+        if ($errorGap > $maxErrorGapPct) {
+            $violations[] = sprintf(
+                '%s error gap %.2f%% > %.2f%% (tenant %.2f%% vs median %.2f%%)',
+                $tenant,
+                $errorGap,
+                $maxErrorGapPct,
+                $tenantErr,
+                $medianErrorRate
+            );
+        }
+
+        if ($medianP95Ms > 0.0) {
+            $ratio = $tenantP95 / $medianP95Ms;
+            if ($ratio > $maxP95Ratio) {
+                $violations[] = sprintf(
+                    '%s p95 ratio %.2fx > %.2fx (tenant %.2fms vs median %.2fms)',
+                    $tenant,
+                    $ratio,
+                    $maxP95Ratio,
+                    $tenantP95,
+                    $medianP95Ms
+                );
+            }
+        }
+    }
+
+    return [
+        'ok' => empty($violations),
+        'reason' => empty($violations) ? 'Tenant isolation within configured thresholds' : 'Isolation threshold exceeded',
+        'buckets' => $buckets,
+        'eligible_tenants' => array_keys($eligible),
+        'violations' => $violations,
+        'median_error_rate_pct' => round($medianErrorRate, 2),
+        'median_p95_ms' => round($medianP95Ms, 2),
+    ];
+}
+
+function loadTestPrintIsolationEvaluation(string $scope, array $evaluation): void
+{
+    $icon = !empty($evaluation['ok']) ? '✓' : '✗';
+    echo "  {$icon} Tenant Isolation ({$scope}): " . ($evaluation['reason'] ?? 'n/a') . "\n";
+
+    if (!empty($evaluation['median_error_rate_pct']) || !empty($evaluation['median_p95_ms'])) {
+        echo "    median_error_rate=" . ($evaluation['median_error_rate_pct'] ?? 0) . "%";
+        echo " median_p95=" . ($evaluation['median_p95_ms'] ?? 0) . "ms\n";
+    }
+
+    foreach (($evaluation['violations'] ?? []) as $violation) {
+        echo "    - {$violation}\n";
+    }
+    if (!empty($evaluation['violations'])) {
+        echo "\n";
+    }
+}
+
 
 // ═════════════════════════════════════════════════════════════════════════
 //  REPORTING
@@ -243,35 +425,13 @@ function loadTestReport(string $profile, array $batch): void
     echo "  │ Success: {$successCount}/{$total}  Errors: {$errCount}/{$total} ({$errRate}%)\n";
     echo "  │ Verdict: {$tag} " . ($errRate === 0.0 ? 'CLEAN' : ($errRate <= 5 ? 'ACCEPTABLE' : 'DEGRADED')) . "\n";
 
-    $tenantBuckets = [];
-    foreach ($results as $row) {
-        $tenant = (string)($row['tenant'] ?? '');
-        if ($tenant === '') {
-            $tenant = (string)(parse_url((string)($row['url'] ?? ''), PHP_URL_HOST) ?? 'unknown');
-        }
-        if (!isset($tenantBuckets[$tenant])) {
-            $tenantBuckets[$tenant] = [
-                'count' => 0,
-                'errors' => 0,
-                'times' => [],
-            ];
-        }
-        $tenantBuckets[$tenant]['count']++;
-        $tenantBuckets[$tenant]['times'][] = (float)($row['time'] ?? 0);
-        if (($row['error'] ?? null) !== null || (int)($row['status'] ?? 0) >= 400) {
-            $tenantBuckets[$tenant]['errors']++;
-        }
-    }
+    $tenantBuckets = loadTestTenantBuckets($results);
 
     if (count($tenantBuckets) > 1) {
         echo "  │\n";
         echo "  │ Per-tenant breakdown:\n";
         foreach ($tenantBuckets as $tenant => $bucket) {
-            $tCount = max(1, (int)$bucket['count']);
-            sort($bucket['times']);
-            $tP95 = $bucket['times'][(int)floor($tCount * 0.95)] ?? 0;
-            $tErrPct = round(((int)$bucket['errors'] / $tCount) * 100, 1);
-            echo "  │   {$tenant}: " . $bucket['count'] . " req, p95=" . round($tP95 * 1000) . "ms, err=" . $tErrPct . "%\n";
+            echo "  │   {$tenant}: " . $bucket['count'] . " req, p95=" . round((float)$bucket['p95_ms']) . "ms, err=" . $bucket['error_rate_pct'] . "%\n";
         }
     }
     echo "  └─────────────────────────────────────────────────\n\n";
@@ -485,7 +645,7 @@ function runCheckoutProfile(string $baseUrl, int $iterations, array $tenantHosts
 //  CONCURRENCY RAMP — find breaking point
 // ═════════════════════════════════════════════════════════════════════════
 
-function runConcurrencyRamp(string $baseUrl, array $tenantHosts = []): void
+function runConcurrencyRamp(string $baseUrl, array $tenantHosts = [], array $isolationConfig = []): bool
 {
     echo "══ Concurrency Ramp (finding limits) ══\n\n";
 
@@ -533,8 +693,17 @@ function runConcurrencyRamp(string $baseUrl, array $tenantHosts = []): void
            . str_pad("{$p99}ms", 8)
            . str_pad("{$errPct}%", 8)
            . $verdict . "\n";
+
+        if (!empty($isolationConfig['enabled']) && count($tenantHosts) > 1) {
+            $evaluation = loadTestEvaluateTenantIsolation($res, $isolationConfig);
+            loadTestPrintIsolationEvaluation('ramp@c=' . $conc, $evaluation);
+            if (empty($evaluation['ok']) && !empty($isolationConfig['fail_fast'])) {
+                return false;
+            }
+        }
     }
     echo "\n";
+    return true;
 }
 
 
@@ -573,6 +742,18 @@ if ($selectedProfile === 'all' || $selectedProfile === 'multitenant') {
     }
 }
 
+if ($selectedProfile === 'multitenant-assert' || $selectedProfile === 'isolation') {
+    if (count($tenantHosts) > 1) {
+        $profiles['Multi-Tenant Assertion Probe'] = fn() => loadTestBatch(
+            buildMixedRequests($BASE_URL, $requestsPerBatch, $tenantHosts),
+            $concurrency
+        );
+    } else {
+        echo "  ⚠ Tenant isolation assertion mode needs at least 2 tenant hosts.\n";
+        echo "    Set LOAD_TEST_TENANT_HOSTS with multiple hosts.\n\n";
+    }
+}
+
 if ($selectedProfile === 'all' || $selectedProfile === 'checkout') {
     $checkoutIter = min(20, (int)ceil($requestsPerBatch / 4));
     $profiles['Shopping Journey (sequential sessions)'] = fn() => runCheckoutProfile($BASE_URL, $checkoutIter, $tenantHosts);
@@ -582,11 +763,34 @@ foreach ($profiles as $name => $runner) {
     echo "══ {$name} ══\n\n";
     $batch = $runner();
     loadTestReport($name, $batch);
+
+    if ($assertTenantIsolation && count($tenantHosts) > 1) {
+        $evaluation = loadTestEvaluateTenantIsolation($batch['results'], [
+            'max_error_gap_pct' => $isolationMaxErrorGapPct,
+            'max_p95_ratio' => $isolationMaxP95Ratio,
+            'min_requests' => $isolationMinRequests,
+        ]);
+        loadTestPrintIsolationEvaluation($name, $evaluation);
+        if (empty($evaluation['ok']) && $failFastOnIsolation) {
+            echo "  ✗ Failing fast due to tenant-isolation violation.\n\n";
+            exit(2);
+        }
+    }
 }
 
 // Concurrency ramp always runs in 'all' mode
 if ($selectedProfile === 'all' || $selectedProfile === 'ramp') {
-    runConcurrencyRamp($BASE_URL, $tenantHosts);
+    $rampOk = runConcurrencyRamp($BASE_URL, $tenantHosts, [
+        'enabled' => $assertTenantIsolation,
+        'fail_fast' => $failFastOnIsolation,
+        'max_error_gap_pct' => $isolationMaxErrorGapPct,
+        'max_p95_ratio' => $isolationMaxP95Ratio,
+        'min_requests' => $isolationMinRequests,
+    ]);
+    if (!$rampOk && $failFastOnIsolation) {
+        echo "  ✗ Failing fast due to tenant-isolation violation in concurrency ramp.\n\n";
+        exit(2);
+    }
 }
 
 
