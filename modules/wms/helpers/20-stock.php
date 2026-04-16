@@ -113,7 +113,7 @@ function wmsStockSnapshot(int $warehouseId = 0, array $filters = []): array
     );
 }
 
-function wmsMovementsList(array $filters = []): array
+function wmsMovementsList(array $filters = [], int $limit = 500): array
 {
     $where = ['1=1'];
     $params = [];
@@ -148,6 +148,8 @@ function wmsMovementsList(array $filters = []): array
         $params[] = $dateTo;
     }
 
+    $limit = max(1, min($limit, 500)); // Cap limit at 500 for safety
+
     return wmsFetchAll(
         'SELECT m.*, p.sku, p.name AS product_name, l.code AS location_code, w.name AS warehouse_name, b.batch_number
          FROM wms_movements m
@@ -157,7 +159,7 @@ function wmsMovementsList(array $filters = []): array
          LEFT JOIN wms_batches b ON b.id = m.batch_id
          WHERE ' . implode(' AND ', $where) . '
          ORDER BY m.created_at DESC, m.id DESC
-         LIMIT 500',
+         LIMIT ' . (int)$limit,
         $params
     );
 }

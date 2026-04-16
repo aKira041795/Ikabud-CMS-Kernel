@@ -70,8 +70,7 @@ function wmsPageDashboard(array $params = []): void
     try {
         $recentDeliveries = wmsFetchAll('SELECT * FROM wms_deliveries WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 8');
         $recentOrders = wmsFetchAll('SELECT * FROM wms_orders WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 8');
-        $recentMovements = wmsMovementsList([]);
-        $recentMovements = array_slice($recentMovements, 0, 10);
+        $recentMovements = wmsMovementsList([], 10);  // Limit to 10 instead of loading 500 and slicing
     } catch (Throwable $e) {
     }
 
