@@ -88,7 +88,11 @@ function cmsCacheInvalidateByTags(array $tags): int
 
 function cmsCacheFlushAll(): int
 {
-    return app()->cache()->clear(cmsCacheInstance());
+    $count = app()->cache()->clear(cmsCacheInstance());
+    if (function_exists('pageCacheInvalidateModule')) {
+        $count += pageCacheInvalidateModule('cms');
+    }
+    return $count;
 }
 
 /**

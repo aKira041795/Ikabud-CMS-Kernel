@@ -66,6 +66,11 @@ function ecReviewInvalidateCaches(int $productId, string $slug = ''): void
     }
 
     cmsCacheInvalidateByTags(array_values(array_unique($tags)));
+
+    // Also invalidate ecommerce cache — review changes affect product detail
+    if (function_exists('ecCacheInvalidateProduct')) {
+        ecCacheInvalidateProduct($productId, $slug !== '' ? $slug : null);
+    }
 }
 
 function ecReviewSummaryForProducts(array $productIds, string $status = 'approved'): array

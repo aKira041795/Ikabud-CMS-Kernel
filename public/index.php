@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/security.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
+require_once __DIR__ . '/../src/helpers/page-cache.php';
 require_once __DIR__ . '/../src/helpers/email.php';
 require_once __DIR__ . '/../src/helpers/updates.php';
 require_once __DIR__ . '/../src/http/request-bootstrap.php';

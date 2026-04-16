@@ -1841,13 +1841,36 @@ function executeModuleHandler(string $handler, array $params = []): void
         }
     }
 
+    // ── Page-level cache: serve from cache if available ─────────────
+    $pageCacheActive = function_exists('pageCacheShouldCache')
+        && pageCacheShouldCache($requestUri, $moduleId);
+
+    if ($pageCacheActive && function_exists('pageCacheServe') && pageCacheServe($requestUri)) {
+        // pageCacheServe() already sends X-Page-Cache header + body
+        modulePopContext();
+        kernel_request_context_delete('_capability_call_context');
+        return;
+    }
+
     // ── Output-buffered, exception-safe handler execution ────────────
     // Prevents stray echo/print from corrupting responses and ensures
     // uncaught exceptions produce a clean error page, not a white screen.
     ob_start();
     try {
         $routeCallable($params);
-        ob_end_flush(); // success — send captured output
+
+        // ── Page-level cache: capture and store on cache-eligible requests ──
+        if ($pageCacheActive && function_exists('pageCacheSet')) {
+            $html = ob_get_clean();
+            $responseCode = http_response_code();
+            pageCacheSet($requestUri, $html, $moduleId, (int)$responseCode);
+            if (!headers_sent()) {
+                header('X-Page-Cache: miss');
+            }
+            echo $html;
+        } else {
+            ob_end_flush(); // success — send captured output
+        }
     } catch (\Throwable $e) {
         ob_end_clean(); // discard any partial output from the bad handler
 

@@ -11,6 +11,7 @@ require_once __DIR__ . '/helpers/08-currency.php';
 require_once __DIR__ . '/helpers/10-cart.php';
 require_once __DIR__ . '/helpers/20-orders.php';
 require_once __DIR__ . '/helpers/22-returns.php';
+require_once __DIR__ . '/helpers/29-cache.php';
 require_once __DIR__ . '/helpers/30-catalog.php';
 require_once __DIR__ . '/helpers/31-inventory.php';
 require_once __DIR__ . '/helpers/32-attributes.php';

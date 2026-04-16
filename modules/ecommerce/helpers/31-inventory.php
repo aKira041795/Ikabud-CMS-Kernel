@@ -148,6 +148,11 @@ function ecProductUpdateInventory(int $productId, array $data): void
 
     ecAttachCmsEntityCapability($productId, 'inventory', $config);
 
+    // Invalidate ecommerce cache — stock change affects product detail
+    if (function_exists('ecCacheInvalidateProduct')) {
+        ecCacheInvalidateProduct($productId);
+    }
+
     // Fire back-in-stock notification when a manual update restocks from zero
     if (function_exists('ecStockNotificationCheckAndTrigger')) {
         ecStockNotificationCheckAndTrigger($productId, null, $prevQty, $newQty);
@@ -205,6 +210,11 @@ function ecProductDecrementStock(int $productId, int $qty): bool
 
     if (!$decremented) {
         return false; // insufficient stock
+    }
+
+    // Invalidate ecommerce cache — stock quantity changed
+    if (function_exists('ecCacheInvalidateProduct')) {
+        ecCacheInvalidateProduct($productId);
     }
 
     // Re-read to check if out of stock for event
@@ -268,6 +278,11 @@ function ecProductIncrementStock(int $productId, int $qty): void
             [json_encode($config), (int)$row['id']]
         );
     });
+
+    // Invalidate ecommerce cache — stock quantity changed
+    if (function_exists('ecCacheInvalidateProduct')) {
+        ecCacheInvalidateProduct($productId);
+    }
 
     // Fire back-in-stock notification when restocked from zero
     if (function_exists('ecStockNotificationCheckAndTrigger')) {
