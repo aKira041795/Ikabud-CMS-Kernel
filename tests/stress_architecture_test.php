@@ -7,7 +7,7 @@ declare(strict_types=1);
  *  Architectural Stress Test Suite
  * ──────────────────────────────────────────────────────────────────────────
  *
- *  Proves six critical architecture claims under pressure:
+ *  Proves eight critical architecture claims under pressure:
  *
  *    Scenario 1 — Concurrent Orders:     no overselling, stock integrity
  *    Scenario 2 — Cross-Module Chain:    failure isolation in event chain
@@ -15,6 +15,8 @@ declare(strict_types=1);
  *    Scenario 4 — Repetition Consist.:   deterministic state transitions
  *    Scenario 5 — Mixed Operations:      data integrity under conflict
  *    Scenario 6 — Tenant Isolation:      zero data leakage
+ *    Scenario 7 — CMS Content CRUD:      integrity, slugs, taxonomy, rendering
+ *    Scenario 8 — Cross-Module Integ.:   CMS + ecommerce lifecycle
  *
  *  Run:  php tests/stress_architecture_test.php
  * ══════════════════════════════════════════════════════════════════════════
@@ -645,12 +647,299 @@ app()->events()->reset();
 
 
 // ═════════════════════════════════════════════════════════════════════════
+//  SCENARIO 7 — CMS Content CRUD Integrity
+// ═════════════════════════════════════════════════════════════════════════
+
+heading('Scenario 7 — CMS Content CRUD Integrity');
+
+$s7ContentIds = [];
+$s7CategoryIds = [];
+
+// Resolve a test author (first user in the DB)
+$s7AuthorRow = stressDb()->query("SELECT id FROM cms_users ORDER BY id ASC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+$s7AuthorId  = (int)($s7AuthorRow['id'] ?? 0);
+
+subheading('Capability-driven content create → read → update → delete');
+
+// 7a: Create content via capability handler
+$s7CreateResult = moduleWithContext('cms', static function () use ($s7AuthorId): array {
+    return cms_cap_cms_content_create_1([
+        'title'     => 'Stress CMS Post Alpha',
+        'type'      => 'post',
+        'body'      => '<p>Body of stress test post alpha.</p>',
+        'excerpt'   => 'Excerpt alpha',
+        'status'    => 'published',
+        'slug'      => 'stress-cms-alpha-' . bin2hex(random_bytes(4)),
+        'author_id' => $s7AuthorId,
+    ], 'cms.content.create@1', 'cms');
+});
+
+$s7CreateOk = ($s7CreateResult['ok'] ?? false) === true;
+$s7PostId   = (int)($s7CreateResult['id'] ?? 0);
+if ($s7PostId > 0) { $s7ContentIds[] = $s7PostId; }
+
+t('CMS content create via capability succeeds', $s7CreateOk, $s7CreateResult['error'] ?? '');
+t('CMS content has valid ID', $s7PostId > 0, "id: {$s7PostId}");
+
+// 7b: Read it back
+$s7ReadResult = moduleWithContext('cms', static function () use ($s7PostId): array {
+    return cms_cap_cms_content_get_1(['id' => $s7PostId], 'cms.content.get@1', 'cms');
+});
+
+$s7ReadOk = ($s7ReadResult['ok'] ?? false) === true;
+t('CMS content read via capability succeeds', $s7ReadOk);
+t('CMS content title matches', ($s7ReadResult['data']['title'] ?? '') === 'Stress CMS Post Alpha');
+t('CMS content status is published', ($s7ReadResult['data']['status'] ?? '') === 'published');
+
+// 7c: Update title + body
+$s7UpdateResult = moduleWithContext('cms', static function () use ($s7PostId): array {
+    return cms_cap_cms_content_update_1([
+        'id'    => $s7PostId,
+        'title' => 'Stress CMS Post Alpha — Updated',
+        'body'  => '<p>Updated body.</p>',
+    ], 'cms.content.update@1', 'cms');
+});
+
+$s7UpdateOk = ($s7UpdateResult['ok'] ?? false) === true;
+t('CMS content update via capability succeeds', $s7UpdateOk, $s7UpdateResult['error'] ?? '');
+
+// Re-read and verify
+$s7ReRead = moduleWithContext('cms', static function () use ($s7PostId): array {
+    return cms_cap_cms_content_get_1(['id' => $s7PostId], 'cms.content.get@1', 'cms');
+});
+t('CMS content title updated', str_contains($s7ReRead['data']['title'] ?? '', 'Updated'));
+t('CMS content body updated', str_contains($s7ReRead['data']['body'] ?? '', 'Updated body'));
+
+subheading('Slug uniqueness under rapid creation');
+
+$s7SlugBase = 'stress-slug-collision-' . bin2hex(random_bytes(3));
+$s7Slugs    = [];
+
+for ($i = 0; $i < 10; $i++) {
+    $result = moduleWithContext('cms', static function () use ($s7SlugBase, $s7AuthorId): array {
+        return cms_cap_cms_content_create_1([
+            'title'     => 'Slug Collision Test',
+            'type'      => 'post',
+            'slug'      => $s7SlugBase,  // intentionally same slug every time
+            'status'    => 'draft',
+            'author_id' => $s7AuthorId,
+        ], 'cms.content.create@1', 'cms');
+    });
+    if (($result['ok'] ?? false) && isset($result['id'])) {
+        $s7ContentIds[] = (int)$result['id'];
+        $s7Slugs[] = $result['slug'] ?? '';
+    }
+}
+
+$s7UniqueCount = count(array_unique($s7Slugs));
+t('All 10 posts created with same base slug', count($s7Slugs) === 10, "created: " . count($s7Slugs));
+t('All 10 slugs are unique (collision resolution)', $s7UniqueCount === 10, "unique: {$s7UniqueCount}");
+
+subheading('Taxonomy operations — categories and tags');
+
+// Create categories
+$s7Cat1 = cmsCategoryCreate('Stress Category A ' . bin2hex(random_bytes(3)));
+$s7Cat2 = cmsCategoryCreate('Stress Category B ' . bin2hex(random_bytes(3)));
+
+$s7Cat1Ok = ($s7Cat1['ok'] ?? false) === true;
+$s7Cat2Ok = ($s7Cat2['ok'] ?? false) === true;
+if ($s7Cat1Ok) { $s7CategoryIds[] = (int)$s7Cat1['id']; }
+if ($s7Cat2Ok) { $s7CategoryIds[] = (int)$s7Cat2['id']; }
+
+t('Category A created', $s7Cat1Ok, $s7Cat1['error'] ?? '');
+t('Category B created', $s7Cat2Ok, $s7Cat2['error'] ?? '');
+
+// Assign categories to the post
+if ($s7PostId > 0 && $s7Cat1Ok && $s7Cat2Ok) {
+    cmsSyncContentCategories($s7PostId, [(int)$s7Cat1['id'], (int)$s7Cat2['id']]);
+    $assigned = cmsGetContentCategoryIds($s7PostId);
+    t('Post has 2 categories assigned', count($assigned) === 2, "assigned: " . count($assigned));
+
+    // Re-sync with only 1 category (should remove the other)
+    cmsSyncContentCategories($s7PostId, [(int)$s7Cat1['id']]);
+    $afterResync = cmsGetContentCategoryIds($s7PostId);
+    t('Category re-sync removes extra (now 1)', count($afterResync) === 1, "after resync: " . count($afterResync));
+}
+
+// Tags
+cmsSyncContentTags($s7PostId, ['stress-tag-a', 'stress-tag-b', 'stress-tag-c']);
+$tagNames = cmsGetContentTagNames($s7PostId);
+t('3 tags assigned to post', count($tagNames) === 3, "tags: " . count($tagNames));
+
+// Re-sync tags
+cmsSyncContentTags($s7PostId, ['stress-tag-a']);
+$tagNamesAfter = cmsGetContentTagNames($s7PostId);
+t('Tag re-sync removes extras (now 1)', count($tagNamesAfter) === 1, "tags: " . count($tagNamesAfter));
+
+subheading('Rapid CRUD cycle (50 create→update→trash)');
+timeStart('s7_rapid_crud');
+
+$s7RapidOk    = true;
+$s7RapidCount = 50;
+
+for ($i = 0; $i < $s7RapidCount; $i++) {
+    $cr = moduleWithContext('cms', static function () use ($s7AuthorId, $i): array {
+        return cms_cap_cms_content_create_1([
+            'title'     => "Rapid CRUD #{$i}",
+            'type'      => 'post',
+            'status'    => 'draft',
+            'author_id' => $s7AuthorId,
+        ], 'cms.content.create@1', 'cms');
+    });
+    if (!($cr['ok'] ?? false)) { $s7RapidOk = false; break; }
+    $rid = (int)$cr['id'];
+    $s7ContentIds[] = $rid;
+
+    // Update
+    $ur = moduleWithContext('cms', static function () use ($rid, $i): array {
+        return cms_cap_cms_content_update_1([
+            'id'     => $rid,
+            'title'  => "Rapid CRUD #{$i} — Updated",
+            'status' => 'published',
+        ], 'cms.content.update@1', 'cms');
+    });
+    if (!($ur['ok'] ?? false)) { $s7RapidOk = false; break; }
+
+    // Trash via direct DB (bulk action equivalent)
+    stressDb()->prepare("UPDATE cms_content SET status = 'trash', updated_at = NOW() WHERE id = ?")->execute([$rid]);
+}
+
+timeEnd('s7_rapid_crud');
+
+t("Rapid CRUD: {$s7RapidCount} create→update→trash cycles complete", $s7RapidOk);
+
+// Verify all are trashed
+$s7RapidTrashCheck = stressDb()->prepare(
+    "SELECT COUNT(*) FROM cms_content WHERE id IN (" . implode(',', array_map('intval', array_slice($s7ContentIds, -$s7RapidCount))) . ") AND status = 'trash'"
+);
+$s7RapidTrashCheck->execute();
+$s7TrashedCount = (int)$s7RapidTrashCheck->fetchColumn();
+t("All {$s7RapidCount} rapid-created posts are trashed", $s7TrashedCount === $s7RapidCount, "trashed: {$s7TrashedCount}");
+
+subheading('DiSyL rendering stability under load');
+timeStart('s7_render');
+
+$s7RenderErrors = 0;
+$s7RenderCount  = 100;
+
+for ($i = 0; $i < $s7RenderCount; $i++) {
+    try {
+        $html = app()->templates()->renderString(
+            '<div class="item-{i}">{title} — {status}</div>',
+            ['i' => $i, 'title' => "Render Test {$i}", 'status' => $i % 2 === 0 ? 'active' : 'inactive']
+        );
+        if (!str_contains($html, "item-{$i}")) {
+            $s7RenderErrors++;
+        }
+    } catch (\Throwable $e) {
+        $s7RenderErrors++;
+    }
+}
+
+timeEnd('s7_render');
+
+t("DiSyL: {$s7RenderCount} inline renders with 0 errors", $s7RenderErrors === 0, "errors: {$s7RenderErrors}");
+
+
+// ═════════════════════════════════════════════════════════════════════════
+//  SCENARIO 8 — CMS + Ecommerce Cross-Module Integration
+// ═════════════════════════════════════════════════════════════════════════
+
+heading('Scenario 8 — CMS + Ecommerce Cross-Module Integration');
+
+subheading('Product content lifecycle (CMS layer + ecommerce capabilities)');
+
+// Create a product via CMS capability, then attach ecommerce capabilities
+$s8Product = moduleWithContext('cms', static function () use ($s7AuthorId): array {
+    return cms_cap_cms_content_create_1([
+        'title'     => 'Integration Product Stress',
+        'type'      => 'product',
+        'status'    => 'published',
+        'author_id' => $s7AuthorId,
+    ], 'cms.content.create@1', 'cms');
+});
+
+$s8ProductId = (int)($s8Product['id'] ?? 0);
+$s8Sku = 'INTEG-' . bin2hex(random_bytes(4));
+
+t('Product created via CMS capability', ($s8Product['ok'] ?? false) === true, $s8Product['error'] ?? '');
+
+// Attach inventory capability
+if ($s8ProductId > 0) {
+    $invConfig = json_encode(['sku' => $s8Sku, 'track_stock' => true, 'stock_qty' => 25]);
+    stressDb()->prepare(
+        "INSERT INTO cms_entity_capabilities (entity_id, capability_id, config, created_at, updated_at)
+         VALUES (?, 'inventory', ?, NOW(), NOW())"
+    )->execute([$s8ProductId, $invConfig]);
+
+    stressDb()->prepare(
+        "INSERT INTO cms_content_meta (content_id, meta_key, meta_value) VALUES (?, '_price', '19.99')"
+    )->execute([$s8ProductId]);
+
+    // Now use ecommerce functions on the CMS-created product
+    $stockBefore = stressGetStock($s8ProductId);
+    t('Stock reads correctly for CMS-created product', $stockBefore === 25, "stock: {$stockBefore}");
+
+    // Decrement stock via ecommerce layer
+    $dec = ecProductDecrementStock($s8ProductId, 5);
+    $stockAfterDec = stressGetStock($s8ProductId);
+    t('Ecommerce decrement works on CMS product', $dec === true);
+    t('Stock is 20 after decrement of 5', $stockAfterDec === 20, "stock: {$stockAfterDec}");
+
+    // Increment stock
+    ecProductIncrementStock($s8ProductId, 10);
+    $stockAfterInc = stressGetStock($s8ProductId);
+    t('Stock is 30 after increment of 10', $stockAfterInc === 30, "stock: {$stockAfterInc}");
+
+    // Create an order for this CMS-created product
+    $s8Order = ecOrderCreate([
+        'guest_email'     => 'integ-stress@test.local',
+        'guest_name'      => 'Integration Stress',
+        'subtotal'        => 19.99,
+        'discount_amount' => 0,
+        'tax_amount'      => 0,
+        'shipping_amount' => 0,
+        'total'           => 19.99,
+        'currency'        => 'USD',
+        'billing'         => ['billing_first_name' => 'I', 'billing_last_name' => 'S', 'billing_email' => 'is@test.local'],
+        'cart_items'      => [['product_id' => $s8ProductId, 'product_title' => 'Integration Product Stress', 'sku' => $s8Sku, 'price_snapshot' => 19.99, 'qty' => 2]],
+    ]);
+
+    $s8OrderId  = (int)($s8Order['order_id'] ?? 0);
+    $stockAfterOrder = stressGetStock($s8ProductId);
+
+    t('Order created for CMS product', $s8OrderId > 0, "order_id: {$s8OrderId}");
+    t('Stock decremented by order qty (30→28)', $stockAfterOrder === 28, "stock: {$stockAfterOrder}");
+}
+
+$s8ContentIds = $s8ProductId > 0 ? [$s8ProductId] : [];
+$s8OrderIds   = isset($s8OrderId) && $s8OrderId > 0 ? [$s8OrderId] : [];
+
+subheading('Content list capability under volume');
+timeStart('s8_list');
+
+$s8ListResult = moduleWithContext('cms', static function (): array {
+    return cms_cap_cms_content_list_1([
+        'type'   => 'product',
+        'status' => 'published',
+        'limit'  => 100,
+    ], 'cms.content.list@1', 'cms');
+});
+
+timeEnd('s8_list');
+
+$s8ListOk = ($s8ListResult['ok'] ?? false) === true;
+t('Content list capability returns data', $s8ListOk && count($s8ListResult['data'] ?? []) > 0,
+    "count: " . count($s8ListResult['data'] ?? []));
+
+
+// ═════════════════════════════════════════════════════════════════════════
 //  CLEANUP
 // ═════════════════════════════════════════════════════════════════════════
 
 echo "\n── Cleanup ──\n";
 
-$allOrderIds = array_merge($s1OrderIds, $s2OrderIds, $s3OrderIds, $s4OrderIds, $s5OrderIds);
+$allOrderIds = array_merge($s1OrderIds, $s2OrderIds, $s3OrderIds, $s4OrderIds, $s5OrderIds, $s8OrderIds);
 $allProductIds = [
     $s1Product['id'], $s1bProduct['id'],
     $s2Product['id'],
@@ -659,8 +948,26 @@ $allProductIds = [
     $s5Product['id'], $s5TransProduct['id'],
 ];
 
-stressCleanup($allProductIds, $allOrderIds);
-echo "  Cleaned up " . count($allProductIds) . " products and " . count($allOrderIds) . " orders.\n";
+stressCleanup(array_merge($allProductIds, $s8ContentIds), $allOrderIds);
+
+// CMS-only content cleanup (posts, categories, tags)
+$db = stressDb();
+foreach ($s7ContentIds as $cid) {
+    $cid = (int)$cid;
+    if ($cid < 1) continue;
+    $db->prepare('DELETE FROM cms_content_categories WHERE content_id = ?')->execute([$cid]);
+    $db->prepare('DELETE FROM cms_content_tags WHERE content_id = ?')->execute([$cid]);
+    $db->prepare('DELETE FROM cms_content_meta WHERE content_id = ?')->execute([$cid]);
+    $db->prepare('DELETE FROM cms_content WHERE id = ?')->execute([$cid]);
+}
+foreach ($s7CategoryIds as $catId) {
+    $db->prepare('DELETE FROM cms_categories WHERE id = ?')->execute([(int)$catId]);
+}
+// Clean up orphan stress tags
+$db->prepare("DELETE FROM cms_tags WHERE name LIKE 'stress-tag-%'")->execute();
+
+echo "  Cleaned up " . count($allProductIds) . " products, " . count($allOrderIds) . " orders, "
+   . count($s7ContentIds) . " CMS posts, " . count($s7CategoryIds) . " categories.\n";
 
 
 // ═════════════════════════════════════════════════════════════════════════
