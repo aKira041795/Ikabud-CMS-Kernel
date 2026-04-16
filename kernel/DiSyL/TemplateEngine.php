@@ -180,7 +180,7 @@ class TemplateEngine
         if ($this->compiledMode && $this->compiledCache !== null) {
             try {
                 $compiled = $this->compiledCache->get($templatePath);
-                $result = $compiled->render($context);
+                $result = $compiled->execute($context);
                 if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                     $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
                     throw new \RuntimeException("Template output exceeds maximum allowed size");

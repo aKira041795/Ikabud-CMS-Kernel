@@ -691,9 +691,32 @@ A per-call **resolution cache** (`$resolveCache`) maps variable paths to their r
 
 ### Compiled Mode
 
-Env-gated via `DISYL_COMPILED_MODE=true`. When active and the v4 Parser pipeline is available, `render()` uses pre-compiled PHP classes (`CompiledTemplate::render()`) for near-zero runtime cost. Falls back to interpreted mode silently if the v4 Parser is not yet implemented.
+Env-gated via `DISYL_COMPILED_MODE=true`. When active, `render()` uses pre-compiled PHP classes via the v4 pipeline for near-zero runtime cost. Falls back to interpreted mode silently on any compiler error.
 
-The compiler infrastructure exists under `kernel/DiSyL/Compiler/` (TemplateCache, TemplateCompiler, TreeShaker, IncrementalCompiler) but requires the v4 AST Parser to activate.
+**Pipeline flow:**
+1. `TemplateEngine::render()` → `TemplateCache::get(templatePath)`
+2. `TemplateCache` checks mtime-based staleness → calls `Parser::parse()` on miss
+3. `Parser` produces a `DocumentNode` AST via recursive-descent parsing
+4. `TemplateCompiler::compile(ast, className)` emits a PHP class extending `CompiledTemplate`
+5. The class is written atomically to `storage/cache/compiled/`, validated via HMAC sentinel
+6. `require_once` + instantiate → `CompiledTemplate::execute(array $variables)` wraps context in `RenderContext` and calls `render()`
+7. On subsequent requests, opcache serves the compiled class from shared memory — zero parsing, zero compilation
+
+**Components:**
+
+| File | Purpose |
+|------|---------|
+| `kernel/DiSyL/v4/Parser.php` | Recursive-descent parser: DiSyL source → AST |
+| `kernel/DiSyL/v4/AST/` | 16 AST node classes (DocumentNode, TextNode, ExpressionNode, ControlNode, etc.) |
+| `kernel/DiSyL/v4/RenderContext.php` | Scoped variable resolution with push/pop scope stack |
+| `kernel/DiSyL/v4/FilterRegistry.php` | Runtime filter registry with all default filters |
+| `kernel/DiSyL/CMS/CMSAdapterInterface.php` | CMS adapter contract for compiled templates (query, menu, settings, assets) |
+| `kernel/DiSyL/CMS/NullAdapter.php` | No-op CMS adapter for standalone/test usage |
+| `kernel/DiSyL/Compiler/TemplateCache.php` | Compile-on-demand caching with HMAC validation |
+| `kernel/DiSyL/Compiler/TemplateCompiler.php` | AST → PHP class code generation |
+| `kernel/DiSyL/Compiler/CompiledTemplate.php` | Abstract base with escape/filter/include/block/slot helpers |
+| `kernel/DiSyL/Compiler/TreeShaker.php` | Dead-code elimination (unused macros) |
+| `kernel/DiSyL/Compiler/IncrementalCompiler.php` | Manifest-based incremental bulk compilation |
 
 ### Timing Instrumentation
 

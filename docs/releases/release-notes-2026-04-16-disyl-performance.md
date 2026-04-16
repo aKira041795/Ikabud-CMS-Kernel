@@ -62,7 +62,7 @@ Measured under concurrent multi-tenant load (100 requests, 12 workers, 4 tenants
 ### What this does NOT change
 
 - Templates with no control structures or variables (static pages) were already fast.
-- The interpreted pipeline still re-parses on every cache miss. Compiled mode (`DISYL_COMPILED_MODE=true`) will eliminate re-parsing when the v4 Parser is implemented.
+- ~~The interpreted pipeline still re-parses on every cache miss.~~ **Resolved:** The v4 Parser, AST, and Compiler pipeline are now fully implemented (see release notes below).
 
 ## Files modified
 

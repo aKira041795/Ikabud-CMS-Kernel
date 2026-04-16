@@ -785,12 +785,14 @@ index.php → App::render() → TemplateEngine::render()
 
 **Update (2026-04-16, cont.):** `processVariables` rewritten from three sequential regex passes to a single unified pass with a per-call resolution cache. variables_ms max dropped from 148ms → ~14ms (−90%). Cache authority simplified: handler-level caches are primary, APCu shared output cache disabled by default. Cache hit ratio instrumentation added (`TemplateEngine::getCacheMetrics()`). Compiled mode env-gated via `DISYL_COMPILED_MODE` (awaiting v4 Parser).
 
+**Update (2026-04-16, v4 Parser):** The v4 compiled template pipeline is now fully operational. Implemented: `kernel/DiSyL/v4/Parser.php` (recursive-descent parser producing AST from DiSyL source), 16 AST node classes in `kernel/DiSyL/v4/AST/`, `kernel/DiSyL/v4/RenderContext.php` (scoped variable resolution), `kernel/DiSyL/v4/FilterRegistry.php` (compiled-path filter runtime), `kernel/DiSyL/CMS/CMSAdapterInterface.php` + `NullAdapter.php`. The existing `Compiler/TemplateCompiler`, `Compiler/TemplateCache`, `Compiler/CompiledTemplate`, `Compiler/TreeShaker`, and `Compiler/IncrementalCompiler` now have all their dependencies satisfied. Setting `DISYL_COMPILED_MODE=true` in `.env` activates the compiled fast path: parse → compile to PHP class → cache on disk → opcache. Compiled templates bypass the 13-stage interpreted pipeline entirely.
+
 ### Ranked Performance Bottlenecks
 
 | # | Bottleneck | Impact | Location |
 |---|-----------|--------|----------|
 | P1 | DB query per event fire (×3 systems) | Every event fire → at least 1 DB query (IntegrationBridge) + 1 DB query (EventTriggers) | EventBus, IntegrationBridge, EventTriggers |
-| P2 | TemplateEngine interpreted, not compiled | Every render re-parses via regex | TemplateEngine.php |
+| P2 | ~~TemplateEngine interpreted, not compiled~~ | **RESOLVED 2026-04-16** — v4 Parser, AST, RenderContext, FilterRegistry, and CMS adapters implemented. `DISYL_COMPILED_MODE=true` activates compiled fast path (parse → PHP class → opcache). | TemplateEngine.php, kernel/DiSyL/v4/ |
 | P3 | ~~processControlStructures O(N²)~~ | **RESOLVED 2026-04-16** — Rewritten as single-pass O(N) scanner. control_ms avg 40.5→9ms (−78%). | TemplateEngine.php |
 | P3a | ~~processVariables multi-pass + no cache~~ | **RESOLVED 2026-04-16** — Rewritten as single-pass with resolution cache. variables_ms max 148→14ms (−90%). | TemplateEngine.php |
 | P4 | File-based capability metrics with flock | Serial bottleneck under concurrency | CapabilityBus.php |
@@ -1057,7 +1059,7 @@ Reactive/
 | R20 | Extract interfaces for EventBus, Cache, CapabilityBus, CapabilityRegistry | M | New interface files + type updates |
 | R21 | Convert EventTriggers.php to a class | L | EventTriggers.php — 775 lines; eliminate $GLOBALS |
 | R22 | Make IntegrationBridge instance-based | M | IntegrationBridge.php — inject via App |
-| R23 | Connect compiled template pipeline to TemplateEngine | L | Wire TemplateCompiler/Cache/TreeShaker as opt-in compiled mode |
+| R23 | ~~Connect compiled template pipeline to TemplateEngine~~ | ~~L~~ | **DONE 2026-04-16** — v4 Parser + AST + RenderContext + FilterRegistry + CMS adapters implemented. TemplateEngine render() wired to compiled fast path via `execute()`. |
 | R24 | Add output size limit to TemplateEngine | S | TemplateEngine.php — abort if output exceeds configurable ceiling |
 | R25 | Clean up dead code (DiSyLEngine.php, IslandsRuntime.php, getBaseDomain) | S | Remove ~1,100 lines |
 | R26 | Add custom workflow registration API | M | WorkflowRuntime.php — accept module-declared definitions |

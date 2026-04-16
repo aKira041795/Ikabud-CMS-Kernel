@@ -42,11 +42,15 @@ class TemplateCompiler
     {
         $body = $this->compileDocument($ast);
         
-        return <<<PHP
+        $timestamp = $this->timestamp();
+
+        $header = <<<'NOWDOC'
 <?php
 /**
  * Compiled DiSyL Template
- * Generated: {$this->timestamp()}
+NOWDOC;
+        $header .= "\n * Generated: {$timestamp}\n";
+        $header .= <<<'NOWDOC'
  * 
  * @generated
  */
@@ -56,6 +60,9 @@ namespace Ikabud\Kernel\DiSyL\Compiled;
 use Ikabud\Kernel\DiSyL\Compiler\CompiledTemplate;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
+NOWDOC;
+
+        return $header . <<<PHP
 class {$className} extends CompiledTemplate
 {
     public function render(RenderContext \$ctx): string
