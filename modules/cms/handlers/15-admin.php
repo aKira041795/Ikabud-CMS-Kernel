@@ -396,6 +396,7 @@ function cmsAdminContentCreate(array $params = []): void
         'content'                       => null,
         'content_meta'                  => null,
         'content_blocks'                => [],
+        'featured_image_url'            => '',
         'field_defs'                    => $fieldDefs,
         'dyn_meta'                      => [],
         'ext_block_types'               => $extBlocks,
@@ -596,6 +597,18 @@ function cmsAdminContentEdit(array $params = []): void
     $duplicateUrl = $baseUrl . '/api/v1/cms/content/' . $id . '/duplicate';
     $permalink    = cmsContentPermalink($content);
 
+    $featuredImageUrl = '';
+    if (!empty($content['featured_image_id'])) {
+        try {
+            $stmt = $db->prepare("SELECT file_path FROM cms_media WHERE id = :mid LIMIT 1");
+            $stmt->execute([':mid' => (int)$content['featured_image_id']]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && !empty($row['file_path'])) {
+                $featuredImageUrl = cmsResolveUploadUrl((string)$row['file_path']);
+            }
+        } catch (Throwable $e) {}
+    }
+
     echo cmsRender('modules/cms/admin/content-editor.disyl', array_merge(cmsAdminContext($user, $currentPage, [
         ['label' => ucfirst($contentType) . 's', 'url' => $baseUrl . '/cms/admin/content?type=' . $contentType],
         ['label' => ($content['title'] ?? 'Edit'), 'url' => ''],
@@ -604,6 +617,7 @@ function cmsAdminContentEdit(array $params = []): void
         'content'                       => $content,
         'content_meta'                  => $meta,
         'content_blocks'                => $blocks,
+        'featured_image_url'            => $featuredImageUrl,
         'field_defs'                    => $fieldDefs,
         'dyn_meta'                      => $dynMeta,
         'ext_block_types'               => $extBlocks,

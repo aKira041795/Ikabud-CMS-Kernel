@@ -138,6 +138,7 @@ return [
         '/api/v1/cms/content/{id}/ai/summary' => 'cms:cmsApiContentAiSummary',
         '/api/v1/cms/content/{id}/ai/seo'     => 'cms:cmsApiContentAiSeo',
         '/api/v1/cms/content/{id}/ai/refine'  => 'cms:cmsApiAiContentRefine',
+        '/api/v1/cms/ai/featured-image-suggest' => 'cms:cmsApiAiFeaturedImageSuggest',
         '/api/v1/cms/ai/plans'               => 'cms:cmsApiAiPlanCreate',
         '/api/v1/cms/ai/plans/{id}'          => 'cms:cmsApiAiPlanUpdate',
         '/api/v1/cms/ai/plans/{id}/toggle'   => 'cms:cmsApiAiPlanToggle',
