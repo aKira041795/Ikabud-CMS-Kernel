@@ -273,12 +273,11 @@ $s1SuccessOrderCount = stressCountOrdersForProduct($s1ProductId);
 
 t('Stock never goes negative', $s1FinalStock >= 0, "final stock: {$s1FinalStock}");
 t('Stock floor is 0 (atomic guard works)', $s1FinalStock === 0, "final stock: {$s1FinalStock}");
-// ecOrderCreate does NOT reject orders when stock runs out — it discards the
-// ecProductDecrementStock return value.  This is the current architecture: the
-// stock guard prevents negative stock, but orders still proceed.  The direct
-// decrement API (Scenario 1b) proves the atomic guard; this sub-scenario proves
-// the order pipeline's behavior is consistent with design.
-t('All 10 orders were accepted (order pipeline does not enforce stock gate)', $s1Succeeded === 10, "succeeded: {$s1Succeeded}");
+// ecOrderCreate now enforces the stock gate: when ecProductDecrementStock
+// returns false (insufficient stock), the order is rejected and the
+// transaction rolled back.  Only orders with available stock succeed.
+t('Stock-gated: exactly 5 orders succeeded (matches initial stock)', $s1Succeeded === 5, "succeeded: {$s1Succeeded}");
+t('Stock-gated: 5 orders rejected for insufficient stock', $s1Failed === 5, "failed: {$s1Failed}");
 t('DB order count matches successful creates', $s1SuccessOrderCount === $s1Succeeded, "DB orders: {$s1SuccessOrderCount}, succeeded: {$s1Succeeded}");
 
 // ── Scenario 1b — Concurrent decrements on same product (direct API) ──

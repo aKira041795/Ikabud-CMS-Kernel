@@ -1852,6 +1852,23 @@ function executeModuleHandler(string $handler, array $params = []): void
         return;
     }
 
+    // ── Stampede protection: prevent concurrent rebuilds of the same page ──
+    $pageCacheLock = null;
+    if ($pageCacheActive && function_exists('pageCacheLockAcquire')) {
+        $pageCacheLock = pageCacheLockAcquire($requestUri);
+        if ($pageCacheLock === false) {
+            // Another process is building this page — wait for cache
+            if (function_exists('pageCacheLockWaitForCache')
+                && pageCacheLockWaitForCache($requestUri)
+                && pageCacheServe($requestUri)) {
+                modulePopContext();
+                kernel_request_context_delete('_capability_call_context');
+                return;
+            }
+            $pageCacheLock = null; // Timeout — build without lock
+        }
+    }
+
     // ── Output-buffered, exception-safe handler execution ────────────
     // Prevents stray echo/print from corrupting responses and ensures
     // uncaught exceptions produce a clean error page, not a white screen.
@@ -1864,6 +1881,7 @@ function executeModuleHandler(string $handler, array $params = []): void
             $html = ob_get_clean();
             $responseCode = http_response_code();
             pageCacheSet($requestUri, $html, $moduleId, (int)$responseCode);
+            if ($pageCacheLock) { pageCacheLockRelease($pageCacheLock); $pageCacheLock = null; }
             if (!headers_sent()) {
                 header('X-Page-Cache: miss');
             }
@@ -1873,6 +1891,7 @@ function executeModuleHandler(string $handler, array $params = []): void
         }
     } catch (\Throwable $e) {
         ob_end_clean(); // discard any partial output from the bad handler
+        if ($pageCacheLock) { pageCacheLockRelease($pageCacheLock); $pageCacheLock = null; }
 
         write_log("Module handler '{$handler}' threw: " . $e->getMessage(), 'error', [
             'module'  => $moduleId,

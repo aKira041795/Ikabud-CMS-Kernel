@@ -95,7 +95,7 @@ t('Instance contains pagecache', str_contains($instance, 'pagecache'));
 t('Instance is tenant-scoped', str_contains($instance, '_t'));
 $ttl = pageCacheTtl();
 t('TTL is positive', $ttl > 0);
-t('TTL is 60 (default)', $ttl === 60);
+t('TTL is 300 (event-driven)', $ttl === 300);
 
 // ── §3 Eligibility checks ───────────────────────────────────────────
 

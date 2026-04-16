@@ -182,6 +182,15 @@ function ecApiCheckout(): void
     try {
         $result = ecOrderCreate($orderData);
     } catch (\Throwable $e) {
+        // Stock-specific failure: return a clear message so the customer can adjust
+        if ($e->getCode() === 409) {
+            $errorData = @json_decode($e->getMessage(), true);
+            if (is_array($errorData) && ($errorData['type'] ?? '') === 'insufficient_stock') {
+                $title = $errorData['product_title'] ?? 'an item';
+                write_log('ecApiCheckout stock gate: insufficient stock for product ' . ($errorData['product_id'] ?? '?'), 'info', ['module' => 'ecommerce']);
+                ecJsonError("Sorry, \"{$title}\" is out of stock or has insufficient quantity. Please update your cart and try again.", 409);
+            }
+        }
         write_log('ecApiCheckout order creation failed: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
         ecJsonError('Could not place order. Please try again.', 500);
     }

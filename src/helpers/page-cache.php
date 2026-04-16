@@ -20,7 +20,7 @@ declare(strict_types=1);
 // ─────────────────────────────────────────────────────────────────────────
 
 define('PAGE_CACHE_INSTANCE', 'pagecache');
-define('PAGE_CACHE_TTL', 60); // 1 minute — short TTL for freshness
+define('PAGE_CACHE_TTL', 300); // 5 minutes — event-driven invalidation handles freshness
 
 // ── Routes that must NEVER be page-cached ────────────────────────────
 // Session-dependent, user-specific, or mutation-triggering pages.
@@ -256,7 +256,102 @@ function pageCacheInvalidateUrl(string $uri): int
  */
 function pageCacheFlushAll(): int
 {
+    // Clean up any stale lock files
+    pageCacheLockCleanup();
     return app()->cache()->clearByTags(pageCacheInstance(), ['pagecache:all']);
+}
+
+// ── Stampede Protection ──────────────────────────────────────────────
+//
+// Prevents the "cache stampede" / "thundering herd" problem where
+// multiple concurrent requests miss the cache simultaneously and all
+// rebuild the same expensive page.  Uses flock() so the first request
+// builds while others wait briefly for the fresh cache entry.
+
+/**
+ * Return the lock directory path.
+ */
+function pageCacheLockDir(): string
+{
+    return (defined('STORAGE_PATH') ? STORAGE_PATH : dirname(__DIR__, 2) . '/storage')
+        . '/cache/page-locks';
+}
+
+/**
+ * Try to acquire a non-blocking exclusive lock for a page URI.
+ *
+ * @return resource|false|null  resource on success (caller must release),
+ *                              false if another process holds the lock,
+ *                              null on I/O error.
+ */
+function pageCacheLockAcquire(string $uri): mixed
+{
+    $lockDir = pageCacheLockDir();
+    if (!is_dir($lockDir)) {
+        @mkdir($lockDir, 0775, true);
+    }
+
+    $lockFile = $lockDir . '/' . md5($uri) . '.lock';
+    $fp = @fopen($lockFile, 'c');
+    if ($fp === false) {
+        return null;
+    }
+
+    if (flock($fp, LOCK_EX | LOCK_NB)) {
+        return $fp; // Acquired — caller should build the page
+    }
+
+    fclose($fp);
+    return false; // Lock held by another process
+}
+
+/**
+ * Release a previously acquired page-cache lock.
+ */
+function pageCacheLockRelease(mixed $fp): void
+{
+    if (is_resource($fp)) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+}
+
+/**
+ * Wait for another process to populate the page cache.
+ *
+ * Polls the cache every 50 ms up to $maxWaitMs.  Returns true if the
+ * cache was populated within the wait window.
+ */
+function pageCacheLockWaitForCache(string $uri, int $maxWaitMs = 2000): bool
+{
+    $intervalUs = 50_000; // 50 ms
+    $iterations = (int)ceil($maxWaitMs * 1000 / $intervalUs);
+
+    for ($i = 0; $i < $iterations; $i++) {
+        usleep($intervalUs);
+        if (pageCacheGet($uri) !== null) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Remove stale lock files older than 30 seconds.
+ */
+function pageCacheLockCleanup(): void
+{
+    $lockDir = pageCacheLockDir();
+    if (!is_dir($lockDir)) {
+        return;
+    }
+
+    $cutoff = time() - 30;
+    foreach (glob($lockDir . '/*.lock') as $file) {
+        if (@filemtime($file) < $cutoff) {
+            @unlink($file);
+        }
+    }
 }
 
 /**
