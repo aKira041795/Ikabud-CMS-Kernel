@@ -162,7 +162,7 @@ function cmsImportMediaFromUrl(string $url, string $altText, int $uploadedBy, \I
             return null;
         }
 
-        if (strlen($data) > 5 * 1024 * 1024) {
+        if (strlen($data) > 15 * 1024 * 1024) {
             write_log('cmsImportMediaFromUrl: image too large (' . strlen($data) . ' bytes) for ' . $url, 'warning');
             return null;
         }
@@ -181,6 +181,67 @@ function cmsImportMediaFromUrl(string $url, string $altText, int $uploadedBy, \I
         $ext = $mimeExtMap[$mimeType] ?? $ext;
     }
 
+    // Auto-resize large images to fit within 2048×2048 and cap file size at ~2MB
+    $resizableMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    $maxDimension = 2048;
+    $maxFileSize  = 2 * 1024 * 1024; // 2MB target after resize
+    if (extension_loaded('gd') && in_array($mimeType, $resizableMimes, true)) {
+        $needsResize = strlen($data) > $maxFileSize;
+        $tmpInfo = @getimagesizefromstring($data);
+        $origW = $tmpInfo ? (int)$tmpInfo[0] : 0;
+        $origH = $tmpInfo ? (int)$tmpInfo[1] : 0;
+        if ($origW > $maxDimension || $origH > $maxDimension) {
+            $needsResize = true;
+        }
+        if ($needsResize && $origW > 0 && $origH > 0) {
+            $src = @imagecreatefromstring($data);
+            if ($src !== false) {
+                $ratio = min($maxDimension / $origW, $maxDimension / $origH, 1.0);
+                $newW  = (int)round($origW * $ratio);
+                $newH  = (int)round($origH * $ratio);
+                $dst   = imagecreatetruecolor($newW, $newH);
+
+                // Preserve transparency for PNG/WebP
+                if (in_array($mimeType, ['image/png', 'image/webp'], true)) {
+                    imagealphablending($dst, false);
+                    imagesavealpha($dst, true);
+                    $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+                    imagefilledrectangle($dst, 0, 0, $newW - 1, $newH - 1, $transparent);
+                }
+
+                imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+
+                ob_start();
+                $quality = 85;
+                // Progressive quality reduction to hit the target file size
+                for ($attempt = 0; $attempt < 3; $attempt++) {
+                    ob_clean();
+                    switch ($mimeType) {
+                        case 'image/jpeg': imagejpeg($dst, null, $quality); break;
+                        case 'image/png':  imagepng($dst, null, 6); break;
+                        case 'image/webp': imagewebp($dst, null, $quality); break;
+                    }
+                    $resized = ob_get_contents();
+                    if (is_string($resized) && strlen($resized) <= $maxFileSize) {
+                        break;
+                    }
+                    $quality = max(40, $quality - 15);
+                    // PNG doesn't have a lossy quality knob — break after first attempt
+                    if ($mimeType === 'image/png') break;
+                }
+                ob_end_clean();
+
+                imagedestroy($dst);
+                imagedestroy($src);
+
+                if (is_string($resized) && $resized !== '') {
+                    $data = $resized;
+                    write_log('cmsImportMediaFromUrl: resized image from ' . $origW . 'x' . $origH . ' to ' . $newW . 'x' . $newH . ' (' . strlen($data) . ' bytes) for ' . $url, 'info');
+                }
+            }
+        }
+    }
+
     // Deterministic filename from URL hash — enables fast dedup on re-import
     $hash     = md5($url);
     $filename = 'bridge-' . $hash . '.' . $ext;
@@ -194,7 +255,7 @@ function cmsImportMediaFromUrl(string $url, string $altText, int $uploadedBy, \I
         return (int)$existingId;
     }
 
-    if (!is_string($data) || $data === '' || strlen($data) > 5 * 1024 * 1024) {
+    if (!is_string($data) || $data === '') {
         return null;
     }
 

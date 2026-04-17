@@ -522,7 +522,7 @@ function cmsAiFetchOpenverseImageCandidates(string $query, int $limit = 12): arr
 
         $candidates[] = [
             'id'            => 'ov:' . (string)($item['id'] ?? md5($imgUrl)),
-            'url'           => $imgUrl,
+            'url'           => $thumb !== '' ? $thumb : $imgUrl,
             'thumbnail_url' => $thumb !== '' ? $thumb : $imgUrl,
             'original_name' => $title !== '' ? $title : basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'image'),
             'alt_text'      => $title,
@@ -593,7 +593,15 @@ function cmsAiFetchWikimediaImageCandidates(string $query, int $limit = 12): arr
             continue;
         }
 
+        // Filter out non-image files (Wikimedia namespace 6 includes video, audio, PDF, SVG)
+        $imgExt = strtolower(pathinfo(parse_url($imgUrl, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION));
+        if (!in_array($imgExt, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+            continue;
+        }
+
         $thumbUrl = trim((string)($ii['thumburl'] ?? ''));
+        // Prefer the resized thumbnail (640px) over the full-resolution original to avoid oversized downloads
+        $useUrl = ($thumbUrl !== '' && preg_match('/^https?:\/\//i', $thumbUrl)) ? $thumbUrl : $imgUrl;
         $pageId = (int)($page['pageid'] ?? 0);
         $title = trim((string)($page['title'] ?? ''));
         $meta = is_array($ii['extmetadata'] ?? null) ? $ii['extmetadata'] : [];
@@ -605,8 +613,8 @@ function cmsAiFetchWikimediaImageCandidates(string $query, int $limit = 12): arr
 
         $rows[] = [
             'id'            => 'wc:' . ($pageId > 0 ? (string)$pageId : md5($imgUrl)),
-            'url'           => $imgUrl,
-            'thumbnail_url' => $thumbUrl !== '' ? $thumbUrl : $imgUrl,
+            'url'           => $useUrl,
+            'thumbnail_url' => $thumbUrl !== '' ? $thumbUrl : $useUrl,
             'original_name' => $title !== '' ? preg_replace('/^File:/i', '', $title) : basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'image'),
             'alt_text'      => $title,
             'creator'       => $artist,
@@ -762,7 +770,7 @@ function cmsAiFetchPexelsImageCandidates(string $query, int $limit = 12): array
     $rows = [];
     foreach ($photos as $photo) {
         $src = is_array($photo['src'] ?? null) ? $photo['src'] : [];
-        $imgUrl = trim((string)($src['large2x'] ?? $src['large'] ?? $src['medium'] ?? $src['original'] ?? ''));
+        $imgUrl = trim((string)($src['large'] ?? $src['medium'] ?? $src['large2x'] ?? $src['original'] ?? ''));
         if ($imgUrl === '' || !preg_match('/^https?:\/\//i', $imgUrl)) {
             continue;
         }

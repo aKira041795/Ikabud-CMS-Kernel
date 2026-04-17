@@ -275,8 +275,10 @@ function cmsApiMediaList(array $params = []): void
     $db = cmsDb();
     $limit  = min(100, max(1, (int)($input['limit'] ?? 24)));
     $offset = max(0, (int)($input['offset'] ?? 0));
+    $imagesOnly = !empty($input['images_only']);
 
-    $stmt = $db->prepare("SELECT * FROM cms_media ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}");
+    $whereClause = $imagesOnly ? "WHERE mime_type LIKE 'image/%'" : '';
+    $stmt = $db->prepare("SELECT * FROM cms_media {$whereClause} ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}");
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 

@@ -1384,6 +1384,7 @@ function cmsEditor() {
             targetIdx: -1,
             uploading: false,
             loaded: false,
+            _lastImagesOnly: null,
             tinymcePickerCallback: null,
         },
         showSavedBlocks: false,
@@ -2311,8 +2312,10 @@ function cmsEditor() {
             this.mediaBrowser.webError = '';
             this.mediaBrowser.mode = 'library';
             this.mediaBrowser.open = true;
-            if (!this.mediaBrowser.loaded) {
-                await this._loadMediaItems();
+            // Reload when switching to/from featured_image target to apply correct filter
+            const needsImagesOnly = (target === 'featured_image');
+            if (!this.mediaBrowser.loaded || this.mediaBrowser._lastImagesOnly !== needsImagesOnly) {
+                await this._loadMediaItems(needsImagesOnly);
             }
         },
 
@@ -2320,12 +2323,14 @@ function cmsEditor() {
             return this.mediaBrowser.mode === 'web' ? this.mediaBrowser.webItems : this.mediaBrowser.items;
         },
 
-        async _loadMediaItems() {
+        async _loadMediaItems(imagesOnly) {
             try {
-                const res = await fetch(CMS_BASE + '/api/v1/cms/media');
+                const params = imagesOnly ? '?images_only=1' : '';
+                const res = await fetch(CMS_BASE + '/api/v1/cms/media' + params);
                 const data = await res.json();
                 this.mediaBrowser.items = Array.isArray(data.data) ? data.data : (Array.isArray(data.items) ? data.items : (Array.isArray(data.media) ? data.media : []));
                 this.mediaBrowser.loaded = true;
+                this.mediaBrowser._lastImagesOnly = !!imagesOnly;
             } catch (e) {
                 console.error('Failed to load media', e);
             }
