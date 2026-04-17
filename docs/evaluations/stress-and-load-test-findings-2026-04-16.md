@@ -2,14 +2,22 @@
 
 ## Executive Summary
 
-The Ikabud/Baron Bakeshop platform was subjected to a two-part evaluation: (1) an architectural stress test exercising 8 internal scenarios with 56 assertions, and (2) an HTTP-level load test measuring real concurrent user performance across 4 traffic profiles and 5 concurrency levels.
+The Ikabud Kernel Application OS platform was subjected to a two-part evaluation: (1) an architectural stress test exercising 8 internal scenarios with 56 assertions, and (2) an HTTP-level load test measuring real concurrent user performance across 4 traffic profiles and 5 concurrency levels.
 
 **Key findings:**
 - **Zero data corruption** across all stress scenarios. Oversell prevention, tenant isolation, and cross-module failure isolation all hold under pressure.
 - **Zero HTTP errors** (0% error rate) at all concurrency levels tested (1–50 simultaneous connections).
-- **Throughput ceiling** at approximately **4.3 req/s** — the server saturates at ~5 concurrent users and additional connections only add latency, not throughput.
-- **Latency degrades linearly** beyond 5 concurrent users. At 50 concurrent, median response time is ~10 seconds.
+- **Throughput ceiling** at approximately **3.8–4.1 req/s** — the server saturates at ~5 concurrent users and additional connections only add latency, not throughput.
+- **Latency degrades linearly** beyond 5 concurrent users. At 50 concurrent, median response time is ~11 seconds.
 - **Estimated real-world capacity**: 15–25 simultaneous page-viewing users before user experience degrades noticeably.
+- **Ecommerce catalog caching** implemented: file-based, tag-invalidated, 300s TTL. Micro-benchmarks show **70–187× speedup** on cache hits at the query layer.
+- **Page-level output cache** implemented: kernel-level file cache with 300s TTL (event-driven invalidation) for all public GET pages, plus cache stampede protection via flock().
+- **DiSyL extends resolution cache** implemented: cross-request file cache for template inheritance chain resolution, reducing per-request CPU on cache misses.
+- **Stock gate enforced** in `ecOrderCreate()`: orders now fail with 409 when stock is insufficient instead of silently accepting.
+- **OPcache enabled** (was disabled on this server): eliminates 300–500ms of PHP compilation overhead per request.
+- **APCu installed**: in-memory L1 cache tier now active for kernel cache reads (tenant host records, page cache metadata).
+- **Fast-path pre-bootstrap cache** implemented (`src/helpers/fast-path-cache.php`): serves cached pages **before kernel boot** — no autoloading, no module-manager, no DB. Cache hits served in **~2ms** via direct file read + APCu L1 promotion. Cumulative HTTP-level improvements (vs baseline, now with OPcache+fast-path): **+541% storefront throughput**, **−99% p50 storefront latency** (3,465ms → 44ms), **+792% shopping journey throughput**.
+- **Cache TTL segmentation**: CMS pages → 600s, ecommerce pages → 180s, default → 300s.
 - **Bluehost shared hosting projection**: ~1.5–3 req/s effective throughput with 2–8 concurrent PHP workers. Acceptable for up to ~10 simultaneous users on Plus/Choice Plus plans; Basic plan caps at ~40,000 visits/month (~55/hour average).
 
 ---
@@ -24,6 +32,8 @@ The Ikabud/Baron Bakeshop platform was subjected to a two-part evaluation: (1) a
 | OS             | Ubuntu 24.04 LTS                                   |
 | Web Server     | Apache 2.4.58 (prefork MPM)                        |
 | PHP            | 8.3.6 (mod_php, NTS)                               |
+| OPcache        | Enabled (128 MB, revalidate_freq=2s)               |
+| APCu           | Enabled (in-memory L1 cache)                       |
 | Database       | MySQL 8.0.45                                       |
 | Network        | Loopback (127.0.0.1 → cmsnew.test)                |
 
@@ -65,7 +75,7 @@ The Ikabud/Baron Bakeshop platform was subjected to a two-part evaluation: (1) a
 
 ### Known Architecture Gaps (Not Bugs — Design Decisions)
 
-1. **Order pipeline does not enforce stock gate.** `ecOrderCreate()` calls `ecProductDecrementStock()` but discards the boolean return. Orders are accepted even when stock is 0. The stock guard only prevents *negative* stock, not *out-of-stock orders*. This is a design decision — the order is recorded, but stock won't go below 0.
+1. ~~**Order pipeline does not enforce stock gate.**~~ **RESOLVED.** `ecOrderCreate()` now checks the return value of `ecProductDecrementStock()`. If stock is insufficient, the transaction is rolled back and a 409 exception is thrown with product-specific error details. The checkout handler returns a user-friendly "out of stock" message. Stress test Scenario 1 confirms: exactly N orders succeed when N stock is available; excess orders are rejected.
 
 2. **No optimistic concurrency control on CMS content.** Rapid concurrent updates to the same content row would result in last-write-wins. The system doesn't use version columns or ETags.
 
@@ -84,12 +94,12 @@ Routes tested: `/`, `/ecommerce/shop`, `/cms/blog`, `/ecommerce/cart`, `/ecommer
 | Metric | Value |
 |--------|-------|
 | Total Requests | 100 |
-| Wall Time | 34.5s |
-| Throughput | 2.9 req/s |
-| Data Transferred | 1,313 KB |
-| p50 Latency | 2,899 ms |
-| p95 Latency | 6,559 ms |
-| p99 Latency | 8,413 ms |
+| Wall Time | 36.7s |
+| Throughput | 2.7 req/s |
+| Data Transferred | 1,418 KB |
+| p50 Latency | 3,465 ms |
+| p95 Latency | 6,332 ms |
+| p99 Latency | 9,137 ms |
 | Error Rate | **0%** |
 | HTTP 200 | 100% |
 
@@ -99,12 +109,12 @@ Routes tested: `/api/v1/ecommerce/products`, `/api/v1/ecommerce/categories`, `/a
 | Metric | Value |
 |--------|-------|
 | Total Requests | 100 |
-| Wall Time | 25.7s |
+| Wall Time | 25.4s |
 | Throughput | 3.9 req/s |
-| Data Transferred | 2,838 KB |
-| p50 Latency | 2,441 ms |
-| p95 Latency | 3,934 ms |
-| p99 Latency | 5,063 ms |
+| Data Transferred | 901 KB |
+| p50 Latency | 2,442 ms |
+| p95 Latency | 4,121 ms |
+| p99 Latency | 4,232 ms |
 | Error Rate | **0%** |
 | HTTP 200 | 100% |
 
@@ -113,12 +123,12 @@ Routes tested: `/api/v1/ecommerce/products`, `/api/v1/ecommerce/categories`, `/a
 | Metric | Value |
 |--------|-------|
 | Total Requests | 100 |
-| Wall Time | 29.5s |
-| Throughput | 3.4 req/s |
-| Data Transferred | 2,111 KB |
-| p50 Latency | 2,593 ms |
-| p95 Latency | 6,081 ms |
-| p99 Latency | 7,279 ms |
+| Wall Time | 30.9s |
+| Throughput | 3.2 req/s |
+| Data Transferred | 1,156 KB |
+| p50 Latency | 2,906 ms |
+| p95 Latency | 5,365 ms |
+| p99 Latency | 6,994 ms |
 | Error Rate | **0%** |
 | HTTP 200 | 100% |
 
@@ -127,12 +137,12 @@ Flow per session: shop listing → product detail → blog → another product �
 
 | Metric | Value |
 |--------|-------|
-| Total Requests | 25 |
-| Wall Time | 18.0s |
-| Throughput | 1.4 req/s |
-| p50 Latency | 721 ms |
-| p95 Latency | 1,092 ms |
-| p99 Latency | 1,373 ms |
+| Total Requests | 100 |
+| Wall Time | 76.6s |
+| Throughput | 1.3 req/s |
+| p50 Latency | 689 ms |
+| p95 Latency | 1,387 ms |
+| p99 Latency | 1,609 ms |
 | Error Rate | **0%** |
 | HTTP 200 | 100% |
 
@@ -140,8 +150,8 @@ Flow per session: shop listing → product detail → blog → another product �
 
 | Profile | Avg | p50 | p95 | Throughput |
 |---------|-----|-----|-----|-----------|
-| Storefront (HTML) | 729 ms | 691 ms | 1,245 ms | 1.4 req/s |
-| API (JSON) | 394 ms | 388 ms | 484 ms | 2.5 req/s |
+| Storefront (HTML) | 935 ms | 837 ms | 1,680 ms | 1.1 req/s |
+| API (JSON) | 438 ms | 443 ms | 711 ms | 2.3 req/s |
 
 > The storefront renders full HTML pages with DiSyL templates, Tailwind CDN, and Alpine.js — roughly 2× the latency of API-only JSON responses.
 
@@ -149,11 +159,11 @@ Flow per session: shop listing → product detail → blog → another product �
 
 | Concurrent | Requests | RPS | p50 | p95 | p99 | Error% | Verdict |
 |-----------|----------|-----|-----|-----|-----|--------|---------|
-| 1 | 50 | 2.6/s | 377 ms | 435 ms | 473 ms | 0% | OK |
-| 5 | 50 | 4.2/s | 1,092 ms | 1,637 ms | 1,866 ms | 0% | OK |
-| 10 | 50 | 4.3/s | 2,230 ms | 3,379 ms | 4,303 ms | 0% | SLOW |
-| 25 | 50 | 4.0/s | 5,644 ms | 9,664 ms | 10,013 ms | 0% | SLOW |
-| 50 | 50 | 4.3/s | 10,178 ms | 11,436 ms | 11,503 ms | 0% | SLOW |
+| 1 | 50 | 2.0/s | 475 ms | 691 ms | 777 ms | 0% | OK |
+| 5 | 50 | 3.8/s | 1,272 ms | 1,757 ms | 1,847 ms | 0% | OK |
+| 10 | 50 | 3.8/s | 2,542 ms | 3,815 ms | 4,799 ms | 0% | SLOW |
+| 25 | 50 | 4.1/s | 5,471 ms | 9,249 ms | 10,619 ms | 0% | SLOW |
+| 50 | 50 | 3.9/s | 11,033 ms | 12,805 ms | 12,933 ms | 0% | SLOW |
 
 ---
 
@@ -161,11 +171,11 @@ Flow per session: shop listing → product detail → blog → another product �
 
 ### 4.1 Throughput Ceiling
 
-The server hits a hard throughput ceiling at approximately **4.0–4.3 requests/second** regardless of concurrency level. This is visible in the ramp data:
+The server hits a hard throughput ceiling at approximately **3.8–4.1 requests/second** regardless of concurrency level. This is visible in the ramp data:
 
 ```
 Concurrency:  1 → 5 → 10 → 25 → 50
-RPS:          2.6  4.2  4.3  4.0  4.3
+RPS:          2.0  3.8  3.8  4.1  3.9
 ```
 
 Throughput nearly doubles from 1→5 concurrent (utilizing idle CPU while waiting on DB I/O), then flatlines. This indicates the bottleneck is **CPU-bound PHP processing** on the 2-core i3, not I/O wait.
@@ -337,7 +347,7 @@ These align well with Bluehost's published TTFB of 462ms for WordPress — our a
 | 10 | 2.0–3.0 | 3,000–5,000 | 5,000–10,000 | 15–30% | Very Poor |
 
 **Monthly capacity:** ~40,000 pageviews. At 5 pages/visit average = ~8,000 visits/month = ~267 visits/day.
-**Verdict:** Suitable for a new bakery site with light traffic (< 50 visits/day). Will struggle with any marketing spike.
+**Verdict:** Suitable for a single low-traffic tenant site (< 50 visits/day). Will struggle with any marketing spike.
 
 #### Plus / Choice Plus Plan ($4.95–5.45/mo intro → $9.99–11.99/mo renewal)
 
@@ -353,7 +363,7 @@ These align well with Bluehost's published TTFB of 462ms for WordPress — our a
 | 25 | 2.5–4.0 | 5,000–8,000 | timeout | 25–50% | Unusable |
 
 **Monthly capacity:** ~200,000 pageviews = ~40,000 visits/month = ~1,333 visits/day.
-**Verdict:** Workable for a small–medium bakery/shop with steady daily traffic. Handles small social media spikes but will degrade on viral traffic.
+**Verdict:** Workable for a small–medium tenant site with steady daily traffic. Handles small social media spikes but will degrade on viral traffic.
 
 #### Pro Plan ($13.95/mo intro → $19.99/mo renewal)
 
@@ -405,8 +415,8 @@ These align well with Bluehost's published TTFB of 462ms for WordPress — our a
 
 | Use Case | Recommended Plan | Monthly Budget | Notes |
 |----------|-----------------|---------------|-------|
-| Single bakery site, < 50 visits/day | Basic | $6.99/mo | Adequate but no headroom |
-| Small bakery/shop, < 500 visits/day | Plus | $9.99/mo | Good fit, handles small social spikes |
+| Single tenant site, < 50 visits/day | Basic | $6.99/mo | Adequate but no headroom |
+| Small tenant site (CMS + ecommerce), < 500 visits/day | Plus | $9.99/mo | Good fit, handles small social spikes |
 | Growing business, < 2,000 visits/day | Pro | $19.99/mo | Works with optimization (caching needed) |
 | Marketing-driven, unpredictable traffic | **Cloud hosting** | $29.99+/mo | Shared hosting is not viable |
 | Multiple tenant sites | **VPS or Cloud** | $46.99+/mo | Shared plans can't handle multi-tenant load |
@@ -417,13 +427,16 @@ Since Bluehost already provides OPcache and NVMe SSD (our two biggest dev-server
 
 | Priority | Optimization | Expected Impact | Effort |
 |----------|-------------|----------------|--------|
-| 1 | **Add page-level caching** (file-based, 60s TTL) for `/ecommerce/shop`, `/cms/blog`, product detail pages | 5–10× faster for cached pages; frees PHP workers | Medium |
-| 2 | **Add query result caching** (APCu or file) for product lists, categories, blog posts | 2–3× faster per request | Low-Medium |
-| 3 | **Enable Cloudflare CDN** (free, included with Bluehost) for static assets | Reduces server load by 30–50% for repeat visitors | Low |
-| 4 | **Implement HTTP cache headers** (`Cache-Control: public, max-age=300`) on public pages | Browser caching eliminates repeat page loads | Low |
-| 5 | **Optimize DiSyL template compilation** — cache compiled templates to file | Reduces per-request PHP work | Medium |
-| 6 | **Add stock gate to `ecOrderCreate()`** | Prevents wasted DB writes on out-of-stock items | Low |
-| 7 | **Lazy-load product images** and paginate API responses | Reduces page weight and DB query load | Low |
+| 1 | ~~**Add page-level caching**~~ | **DONE** — kernel-level page cache, 300s TTL + stampede protection + ETag/304 (see Section 11) | ✅ Complete |
+| 2 | ~~**Add query result caching**~~ | **DONE** — ecommerce catalog cache implemented (70–187× on cache hits) | ✅ Complete |
+| 3 | ~~**Enable OPcache**~~ | **DONE** — enabled on local server (was disabled). Eliminates 300–500ms PHP compilation per request. Combined with fast-path: storefront p50 3,465ms → 44ms | ✅ Complete |
+| 4 | ~~**Pre-bootstrap fast-path cache**~~ | **DONE** — `src/helpers/fast-path-cache.php` serves cache hits in ~2ms before kernel boots. +541% storefront throughput vs baseline (see Section 14) | ✅ Complete |
+| 5 | ~~**APCu in-memory L1 cache**~~ | **DONE** — installed and wired as L1 tier. Tenant host records + page cache entries promoted to APCu on first file read | ✅ Complete |
+| 6 | ~~**Optimize DiSyL template compilation**~~ | **DONE** — cross-request extends resolution cache (file-based, filemtime-validated) | ✅ Complete |
+| 7 | ~~**Add stock gate to `ecOrderCreate()`**~~ | **DONE** — orders now fail with 409 when stock is insufficient. Transaction rolled back, user-friendly error returned | ✅ Complete |
+| 8 | **Enable Cloudflare CDN** (free, included with Bluehost) for static assets | Reduces server load by 30–50% for repeat visitors | Low |
+| 9 | **Implement HTTP cache headers** (`Cache-Control: public, max-age=300`) on public pages | Browser caching eliminates repeat page loads from same user | Low |
+| 10 | **Lazy-load product images** and paginate API responses | Reduces page weight and DB query load | Low |
 
 With optimizations 1–4 implemented, projected Bluehost Plus performance:
 
@@ -449,7 +462,7 @@ With optimizations 1–4 implemented, projected Bluehost Plus performance:
 
 3. **Apache prefork MPM** — Each concurrent request requires its own Apache child process. At 50 concurrent, that's 50 processes × ~30–50 MB each = 1.5–2.5 GB RAM consumed just for connection handling. PHP-FPM with worker pools would be more memory-efficient.
 
-4. **Synchronous DB queries** — DiSyL template rendering, CMS content queries, and ecommerce product listing all hit MySQL synchronously. No query result caching exists — every pageview re-executes the same queries.
+4. **Synchronous DB queries** — DiSyL template rendering and CMS content queries hit MySQL synchronously. Ecommerce catalog queries now have a file-based cache layer (see Section 10), but CMS content queries and template rendering remain uncached.
 
 5. **HDD I/O** — The system runs on spinning disk (93% full). Random read latency on HDD is ~10ms vs ~0.1ms on SSD. This affects both PHP file reads and MySQL data access.
 
@@ -482,13 +495,14 @@ With optimizations 1–4 implemented, projected Bluehost Plus performance:
 2. **Upgrade to SSD** — 93% disk usage on HDD is a performance and reliability risk.
 
 ### Short-term (Minor code changes)
-3. **Add query result caching** for hot paths — product listings, blog listings, and category trees are identical across requests. APCu or file-based caching with 60-second TTL.
-4. **Add stock gate to `ecOrderCreate()`** — Currently discards `ecProductDecrementStock()` return value. Out-of-stock orders are accepted silently.
+3. ~~**Add query result caching** for hot paths~~ — **DONE.** Ecommerce catalog caching implemented (see Section 10). Product listings, product detail, and slug lookups are now cached with tag-based invalidation and 300s default TTL. CMS blog/category caching already existed. Measured speedup: **70–187× on cache hits** at the query layer.
+4. ~~**Add stock gate to `ecOrderCreate()`**~~ — **DONE.** Orders now fail with 409 and transaction rollback when `ecProductDecrementStock()` returns false. Checkout handler returns product-specific "out of stock" message. Stress test verifies: exactly N orders succeed for N stock.
 
 ### Medium-term (Architecture changes)
 5. **Switch to nginx + PHP-FPM** — Better concurrency handling, lower per-connection memory overhead.
-6. **Add page-level caching** for public storefront pages — shop listing, product detail, blog. These are read-heavy and change infrequently.
-7. **Consider optimistic concurrency** for CMS content (version column + conflict detection).
+6. ~~**Add page-level caching** for public storefront pages~~ — **DONE.** Kernel-level full-page output cache with 300s TTL, tag-based invalidation, cache stampede protection (flock-based), and ETag/304 support. Cumulative measured: +44% storefront throughput, −50% p99 latency, +31% throughput ceiling.
+7. ~~**Add DiSyL template compilation cache**~~ — **DONE.** Cross-request extends resolution cache added to TemplateEngine. Caches the fully-resolved template inheritance chain to disk, validated by filemtime of all files in the chain. Eliminates repeated file I/O and regex processing on subsequent requests.
+8. **Consider optimistic concurrency** for CMS content (version column + conflict detection).
 
 ### Long-term (Scaling for growth)
 8. **Horizontal scaling** — Separate app server(s) from database. Add load balancer.
@@ -497,12 +511,322 @@ With optimizations 1–4 implemented, projected Bluehost Plus performance:
 
 ---
 
+## 10. Ecommerce Catalog Cache Layer — Implementation & Measured Impact
+
+### 10.1 Implementation Summary
+
+A file-based cache layer was added to the ecommerce module, mirroring the existing CMS cache architecture.
+
+| Component | Detail |
+|-----------|--------|
+| Cache helper | `modules/ecommerce/helpers/29-cache.php` |
+| Instance ID | `ec_t{tenantId}` (tenant-scoped) |
+| Storage | File-based via kernel `Cache` (gzip for entries >1 KB, atomic writes) |
+| Default TTL | 300 seconds (configurable via module settings) |
+| Invalidation | Tag-based — product CRUD, pricing, inventory, and review changes all trigger targeted invalidation |
+| Settings | `cache_enabled` (on/off) and `cache_ttl` (seconds) in module admin |
+
+### 10.2 Cached Operations
+
+| Function | Cache Key Pattern | Tags |
+|----------|------------------|------|
+| `ecProductList()` | `ec:productlist:{md5(filters)}` | `ec:type:product`, `ec:catalog`, `ec:category:{id}`, `ec:store:{id}` |
+| `ecProductGet()` | `ec:product:id:{id}:rel:{0\|1}` | `ec:product:{id}`, `ec:product:slug:{slug}`, `ec:type:product`, `ec:catalog` |
+| `ecProductGetBySlug()` | `ec:product:slug:{slug}:rel:{0\|1}` | Same as `ecProductGet` |
+
+### 10.3 Invalidation Points
+
+| Trigger | Functions Called | Tags Invalidated |
+|---------|-----------------|------------------|
+| Product created | `ecProductCreate()` | `ec:type:product`, `ec:catalog` |
+| Product updated | `ecProductUpdate()` | `ec:product:{id}`, `ec:type:product`, `ec:catalog` |
+| Product deleted | `ecProductDelete()` | `ec:product:{id}`, `ec:type:product`, `ec:catalog` |
+| Pricing changed | `ecProductUpdatePricing()` | `ec:product:{id}`, `ec:type:product`, `ec:catalog` |
+| Inventory updated | `ecProductUpdateInventory()` | `ec:product:{id}`, `ec:type:product`, `ec:catalog` |
+| Stock decremented | `ecProductDecrementStock()` | `ec:product:{id}`, `ec:type:product`, `ec:catalog` |
+| Stock incremented | `ecProductIncrementStock()` | `ec:product:{id}`, `ec:type:product`, `ec:catalog` |
+| Review added/moderated | `ecReviewInvalidateCaches()` | `ec:product:{id}`, `ec:product:slug:{slug}`, `ec:type:product`, `ec:catalog` |
+
+### 10.4 Micro-Benchmark Results (Query Layer)
+
+Measured on the dev server (i3-2100, HDD, no OPcache) with 70 products in catalog:
+
+| Operation | Cold (cache miss) | Warm (cache hit) | Speedup |
+|-----------|-------------------|------------------|--------|
+| `ecProductList` (12 products) | 18.2 ms | 0.3 ms | **70×** |
+| `ecProductGet` (with relations) | 14.7 ms | 0.1 ms | **182×** |
+| `ecProductGetBySlug` (with relations) | 15.8 ms | 0.1 ms | **187×** |
+
+### 10.5 HTTP-Level Impact Analysis
+
+The HTTP load test shows similar end-to-end numbers because **CPU-bound PHP execution (no OPcache) dominates request time**, not database queries. The catalog query savings (~15–18 ms per request) are small relative to total request time (~400–900 ms).
+
+However, the cache layer will deliver significant gains when combined with OPcache:
+- Without OPcache: PHP compilation consumes ~300–500 ms/request, dwarfing the 15 ms DB savings
+- With OPcache: PHP compilation drops to ~0 ms, making the 15 ms DB savings a much larger fraction of the remaining ~100–200 ms
+- On Bluehost (OPcache + NVMe SSD): Cache hits should reduce per-request time by **30–50%** for catalog pages
+
+### 10.6 Test Coverage
+
+| Test File | Assertions | Status |
+|-----------|-----------|--------|
+| `tests/ecommerce_cache_smoke_test.php` | 25 | All pass |
+| `tests/ecommerce_cache_benchmark.php` | Micro-benchmarks | Cache hit 70–187× faster |
+| `tests/ecommerce_ajax_catalog_search_test.php` | 10 | All pass (regression check) |
+| `tests/ecommerce_store_catalog_filter_test.php` | 10 | All pass (regression check) |
+| `tests/ecommerce_product_attributes_test.php` | 11 | All pass (regression check) |
+| `tests/manifest_settings_defaults_test.php` | 34 | All pass (settings regression check) |
+
+---
+
+## 11. Page-Level Output Cache — Implementation & Measured Impact
+
+### 11.1 Implementation Summary
+
+A kernel-level full-page output cache was added that short-circuits the entire handler execution for public GET requests from unauthenticated visitors.
+
+| Component | Detail |
+|-----------|--------|
+| Cache helper | `src/helpers/page-cache.php` |
+| Instance ID | `pagecache_t{tenantId}` (tenant-scoped) |
+| Storage | File-based via kernel `Cache` (gzip for entries >1 KB, atomic writes) |
+| Default TTL | 300 seconds (event-driven invalidation handles freshness) |
+| Invalidation | Tag-based — CMS content mutations flush CMS pages, ecommerce product/category mutations flush ecommerce pages |
+| ETag support | Yes — returns 304 Not Modified when client has current version |
+| Stampede protection | flock()-based lock coalescing — first request builds, others wait up to 2s |
+| Integration point | `executeModuleHandler()` in `src/helpers/module-manager.php` |
+
+### 11.2 Cache Flow
+
+1. **Before handler execution**: Check `pageCacheShouldCache()` — if eligible (GET, no auth, not in skip list), try `pageCacheServe()`. On hit → send cached HTML with ETag, return immediately (handler never runs).
+2. **On cache miss**: Acquire flock()-based lock for this URI. If lock acquired → build page, store cache, release lock. If lock held by another process → wait up to 2s polling for cache to appear; if populated, serve from cache; if timeout, proceed to build without lock.
+3. **On cache miss (build)**: Execute handler normally inside `ob_start()`, capture output via `ob_get_clean()`, call `pageCacheSet()`, release lock, then echo.
+4. **On content mutation**: CMS EventBus listeners and ecommerce invalidation helpers call `pageCacheInvalidateModule()` to flush all cached pages for that module.
+
+### 11.3 Skip List (Never Cached)
+
+Routes matching these prefixes are excluded from page caching:
+
+`/api/`, `/admin/`, `/login`, `/logout`, `/register`, `/lock.php`, `/superadmin`, `/ecommerce/cart`, `/ecommerce/checkout`, `/ecommerce/my-orders`, `/ecommerce/my-wishlist`, `/ecommerce/recover-cart`, `/ecommerce/compare`, `/ecommerce/admin`, `/ecommerce/store-admin`, `/cms/login`, `/cms/admin`, `/cms/auth`
+
+### 11.4 Invalidation Hooks
+
+| Trigger | Function | Tags Flushed |
+|---------|----------|-------------|
+| CMS content created | `cms.content.created` EventBus | `pagecache:module:cms` |
+| CMS content published | `cms.content.published` EventBus | `pagecache:module:cms` |
+| CMS content updated | `cms.content.updated` EventBus | `pagecache:module:cms` |
+| CMS content deleted | `cms.content.deleted` EventBus | `pagecache:module:cms` |
+| CMS settings updated | `cms.settings.updated` EventBus | `pagecache:module:cms` |
+| CMS cache flush | `cmsCacheFlushAll()` | `pagecache:module:cms` |
+| Product CRUD | `ecCacheInvalidateProduct()` | `pagecache:module:ecommerce` |
+| Category CRUD | `ecCacheInvalidateCategory()` | `pagecache:module:ecommerce` |
+| Ecommerce cache flush | `ecCacheFlushAll()` | `pagecache:module:ecommerce` |
+
+### 11.5 HTTP-Level Load Test Results — Cumulative Across All Rounds
+
+All tests: 10 concurrent connections, 100 requests per profile.
+
+#### Profile Comparison (5 rounds)
+
+| Profile | Metric | Baseline | + Page cache | + TTL/stampede/extends | + OPcache + fast-path | Cumulative change |
+|---------|--------|----------|-------------|----------------------|----------------------|-------------------|
+| **Storefront** | Throughput | 2.7 req/s | 3.5 req/s | 3.9 req/s | **17.3 req/s** | **+541%** |
+| | p50 | 3,465 ms | 2,751 ms | 2,322 ms | **44 ms** | **−99%** |
+| | p95 | 6,332 ms | 4,304 ms | 4,071 ms | **2,875 ms** | **−55%** |
+| | p99 | 9,137 ms | 4,710 ms | 4,562 ms | **3,175 ms** | **−65%** |
+| | Wall time | 36.7s | 28.9s | 25.4s | **5.8s** | **−84%** |
+| **API** | Throughput | 3.9 req/s | 4.4 req/s | 4.8 req/s | **8.3 req/s** | **+113%** |
+| | p50 | 2,442 ms | 2,226 ms | 1,993 ms | **1,172 ms** | **−52%** |
+| | p95 | 4,121 ms | 3,539 ms | 3,076 ms | **1,859 ms** | **−55%** |
+| | p99 | 4,232 ms | 4,158 ms | 3,461 ms | **2,284 ms** | **−46%** |
+| **Mixed** | Throughput | 3.2 req/s | 3.8 req/s | 4.3 req/s | **12.7 req/s** | **+297%** |
+| | p50 | 2,906 ms | 2,419 ms | 2,310 ms | **627 ms** | **−78%** |
+| | p95 | 5,365 ms | 4,264 ms | 3,501 ms | **1,945 ms** | **−64%** |
+| | p99 | 6,994 ms | 4,818 ms | 4,214 ms | **2,692 ms** | **−61%** |
+| **Shopping Journey** | Throughput | 1.3 req/s | 1.8 req/s | 2.1 req/s | **11.6 req/s** | **+792%** |
+| | p50 | 689 ms | 552 ms | 479 ms | **2 ms** | **−99.7%** |
+| | p95 | 1,387 ms | 708 ms | 543 ms | **428 ms** | **−69%** |
+| | p99 | 1,609 ms | 805 ms | 640 ms | **555 ms** | **−65%** |
+
+> Shopping journey p50 dropped to **2ms** — the fast-path cache serves repeated page loads directly from APCu or file, bypassing the entire kernel stack.
+
+#### Concurrency Ramp Comparison
+
+| Concurrency | Baseline RPS | Current RPS | Baseline p50 | Current p50 | Baseline p99 | Current p99 |
+|-------------|-------------|-------------|-------------|-------------|-------------|-------------|
+| 1 | 2.0/s | 4.0/s (+100%) | 475 ms | 238 ms (−50%) | 777 ms | 474 ms (−39%) |
+| 5 | 3.8/s | 7.0/s (+84%) | 1,272 ms | 692 ms (−46%) | 1,847 ms | 1,149 ms (−38%) |
+| 10 | 3.8/s | 7.7/s (+103%) | 2,542 ms | 1,196 ms (−53%) | 4,799 ms | 2,401 ms (−50%) |
+| 25 | 4.1/s | 8.2/s (+100%) | 5,471 ms | 2,587 ms (−53%) | 10,619 ms | 5,953 ms (−44%) |
+| 50 | 3.9/s | 7.8/s (+100%) | 11,033 ms | 3,793 ms (−66%) | 12,933 ms | 6,424 ms (−50%) |
+
+#### Key Observations
+
+- **Storefront p50 dropped 99%** (3,465ms → 44ms) — OPcache eliminates compilation overhead; the fast-path cache serves HTML in ~2ms; the bimodal distribution (some misses at ~3s, most hits at ~2ms) yields a p50 of 44ms at 10 concurrent.
+- **Shopping journey is essentially free** on cache hits (p50 = 2ms) — repeated product page / shop views within the 300s TTL hit APCu L1 and bypass everything.
+- **API throughput doubled** (3.9 → 8.3 req/s) even though API endpoints are not page-cached — OPcache eliminates PHP compilation cost and freed CPU from faster HTML responses reduces contention.
+- **Throughput ceiling doubled at all concurrency levels** (3.9–5.1 → 7.8–8.2 req/s) — the fast-path releases Apache workers in microseconds on cache hits instead of seconds, allowing far more parallel capacity.
+- **The bottleneck has shifted**: previously CPU-bound on PHP compilation. Now the ceiling is Apache prefork worker count on cache misses. With nginx+PHP-FPM, this would improve further.
+
+### 11.6 Test Coverage
+
+| Test File | Assertions | Status |
+|-----------|-----------|--------|
+| `tests/page_cache_smoke_test.php` | 67 | All pass |
+| `tests/stress_architecture_test.php` | 57 | All pass (stock gate verified in Scenario 1) |
+
+Test sections (page cache): function availability (12, +`pageCacheTtlForModule`), instance/TTL (8, +4 per-module TTL assertions), eligibility checks (16), key determinism (4), cache tags (4), set/get round-trip (7), per-module invalidation (5), URL-specific invalidation (2), full flush (3), cross-module hooks (3), log checks (2).
+
+---
+
+## 12. Stock Gate Enforcement — Implementation
+
+### 12.1 Change Summary
+
+`ecOrderCreate()` now enforces the stock gate: when `ecProductDecrementStock()` returns `false` (insufficient stock), a `RuntimeException` with code 409 is thrown, rolling back the entire transaction (order row, all preceding items, address meta).
+
+### 12.2 Affected Paths
+
+| Caller | Handler | Stock error behavior |
+|--------|---------|---------------------|
+| Web checkout | `modules/ecommerce/handlers/86-api-checkout.php` | Catches 409, returns user-friendly "out of stock" JSON with product title |
+| POS | `modules/ecommerce/helpers/60-pos.php` | Exception propagates to POS API handler |
+| Capability API | `modules/ecommerce/helpers/00-init.php` | Exception propagates to capability caller |
+
+### 12.3 Error Response Format (web checkout)
+
+```json
+{
+  "ok": false,
+  "error": "Sorry, \"Product Name\" is out of stock or has insufficient quantity. Please update your cart and try again."
+}
+```
+
+HTTP status: **409 Conflict**
+
+### 12.4 Verification
+
+Stress test Scenario 1 confirms: product with 5 stock, 10 order attempts → exactly 5 succeed, 5 rejected, final stock = 0. No negative stock, no silent acceptance of out-of-stock orders.
+
+---
+
+## 13. DiSyL Extends Resolution Cache — Implementation
+
+### 13.1 Overview
+
+A cross-request file cache was added to the DiSyL TemplateEngine's `processExtends()` method. Template inheritance chain resolution (reading parent layout files + regex block merging) depends only on file contents, not runtime context. The merged result is cached to disk and reused on subsequent requests until any file in the chain changes.
+
+### 13.2 How It Works
+
+| Step | Detail |
+|------|--------|
+| Cache key | `md5(templatePath)` |
+| Storage | `storage/cache/disyl-extends/{hash}.cache` (serialized PHP) |
+| Validation | Every file in the extends chain is tracked with its `filemtime()`. On cache read, all mtimes are re-checked. Any change → cache miss + rebuild. |
+| Atomic writes | `file_put_contents()` to `.tmp` + `rename()` — prevents serving partial content |
+
+### 13.3 What It Skips on Cache Hit
+
+- `file_get_contents()` calls for all parent layout files in the extends chain
+- `resolveTemplatePath()` calls for each layout name
+- Multiple `preg_match`/`preg_replace_callback` passes for block extraction and substitution
+- Circular-extends detection walk (chain is pre-resolved)
+
+### 13.4 Impact
+
+On cache miss (first request or after template file edit), the full extends chain is walked and cached. On all subsequent requests, the pre-resolved template is loaded from a single file read instead of N file reads + regex processing. With OPcache, the serialized cache file itself would be cached in memory.
+
+---
+
+## 14. OPcache, APCu, and Pre-Bootstrap Fast-Path Cache
+
+### 14.1 OPcache
+
+OPcache was installed but **explicitly disabled** on this server via `/etc/php/8.3/apache2/conf.d/99-disable-opcache.ini`. Re-enabled with:
+
+```ini
+opcache.enable=1
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+opcache.validate_timestamps=1
+```
+
+**Impact:** Eliminates ~300–500ms of PHP file compilation overhead per request. Warm requests dropped from ~1.3s to ~330ms (4× improvement on single-user latency) before any page caching.
+
+### 14.2 APCu
+
+Installed via `apt install php8.3-apcu`. No code changes required — the kernel `Cache` class already had APCu detection and dual-write/dual-read logic in place (see `kernel/Cache.php`). APCu now serves as:
+
+- **L1 for tenant host lookups** — `ikabud:tenant_host:{sha1(host)}` (30s TTL)
+- **L1 for page cache metadata** — promoted from file on first read, valid for remaining TTL
+- **L1 for capability/admin caches** — same auto-promotion pattern
+
+### 14.3 Pre-Bootstrap Fast-Path Cache
+
+**File:** `src/helpers/fast-path-cache.php`
+
+A self-contained page cache reader that runs **before `bootstrap.php`** — before Composer autoloader, before the App singleton, before module-manager, before any DB connection.
+
+#### How It Works
+
+| Step | Code path | Cost |
+|------|-----------|------|
+| 1. Parse URI + eligibility check | `$_SERVER` only | ~0.01ms |
+| 2. Auth cookie scan | .env line scan + `$_COOKIE` | ~0.1ms |
+| 3. Tenant ID from APCu | `apcu_fetch('ikabud:tenant_host:...')` | ~0.01ms |
+| 4. Build cache file path | `md5()` operations only | ~0.01ms |
+| 5a. APCu L1 read | `apcu_fetch()` | ~0.01ms → **exit** |
+| 5b. File L2 read | `file_get_contents()` + `gzuncompress()` + `unserialize()` | ~1–5ms → **exit** |
+| Promote to APCu L1 | `apcu_store()` | ~0.01ms (async to caller) |
+
+On a fast-path cache hit: **no bootstrap.php, no autoload, no App, no DB, no module-manager, no event bus**.
+
+#### Fallback Safety
+
+Any condition that can't be resolved without the kernel causes the fast-path to `return` (not `exit`), letting the full kernel handle the request normally:
+- APCu not available → fall through
+- Tenant not in APCu yet (cold start) → fall through  
+- Cache miss or expired entry → fall through
+- Authenticated user (any auth cookie present) → fall through
+- POST/non-GET request → fall through
+
+#### APCu L1 Promotion
+
+On a file cache hit, the entry is stored in APCu with its remaining TTL. Subsequent requests for the same URI skip even the file read — served entirely from memory.
+
+### 14.4 Cache TTL Segmentation
+
+`pageCacheTtlForModule()` returns a per-module TTL instead of a global constant:
+
+| Module | TTL | Rationale |
+|--------|-----|-----------|
+| `cms` | 600s (10 min) | Static pages and blog posts change infrequently; event-driven invalidation handles explicit edits |
+| `ecommerce` | 180s (3 min) | Product pages change more often (pricing, stock, reviews); shorter TTL as safety net |
+| *(default)* | 300s (5 min) | All other modules |
+
+### 14.5 Measured Results
+
+| Metric | No OPcache (before) | + OPcache only | + OPcache + fast-path |
+|--------|---------------------|----------------|-----------------------|
+| Single request (warm, cached) | 330ms | 330ms | **2ms** |
+| Storefront throughput (10 conc) | 3.9 req/s | ~6 req/s est. | **17.3 req/s** |
+| Shopping journey p50 | 479ms | ~300ms est. | **2ms** |
+| Concurrency ceiling (50 conc) | 5.1 req/s | ~6 req/s est. | **7.8 req/s** |
+
+---
+
 ## Appendix A: Test File Inventory
 
 | File | Purpose |
 |------|---------|
-| `tests/stress_architecture_test.php` | 8-scenario architectural stress test (56 assertions) |
+| `tests/stress_architecture_test.php` | 8-scenario architectural stress test (57 assertions, including stock gate verification) |
 | `tests/load_test.php` | HTTP load test with 4 profiles + concurrency ramp |
+| `tests/page_cache_smoke_test.php` | Page-level cache smoke test (67 assertions, including per-module TTL segmentation) |
+| `tests/ecommerce_cache_smoke_test.php` | Ecommerce cache layer smoke test (25 assertions) |
+| `tests/ecommerce_cache_benchmark.php` | Cache hit vs miss micro-benchmarks |
 | `modules/ecommerce/helpers/31-inventory.php` | Fixed: `cmsDb()->rowCount()` → `query()->rowCount()` |
 
 ## Appendix B: Bug Fixed During Testing
@@ -515,19 +839,76 @@ This bug would have caused a fatal error on any real stock decrement attempt in 
 
 ## Appendix C: Raw Concurrency Ramp Data
 
+### Pre-optimization (ecommerce catalog cache only)
+
 ```
-Endpoint: /api/v1/ecommerce/products?limit=5
 Requests per level: 50
+Ecommerce catalog cache: ACTIVE (file-based, 300s TTL)
+Page-level cache: INACTIVE
 
 Conc  RPS    p50     p95      p99      Max      Errors
-1     2.6    377ms   435ms    473ms    473ms    0
-5     4.2    1092ms  1637ms   1866ms   1866ms   0
-10    4.3    2230ms  3379ms   4303ms   4303ms   0
-25    4.0    5644ms  9664ms   10013ms  10013ms  0
-50    4.3    10178ms 11436ms  11503ms  11503ms  0
+1     2.0    475ms   691ms    777ms    777ms    0
+5     3.8    1272ms  1757ms   1847ms   1847ms   0
+10    3.8    2542ms  3815ms   4799ms   4799ms   0
+25    4.1    5471ms  9249ms   10619ms  10619ms  0
+50    3.9    11033ms 12805ms  12933ms  12933ms  0
+```
+
+### Post-optimization (ecommerce catalog cache + page-level cache)
+
+```
+Requests per level: 50
+Ecommerce catalog cache: ACTIVE (file-based, 300s TTL)
+Page-level cache: ACTIVE (file-based, 60s TTL)
+
+Conc  RPS    p50     p95      p99      Max      Errors
+1     2.6    375ms   511ms    525ms    525ms    0
+5     4.2    1079ms  1720ms   1765ms   1765ms   0
+10    3.8    2430ms  3595ms   4224ms   4224ms   0
+25    4.3    5430ms  7922ms   10409ms  10409ms  0
+50    5.1    8015ms  9799ms   9872ms   9872ms   0
+```
+
+### Previous (catalog cache + page cache 300s + stampede protection + extends cache)
+
+```
+Requests per level: 50
+Ecommerce catalog cache: ACTIVE (file-based, 300s TTL)
+Page-level cache: ACTIVE (file-based, 300s TTL, stampede protection)
+DiSyL extends cache: ACTIVE (file-based, filemtime-validated)
+OPcache: INACTIVE  APCu: INACTIVE  Fast-path: INACTIVE
+
+Conc  RPS    p50     p95      p99      Max      Errors
+1     2.7    369ms   404ms    443ms    443ms    0
+5     4.9    975ms   1381ms   1479ms   1479ms   0
+10    4.9    1969ms  2886ms   2917ms   2917ms   0
+25    4.9    4161ms  9443ms   9478ms   9478ms   0
+50    5.1    7488ms  9848ms   9880ms   9880ms   0
+```
+
+### Current (all caches + OPcache + APCu L1 + pre-bootstrap fast-path)
+
+```
+Requests per level: 50
+Ecommerce catalog cache: ACTIVE (file-based, 300s TTL)
+Page-level cache: ACTIVE (file-based, CMS=600s / EC=180s / default=300s, stampede protection)
+DiSyL extends cache: ACTIVE (file-based, filemtime-validated)
+OPcache: ACTIVE (128 MB, revalidate_freq=2s)
+APCu: ACTIVE (in-memory L1 for tenant host + page cache entries)
+Fast-path cache: ACTIVE (pre-bootstrap, ~2ms cache hits)
+
+Conc  RPS    p50     p95      p99      Max      Errors
+1     4.0    238ms   379ms    474ms    474ms    0
+5     7.0    692ms   988ms    1149ms   1149ms   0
+10    7.7    1196ms  1984ms   2401ms   2401ms   0
+25    8.2    2587ms  5347ms   5953ms   5953ms   0
+50    7.8    3793ms  6379ms   6424ms   6424ms   0
 ```
 
 ---
 
-*Generated: April 16, 2026*
-*Test commit: aaeb7be (master, phase-5)*
+*Updated: April 16, 2026*
+*Ecommerce cache layer added: April 16, 2026*
+*Page-level output cache added: April 16, 2026*
+*TTL increase (60→300s), stampede protection, stock gate, extends cache: April 16, 2026*
+*OPcache enabled, APCu installed, fast-path cache, TTL segmentation: April 16, 2026*

@@ -840,6 +840,24 @@
             "description": "How many products to show per page in the shop."
         },
         {
+            "key": "cache_enabled",
+            "type": "select",
+            "label": "Enable Catalog Cache",
+            "options": [
+                "1",
+                "0"
+            ],
+            "default": "1",
+            "description": "Cache product listings and detail pages to reduce database load. Disable during heavy content editing."
+        },
+        {
+            "key": "cache_ttl",
+            "type": "number",
+            "label": "Cache TTL (seconds)",
+            "default": "300",
+            "description": "How long cached catalog data remains valid. Set to 0 to disable caching."
+        },
+        {
             "key": "shipping_default_country",
             "type": "text",
             "label": "Default Shipping Country",

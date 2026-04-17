@@ -866,7 +866,19 @@ function ecOrderCreate(array $data): array
                 array_push($itemParams, ...$rowParams);
                 // WMS becomes the stock authority once the order-created bridge is active.
                 if (!$wmsAuthorityActive) {
-                    ecProductDecrementStock((int)$item['product_id'], $qty);
+                    $decremented = ecProductDecrementStock((int)$item['product_id'], $qty);
+                    if (!$decremented) {
+                        $productTitle = $item['product_title'] ?? ('Product #' . (int)$item['product_id']);
+                        throw new \RuntimeException(
+                            json_encode([
+                                'type'          => 'insufficient_stock',
+                                'product_id'    => (int)$item['product_id'],
+                                'product_title' => $productTitle,
+                                'requested_qty' => $qty,
+                            ]),
+                            409
+                        );
+                    }
                 }
             }
             if ($itemValues) {

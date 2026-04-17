@@ -168,6 +168,9 @@ if (class_exists('Ikabud\\Kernel\\EventBus')) {
             $tags[] = 'cms:api:pages';
         }
         cmsCacheInvalidateByTags($tags);
+        if (function_exists('pageCacheInvalidateModule')) {
+            pageCacheInvalidateModule('cms');
+        }
     }, 10, 'cms');
 
     // Content published
@@ -178,6 +181,9 @@ if (class_exists('Ikabud\\Kernel\\EventBus')) {
         $id = (int)($payload['content_id'] ?? 0);
         if ($id > 0) $tags[] = 'cms:content:' . $id;
         cmsCacheInvalidateByTags($tags);
+        if (function_exists('pageCacheInvalidateModule')) {
+            pageCacheInvalidateModule('cms');
+        }
     }, 10, 'cms');
 
     // Content updated
@@ -195,6 +201,9 @@ if (class_exists('Ikabud\\Kernel\\EventBus')) {
             $tags[] = 'cms:api:pages';
         }
         cmsCacheInvalidateByTags($tags);
+        if (function_exists('pageCacheInvalidateModule')) {
+            pageCacheInvalidateModule('cms');
+        }
     }, 10, 'cms');
 
     // Content deleted
@@ -206,11 +215,17 @@ if (class_exists('Ikabud\\Kernel\\EventBus')) {
         if ($id > 0) $tags[] = 'cms:content:' . $id;
         if ($slug)   $tags[] = 'cms:' . $type . ':' . $slug;
         cmsCacheInvalidateByTags($tags);
+        if (function_exists('pageCacheInvalidateModule')) {
+            pageCacheInvalidateModule('cms');
+        }
     }, 10, 'cms');
 
     // Settings changed — flush everything
     $bus->listen('cms.settings.updated', function () {
         cmsCacheFlushAll();
+        if (function_exists('pageCacheInvalidateModule')) {
+            pageCacheInvalidateModule('cms');
+        }
     }, 10, 'cms');
 
     $bus->listen('workflow.transitioned', function (array $payload) {

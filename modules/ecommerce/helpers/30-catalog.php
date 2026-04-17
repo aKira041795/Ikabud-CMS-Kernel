@@ -21,6 +21,15 @@ declare(strict_types=1);
  */
 function ecProductList(array $filters = []): array
 {
+    // ── Cache layer ──────────────────────────────────────────────
+    if (function_exists('ecCacheEnabled') && ecCacheEnabled()) {
+        $__cacheKey = ecCacheKeyForProductList($filters);
+        $__cached   = ecCacheGet($__cacheKey);
+        if ($__cached !== null) {
+            return $__cached;
+        }
+    }
+
     $db = ecDb();
 
     // Support category_ids (array) or legacy category_id (single int).
@@ -286,7 +295,16 @@ function ecProductList(array $filters = []): array
             unset($row);
         }
 
-        return ['items' => $rows, 'total' => $total];
+        $result = ['items' => $rows, 'total' => $total];
+
+        // ── Cache store ──────────────────────────────────────────
+        if (function_exists('ecCacheEnabled') && ecCacheEnabled() && isset($__cacheKey)) {
+            $categoryId = $categoryIds[0] ?? null;
+            $storeId    = isset($filters['store_id']) ? (int)$filters['store_id'] : null;
+            ecCacheSet($__cacheKey, $result, ecCacheTagsForListing($categoryId, $storeId));
+        }
+
+        return $result;
     } catch (\Throwable $e) {
         write_log('ecProductList error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
         return ['items' => [], 'total' => 0];
@@ -367,6 +385,15 @@ function ecProductSaveStoreAssignments(int $productId, array $storeIds): void
  */
 function ecProductGet(int $id, bool $includeRelations = true): ?array
 {
+    // ── Cache layer ──────────────────────────────────────────────
+    $__ecCacheKey = 'ec:product:id:' . $id . ':rel:' . ($includeRelations ? '1' : '0');
+    if (function_exists('ecCacheEnabled') && ecCacheEnabled()) {
+        $__cached = ecCacheGet($__ecCacheKey);
+        if ($__cached !== null) {
+            return $__cached;
+        }
+    }
+
     $db = ecDb();
     try {
         $row = $db->query(
@@ -501,6 +528,11 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
         $row["store_assignments"] = $storeMap[$id] ?? [];
         $row["store_id"] = $row["store_assignments"][0]["id"] ?? 0;
 
+        // ── Cache store ──────────────────────────────────────────
+        if (function_exists('ecCacheEnabled') && ecCacheEnabled()) {
+            ecCacheSet($__ecCacheKey, $row, ecCacheTagsForProduct($id, $row['slug'] ?? null));
+        }
+
         return $row;
     } catch (\Throwable $e) {
         write_log('ecProductGet error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
@@ -513,6 +545,15 @@ function ecProductGet(int $id, bool $includeRelations = true): ?array
  */
 function ecProductGetBySlug(string $slug, bool $includeRelations = true): ?array
 {
+    // ── Cache layer (slug alias) ─────────────────────────────────
+    $__ecSlugKey = 'ec:product:slug:' . $slug . ':rel:' . ($includeRelations ? '1' : '0');
+    if (function_exists('ecCacheEnabled') && ecCacheEnabled()) {
+        $__cached = ecCacheGet($__ecSlugKey);
+        if ($__cached !== null) {
+            return $__cached;
+        }
+    }
+
     $db = ecDb();
     try {
         $row = $db->query(
@@ -520,7 +561,14 @@ function ecProductGetBySlug(string $slug, bool $includeRelations = true): ?array
             [$slug]
         )->fetch(\PDO::FETCH_ASSOC);
 
-        return $row ? ecProductGet((int)$row['id'], $includeRelations) : null;
+        $result = $row ? ecProductGet((int)$row['id'], $includeRelations) : null;
+
+        // Cache the slug-based result separately so slug lookups hit cache too
+        if ($result !== null && function_exists('ecCacheEnabled') && ecCacheEnabled()) {
+            ecCacheSet($__ecSlugKey, $result, ecCacheTagsForProduct((int)$row['id'], $slug));
+        }
+
+        return $result;
     } catch (\Throwable $e) {
         return null;
     }
@@ -1400,6 +1448,11 @@ function ecProductCreate(array $data, int $authorId = 0): int
 
     ecEmitProductEvent('ecommerce.product.created', $productId);
 
+    // Invalidate listing caches (new product affects any listing)
+    if (function_exists('ecCacheInvalidateByTags')) {
+        ecCacheInvalidateByTags(['ec:type:product', 'ec:catalog']);
+    }
+
     return $productId;
 }
 
@@ -1537,6 +1590,11 @@ function ecProductUpdate(int $id, array $data): void
     }
 
     ecEmitProductEvent('ecommerce.product.updated', $id);
+
+    // Invalidate caches for this product and listings
+    if (function_exists('ecCacheInvalidateProduct')) {
+        ecCacheInvalidateProduct($id);
+    }
 }
 
 /**
@@ -1862,6 +1920,11 @@ function ecProductDelete(int $id): void
             [$id]
         );
     });
+
+    // Invalidate caches for this product and listings
+    if (function_exists('ecCacheInvalidateProduct')) {
+        ecCacheInvalidateProduct($id);
+    }
 }
 
 /**
@@ -1925,6 +1988,11 @@ function ecProductUpdatePricing(int $productId, array $data): void
     ], static fn($value) => $value !== null);
 
     ecAttachCmsEntityCapability($productId, 'pricing', $config);
+
+    // Invalidate caches — pricing change affects product detail + listings
+    if (function_exists('ecCacheInvalidateProduct')) {
+        ecCacheInvalidateProduct($productId);
+    }
 }
 
 function ecProductCategories(int $productId): array

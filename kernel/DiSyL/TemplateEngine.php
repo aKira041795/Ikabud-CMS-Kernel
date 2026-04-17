@@ -46,12 +46,19 @@ class TemplateEngine
     private array $filters = [];
     private array $globals = [];
     private array $errors = [];
+
+    /** @var string|null Template path being rendered (set during top-level render) */
+    private ?string $currentTemplatePath = null;
+
+    /** @var string Directory for cross-request extends resolution cache */
+    private string $extendsCacheDir;
     
     public function __construct(string $templateDir, string $cacheDir, bool $cacheEnabled = true)
     {
         $this->templateDir = rtrim($templateDir, '/');
         $this->cacheDir = rtrim($cacheDir, '/');
         $this->cacheEnabled = $cacheEnabled;
+        $this->extendsCacheDir = $this->cacheDir . '/disyl-extends';
         
         $this->registerDefaultFilters();
         $this->registerDefaultComponents();
@@ -204,11 +211,17 @@ class TemplateEngine
             throw new \RuntimeException("Failed to read template: {$template}");
         }
         $sourceReadMs = round((microtime(true) - $sourceReadStart) * 1000, 2);
+        $context = array_merge($this->globals, $context);
+
+        // Track current template path for cross-request extends cache
+        $prevTemplatePath = $this->currentTemplatePath;
+        $this->currentTemplatePath = $templatePath;
         
         // In-memory cache for repeated renders within same request (e.g., HTMX partials)
         if ($this->cacheEnabled) {
             $memKey = $this->buildOutputCacheKey($templatePath, $context);
             if (isset($this->outputCache[$memKey])) {
+                $this->currentTemplatePath = $prevTemplatePath;
                 return $this->outputCache[$memKey];
             }
             
@@ -222,6 +235,8 @@ class TemplateEngine
                     'cache_path' => 'interpreted_cached',
                 ]);
             }
+
+            $this->currentTemplatePath = $prevTemplatePath;
 
             if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                 $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
@@ -242,6 +257,8 @@ class TemplateEngine
         }
         
         $result = $this->compile($content, $context);
+
+        $this->currentTemplatePath = $prevTemplatePath;
 
         if (strlen($result) > self::MAX_OUTPUT_BYTES) {
             $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
@@ -854,6 +871,20 @@ class TemplateEngine
             return preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $blockContent ?: $content);
         }
 
+        // ── Cross-request extends resolution cache ──────────────────────
+        // The extends chain resolution (file reads + regex block merging)
+        // depends only on file contents, not runtime context.  Cache the
+        // merged result keyed by template path, validated against the
+        // mtime of every file in the chain.
+        $extendsCacheKey = null;
+        if ($this->cacheEnabled && $this->currentTemplatePath !== null) {
+            $extendsCacheKey = $this->currentTemplatePath;
+            $cached = $this->getExtendsCache($extendsCacheKey);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
         // Walk the full inheritance chain from child → root, collecting each template.
         // $chain[0] is the child; last element is the first ancestor with no {extends}.
         $chain    = [];
@@ -924,7 +955,92 @@ class TemplateEngine
             $result = $new;
         }
 
-        return preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $result ?? $current);
+        $result = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $result ?? $current);
+
+        // Store in cross-request cache with all file dependencies
+        if ($extendsCacheKey !== null && !empty($seenPaths)) {
+            $deps = [];
+            if (file_exists($extendsCacheKey)) {
+                $deps[$extendsCacheKey] = filemtime($extendsCacheKey);
+            }
+            foreach ($seenPaths as $depPath => $_) {
+                if (file_exists($depPath)) {
+                    $deps[$depPath] = filemtime($depPath);
+                }
+            }
+            $this->setExtendsCache($extendsCacheKey, $result, $deps);
+        }
+
+        return $result;
+    }
+
+    // ── Cross-request extends resolution cache ──────────────────────
+
+    /**
+     * Retrieve a cached extends-resolved template.
+     *
+     * The cache entry contains the merged template string and the mtimes
+     * of every file in the extends chain.  Returns null on miss or stale.
+     */
+    private function getExtendsCache(string $templatePath): ?string
+    {
+        $cacheFile = $this->extendsCacheDir . '/' . md5($templatePath) . '.cache';
+        if (!file_exists($cacheFile)) {
+            return null;
+        }
+
+        $raw = @file_get_contents($cacheFile);
+        if ($raw === false) {
+            return null;
+        }
+
+        $entry = @unserialize($raw);
+        if (!is_array($entry) || !isset($entry['content'], $entry['deps']) || !is_array($entry['deps'])) {
+            @unlink($cacheFile);
+            return null;
+        }
+
+        // Validate every dependency mtime
+        foreach ($entry['deps'] as $depPath => $depMtime) {
+            if (!file_exists($depPath) || filemtime($depPath) !== $depMtime) {
+                @unlink($cacheFile);
+                return null;
+            }
+        }
+
+        return $entry['content'];
+    }
+
+    /**
+     * Store an extends-resolved template in the cross-request cache.
+     *
+     * Uses atomic write (tmp + rename) to avoid serving partial content.
+     *
+     * @param array<string,int> $deps  Map of absolute-path → filemtime
+     */
+    private function setExtendsCache(string $templatePath, string $content, array $deps): void
+    {
+        if (empty($deps)) {
+            return;
+        }
+
+        if (!is_dir($this->extendsCacheDir)) {
+            @mkdir($this->extendsCacheDir, 0777, true);
+        }
+
+        $cacheFile = $this->extendsCacheDir . '/' . md5($templatePath) . '.cache';
+        $tmpFile = $cacheFile . '.' . getmypid() . '.tmp';
+
+        $ok = @file_put_contents($tmpFile, serialize([
+            'content' => $content,
+            'deps'    => $deps,
+        ]));
+
+        if ($ok !== false) {
+            @rename($tmpFile, $cacheFile);
+        } else {
+            @unlink($tmpFile);
+        }
     }
     
     /**
