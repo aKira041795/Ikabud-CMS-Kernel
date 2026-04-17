@@ -141,19 +141,44 @@ function cmsImportMediaFromUrl(string $url, string $altText, int $uploadedBy, \I
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_TIMEOUT        => 10,
-            CURLOPT_BUFFERSIZE     => 1024,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_USERAGENT      => 'Ikabud-CMS/1.0 (+https://ikabud.com)',
+            CURLOPT_HTTPHEADER     => ['Accept: image/*'],
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
-        $data = curl_exec($ch);
+        $data     = curl_exec($ch);
+        $curlErr  = curl_error($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if (!is_string($data) || $data === '' || strlen($data) > 5 * 1024 * 1024) {
+        if (!is_string($data) || $data === '') {
+            write_log('cmsImportMediaFromUrl: download failed for ' . $url . ' — curl error: ' . $curlErr, 'warning');
+            return null;
+        }
+
+        if ($httpCode < 200 || $httpCode >= 400) {
+            write_log('cmsImportMediaFromUrl: HTTP ' . $httpCode . ' for ' . $url, 'warning');
+            return null;
+        }
+
+        if (strlen($data) > 5 * 1024 * 1024) {
+            write_log('cmsImportMediaFromUrl: image too large (' . strlen($data) . ' bytes) for ' . $url, 'warning');
             return null;
         }
 
         $finfo    = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_buffer($finfo, $data) ?: 'image/jpeg';
         finfo_close($finfo);
+
+        // Derive extension from actual MIME type (URL extension may be misleading)
+        $mimeExtMap = [
+            'image/jpeg' => 'jpg',
+            'image/png'  => 'png',
+            'image/gif'  => 'gif',
+            'image/webp' => 'webp',
+        ];
+        $ext = $mimeExtMap[$mimeType] ?? $ext;
     }
 
     // Deterministic filename from URL hash — enables fast dedup on re-import

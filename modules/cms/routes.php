@@ -156,6 +156,7 @@ return [
 
         // ── Media API ────────────────────────────────────────────
         '/api/v1/cms/media/upload'        => 'cms:cmsApiMediaUpload',
+        '/api/v1/cms/media/import-url'    => 'cms:cmsApiMediaImportUrl',
         '/api/v1/cms/media/{id}/edit'     => 'cms:cmsApiMediaEdit',
         '/api/v1/cms/media/{id}/delete'   => 'cms:cmsApiMediaDelete',
 

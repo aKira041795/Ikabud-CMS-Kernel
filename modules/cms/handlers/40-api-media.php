@@ -394,6 +394,72 @@ function cmsApiMediaUpload(array $params = []): void
     exit;
 }
 
+/**
+ * Import an image from an external URL into the local media library.
+ * Used by the frontend to eagerly import AI-suggested or free web images
+ * at selection time (before save), so featured_image_id is always valid.
+ */
+function cmsApiMediaImportUrl(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('media.upload');
+    $input = cmsInput();
+
+    $url     = trim((string)($input['url'] ?? ''));
+    $altText = trim((string)($input['alt_text'] ?? ''));
+
+    if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'A valid image URL is required']);
+        exit;
+    }
+
+    if (!function_exists('cmsImportMediaFromUrl')) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Import function unavailable']);
+        exit;
+    }
+
+    $db = cmsDb();
+    $authorId = (int)($user['id'] ?? 0);
+
+    try {
+        $mediaId = cmsImportMediaFromUrl($url, $altText, $authorId, $db);
+    } catch (Throwable $e) {
+        write_log('cmsApiMediaImportUrl failed: ' . $e->getMessage(), 'warning', [
+            'user_id' => $authorId,
+            'url' => $url,
+        ]);
+        $mediaId = null;
+    }
+
+    if (!is_int($mediaId) || $mediaId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Could not import image. The source may be unavailable, too large, or not an image.']);
+        exit;
+    }
+
+    // Resolve the imported media record for the response
+    $stmt = $db->prepare("SELECT id, filename, original_name, mime_type, file_size, file_path, alt_text FROM cms_media WHERE id = ? LIMIT 1");
+    $stmt->execute([$mediaId]);
+    $media = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $mediaUrl = $media ? cmsResolveUploadUrl((string)($media['file_path'] ?? '')) : '';
+
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:media']);
+
+    echo json_encode([
+        'ok'  => true,
+        'id'  => $mediaId,
+        'url' => $mediaUrl,
+        'file_path' => (string)($media['file_path'] ?? ''),
+        'filename' => (string)($media['filename'] ?? ''),
+        'original_name' => (string)($media['original_name'] ?? ''),
+        'alt_text' => (string)($media['alt_text'] ?? ''),
+    ]);
+    exit;
+}
+
 function cmsApiMediaEdit(array $params = []): void
 {
     header('Content-Type: application/json');

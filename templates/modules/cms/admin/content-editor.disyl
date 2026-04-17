@@ -2041,7 +2041,19 @@ function cmsEditor() {
                     if (data.preset_applied) {
                         this.form.entity_preset_id = '';
                     }
-                    toast(appliedPreset ? 'Saved and applied ' + appliedPreset.label : 'Saved successfully');
+                    // Sync featured_image_id from server (import may have created a local media record)
+                    if (data.featured_image_id !== undefined) {
+                        this.form.featured_image_id = data.featured_image_id;
+                        if (!data.featured_image_id) {
+                            this.form.featured_image_url = '';
+                            this.form.featured_image_alt = '';
+                        }
+                    }
+                    if (data.warning) {
+                        toast(data.warning, 'error');
+                    } else {
+                        toast(appliedPreset ? 'Saved and applied ' + appliedPreset.label : 'Saved successfully');
+                    }
                     if (this.isNew && data.id) { window.location.href = CMS_BASE + '/cms/admin/content/edit/' + data.id; }
                 } else { toast(data.error || 'Save failed', 'error'); }
             } catch (e) { toast('Network error', 'error'); }
@@ -2076,7 +2088,11 @@ function cmsEditor() {
                     const data = await res.json();
                     if (data.ok && data.id) {
                         this._autosaveClear();
-                        toast('Published!');
+                        if (data.warning) {
+                            toast(data.warning, 'error');
+                        } else {
+                            toast('Published!');
+                        }
                         window.location.href = CMS_BASE + '/cms/admin/content/edit/' + data.id;
                     } else { toast(data.error || 'Publish failed', 'error'); }
                 } else {
@@ -2404,7 +2420,7 @@ function cmsEditor() {
             this.mediaBrowser.selectedItem = item;
         },
 
-        mediaConfirmSelection() {
+        async mediaConfirmSelection() {
             const item = this.mediaBrowser.selectedItem;
             if (!item) return;
             const url = item.url;
@@ -2423,7 +2439,33 @@ function cmsEditor() {
             } else if (target === 'block_bg' && this.blocks[idx]) {
                 this.blocks[idx].bg_image = url;
             } else if (target === 'featured_image') {
-                this.form.featured_image_id = item.external ? null : item.id;
+                if (item.external && item.url) {
+                    // Eagerly import external image into local media
+                    this.form.featured_image_url = url;
+                    this.form.featured_image_alt = item.alt_text || item.original_name || '';
+                    this.form.featured_image_id  = null;
+                    this.mediaBrowser.open = false;
+                    toast('Importing image…');
+                    try {
+                        const res = await fetch(CMS_BASE + '/api/v1/cms/media/import-url', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                            body: JSON.stringify({ url: item.url, alt_text: item.alt_text || item.original_name || '' }),
+                        });
+                        const data = await res.json();
+                        if (data.ok && data.id) {
+                            this.form.featured_image_id  = data.id;
+                            this.form.featured_image_url = data.url || url;
+                            toast('Image imported');
+                        } else {
+                            toast(data.error || 'Image import failed — try uploading manually', 'error');
+                        }
+                    } catch (e) {
+                        toast('Image import failed — try uploading manually', 'error');
+                    }
+                    return;
+                }
+                this.form.featured_image_id = item.id;
                 this.form.featured_image_url = url;
                 this.form.featured_image_alt = item.alt_text || item.original_name || '';
             }
@@ -2500,13 +2542,40 @@ function cmsEditor() {
             }
         },
 
-        applyFeaturedImageSuggestion(item) {
-            this.form.featured_image_id  = item.external ? null : item.id;
-            this.form.featured_image_url = item.url;
-            this.form.featured_image_alt = item.alt_text || item.original_name || '';
+        async applyFeaturedImageSuggestion(item) {
             this.featuredImageSuggest.open    = false;
             this.featuredImageSuggest.results = [];
-            toast('Featured image set');
+
+            if (item.external && item.url) {
+                // Eagerly import external image so featured_image_id is set before save
+                this.form.featured_image_url = item.thumbnail_url || item.url;
+                this.form.featured_image_alt = item.alt_text || item.original_name || '';
+                this.form.featured_image_id  = null;
+                toast('Importing image…');
+                try {
+                    const res = await fetch(CMS_BASE + '/api/v1/cms/media/import-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                        body: JSON.stringify({ url: item.url, alt_text: item.alt_text || item.original_name || '' }),
+                    });
+                    const data = await res.json();
+                    if (data.ok && data.id) {
+                        this.form.featured_image_id  = data.id;
+                        this.form.featured_image_url = data.url || item.url;
+                        toast('Featured image imported');
+                    } else {
+                        toast(data.error || 'Image import failed — try uploading manually', 'error');
+                        this.form.featured_image_url = item.url;
+                    }
+                } catch (e) {
+                    toast('Image import failed — try uploading manually', 'error');
+                }
+            } else {
+                this.form.featured_image_id  = item.id;
+                this.form.featured_image_url = item.url;
+                this.form.featured_image_alt = item.alt_text || item.original_name || '';
+                toast('Featured image set');
+            }
         },
 
         _setupKeyboardShortcuts() {

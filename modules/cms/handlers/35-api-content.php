@@ -1353,6 +1353,7 @@ function cmsApiContentCreate(array $params = []): void
     }
 
     $db = cmsDb();
+    $featuredImageImportFailed = false;
     if (($featuredImageId === null || $featuredImageId <= 0)
         && $featuredImageUrl !== ''
         && function_exists('cmsImportMediaFromUrl')) {
@@ -1360,8 +1361,14 @@ function cmsApiContentCreate(array $params = []): void
             $importedId = cmsImportMediaFromUrl($featuredImageUrl, $featuredImageAlt, $authorId, $db);
             if (is_int($importedId) && $importedId > 0) {
                 $featuredImageId = $importedId;
+            } else {
+                $featuredImageImportFailed = true;
+                write_log('cms content create featured-image import returned null for URL: ' . $featuredImageUrl, 'warning', [
+                    'author_id' => $authorId,
+                ]);
             }
         } catch (Throwable $e) {
+            $featuredImageImportFailed = true;
             write_log('cms content create featured-image import failed: ' . $e->getMessage(), 'warning', [
                 'author_id' => $authorId,
             ]);
@@ -1451,13 +1458,19 @@ function cmsApiContentCreate(array $params = []): void
 
     adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
-    echo json_encode([
+    $response = [
         'ok' => true,
         'id' => $contentId,
         'slug' => $slug,
         'preset_applied' => $presetApplied,
         'entity_preset_id' => $entityPresetId !== '' ? $entityPresetId : null,
-    ]);
+        'featured_image_id' => $featuredImageId,
+    ];
+    if ($featuredImageImportFailed) {
+        $response['warning'] = 'Featured image could not be imported from external source. Please upload it manually or try a different image.';
+    }
+
+    echo json_encode($response);
     exit;
 }
 
@@ -1550,6 +1563,7 @@ function cmsApiContentUpdate(array $params = []): void
 
     $featuredImageUrl = trim((string)($input['featured_image_url'] ?? ''));
     $featuredImageAlt = trim((string)($input['featured_image_alt'] ?? ''));
+    $featuredImageImportFailed = false;
     if ($featuredImageUrl !== '' && function_exists('cmsImportMediaFromUrl')) {
         $uploadedBy = (int)($existing['author_id'] ?? ($user['id'] ?? 0));
         if ($uploadedBy > 0) {
@@ -1560,8 +1574,15 @@ function cmsApiContentUpdate(array $params = []): void
                         $fields[] = 'featured_image_id = :fimg';
                     }
                     $bind[':fimg'] = $importedId;
+                } else {
+                    $featuredImageImportFailed = true;
+                    write_log('cms content update featured-image import returned null for URL: ' . $featuredImageUrl, 'warning', [
+                        'content_id' => $id,
+                        'user_id' => (int)($user['id'] ?? 0),
+                    ]);
                 }
             } catch (Throwable $e) {
+                $featuredImageImportFailed = true;
                 write_log('cms content update featured-image import failed: ' . $e->getMessage(), 'warning', [
                     'content_id' => $id,
                     'user_id' => (int)($user['id'] ?? 0),
@@ -1716,11 +1737,17 @@ function cmsApiContentUpdate(array $params = []): void
     cmsCacheInvalidateContent($existing);
     adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
-    echo json_encode([
+    $response = [
         'ok' => true,
         'preset_applied' => $presetApplied,
         'entity_preset_id' => $entityPresetId !== '' ? $entityPresetId : null,
-    ]);
+        'featured_image_id' => $bind[':fimg'] ?? ($existing['featured_image_id'] ?? null),
+    ];
+    if ($featuredImageImportFailed) {
+        $response['warning'] = 'Featured image could not be imported from external source. Please upload it manually or try a different image.';
+    }
+
+    echo json_encode($response);
     exit;
 }
 
