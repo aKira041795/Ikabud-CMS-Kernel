@@ -27,6 +27,7 @@
 16. [Error Handling](#error-handling)
 17. [Linter Checks](#linter-checks)
 18. [Performance & Benchmarking](#performance--benchmarking)
+19. [Governance Rules](#governance-rules)
 
 ---
 
@@ -402,6 +403,8 @@ DiSyL variables **inside** script tags still work when they follow template synt
 </script>
 ```
 
+**Advisory:** DiSyL interpolation inside `<script>` tags is supported but **discouraged for complex logic**. Prefer injecting data via a single `{data | json | raw}` variable into a `<script>` data island, then consuming it from external JS. Mixing multi-variable template expressions with inline JavaScript creates fragile, hard-to-debug templates.
+
 ---
 
 ## Template Inheritance
@@ -726,3 +729,70 @@ When `APP_TIMING_LOGS=true` (set in `.env`), the engine emits structured timing 
 - **`disyl.render.breakdown`** — Per-render: `template` name, `source_read_ms`, `source_bytes`, `output_bytes`, `cache_path`
 
 Timing entries are gated by `APP_TIMING_THRESHOLD_MS` (default 10ms) to avoid log noise. Set to `0` for full capture during profiling.
+
+---
+
+## Governance Rules
+
+These rules protect DiSyL from evolving into a general-purpose programming language. They are normative — treat violations as design defects.
+
+### 1. Template Logic Boundary
+
+> **Templates must not implement multi-entity business logic.**
+
+DiSyL templates exist for presentation: formatting, visibility toggles, iteration over pre-shaped data. Logic that evaluates relationships across multiple domain entities (pricing rules, permission matrices, multi-variable decision trees) belongs in kernel or module PHP code, never in template expressions.
+
+**Allowed in templates:**
+
+* Simple visibility checks — `{if show_sidebar}`, `{if user.role == "admin"}`
+* Formatting — `{price | number_format:2}`, `{date | date:"Y-m-d"}`
+* Iteration over pre-shaped collections — `{foreach items as item}`
+
+**Not allowed in templates:**
+
+* Pricing / discount computation — `{set discount = price * (user.vip ? 0.2 : 0.1)}`
+* Cross-entity permission checks — `{if (user.role == "admin" and org.plan == "enterprise") or ...}`
+* Multi-variable decision trees that encode business policy
+
+When a template condition grows beyond a single-entity visibility check, extract it into the handler/service layer and pass a boolean flag to the template.
+
+### 2. Filter Governance
+
+> **Filters must be pure transformations. Domain logic belongs in kernel/module code.**
+
+All built-in and custom filters fall into one of three categories:
+
+| Category | Rule | Examples |
+|----------|------|----------|
+| **Pure transforms** | Always allowed | `upper`, `lower`, `trim`, `round`, `join`, `reverse`, `slice` |
+| **Formatting helpers** | Allowed with caution | `date`, `number_format`, `nl2br`, `truncate` |
+| **Domain-aware filters** | **Prohibited in DiSyL** | `discount_price`, `format_currency`, `user_has_access`, `is_premium` |
+
+Domain-aware logic (anything whose behavior depends on business rules, tenant configuration, or cross-entity state) must live in PHP handlers/services. The handler pre-computes the value and passes it as a plain context variable. Registering domain-aware custom filters is a design defect.
+
+### 3. Compiled Mode Visibility
+
+> **All compiled-mode fallbacks must be logged with template name and reason.**
+
+When the compiled pipeline fails and the engine falls back to interpreted mode, the engine emits:
+
+* `logError("Compiled render failed, falling back: {message}")` — always
+* `write_log('disyl.compile.fallback', ...)` — structured log entry with `template`, `reason`, and `fallback` target
+
+When `enableCompiledMode()` itself fails (v4 pipeline not loadable), the engine logs `"Compiled mode unavailable: {message}"` and disables compiled mode.
+
+Silent performance degradation from undetected fallbacks is a production incident. Monitor `disyl.compile.fallback` events.
+
+### 4. Cache Authority Enforcement
+
+> **Shared output cache must not compete with handler-level cache; conflicts must log warnings.**
+
+Handler-level caches (login 60s, health 2s, etc.) are the **single authoritative full-page cache**. The DiSyL shared output cache (`DISYL_SHARED_OUTPUT_TTL`) is disabled by default and intended only for fragment/partial rendering.
+
+When `DISYL_SHARED_OUTPUT_TTL > 0` is set, the engine emits a one-time `write_log('disyl.cache.authority_warning', ...)` advising that shared output caching is active and may conflict with handler-level caches. This ensures operators are aware of dual-layer caching.
+
+To avoid stale-content incidents:
+
+* Never enable shared output cache alongside handler-level page caches for the same route
+* Use shared output cache only for partial/fragment renders that are not cached at the handler level
+* Monitor `disyl.cache.metrics` for unexpected `output_hits` on full-page routes

@@ -95,6 +95,7 @@ class TemplateEngine
                 }
             } else {
                 $this->compiledMode = false;
+                $this->logError('Compiled mode unavailable: v4 TemplateCache class not found');
             }
         }
     }
@@ -137,6 +138,9 @@ class TemplateEngine
 
     /** Shared APCu rendered-output cache TTL (seconds). 0 = disabled. */
     private int $sharedOutputCacheTtl = 0;
+
+    /** Whether the cache authority warning has already been emitted this process. */
+    private static bool $cacheAuthorityWarningEmitted = false;
 
     /** @var array<string,int> Aggregate cache metrics for the current FPM worker */
     private static array $cacheMetrics = [
@@ -201,6 +205,13 @@ class TemplateEngine
             } catch (\Throwable $e) {
                 // Compiled path failed — fall through to interpreted path
                 $this->logError("Compiled render failed, falling back: " . $e->getMessage());
+                if (function_exists('write_log')) {
+                    write_log('disyl.compile.fallback', 'warning', [
+                        'template' => $template,
+                        'reason' => $e->getMessage(),
+                        'fallback' => 'interpreted',
+                    ]);
+                }
             }
         }
         
@@ -302,6 +313,15 @@ class TemplateEngine
     public function setSharedOutputCacheTtl(int $seconds): void
     {
         $this->sharedOutputCacheTtl = max(0, $seconds);
+        if ($this->sharedOutputCacheTtl > 0 && !self::$cacheAuthorityWarningEmitted) {
+            self::$cacheAuthorityWarningEmitted = true;
+            if (function_exists('write_log')) {
+                write_log('disyl.cache.authority_warning', 'warning', [
+                    'shared_output_ttl' => $this->sharedOutputCacheTtl,
+                    'message' => 'Shared output cache is active. Ensure it does not overlap with handler-level page caches to avoid stale content.',
+                ]);
+            }
+        }
     }
 
     /** Return aggregate cache hit/miss counters for the current FPM worker. */
@@ -315,6 +335,7 @@ class TemplateEngine
     {
         self::$cacheMetrics = array_map(fn() => 0, self::$cacheMetrics);
         self::$rendersSinceMetricsLog = 0;
+        self::$cacheAuthorityWarningEmitted = false;
     }
 
     /** Emit a periodic cache metrics log entry. */
