@@ -68,4 +68,9 @@ See [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) for the full Kern
 
 ## License
 
-GNU General Public License v3.0 — see [LICENSE](LICENSE).
+Ikabud uses an **open-core licensing model**:
+
+- **Community Edition** (DiSyL engine, contracts, community modules) — [MIT License](LICENSE-MIT)
+- **Enterprise Edition** (kernel orchestration, multi-tenant, advanced modules) — [Ikabud Commercial License](LICENSE-COMMERCIAL)
+
+See [LICENSING.md](LICENSING.md) for the complete component-to-license boundary.
