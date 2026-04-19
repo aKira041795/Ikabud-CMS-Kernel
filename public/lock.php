@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Baron Bakeshop Daily Ledger — Web Installer
+ * Ikabud Kernel APP OS — Web Installer
  *
  * Creates database, runs schema migration, seeds admin user + branch,
  * generates secure .env, and locks itself.
@@ -297,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
     // ── Collect & validate input ────────────────────────────────────────
     $dbHost = trim((string) ($_POST['db_host'] ?? 'localhost'));
     $dbPort = trim((string) ($_POST['db_port'] ?? '3306'));
-    $dbName = trim((string) ($_POST['db_name'] ?? 'baronbakeshop'));
+    $dbName = trim((string) ($_POST['db_name'] ?? 'ikabud'));
     $dbUser = trim((string) ($_POST['db_user'] ?? ''));
     $dbPass = (string) ($_POST['db_pass'] ?? '');
 
@@ -314,6 +314,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
     $controlDbPass = $controlDbPassInput !== ''
         ? $controlDbPassInput
         : (string) ($existingEnv['CONTROL_DB_PASSWORD'] ?? '');
+
+    // When multi-tenant is disabled, force control DB params to mirror primary DB
+    if (!$multiTenantEnabled) {
+        $controlDbHost = $dbHost;
+        $controlDbPort = $dbPort;
+        $controlDbName = $dbName;
+        $controlDbUser = $dbUser;
+        $controlDbPass = $dbPass;
+    }
     $controlDbEncKeyInput = trim((string) ($_POST['control_db_enc_key'] ?? ''));
     $controlDbEncKey = $controlDbEncKeyInput !== ''
         ? $controlDbEncKeyInput
@@ -496,7 +505,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baron Bakeshop — Installer</title>
+    <title>Ikabud Kernel APP OS — Installer</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -523,8 +532,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
 </head>
 <body>
 <div class="card">
-    <h1><span>Baron</span> Bakeshop</h1>
-    <p class="sub">Daily Ledger System — Installer</p>
+    <h1><span>Ikabud</span> Kernel APP OS</h1>
+    <p class="sub">Application Kernel — Installer</p>
 
     <?php if ($success): ?>
         <div class="alert alert-success">
@@ -558,7 +567,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
             </div>
             <div class="form-group">
                 <label class="form-label">Database Name</label>
-                <input name="db_name" class="form-input" placeholder="baronbakeshop" value="<?= htmlspecialchars($_POST['db_name'] ?? ($existingEnv['DB_DATABASE'] ?? 'baronbakeshop'), ENT_QUOTES, 'UTF-8') ?>">
+                <input name="db_name" class="form-input" placeholder="ikabud" value="<?= htmlspecialchars($_POST['db_name'] ?? ($existingEnv['DB_DATABASE'] ?? 'ikabud'), ENT_QUOTES, 'UTF-8') ?>">
             </div>
             <div class="form-group">
                 <label class="form-label">Database Username</label>

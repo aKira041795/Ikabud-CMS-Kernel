@@ -1,6 +1,5 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /
 
     # Pass Authorization header through (required for JWT Bearer tokens)
     RewriteCond %{HTTP:Authorization} .

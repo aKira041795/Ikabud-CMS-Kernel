@@ -531,7 +531,12 @@ class MigrationRunner
         // other unbuffered queries are active" on the next query.
         // PDO::query() doesn't support multi-statement SQL at all (MySQL
         // server-side parsing rejects the second statement).
-        $statements = preg_split('/;\s*$/m', $sql, -1, PREG_SPLIT_NO_EMPTY);
+        //
+        // Compound statements (CREATE PROCEDURE/FUNCTION/TRIGGER with
+        // BEGIN…END blocks) contain interior semicolons that must NOT be
+        // treated as statement boundaries.  We track nesting depth so the
+        // splitter emits the entire compound block as a single statement.
+        $statements = $this->splitStatements($sql);
         foreach ($statements as $statement) {
             $statement = trim($statement);
             if ($statement === '') {
@@ -539,5 +544,69 @@ class MigrationRunner
             }
             $this->pdo->exec($statement);
         }
+    }
+
+    /**
+     * Split a SQL string into individual executable statements, respecting
+     * compound BEGIN…END blocks (used by CREATE PROCEDURE/FUNCTION/TRIGGER).
+     *
+     * Interior semicolons inside compound blocks are preserved so the whole
+     * block is emitted as a single statement.
+     *
+     * @return list<string>
+     */
+    private function splitStatements(string $sql): array
+    {
+        // Strip single-line comments (-- …) while preserving line structure.
+        $sql = preg_replace('/--[^\r\n]*/', '', $sql);
+
+        $statements = [];
+        $current = '';
+        $depth = 0;
+
+        // Tokenise line-by-line to detect BEGIN / END boundaries.
+        $lines = preg_split('/\r?\n/', $sql);
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                $current .= "\n";
+                continue;
+            }
+
+            // Track compound nesting: BEGIN opens, bare END closes.
+            // Only the keyword at the start of a line (after optional whitespace) counts.
+            if (preg_match('/^\bBEGIN\b/i', $trimmed)) {
+                $depth++;
+            }
+            // Bare END (without IF/LOOP/WHILE/REPEAT/CASE qualifier) closes the compound block.
+            // "END IF;", "END LOOP;", etc. close control structures, NOT the BEGIN block.
+            if ($depth > 0 && preg_match('/^\bEND\b\s*;?\s*$/i', $trimmed)) {
+                $depth--;
+            }
+
+            $current .= $line . "\n";
+
+            // If we are NOT inside a compound block, a trailing semicolon ends the statement.
+            if ($depth === 0 && preg_match('/;\s*$/', $trimmed)) {
+                $stmt = trim($current);
+                // Remove the trailing semicolon for exec() compatibility.
+                $stmt = preg_replace('/;\s*$/', '', $stmt);
+                $stmt = trim($stmt);
+                if ($stmt !== '') {
+                    $statements[] = $stmt;
+                }
+                $current = '';
+            }
+        }
+
+        // Leftover (statement without trailing semicolon at EOF).
+        $leftover = trim($current);
+        $leftover = preg_replace('/;\s*$/', '', $leftover);
+        $leftover = trim($leftover);
+        if ($leftover !== '') {
+            $statements[] = $leftover;
+        }
+
+        return $statements;
     }
 }

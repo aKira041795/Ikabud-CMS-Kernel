@@ -701,7 +701,9 @@ function cmsBuilderDefaultStyle(string $type): array
 
 function cmsBuilderDefaultProps(string $type): array
 {
-    static $defaults = [
+    static $defaults = null;
+    if ($defaults === null) {
+        $defaults = [
         'heading'        => ['content' => 'Heading', 'level' => 2],
         'text'           => ['content' => 'Enter your text here...'],
         'button'         => ['content' => 'Click me', 'href' => '#', 'variant' => 'primary', 'size' => 'md'],
@@ -754,6 +756,7 @@ function cmsBuilderDefaultProps(string $type): array
         'entity_view'    => ['showFeaturedImage' => true, 'showTitle' => true, 'showMeta' => true, 'showTypeLabel' => true, 'showAuthor' => true, 'showDate' => true, 'showPricing' => true, 'showInventory' => true, 'showSku' => true, 'showProgress' => true, 'showLessons' => true, 'showActions' => true, 'showBody' => true],
         'entity_list'    => ['entityType' => 'post', 'itemCount' => 6, 'layout' => 'grid', 'gridColumns' => 3, 'showFeaturedImage' => true, 'showTitle' => true, 'showExcerpt' => true, 'excerptLength' => 120, 'showPricing' => true, 'showInventory' => true, 'emptyMessage' => 'No items found.', 'orderBy' => 'date', 'order' => 'desc'],
     ];
+    }
     return $defaults[$type] ?? [];
 }
 
