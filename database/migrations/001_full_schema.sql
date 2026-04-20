@@ -1,5 +1,5 @@
 -- ============================================================
--- Baron Bakeshop Daily Ledger — Full Schema
+-- Ikabud Daily Ledger — Full Schema
 -- Database: baronbakeshop2
 -- ============================================================
 

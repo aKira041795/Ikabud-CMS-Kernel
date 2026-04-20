@@ -3,9 +3,9 @@
  * SMS Gateway — Multi-provider SMS sending abstraction
  * 
  * Supports: Semaphore (PH), Twilio, Vonage (Nexmo), MoceanAPI
- * Adapted for Baron Bakeshop kernel v2.
+ * Adapted for Ikabud kernel v2.
  * 
- * @package Baron\Modules\SMS
+ * @package Ikabud\Modules\SMS
  */
 
 declare(strict_types=1);

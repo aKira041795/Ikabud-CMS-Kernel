@@ -318,7 +318,7 @@ class App
 
     private function buildKernelGuiDefaults(): array
     {
-        $appName = $this->config('app.name', 'Baron Bakeshop');
+        $appName = $this->config('app.name', 'Ikabud');
         $parts = explode(' ', $appName, 2);
 
         $kernelDefaults = [

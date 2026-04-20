@@ -14,7 +14,7 @@
  *   4. Session                  — stored after login
  *   5. Config default           — single-tenant fallback
  * 
- * When multi-tenancy is DISABLED (the default for Baron Bakeshop),
+ * When multi-tenancy is DISABLED (the default for Ikabud),
  * the resolver returns null — meaning no tenant scoping is applied.
  * This makes the system zero-friction for single-tenant deployments
  * while being ready for multi-tenant when the config flag is flipped.

@@ -3,9 +3,9 @@
  * SMS Module Handlers
  * 
  * All route handler functions for the SMS module.
- * Adapted for Baron Bakeshop kernel v2 (hooks, CSRF, response format).
+ * Adapted for Ikabud kernel v2 (hooks, CSRF, response format).
  * 
- * @package Baron\Modules\SMS
+ * @package Ikabud\Modules\SMS
  */
 
 declare(strict_types=1);
@@ -296,7 +296,7 @@ function apiSmsTest(array $params = []): void
     }
     
     $user = smsUser();
-    $result = smsSend($to, 'This is a test SMS from Baron Bakeshop. If you received this, SMS is working!', [
+    $result = smsSend($to, 'This is a test SMS from Ikabud. If you received this, SMS is working!', [
         'trigger_event' => 'test',
         'sent_by' => $user['id'] ?? null,
     ]);

@@ -1,5 +1,5 @@
 -- ============================================================
--- Baron Bakeshop Daily Ledger — Seed Data
+-- Ikabud Daily Ledger — Seed Data
 -- ============================================================
 
 -- Admin user (password: admin123)
@@ -16,8 +16,8 @@ INSERT INTO users (username, password_hash, full_name, role) VALUES
 
 -- Sample branch
 INSERT INTO branches (code, name, address) VALUES
-('MAIN', 'Main Branch', 'Baron Bakeshop Main Store'),
-('BR02', 'Branch 2', 'Baron Bakeshop Branch 2');
+('MAIN', 'Main Branch', 'Ikabud Main Store'),
+('BR02', 'Branch 2', 'Ikabud Branch 2');
 
 -- Products (from the paper ledger image)
 INSERT INTO products (sku, name, current_price, sort_order) VALUES

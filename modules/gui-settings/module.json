@@ -7,46 +7,212 @@
     "owns_tables": [],
     "reads_tables": [],
     "settings_fields": [
-        { "key": "app_name", "type": "text", "label": "App Name", "default": "Baron Bakeshop" },
-        { "key": "app_name_accent", "type": "text", "label": "App Name Accent", "default": "Baron" },
-        { "key": "app_name_rest", "type": "text", "label": "App Name Remainder", "default": "Bakeshop" },
-        { "key": "color_bg", "type": "text", "label": "Background Color", "default": "#f4f5f7" },
-        { "key": "color_surface", "type": "text", "label": "Surface Color", "default": "#ffffff" },
-        { "key": "color_border", "type": "text", "label": "Border Color", "default": "#dfe3e8" },
-        { "key": "color_text", "type": "text", "label": "Text Color", "default": "#2d3748" },
-        { "key": "color_text_muted", "type": "text", "label": "Muted Text Color", "default": "#5a6577" },
-        { "key": "color_text_light", "type": "text", "label": "Light Text Color", "default": "#8895a7" },
-        { "key": "color_primary", "type": "text", "label": "Primary Color", "default": "#2563eb" },
-        { "key": "color_primary_hover", "type": "text", "label": "Primary Hover Color", "default": "#1d4ed8" },
-        { "key": "color_primary_light", "type": "text", "label": "Primary Light Color", "default": "#dbeafe" },
-        { "key": "color_success", "type": "text", "label": "Success Color", "default": "#0d9f4f" },
-        { "key": "color_success_light", "type": "text", "label": "Success Light Color", "default": "#d4f5e0" },
-        { "key": "color_warning", "type": "text", "label": "Warning Color", "default": "#c87e08" },
-        { "key": "color_warning_light", "type": "text", "label": "Warning Light Color", "default": "#fef3c7" },
-        { "key": "color_danger", "type": "text", "label": "Danger Color", "default": "#d42828" },
-        { "key": "color_danger_light", "type": "text", "label": "Danger Light Color", "default": "#fee2e2" },
-        { "key": "color_header_bg", "type": "text", "label": "Header Background", "default": "#1e293b" },
-        { "key": "color_header_text", "type": "text", "label": "Header Text", "default": "#ffffff" },
-        { "key": "color_header_accent", "type": "text", "label": "Header Accent", "default": "#60a5fa" },
-        { "key": "font_family", "type": "text", "label": "Font Family", "default": "'Inter', system-ui, sans-serif" },
-        { "key": "font_url", "type": "text", "label": "Font URL", "default": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" },
-        { "key": "font_size_base", "type": "text", "label": "Base Font Size", "default": "14px" },
-        { "key": "font_size_small", "type": "text", "label": "Small Font Size", "default": "12px" },
-        { "key": "font_size_h1", "type": "text", "label": "H1 Font Size", "default": "24px" },
-        { "key": "font_size_h2", "type": "text", "label": "H2 Font Size", "default": "18px" },
-        { "key": "font_size_nav", "type": "text", "label": "Navigation Font Size", "default": "13px" },
-        { "key": "border_radius", "type": "text", "label": "Border Radius", "default": "8px" },
-        { "key": "header_height", "type": "text", "label": "Header Height", "default": "56px" },
-        { "key": "nav_height", "type": "text", "label": "Navigation Height", "default": "44px" },
-        { "key": "max_width", "type": "text", "label": "Max Width", "default": "1200px" },
+        {
+            "key": "app_name",
+            "type": "text",
+            "label": "App Name",
+            "default": "Ikabud"
+        },
+        {
+            "key": "app_name_accent",
+            "type": "text",
+            "label": "App Name Accent",
+            "default": "Ikabud"
+        },
+        {
+            "key": "app_name_rest",
+            "type": "text",
+            "label": "App Name Remainder",
+            "default": ""
+        },
+        {
+            "key": "color_bg",
+            "type": "text",
+            "label": "Background Color",
+            "default": "#f4f5f7"
+        },
+        {
+            "key": "color_surface",
+            "type": "text",
+            "label": "Surface Color",
+            "default": "#ffffff"
+        },
+        {
+            "key": "color_border",
+            "type": "text",
+            "label": "Border Color",
+            "default": "#dfe3e8"
+        },
+        {
+            "key": "color_text",
+            "type": "text",
+            "label": "Text Color",
+            "default": "#2d3748"
+        },
+        {
+            "key": "color_text_muted",
+            "type": "text",
+            "label": "Muted Text Color",
+            "default": "#5a6577"
+        },
+        {
+            "key": "color_text_light",
+            "type": "text",
+            "label": "Light Text Color",
+            "default": "#8895a7"
+        },
+        {
+            "key": "color_primary",
+            "type": "text",
+            "label": "Primary Color",
+            "default": "#2563eb"
+        },
+        {
+            "key": "color_primary_hover",
+            "type": "text",
+            "label": "Primary Hover Color",
+            "default": "#1d4ed8"
+        },
+        {
+            "key": "color_primary_light",
+            "type": "text",
+            "label": "Primary Light Color",
+            "default": "#dbeafe"
+        },
+        {
+            "key": "color_success",
+            "type": "text",
+            "label": "Success Color",
+            "default": "#0d9f4f"
+        },
+        {
+            "key": "color_success_light",
+            "type": "text",
+            "label": "Success Light Color",
+            "default": "#d4f5e0"
+        },
+        {
+            "key": "color_warning",
+            "type": "text",
+            "label": "Warning Color",
+            "default": "#c87e08"
+        },
+        {
+            "key": "color_warning_light",
+            "type": "text",
+            "label": "Warning Light Color",
+            "default": "#fef3c7"
+        },
+        {
+            "key": "color_danger",
+            "type": "text",
+            "label": "Danger Color",
+            "default": "#d42828"
+        },
+        {
+            "key": "color_danger_light",
+            "type": "text",
+            "label": "Danger Light Color",
+            "default": "#fee2e2"
+        },
+        {
+            "key": "color_header_bg",
+            "type": "text",
+            "label": "Header Background",
+            "default": "#1e293b"
+        },
+        {
+            "key": "color_header_text",
+            "type": "text",
+            "label": "Header Text",
+            "default": "#ffffff"
+        },
+        {
+            "key": "color_header_accent",
+            "type": "text",
+            "label": "Header Accent",
+            "default": "#60a5fa"
+        },
+        {
+            "key": "font_family",
+            "type": "text",
+            "label": "Font Family",
+            "default": "'Inter', system-ui, sans-serif"
+        },
+        {
+            "key": "font_url",
+            "type": "text",
+            "label": "Font URL",
+            "default": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        },
+        {
+            "key": "font_size_base",
+            "type": "text",
+            "label": "Base Font Size",
+            "default": "14px"
+        },
+        {
+            "key": "font_size_small",
+            "type": "text",
+            "label": "Small Font Size",
+            "default": "12px"
+        },
+        {
+            "key": "font_size_h1",
+            "type": "text",
+            "label": "H1 Font Size",
+            "default": "24px"
+        },
+        {
+            "key": "font_size_h2",
+            "type": "text",
+            "label": "H2 Font Size",
+            "default": "18px"
+        },
+        {
+            "key": "font_size_nav",
+            "type": "text",
+            "label": "Navigation Font Size",
+            "default": "13px"
+        },
+        {
+            "key": "border_radius",
+            "type": "text",
+            "label": "Border Radius",
+            "default": "8px"
+        },
+        {
+            "key": "header_height",
+            "type": "text",
+            "label": "Header Height",
+            "default": "56px"
+        },
+        {
+            "key": "nav_height",
+            "type": "text",
+            "label": "Navigation Height",
+            "default": "44px"
+        },
+        {
+            "key": "max_width",
+            "type": "text",
+            "label": "Max Width",
+            "default": "1200px"
+        },
         {
             "key": "nav_layout",
             "type": "select",
             "label": "Navigation Layout",
             "default": "top",
             "options": [
-                { "value": "top", "label": "Top" },
-                { "value": "sidebar", "label": "Sidebar" }
+                {
+                    "value": "top",
+                    "label": "Top"
+                },
+                {
+                    "value": "sidebar",
+                    "label": "Sidebar"
+                }
             ]
         },
         {
@@ -55,8 +221,14 @@
             "label": "Sidebar Position",
             "default": "left",
             "options": [
-                { "value": "left", "label": "Left" },
-                { "value": "right", "label": "Right" }
+                {
+                    "value": "left",
+                    "label": "Left"
+                },
+                {
+                    "value": "right",
+                    "label": "Right"
+                }
             ]
         },
         {
@@ -65,8 +237,14 @@
             "label": "Mobile Menu Style",
             "default": "canvas",
             "options": [
-                { "value": "canvas", "label": "Canvas" },
-                { "value": "dropdown", "label": "Dropdown" }
+                {
+                    "value": "canvas",
+                    "label": "Canvas"
+                },
+                {
+                    "value": "dropdown",
+                    "label": "Dropdown"
+                }
             ]
         }
     ],
@@ -75,7 +253,9 @@
             "label": "GUI Settings",
             "url": "/admin/gui-settings",
             "icon": "palette",
-            "roles": ["admin"]
+            "roles": [
+                "admin"
+            ]
         }
     ]
 }

@@ -1,4 +1,4 @@
-# Copilot Instructions for Baron Bakeshop / Ikabud
+# Copilot Instructions for Ikabud
 
 ## Big-picture architecture (read first)
 - Runtime entrypoint is [public/index.php](public/index.php): core routes + dynamic module routes are resolved there, then dispatched (including `module-id:functionName` handlers).

@@ -67,7 +67,7 @@ Three critical structural issues:
 | K1 | Source→table map is hardcoded | Medium | `['kernel' => 'users', 'cms' => 'cms_users', 'guidance' => 'gm_users', 'daily-ledger' => 'dl_admins']` requires code edit to add new auth sources |
 | K2 | `boot()` queries DB every request | Low | Queries `kernel_integrations` before `$booted` is set; first-request cost |
 | K3 | `glossary()` fires hook on first access | Low | `kernel.glossary` hook fires on every request's first `glossary()` call |
-| K4 | `'Baron Bakeshop'` hardcoded as default app name | Low | Default branding in `buildKernelGuiDefaults()` |
+| K4 | `'Ikabud'` hardcoded as default app name | Low | Default branding in `buildKernelGuiDefaults()` |
 | K5 | JWT expiry hardcoded 86400 | Low | Should be configurable via env |
 
 ---
@@ -1190,7 +1190,7 @@ Reactive/
 
 | Value | Location | Recommendation |
 |-------|----------|----------------|
-| `'Baron Bakeshop'` | App.php | Move to env/config |
+| `'Ikabud'` | App.php | Move to env/config |
 | `86400` JWT expiry | App/JWT | Environment variable |
 | `'ikabud'` JWT issuer | JWT.php | Config |
 | Source→table map | App.php | Module manifest declaration |

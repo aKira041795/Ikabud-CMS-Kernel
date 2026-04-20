@@ -210,9 +210,9 @@ function getGuiContext(): array
 {
     $s = readGuiSettings();
     return [
-        'app_name'        => $s['app_name'] ?? 'Baron Bakeshop',
-        'app_name_accent' => $s['app_name_accent'] ?? 'Baron',
-        'app_name_rest'   => $s['app_name_rest'] ?? 'Bakeshop',
+        'app_name'        => $s['app_name'] ?? 'Ikabud',
+        'app_name_accent' => $s['app_name_accent'] ?? 'Ikabud',
+        'app_name_rest'   => $s['app_name_rest'] ?? '',
         'font_url'        => $s['font_url'] ?? '',
         'css_overrides'   => guiCssOverrides(),
     ];

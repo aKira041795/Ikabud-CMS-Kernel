@@ -127,7 +127,7 @@ The following components are licensed under the [Ikabud Commercial License](LICE
 ### For production deployments
 
 - Self-hosted production use of **Enterprise Edition** components requires a commercial license
-- Contact licensing@ikabud.com for commercial licensing terms
+- Contact noah2.omamalin@gmail.com for commercial licensing terms
 - Evaluation, development, and testing use of all components is permitted
 
 ### For module developers
