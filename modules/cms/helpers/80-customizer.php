@@ -3830,6 +3830,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     }
 
     $mobileCSS .= '@media(max-width:' . $breakpoint . 'px){';
+    $mobileCSS .= '.site-tagline{display:none;}';
     $mobileCSS .= '.main-navigation .nav-menu-sub{position:static;top:auto;left:auto;min-width:0;width:100%;opacity:1;visibility:visible;transform:none;';
     $mobileCSS .= 'display:block;margin:0;padding:0 0 0.5rem 0.75rem;border:none;border-radius:0;box-shadow:none;background:transparent;}';
     $mobileCSS .= '.main-navigation .nav-menu-sub a{white-space:normal;}';
