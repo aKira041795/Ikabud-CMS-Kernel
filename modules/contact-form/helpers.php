@@ -1689,13 +1689,15 @@ function contactFormRenderSharedStyles(): string
     return <<<'HTML'
 <style>
 .contact-form-wrap {
-    max-width: 720px;
+    width: 100%;
+    max-width: 100%;
     margin: 1.5rem 0;
     padding: 1.5rem;
     background: #ffffff;
     border: 1px solid rgba(15, 23, 42, 0.10);
     border-radius: 16px;
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    box-sizing: border-box;
 }
 .contact-form-title {
     margin: 0 0 1rem;
