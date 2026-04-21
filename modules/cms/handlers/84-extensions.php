@@ -49,74 +49,90 @@ function cmsAdminModules(array $params = []): void
 }
 
 /**
- * Discover approved catalog modules that are available to install for the current tenant.
+ * Build an install card for a host-available CMS module.
+ * Returns null when the module should not be shown in the CMS installer.
+ *
+ * @return array<string, mixed>|null
+ */
+function _cmsAvailableModuleCard(string $moduleId, array $manifest, ?int $tenantId = null): ?array
+{
+    $installChannel = moduleCatalogInstallChannel($moduleId, $manifest);
+    if (!in_array($installChannel, ['bundled', 'catalog'], true)) {
+        return null;
+    }
+
+    $catalogEntry = moduleCatalogEntry($moduleId);
+    $entitlement = moduleTenantEntitlementStatus($moduleId, $tenantId);
+    $request = $tenantId !== null && $tenantId > 0 ? moduleLatestAccessRequestForTenant($moduleId, $tenantId) : null;
+    $requestStatus = is_array($request) ? strtolower(trim((string)($request['status'] ?? ''))) : '';
+    $commercialMode = $installChannel === 'bundled' && !is_array($catalogEntry)
+        ? 'bundled'
+        : (string)($entitlement['commercial_mode'] ?? ($catalogEntry['commercial_mode'] ?? 'free'));
+    $canInstall = true;
+    $blockedReason = '';
+
+    if ($installChannel !== 'bundled' && !empty($entitlement['required']) && empty($entitlement['allowed'])) {
+        if (!moduleCatalogModeAllowsSelfService($commercialMode)) {
+            $canInstall = false;
+            $blockedReason = (string)($entitlement['entitlement_status'] ?? 'requires_access');
+        }
+    }
+
+    return [
+        'id' => $moduleId,
+        'name' => (string)($manifest['name'] ?? $moduleId),
+        'version' => (string)($manifest['version'] ?? ($catalogEntry['approved_version'] ?? '—')),
+        'author' => (string)($manifest['author'] ?? ''),
+        'description' => (string)($manifest['description'] ?? ''),
+        'commercial_mode' => $commercialMode,
+        'approval_status' => is_array($catalogEntry)
+            ? strtolower(trim((string)($catalogEntry['approval_status'] ?? 'pending')))
+            : ($installChannel === 'bundled' ? 'bundled' : 'unmanaged'),
+        'catalog_managed' => is_array($catalogEntry),
+        'availability_source' => $installChannel,
+        'entitlement_status' => $installChannel === 'bundled'
+            ? 'not_required'
+            : (string)($entitlement['entitlement_status'] ?? 'not_required'),
+        'entitlement_allowed' => $installChannel === 'bundled' ? true : !empty($entitlement['allowed']),
+        'can_install' => $canInstall,
+        'blocked_reason' => $blockedReason,
+        'request_status' => $requestStatus !== '' ? $requestStatus : 'none',
+        'request_pending' => $requestStatus === 'pending',
+        'request_license_ref' => is_array($request) ? (string)($request['license_ref'] ?? '') : '',
+        'request_notes' => is_array($request) ? (string)($request['request_notes'] ?? '') : '',
+        'request_review_notes' => is_array($request) ? (string)($request['review_notes'] ?? '') : '',
+        'request_has_license_key' => is_array($request) ? !empty($request['has_license_key']) : false,
+    ];
+}
+
+/**
+ * Discover host-available modules that the current tenant can install from the CMS UI.
  *
  * @return array<int, array<string, mixed>>
  */
 function _cmsDiscoverCatalogModules(?int $tenantId = null): array
 {
-    $catalog = readModuleCatalogRegistry();
-    if (empty($catalog)) {
+    $allModules = discoverModules();
+    if (empty($allModules)) {
         return [];
     }
 
-    $allModules = discoverModules();
     $registered = $tenantId !== null && $tenantId > 0
         ? _cmsGetRegisteredSubModulesForTenant($tenantId)
         : _cmsGetRegisteredSubModules();
 
     $result = [];
-    foreach ($catalog as $moduleId => $entry) {
-        if (!is_array($entry)) {
-            continue;
-        }
-
-        $approvalStatus = strtolower(trim((string)($entry['approval_status'] ?? 'pending')));
-        if ($approvalStatus !== 'approved') {
-            continue;
-        }
-
-        if (!isset($allModules[$moduleId])) {
-            continue;
-        }
+    foreach ($allModules as $moduleId => $manifest) {
         if (in_array($moduleId, $registered, true)) {
             continue;
         }
 
-        $manifest = $allModules[$moduleId];
-        $entitlement = moduleTenantEntitlementStatus($moduleId, $tenantId);
-        $request = $tenantId !== null && $tenantId > 0 ? moduleLatestAccessRequestForTenant($moduleId, $tenantId) : null;
-        $requestStatus = is_array($request) ? strtolower(trim((string)($request['status'] ?? ''))) : '';
-        $commercialMode = (string)($entitlement['commercial_mode'] ?? ($entry['commercial_mode'] ?? 'free'));
-        $canInstall = true;
-        $blockedReason = '';
-
-        if (!empty($entitlement['required']) && empty($entitlement['allowed'])) {
-            if (!moduleCatalogModeAllowsSelfService($commercialMode)) {
-                $canInstall = false;
-                $blockedReason = (string)($entitlement['entitlement_status'] ?? 'requires_access');
-            }
+        $entry = _cmsAvailableModuleCard($moduleId, $manifest, $tenantId);
+        if ($entry === null) {
+            continue;
         }
 
-        $result[] = [
-            'id' => $moduleId,
-            'name' => (string)($manifest['name'] ?? $entry['module_name'] ?? $moduleId),
-            'version' => (string)($manifest['version'] ?? $entry['approved_version'] ?? '—'),
-            'author' => (string)($manifest['author'] ?? ''),
-            'description' => (string)($manifest['description'] ?? ''),
-            'commercial_mode' => $commercialMode,
-            'approval_status' => $approvalStatus,
-            'entitlement_status' => (string)($entitlement['entitlement_status'] ?? 'not_required'),
-            'entitlement_allowed' => !empty($entitlement['allowed']),
-            'can_install' => $canInstall,
-            'blocked_reason' => $blockedReason,
-            'request_status' => $requestStatus !== '' ? $requestStatus : 'none',
-            'request_pending' => $requestStatus === 'pending',
-            'request_license_ref' => is_array($request) ? (string)($request['license_ref'] ?? '') : '',
-            'request_notes' => is_array($request) ? (string)($request['request_notes'] ?? '') : '',
-            'request_review_notes' => is_array($request) ? (string)($request['review_notes'] ?? '') : '',
-            'request_has_license_key' => is_array($request) ? !empty($request['has_license_key']) : false,
-        ];
+        $result[] = $entry;
     }
 
     usort($result, static function (array $a, array $b): int {
@@ -127,11 +143,11 @@ function _cmsDiscoverCatalogModules(?int $tenantId = null): array
 }
 
 /**
- * Install an approved catalog module for a tenant.
+ * Install a host-available bundled or approved catalog module for a tenant.
  *
  * @return array<string, mixed>
  */
-function _cmsInstallCatalogModule(string $moduleId, ?int $tenantId = null): array
+function _cmsInstallAvailableModule(string $moduleId, ?int $tenantId = null): array
 {
     $moduleId = trim($moduleId);
     if ($moduleId === '') {
@@ -143,7 +159,12 @@ function _cmsInstallCatalogModule(string $moduleId, ?int $tenantId = null): arra
         return ['ok' => false, 'error' => 'Module not found on disk.'];
     }
 
-    if (!moduleCatalogIsApproved($moduleId)) {
+    $manifest = $allModules[$moduleId];
+    $installChannel = moduleCatalogInstallChannel($moduleId, $manifest);
+    if ($installChannel === '') {
+        return ['ok' => false, 'error' => 'Module is not available to install for this tenant.'];
+    }
+    if ($installChannel === 'private_upload') {
         return ['ok' => false, 'error' => 'Module is not approved in the platform catalog yet.'];
     }
 
@@ -156,21 +177,23 @@ function _cmsInstallCatalogModule(string $moduleId, ?int $tenantId = null): arra
 
     if ($multiTenant) {
         if ($effectiveTenantId === null || $effectiveTenantId <= 0) {
-            return ['ok' => false, 'error' => 'Tenant context is required to install catalog modules.'];
+            return ['ok' => false, 'error' => 'Tenant context is required to install host modules.'];
         }
 
-        ensureSelfServiceModuleEntitlementForTenant($moduleId, $effectiveTenantId, [
-            'source' => 'cms_catalog_install',
-            'metadata' => ['via' => '_cmsInstallCatalogModule'],
-        ]);
+        if ($installChannel === 'catalog') {
+            ensureSelfServiceModuleEntitlementForTenant($moduleId, $effectiveTenantId, [
+                'source' => 'cms_catalog_install',
+                'metadata' => ['via' => '_cmsInstallAvailableModule'],
+            ]);
 
-        $entitlement = moduleTenantEntitlementStatus($moduleId, $effectiveTenantId);
-        if (!empty($entitlement['required']) && empty($entitlement['allowed'])) {
-            return [
-                'ok' => false,
-                'error' => 'This tenant is not entitled to install that catalog module yet.',
-                'entitlement_status' => (string)($entitlement['entitlement_status'] ?? 'unknown'),
-            ];
+            $entitlement = moduleTenantEntitlementStatus($moduleId, $effectiveTenantId);
+            if (!empty($entitlement['required']) && empty($entitlement['allowed'])) {
+                return [
+                    'ok' => false,
+                    'error' => 'This tenant is not entitled to install that catalog module yet.',
+                    'entitlement_status' => (string)($entitlement['entitlement_status'] ?? 'unknown'),
+                ];
+            }
         }
 
         $registered = _cmsGetRegisteredSubModulesForTenant($effectiveTenantId);
@@ -185,7 +208,6 @@ function _cmsInstallCatalogModule(string $moduleId, ?int $tenantId = null): arra
         enableModule($moduleId);
     }
 
-    $manifest = $allModules[$moduleId];
     $moduleDir = (string)($manifest['_path'] ?? '');
     if ($moduleDir !== '' && is_dir($moduleDir)) {
         _cmsRunModuleMigrations($moduleId, $manifest, $moduleDir, $effectiveTenantId);
@@ -200,8 +222,21 @@ function _cmsInstallCatalogModule(string $moduleId, ?int $tenantId = null): arra
             'id' => $moduleId,
             'name' => (string)($manifest['name'] ?? $moduleId),
         ],
-        'message' => 'Module "' . (string)($manifest['name'] ?? $moduleId) . '" installed from the approved catalog.',
+        'message' => $installChannel === 'bundled'
+            ? 'Module "' . (string)($manifest['name'] ?? $moduleId) . '" installed from the host bundled modules.'
+            : 'Module "' . (string)($manifest['name'] ?? $moduleId) . '" installed from the approved catalog.',
+        'availability_source' => $installChannel,
     ];
+}
+
+/**
+ * Install an approved catalog module for a tenant.
+ *
+ * @return array<string, mixed>
+ */
+function _cmsInstallCatalogModule(string $moduleId, ?int $tenantId = null): array
+{
+    return _cmsInstallAvailableModule($moduleId, $tenantId);
 }
 
 // ─── Theme API ────────────────────────────────────────────────────────
@@ -608,6 +643,10 @@ function cmsApiModuleUpload(array $params = []): void
     // Prevent overwriting kernel/core modules that were not installed via CMS
     $kernelModules = _cmsGetKernelModuleIds();
     if (in_array($moduleId, $kernelModules, true)) {
+        $allModules = discoverModules();
+        $existingManifest = $allModules[$moduleId] ?? null;
+        $installChannel = moduleCatalogInstallChannel($moduleId, is_array($existingManifest) ? $existingManifest : null);
+
         // In multi-tenant mode a module installed by one tenant will appear on
         // disk but NOT in the current tenant's CMS registry, which causes
         // _cmsGetKernelModuleIds() to classify it as a kernel module.
@@ -619,8 +658,9 @@ function cmsApiModuleUpload(array $params = []): void
         $modulesDir = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/') . '/modules';
         $existsOnDisk = is_dir($modulesDir . '/' . $moduleId);
         $isCmsInstalledGlobally = _cmsIsInGlobalOrAnyTenantRegistry($moduleId);
+        $isBundledHostAddon = $installChannel === 'bundled';
 
-        if (!$existsOnDisk || !$isCmsInstalledGlobally) {
+        if (!$existsOnDisk || (!$isCmsInstalledGlobally && !$isBundledHostAddon)) {
             _cmsDeleteDirRecursive($extractDir);
             _cmsAuditInstaller('module.upload', 'module', $moduleId, 'failed', 'Cannot overwrite kernel module from CMS.');
             http_response_code(400);
@@ -629,6 +669,26 @@ function cmsApiModuleUpload(array $params = []): void
         }
 
         $currentTenantId = function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null;
+        if ($isBundledHostAddon) {
+            _cmsDeleteDirRecursive($extractDir);
+
+            $installResult = _cmsInstallAvailableModule($moduleId, $currentTenantId);
+            if (empty($installResult['ok'])) {
+                _cmsAuditInstaller('module.upload', 'module', $moduleId, 'failed', (string)($installResult['error'] ?? 'Failed to install bundled module from host disk.'));
+                http_response_code(400);
+                echo json_encode($installResult);
+                exit;
+            }
+
+            _cmsAuditInstaller('module.upload', 'module', $moduleId, 'success', 'Module installed from bundled host disk.', [
+                'module_name' => (string)($meta['name'] ?? $moduleId),
+                'upgraded' => false,
+                'availability_source' => 'bundled',
+            ]);
+            echo json_encode($installResult);
+            exit;
+        }
+
         if (!moduleCatalogIsApproved($moduleId)) {
             _cmsDeleteDirRecursive($extractDir);
             _cmsAuditInstaller('module.upload', 'module', $moduleId, 'failed', 'Cross-tenant adopt blocked: package is not approved in the platform catalog.');

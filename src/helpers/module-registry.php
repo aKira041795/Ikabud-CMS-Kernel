@@ -24,6 +24,344 @@ function writeModuleRegistry(array $registry): void
     file_put_contents($path, json_encode($registry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
 }
 
+/**
+ * Read module manifests without consulting runtime enablement state.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function moduleRegistryRawModuleManifests(): array
+{
+    static $cache = null;
+    if (is_array($cache)) {
+        return $cache;
+    }
+
+    $dir = modulesPath();
+    if (!is_dir($dir)) {
+        $cache = [];
+        return $cache;
+    }
+
+    $result = [];
+    foreach (scandir($dir) as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        if (preg_match('/\.bak_\d{8}_\d{6}$/', $entry)) {
+            continue;
+        }
+
+        $manifestPath = $dir . '/' . $entry . '/module.json';
+        if (!is_file($manifestPath)) {
+            continue;
+        }
+
+        $manifest = json_decode((string) file_get_contents($manifestPath), true);
+        if (!is_array($manifest)) {
+            continue;
+        }
+
+        $moduleId = trim((string)($manifest['id'] ?? ''));
+        if ($moduleId === '') {
+            continue;
+        }
+
+        $manifest['_path'] = $dir . '/' . $entry;
+        $result[$moduleId] = $manifest;
+    }
+
+    $cache = $result;
+    return $cache;
+}
+
+function moduleRegistryModuleTouchesEntryData(array $manifest, string $entryModuleId): bool
+{
+    $entryModuleId = trim($entryModuleId);
+    if ($entryModuleId === '') {
+        return false;
+    }
+
+    $prefix = $entryModuleId . '_';
+    foreach (['owns_tables', 'reads_tables'] as $key) {
+        foreach (($manifest[$key] ?? []) as $tableName) {
+            $tableName = trim((string)$tableName);
+            if ($tableName !== '' && str_starts_with($tableName, $prefix)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @return array{saved_settings: array<string, bool>, installed_submodules: array<string, bool>}
+ */
+function moduleRegistryTenantSettingSignals(int $tenantId): array
+{
+    static $cache = [];
+    if (isset($cache[$tenantId]) && is_array($cache[$tenantId])) {
+        return $cache[$tenantId];
+    }
+
+    $signals = [
+        'saved_settings' => [],
+        'installed_submodules' => [],
+    ];
+
+    if ($tenantId <= 0) {
+        $cache[$tenantId] = $signals;
+        return $signals;
+    }
+
+    try {
+        $db = app()->dbForTenant($tenantId);
+        if ($db === null || !moduleTenantSettingsEnsureTable($db)) {
+            $cache[$tenantId] = $signals;
+            return $signals;
+        }
+
+        $stmt = $db->prepare(
+            'SELECT module_id, setting_key, setting_value '
+            . 'FROM ' . moduleTenantSettingsTable() . ' '
+            . 'WHERE tenant_id = :tid'
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $moduleId = trim((string)($row['module_id'] ?? ''));
+            $settingKey = trim((string)($row['setting_key'] ?? ''));
+            if ($moduleId === '' || $settingKey === '') {
+                continue;
+            }
+
+            if ($moduleId === 'cms' && $settingKey === '_installed_submodules') {
+                $decoded = json_decode((string)($row['setting_value'] ?? 'null'), true);
+                if (is_array($decoded)) {
+                    foreach ($decoded as $installedModuleId) {
+                        $installedModuleId = trim((string)$installedModuleId);
+                        if ($installedModuleId !== '') {
+                            $signals['installed_submodules'][$installedModuleId] = true;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            if (!str_starts_with($settingKey, '_')) {
+                $signals['saved_settings'][$moduleId] = true;
+            }
+        }
+    } catch (Throwable $e) {
+        $cache[$tenantId] = $signals;
+        return $signals;
+    }
+
+    $cache[$tenantId] = $signals;
+    return $signals;
+}
+
+/**
+ * @return array<string, bool>
+ */
+function moduleRegistryRuntimeDefaultModulesForTenant(int $tenantId): array
+{
+    static $cache = [];
+    if (isset($cache[$tenantId]) && is_array($cache[$tenantId])) {
+        return $cache[$tenantId];
+    }
+
+    $allModules = moduleRegistryRawModuleManifests();
+    if ($tenantId <= 0 || $allModules === []) {
+        $cache[$tenantId] = [];
+        return $cache[$tenantId];
+    }
+
+    $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
+    if ($entryModuleId === null || $entryModuleId === '' || !isset($allModules[$entryModuleId])) {
+        $cache[$tenantId] = [];
+        return $cache[$tenantId];
+    }
+
+    $exposesByCapability = [];
+    foreach ($allModules as $moduleId => $manifest) {
+        $exposes = $manifest['capabilities']['exposes'] ?? [];
+        if (!is_array($exposes)) {
+            continue;
+        }
+        foreach ($exposes as $expose) {
+            if (!is_array($expose)) {
+                continue;
+            }
+            $capabilityId = trim((string)($expose['id'] ?? ''));
+            if ($capabilityId === '') {
+                continue;
+            }
+            if (!isset($exposesByCapability[$capabilityId])) {
+                $exposesByCapability[$capabilityId] = [];
+            }
+            $exposesByCapability[$capabilityId][] = $moduleId;
+        }
+    }
+
+    $selected = [$entryModuleId => true];
+    $queue = [$entryModuleId];
+
+    while ($queue !== []) {
+        $current = array_shift($queue);
+        if (!is_string($current) || !isset($allModules[$current])) {
+            continue;
+        }
+
+        $manifest = $allModules[$current];
+
+        foreach (($manifest['depends'] ?? []) as $depModuleId) {
+            $depModuleId = trim((string)$depModuleId);
+            if ($depModuleId !== '' && isset($allModules[$depModuleId]) && !isset($selected[$depModuleId])) {
+                $selected[$depModuleId] = true;
+                $queue[] = $depModuleId;
+            }
+        }
+
+        foreach (['depends', 'consumes'] as $capabilityKey) {
+            $capabilityRefs = $manifest['capabilities'][$capabilityKey] ?? $manifest[$capabilityKey] ?? [];
+            if (!is_array($capabilityRefs)) {
+                continue;
+            }
+            foreach ($capabilityRefs as $capabilityRef) {
+                if (is_array($capabilityRef)) {
+                    $capabilityRef = $capabilityRef['id'] ?? '';
+                }
+                $capabilityId = trim((string)$capabilityRef);
+                if ($capabilityId === '') {
+                    continue;
+                }
+                foreach ($exposesByCapability[$capabilityId] ?? [] as $providerModuleId) {
+                    if (!isset($selected[$providerModuleId])) {
+                        $selected[$providerModuleId] = true;
+                        $queue[] = $providerModuleId;
+                    }
+                }
+            }
+        }
+
+        foreach ($allModules as $moduleId => $candidate) {
+            if (isset($selected[$moduleId])) {
+                continue;
+            }
+
+            $allowCallers = moduleCatalogCapabilityAllowCallers($candidate);
+            if ($allowCallers !== [] && in_array($current, $allowCallers, true)) {
+                $selected[$moduleId] = true;
+                $queue[] = $moduleId;
+                continue;
+            }
+
+            foreach (($candidate['hooks'] ?? []) as $hookName) {
+                $hookName = trim((string)$hookName);
+                if ($hookName !== '' && str_starts_with($hookName, $current . '.')) {
+                    $selected[$moduleId] = true;
+                    $queue[] = $moduleId;
+                    continue 2;
+                }
+            }
+        }
+    }
+
+    if (isset($allModules['anti-spam'])) {
+        $selected['anti-spam'] = true;
+    }
+
+    $changed = true;
+    while ($changed) {
+        $changed = false;
+        foreach ($allModules as $moduleId => $candidate) {
+            if (isset($selected[$moduleId])) {
+                continue;
+            }
+            $moduleDepends = $candidate['depends'] ?? [];
+            if (!is_array($moduleDepends)) {
+                continue;
+            }
+            foreach ($moduleDepends as $depModuleId) {
+                $depModuleId = trim((string)$depModuleId);
+                if ($depModuleId !== '' && isset($selected[$depModuleId])) {
+                    $selected[$moduleId] = true;
+                    $changed = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    foreach ($allModules as $moduleId => $manifest) {
+        if (!empty($manifest['auth_cookie'])) {
+            continue;
+        }
+        if (moduleRegistryModuleTouchesEntryData($manifest, $entryModuleId)) {
+            $selected[$moduleId] = true;
+        }
+    }
+
+    $signals = moduleRegistryTenantSettingSignals($tenantId);
+    foreach (array_keys($signals['saved_settings']) as $moduleId) {
+        if (isset($allModules[$moduleId])) {
+            $selected[$moduleId] = true;
+        }
+    }
+    foreach (array_keys($signals['installed_submodules']) as $moduleId) {
+        if (isset($allModules[$moduleId])) {
+            $selected[$moduleId] = true;
+        }
+    }
+
+    foreach (array_keys($allModules) as $moduleId) {
+        $entitlement = moduleTenantEntitlementStatus($moduleId, $tenantId);
+        if (!empty($entitlement['catalog_managed']) && !empty($entitlement['required']) && !empty($entitlement['allowed'])) {
+            $selected[$moduleId] = true;
+        }
+    }
+
+    $cache[$tenantId] = $selected;
+    return $cache[$tenantId];
+}
+
+function moduleRegistryDefaultEnabledState(string $moduleId, ?int $tenantId = null): bool
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '') {
+        return false;
+    }
+
+    if ($tenantId === null) {
+        if (!moduleTenantSettingsModeEnabled()) {
+            return true;
+        }
+        $tenantId = moduleTenantSettingsTenantId();
+        if ($tenantId === null || $tenantId <= 0) {
+            return true;
+        }
+    }
+
+    $allModules = moduleRegistryRawModuleManifests();
+    if (!isset($allModules[$moduleId])) {
+        return false;
+    }
+
+    $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
+    if ($entryModuleId === null || $entryModuleId === '' || !isset($allModules[$entryModuleId])) {
+        return true;
+    }
+
+    $defaults = moduleRegistryRuntimeDefaultModulesForTenant($tenantId);
+    return !empty($defaults[$moduleId]);
+}
+
 function isModuleEnabled(string $moduleId): bool
 {
     // In multi-tenant mode, check per-tenant override first.
@@ -37,17 +375,12 @@ function isModuleEnabled(string $moduleId): bool
         }
     }
 
-    // Fall back to global registry.
     $registry = readModuleRegistry();
-    if (empty($registry)) {
-        return true;
+    if (array_key_exists('enabled', $registry[$moduleId] ?? [])) {
+        return !empty($registry[$moduleId]['enabled']);
     }
-    // If the module appears in the registry but has no explicit 'enabled' flag
-    // (e.g. only settings were saved), treat it as enabled by default.
-    if (!array_key_exists('enabled', $registry[$moduleId] ?? [])) {
-        return true;
-    }
-    return !empty($registry[$moduleId]['enabled']);
+
+    return moduleRegistryDefaultEnabledState($moduleId);
 }
 
 /**
@@ -61,17 +394,12 @@ function isModuleEnabledForTenant(string $moduleId, int $tenantId): bool
         return (bool) $tenantSettings['_module_enabled'];
     }
 
-    // No per-tenant override — fall back to global registry.
     $registry = readModuleRegistry();
-    if (empty($registry)) {
-        return true;
+    if (array_key_exists('enabled', $registry[$moduleId] ?? [])) {
+        return !empty($registry[$moduleId]['enabled']);
     }
-    // If the module appears in the registry but has no explicit 'enabled' flag
-    // (e.g. only settings were saved), treat it as enabled by default.
-    if (!array_key_exists('enabled', $registry[$moduleId] ?? [])) {
-        return true;
-    }
-    return !empty($registry[$moduleId]['enabled']);
+
+    return moduleRegistryDefaultEnabledState($moduleId, $tenantId);
 }
 
 /**

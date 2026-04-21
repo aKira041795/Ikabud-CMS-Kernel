@@ -17,14 +17,14 @@
         </div>
     </div>
 
-    <!-- Approved Catalog -->
+    <!-- Available Host Modules -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-                <h3 class="text-sm font-semibold text-gray-700">Approved Catalog</h3>
-                <p class="mt-1 text-xs text-gray-500">Install platform-approved modules that are already available on this host. Free and freemium catalog modules can be installed directly; paid modules need superadmin access first.</p>
+                <h3 class="text-sm font-semibold text-gray-700">Available Modules</h3>
+                <p class="mt-1 text-xs text-gray-500">Install bundled CMS addons that already exist on this host, plus approved catalog modules. Free and freemium catalog modules can be installed directly; paid modules still need superadmin access first.</p>
             </div>
-            <span class="text-xs text-gray-400" x-text="catalogModules.length ? catalogModules.length + ' module(s) available' : 'No approved catalog modules available'"></span>
+            <span class="text-xs text-gray-400" x-text="catalogModules.length ? catalogModules.length + ' module(s) available' : 'No host modules available'"></span>
         </div>
         <div x-show="catalogMsg" x-cloak class="mb-4 text-sm rounded-lg px-4 py-2" :class="catalogOk ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'" x-text="catalogMsg"></div>
         <div x-show="catalogModules.length > 0" x-cloak class="space-y-3">
@@ -33,7 +33,8 @@
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
                             <p class="font-semibold text-sm text-gray-900" x-text="mod.name"></p>
-                            <span class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-700" x-text="(mod.commercial_mode || 'free').toUpperCase()"></span>
+                            <span x-show="mod.availability_source === 'bundled'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-sky-100 text-sky-700">Bundled</span>
+                            <span x-show="mod.availability_source !== 'bundled'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-700" x-text="(mod.commercial_mode || 'free').toUpperCase()"></span>
                             <span x-show="mod.entitlement_allowed" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">Access ready</span>
                             <span x-show="!mod.entitlement_allowed && !mod.can_install" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700">Needs superadmin access</span>
                             <span x-show="mod.request_status === 'pending'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700">Request pending</span>
@@ -52,7 +53,7 @@
                                 <template x-if="installingCatalog === mod.id">
                                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                                 </template>
-                                <span x-text="installingCatalog === mod.id ? 'Installing…' : 'Install from Catalog'"></span>
+                                <span x-text="installingCatalog === mod.id ? 'Installing…' : (mod.availability_source === 'bundled' ? 'Install' : 'Install from Catalog')"></span>
                             </button>
                         </template>
                         <template x-if="!mod.can_install">
@@ -68,7 +69,7 @@
             </template>
         </div>
         <div x-show="catalogModules.length === 0" x-cloak class="text-sm text-gray-500 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center">
-            No approved catalog modules are currently available for this tenant.
+            No bundled or approved host modules are currently available for this tenant.
         </div>
     </div>
 
@@ -395,7 +396,7 @@ function cmsModuleManager() {
                 const res = await fetch(CMS_BASE + '/api/v1/cms/modules/install', { method: 'POST', body: fd });
                 const data = await res.json();
                 if (data.ok) {
-                    this.catalogMsg = data.message || 'Module installed from catalog.';
+                    this.catalogMsg = data.message || 'Module installed.';
                     this.catalogOk = true;
                     setTimeout(() => window.location.reload(), 1200);
                 } else {
@@ -403,7 +404,7 @@ function cmsModuleManager() {
                     this.catalogOk = false;
                 }
             } catch (e) {
-                this.catalogMsg = 'Catalog install failed: ' + e.message;
+                this.catalogMsg = 'Module install failed: ' + e.message;
                 this.catalogOk = false;
             } finally {
                 this.installingCatalog = null;

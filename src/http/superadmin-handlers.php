@@ -2,6 +2,242 @@
 
 declare(strict_types=1);
 
+if (!function_exists('superadminAddModuleSource')) {
+    function superadminAddModuleSource(array &$map, string $moduleId, string $source): void
+    {
+        $moduleId = trim($moduleId);
+        $source = trim($source);
+        if ($moduleId === '' || $source === '') {
+            return;
+        }
+
+        if (!isset($map[$moduleId]) || !is_array($map[$moduleId])) {
+            $map[$moduleId] = [];
+        }
+        $map[$moduleId][$source] = true;
+    }
+}
+
+if (!function_exists('superadminModuleScopeLabel')) {
+    function superadminModuleScopeLabel(array $sources): string
+    {
+        $priority = [
+            'entry-module' => 'Entry module',
+            'provisioning-plan' => 'Provisioned dependency',
+            'dependency' => 'Dependency',
+            'capability-provider' => 'Capability provider',
+            'hook-addon' => 'Hook add-on',
+            'data-addon' => 'Entry data add-on',
+            'entry-addon' => 'Entry add-on',
+            'installed-submodule' => 'Installed submodule',
+            'tenant-entitlement' => 'Tenant entitlement',
+            'tenant-override' => 'Tenant override',
+            'tenant-settings' => 'Saved settings',
+        ];
+
+        foreach ($priority as $key => $label) {
+            if (in_array($key, $sources, true)) {
+                return $label;
+            }
+        }
+
+        return 'Relevant';
+    }
+}
+
+if (!function_exists('superadminModuleTouchesEntryData')) {
+    function superadminModuleTouchesEntryData(array $manifest, string $entryModuleId): bool
+    {
+        $entryModuleId = trim($entryModuleId);
+        if ($entryModuleId === '') {
+            return false;
+        }
+
+        $prefix = $entryModuleId . '_';
+        foreach (['owns_tables', 'reads_tables'] as $key) {
+            foreach (($manifest[$key] ?? []) as $tableName) {
+                $tableName = trim((string)$tableName);
+                if ($tableName !== '' && str_starts_with($tableName, $prefix)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('superadminBuildDependencyClosure')) {
+    /**
+     * @return array<string, bool>
+     */
+    function superadminBuildDependencyClosure(array $allModules, string $entryModuleId): array
+    {
+        $entryModuleId = trim($entryModuleId);
+        if ($entryModuleId === '' || !isset($allModules[$entryModuleId])) {
+            return [];
+        }
+
+        $selected = [$entryModuleId => true];
+        $queue = [$entryModuleId];
+
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            if (!is_string($current) || !isset($allModules[$current])) {
+                continue;
+            }
+
+            foreach (($allModules[$current]['depends'] ?? []) as $depModuleId) {
+                $depModuleId = trim((string)$depModuleId);
+                if ($depModuleId === '' || isset($selected[$depModuleId]) || !isset($allModules[$depModuleId])) {
+                    continue;
+                }
+
+                $selected[$depModuleId] = true;
+                $queue[] = $depModuleId;
+            }
+        }
+
+        return $selected;
+    }
+}
+
+if (!function_exists('superadminTenantRelevantModuleMap')) {
+    /**
+     * @return array<string, array<string, bool>>
+     */
+    function superadminTenantRelevantModuleMap(array $allModules, string $selectedEntryModule, ?int $selectedTenantId = null): array
+    {
+        $selectedEntryModule = trim($selectedEntryModule);
+        $relevant = [];
+        $dependencyClosure = superadminBuildDependencyClosure($allModules, $selectedEntryModule);
+
+        if ($selectedEntryModule !== '' && isset($allModules[$selectedEntryModule])) {
+            superadminAddModuleSource($relevant, $selectedEntryModule, 'entry-module');
+        }
+
+        foreach (array_keys($dependencyClosure) as $moduleId) {
+            if ($moduleId === $selectedEntryModule) {
+                continue;
+            }
+            superadminAddModuleSource($relevant, $moduleId, 'dependency');
+        }
+
+        if ($selectedEntryModule !== '') {
+            foreach (tenantProvisionModulePlan($selectedEntryModule) as $plannedModuleId) {
+                superadminAddModuleSource($relevant, (string)$plannedModuleId, 'provisioning-plan');
+            }
+        }
+
+        foreach ($allModules as $moduleId => $manifest) {
+            $allowCallers = moduleCatalogCapabilityAllowCallers($manifest);
+            if (!empty($allowCallers) && !empty(array_intersect($allowCallers, array_keys($dependencyClosure)))) {
+                superadminAddModuleSource($relevant, (string)$moduleId, 'capability-provider');
+            }
+
+            foreach (($manifest['hooks'] ?? []) as $hookName) {
+                $hookName = trim((string)$hookName);
+                if ($selectedEntryModule !== '' && $hookName !== '' && str_starts_with($hookName, $selectedEntryModule . '.')) {
+                    superadminAddModuleSource($relevant, (string)$moduleId, 'hook-addon');
+                    break;
+                }
+            }
+
+            $depends = array_map('trim', (array)($manifest['depends'] ?? []));
+            if ($selectedEntryModule !== '' && empty($manifest['auth_cookie']) && in_array($selectedEntryModule, $depends, true)) {
+                superadminAddModuleSource($relevant, (string)$moduleId, 'entry-addon');
+            }
+
+            if ($selectedEntryModule !== '' && empty($manifest['auth_cookie']) && superadminModuleTouchesEntryData($manifest, $selectedEntryModule)) {
+                superadminAddModuleSource($relevant, (string)$moduleId, 'data-addon');
+            }
+        }
+
+        if ($selectedTenantId !== null && $selectedTenantId > 0) {
+            $cmsSettings = readTenantModuleSettingsForTenant('cms', $selectedTenantId);
+            $installedSubModules = [];
+            foreach (($cmsSettings['_installed_submodules'] ?? []) as $moduleId) {
+                $moduleId = trim((string)$moduleId);
+                if ($moduleId === '') {
+                    continue;
+                }
+                $installedSubModules[$moduleId] = true;
+            }
+            foreach (array_keys($installedSubModules) as $moduleId) {
+                superadminAddModuleSource($relevant, $moduleId, 'installed-submodule');
+            }
+
+            foreach ($allModules as $moduleId => $manifest) {
+                $entitlement = moduleTenantEntitlementStatus((string)$moduleId, $selectedTenantId);
+                if (!empty($entitlement['catalog_managed']) && !empty($entitlement['required']) && !empty($entitlement['allowed'])) {
+                    superadminAddModuleSource($relevant, (string)$moduleId, 'tenant-entitlement');
+                }
+
+                $tenantSettings = readTenantModuleSettingsForTenant((string)$moduleId, $selectedTenantId);
+                $tenantDataSettings = $tenantSettings;
+                foreach (array_keys($tenantDataSettings) as $tenantSettingKey) {
+                    if (is_string($tenantSettingKey) && str_starts_with($tenantSettingKey, '_')) {
+                        unset($tenantDataSettings[$tenantSettingKey]);
+                    }
+                }
+                if (!empty($tenantDataSettings)) {
+                    superadminAddModuleSource($relevant, (string)$moduleId, 'tenant-settings');
+                }
+                if (array_key_exists('_module_enabled', $tenantSettings) && !empty($tenantSettings['_module_enabled'])) {
+                    superadminAddModuleSource($relevant, (string)$moduleId, 'tenant-override');
+                }
+            }
+        }
+
+        return $relevant;
+    }
+}
+
+if (!function_exists('superadminModuleEnablementState')) {
+    /**
+     * @return array<string, mixed>
+     */
+    function superadminModuleEnablementState(string $moduleId, ?int $tenantId = null): array
+    {
+        $moduleId = trim($moduleId);
+        $registry = readModuleRegistry();
+        $globalEntry = is_array($registry[$moduleId] ?? null) ? $registry[$moduleId] : [];
+        $hasGlobalFlag = array_key_exists('enabled', $globalEntry);
+        $runtimeDefaultEnabled = moduleRegistryDefaultEnabledState($moduleId, $tenantId !== null && $tenantId > 0 ? $tenantId : null);
+        $globalEnabled = $hasGlobalFlag ? !empty($globalEntry['enabled']) : $runtimeDefaultEnabled;
+
+        $tenantSettings = ($tenantId !== null && $tenantId > 0)
+            ? readTenantModuleSettingsForTenant($moduleId, $tenantId)
+            : [];
+        $hasTenantOverride = array_key_exists('_module_enabled', $tenantSettings);
+        $tenantEnabled = $hasTenantOverride ? (bool)$tenantSettings['_module_enabled'] : $globalEnabled;
+        $runtimeEnabled = ($tenantId !== null && $tenantId > 0)
+            ? isModuleEnabledForTenant($moduleId, $tenantId)
+            : isModuleEnabled($moduleId);
+
+        $source = 'runtime_default';
+        $label = $runtimeDefaultEnabled ? 'Runtime default on' : 'Runtime default off';
+        if ($hasTenantOverride) {
+            $source = 'tenant_override';
+            $label = $tenantEnabled ? 'Tenant override on' : 'Tenant override off';
+        } elseif ($hasGlobalFlag) {
+            $source = 'global_registry';
+            $label = $globalEnabled ? 'Global registry on' : 'Global registry off';
+        }
+
+        return [
+            'runtime_enabled' => $runtimeEnabled,
+            'effective_enabled' => $tenantEnabled,
+            'has_tenant_override' => $hasTenantOverride,
+            'has_global_flag' => $hasGlobalFlag,
+            'source' => $source,
+            'source_label' => $label,
+            'tenant_override' => $hasTenantOverride ? (bool)$tenantSettings['_module_enabled'] : null,
+            'global_enabled' => $hasGlobalFlag ? (bool)$globalEntry['enabled'] : null,
+        ];
+    }
+}
+
 if (!function_exists('kernelHandlePageSuperadminSettings')) {
     function kernelHandlePageSuperadminSettings(): void
     {
@@ -157,83 +393,15 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
     $tenantRelevantModules = null;
     $selectedEntryModule = '';
     if ($multiTenant && $selectedTenantId !== null) {
-        $tenantRelevantModules = [];
-        $knownEntryModules = [];
-
-        // Find entry_module_id for the selected tenant and collect all known entry modules
         foreach ($tenants as $t) {
             $eModule = trim((string)($t['entry_module_id'] ?? ''));
-            if ($eModule !== '') {
-                $knownEntryModules[$eModule] = true;
-            }
             if ((int)$t['id'] === $selectedTenantId) {
                 $selectedEntryModule = $eModule;
+                break;
             }
         }
 
-        if ($selectedEntryModule !== '') {
-            $tenantRelevantModules[$selectedEntryModule] = true;
-
-            // For CMS tenants, add _installed_submodules
-            if ($selectedEntryModule === 'cms') {
-                $cmsSettings = readTenantModuleSettingsForTenant('cms', $selectedTenantId);
-                $subModules = $cmsSettings['_installed_submodules'] ?? [];
-                if (is_array($subModules)) {
-                    foreach ($subModules as $sub) {
-                        $sub = trim((string)$sub);
-                        if ($sub !== '') {
-                            $tenantRelevantModules[$sub] = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Include modules that have explicit entitlements or are explicitly enabled in settings.
-        foreach ($allModules as $_candidateMod) {
-            $_candidateModId = (string)($_candidateMod['id'] ?? '');
-            if ($_candidateModId === '') {
-                continue;
-            }
-            if (isset($tenantRelevantModules[$_candidateModId])) {
-                continue;
-            }
-
-            // If it explicitly depends on the tenant's entry module, it is a related add-on and should always be visible to configure.
-            $deps = $_candidateMod['depends'] ?? [];
-            if (is_array($deps) && $selectedEntryModule !== '' && in_array($selectedEntryModule, $deps, true)) {
-                $tenantRelevantModules[$_candidateModId] = true;
-                continue;
-            }
-
-            // If it has NO dependencies, NO auth_cookie, and is NEVER used as an entry module, it is a global utility (like gui-settings or anti-spam).
-            // Per rules, global utilities are visually bundled with 'cms' ONLY, as it is the core environment that uses them.
-            if ($selectedEntryModule === 'cms' && empty($deps) && empty($_candidateMod['auth_cookie']) && !isset($knownEntryModules[$_candidateModId])) {
-                $tenantRelevantModules[$_candidateModId] = true;
-                continue;
-            }
-
-            $entitlement = moduleTenantEntitlementStatus($_candidateModId, $selectedTenantId);
-            // If it is catalog managed and the tenant is explicitly entitled to it
-            if (!empty($entitlement['catalog_managed']) && !empty($entitlement['allowed']) && !empty($entitlement['required'])) {
-                $tenantRelevantModules[$_candidateModId] = true;
-                continue;
-            }
-
-            // Or if it lacks catalog management but has been explicitly enabled in DB, we retain it to allow configuration.
-            $_candidateTenantSettings = readTenantModuleSettingsForTenant($_candidateModId, $selectedTenantId);
-            if (!empty($_candidateTenantSettings)) {
-                $explicitlyEnabled = false;
-                if (isset($_candidateTenantSettings['_module_enabled'])) {
-                    $explicitlyEnabled = (bool)$_candidateTenantSettings['_module_enabled'];
-                } elseif (isset($_candidateTenantSettings['_enabled'])) {
-                    $explicitlyEnabled = (bool)$_candidateTenantSettings['_enabled'];
-                }
-                if ($explicitlyEnabled) {
-                    $tenantRelevantModules[$_candidateModId] = true;
-                }
-            }
-        }
+        $tenantRelevantModules = superadminTenantRelevantModuleMap($allModules, $selectedEntryModule, $selectedTenantId);
     }
 
     // Check if selected tenant has a working DB connection
@@ -260,17 +428,10 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
             }
         }
 
-        // Determine enabled state
-        $isEnabled = true;
-        if ($multiTenant && $selectedTenantId !== null) {
-            $isEnabled = isModuleEnabledForTenant($moduleId, $selectedTenantId);
-        } else {
-            $isEnabled = !empty($m['_enabled']);
-        }
-
-        if ($moduleId === 'anti-spam' && !empty($m['_enabled'])) {
-            $isEnabled = true;
-        }
+        $enablement = superadminModuleEnablementState($moduleId, $multiTenant ? $selectedTenantId : null);
+        $scopeSources = is_array($tenantRelevantModules[$moduleId] ?? null)
+            ? array_keys($tenantRelevantModules[$moduleId])
+            : [];
 
         $catalogEntry = moduleCatalogEntry($moduleId);
         $entitlement = [
@@ -372,7 +533,7 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
             'description' => $m['description'] ?? '',
             'fields' => $renderedFields,
             'settings_url' => $settingsUrl,
-            'is_enabled' => $isEnabled,
+            'is_enabled' => !empty($enablement['runtime_enabled']),
             'has_fields' => $hasFields,
             'catalog_managed' => !empty($entitlement['catalog_managed']),
             'catalog_status' => (string)($entitlement['approval_status'] ?? 'unmanaged'),
@@ -381,6 +542,12 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
             'entitlement_allowed' => !empty($entitlement['allowed']),
             'entitlement_status' => (string)($entitlement['entitlement_status'] ?? 'not_required'),
             'entitlement_reason' => (string)($entitlement['reason'] ?? ''),
+            'scope_sources' => $scopeSources,
+            'scope_label' => superadminModuleScopeLabel($scopeSources),
+            'enablement_source' => (string)($enablement['source'] ?? 'runtime_default'),
+            'enablement_source_label' => (string)($enablement['source_label'] ?? 'Runtime default'),
+            'has_tenant_override' => !empty($enablement['has_tenant_override']),
+            'has_global_flag' => !empty($enablement['has_global_flag']),
         ];
     }
 

@@ -354,27 +354,31 @@
         <div class="sa-module-desc">{mod.description}</div>
         {/if}
 
-        {if mod.catalog_managed}
         <div class="sa-entitlement-bar">
             <div class="sa-entitlement-meta">
+                <span class="sa-badge sa-badge-neutral">Scope: {mod.scope_label}</span>
+                <span class="sa-badge sa-badge-neutral">Activation: {mod.enablement_source_label}</span>
+                {if mod.catalog_managed}
                 <span class="sa-badge sa-badge-neutral">Catalog: {mod.catalog_status}</span>
                 <span class="sa-badge sa-badge-neutral">Mode: {mod.commercial_mode}</span>
                 {if mod.entitlement_required}
                 <span class="sa-badge {if mod.entitlement_allowed}sa-badge-on{else}sa-badge-off{/if}">Access: {mod.entitlement_status}</span>
                 {/if}
+                {/if}
             </div>
-            {if multi_tenant and mod.entitlement_required}
+            {if mod.catalog_managed and multi_tenant and mod.entitlement_required}
             <button type="button" class="sa-btn-secondary" onclick="setModuleEntitlement('{mod.id}', {if mod.entitlement_allowed}false{else}true{/if})">
                 {if mod.entitlement_allowed}Revoke Access{else}Grant Access{/if}
             </button>
             {/if}
         </div>
-        {/if}
 
         {if not tenant_db_ok}
         <div class="sa-module-notice">This tenant needs a working database connection before module settings can be updated.</div>
         {elseif mod.catalog_managed and mod.catalog_status != 'approved'}
         <div class="sa-module-notice">This package is tracked in the platform catalog, but it is not approved for tenant reuse yet.</div>
+        {elseif mod.is_enabled and mod.enablement_source == 'runtime_default'}
+        <div class="sa-module-notice">This module currently appears enabled because no explicit tenant or global registry flag exists yet. Saving a toggle here will convert it to an explicit setting.</div>
         {elseif not mod.has_fields}
         <div class="sa-module-notice">This module has no configurable settings.</div>
         {else}

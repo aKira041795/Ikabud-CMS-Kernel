@@ -237,6 +237,98 @@ function moduleCatalogCommercialMode(string $moduleId): string
     return strtolower(trim((string)($entry['commercial_mode'] ?? 'free')));
 }
 
+/**
+ * @return string[]
+ */
+function moduleCatalogCapabilityAllowCallers(array $manifest): array
+{
+    $policy = $manifest['capabilities']['policy']['capabilities'] ?? [];
+    if (!is_array($policy)) {
+        return [];
+    }
+
+    $callers = [];
+    foreach ($policy as $capabilityPolicy) {
+        if (!is_array($capabilityPolicy)) {
+            continue;
+        }
+
+        foreach (($capabilityPolicy['allow_callers'] ?? []) as $caller) {
+            $caller = trim((string)$caller);
+            if ($caller === '') {
+                continue;
+            }
+            $callers[$caller] = true;
+        }
+    }
+
+    return array_keys($callers);
+}
+
+function moduleCatalogIsBundledCmsAddon(string $moduleId, ?array $manifest = null): bool
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '' || $moduleId === 'cms') {
+        return false;
+    }
+
+    if (!is_array($manifest)) {
+        $allModules = discoverModules();
+        $manifest = $allModules[$moduleId] ?? null;
+    }
+
+    if (!is_array($manifest)) {
+        return false;
+    }
+
+    $modulePath = trim((string)($manifest['_path'] ?? ''));
+    if ($modulePath === '' || !is_dir($modulePath)) {
+        return false;
+    }
+
+    if (is_file($modulePath . '/.cms-owned')) {
+        return false;
+    }
+
+    foreach (($manifest['hooks'] ?? []) as $hookName) {
+        $hookName = trim((string)$hookName);
+        if ($hookName !== '' && str_starts_with($hookName, 'cms.')) {
+            return true;
+        }
+    }
+
+    foreach (($manifest['depends'] ?? []) as $dependency) {
+        if (trim((string)$dependency) === 'cms') {
+            return true;
+        }
+    }
+
+    return in_array('cms', moduleCatalogCapabilityAllowCallers($manifest), true);
+}
+
+function moduleCatalogInstallChannel(string $moduleId, ?array $manifest = null): string
+{
+    if (moduleCatalogIsBundledCmsAddon($moduleId, $manifest)) {
+        return 'bundled';
+    }
+
+    if (moduleCatalogIsApproved($moduleId)) {
+        return 'catalog';
+    }
+
+    $entry = moduleCatalogEntry($moduleId);
+    if (!is_array($entry)) {
+        return '';
+    }
+
+    $source = strtolower(trim((string)($entry['source'] ?? '')));
+    if ($source === 'cms_upload') {
+        return 'private_upload';
+    }
+
+    return '';
+}
+
 function moduleCatalogModeAllowsSelfService(string $commercialMode): bool
 {
     $commercialMode = strtolower(trim($commercialMode));

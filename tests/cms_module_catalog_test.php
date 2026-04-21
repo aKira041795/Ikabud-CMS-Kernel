@@ -73,10 +73,14 @@ t('active tenant exists for CMS catalog test', $tenantId > 0);
 
 $moduleId = 'cms-catalog-install-test';
 $moduleDir = modulesPath() . '/' . $moduleId;
+$bundledModuleId = 'cms-bundled-install-test';
+$bundledModuleDir = modulesPath() . '/' . $bundledModuleId;
 $originalCmsSettings = readTenantModuleSettingsForTenant('cms', $tenantId);
 
 rrmdir_if_exists($moduleDir);
+rrmdir_if_exists($bundledModuleDir);
 cleanupCmsCatalogFixture($controlDb, $moduleId, $tenantId, $originalCmsSettings);
+cleanupCmsCatalogFixture($controlDb, $bundledModuleId, $tenantId, $originalCmsSettings);
 
 @mkdir($moduleDir, 0775, true);
 file_put_contents($moduleDir . '/module.json', json_encode([
@@ -115,8 +119,47 @@ $catalogListAfter = _cmsDiscoverCatalogModules($tenantId);
 $catalogIdsAfter = array_column($catalogListAfter, 'id');
 t('installed catalog module disappears from available list', !in_array($moduleId, $catalogIdsAfter, true));
 
+@mkdir($bundledModuleDir, 0775, true);
+file_put_contents($bundledModuleDir . '/module.json', json_encode([
+    'id' => $bundledModuleId,
+    'name' => 'CMS Bundled Install Test',
+    'version' => '1.0.0',
+    'description' => 'Bundled host module fixture',
+    'hooks' => ['cms.public.render_content'],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+file_put_contents($bundledModuleDir . '/routes.php', "<?php\n\nreturn ['GET' => []];\n");
+file_put_contents($bundledModuleDir . '/handlers.php', "<?php\n");
+
+unset($GLOBALS['_kernel_discovered_modules']);
+
+$availableModules = _cmsDiscoverCatalogModules($tenantId);
+$bundledModule = null;
+foreach ($availableModules as $availableModule) {
+    if (($availableModule['id'] ?? '') === $bundledModuleId) {
+        $bundledModule = $availableModule;
+        break;
+    }
+}
+
+t('bundled host module appears in CMS available list', is_array($bundledModule));
+t('bundled host module is classified as bundled', is_array($bundledModule) && ($bundledModule['availability_source'] ?? '') === 'bundled');
+t('bundled host module can install without catalog approval', is_array($bundledModule) && !empty($bundledModule['can_install']));
+
+$bundledInstallResult = _cmsInstallCatalogModule($bundledModuleId, $tenantId);
+t('bundled host module install succeeds without catalog approval', !empty($bundledInstallResult['ok']), (string)($bundledInstallResult['error'] ?? ''));
+
+$registered = _cmsGetRegisteredSubModulesForTenant($tenantId);
+t('bundled host module registers for tenant', in_array($bundledModuleId, $registered, true));
+t('bundled host module enables module for tenant', isModuleEnabledForTenant($bundledModuleId, $tenantId));
+
+$availableModulesAfter = _cmsDiscoverCatalogModules($tenantId);
+$availableIdsAfter = array_column($availableModulesAfter, 'id');
+t('installed bundled host module disappears from available list', !in_array($bundledModuleId, $availableIdsAfter, true));
+
 cleanupCmsCatalogFixture($controlDb, $moduleId, $tenantId, $originalCmsSettings);
+cleanupCmsCatalogFixture($controlDb, $bundledModuleId, $tenantId, $originalCmsSettings);
 rrmdir_if_exists($moduleDir);
+rrmdir_if_exists($bundledModuleDir);
 
 $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errorLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
