@@ -2975,8 +2975,13 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
     $settings = $data['settings'] ?? cmsSidebarSettingsDefaults($scope);
     $widgets = is_array($data['widgets'] ?? null) ? $data['widgets'] : [];
 
+    if (!empty($publicCtx['force_hide_customized_sidebar'])) {
+        return ['enabled' => false, 'position' => ($settings['placement'] ?? 'right'), 'width' => ($settings['width'] ?? '300'), 'html' => ''];
+    }
+
+    $forceEnabled = !empty($publicCtx['force_customized_sidebar']) || !empty($publicCtx['cms_global_sidebar_force']);
     $enabled = (int)($settings['enabled'] ?? 0) === 1;
-    if (!$enabled) {
+    if (!$enabled && !$forceEnabled) {
         return ['enabled' => false, 'position' => ($settings['placement'] ?? 'right'), 'width' => ($settings['width'] ?? '300'), 'html' => ''];
     }
 
@@ -2989,7 +2994,7 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
     $scopeMode = (string)($settings['scope_mode'] ?? 'general');
     $templateRules = cmsSidebarResolvedTemplateRules($settings, $scope);
     $showForThisTemplate = cmsSidebarTemplateMatchesScope($settings, $templateKey, $scope);
-    if (!$showForThisTemplate) {
+    if (!$showForThisTemplate && !$forceEnabled) {
         return ['enabled' => false, 'position' => ($settings['placement'] ?? 'right'), 'width' => ($settings['width'] ?? '300'), 'html' => ''];
     }
 

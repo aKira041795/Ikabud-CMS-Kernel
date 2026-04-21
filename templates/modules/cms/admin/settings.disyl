@@ -234,6 +234,16 @@
                         <option value="0">No</option>
                     </select>
                 </div>
+                <div class="flex items-center justify-between gap-4 pt-3 mt-1 border-t border-gray-100">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500">Show Sidebar</label>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Show theme sidebar on pages built with the page builder.</p>
+                    </div>
+                    <select x-model="settings.page_builder_show_sidebar" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="1">Yes</option>
+                        <option value="0">No</option>
+                    </select>
+                </div>
             </div>
         </div>
 

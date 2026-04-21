@@ -158,7 +158,7 @@ function cmsValidateSettings(array $input): array
     }
 
     // Boolean-ish fields
-    foreach (['comments_enabled', 'cache_enabled', 'builder_enforce_lock', 'media_alt_required', 'reading_time_enabled', 'media_usage_tracking'] as $boolKey) {
+    foreach (['comments_enabled', 'cache_enabled', 'builder_enforce_lock', 'media_alt_required', 'reading_time_enabled', 'media_usage_tracking', 'page_builder_show_sidebar'] as $boolKey) {
         if (isset($clean[$boolKey])) {
             $clean[$boolKey] = in_array($clean[$boolKey], ['1', 'true', 'yes', 'on'], true) ? '1' : '0';
         }

@@ -2290,6 +2290,26 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
 
     $templatePath = cmsResolveContentTemplate('public/entity.view.disyl', $meta, $type, $entityRenderContext);
     $sidebarTemplateKey = cmsSidebarPublicTargetKey($entityRenderContext, $templatePath);
+    $builderSidebarForceShow = false;
+    $cmsGlobalSidebarForce = false;
+    $forceHideCustomizedSidebar = false;
+    
+    $override = isset($meta['builder_show_sidebar_override']) ? (string)$meta['builder_show_sidebar_override'] : '';
+    if ($override === '1') {
+        $builderSidebarForceShow = true;
+        // Keep the resolved sidebar key
+    } elseif ($override === '0') {
+        $forceHideCustomizedSidebar = true;
+        $sidebarTemplateKey = '';
+    } elseif ($builderEnabled) {
+        // Fallback to global builder setting
+        $cmsGlobalSettings = function_exists('readCmsSettings') ? readCmsSettings() : [];
+        if (!empty($cmsGlobalSettings['page_builder_show_sidebar'])) {
+            $cmsGlobalSidebarForce = true;
+        }
+        // Do not wipe $sidebarTemplateKey here, allowing Theme Customizer to override the default "no sidebar" state
+    }
+    
     return cmsWithThemeRenderLock(function () use (
         $entity,
         $options,
@@ -2309,7 +2329,10 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
         $hasEntityTags,
         $entityRenderContext,
         $templatePath,
-        $sidebarTemplateKey
+        $sidebarTemplateKey,
+        $builderSidebarForceShow,
+        $cmsGlobalSidebarForce,
+        $forceHideCustomizedSidebar
     ): string {
         $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
         $reviewsEnabled = true;
@@ -2420,6 +2443,9 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
             'structured_data' => $structuredData,
             'builder_enabled' => $builderEnabled,
             'builder_page_settings' => $builderSettings,
+            'force_customized_sidebar' => $builderSidebarForceShow,
+            'force_hide_customized_sidebar' => $forceHideCustomizedSidebar,
+            'cms_global_sidebar_force' => $cmsGlobalSidebarForce,
             'sidebar_template' => $sidebarTemplateKey,
             'content_type' => $type,
             'public_render_origin' => $publicRenderOrigin,

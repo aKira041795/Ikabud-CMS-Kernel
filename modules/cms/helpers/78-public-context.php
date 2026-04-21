@@ -121,6 +121,10 @@ function cmsPublicContext(array $extra = []): array
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
     $requestType = !empty($extra['entity']['id']) ? 'entity' : (!empty($extra['content']['id']) ? 'content' : 'generic');
     $builderEnabled = !empty($extra['builder_enabled']);
+    $builderSidebarRequested = $builderEnabled
+        && isset($extra['sidebar_template'])
+        && is_string($extra['sidebar_template'])
+        && trim($extra['sidebar_template']) !== '';
     $publicRenderOrigin = trim((string)($extra['public_render_origin'] ?? 'cms'));
     $requestedRouteKind = trim((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'));
     $publicRouteKind = $publicRenderOrigin === 'ecommerce' && function_exists('cmsNormalizeEcommercePublicRouteKind')
@@ -255,7 +259,8 @@ function cmsPublicContext(array $extra = []): array
     // Render customized sidebar if enabled by customizer settings
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        if ($builderEnabled || !cmsPublicContextHasSection($sectionAvailability, 'sidebar')) {
+        $forceCustomized = !empty($extra['force_customized_sidebar']) || !empty($extra['cms_global_sidebar_force']);
+        if (!$forceCustomized && ((!$builderSidebarRequested && $builderEnabled) || !cmsPublicContextHasSection($sectionAvailability, 'sidebar'))) {
             $ctx['customized_sidebar'] = '';
             $ctx['has_customized_sidebar'] = false;
             $ctx['sidebar_position'] = 'right';

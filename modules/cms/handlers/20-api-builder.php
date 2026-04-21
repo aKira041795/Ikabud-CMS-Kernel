@@ -393,6 +393,25 @@ function cmsApiBuilderDocumentPreview(array $params = []): void
 
         $templatePath = cmsResolveContentTemplate('public/page.disyl', $meta, 'page');
         $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'page');
+        $override = isset($meta['builder_show_sidebar_override']) ? (string)$meta['builder_show_sidebar_override'] : '';
+        $builderSidebarForceShow = false;
+        $cmsGlobalSidebarForce = false;
+        $forceHideCustomizedSidebar = false;
+        
+        if ($override === '1') {
+            $builderSidebarForceShow = true;
+            // Keep the resolved sidebar key
+        } elseif ($override === '0') {
+            $forceHideCustomizedSidebar = true;
+            $sidebarTemplateKey = '';
+        } else {
+            // Fallback to global setting
+            $cmsGlobalSettings = function_exists('readCmsSettings') ? readCmsSettings() : [];
+            if (!empty($cmsGlobalSettings['page_builder_show_sidebar'])) {
+                $cmsGlobalSidebarForce = true;
+            }
+        }
+
         echo cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
             'page_title'   => $content['title'] . ' — Preview',
             'content'      => $content,
@@ -402,6 +421,9 @@ function cmsApiBuilderDocumentPreview(array $params = []): void
             'structured_data' => '',
             'builder_enabled' => true,
             'builder_page_settings' => $builderSettings,
+            'force_customized_sidebar' => $builderSidebarForceShow,
+            'force_hide_customized_sidebar' => $forceHideCustomizedSidebar,
+            'cms_global_sidebar_force' => $cmsGlobalSidebarForce,
             'sidebar_template' => $sidebarTemplateKey,
         ]));
         exit;

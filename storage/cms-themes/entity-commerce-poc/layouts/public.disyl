@@ -47,14 +47,14 @@
         {/if}
 
         <main class="poc-main">
-            <div class="poc-main__inner{if has_customized_sidebar && !builder_enabled} poc-main__inner--sidebar {if sidebar_position == 'left'}poc-main__inner--sidebar-left{/if}{/if}"{if has_customized_sidebar && !builder_enabled} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
-                {if has_customized_sidebar && !builder_enabled && sidebar_position == 'left'}
+            <div class="poc-main__inner{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} poc-main__inner--sidebar {if sidebar_position == 'left'}poc-main__inner--sidebar-left{/if}{/if}"{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
+                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force) && sidebar_position == 'left'}
                 <aside class="poc-sidebar">{customized_sidebar|raw}</aside>
                 {/if}
-                <div class="poc-content{if builder_enabled} poc-content--builder{/if}">
+                <div class="poc-content{if builder_enabled && !(has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} poc-content--builder{/if}">
                     {block content}{/block}
                 </div>
-                {if has_customized_sidebar && !builder_enabled && sidebar_position != 'left'}
+                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force) && sidebar_position != 'left'}
                 <aside class="poc-sidebar">{customized_sidebar|raw}</aside>
                 {/if}
             </div>

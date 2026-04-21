@@ -688,21 +688,31 @@
             </div>
         </div>
 
-        {if content_templates && content_templates | count > 1}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-4 py-3 border-b border-gray-100">
-                <span class="text-sm font-semibold text-gray-700">Template</span>
+                <span class="text-sm font-semibold text-gray-700">Layout</span>
             </div>
             <div class="p-4">
                 <select x-model="selectedTemplate" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <template x-for="tpl in contentTemplates" :key="tpl.slug">
-                        <option :value="tpl.slug" x-text="tpl.label"></option>
-                    </template>
+                    {foreach content_templates as tpl}
+                        <option value="{tpl.slug}">{tpl.label}</option>
+                    {/foreach}
                 </select>
                 <p class="text-[11px] text-gray-400 mt-1.5">Layout template for this content.</p>
+
+                {if page_builder_supported}
+                    <div class="pt-4 mt-4 border-t border-gray-100">
+                        <label class="block text-[11px] font-semibold text-gray-700 mb-1">Sidebar Visibility Override</label>
+                        <select x-model="meta.builder_show_sidebar_override" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="">— Use Global Setting —</option>
+                            <option value="1">Show Sidebar</option>
+                            <option value="0">Hide Sidebar</option>
+                        </select>
+                        <p class="text-[10px] text-gray-400 mt-1">Forces sidebar visibility on or off for this specific content.</p>
+                    </div>
+                {/if}
             </div>
         </div>
-        {/if}
 
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -1344,6 +1354,7 @@ function cmsEditor() {
         meta: {
             seo_title: {if content_meta}{content_meta.seo_title | json}{else}''{/if},
             seo_description: {if content_meta}{content_meta.seo_description | json}{else}''{/if},
+            builder_show_sidebar_override: {if content_meta}{content_meta.builder_show_sidebar_override | json}{else}''{/if},
         },
         dynMeta: {dyn_meta | json},
         allCategories: {all_categories | json},
@@ -1352,6 +1363,7 @@ function cmsEditor() {
         catNewName: '',
         contentTemplates: {content_templates | json},
         selectedTemplate: {selected_template | json},
+        builderLocked: {builder_locked | json},
         extBlockTypes: {ext_block_types | json},
         allTags: {all_tags | json},
         tagNames: {content_tag_names | json},
@@ -2012,6 +2024,11 @@ function cmsEditor() {
             this.syncRichTextFields();
             const payload = { ...this.form, meta: { ...this.meta, ...this.dynMeta, _template: this.selectedTemplate }, category_ids: this.selectedCategoryIds, tag_names: this.tagNames };
             if (this.editorMode === 'blocks') payload.blocks = this.serializeBlocks();
+            if (this.builderLocked) {
+                delete payload.body;
+                delete payload.blocks;
+                delete payload.blocks_json;
+            }
             return payload;
         },
         primaryActionLabel() {
@@ -2039,6 +2056,14 @@ function cmsEditor() {
                 if (data.ok) {
                     const appliedPreset = data.preset_applied ? this.selectedEntityPreset() : null;
                     this._autosaveClear();
+                    if (data.saved_meta) {
+                        if (data.saved_meta._template !== undefined) {
+                            this.selectedTemplate = data.saved_meta._template || 'default';
+                        }
+                        if (data.saved_meta.builder_show_sidebar_override !== undefined) {
+                            this.meta.builder_show_sidebar_override = data.saved_meta.builder_show_sidebar_override;
+                        }
+                    }
                     if (data.preset_applied) {
                         this.form.entity_preset_id = '';
                     }

@@ -79,7 +79,7 @@ function cmsApiContentList(array $params = []): void
 
     $db = cmsDb();
 
-    // Category filter (resolve slug → id if needed)
+    // Category filter (resolve slug to id if needed)
     $joinCategory = '';
     if ($categoryId !== null && $categoryId > 0) {
         $joinCategory = "INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id = :cat_id";
@@ -181,9 +181,9 @@ function cmsApiContentGet(array $params = []): void
     exit;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 // WORKFLOW API
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 
 function cmsApiContentWorkflowState(array $params = []): void
 {
@@ -296,9 +296,9 @@ function cmsApiContentWorkflowTransition(array $params = []): void
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 // AI HELPERS API
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 
 function cmsApiContentAiSummary(array $params = []): void
 {
@@ -1422,6 +1422,16 @@ function cmsApiContentCreate(array $params = []): void
     // Save meta if provided
     if (!empty($input['meta']) && is_array($input['meta'])) {
         $metaToSave = $input['meta'];
+        if (array_key_exists('_template', $metaToSave)) {
+            $templateSlug = trim((string)$metaToSave['_template']);
+            $metaToSave['_template'] = $templateSlug !== '' ? $templateSlug : 'default';
+        }
+        if (array_key_exists('builder_show_sidebar_override', $metaToSave)) {
+            $sidebarOverride = trim((string)$metaToSave['builder_show_sidebar_override']);
+            $metaToSave['builder_show_sidebar_override'] = in_array($sidebarOverride, ['', '0', '1'], true)
+                ? $sidebarOverride
+                : '';
+        }
         cmsSanitizeRichTextMeta($metaToSave, $type);
         cmsSaveMeta($db, $contentId, $metaToSave);
     }
@@ -1466,6 +1476,11 @@ function cmsApiContentCreate(array $params = []): void
 
     adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
+    $savedMeta = [];
+    if (!empty($input['meta']) && is_array($input['meta'])) {
+        $savedMeta = cmsLoadContentMeta($db, $contentId);
+    }
+
     $response = [
         'ok' => true,
         'id' => $contentId,
@@ -1473,6 +1488,10 @@ function cmsApiContentCreate(array $params = []): void
         'preset_applied' => $presetApplied,
         'entity_preset_id' => $entityPresetId !== '' ? $entityPresetId : null,
         'featured_image_id' => $featuredImageId,
+        'saved_meta' => [
+            '_template' => (string)($savedMeta['_template'] ?? 'default'),
+            'builder_show_sidebar_override' => (string)($savedMeta['builder_show_sidebar_override'] ?? ''),
+        ],
     ];
     if ($featuredImageImportFailed) {
         $response['warning'] = 'Featured image could not be imported from external source. Please upload it manually or try a different image.';
@@ -1526,12 +1545,28 @@ function cmsApiContentUpdate(array $params = []): void
     }
 
     // Builder-lock enforcement: if content was built with page builder and lock is enabled,
-    // reject attempts to edit body or blocks via the classic content API.
+    // reject attempts to change body or blocks via the classic content API.
     $existingMeta = cmsLoadContentMeta($db, $id);
     if (cmsBuilderIsLocked($existingMeta) && (isset($input['body']) || isset($input['blocks']) || isset($input['blocks_json']))) {
-        http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'This content is managed by the Page Builder. Edit content through the builder interface.', 'builder_locked' => true]);
-        exit;
+        $builderContentChanged = false;
+
+        if (array_key_exists('body', $input)) {
+            $attemptedBody = cmsEditorSanitizeHtml(cmsEditorNormalizeHtml(trim((string)$input['body']), 'cms.content'), 'cms.content');
+            $builderContentChanged = $attemptedBody !== (string)($existing['body'] ?? '');
+        }
+
+        if (!$builderContentChanged && (array_key_exists('blocks', $input) || array_key_exists('blocks_json', $input))) {
+            $attemptedBlocks = cmsNormalizeBlocksJson($input['blocks'] ?? ($input['blocks_json'] ?? null));
+            $builderContentChanged = $attemptedBlocks !== (string)($existing['blocks_json'] ?? '');
+        }
+
+        if ($builderContentChanged) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'This content is managed by the Page Builder. Edit content through the builder interface.', 'builder_locked' => true]);
+            exit;
+        }
+
+        unset($input['body'], $input['blocks'], $input['blocks_json']);
     }
 
     foreach (['title', 'body', 'excerpt', 'slug', 'status', 'comment_status'] as $f) {
@@ -1701,6 +1736,16 @@ function cmsApiContentUpdate(array $params = []): void
     // Save meta if provided
     if (!empty($input['meta']) && is_array($input['meta'])) {
         $metaToSave = $input['meta'];
+        if (array_key_exists('_template', $metaToSave)) {
+            $templateSlug = trim((string)$metaToSave['_template']);
+            $metaToSave['_template'] = $templateSlug !== '' ? $templateSlug : 'default';
+        }
+        if (array_key_exists('builder_show_sidebar_override', $metaToSave)) {
+            $sidebarOverride = trim((string)$metaToSave['builder_show_sidebar_override']);
+            $metaToSave['builder_show_sidebar_override'] = in_array($sidebarOverride, ['', '0', '1'], true)
+                ? $sidebarOverride
+                : '';
+        }
         cmsSanitizeRichTextMeta($metaToSave, (string)($existing['type'] ?? 'post'));
         cmsSaveMeta($db, $id, $metaToSave);
     }
@@ -1745,11 +1790,20 @@ function cmsApiContentUpdate(array $params = []): void
     cmsCacheInvalidateContent($existing);
     adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
+    $savedMeta = [];
+    if (!empty($input['meta']) && is_array($input['meta'])) {
+        $savedMeta = cmsLoadContentMeta($db, $id);
+    }
+
     $response = [
         'ok' => true,
         'preset_applied' => $presetApplied,
         'entity_preset_id' => $entityPresetId !== '' ? $entityPresetId : null,
         'featured_image_id' => $bind[':fimg'] ?? ($existing['featured_image_id'] ?? null),
+        'saved_meta' => [
+            '_template' => (string)($savedMeta['_template'] ?? ($existing['_template'] ?? 'default')),
+            'builder_show_sidebar_override' => (string)($savedMeta['builder_show_sidebar_override'] ?? ''),
+        ],
     ];
     if ($featuredImageImportFailed) {
         $response['warning'] = 'Featured image could not be imported from external source. Please upload it manually or try a different image.';
@@ -1898,9 +1952,9 @@ function cmsApiContentRestore(array $params = []): void
     exit;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 // MEDIA API HANDLERS
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 
 function cmsApiContentAutosave(array $params = []): void
 {
@@ -1951,9 +2005,9 @@ function cmsApiContentAutosave(array $params = []): void
     exit;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 // PUBLIC SEARCH
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 
 // cmsEnsureUniqueSlug is defined in helpers/15-utils.php and loaded with the module helpers.
 
@@ -1982,9 +2036,9 @@ function cmsLoadContentMeta(object $db, int $contentId): array
     return $meta;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 // THEME CUSTOMIZER HANDLERS
-// ═══════════════════════════════════════════════════════════════════════
+// =====================================================================
 
 /**
  * Admin page: Theme Customizer

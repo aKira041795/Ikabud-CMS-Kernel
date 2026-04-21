@@ -552,7 +552,8 @@ function cmsAdminContentEdit(array $params = []): void
 
     $cmsSettings        = readCmsSettings();
     $builderSupported   = cmsBuilderSupportedForType($contentType);
-    $builderEnabled     = $builderSupported && cmsPageBuilderEnabled($meta);
+    $builderEnabled     = cmsPageBuilderEnabled($meta);
+    $builderAccess      = $builderSupported || $builderEnabled;
     $builderLocked      = $builderEnabled && cmsBuilderIsLocked($meta);
     $resolvedContext    = cmsResolveEntityContextForType($contentType);
     $recommendedPresets = cmsEntityPresetRecommendationsForType($contentType, ['resolved_context' => $resolvedContext]);
@@ -573,7 +574,7 @@ function cmsAdminContentEdit(array $params = []): void
         'ai_seo_suggest'  => $canEdit,
         'ai_refine'       => $canEdit && cmsUserCan($user, 'ai.refine'),
         'can_duplicate'   => $canEdit,
-        'builder_access'  => $builderSupported,
+        'builder_access'  => $builderAccess,
         'is_kernel_admin' => $isKernelAdmin,
     ];
 
@@ -633,8 +634,8 @@ function cmsAdminContentEdit(array $params = []): void
         'content_tag_names'             => cmsGetContentTagNames($id),
         'content_templates'             => $contentTemplates,
         'selected_template'             => $selectedTemplate,
-        'page_builder_supported'        => $builderSupported,
-        'page_builder_url'              => $builderSupported ? $baseUrl . '/cms/admin/react-builder/' . $id : '',
+        'page_builder_supported'        => $builderAccess,
+        'page_builder_url'              => $builderAccess ? $baseUrl . '/cms/admin/react-builder/' . $id : '',
         'page_builder_enabled'          => $builderEnabled,
         'builder_locked'                => $builderLocked,
         'has_recommended_entity_presets'=> $recommendedPresets !== [],

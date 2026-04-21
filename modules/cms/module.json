@@ -488,6 +488,12 @@
             "default": "1"
         },
         {
+            "key": "page_builder_show_sidebar",
+            "type": "select",
+            "label": "Show Sidebar on Page Builder Pages",
+            "default": "0"
+        },
+        {
             "key": "default_comment_status",
             "type": "text",
             "label": "Default Comment Status",

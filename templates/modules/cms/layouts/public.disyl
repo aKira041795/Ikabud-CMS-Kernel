@@ -104,19 +104,19 @@
     {/if}
 
     <div class="site-content">
-        <div class="{if builder_enabled}w-full{else}cms-public-shell{/if}">
-            <div class="{if has_customized_sidebar && !builder_enabled}cms-content-with-sidebar {if sidebar_position == 'left'}sidebar-left{/if}{/if}"{if has_customized_sidebar && !builder_enabled} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
-                {if has_customized_sidebar && !builder_enabled}
+        <div class="{if builder_enabled && !(has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}w-full{else}cms-public-shell{/if}">
+            <div class="{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}cms-content-with-sidebar {if sidebar_position == 'left'}sidebar-left{/if}{/if}"{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
+                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}
                 {if sidebar_position == 'left'}
                 <aside class="cms-sidebar-slot">
                     {customized_sidebar|raw}
                 </aside>
                 {/if}
                 {/if}
-                <main id="main-content" class="{if builder_enabled}w-full{else}cms-public-main{/if}{if has_customized_sidebar && !builder_enabled} cms-main-slot{/if}" role="main">
+                <main id="main-content" class="{if builder_enabled && !(has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}w-full{else}cms-public-main{/if}{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} cms-main-slot{/if}" role="main">
                     {block content}{/block}
                 </main>
-                {if has_customized_sidebar && !builder_enabled}
+                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}
                 {if sidebar_position == 'left'}
                 {else}
                 <aside class="cms-sidebar-slot">
