@@ -649,7 +649,12 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     $stackTransition = 'opacity ' . $transSpeedSec . ' ' . $transitionEasing;
 
     // Full-width support
+    $useSlideTrack = in_array($animationStyle, ['slide', 'carousel', 'coverflow']);
     $wrapStyle = ['position' => 'relative', 'overflow' => 'hidden'];
+    if (!$useSlideTrack) {
+        $wrapStyle['height'] = $height;
+    }
+    
     if ($fullWidth) {
         unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
         $wrapStyle['width']      = '100vw';
@@ -669,7 +674,6 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
 
     $html = '<div' . cmsBuilderAttrString($attrs) . $dataAttrs . cmsBuilderStyleAttr(array_merge($style, $wrapStyle)) . '>';
 
-    $useSlideTrack = in_array($animationStyle, ['slide', 'carousel', 'coverflow']);
     if ($useSlideTrack) {
         $html .= '<div class="cms-builder-slide-track" style="display:flex;transition:' . $trackTransition . ';height:' . $height . '">';
     }
@@ -688,15 +692,14 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
         if ($useSlideTrack) {
             $html .= '<div class="cms-builder-slide" style="min-width:100%;height:100%;position:relative;flex-shrink:0;background-color:' . $sBgColor . '">';
         } else {
-            $stackStyle = $idx === 0
-                ? 'position:relative;width:100%;height:' . $height . ';overflow:hidden;background-color:' . $sBgColor
-                : 'position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;overflow:hidden;transition:' . $stackTransition . ';background-color:' . $sBgColor;
+            $stackOpacity = $idx === 0 ? '1' : '0';
+            $stackStyle = 'position:absolute;top:0;left:0;width:100%;height:100%;opacity:' . $stackOpacity . ';overflow:hidden;transition:' . $stackTransition . ';background-color:' . $sBgColor;
             $html .= '<div class="cms-builder-slide" style="' . $stackStyle . '">';
         }
 
         $imgClass = $animationStyle === 'kenburns' ? ' class="cms-kb-img"' : '';
         if ($img !== '') {
-            $html .= '<img' . $imgClass . ' src="' . $img . '" alt="' . $sTitle . '" style="width:100%;height:100%;object-fit:' . $imageObjectFit . '" loading="lazy">';
+            $html .= '<img' . $imgClass . ' src="' . $img . '" alt="' . $sTitle . '" style="display:block;width:100%;height:100%;object-fit:' . $imageObjectFit . '" loading="lazy">';
         }
 
         // Caption overlay

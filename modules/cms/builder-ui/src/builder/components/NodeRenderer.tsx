@@ -1830,7 +1830,7 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
           <div style={{ position: 'relative', height: slideHeight, display: 'flex', transition: slideTransition, transform: `translateX(-${currentSlide * 100}%)` }}>
             {slides.map((slide) => (
               <div key={slide.id} style={{ minWidth: '100%', height: '100%', position: 'relative', flexShrink: 0, backgroundColor: slide.bgColor || '#1e293b' }}>
-                {slide.image && <img src={slide.image} alt={slide.title || 'Slide'} style={{ width: '100%', height: '100%', objectFit: imageObjectFit as CSSProperties['objectFit'] }} />}
+                {slide.image && <img src={slide.image} alt={slide.title || 'Slide'} style={{ display: 'block', width: '100%', height: '100%', objectFit: imageObjectFit as CSSProperties['objectFit'] }} />}
                 {renderCaption(slide)}
               </div>
             ))}
@@ -1841,6 +1841,7 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
             {slides.map((slide, slideIdx) => {
               const isActive = slideIdx === currentSlide;
               const imgStyle: CSSProperties = {
+                display: 'block',
                 width: '100%', height: '100%',
                 objectFit: imageObjectFit as CSSProperties['objectFit'],
                 ...(animationStyle === 'kenburns' && isActive

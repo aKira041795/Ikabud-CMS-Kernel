@@ -798,8 +798,8 @@ export default function PageBuilder() {
               </button>
             )}
             <span className={`text-[10px] px-1.5 py-0.5 uppercase tracking-wide ${pageData.status === 'published'
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-amber-500/20 text-amber-400'
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'bg-amber-500/20 text-amber-400'
               }`}>
               {pageData.status}
             </span>
@@ -903,8 +903,8 @@ export default function PageBuilder() {
           <button
             onClick={() => setStructureMode(!structureMode)}
             className={`p-1.5 transition-colors ${structureMode
-                ? 'text-[#0078d4] bg-[#0078d4]/20'
-                : 'text-white/50 hover:text-white hover:bg-white/10'
+              ? 'text-[#0078d4] bg-[#0078d4]/20'
+              : 'text-white/50 hover:text-white hover:bg-white/10'
               }`}
             title={structureMode ? 'Normal View' : 'Structure Mode'}
           >
@@ -1022,8 +1022,8 @@ export default function PageBuilder() {
                     <button
                       onClick={() => builder.selectNode(node.id, false)}
                       className={`px-1.5 py-0.5 rounded transition-colors ${index === builder.selectedNodePath.length - 1
-                          ? 'text-[#0078d4] bg-[#0078d4]/10'
-                          : 'text-white/60 hover:text-white hover:bg-white/10'
+                        ? 'text-[#0078d4] bg-[#0078d4]/10'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
                         }`}
                     >
                       {node.meta?.name || node.type.charAt(0).toUpperCase() + node.type.slice(1).replace(/_/g, ' ')}
@@ -1042,8 +1042,8 @@ export default function PageBuilder() {
               <div className="min-h-full p-8 flex items-start justify-center">
                 <div
                   className={`builder-canvas bg-white shadow-2xl transition-all origin-top ${builder.viewport === 'desktop' ? 'w-full max-w-[1400px]' :
-                      builder.viewport === 'tablet' ? 'w-[768px]' :
-                        'w-[375px]'
+                    builder.viewport === 'tablet' ? 'w-[768px]' :
+                      'w-[375px]'
                     }`}
                   style={{
                     minHeight: 'auto',
@@ -1189,8 +1189,8 @@ export default function PageBuilder() {
                   <button
                     onClick={() => setRightPanelTab('navigator')}
                     className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'navigator'
-                        ? 'text-white bg-[#0078d4]'
-                        : 'text-white/60 hover:text-white/90'
+                      ? 'text-white bg-[#0078d4]'
+                      : 'text-white/60 hover:text-white/90'
                       }`}
                   >
                     Navigator
@@ -1198,8 +1198,8 @@ export default function PageBuilder() {
                   <button
                     onClick={() => setRightPanelTab('templates')}
                     className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'templates'
-                        ? 'text-white bg-[#0078d4]'
-                        : 'text-white/60 hover:text-white/90'
+                      ? 'text-white bg-[#0078d4]'
+                      : 'text-white/60 hover:text-white/90'
                       }`}
                   >
                     Templates
@@ -1207,8 +1207,8 @@ export default function PageBuilder() {
                   <button
                     onClick={() => setRightPanelTab('blocks')}
                     className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'blocks'
-                        ? 'text-white bg-[#0078d4]'
-                        : 'text-white/60 hover:text-white/90'
+                      ? 'text-white bg-[#0078d4]'
+                      : 'text-white/60 hover:text-white/90'
                       }`}
                   >
                     Blocks
@@ -1216,8 +1216,8 @@ export default function PageBuilder() {
                   <button
                     onClick={() => setRightPanelTab('global')}
                     className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'global'
-                        ? 'text-white bg-[#0078d4]'
-                        : 'text-white/60 hover:text-white/90'
+                      ? 'text-white bg-[#0078d4]'
+                      : 'text-white/60 hover:text-white/90'
                       }`}
                   >
                     Global
@@ -1225,8 +1225,8 @@ export default function PageBuilder() {
                   <button
                     onClick={() => setRightPanelTab('seo')}
                     className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'seo'
-                        ? 'text-white bg-[#0078d4]'
-                        : 'text-white/60 hover:text-white/90'
+                      ? 'text-white bg-[#0078d4]'
+                      : 'text-white/60 hover:text-white/90'
                       }`}
                   >
                     SEO
