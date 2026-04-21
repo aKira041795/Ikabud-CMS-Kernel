@@ -57,3 +57,6 @@ modules/cms/assets/uploads/test/
 *.orig
 *.rej
 *.patch
+
+# CMS installer ownership markers are runtime artifacts, not source
+modules/**/.cms-owned
