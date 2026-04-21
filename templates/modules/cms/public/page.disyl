@@ -13,7 +13,7 @@
 {else}
 <article class="max-w-3xl mx-auto">
     <header class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 leading-tight">{content.title}</h1>
+        <h1 class="text-3xl font-bold  leading-tight">{content.title}</h1>
     </header>
 
     <div class="prose text-gray-700 leading-relaxed text-base">

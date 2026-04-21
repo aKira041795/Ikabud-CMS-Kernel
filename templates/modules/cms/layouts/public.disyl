@@ -80,11 +80,11 @@
     {block head}{/block}
     <noscript><style>body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}</style></noscript>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
+<body class="min-h-screen {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
     {if has_customized_header}
     {customized_header|raw}
     {else}
-    <header class="site-header bg-white border-b border-gray-200">
+    <header class="site-header">
         <div class="cms-public-shell px-4 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div class="min-w-0">
                 <a href="{base_url}/cms" class="text-lg font-bold text-gray-900 hover:text-sky-600 no-underline">{site_title|default:"Blog"}</a>
@@ -131,7 +131,7 @@
     {if has_customized_footer}
     {customized_footer|raw}
     {else}
-    <footer class="border-t border-gray-200 mt-12 bg-white">
+    <footer class="mt-12">
         <div class="cms-public-shell px-4 py-6 text-center text-xs text-gray-400">
             {if social_links}
             <div class="mb-3">

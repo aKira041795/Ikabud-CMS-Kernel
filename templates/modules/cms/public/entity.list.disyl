@@ -6,7 +6,7 @@
 
 {block content}
 <section
-    class="cms-entity-list cms-entity-list--density-{entity_presentation.list_card_density|default:'comfortable'} w-full max-w-5xl mx-auto px-4 py-8"
+    class="cms-entity-list cms-entity-list--density-{entity_presentation.list_card_density|default:'comfortable'} cms-public-shell px-4 py-8"
     data-public-render-origin="{public_render_origin|default:'cms'}"
     data-public-route-kind="{public_route_kind|default:'generic'}"
     data-public-presentation-mode="{public_presentation_mode|default:'traditional'}"
