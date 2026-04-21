@@ -397,6 +397,10 @@ switch ($handler) {
         kernelHandleApiTenantAdminEmailPush();
         exit;
 
+    case 'apiTenantAdminPasswordPush':
+        kernelHandleApiTenantAdminPasswordPush();
+        exit;
+
     case 'apiTenantDelete':
         kernelHandleApiTenantDelete();
         exit;

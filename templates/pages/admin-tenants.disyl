@@ -158,6 +158,23 @@
         </div>
     </div>
 </div>
+
+<!-- Admin password modal -->
+<div class="modal-overlay" id="modal-admin-password" onclick="onBackdrop(event, 'modal-admin-password')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Set Admin Password</h3>
+        <input type="hidden" id="ap-tenant-id">
+        <div class="form-group">
+            <label class="form-label">New Password</label>
+            <input class="form-input" id="ap-password" type="password" placeholder="Min 6 chars" autocomplete="new-password">
+            <div class="hint">Pushes directly into the tenant's <code>cms_users</code>, <code>gm_users</code>, and <code>users</code> admin row so you can regain admin access immediately.</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('modal-admin-password')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveAdminPassword()">Save &amp; Push</button>
+        </div>
+    </div>
+</div>
 {/block}
 
 {block scripts}
@@ -354,6 +371,7 @@
                 + '    <button class="btn btn-outline btn-sm" onclick="openAddDomain(' + (t.id||0) + ')">' + domainBtn + '</button>'
                 + '    <button class="btn btn-primary btn-sm" onclick="openDbConn(' + (t.id||0) + ')">' + dbBtn + '</button>'
                 + '    <button class="btn btn-outline btn-sm" onclick="openAdminEmail(' + (t.id||0) + ')">Admin email</button>'
+                + '    <button class="btn btn-outline btn-sm" onclick="openAdminPassword(' + (t.id||0) + ')">Password</button>'
                 + '    <button class="btn btn-sm ' + (statusBtnCls ? 'btn-primary' : 'btn-outline') + '" onclick="toggleTenantStatus(' + (t.id||0) + ',\'' + escapeHtml(status) + '\')">' + statusBtnLabel + '</button>'
                 + '    <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="deleteTenant(' + (t.id||0) + ',\'' + escapeHtml(t.tenant_key || '') + '\')">Delete</button>'
                 + '  </div>'
@@ -386,6 +404,34 @@
                 var skipped = Array.isArray(res.skipped) && res.skipped.length > 0 ? ' Skipped: ' + res.skipped.join(', ') + '.' : '';
                 showToast('Admin email saved.' + pushed + skipped);
                 reloadTenants();
+            } else {
+                showToast(res.error || 'Save failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
+    }
+
+    function openAdminPassword(tenantId) {
+        document.getElementById('ap-tenant-id').value = String(tenantId || '');
+        document.getElementById('ap-password').value = '';
+        openModal('modal-admin-password');
+    }
+
+    function saveAdminPassword() {
+        var tenantId = parseInt(document.getElementById('ap-tenant-id').value || '0', 10);
+        var password = document.getElementById('ap-password').value;
+        fetch(BASE + '/api/v1/admin/tenants/admin-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: tenantId, admin_password: password, _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                closeModal('modal-admin-password');
+                var pushed = Array.isArray(res.pushed) && res.pushed.length > 0 ? ' Pushed to: ' + res.pushed.join(', ') + '.' : '';
+                var skipped = Array.isArray(res.skipped) && res.skipped.length > 0 ? ' Skipped: ' + res.skipped.join(', ') + '.' : '';
+                showToast('Admin password saved.' + pushed + skipped);
             } else {
                 showToast(res.error || 'Save failed');
             }

@@ -512,6 +512,142 @@ if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
     }
 }
 
+if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
+    function kernelHandleApiTenantAdminPasswordPush(): void
+    {
+        if (!kernelPrepareTenantAdminJsonRequest()) {
+            return;
+        }
+
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+        $newPassword = (string)($input['admin_password'] ?? '');
+
+        if ($tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
+            return;
+        }
+        if (strlen($newPassword) < 6) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Password must be at least 6 characters']);
+            return;
+        }
+
+        try {
+            $pushed = [];
+            $skipped = [];
+            $tDb = app()->dbForTenant($tenantId);
+            if ($tDb !== null) {
+                // Update cms_users
+                try {
+                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+                    $r = $tDb->prepare('UPDATE cms_users SET password_hash = :p WHERE role = :r');
+                    $r->execute([':p' => $hashMsg, ':r' => 'administrator']);
+                    if ($r->rowCount() > 0) {
+                        $pushed[] = 'cms_users';
+                    } else {
+                        $skipped[] = 'cms_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminPasswordPush cms_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'cms_users';
+                }
+
+                // Update gm_users
+                try {
+                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+                    $r = $tDb->prepare('UPDATE gm_users SET password_hash = :p WHERE role = :r AND deleted_at IS NULL');
+                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
+                    if ($r->rowCount() > 0) {
+                        $pushed[] = 'gm_users';
+                    } else {
+                        $skipped[] = 'gm_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminPasswordPush gm_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'gm_users';
+                }
+
+                // Update wms_users
+                try {
+                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+                    $r = $tDb->prepare('UPDATE wms_users SET password_hash = :p WHERE role = :r');
+                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
+                    if ($r->rowCount() > 0) {
+                        $pushed[] = 'wms_users';
+                    } else {
+                        $skipped[] = 'wms_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminPasswordPush wms_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'wms_users';
+                }
+
+                // Update users table
+                try {
+                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+                    $r = $tDb->prepare('UPDATE users SET password_hash = :p WHERE role IN (:r1, :r2)');
+                    $r->execute([':p' => $hashMsg, ':r1' => 'admin', ':r2' => 'superadmin']);
+                    if ($r->rowCount() > 0) {
+                        $pushed[] = 'users';
+                    } else {
+                        $skipped[] = 'users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        // Some old users tables used `password`, let's try that.
+                        try {
+                            $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+                            $r = $tDb->prepare('UPDATE users SET password = :p WHERE role IN (:r1, :r2)');
+                            $r->execute([':p' => $hashMsg, ':r1' => 'admin', ':r2' => 'superadmin']);
+                            if ($r->rowCount() > 0) {
+                                $pushed[] = 'users(password)';
+                                $keyRemoved = array_search('users', $skipped);
+                                if ($keyRemoved !== false) unset($skipped[$keyRemoved]);
+                            }
+                        } catch (Throwable $e2) {
+                            write_log('apiTenantAdminPasswordPush users fallback failed: ' . $e2->getMessage(), 'error', [
+                                'tenant_id' => $tenantId, 'request_id' => request_id(),
+                            ]);
+                            $skipped[] = 'users';
+                        }
+                    } else {
+                        $skipped[] = 'users';
+                    }
+                }
+            } else {
+                $skipped[] = 'tenant_db_not_configured';
+            }
+
+            echo json_encode([
+                'ok' => true,
+                'pushed' => $pushed,
+                'skipped' => array_values($skipped),
+            ]);
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update admin password']);
+        }
+    }
+}
+
 if (!function_exists('kernelHandleApiTenantDelete')) {
     function kernelHandleApiTenantDelete(): void
     {

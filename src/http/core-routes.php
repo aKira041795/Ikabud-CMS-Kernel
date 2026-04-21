@@ -75,6 +75,7 @@ if (!function_exists('kernelCoreRoutes')) {
                 '/api/v1/admin/tenants/status' => 'apiTenantStatusSet',
                 '/api/v1/admin/tenants/delete' => 'apiTenantDelete',
                 '/api/v1/admin/tenants/admin-email' => 'apiTenantAdminEmailPush',
+                '/api/v1/admin/tenants/admin-password' => 'apiTenantAdminPasswordPush',
             ],
             'PUT' => [],
             'DELETE' => [
