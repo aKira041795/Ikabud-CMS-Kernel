@@ -8,6 +8,17 @@
 {block content}
 {if entity_view_context.bypass_shell|default:0}
 <article class="cms-entity-view w-full {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if} data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}" data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}" data-storefront-page-kind="{storefront.page.kind|default:'entity'}" data-storefront-product-id="{storefront.product.id|default:entity.id|default:''}">
+    {if entity_view_context.show_header|default:0}
+    <div class="max-w-5xl mx-auto px-4 pt-8">
+        <header class="cms-entity-header mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity_view_context.header_title|default:entity.title}</h1>
+            {if entity_view_context.show_meta|default:0}
+            {include "modules/cms/public/blocks/meta.block.disyl"}
+            {/if}
+        </header>
+    </div>
+    {/if}
+
     {if builder_enabled}
     <div class="{builder_page_settings.container_class}">
         {post_html | raw}
