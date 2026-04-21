@@ -1723,6 +1723,18 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
     useEffect(() => {
       if (node.props.keyboardNav === false) return;
       const handleKey = (e: KeyboardEvent) => {
+        const target = e.target as HTMLElement;
+        const isInputFocused =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable ||
+          target.closest('[contenteditable="true"]') ||
+          target.closest('.tox-tinymce') ||
+          target.ownerDocument !== document; // e.g. TinyMCE iframe
+
+        if (isInputFocused) return;
+
         if (e.key === 'ArrowLeft') prevSlide();
         if (e.key === 'ArrowRight') nextSlide();
       };

@@ -925,6 +925,19 @@ export default function PageBuilder() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+
+      // Helper to check if user is currently focused in an input field or contenteditable element
+      // where we shouldn't intercept standard keyboard navigation, typing, and clipboard events.
+      const isInputFocused =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]') ||
+        target.closest('.tox-tinymce') ||
+        target.ownerDocument !== document; // e.g. TinyMCE iframe
+
       // Save: Ctrl/Cmd + S
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
@@ -933,23 +946,7 @@ export default function PageBuilder() {
 
       // Delete: Delete or Backspace
       if ((e.key === 'Delete' || e.key === 'Backspace') && builder.selectedIds.length > 0) {
-        const target = e.target as HTMLElement;
-
-        // Don't delete if editing text in input/textarea
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-          return;
-        }
-
-        // Don't delete if inside TinyMCE editor (contenteditable or iframe)
-        if (target.isContentEditable || target.closest('[contenteditable="true"]') || target.closest('.tox-tinymce')) {
-          return;
-        }
-
-        // Don't delete if target is inside an iframe (TinyMCE classic mode)
-        if (target.ownerDocument !== document) {
-          return;
-        }
-
+        if (isInputFocused) return;
         e.preventDefault();
         builder.selectedIds.forEach(id => builder.deleteNode(id));
       }
@@ -961,34 +958,35 @@ export default function PageBuilder() {
 
       // Duplicate: Ctrl/Cmd + D
       if ((e.ctrlKey || e.metaKey) && e.key === 'd' && builder.selectedNode) {
+        if (isInputFocused) return;
         e.preventDefault();
         builder.duplicateNode(builder.selectedNode.id);
       }
 
       // Undo: Ctrl/Cmd + Z
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        if (isInputFocused) return;
         e.preventDefault();
         builder.undo();
       }
 
       // Redo: Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        if (isInputFocused) return;
         e.preventDefault();
         builder.redo();
       }
 
       // Copy: Ctrl/Cmd + C
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && builder.selectedIds.length > 0) {
-        // Don't intercept if editing text
-        if ((e.target as HTMLElement).isContentEditable) return;
+        if (isInputFocused) return;
         e.preventDefault();
         builder.copyNodes(builder.selectedIds);
       }
 
       // Paste: Ctrl/Cmd + V
       if ((e.ctrlKey || e.metaKey) && e.key === 'v' && builder.clipboard) {
-        // Don't intercept if editing text
-        if ((e.target as HTMLElement).isContentEditable) return;
+        if (isInputFocused) return;
         e.preventDefault();
         const parentId = builder.selectedNode?.id || builder.document.id;
         const parent = builder.findNode(parentId);
@@ -998,6 +996,7 @@ export default function PageBuilder() {
 
       // Finder: Ctrl/Cmd + E or Ctrl/Cmd + K
       if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'k')) {
+        if (isInputFocused) return;
         e.preventDefault();
         setFinderOpen(true);
         setTimeout(() => finderInputRef.current?.focus(), 0);
@@ -1005,22 +1004,21 @@ export default function PageBuilder() {
 
       // Keyboard shortcuts: Ctrl/Cmd + / (but not bare ? to allow typing in TinyMCE)
       if ((e.ctrlKey || e.metaKey) && (e.key === '/' || e.key === '?')) {
+        if (isInputFocused) return;
         e.preventDefault();
         setShortcutsOpen(prev => !prev);
       }
 
       // Move Up: Alt + ArrowUp
       if (e.altKey && e.key === 'ArrowUp' && builder.selectedIds.length > 0) {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        if (isInputFocused) return;
         e.preventDefault();
         handleMoveNode('up');
       }
 
       // Move Down: Alt + ArrowDown
       if (e.altKey && e.key === 'ArrowDown' && builder.selectedIds.length > 0) {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        if (isInputFocused) return;
         e.preventDefault();
         handleMoveNode('down');
       }
