@@ -2264,7 +2264,7 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
         : cmsPageBuilderSettings($meta);
 
     $viewSettings = [
-        'show_header' => true,
+        'show_header' => empty($builderSettings['page']['hidePageTitle']),
         'show_meta' => $type !== 'page',
         'show_media' => $type !== 'page',
         'bypass_shell' => $builderEnabled && in_array($type, ['post', 'page'], true),
