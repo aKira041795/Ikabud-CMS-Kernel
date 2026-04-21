@@ -1,0 +1,26 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{set show_header = false}
+{set show_footer = false}
+{set has_customized_sidebar = false}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{if structured_data}{structured_data | raw}{/if}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{include "_cms_active_theme/public/partials/canonical-entity-styles.disyl"}
+{/block}
+
+{block content}
+<article class="cms-entity-view native-canonical-view {if entity_presentation.root_class}{entity_presentation.root_class}{/if}" data-native-canonical-template="landing">
+    {if builder_enabled}
+    <div class="{builder_page_settings.container_class}">
+        {post_html | raw}
+    </div>
+    {else}
+    <div class="cms-entity-body prose native-canonical-view__body native-canonical-view__body--contained" style="max-width: 100%;">
+        {post_html | raw}
+    </div>
+    {/if}
+</article>
+{/block}

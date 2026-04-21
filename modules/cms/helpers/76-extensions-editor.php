@@ -31,7 +31,7 @@ function cmsGetContentTemplates(string $contentType = ''): array
                         $rawTemplates[] = [
                             'slug' => $slug,
                             'label' => (string)($tpl['label'] ?? $tpl['name'] ?? ucfirst(str_replace(['-', '_'], ' ', $slug))),
-                            'types' => ['page'],
+                            'types' => ['post', 'page'],
                             'path' => (string)($tpl['path'] ?? ('public/' . $slug . '.disyl')),
                         ];
                     }
@@ -212,14 +212,16 @@ function cmsResolveContentTemplate(string $defaultSubPath, array $meta, string $
             }
             // Otherwise treat as theme-relative sub-path
             $resolved = cmsResolveTemplate($path);
-            return $resolved;
+            if ($resolved !== 'modules/cms/' . $path || is_file(TEMPLATES_PATH . '/' . $resolved)) {
+                return $resolved;
+            }
         }
     }
 
     // Fallback: check if theme has a file named after the slug
     $slugFile = pathinfo($defaultSubPath, PATHINFO_DIRNAME) . '/' . $templateSlug . '.disyl';
     $resolved = cmsResolveTemplate($slugFile);
-    if ($resolved !== 'modules/cms/' . $slugFile) {
+    if ($resolved !== 'modules/cms/' . $slugFile || is_file(TEMPLATES_PATH . '/' . $resolved)) {
         return $resolved;
     }
 

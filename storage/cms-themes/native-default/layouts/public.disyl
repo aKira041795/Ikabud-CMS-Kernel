@@ -82,6 +82,7 @@
 </head>
 <body class="native-theme {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
 
+    {if show_header|default:true}
     {if has_customized_header}
     {customized_header|raw}
     {else}
@@ -120,6 +121,7 @@
             </div>
         </header>
     </div>
+    {/if}
     {/if}
 
     <div class="site-content">
@@ -166,6 +168,7 @@
         </div>
     </div>
 
+    {if show_footer|default:true}
     <footer class="site-footer">
         {if has_customized_footer}
         {customized_footer|raw}
@@ -191,6 +194,7 @@
         </div>
         {/if}
     </footer>
+    {/if}
 
     <script>
         (function () {
