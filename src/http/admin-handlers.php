@@ -441,8 +441,8 @@ if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
             $tDb = app()->dbForTenant($tenantId);
             if ($tDb !== null) {
                 try {
-                    $check = $tDb->prepare('SELECT id, email FROM cms_users WHERE role = :r ORDER BY id ASC LIMIT 1');
-                    $check->execute([':r' => 'administrator']);
+                    $check = $tDb->prepare('SELECT id, email FROM cms_users WHERE role IN (:r1, :r2) ORDER BY id ASC LIMIT 1');
+                    $check->execute([':r1' => 'superadmin', ':r2' => 'administrator']);
                     $admin = $check->fetch(PDO::FETCH_ASSOC);
                     if ($admin) {
                         if ($admin['email'] === $adminEmail) {
@@ -495,6 +495,58 @@ if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
                     }
                     $skipped[] = 'gm_users';
                 }
+
+                // Update wms_users
+                try {
+                    $check = $tDb->prepare('SELECT id, email FROM wms_users WHERE role = :r ORDER BY id ASC LIMIT 1');
+                    $check->execute([':r' => 'admin']);
+                    $admin = $check->fetch(PDO::FETCH_ASSOC);
+                    if ($admin) {
+                        if ($admin['email'] === $adminEmail) {
+                            $pushed[] = 'wms_users';
+                        } else {
+                            $r = $tDb->prepare('UPDATE wms_users SET email = :e WHERE id = :id LIMIT 1');
+                            $r->execute([':e' => $adminEmail, ':id' => $admin['id']]);
+                            $pushed[] = 'wms_users';
+                        }
+                    } else {
+                        $skipped[] = 'wms_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminEmailPush wms_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'wms_users';
+                }
+
+                // Update users table
+                try {
+                    $check = $tDb->prepare('SELECT id, email FROM users WHERE role IN (:r1, :r2) ORDER BY id ASC LIMIT 1');
+                    $check->execute([':r1' => 'admin', ':r2' => 'superadmin']);
+                    $admin = $check->fetch(PDO::FETCH_ASSOC);
+                    if ($admin) {
+                        if ($admin['email'] === $adminEmail) {
+                            $pushed[] = 'users';
+                        } else {
+                            $r = $tDb->prepare('UPDATE users SET email = :e WHERE id = :id LIMIT 1');
+                            $r->execute([':e' => $adminEmail, ':id' => $admin['id']]);
+                            $pushed[] = 'users';
+                        }
+                    } else {
+                        $skipped[] = 'users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminEmailPush users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'users';
+                }
             } else {
                 $skipped[] = 'tenant_db_not_configured';
             }
@@ -542,8 +594,8 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                 // Update cms_users
                 try {
                     $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare('UPDATE cms_users SET password_hash = :p WHERE role = :r');
-                    $r->execute([':p' => $hashMsg, ':r' => 'administrator']);
+                    $r = $tDb->prepare('UPDATE cms_users SET password_hash = :p WHERE role IN (:r1, :r2)');
+                    $r->execute([':p' => $hashMsg, ':r1' => 'superadmin', ':r2' => 'administrator']);
                     if ($r->rowCount() > 0) {
                         $pushed[] = 'cms_users';
                     } else {
@@ -636,6 +688,7 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                 $skipped[] = 'tenant_db_not_configured';
             }
 
+            adminViewCacheInvalidate(['admin:view:tenants']);
             echo json_encode([
                 'ok' => true,
                 'pushed' => $pushed,
