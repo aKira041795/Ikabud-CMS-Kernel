@@ -37,6 +37,21 @@ function captureOutput(callable $callback): string
     }
 }
 
+function cmsPublicEntityContractTestUserId(): int
+{
+    static $userId = 0;
+    if ($userId > 0) {
+        return $userId;
+    }
+
+    $userId = (int)app()->db()->query('SELECT id FROM cms_users ORDER BY id ASC LIMIT 1')->fetchColumn();
+    if ($userId < 1) {
+        throw new RuntimeException('No cms_users row available for cms public entity contract test');
+    }
+
+    return $userId;
+}
+
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 
@@ -49,8 +64,10 @@ $actionType = 'service';
 $actionSlug = 'test-entity-contract-service-' . $suffix;
 $plainActionType = 'course';
 $plainActionSlug = 'test-entity-contract-plain-course-' . $suffix;
+$userId = cmsPublicEntityContractTestUserId();
 
 $contentIds = [];
+$mediaIds = [];
 $categoryId = 0;
 $tagId = 0;
 $nativeEntityPresentationExisted = cmsCustomizerSectionExists($db, 'entity_presentation', 'native');
@@ -90,16 +107,46 @@ try {
     $tag = cmsTagCreate($tagName);
     $tagId = (int)($tag['id'] ?? 0);
 
+    $db->prepare(
+        "INSERT INTO cms_media (filename, original_name, mime_type, file_size, file_path, uploaded_by, created_at)
+         VALUES (:filename, :original_name, :mime_type, :file_size, :file_path, :uploaded_by, NOW())"
+    )->execute([
+        ':filename' => 'entity-contract-post-hero.jpg',
+        ':original_name' => 'entity-contract-post-hero.jpg',
+        ':mime_type' => 'image/jpeg',
+        ':file_size' => 1024,
+        ':file_path' => 'tests/entity-contract-post-hero.jpg',
+        ':uploaded_by' => $userId,
+    ]);
+    $postMediaId = (int)$db->lastInsertId();
+    $mediaIds[] = $postMediaId;
+
+    $db->prepare(
+        "INSERT INTO cms_media (filename, original_name, mime_type, file_size, file_path, uploaded_by, created_at)
+         VALUES (:filename, :original_name, :mime_type, :file_size, :file_path, :uploaded_by, NOW())"
+    )->execute([
+        ':filename' => 'entity-contract-page-hero.jpg',
+        ':original_name' => 'entity-contract-page-hero.jpg',
+        ':mime_type' => 'image/jpeg',
+        ':file_size' => 1024,
+        ':file_path' => 'tests/entity-contract-page-hero.jpg',
+        ':uploaded_by' => $userId,
+    ]);
+    $pageMediaId = (int)$db->lastInsertId();
+    $mediaIds[] = $pageMediaId;
+
     $postUuid = cmsUuid();
     $db->prepare(
-        "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, published_at, created_at, updated_at)
-         VALUES (:uuid, :title, :slug, :body, :excerpt, 'post', 'published', 1, NOW(), NOW(), NOW())"
+        "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, featured_image_id, published_at, created_at, updated_at)
+         VALUES (:uuid, :title, :slug, :body, :excerpt, 'post', 'published', :author_id, :featured_image_id, NOW(), NOW(), NOW())"
     )->execute([
         ':uuid' => $postUuid,
         ':title' => 'Entity Contract Post',
         ':slug' => $postSlug,
         ':body' => '<p>Canonical post body.</p>',
         ':excerpt' => 'Canonical post excerpt.',
+        ':author_id' => $userId,
+        ':featured_image_id' => $postMediaId,
     ]);
     $postId = (int)$db->lastInsertId();
     $contentIds[] = $postId;
@@ -108,14 +155,16 @@ try {
 
     $pageUuid = cmsUuid();
     $db->prepare(
-        "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, published_at, created_at, updated_at)
-         VALUES (:uuid, :title, :slug, :body, :excerpt, 'page', 'published', 1, NOW(), NOW(), NOW())"
+        "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, featured_image_id, published_at, created_at, updated_at)
+         VALUES (:uuid, :title, :slug, :body, :excerpt, 'page', 'published', :author_id, :featured_image_id, NOW(), NOW(), NOW())"
     )->execute([
         ':uuid' => $pageUuid,
         ':title' => 'Entity Contract Page',
         ':slug' => $pageSlug,
         ':body' => '<p>Canonical page body.</p>',
         ':excerpt' => 'Canonical page excerpt.',
+        ':author_id' => $userId,
+        ':featured_image_id' => $pageMediaId,
     ]);
     $pageId = (int)$db->lastInsertId();
     $contentIds[] = $pageId;
@@ -123,7 +172,7 @@ try {
     $actionUuid = cmsUuid();
     $db->prepare(
         "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, published_at, created_at, updated_at)
-         VALUES (:uuid, :title, :slug, :body, :excerpt, :type, 'published', 1, NOW(), NOW(), NOW())"
+         VALUES (:uuid, :title, :slug, :body, :excerpt, :type, 'published', :author_id, NOW(), NOW(), NOW())"
     )->execute([
         ':uuid' => $actionUuid,
         ':title' => 'Entity Contract Service',
@@ -131,6 +180,7 @@ try {
         ':body' => '<p>Canonical service body.</p>',
         ':excerpt' => 'Canonical service excerpt.',
         ':type' => $actionType,
+        ':author_id' => $userId,
     ]);
     $actionEntityId = (int)$db->lastInsertId();
     $contentIds[] = $actionEntityId;
@@ -141,7 +191,7 @@ try {
     $plainActionUuid = cmsUuid();
     $db->prepare(
         "INSERT INTO cms_content (uuid, title, slug, body, excerpt, type, status, author_id, published_at, created_at, updated_at)
-         VALUES (:uuid, :title, :slug, :body, :excerpt, :type, 'published', 1, NOW(), NOW(), NOW())"
+         VALUES (:uuid, :title, :slug, :body, :excerpt, :type, 'published', :author_id, NOW(), NOW(), NOW())"
     )->execute([
         ':uuid' => $plainActionUuid,
         ':title' => 'Entity Contract Plain Course',
@@ -149,6 +199,7 @@ try {
         ':body' => '<p>Plain course body.</p>',
         ':excerpt' => 'Plain course excerpt.',
         ':type' => $plainActionType,
+        ':author_id' => $userId,
     ]);
     $plainActionEntityId = (int)$db->lastInsertId();
     $contentIds[] = $plainActionEntityId;
@@ -383,6 +434,13 @@ try {
         } catch (Throwable $e) {
         }
     }
+
+    foreach (array_reverse($mediaIds) as $mediaId) {
+        try {
+            $db->prepare('DELETE FROM cms_media WHERE id = ?')->execute([$mediaId]);
+        } catch (Throwable $e) {
+        }
+    }
     if ($tagId > 0) {
         cmsTagDelete($tagId);
     }
@@ -408,11 +466,13 @@ echo "\n=== SINGLE AND PAGE ROUTES ===\n";
 t('post route renders canonical presentation mode', str_contains($singleHtml, 'data-public-presentation-mode="canonical"'));
 t('post route renders canonical route kind', str_contains($singleHtml, 'data-public-route-kind="post"'));
 t('post route renders back-to-blog link', str_contains($singleHtml, '/cms/blog'));
+t('post route renders featured image from featured_image_id', str_contains($singleHtml, cmsResolveUploadUrl('tests/entity-contract-post-hero.jpg')), $singleHtml);
 
 t('page route renders canonical presentation mode', str_contains($pageHtml, 'data-public-presentation-mode="canonical"'));
 t('page route renders canonical route kind', str_contains($pageHtml, 'data-public-route-kind="page"'));
 t('page route omits canonical meta block', !str_contains($pageHtml, '<div class="cms-entity-meta'));
-t('page route omits hero media wrapper', !str_contains($pageHtml, '<div class="cms-entity-hero'));
+t('page route renders featured image from featured_image_id', str_contains($pageHtml, cmsResolveUploadUrl('tests/entity-contract-page-hero.jpg')), $pageHtml);
+t('page route renders hero media wrapper', str_contains($pageHtml, '<div class="cms-entity-hero'), $pageHtml);
 
 echo "\n=== ACTION ROUTES ===\n";
 

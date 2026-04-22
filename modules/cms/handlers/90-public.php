@@ -1195,13 +1195,14 @@ function cmsPublicPage(array $params = []): void
     }
 
     $db = cmsDb();
-    $stmt = $db->prepare(
-        "SELECT c.*, u.display_name as author_name
-         FROM cms_content c
-         LEFT JOIN cms_users u ON u.id = c.author_id
-         WHERE c.slug = :slug AND c.type = 'page' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
-         LIMIT 1"
-    );
+        $stmt = $db->prepare(
+            "SELECT c.*, u.display_name as author_name, m.file_path as featured_image
+             FROM cms_content c
+             LEFT JOIN cms_users u ON u.id = c.author_id
+             LEFT JOIN cms_media m ON m.id = c.featured_image_id
+             WHERE c.slug = :slug AND c.type = 'page' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+             LIMIT 1"
+        );
     $stmt->execute([':slug' => $slug]);
     $page = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1250,6 +1251,10 @@ function cmsPublicPage(array $params = []): void
         return;
     }
 
+    if (!empty($page['featured_image'])) {
+        $page['featured_image_url'] = cmsResolveUploadUrl((string)$page['featured_image']);
+    }
+
     $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($page), $page);
     $publicHead = cmsGetPublicHeadHtml($page);
     $builderEnabled = cmsPageBuilderEnabled($meta);
@@ -1268,7 +1273,7 @@ function cmsPublicPage(array $params = []): void
         'entity_view_context' => [
             'show_header' => true,
             'show_meta' => false,
-            'show_media' => false,
+            'show_media' => true,
             'bypass_shell' => $builderEnabled,
         ],
         'public_render_origin' => 'cms',
