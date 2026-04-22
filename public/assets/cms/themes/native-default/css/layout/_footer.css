@@ -43,6 +43,7 @@
 }
 
 @media (max-width: 991px) {
+
     .footer-widgets-grid[data-columns="4"],
     .footer-widgets-grid[data-columns="5"] {
         grid-template-columns: repeat(2, 1fr);
@@ -237,7 +238,8 @@
    ======================================== */
 .footer-bottom {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 1.25rem 0;
+    margin-top: 0;
+    padding: 0;
 }
 
 .footer-bottom .container {

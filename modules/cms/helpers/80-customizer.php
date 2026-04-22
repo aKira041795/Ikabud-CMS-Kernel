@@ -2177,9 +2177,9 @@ function cmsRenderEntityPresentationCss(array $settings): string
     } else {
         $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:static;}';
     }
-    $css .= '.cms-single-prose{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
-    $css .= '.cms-entity-profile-content .cms-entity-header{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
-    $css .= '.cms-entity-profile-content .cms-entity-body,.cms-entity-profile-content .cms-entity-summary-stack{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
+    $css .= '.cms-single-prose{max-width:var(--theme-single-max-width);}';
+    $css .= '.cms-entity-profile-content .cms-entity-header{max-width:var(--theme-single-max-width);}';
+    $css .= '.cms-entity-profile-content .cms-entity-body,.cms-entity-profile-content .cms-entity-summary-stack{max-width:var(--theme-single-max-width);}';
     $blogLayout = (string)($presentation['blog_layout'] ?? 'list');
     if ($blogLayout === 'grid' || $blogLayout === 'cards') {
         $css .= '.cms-blog-listing{display:grid;grid-template-columns:repeat(var(--theme-blog-cols),1fr);gap:var(--theme-blog-gap);}';

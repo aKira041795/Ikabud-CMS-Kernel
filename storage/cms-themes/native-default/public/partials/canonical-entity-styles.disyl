@@ -2,7 +2,7 @@
     .native-canonical-list,
     .native-canonical-view {
         width: 100%;
-        padding: 2rem 0 3rem;
+        padding: 0;
     }
 
     .native-canonical-hero {
@@ -191,9 +191,9 @@
     .native-canonical-view__summary-panel--stack,
     .native-canonical-view__taxonomies,
     .native-canonical-view__back {
-        max-width: var(--theme-single-max-width, 760px);
-        margin-left: auto;
-        margin-right: auto;
+        max-width: none;
+        margin-left: 0;
+        margin-right: 0;
     }
 
     .native-canonical-view__article {
@@ -203,6 +203,7 @@
 
     .native-canonical-view__header {
         margin-bottom: 0;
+        text-align: left;
     }
 
     .native-canonical-view__title {
@@ -216,6 +217,7 @@
 
     .native-canonical-view__header .cms-entity-meta {
         margin: 0;
+        justify-content: flex-start;
     }
 
     .native-canonical-view__header .cms-progress-block {
@@ -248,12 +250,14 @@
         display: grid;
         gap: 1rem;
         padding-top: 1.5rem;
+        justify-items: start;
     }
 
     .native-canonical-view__terms {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
+        justify-content: flex-start;
         gap: 0.5rem;
     }
 
@@ -283,6 +287,7 @@
 
     .native-canonical-view__back {
         padding-top: 1rem;
+        text-align: left;
     }
 
     .native-canonical-view__back-link {
@@ -577,11 +582,6 @@
     }
 
     @media (max-width: 768px) {
-        .native-canonical-list,
-        .native-canonical-view {
-            padding-top: 1.5rem;
-        }
-
         .native-canonical-category-picker__controls,
         .native-search,
         .native-shop-searchbar__controls {

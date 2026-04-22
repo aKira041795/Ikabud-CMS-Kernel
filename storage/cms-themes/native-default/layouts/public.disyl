@@ -48,7 +48,7 @@
         .cms-nav .cms-menu { list-style: none; display: flex; gap: 1rem; padding: 0; margin: 0; }
         .cms-nav .cms-menu a { color: var(--color-text); text-decoration: none; font-size: 0.875rem; }
         .cms-nav .cms-menu a:hover { color: var(--color-primary); }
-        .cms-content-with-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, var(--sidebar-width, 300px)); gap: 2rem; align-items: start; }
+        .cms-content-with-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, var(--sidebar-width, 300px)); gap: 2rem; align-items: start; margin-top: 25px; }
         .cms-content-with-sidebar.sidebar-left { grid-template-columns: minmax(220px, var(--sidebar-width, 300px)) minmax(0, 1fr); }
         .cms-content-with-sidebar .cms-main-slot { min-width: 0; }
         .cms-content-with-sidebar .cms-sidebar-slot { min-width: 0; }
@@ -173,7 +173,7 @@
         {if has_customized_footer}
         {customized_footer|raw}
         {else}
-        <div class="container" style="padding-top:2.5rem; padding-bottom:1.5rem;">
+        <div class="container">
             {if social_links}
             <div class="footer-social" style="text-align:center; margin-bottom:1rem;">
                 {foreach social_links as sl}

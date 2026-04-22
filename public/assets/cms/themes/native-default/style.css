@@ -1182,7 +1182,8 @@ img {
 
 .footer-bottom {
     text-align: center;
-    padding: 1rem 0;
+    margin-top: 0;
+    padding: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--footer-text, #64748b);
     font-size: 0.875rem;
