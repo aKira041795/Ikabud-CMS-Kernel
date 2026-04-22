@@ -373,6 +373,9 @@ export default function PageBuilder() {
   // SEO settings state
   const [seoSettings, setSeoSettings] = useState<SEOSettings>(defaultSEOSettings);
 
+  const [initialGlobalStylesStr, setInitialGlobalStylesStr] = useState<string>("");
+  const [initialSeoSettingsStr, setInitialSeoSettingsStr] = useState<string>("");
+
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string; nodeType: string } | null>(null);
 
@@ -380,6 +383,9 @@ export default function PageBuilder() {
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   const autoSaveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  const hasUnsavedSettings = JSON.stringify(globalStyles) !== initialGlobalStylesStr || JSON.stringify(seoSettings) !== initialSeoSettingsStr;
+
   const pageStyleOverrides = diffGlobalStyles(previewStyleBase, globalStyles);
   const previewThemeCss = renderScopedGlobalStyleCss(previewThemeOverrides, BUILDER_PREVIEW_SCOPE_CLASS);
   const pageOverrideCss = renderScopedGlobalStyleCss(pageStyleOverrides, BUILDER_PREVIEW_SCOPE_CLASS);
@@ -404,6 +410,7 @@ export default function PageBuilder() {
         body: JSON.stringify({
           document: builder.document,
           global_styles: pageStyleOverrides,
+          seo_settings: seoSettings,
         }),
       });
 
@@ -412,11 +419,13 @@ export default function PageBuilder() {
       if (data.ok || data.success) {
         builder.markClean();
         setLastAutoSave(new Date());
+        setInitialGlobalStylesStr(JSON.stringify(globalStyles));
+        setInitialSeoSettingsStr(JSON.stringify(seoSettings));
       }
     } catch (err) {
       console.error('Auto-save failed:', err);
     }
-  }, [pageData, saving, builder, pageStyleOverrides]);
+  }, [pageData, saving, builder, pageStyleOverrides, globalStyles, seoSettings]);
 
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -510,9 +519,12 @@ export default function PageBuilder() {
 
         // Load global styles if available
         if (template.global_styles) {
-          setGlobalStyles(mergeGlobalStyles(previewStyleBase, template.global_styles));
+          const newStyles = mergeGlobalStyles(previewStyleBase, template.global_styles);
+          setGlobalStyles(newStyles);
+          setInitialGlobalStylesStr(JSON.stringify(newStyles));
         } else {
           setGlobalStyles(previewStyleBase);
+          setInitialGlobalStylesStr(JSON.stringify(previewStyleBase));
         }
 
         setSaveMessage({ type: 'success', text: `Loaded template: ${template.name}` });
@@ -536,7 +548,7 @@ export default function PageBuilder() {
 
   useEffect(() => {
     autoSaveIntervalRef.current = setInterval(() => {
-      if (builder.isDirty && pageData && !saving) {
+      if ((builder.isDirty || hasUnsavedSettings) && pageData && !saving) {
         handleAutoSave();
       }
     }, 30000); // 30 seconds
@@ -546,19 +558,19 @@ export default function PageBuilder() {
         clearInterval(autoSaveIntervalRef.current);
       }
     };
-  }, [builder.isDirty, pageData, saving, handleAutoSave]);
+  }, [builder.isDirty, hasUnsavedSettings, pageData, saving, handleAutoSave]);
 
   // Auto-save on blur (leaving page)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (builder.isDirty) {
+      if (builder.isDirty || hasUnsavedSettings) {
         e.preventDefault();
         e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
       }
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && builder.isDirty && pageData && !saving) {
+      if (document.visibilityState === 'hidden' && (builder.isDirty || hasUnsavedSettings) && pageData && !saving) {
         handleAutoSave();
       }
     };
@@ -570,7 +582,7 @@ export default function PageBuilder() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [builder.isDirty, pageData, saving, handleAutoSave]);
+  }, [builder.isDirty, hasUnsavedSettings, pageData, saving, handleAutoSave]);
 
   // Run frontend-like interactive scripts in builder canvas after updates.
   useEffect(() => {
@@ -615,12 +627,16 @@ export default function PageBuilder() {
         if (globalStylesRaw) {
           try {
             const parsed = typeof globalStylesRaw === 'string' ? JSON.parse(globalStylesRaw) : globalStylesRaw;
-            setGlobalStyles(mergeGlobalStyles(previewStyleBase, parsed));
+            const newStyles = mergeGlobalStyles(previewStyleBase, parsed);
+            setGlobalStyles(newStyles);
+            setInitialGlobalStylesStr(JSON.stringify(newStyles));
           } catch {
             setGlobalStyles(previewStyleBase);
+            setInitialGlobalStylesStr(JSON.stringify(previewStyleBase));
           }
         } else {
           setGlobalStyles(previewStyleBase);
+          setInitialGlobalStylesStr(JSON.stringify(previewStyleBase));
         }
 
         // Load SEO settings if available
@@ -628,9 +644,12 @@ export default function PageBuilder() {
         if (seoRaw) {
           try {
             const parsed = typeof seoRaw === 'string' ? JSON.parse(seoRaw) : seoRaw;
-            setSeoSettings({ ...defaultSEOSettings, ...parsed });
+            const newSeo = { ...defaultSEOSettings, ...parsed };
+            setSeoSettings(newSeo);
+            setInitialSeoSettingsStr(JSON.stringify(newSeo));
           } catch {
             setSeoSettings(defaultSEOSettings);
+            setInitialSeoSettingsStr(JSON.stringify(defaultSEOSettings));
           }
         }
 
@@ -708,6 +727,8 @@ export default function PageBuilder() {
         }
 
         builder.markClean();
+        setInitialGlobalStylesStr(JSON.stringify(globalStyles));
+        setInitialSeoSettingsStr(JSON.stringify(seoSettings));
         setPageData({ ...pageData, id: newId });
         window.history.replaceState(null, '', `/cms/admin/react-builder/${newId}`);
         setSaveMessage({ type: 'success', text: 'Page created' });
@@ -731,6 +752,8 @@ export default function PageBuilder() {
 
         if (data.ok || data.success) {
           builder.markClean();
+          setInitialGlobalStylesStr(JSON.stringify(globalStyles));
+          setInitialSeoSettingsStr(JSON.stringify(seoSettings));
           setSaveMessage({ type: 'success', text: 'Saved successfully' });
           setTimeout(() => setSaveMessage(null), 3000);
         } else {
@@ -1313,13 +1336,13 @@ export default function PageBuilder() {
             </span>
           )}
 
-          {builder.isDirty && (
+          {(builder.isDirty || hasUnsavedSettings) && (
             <span className="text-[10px] text-amber-400 bg-amber-500/20 px-1.5 py-0.5">
               Unsaved
             </span>
           )}
 
-          {!builder.isDirty && lastAutoSave && (
+          {!builder.isDirty && !hasUnsavedSettings && lastAutoSave && (
             <span className="text-[10px] text-white/40">
               Auto-saved {lastAutoSave.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
@@ -1369,7 +1392,7 @@ export default function PageBuilder() {
           {/* Save */}
           <button
             onClick={handleSave}
-            disabled={saving || !builder.isDirty}
+            disabled={saving || (!builder.isDirty && !hasUnsavedSettings)}
             className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0078d4] text-white hover:bg-[#006cbd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

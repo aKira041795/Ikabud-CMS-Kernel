@@ -13,6 +13,17 @@
 
 {block content}
 <article class="cms-entity-view native-canonical-view {if entity_presentation.root_class}{entity_presentation.root_class}{/if}" data-native-canonical-template="landing">
+    {if entity_view_context.show_header|default:1}
+    <div class="cms-public-shell native-canonical-view__shell">
+        <header class="cms-entity-header native-canonical-view__header">
+            <h1 class="native-canonical-view__title">{entity_view_context.header_title|default:entity.title}</h1>
+            {if entity_view_context.show_meta|default:0}
+            {include "modules/cms/public/blocks/meta.block.disyl"}
+            {/if}
+        </header>
+    </div>
+    {/if}
+
     {if builder_enabled}
     <div class="{builder_page_settings.container_class}">
         {post_html | raw}

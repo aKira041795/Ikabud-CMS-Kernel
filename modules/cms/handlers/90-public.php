@@ -2264,13 +2264,16 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
         : cmsPageBuilderSettings($meta);
 
     $viewSettings = [
-        'show_header' => true,
+        'show_header' => empty($builderSettings['page']['hidePageTitle']),
         'show_meta' => $type !== 'page',
         'show_media' => $type !== 'page',
         'bypass_shell' => $builderEnabled && in_array($type, ['post', 'page'], true),
     ];
     if (is_array($options['entity_view_context'] ?? null)) {
         $viewSettings = array_merge($viewSettings, $options['entity_view_context']);
+    }
+    if (!empty($builderSettings['page']['hidePageTitle'])) {
+        $viewSettings['show_header'] = false;
     }
 
     $entityTaxonomies = is_array($options['entity_taxonomies'] ?? null)
