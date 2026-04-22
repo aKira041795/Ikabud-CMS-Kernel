@@ -410,6 +410,7 @@ export default function PageBuilder() {
         body: JSON.stringify({
           document: builder.document,
           global_styles: pageStyleOverrides,
+          seo_settings: seoSettings,
         }),
       });
 
@@ -424,7 +425,7 @@ export default function PageBuilder() {
     } catch (err) {
       console.error('Auto-save failed:', err);
     }
-  }, [pageData, saving, builder, pageStyleOverrides]);
+  }, [pageData, saving, builder, pageStyleOverrides, globalStyles, seoSettings]);
 
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -562,14 +563,14 @@ export default function PageBuilder() {
   // Auto-save on blur (leaving page)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (builder.isDirty) {
+      if (builder.isDirty || hasUnsavedSettings) {
         e.preventDefault();
         e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
       }
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && builder.isDirty && pageData && !saving) {
+      if (document.visibilityState === 'hidden' && (builder.isDirty || hasUnsavedSettings) && pageData && !saving) {
         handleAutoSave();
       }
     };
@@ -581,7 +582,7 @@ export default function PageBuilder() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [builder.isDirty, pageData, saving, handleAutoSave]);
+  }, [builder.isDirty, hasUnsavedSettings, pageData, saving, handleAutoSave]);
 
   // Run frontend-like interactive scripts in builder canvas after updates.
   useEffect(() => {
@@ -726,6 +727,8 @@ export default function PageBuilder() {
         }
 
         builder.markClean();
+        setInitialGlobalStylesStr(JSON.stringify(globalStyles));
+        setInitialSeoSettingsStr(JSON.stringify(seoSettings));
         setPageData({ ...pageData, id: newId });
         window.history.replaceState(null, '', `/cms/admin/react-builder/${newId}`);
         setSaveMessage({ type: 'success', text: 'Page created' });
@@ -749,6 +752,8 @@ export default function PageBuilder() {
 
         if (data.ok || data.success) {
           builder.markClean();
+          setInitialGlobalStylesStr(JSON.stringify(globalStyles));
+          setInitialSeoSettingsStr(JSON.stringify(seoSettings));
           setSaveMessage({ type: 'success', text: 'Saved successfully' });
           setTimeout(() => setSaveMessage(null), 3000);
         } else {
@@ -1331,13 +1336,13 @@ export default function PageBuilder() {
             </span>
           )}
 
-          {builder.isDirty && (
+          {(builder.isDirty || hasUnsavedSettings) && (
             <span className="text-[10px] text-amber-400 bg-amber-500/20 px-1.5 py-0.5">
               Unsaved
             </span>
           )}
 
-          {!builder.isDirty && lastAutoSave && (
+          {!builder.isDirty && !hasUnsavedSettings && lastAutoSave && (
             <span className="text-[10px] text-white/40">
               Auto-saved {lastAutoSave.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>

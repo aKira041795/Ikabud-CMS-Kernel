@@ -810,9 +810,35 @@ function cmsApiBuilderAutosave(array $params = []): void
 
     $title = trim((string)($input['title'] ?? $content['title'] ?? 'Untitled Page'));
     $actorId = (int)($user['id'] ?? 0);
+    $builderSettings = $input['global_styles'] ?? ($input['builder_page_settings'] ?? $input['builder_settings'] ?? []);
+    if (is_string($builderSettings) && trim($builderSettings) !== '') {
+        $decodedBuilderSettings = json_decode($builderSettings, true);
+        $builderSettings = is_array($decodedBuilderSettings) ? $decodedBuilderSettings : [];
+    }
+    if (!is_array($builderSettings)) {
+        $builderSettings = [];
+    }
+    $builderSettingsJson = json_encode($builderSettings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $seoSettings = $input['seo_settings'] ?? null;
+    if (is_array($seoSettings)) {
+        $seoSettings = json_encode($seoSettings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    } elseif (!is_string($seoSettings)) {
+        $seoSettings = null;
+    }
+    $seoSettings = is_string($seoSettings) && trim($seoSettings) !== '' ? $seoSettings : null;
 
     try {
+        $db = cmsDb();
         $documentId = cmsBuilderPersistDocument($id, $validation['document'], 'draft', $title, $actorId);
+        $metaToSave = [
+            '_builder_enabled' => '1',
+            '_builder_page_settings' => $builderSettingsJson,
+        ];
+        if ($seoSettings !== null) {
+            $metaToSave['_builder_seo_settings'] = $seoSettings;
+        }
+        cmsSaveMeta($db, $id, $metaToSave);
+        cmsCacheInvalidateByTags(array_values(array_unique(array_filter(cmsCacheTagsForContent($content)))));
         cmsBuilderCreateRevision($documentId, $validation['document'], $actorId, 'Autosave');
         cmsBuilderPruneRevisions($documentId);
         echo json_encode(['ok' => true, 'data' => ['document_id' => $documentId, 'saved_at' => date('Y-m-d H:i:s')]]);
