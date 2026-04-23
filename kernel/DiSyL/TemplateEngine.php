@@ -203,6 +203,27 @@ class TemplateEngine
         if ($this->compiledMode && $this->compiledCache !== null) {
             try {
                 $compiled = $this->compiledCache->get($templatePath);
+                
+                $loader = function(string $tmpl) use (&$loader) {
+                    $path = $this->resolveTemplatePath($tmpl);
+                    $c = $this->compiledCache->get($path);
+                    $c->setTemplateLoader($loader);
+                    // Provide consistent filter state to loaded includes
+                    $registry = new \Ikabud\Kernel\DiSyL\v4\FilterRegistry();
+                    foreach ($this->filters as $name => $f) {
+                        $registry->register($name, $f);
+                    }
+                    $c->setFilters($registry);
+                    return $c;
+                };
+                
+                $registry = new \Ikabud\Kernel\DiSyL\v4\FilterRegistry();
+                foreach ($this->filters as $name => $f) {
+                    $registry->register($name, $f);
+                }
+                $compiled->setTemplateLoader($loader);
+                $compiled->setFilters($registry);
+                
                 $ctx_obj = new RenderContext($context);
                 $result = $compiled->executeRaw($ctx_obj);
                 // Handle {extends} chain: child registers blocks, parent reads them
@@ -212,6 +233,8 @@ class TemplateEngine
                     $ctx_obj->setParentTemplate(null); // prevent infinite loop
                     $parentPath = $this->resolveTemplatePath($parentName);
                     $parentCompiled = $this->compiledCache->get($parentPath);
+                    $parentCompiled->setTemplateLoader($loader);
+                    $parentCompiled->setFilters($registry);
                     $result = $parentCompiled->executeRaw($ctx_obj);
                 }
                 if (strlen($result) > self::MAX_OUTPUT_BYTES) {

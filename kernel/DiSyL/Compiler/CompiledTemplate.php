@@ -43,6 +43,14 @@ abstract class CompiledTemplate
     }
     
     /**
+     * Set Filter Registry
+     */
+    public function setFilters(FilterRegistry $filters): void
+    {
+        $this->filters = $filters;
+    }
+    
+    /**
      * Set template loader for includes
      */
     public function setTemplateLoader(callable $loader): void
