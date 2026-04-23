@@ -62,7 +62,8 @@ modules/moodle-integration/
         ├── 001_moodle_integration_schema.sql
         ├── 002_moodle_enrollment_requests.sql
         ├── 003_moodle_hardening_schema.sql
-        └── 004_moodle_provider_capabilities_schema.sql
+        ├── 004_moodle_provider_capabilities_schema.sql
+        └── 005_moodle_idempotency_and_progress_fk.sql
 
 templates/modules/moodle-integration/
 ├── pages/
@@ -107,14 +108,14 @@ templates/modules/moodle-integration/
 ### `moodle_user_progress`
 
 - local progress/grade read model keyed by `tenant_id + user_id + course_id`
-- `course_id` currently references `moodle_courses_cache.id`, not the raw Moodle course id; this keeps the table one step removed from the provider boundary even though the column name is still legacy
-- a follow-up migration should rename this to something explicit like `course_cache_id` or move to `learning_resource_id` as the canonical internal reference
+- `learning_resource_id` (added in migration 005) — FK to `learning_resources.id`; populated on every SyncService write and on inbound webhook events. This is now the canonical internal resource reference for progress rows. `course_id` references `moodle_courses_cache.id` and is kept for backward compatibility; it may be renamed in a future migration
 - stores normalized `progress_percent`, `grade`, `status`, and `last_synced`
 
 ### `moodle_sync_queue`
 
 - module-owned sync ledger and retry state
 - stores `tenant_id`, operation `type`, request `payload_json`, `status`, `retries`, `last_error`, and processing timestamps
+- `idempotency_key VARCHAR(160)` (added in migration 005) — unique per `(tenant_id, idempotency_key)`. `moodleIntegrationQueueTableInsertForTenant` uses `ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)` so callers that pass the same key twice receive the original row ID instead of inserting a duplicate. `EnrollmentController::approveEnrollment()` sets the key to `enroll:{tenantId}:{userId}:{moodleCourseId}`
 - complements the generic `kernel_jobs` queue rather than replacing it
 
 ### `moodle_enrollment_requests`
@@ -160,7 +161,7 @@ Shared-mode isolation is enforced in two places now:
 - Moodle API reads are filtered by the configured tenant category.
 - Local cache/detail lookups also reject courses whose cached category does not match the tenant mapping.
 
-The current generic admin renderer does not support masked secret inputs, so `api_token` and `sso_secret` are stored as regular manifest-backed fields for now.
+`api_token` and `sso_secret` are encrypted at rest using AES-256-GCM via `kernel/Crypto.php`. The helpers `moodleIntegrationEncryptSettingValue()` and `moodleIntegrationDecryptSettingValue()` wrap the kernel `Crypto` class. `postMoodleIntegrationSettings` encrypts these fields before persisting via `saveTenantModuleSettingsForTenant`, and `moodleIntegrationGetSettingsForTenant` transparently decrypts them on read. Existing plaintext values in older tenants are returned as-is (backward compatibility passthrough). If no `APP_ENCRYPTION_KEY` is configured, encryption is fail-open: a warning is logged and the plaintext value is stored.
 
 Outbound rate limiting is manifest-configurable via `max_requests_per_minute` (default `60`) and `burst_limit` (default `20`). `MoodleService` enforces both limits on every outbound call: an in-process burst counter aborts the job if a single sync run exceeds the burst cap, and a DB-backed per-minute window counter (`moodle_rate_limit`) aborts individual calls that exceed the per-minute tenant budget.
 
@@ -265,6 +266,10 @@ Handles:
 
 Pre-flight drift checks are now in place. `handleEnrollmentSync` verifies the enrollment request is still in `approved` or `auto_approved` state before issuing any Moodle API calls or writing progress rows; mismatches are recorded in `moodle_sync_metrics` and logged. `refreshExistingProgressRows` skips any user whose enrollment request has been `rejected`, `revoked`, or `cancelled`. A full course sync also soft-deactivates any `learning_resources` row whose Moodle course ID was not present in the response set, guarding against stale cache entries after courses are removed or recategorised in Moodle.
 
+**Rate-limit degradation**: when the upstream Moodle API returns HTTP 429, `SyncService` throws a typed `THROTTLED:` exception. Both `syncCourses()` and `syncProgress()` catch this exception with `isThrottleException()` and call `delayQueue()` — which resets the queue row to `pending` with `available_at = NOW() + 60 seconds` — rather than marking the job as failed. This means throttled jobs are transparently re-queued without incrementing the retry counter or loss of enrollment intent. Individual progress rows that hit 429 during `refreshExistingProgressRows` are skipped with a warning log so the rest of the batch continues.
+
+**Concurrency guard in `EnrollmentController`**: `approveEnrollment()` opens with an atomic `UPDATE ... WHERE status IN ('pending_review', 'pending_payment', 'auto_approved') → rowCount check`. A second concurrent approval for the same enrollment returns `{ok: true, already_processed: true}` without double-enrolling into Moodle.
+
 ## Controllers and Route Model
 
 The repo routes to handler functions, not directly to controller classes. This module keeps that convention and uses controllers behind the handlers.
@@ -285,6 +290,8 @@ Registered routes:
 - `POST /api/v1/moodle-integration/enroll/{id}`
 - `POST /api/v1/moodle-integration/sync`
 - `POST /api/v1/moodle-integration/sso/validate`
+- `POST /api/v1/moodle-integration/events` — inbound webhook from Moodle (HMAC-SHA256 signed over raw body using `sso_secret`; maps `provider_id` → `learning_resource_id` and upserts progress)
+- `POST /admin/moodle-integration/settings` — admin settings save; encrypts `api_token` and `sso_secret` at rest before persisting
 
 Canonical browser-facing routes are also exposed under `/cms/...`, including `/cms/courses`, `/cms/course/{id}/enroll`, and `/cms/my-courses`.
 
@@ -364,17 +371,29 @@ Lifecycle soft-deactivation is implemented. If a course disappears from the Mood
 
 ## Implemented Hardening Steps
 
-All five items from the original gap analysis have been implemented:
+Original five items from gap analysis:
 
-1. **SSO validation endpoint** — `POST /api/v1/moodle-integration/sso/validate` is live. Moodle-side plugins call it to atomically consume a launch token and receive user + resource context before granting access.
+1. **SSO validation endpoint** — `POST /api/v1/moodle-integration/sso/validate` is live.
 2. **Provider capability registry** — `learning_providers` table with `capabilities_json`; helper surface via `moodleIntegrationProviderSupports()` and `moodleIntegrationGetProviderCapabilities()`.
 3. **Pre-flight drift checks** — enrollment state verified in `handleEnrollmentSync`; revoked/rejected enrollments skipped in `refreshExistingProgressRows`; drift mismatches recorded in metrics.
 4. **Outbound throttling** — `max_requests_per_minute` and `burst_limit` settings enforce two-level backpressure in `MoodleService`; DB-backed via `moodle_rate_limit`.
 5. **Soft-deactivation lifecycle** — courses that disappear from Moodle API responses are automatically marked `inactive` in `learning_resources`; restored to `active` on re-sync.
 
+Second-round hardening (P0/P1/P2/P3):
+
+6. **Queue idempotency** (migration 005) — `idempotency_key` column on `moodle_sync_queue`; `ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)` in `moodleIntegrationQueueTableInsertForTenant`; `EnrollmentController` stamps `enroll:{tenant}:{user}:{course}` key. Double-submit returns the original queue row ID.
+7. **Concurrent approval guard** — `EnrollmentController::approveEnrollment()` uses an atomic UPDATE with row-count check before any Moodle API call; second concurrent approval returns `{already_processed: true}` without a duplicate enrollment.
+8. **Secrets encryption at rest** — `api_token` and `sso_secret` encrypted via `moodleIntegrationEncryptSettingValue()` (AES-256-GCM, kernel Crypto) before persistence; `getSettingsForTenant` transparently decrypts on read. `postMoodleIntegrationSettings` handler encrypts on save.
+9. **`learning_resource_id` canonical in progress** (migration 005) — `moodle_user_progress.learning_resource_id` column added; SyncService populates it on every write path; `upsertUserProgress` signature updated to require it.
+10. **429 rate-limit degradation in SyncService** — `syncCourses`, `handleEnrollmentSync`, and `refreshExistingProgressRows` throw typed `THROTTLED:` exceptions on 429; catch blocks call `delayQueue()` (re-queues with 60 s delay) instead of failing; per-row throttle skip in progress refresh batch.
+11. **Inbound events webhook** — `POST /api/v1/moodle-integration/events` handler with HMAC-SHA256 signature verification, `provider_id → learning_resource_id` resolution, local user lookup by email, and progress upsert.
+12. **Settings save handler** — `POST /admin/moodle-integration/settings` handler with CSRF enforcement, secret field encryption, and manifest-backed persistence via `saveTenantModuleSettingsForTenant`.
+
 ## Remaining Follow-up Items
 
-- Make `learning_resource_id` the canonical internal FK across progress, enrollment, and launch-state lookups, retiring the legacy `course_id` column name in `moodle_user_progress`.
+- Retire the legacy `course_id` column name in `moodle_user_progress` in a follow-up migration (rename to `course_cache_id` or remove once all lookup paths use `learning_resource_id`). Existing FK integrity is preserved in the interim.
+- Wire the `postMoodleIntegrationSettings` redirect to the admin module settings page once the CMS admin renderer supports masked secret inputs.
+- Add catalog-layer metadata (`program`, `level`, `prerequisites`) on `learning_resources` to enable future `[moodle-courses program="..."]` shortcodes without exposing Moodle internal IDs in the URL.
 
 ## Verification Commands
 
