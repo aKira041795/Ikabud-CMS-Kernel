@@ -27,13 +27,13 @@
             <div class="cms-entity-card__body moodle-card__body">
                 <div class="moodle-kicker">Course #{course.moodle_course_id}</div>
                 <h2 class="cms-entity-card__title moodle-card__title">{course.title}</h2>
-                <p class="cms-entity-card__excerpt moodle-card__summary">{course.summary | strip_tags | default:'Course summary unavailable.'}</p>
+                <p class="cms-entity-card__excerpt moodle-card__summary">{course.summary | strip_tags | default:'Course summary unavailable.' | truncate:120}</p>
             </div>
-            <div class="moodle-card__footer">
-                <div class="moodle-card__footer-copy">Open details, then queue enrollment before launching in Moodle.</div>
-                <div class="moodle-actions">
-                    <a href="/cms/courses/{course.moodle_course_id}" class="moodle-button moodle-button--primary">View details</a>
-                    <a href="/cms/course/{course.moodle_course_id}/enroll" class="moodle-button">Enroll</a>
+            <div class="moodle-card__footer" style="flex-direction: column; align-items: stretch; gap: 1rem;">
+                <div class="moodle-card__footer-copy" style="text-align: center;">Open details, then queue enrollment before launching.</div>
+                <div class="moodle-actions" style="margin-top: 0; display: grid; gap: 0.5rem; grid-template-columns: 1fr 1fr;">
+                    <a href="/cms/courses/{course.moodle_course_id}" class="moodle-button moodle-button--primary" style="width: 100%;">View details</a>
+                    <a href="/cms/course/{course.moodle_course_id}/enroll" class="moodle-button" style="width: 100%;">Enroll</a>
                 </div>
             </div>
         </article>

@@ -1931,7 +1931,7 @@ function moodleIntegrationRenderCourseListBlock(array $block = []): string
         'category' => trim((string)($block['category'] ?? '')),
         'category_id' => (int)($block['category_id'] ?? 0),
     ]);
-    return moodleIntegrationRender('blocks/course-list.disyl', [
+    return moodleIntegrationRenderStyledBlock('blocks/course-list.disyl', [
         'block_title' => trim((string)($block['title'] ?? 'Available Courses')),
         'courses' => $courses,
     ]);
@@ -1945,7 +1945,7 @@ function moodleIntegrationRenderCourseDetailBlock(array $block = []): string
         $course = moodleIntegrationCachedCourseByMoodleId($courseId);
     }
 
-    return moodleIntegrationRender('blocks/course-detail.disyl', [
+    return moodleIntegrationRenderStyledBlock('blocks/course-detail.disyl', [
         'course' => $course,
     ]);
 }
