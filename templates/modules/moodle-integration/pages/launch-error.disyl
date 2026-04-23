@@ -1,0 +1,15 @@
+{theme_styles | raw}
+<section class="moodle-page moodle-page--launch-error">
+    <div class="moodle-panel moodle-panel--warning">
+        <div class="moodle-panel__body">
+            <div class="moodle-page__eyebrow">Launch unavailable</div>
+            <p class="moodle-page__lead">The Moodle launch URL could not be generated. Verify the Moodle base URL, shared SSO secret, and the Moodle-side `local/applicationos/sso.php` endpoint.</p>
+            {if course}
+            <div class="moodle-stat">Course: {course.title}</div>
+            {/if}
+            <div class="moodle-actions">
+                <a href="/cms/courses" class="moodle-button">Back to courses</a>
+            </div>
+        </div>
+    </div>
+</section>

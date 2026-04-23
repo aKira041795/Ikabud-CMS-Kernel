@@ -1,0 +1,267 @@
+<section class="moodle-panel moodle-dashboard">
+    <div class="moodle-panel__body">
+    <div class="moodle-dashboard__header">
+        <div>
+            <div class="moodle-kicker">Learning</div>
+            <h3 class="moodle-panel__title">{block_title}</h3>
+            <p class="moodle-page__lead">This dashboard shows where each course sits in the learner flow: waiting for review, approved and ready to launch, or already in progress.</p>
+        </div>
+        {if is_authenticated}
+        <div class="moodle-page__meta">
+            <span class="moodle-page__pill">{course_count} course{if course_count != 1}s{/if}</span>
+            <span class="moodle-page__pill">{average_progress}% average progress</span>
+            {if pending_review_count > 0}<span class="moodle-page__pill">{pending_review_count} pending review</span>{/if}
+        </div>
+        {/if}
+    </div>
+    <div class="moodle-dashboard__grid">
+    <div class="moodle-dashboard__main">
+    {if is_authenticated}
+    <div class="moodle-auth-card">
+        <div class="moodle-auth-card__content">
+            <div class="moodle-kicker">Signed In</div>
+            <h4 class="moodle-panel__title">Welcome back, {authenticated_user_name | default:'Learner'}.</h4>
+            <p class="moodle-page__lead">{if authenticated_user_email}You are signed in as {authenticated_user_email}. {/if}Your learning dashboard is personalized for this account and stays separate from storefront traffic.</p>
+        </div>
+        <div class="moodle-auth-card__actions">
+            <div class="moodle-summary-grid">
+                <div class="moodle-summary-card">
+                    <div class="moodle-summary-card__label">Active</div>
+                    <div class="moodle-summary-card__value">{active_count}</div>
+                    <div class="moodle-summary-card__note">Courses currently moving</div>
+                </div>
+                <div class="moodle-summary-card">
+                    <div class="moodle-summary-card__label">Completed</div>
+                    <div class="moodle-summary-card__value">{completed_count}</div>
+                    <div class="moodle-summary-card__note">Finished learning paths</div>
+                </div>
+            </div>
+            <a href="{logout_url}" class="moodle-button">Logout</a>
+        </div>
+    </div>
+    {/if}
+    {if is_authenticated and show_queued_notice}
+    <div class="moodle-status-banner"
+         data-moodle-status-widget
+         data-status-url="{queued_status_url}">
+        <div class="moodle-kicker">Enrollment Sync</div>
+        <div class="moodle-panel__title" data-moodle-status-title>
+            Review status for {queued_course.title | default:'your selected course'}.
+        </div>
+        <div class="moodle-page__lead" data-moodle-status-message>
+            This dashboard updates as the request moves from review into Moodle access.
+        </div>
+        <div class="moodle-status-banner__actions" data-moodle-status-actions hidden>
+            <a href="{queued_launch_url}" class="moodle-button moodle-button--primary" data-moodle-launch-link>Launch in Moodle</a>
+        </div>
+    </div>
+    {/if}
+    {if not is_authenticated}
+    <div class="moodle-empty moodle-empty--soft">
+        <div class="moodle-kicker">Learner Access</div>
+        <h4 class="moodle-panel__title">Sign in to load your personalized learning center.</h4>
+        <p class="moodle-page__lead">This page shows enrolled courses, queued Moodle sync state, and learner-specific progress once the CMS session is active.</p>
+        <div class="moodle-actions">
+            <a href="{login_url}" class="moodle-button moodle-button--primary">Sign in</a>
+        </div>
+    </div>
+    {elseif courses | count > 0 or enrollment_requests | count > 0}
+    {if courses | count > 0}
+    <div class="moodle-course-stack">
+        {foreach courses as course}
+        <article class="moodle-course-row {if queued_course_id > 0 and course.moodle_course_id == queued_course_id}moodle-course-row--accent{/if}">
+            <div class="moodle-course-row__main">
+                <div class="moodle-course-row__top">
+                    <h4 class="moodle-course-row__title">{course.title | default:'Untitled Course'}</h4>
+                    <span class="moodle-badge {if course.status == 'completed'}moodle-badge--success{elseif course.progress_percent | default:0 > 0}moodle-badge--progress{else}moodle-badge--idle{/if}">{course.status | default:'not_started'}</span>
+                </div>
+                <div class="moodle-course-row__meta">
+                    <span>Course #{course.moodle_course_id | default:course.course_id}</span>
+                    <span>Last synced: {course.last_synced | default:'Pending sync'}</span>
+                </div>
+                <div class="moodle-progress-bar" aria-label="Course progress">
+                    <span class="moodle-progress-bar__value" style="width:{course.progress_percent | default:0}%;"></span>
+                </div>
+            </div>
+            <div class="moodle-course-row__aside">
+                <div class="moodle-course-row__percent">{course.progress_percent | default:0}%</div>
+                <a href="/cms/course/{course.moodle_course_id}/launch" class="moodle-button">Launch</a>
+            </div>
+        </article>
+        {/foreach}
+    </div>
+    {/if}
+    {if enrollment_requests | count > 0}
+    <div class="moodle-course-stack">
+        {foreach enrollment_requests as request}
+        <article class="moodle-course-row">
+            <div class="moodle-course-row__main">
+                <div class="moodle-course-row__top">
+                    <h4 class="moodle-course-row__title">{request.course_title | default:'Course request'}</h4>
+                    <span class="moodle-badge {if request.status == 'pending_review'}moodle-badge--progress{elseif request.status == 'rejected' or request.status == 'revoked'}moodle-badge--idle{else}moodle-badge--success{/if}">{request.status}</span>
+                </div>
+                <div class="moodle-course-row__meta">
+                    <span>Course #{request.moodle_course_id}</span>
+                    <span>{if request.status == 'pending_review'}Awaiting review{elseif request.status == 'rejected'}Needs correction{elseif request.status == 'revoked'}Access revoked{else}Reviewed{/if}</span>
+                </div>
+                <div class="moodle-page__lead">{if request.review_notes}{request.review_notes}{elseif request.status == 'pending_review'}Your request is waiting for an admin to verify TESDA eligibility requirements.{elseif request.status == 'rejected'}This request was not approved. Review your requirements and submit again when ready.{else}This request no longer has active Moodle access.{/if}</div>
+            </div>
+            <div class="moodle-course-row__aside">
+                <div class="moodle-course-row__percent">{if request.status == 'pending_review'}Review{elseif request.status == 'rejected'}Rejected{else}Closed{/if}</div>
+                <a href="{base_url}/cms/course/{request.moodle_course_id}/enroll" class="moodle-button">Open request</a>
+            </div>
+        </article>
+        {/foreach}
+    </div>
+    {/if}
+    {else}
+    <div class="moodle-empty moodle-empty--soft">
+        {if show_queued_notice}
+        Your enrollment request is active. This page will update after review and Moodle access sync complete.
+        {else}
+        No approved courses yet.
+        {/if}
+    </div>
+    {/if}
+    </div>
+    <aside class="moodle-dashboard__rail">
+        <div class="moodle-rail-card">
+            <h4 class="moodle-rail-card__title">How My Learning works</h4>
+            <p class="moodle-rail-card__copy">Use this page as your learner checkpoint. It tells you whether a course is waiting for manual review, already approved for launch, or reporting progress back from Moodle.</p>
+            <div class="moodle-step-list">
+                <div class="moodle-step-item">
+                    <div class="moodle-step-item__index">1</div>
+                    <div>
+                        <div class="moodle-step-item__title">Choose a course</div>
+                        <div class="moodle-step-item__copy">Start from the Learning Center and submit an enrollment request for the course you want to take.</div>
+                    </div>
+                </div>
+                <div class="moodle-step-item">
+                    <div class="moodle-step-item__index">2</div>
+                    <div>
+                        <div class="moodle-step-item__title">Wait for review</div>
+                        <div class="moodle-step-item__copy">Enrollment requests land here first, then an admin verifies TESDA eligibility before Moodle access is granted.</div>
+                    </div>
+                </div>
+                <div class="moodle-step-item">
+                    <div class="moodle-step-item__index">3</div>
+                    <div>
+                        <div class="moodle-step-item__title">Launch and continue</div>
+                        <div class="moodle-step-item__copy">Once a course is approved and ready, use the launch action here to jump straight into Moodle with the learner account already mapped.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="moodle-rail-card">
+            <h4 class="moodle-rail-card__title">Current focus</h4>
+            <p class="moodle-rail-card__copy">
+                {if current_flow_state == 'awaiting_review'}One or more course requests are waiting for eligibility review before Moodle access can be granted.{elseif current_flow_state == 'waiting_for_sync'}An approved request is currently being provisioned into Moodle. Keep this page open or refresh shortly to watch it change to ready.{elseif current_flow_state == 'ready_to_learn'}Your learner account is active and this dashboard is ready for launches and progress tracking.{elseif current_flow_state == 'choose_next_course'}You are signed in and ready to choose your next course from the Learning Center.{else}Sign in to load your learner-specific courses, statuses, and launch actions.{/if}
+            </p>
+            <div class="moodle-quick-links">
+                <a href="{learning_center_url}" class="moodle-button">Open Learning Center</a>
+                {if is_authenticated}
+                <a href="{logout_url}" class="moodle-button">Logout</a>
+                {/if}
+            </div>
+        </div>
+    </aside>
+    </div>
+</div>
+</section>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const widget = document.querySelector('[data-moodle-status-widget]');
+    if (!widget) {
+        return;
+    }
+
+    const statusUrl = widget.getAttribute('data-status-url');
+    const title = widget.querySelector('[data-moodle-status-title]');
+    const message = widget.querySelector('[data-moodle-status-message]');
+    const actions = widget.querySelector('[data-moodle-status-actions]');
+    const launchLink = widget.querySelector('[data-moodle-launch-link]');
+    if (!statusUrl) {
+        return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 24;
+
+    const applyState = function (payload) {
+        const state = String(payload.state || 'queued');
+        if (title && payload.course_title) {
+            if (state === 'ready') {
+                title.textContent = payload.course_title + ' is ready to launch.';
+            } else if (state === 'pending_review') {
+                title.textContent = payload.course_title + ' is waiting for review.';
+            } else if (state === 'rejected') {
+                title.textContent = payload.course_title + ' was not approved.';
+            } else if (state === 'revoked') {
+                title.textContent = payload.course_title + ' access was revoked.';
+            } else if (state === 'failed') {
+                title.textContent = 'Enrollment sync needs attention.';
+            } else if (state === 'syncing') {
+                title.textContent = payload.course_title + ' is syncing into Moodle.';
+            } else {
+                title.textContent = 'Request submitted for ' + payload.course_title + '.';
+            }
+        }
+
+        if (message && payload.message) {
+            message.textContent = payload.message;
+        }
+
+        if (actions && launchLink) {
+            if (payload.ready_to_launch) {
+                actions.hidden = false;
+                if (payload.launch_url) {
+                    launchLink.setAttribute('href', payload.launch_url);
+                }
+            } else {
+                actions.hidden = true;
+            }
+        }
+
+        if (state === 'ready') {
+            widget.classList.remove('moodle-status-banner--failed');
+            widget.classList.add('moodle-status-banner--ready');
+        } else if (state === 'failed') {
+            widget.classList.remove('moodle-status-banner--ready');
+            widget.classList.add('moodle-status-banner--failed');
+        }
+    };
+
+    const poll = async function () {
+        attempts += 1;
+        try {
+            const response = await fetch(statusUrl, {
+                headers: {Accept: 'application/json'},
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error('Status check failed.');
+            }
+            const payload = await response.json();
+            if (!payload.ok) {
+                throw new Error(payload.error || 'Status check failed.');
+            }
+
+            applyState(payload);
+
+            if (payload.state === 'ready' || payload.state === 'failed' || payload.state === 'rejected' || payload.state === 'revoked') {
+                return;
+            }
+        } catch (error) {
+            if (message) {
+                message.textContent = error instanceof Error ? error.message : 'Status check failed.';
+            }
+        }
+
+        if (attempts < maxAttempts) {
+            window.setTimeout(poll, 5000);
+        }
+    };
+
+    window.setTimeout(poll, 1500);
+});
+</script>

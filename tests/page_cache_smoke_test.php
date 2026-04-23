@@ -125,6 +125,7 @@ t('Compare is NOT cacheable', !pageCacheShouldCache('/ecommerce/compare'));
 t('API is NOT cacheable', !pageCacheShouldCache('/api/v1/ecommerce/products'));
 t('CMS admin is NOT cacheable', !pageCacheShouldCache('/cms/admin'));
 t('CMS login is NOT cacheable', !pageCacheShouldCache('/cms/login'));
+t('CMS register is NOT cacheable', !pageCacheShouldCache('/cms/register'));
 t('EC admin is NOT cacheable', !pageCacheShouldCache('/ecommerce/admin'));
 t('Superadmin is NOT cacheable', !pageCacheShouldCache('/superadmin/settings'));
 t('Login is NOT cacheable', !pageCacheShouldCache('/login'));

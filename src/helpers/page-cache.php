@@ -51,6 +51,7 @@ define('PAGE_CACHE_SKIP_PREFIXES', [
     '/ecommerce/admin',
     '/ecommerce/store-admin',
     '/cms/login',
+    '/cms/register',
     '/cms/admin',
     '/cms/auth',
 ]);

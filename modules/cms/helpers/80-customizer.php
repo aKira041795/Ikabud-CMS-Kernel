@@ -3792,7 +3792,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         // Hide the old 768px rule effects by showing them at the configured breakpoint instead
         $mobileCSS .= '@media(min-width:769px) and (max-width:' . $breakpoint . 'px){';
         $mobileCSS .= '.mobile-menu-toggle{display:flex!important;}';
-        $mobileCSS .= '.main-navigation{' . ($mobileStyle === 'canvas' ? 'display:block;' : 'position:absolute;top:100%;left:0;right:0;display:none;') . '}';
+        $mobileCSS .= '.main-navigation{' . ($mobileStyle === 'canvas' ? 'display:none!important;' : 'position:absolute;top:100%;left:0;right:0;display:none;') . '}';
         $mobileCSS .= '.main-navigation .nav-menu{flex-direction:column;gap:0;padding:1rem;}';
         $mobileCSS .= '.main-navigation .nav-menu a{padding:0.75rem 0;border-bottom:1px solid var(--header-border,var(--color-border));color:var(--header-mobile-text,var(--header-link,var(--color-text)));}';
         $mobileCSS .= '}';
@@ -3831,6 +3831,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
 
     $mobileCSS .= '@media(max-width:' . $breakpoint . 'px){';
     $mobileCSS .= '.site-tagline{display:none;}';
+    $mobileCSS .= '.header-wrapper--sticky,.site-header.site-header--sticky{position:relative!important;top:auto!important;}';
     $mobileCSS .= '.main-navigation .nav-menu-sub{position:static;top:auto;left:auto;min-width:0;width:100%;opacity:1;visibility:visible;transform:none;';
     $mobileCSS .= 'display:block;margin:0;padding:0 0 0.5rem 0.75rem;border:none;border-radius:0;box-shadow:none;background:transparent;}';
     $mobileCSS .= '.main-navigation .nav-menu-sub a{white-space:normal;}';
@@ -4091,27 +4092,14 @@ function cmsRenderSingleHeaderWidget(array $widget, object $db, array $cmsSettin
 
 // Register CMS home URL for CMS roles
 app()->hooks()->on('kernel.home_url', function (?string $url, string $role, ?array $user = null) {
-    $userId = (int)($user['id'] ?? 0);
     $isCmsAdmin = $role !== ''
         && function_exists('cmsRoleAtLeast')
-        && cmsRoleAtLeast($role, 'administrator');
+        && cmsRoleAtLeast($role, 'contributor');
 
-    if (!$isCmsAdmin && $userId > 0 && function_exists('ecStoreHomePathForUser')) {
-        $storeHome = ecStoreHomePathForUser($userId);
-        if (is_string($storeHome) && $storeHome !== '') {
-            return $storeHome;
-        }
-    }
-
-    // Ecommerce customers get sent to their order dashboard, not the CMS admin.
-    if ($role === 'customer') {
-        return '/ecommerce/my-orders';
-    }
-
-    // All other CMS roles get redirected to CMS admin dashboard
-    if (isset(CMS_ROLES[$role])) {
+    if ($isCmsAdmin && isset(CMS_ROLES[$role])) {
         return '/cms/admin';
     }
+
     return $url;
 }, 50);
 

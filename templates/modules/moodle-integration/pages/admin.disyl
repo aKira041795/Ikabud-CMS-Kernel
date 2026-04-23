@@ -1,0 +1,181 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Moodle Integration</h2>
+            <p class="mt-1 text-sm text-gray-500">Cached course discovery, eligibility review, and Moodle launch handoff.</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
+            {if is_configured}
+            <span class="font-semibold text-emerald-700">Configured</span>
+            {else}
+            <span class="font-semibold text-amber-700">Inactive</span>
+            {/if}
+            <div class="mt-1">Sync interval: {settings.sync_interval | default:'hourly'}</div>
+        </div>
+    </div>
+
+    {if admin_notice}
+    <div class="rounded-xl border px-4 py-3 text-sm {if admin_notice.type == 'success'}border-emerald-200 bg-emerald-50 text-emerald-900{elseif admin_notice.type == 'warning'}border-amber-200 bg-amber-50 text-amber-900{else}border-rose-200 bg-rose-50 text-rose-900{/if}">
+        {admin_notice.message}
+    </div>
+    {/if}
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Pending Review</div>
+            <div class="mt-2 text-3xl font-bold text-amber-600">{request_status.pending_review | default:0}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Approved</div>
+            <div class="mt-2 text-3xl font-bold text-emerald-600">{request_status.approved | default:0}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Rejected</div>
+            <div class="mt-2 text-3xl font-bold text-rose-600">{request_status.rejected | default:0}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Revoked</div>
+            <div class="mt-2 text-3xl font-bold text-gray-700">{request_status.revoked | default:0}</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div class="border-b border-gray-200 px-5 py-3">
+                <h3 class="text-sm font-semibold text-gray-700">Pending Enrollment Review</h3>
+            </div>
+            {if pending_requests | count > 0}
+            <div class="divide-y divide-gray-100">
+                {foreach pending_requests as request}
+                <div class="px-5 py-4 space-y-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <div class="font-semibold text-gray-900">{request.course_title | default:'Course request'}</div>
+                            <div class="mt-1 text-xs text-gray-500">Learner: {request.learner_name} {if request.learner_email}&middot; {request.learner_email}{/if}</div>
+                            <div class="mt-1 text-xs text-gray-500">Requested: {request.requested_at | default:''}</div>
+                        </div>
+                        <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Pending review</span>
+                    </div>
+                    <form method="post" action="{base_url}/admin/moodle-integration/requests/{request.id}/decision" class="space-y-3">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <input type="text" name="review_notes" value="{request.review_notes}" placeholder="Review notes or rejection reason" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                        <div class="flex flex-wrap gap-2">
+                            <button type="submit" name="decision" value="approved" class="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">Approve</button>
+                            <button type="submit" name="decision" value="rejected" class="inline-flex items-center rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700">Reject</button>
+                        </div>
+                    </form>
+                </div>
+                {/foreach}
+            </div>
+            {else}
+            <div class="px-6 py-12 text-center text-sm text-gray-500">No enrollment requests are waiting for review.</div>
+            {/if}
+        </div>
+
+        <div class="space-y-6">
+            <div class="rounded-xl border border-gray-200 bg-white p-5">
+                <h3 class="text-sm font-semibold text-gray-700">Review Snapshot</h3>
+                <dl class="mt-4 space-y-3 text-sm text-gray-600">
+                    <div>
+                        <dt class="font-medium text-gray-800">Cached Courses</dt>
+                        <dd>{recent_courses | count}</dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-800">Pending Sync Jobs</dt>
+                        <dd>{queue_status.pending | default:0}</dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-800">Failed Sync Jobs</dt>
+                        <dd>{queue_status.failed | default:0}</dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-800">Moodle URL</dt>
+                        <dd>{settings.moodle_url | default:'Not set'}</dd>
+                    </div>
+                </dl>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-5">
+                <h3 class="text-sm font-semibold text-gray-700">Operator Notes</h3>
+                <ul class="mt-3 space-y-2 text-sm text-gray-600">
+                    <li>Use the standard module settings UI to save `moodle_url`, `api_token`, and `sso_secret`.</li>
+                    <li>Learners submit requests first; only approved requests trigger Moodle enrollment.</li>
+                    <li>Use revoke when a learner is later found ineligible after manual review.</li>
+                </ul>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <div class="border-b border-gray-200 px-5 py-3">
+                    <h3 class="text-sm font-semibold text-gray-700">Recent Reviewed Requests</h3>
+                </div>
+                {if recent_reviewed_requests | count > 0}
+                <div class="divide-y divide-gray-100">
+                    {foreach recent_reviewed_requests as request}
+                    <div class="px-5 py-4 space-y-3">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="font-semibold text-gray-900">{request.course_title | default:'Course request'}</div>
+                                <div class="mt-1 text-xs text-gray-500">{request.learner_name} {if request.learner_email}&middot; {request.learner_email}{/if}</div>
+                                <div class="mt-1 text-xs text-gray-500">Status: {request.status}{if request.reviewer_name} &middot; Reviewer: {request.reviewer_name}{/if}</div>
+                                {if request.review_notes}<div class="mt-2 text-sm text-gray-600">{request.review_notes}</div>{/if}
+                            </div>
+                            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {if request.status == 'approved'}bg-emerald-50 text-emerald-700{elseif request.status == 'rejected'}bg-rose-50 text-rose-700{else}bg-gray-100 text-gray-700{/if}">{request.status}</span>
+                        </div>
+                        {if request.status == 'approved'}
+                        <form method="post" action="{base_url}/admin/moodle-integration/requests/{request.id}/decision" class="space-y-3">
+                            <input type="hidden" name="_token" value="{csrf_token}">
+                            <input type="text" name="review_notes" value="{request.review_notes}" placeholder="Reason for revoking access" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                            <button type="submit" name="decision" value="revoked" class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Revoke Access</button>
+                        </form>
+                        {/if}
+                    </div>
+                    {/foreach}
+                </div>
+                {else}
+                <div class="px-6 py-12 text-center text-sm text-gray-500">No reviewed requests yet.</div>
+                {/if}
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-5">
+                <h3 class="text-sm font-semibold text-gray-700">CMS Pages</h3>
+                <div class="mt-4 space-y-3">
+                    {foreach managed_pages as page}
+                    <div class="rounded-lg border border-gray-100 px-4 py-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-medium text-gray-900">{page.title}</div>
+                                <div class="mt-1 text-xs text-gray-500">/cms/page/{page.slug}</div>
+                                <div class="mt-2 text-sm text-gray-600">{page.description}</div>
+                            </div>
+                            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {if page.exists}bg-emerald-50 text-emerald-700{else}bg-amber-50 text-amber-700{/if}">{if page.exists}Ready{else}Missing{/if}</span>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <a href="{base_url}{page.view_url}" class="inline-flex items-center rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 hover:bg-sky-100">View</a>
+                            {if page.edit_url}
+                            <a href="{base_url}{page.edit_url}" class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">Edit</a>
+                            {/if}
+                        </div>
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-5">
+                <h3 class="text-sm font-semibold text-gray-700">Shortcodes</h3>
+                <div class="mt-4 space-y-3">
+                    {foreach shortcodes as item}
+                    <div class="rounded-lg border border-gray-100 px-4 py-3">
+                        <div class="font-medium text-gray-900">{item.label}</div>
+                        <div class="mt-1 text-sm text-gray-600">{item.description}</div>
+                        <input type="text" readonly value="{item.shortcode}" class="mt-3 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-700">
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}

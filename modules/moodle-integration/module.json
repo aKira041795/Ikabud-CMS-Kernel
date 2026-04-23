@@ -1,0 +1,136 @@
+{
+    "id": "moodle-integration",
+    "name": "Moodle Integration",
+    "version": "1.0.0",
+    "description": "Optional Moodle LMS integration for cached course discovery, enrollment handoff, SSO launch, and tenant-safe sync.",
+    "author": "GitHub Copilot",
+    "owns_tables": [
+        "moodle_courses_cache",
+        "moodle_user_progress",
+        "moodle_sync_queue",
+        "moodle_enrollment_requests"
+    ],
+    "reads_tables": [
+        "users",
+        "cms_users",
+        "cms_user_services",
+        "tenant_module_settings",
+        "audit_logs"
+    ],
+    "migrations": [
+        "database/migrations/001_moodle_integration_schema.sql",
+        "database/migrations/002_moodle_enrollment_requests.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": [
+            "kernel.auth.user@1",
+            "kernel.audit.record@1"
+        ]
+    },
+    "hooks": [
+        "cms.admin.nav_items",
+        "cms.editor.block_types",
+        "cms.builder.renderers",
+        "cms.public.render_content"
+    ],
+    "settings_fields": [
+        {
+            "key": "moodle_url",
+            "type": "text",
+            "default": "",
+            "label": "Moodle Base URL",
+            "placeholder": "https://lms.example.com",
+            "help": "Base URL of the external Moodle instance. Leave blank to keep the integration inactive."
+        },
+        {
+            "key": "api_token",
+            "type": "text",
+            "default": "",
+            "label": "Moodle API Token",
+            "placeholder": "ws-token",
+            "help": "Web Services token used for Moodle REST API calls."
+        },
+        {
+            "key": "sso_secret",
+            "type": "text",
+            "default": "",
+            "label": "SSO Shared Secret",
+            "placeholder": "shared-secret",
+            "help": "Shared secret used to sign Moodle launch payloads."
+        },
+        {
+            "key": "tenant_mode",
+            "type": "select",
+            "default": "per_instance",
+            "label": "Tenant Mode",
+            "options": [
+                {
+                    "value": "per_instance",
+                    "label": "Per-tenant Moodle instance"
+                },
+                {
+                    "value": "shared",
+                    "label": "Shared Moodle instance"
+                }
+            ],
+            "help": "Choose whether each tenant targets its own Moodle base URL or shares a common Moodle instance."
+        },
+        {
+            "key": "sync_interval",
+            "type": "select",
+            "default": "hourly",
+            "label": "Sync Interval",
+            "options": [
+                {
+                    "value": "every_15_minutes",
+                    "label": "Every 15 minutes"
+                },
+                {
+                    "value": "hourly",
+                    "label": "Hourly"
+                },
+                {
+                    "value": "daily",
+                    "label": "Daily"
+                }
+            ],
+            "help": "Used by the scheduled sync jobs and the diagnostics UI."
+        },
+        {
+            "key": "shared_category_map_json",
+            "type": "text",
+            "default": "",
+            "label": "Shared Category Mapping",
+            "placeholder": "{\"tenant-1\": 42}",
+            "help": "Optional JSON map of tenant identifiers to Moodle category IDs when tenant mode is shared."
+        }
+    ],
+    "nav": [
+        {
+            "label": "Moodle",
+            "url": "/admin/moodle-integration",
+            "icon": "book-open",
+            "roles": [
+                "admin"
+            ]
+        }
+    ],
+    "schedules": [
+        {
+            "frequency": "every_15_minutes",
+            "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
+            "queue": "moodle"
+        },
+        {
+            "frequency": "hourly",
+            "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
+            "queue": "moodle"
+        },
+        {
+            "frequency": "daily",
+            "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
+            "queue": "moodle"
+        }
+    ]
+}

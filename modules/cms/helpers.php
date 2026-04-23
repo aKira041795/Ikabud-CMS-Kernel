@@ -6,6 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/helpers/00-bootstrap.php';
 require_once __DIR__ . '/helpers/05-permissions.php';
 require_once __DIR__ . '/helpers/10-core.php';
+require_once __DIR__ . '/helpers/12-user-services.php';
 require_once __DIR__ . '/helpers/20-seo-public.php';
 require_once __DIR__ . '/helpers/15-utils.php';
 require_once __DIR__ . '/helpers/86-ai-search-grounding.php';

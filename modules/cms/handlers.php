@@ -6,6 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/handlers/00-bootstrap.php';
 require_once __DIR__ . '/handlers/10-auth.php';
 require_once __DIR__ . '/handlers/11-auth-reset.php';
+require_once __DIR__ . '/handlers/12-auth-register.php';
 require_once __DIR__ . '/handlers/15-admin.php';
 require_once __DIR__ . '/handlers/20-admin-builder.php';
 require_once __DIR__ . '/handlers/20-api-builder.php';

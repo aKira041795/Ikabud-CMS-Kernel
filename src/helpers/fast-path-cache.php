@@ -49,6 +49,7 @@ declare(strict_types=1);
         '/ecommerce/admin',
         '/ecommerce/store-admin',
         '/cms/login',
+        '/cms/register',
         '/cms/admin',
         '/cms/auth',
         '/assets/',

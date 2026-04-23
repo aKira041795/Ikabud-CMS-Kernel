@@ -33,7 +33,8 @@ define('CMS_ROLES', [
 ]);
 
 app()->hooks()->on('kernel.request.before_dispatch', static function (array $context): array {
-    if (kernelRequestDispatchPath($context) !== '/cms/login') {
+    $dispatchPath = kernelRequestDispatchPath($context);
+    if ($dispatchPath !== '/cms/login' && $dispatchPath !== '/cms/register') {
         return $context;
     }
 

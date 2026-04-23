@@ -213,6 +213,8 @@ function _cmsInstallAvailableModule(string $moduleId, ?int $tenantId = null): ar
         _cmsRunModuleMigrations($moduleId, $manifest, $moduleDir, $effectiveTenantId);
     }
 
+    _cmsInvokeModuleSetup($moduleId, 'install', $effectiveTenantId);
+
     kernelFlushCodeCaches();
 
     return [
@@ -726,6 +728,7 @@ function cmsApiModuleUpload(array $params = []): void
         _cmsDeleteDirRecursive($extractDir);
         enableModule($moduleId);
         _cmsRegisterSubModule($moduleId);
+        _cmsInvokeModuleSetup($moduleId, 'install', $currentTenantId);
         _cmsAuditInstaller('module.upload', 'module', $moduleId, 'success', 'Module adopted from shared disk (cross-tenant).', [
             'module_name' => (string)($meta['name'] ?? $moduleId),
             'upgraded'    => false,
@@ -783,6 +786,8 @@ function cmsApiModuleUpload(array $params = []): void
 
     // Run migrations if module declares them
     _cmsRunModuleMigrations($moduleId, $meta, $destDir);
+
+    _cmsInvokeModuleSetup($moduleId, 'install', $currentTenantId);
 
     // Flush code caches so the new module is picked up immediately
     kernelFlushCodeCaches();
@@ -934,6 +939,7 @@ function cmsApiModuleToggle(array $params = []): void
 
     if ($enable) {
         enableModule($moduleId);
+        _cmsInvokeModuleSetup($moduleId, 'enable');
     } else {
         disableModule($moduleId);
     }
@@ -1200,6 +1206,59 @@ function _cmsCopyDirRecursive(string $src, string $dst): void
         } else {
             @copy($item->getPathname(), $target);
         }
+    }
+}
+
+function _cmsModuleSetupFunctionName(string $moduleId): string
+{
+    $parts = preg_split('/[^a-zA-Z0-9]+/', strtolower($moduleId)) ?: [];
+    $first = array_shift($parts) ?: 'module';
+    $name = $first;
+    foreach ($parts as $part) {
+        $name .= ucfirst($part);
+    }
+
+    return $name . 'RunCmsInstallSetup';
+}
+
+function _cmsInvokeModuleSetup(string $moduleId, string $reason, ?int $tenantId = null): array
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '') {
+        return [];
+    }
+
+    $modules = discoverModules();
+    $manifest = $modules[$moduleId] ?? null;
+    if (!is_array($manifest)) {
+        return [];
+    }
+
+    $modulePath = (string)($manifest['_path'] ?? '');
+    if ($modulePath !== '' && is_file($modulePath . '/helpers.php')) {
+        require_once $modulePath . '/helpers.php';
+    }
+
+    $setupFunction = _cmsModuleSetupFunctionName($moduleId);
+    if (!function_exists($setupFunction)) {
+        return [];
+    }
+
+    try {
+        $result = $setupFunction([
+            'module_id' => $moduleId,
+            'reason' => $reason,
+            'tenant_id' => $tenantId,
+        ]);
+        return is_array($result) ? $result : [];
+    } catch (\Throwable $e) {
+        write_log('CMS module setup hook failed', 'warning', [
+            'module_id' => $moduleId,
+            'reason' => $reason,
+            'tenant_id' => $tenantId,
+            'error' => $e->getMessage(),
+        ]);
+        return [];
     }
 }
 

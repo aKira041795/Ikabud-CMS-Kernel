@@ -79,6 +79,43 @@ function ecCmsSchemaReady(): bool
         && ecTableExists('cms_content_types');
 }
 
+function ecResolveUserServiceContext(array $user): ?array
+{
+    $userId = (int)($user['id'] ?? 0);
+    if ($userId <= 0) {
+        return null;
+    }
+
+    $primaryService = function_exists('cmsDetectPrimaryUserService') ? cmsDetectPrimaryUserService($userId) : null;
+    if ($primaryService !== null && !in_array($primaryService, ['ecommerce', 'ecommerce-store'], true)) {
+        return null;
+    }
+
+    if (function_exists('ecStoreHomePathForUser')) {
+        $storeHome = ecStoreHomePathForUser($userId);
+        if (is_string($storeHome) && $storeHome !== '') {
+            return [
+                'service' => 'ecommerce-store',
+                'url' => $storeHome,
+                'label' => 'Store Admin',
+                'source' => $primaryService !== null ? 'binding' : 'store_membership',
+            ];
+        }
+    }
+
+    $role = trim((string)($user['role'] ?? ''));
+    if ($primaryService === 'ecommerce' || $role === 'customer') {
+        return [
+            'service' => 'ecommerce',
+            'url' => '/ecommerce/my-orders',
+            'label' => 'My Orders',
+            'source' => $primaryService !== null ? 'binding' : 'role',
+        ];
+    }
+
+    return null;
+}
+
 function ecIsPublicTemplate(string $template): bool
 {
     return str_starts_with($template, 'modules/ecommerce/public/') || $template === 'pages/404.disyl';
@@ -149,6 +186,14 @@ function ecPublicThemeTemplateCandidates(string $template, array $context = []):
 
     return array_values(array_unique(array_merge($themeCandidates, [$template])));
 }
+
+app()->hooks()->on('kernel.user_service_context', static function (?array $context, array $user): ?array {
+    if (is_array($context)) {
+        return $context;
+    }
+
+    return ecResolveUserServiceContext($user);
+}, 10);
 
 function ecResolvePublicThemeTemplate(string $template, array $context = []): string
 {

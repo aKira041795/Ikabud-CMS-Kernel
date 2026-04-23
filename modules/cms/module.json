@@ -36,6 +36,8 @@
         "cms_menu_locations",
         "cms_saved_blocks",
         "cms_password_resets",
+        "cms_auth_verifications",
+        "cms_user_services",
         "audit_logs",
         "kernel_search_index",
         "workflow_instances",
@@ -78,7 +80,9 @@
         "database/migrations/020_cms_ai_plan_auto_publish_policy.sql",
         "database/migrations/021_cms_entity_capabilities.sql",
         "database/migrations/022_cms_entity_progress.sql",
-        "database/migrations/023_rename_capability_ids.sql"
+        "database/migrations/023_rename_capability_ids.sql",
+        "database/migrations/024_cms_auth_verifications.sql",
+        "database/migrations/025_cms_user_services.sql"
     ],
     "seeds": [
         "database/seeds/001_cms_baseline_content_types.sql"

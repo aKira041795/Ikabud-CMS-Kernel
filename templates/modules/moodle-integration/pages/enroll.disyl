@@ -1,0 +1,160 @@
+{theme_styles | raw}
+<section class="moodle-page moodle-page--enroll">
+    {if course}
+    <div class="moodle-panel moodle-panel--hero">
+        <div class="moodle-page__intro-body">
+            <div class="moodle-page__eyebrow">Course Enrollment</div>
+            <p class="moodle-page__lead">Use this step before launching into Moodle. Signed-in users submit a request here first, then launch after review approval and Moodle access are ready.</p>
+            <div class="moodle-page__meta">
+                <span class="moodle-page__pill">Course #{course.moodle_course_id}</span>
+                <span class="moodle-page__pill">Manual eligibility review</span>
+            </div>
+        </div>
+    </div>
+
+    <article class="moodle-detail__grid">
+        <div class="moodle-panel moodle-detail">
+            {if course.image}
+            <div class="moodle-detail__hero">
+                <img src="{course.image}" alt="{course.title}" onerror="this.parentNode.style.display='none'">
+            </div>
+            {/if}
+            <div class="moodle-panel__body">
+                <div class="moodle-kicker">Ready to learn</div>
+                <h2 class="moodle-panel__title">{course.title}</h2>
+                <div class="moodle-panel__summary">{course.summary | strip_tags | default:'Course details unavailable.'}</div>
+            </div>
+        </div>
+
+        <aside class="moodle-detail__rail">
+            <div class="moodle-detail__aside">
+                <h2 class="moodle-detail__aside-title">Before you continue</h2>
+                <p class="moodle-detail__aside-copy">Requests wait for manual eligibility review first. Moodle enrollment starts only after an admin approves the request.</p>
+            </div>
+
+            <div class="moodle-panel">
+                <div class="moodle-panel__body">
+                    {if is_authenticated}
+                    {if show_launch_requires_enrollment_notice}
+                    <div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Launch blocked</div>
+                        <div class="mt-1 text-lg font-semibold">This course is not ready to launch yet.</div>
+                        <div class="mt-1 text-sm text-amber-800">Launch only works after this learner account has passed review and been enrolled in Moodle.</div>
+                    </div>
+                    {/if}
+                    {if show_review_requested_notice}
+                    <div class="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-900">
+                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Request submitted</div>
+                        <div class="mt-1 text-lg font-semibold">Your enrollment request is now in review.</div>
+                        <div class="mt-1 text-sm text-sky-800">Open My Learning to track the review outcome and Moodle access readiness.</div>
+                    </div>
+                    {/if}
+                    {if show_registered_notice}
+                    <div class="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-900">
+                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Account Ready</div>
+                        <div class="mt-1 text-lg font-semibold">Your student account has been verified.</div>
+                        <div class="mt-1 text-sm text-sky-800">You are signed in now. Continue by queueing this Moodle enrollment for {course.title | default:'this course'}.</div>
+                    </div>
+                    {/if}
+                    <div class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Signed In</div>
+                        <div class="mt-1 text-lg font-semibold">Welcome back, {authenticated_user_name | default:'Learner'}.</div>
+                        <div class="mt-1 text-sm text-emerald-800">You are logged in{if authenticated_user_email} as {authenticated_user_email}{/if}. {course_access_message | default:'Submit this course for review before launching in Moodle.'}</div>
+                    </div>
+                    <div class="moodle-actions">
+                        {if can_queue_enrollment}
+                        <form method="post" action="{enroll_api_url}" data-moodle-enroll-form data-csrf-token="{csrf_token}">
+                            <button type="submit" class="moodle-button moodle-button--primary" data-moodle-enroll-submit>Submit for review</button>
+                        </form>
+                        {/if}
+                        {if launch_ready}
+                        <a href="{launch_url}" class="moodle-button">Launch in Moodle</a>
+                        {elseif review_pending or queue_pending or request_rejected or request_revoked}
+                        <a href="{my_learning_url}" class="moodle-button">Open My Learning</a>
+                        {/if}
+                    </div>
+                    <div class="moodle-page__lead" data-moodle-enroll-status hidden></div>
+                    {else}
+                    <p class="moodle-page__lead">New students need to create a CMS account first. The system sends a 6-digit email verification code, approves the student account after the code is confirmed, then returns to this course page so enrollment can continue.</p>
+                    <div class="moodle-actions">
+                        <a href="{register_url}" class="moodle-button moodle-button--primary">Create student account</a>
+                        <a href="{login_url}" class="moodle-button">Sign in</a>
+                    </div>
+                    <div class="moodle-page__lead"><a href="/cms/forgot-password">Forgot password?</a></div>
+                    {/if}
+                </div>
+            </div>
+        </aside>
+    </article>
+    {else}
+    <div class="moodle-empty">Course not found in the local cache.</div>
+    {/if}
+</section>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.querySelector('[data-moodle-enroll-form]');
+    if (!form) {
+        return;
+    }
+
+    const button = form.querySelector('[data-moodle-enroll-submit]');
+    const status = document.querySelector('[data-moodle-enroll-status]');
+    const csrfToken = form.getAttribute('data-csrf-token') || '';
+    const defaultLabel = button ? button.textContent : 'Submit for review';
+
+    form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Submitting...';
+        }
+
+        if (status) {
+            status.hidden = true;
+            status.textContent = '';
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-Token': csrfToken,
+                },
+                credentials: 'same-origin',
+            });
+            const payload = await response.json();
+
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || 'Enrollment could not be queued.');
+            }
+
+            if (status) {
+                status.hidden = false;
+                status.textContent = payload.ready_to_launch
+                    ? 'Enrollment completed. Redirecting to My Learning...'
+                    : 'Enrollment request submitted. Redirecting to My Learning...';
+            }
+
+            const redirectUrl = new URL('{my_learning_url}', window.location.origin);
+            if (!payload.ready_to_launch) {
+                redirectUrl.searchParams.set('requested', '1');
+                redirectUrl.searchParams.set('course_id', '{course.moodle_course_id | default:0}');
+            }
+            window.location.href = redirectUrl.toString();
+            return;
+        } catch (error) {
+            if (status) {
+                status.hidden = false;
+                status.textContent = error instanceof Error ? error.message : 'Enrollment could not be queued.';
+            }
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = defaultLabel;
+            }
+        }
+    });
+});
+</script>

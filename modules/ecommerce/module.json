@@ -72,6 +72,7 @@
         "cms_entity_capabilities",
         "cms_media",
         "cms_users",
+        "cms_user_services",
         "audit_logs",
         "wms_warehouses",
         "wms_movements",

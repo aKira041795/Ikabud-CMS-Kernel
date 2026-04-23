@@ -26,6 +26,12 @@ function cmsPublicRespond(string $body): void
     }
 }
 
+function cmsPublicCanUseSharedEntityCache(): bool
+{
+    $user = app()->user();
+    return !is_array($user) || empty($user['id']);
+}
+
 function cmsApiPublicPosts(array $params = []): void
 {
     cmsApiPublicListByType('post');
@@ -1195,6 +1201,7 @@ function cmsPublicPage(array $params = []): void
     }
 
     $db = cmsDb();
+    $canUseSharedCache = cmsPublicCanUseSharedEntityCache();
         $stmt = $db->prepare(
             "SELECT c.*, u.display_name as author_name, m.file_path as featured_image
              FROM cms_content c
@@ -1240,15 +1247,17 @@ function cmsPublicPage(array $params = []): void
     );
 
     // Check cache after loading meta so template-specific keys stay correct.
-    $cached = cmsCacheGet($cacheKey);
-    if ($cached !== null && isset($cached['html'])) {
-        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
-            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
-                exit;
+    if ($canUseSharedCache) {
+        $cached = cmsCacheGet($cacheKey);
+        if ($cached !== null && isset($cached['html'])) {
+            if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
+                if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
+                    exit;
+                }
             }
+            cmsPublicRespond((string)$cached['html']);
+            return;
         }
-        cmsPublicRespond((string)$cached['html']);
-        return;
     }
 
     if (!empty($page['featured_image'])) {
@@ -1284,13 +1293,15 @@ function cmsPublicPage(array $params = []): void
     // Cache the rendered output
     $updatedAt = (string)($page['updated_at'] ?? $page['published_at'] ?? date('Y-m-d H:i:s'));
     $etag = md5($html);
-    cmsCacheSet($cacheKey, [
-        'html'       => $html,
-        'etag'       => $etag,
-        'updated_at' => $updatedAt,
-    ], ['cms:page:' . $slug, 'cms:content:' . (int)$page['id'], 'cms:type:page']);
+    if ($canUseSharedCache) {
+        cmsCacheSet($cacheKey, [
+            'html'       => $html,
+            'etag'       => $etag,
+            'updated_at' => $updatedAt,
+        ], ['cms:page:' . $slug, 'cms:content:' . (int)$page['id'], 'cms:type:page']);
 
-    cmsSendCacheHeaders($etag, $updatedAt);
+        cmsSendCacheHeaders($etag, $updatedAt);
+    }
     cmsPublicRespond($html);
 }
 

@@ -308,6 +308,10 @@ function ecAutoRegisterGuestAsCustomer(string $email, string $firstName, string 
                 );
                 $userId = (int)$db->lastInsertId();
 
+                if (function_exists('cmsAssignUserService')) {
+                    cmsAssignUserService($userId, 'ecommerce', true, ['origin' => 'checkout_auto_register']);
+                }
+
                 write_log('ec.checkout.auto_register', 'info', [
                     'user_id'  => $userId,
                     'email'    => $email,

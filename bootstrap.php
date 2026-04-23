@@ -756,6 +756,14 @@ function write_log(string $message, string $level = 'error', array $context = []
             return '/superadmin/settings';
         }
 
+        $serviceContext = kernelResolveAuthenticatedServiceContext($user);
+        if (is_array($serviceContext)) {
+            $serviceUrl = trim((string)($serviceContext['url'] ?? ''));
+            if ($serviceUrl !== '') {
+                return $serviceUrl;
+            }
+        }
+
         $storePortalHome = kernelResolveStorePortalHomeRedirect($user);
         if (is_string($storePortalHome) && $storePortalHome !== '') {
             return $storePortalHome;
@@ -769,6 +777,40 @@ function write_log(string $message, string $level = 'error', array $context = []
         }
 
         return $fallbackToRoot ? '/' : null;
+    }
+
+    function kernelResolveAuthenticatedServiceContext(?array $user = null): ?array
+    {
+        if ($user === null && function_exists('app')) {
+            $resolved = app()->user();
+            $user = is_array($resolved) ? $resolved : null;
+        }
+
+        if (!is_array($user)) {
+            return null;
+        }
+
+        if (!function_exists('app')) {
+            return null;
+        }
+
+        $resolved = app()->hooks()->filterNullable('kernel.user_service_context', null, $user);
+        if (!is_array($resolved)) {
+            return null;
+        }
+
+        $service = trim((string)($resolved['service'] ?? ''));
+        $url = trim((string)($resolved['url'] ?? ''));
+        if ($service === '' || $url === '') {
+            return null;
+        }
+
+        return [
+            'service' => $service,
+            'url' => $url,
+            'label' => trim((string)($resolved['label'] ?? '')),
+            'source' => trim((string)($resolved['source'] ?? '')),
+        ];
     }
 
     function kernelRegisterCoreRequestDispatchHooks(): void
@@ -1041,6 +1083,7 @@ function kernelEmitRateLimitJson(array $rateLimit, string $message = 'Too many r
 function kernelDispatchJob(string $handler, array $payload = [], string $queue = 'default', int $delaySeconds = 0, int $maxAttempts = 3): int
 {
     try {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         $db = app()->db();
         $availableAt = $delaySeconds > 0
             ? date('Y-m-d H:i:s', time() + $delaySeconds)
@@ -1065,6 +1108,8 @@ function kernelDispatchJob(string $handler, array $payload = [], string $queue =
             'queue' => $queue,
         ]);
         return 0;
+    } finally {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 }
 
@@ -1183,6 +1228,10 @@ function kernelJobInvokeHandler(string $handler, array $payload): void
                 loadModuleHelpers($modules[$moduleId]);
             }
         }
+        $handlersPath = BASE_PATH . '/modules/' . $moduleId . '/handlers.php';
+        if (is_file($handlersPath)) {
+            require_once $handlersPath;
+        }
         if (!function_exists($functionName)) {
             throw new \RuntimeException("Job handler function '{$functionName}' not found for module '{$moduleId}'.");
         }
@@ -1233,6 +1282,7 @@ function kernelQueueWorker(string $queue = 'default', int $sleepSeconds = 3, boo
 function kernelJobQueueStats(string $queue = 'default'): array
 {
     try {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         $db = app()->db();
         $now = date('Y-m-d H:i:s');
 
@@ -1261,6 +1311,8 @@ function kernelJobQueueStats(string $queue = 'default'): array
         ];
     } catch (\Throwable $e) {
         return ['queue' => $queue, 'pending' => 0, 'delayed' => 0, 'reserved' => 0, 'failed' => 0, 'error' => $e->getMessage()];
+    } finally {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
     }
 }
 

@@ -1,0 +1,44 @@
+{theme_styles | raw}
+<section class="moodle-page moodle-page--progress">
+    <div class="moodle-page__intro">
+        <div class="moodle-page__intro-body">
+            <div class="moodle-page__eyebrow">My Learning</div>
+            <p class="moodle-page__lead">Progress and grades are served from the local sync tables, so you can review your learning status without waiting on a live Moodle request.</p>
+            <div class="moodle-page__meta">
+                <span class="moodle-page__pill">Progress cache</span>
+                <span class="moodle-page__pill">Grade sync</span>
+            </div>
+        </div>
+    </div>
+
+    {if courses | count > 0}
+    <div class="moodle-progress-list">
+        {foreach courses as course}
+        <article class="cms-entity-card moodle-progress-card">
+            <div class="moodle-progress-card__body">
+                <div class="moodle-progress-card__header">
+                    <div>
+                        <h2 class="moodle-progress-card__title">{course.title | default:'Untitled Course'}</h2>
+                        <div class="moodle-progress-card__meta">Status: {course.status | default:'not_started'} • Last synced: {course.last_synced | default:'Never'}</div>
+                    </div>
+                    <div class="moodle-stat-pill">Grade: {course.grade | default:'N/A'}</div>
+                </div>
+                <div class="moodle-progress-bar" aria-label="Course progress">
+                    <span class="moodle-progress-bar__value" style="width:{course.progress_percent | default:0}%;"></span>
+                </div>
+                <div class="moodle-progress-card__meta">{course.progress_percent | default:0}% complete</div>
+                <div class="moodle-progress-card__footer">
+                    <div class="moodle-stat">Track details in the course page or jump straight back into Moodle.</div>
+                    <div class="moodle-actions">
+                        <a href="/cms/courses/{course.moodle_course_id}" class="moodle-button">Course details</a>
+                        <a href="/cms/course/{course.moodle_course_id}/launch" class="moodle-button moodle-button--primary">Launch</a>
+                    </div>
+                </div>
+            </div>
+        </article>
+        {/foreach}
+    </div>
+    {else}
+    <div class="moodle-empty">No course progress has been synced yet.</div>
+    {/if}
+</section>

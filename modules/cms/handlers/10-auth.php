@@ -18,7 +18,10 @@ function cmsLoginBridge(array $params = []): void
         }
     }
 
+    $redirect = function_exists('cmsAuthRequestedRedirectPath') ? cmsAuthRequestedRedirectPath() : '';
+
     echo cmsRender('modules/cms/pages/login.disyl', [
         'page_title' => 'Sign In',
+        'register_url' => function_exists('cmsAuthPublicPageUrl') ? cmsAuthPublicPageUrl('/cms/register', $redirect) : '/cms/register',
     ]);
 }

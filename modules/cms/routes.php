@@ -6,6 +6,7 @@ return [
     'GET' => [
         // ── Admin routes ─────────────────────────────────────────
         '/cms/login'                      => 'cms:cmsLoginBridge',
+        '/cms/register'                   => 'cms:cmsRegisterPage',
         '/cms/forgot-password'            => 'cms:cmsForgotPasswordPage',
         '/cms/reset-password'             => 'cms:cmsResetPasswordPage',
         '/cms/admin'                      => 'cms:cmsAdminDashboard',
@@ -115,6 +116,9 @@ return [
         '/api/v1/cms/permissions'           => 'cms:cmsApiPermissionsGet',
     ],
     'POST' => [
+        '/api/v1/cms/auth/register' => 'cms:cmsApiRegister',
+        '/api/v1/cms/auth/register/verify' => 'cms:cmsApiRegisterVerify',
+        '/api/v1/cms/auth/register/resend' => 'cms:cmsApiRegisterResend',
         '/api/v1/cms/auth/forgot-password' => 'cms:cmsApiForgotPassword',
         '/api/v1/cms/auth/reset-password'  => 'cms:cmsApiResetPassword',
         '/api/v1/cms/auth/test-reset-email' => 'cms:cmsApiTestResetEmail',

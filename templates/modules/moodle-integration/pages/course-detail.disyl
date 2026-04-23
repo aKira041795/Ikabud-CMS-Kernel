@@ -1,0 +1,49 @@
+{theme_styles | raw}
+<section class="moodle-page moodle-page--detail">
+    {if course}
+    <div class="moodle-panel moodle-panel--hero">
+        <div class="moodle-page__intro-body">
+            <div class="moodle-page__eyebrow">Course Detail</div>
+            <p class="moodle-page__lead">Review the cached course summary, then submit an enrollment request. Launch becomes available only after manual approval and Moodle access is ready.</p>
+            <div class="moodle-page__meta">
+                <span class="moodle-page__pill">Course #{course.moodle_course_id}</span>
+                <span class="moodle-page__pill">Cached for fast public reads</span>
+            </div>
+        </div>
+    </div>
+
+    <article class="moodle-detail__grid">
+        <div class="moodle-panel moodle-detail">
+            {if course.image}
+            <div class="moodle-detail__hero">
+                <img src="{course.image}" alt="{course.title}" onerror="this.parentNode.style.display='none'">
+            </div>
+            {/if}
+            <div class="moodle-panel__body">
+                <div class="moodle-kicker">Moodle course #{course.moodle_course_id}</div>
+                <div class="moodle-panel__summary">{course.summary | raw}</div>
+            </div>
+        </div>
+        <aside class="moodle-detail__rail">
+            <div class="moodle-detail__aside">
+                <h2 class="moodle-detail__aside-title">Next step</h2>
+                <p class="moodle-detail__aside-copy">{course_access_message | default:'Submit this course for review before launching in Moodle.'}</p>
+            </div>
+            <div class="moodle-panel">
+                <div class="moodle-panel__body">
+                    <div class="moodle-actions">
+                        <a href="{enroll_url | default:'/cms/courses'}" class="moodle-button moodle-button--primary">Enroll</a>
+                        {if launch_ready}
+                        <a href="/cms/course/{course.moodle_course_id}/launch" class="moodle-button">Launch in Moodle</a>
+                        {elseif queue_pending}
+                        <a href="{my_learning_url}" class="moodle-button">Open My Learning</a>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </article>
+    {else}
+    <div class="moodle-empty">Course not found in the local cache.</div>
+    {/if}
+</section>

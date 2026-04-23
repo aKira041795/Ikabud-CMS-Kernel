@@ -9,6 +9,12 @@ function cmsRoleAtLeast(string $role, string $minimum): bool
     return $roleLevel >= $minLevel;
 }
 
+function cmsIsLearnerRole(string $role): bool
+{
+    $role = trim($role);
+    return $role === 'subscriber' || $role === 'customer';
+}
+
 function cmsDb(): \Ikabud\Kernel\Contracts\ModuleDB
 {
     $ctx = module('cms');

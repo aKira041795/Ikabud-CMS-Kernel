@@ -8,12 +8,17 @@ require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/ecommerce/helpers.php';
+require_once __DIR__ . '/../modules/moodle-integration/helpers.php';
 
 $dispatchDb = app()->db();
 $dispatchRunner = new \Ikabud\Kernel\Database\MigrationRunner($dispatchDb);
 tenantSyncKernelMigrations($dispatchDb);
+$dispatchRunner->migrate('cms');
 $dispatchRunner->migrate('ecommerce');
+$dispatchRunner->migrate('moodle-integration');
 $dispatchRunner->migrate('wms');
+
+$moodleDispatchTenantId = moodleIntegrationCurrentTenantId();
 
 $pass = 0;
 $fail = 0;
@@ -374,6 +379,26 @@ t(
     json_encode($cmsLoginRedirect['context'])
 );
 
+$cmsRegisterRedirect = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/cms/register',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    [
+        'id' => 11,
+        'username' => 'cmsadmin',
+        'name' => 'CMS Admin',
+        'role' => 'administrator',
+        'source' => 'cms',
+    ]
+);
+t(
+    'public entrypoint redirects authenticated CMS users away from CMS register',
+    ($cmsRegisterRedirect['context']['redirect'] ?? '') === '/cms/admin',
+    json_encode($cmsRegisterRedirect['context'])
+);
+
 $storeRedirectUser = [
     'id' => 1211,
     'username' => 'storeowner',
@@ -400,6 +425,61 @@ t(
     'authenticated home resolver prefers the store portal for a store-assigned CMS user',
     str_starts_with((string)kernelResolveAuthenticatedHomeRedirect($storeRedirectUser, true), '/ecommerce/store-admin/'),
     (string)kernelResolveAuthenticatedHomeRedirect($storeRedirectUser, true)
+);
+
+$dispatchDb->prepare('DELETE FROM cms_user_services WHERE user_id = ?')->execute([1313]);
+$dispatchDb->prepare('DELETE FROM moodle_user_progress WHERE tenant_id = ? AND user_id = ?')->execute([$moodleDispatchTenantId, 1313]);
+$dispatchDb->prepare('DELETE FROM moodle_enrollment_requests WHERE tenant_id = ? AND user_id = ?')->execute([$moodleDispatchTenantId, 1313]);
+$dispatchDb->prepare('DELETE FROM moodle_courses_cache WHERE tenant_id = ? AND moodle_course_id = ?')->execute([$moodleDispatchTenantId, 77]);
+$dispatchDb->prepare(
+    "INSERT INTO moodle_courses_cache (tenant_id, moodle_course_id, title, summary, image, updated_at, created_at)
+     VALUES (?, ?, ?, ?, ?, NOW(), NOW())"
+)->execute([$moodleDispatchTenantId, 77, 'Dispatch CSRF Course', 'Used for Moodle request dispatch tests.', '']);
+$dispatchDb->prepare(
+    "INSERT INTO moodle_user_progress (tenant_id, user_id, course_id, progress_percent, grade, status, last_synced, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())"
+)->execute([$moodleDispatchTenantId, 1313, 1, 12.5, null, 'in_progress']);
+$learnerRedirectUser = [
+    'id' => 1313,
+    'username' => 'dispatchlearner',
+    'email' => 'dispatchlearner@example.com',
+    'name' => 'Dispatch Learner',
+    'role' => 'subscriber',
+    'source' => 'cms',
+];
+t(
+    'authenticated home resolver prefers My Learning for a Moodle learner account',
+    (string)kernelResolveAuthenticatedHomeRedirect($learnerRedirectUser, true) === '/cms/page/my-learning',
+    (string)kernelResolveAuthenticatedHomeRedirect($learnerRedirectUser, true)
+);
+
+$moodleEnrollPage = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/cms/course/77/enroll',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    $learnerRedirectUser
+);
+t(
+    'moodle enroll page renders a CSRF token for learner enrollment requests',
+    preg_match('/data-csrf-token="[a-f0-9]{64}"/', $moodleEnrollPage['body'] ?? '') === 1,
+    $moodleEnrollPage['raw']
+);
+
+$moodleEnrollNoCsrf = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/api/v1/moodle-integration/enroll/77',
+        'HTTP_HOST' => 'applicationos.test',
+        'HTTP_ACCEPT' => 'application/json',
+    ],
+    $learnerRedirectUser
+);
+t(
+    'moodle enroll API rejects mutating requests without CSRF token',
+    str_contains($moodleEnrollNoCsrf['body'] ?? '', 'Invalid CSRF token'),
+    $moodleEnrollNoCsrf['raw']
 );
 
 $dispatchDb->prepare(
