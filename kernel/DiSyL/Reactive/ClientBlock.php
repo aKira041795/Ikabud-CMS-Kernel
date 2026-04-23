@@ -94,9 +94,18 @@ class EventHandler
         // Escape elementId for safe embedding in JS string literal.
         $safeElementId = addcslashes($elementId, "\\'\"");
 
-        // Escape handler: only allow simple expressions (no script tags, no closing script).
+        // Harden handler: enforce length limit, reject script-breakout attempts,
+        // and restrict to simple identifier expressions (no raw HTML injection).
+        if (strlen($handler) > 512) {
+            return '// DiSyL: handler rejected (too long)';
+        }
         if (preg_match('/<\/script/i', $handler)) {
             return '// DiSyL: handler rejected (script breakout attempt)';
+        }
+        // Restrict handler to safe JS expression characters: alphanumeric, common
+        // punctuation used in method calls / assignments. Block < > ' " ` backtick.
+        if (!preg_match('/^[a-zA-Z0-9_()\[\].;,=\+\-\*\/\!\s\{\}&|?:\'"%]+$/', $handler)) {
+            return '// DiSyL: handler rejected (disallowed characters)';
         }
 
         $options = [];

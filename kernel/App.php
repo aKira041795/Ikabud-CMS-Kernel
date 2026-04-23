@@ -786,10 +786,17 @@ class App
                 (int)$this->config('disyl.shared_output_ttl', 0)
             );
 
-            // Compiled mode (env-gated): uses pre-compiled PHP classes when
-            // the v4 Parser pipeline is available. No-op otherwise.
-            if (filter_var($_ENV['DISYL_COMPILED_MODE'] ?? false, FILTER_VALIDATE_BOOL)) {
+            // Compiled mode: enabled by default in production; opt-out via DISYL_COMPILED_MODE=false.
+            // Falls back silently to interpreted mode if v4 pipeline is unavailable.
+            $compiledModeEnv = $_ENV['DISYL_COMPILED_MODE'] ?? null;
+            $compiledModeDefault = (($this->config('app.env', 'production')) !== 'development');
+            if (filter_var($compiledModeEnv ?? ($compiledModeDefault ? 'true' : 'false'), FILTER_VALIDATE_BOOL)) {
                 $this->templateEngine->enableCompiledMode(true);
+            }
+
+            // Strict mode (env-gated): warn on undefined variables, log raw filter usage.
+            if (filter_var($_ENV['DISYL_STRICT_MODE'] ?? false, FILTER_VALIDATE_BOOL)) {
+                $this->templateEngine->enableStrictMode(true);
             }
             
             $this->templateEngine->setGlobals([

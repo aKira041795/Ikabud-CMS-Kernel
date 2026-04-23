@@ -41,6 +41,7 @@ class TemplateEngine
     private bool $cacheEnabled;
     private bool $debug = false;
     private bool $compiledMode = false;
+    private bool $strictMode = false;
     private ?Compiler\TemplateCache $compiledCache = null;
     private array $components = [];
     private array $filters = [];
@@ -67,6 +68,15 @@ class TemplateEngine
     public function setDebug(bool $debug): void
     {
         $this->debug = $debug;
+    }
+
+    /**
+     * Enable strict mode: warn on undefined variables and log | raw filter usage.
+     * Controlled via DISYL_STRICT_MODE env var (wired in App.php).
+     */
+    public function enableStrictMode(bool $enable = true): void
+    {
+        $this->strictMode = $enable;
     }
 
     /**
@@ -543,7 +553,17 @@ class TemplateEngine
         if (str_contains($content, '{ikb_') || str_contains($content, '{island')) {
             $content = $this->processComponents($content, $context);
         }
-        
+
+        // 9a. Process {capability} tags (capability-driven template calls)
+        if (str_contains($content, '{capability ')) {
+            $content = $this->processCapabilityTags($content, $context);
+        }
+
+        // 9b. Process {on} event-conditional rendering
+        if (str_contains($content, '{on ')) {
+            $content = $this->processOnTags($content, $context);
+        }
+
         // 10. Process remaining variables (including arithmetic and ternary expressions)
         if (str_contains($content, '{')) {
             $t = microtime(true);
@@ -1882,7 +1902,116 @@ class TemplateEngine
         
         return false;
     }
-    
+
+    /**
+     * Process {capability "id" [with {key: value, ...}]} tags.
+     *
+     * Calls the Capability Bus and injects the result into the template context
+     * under the key `capability_result`. The rendered body is always output;
+     * use {capability_result.*} variables inside the block to access the response.
+     *
+     * Syntax:
+     *   {capability "inventory.check@1" with {product_id: product.id}}
+     *
+     * If the capability call fails (circuit open, timeout, etc.) the tag renders
+     * an empty string and logs the failure.
+     */
+    private function processCapabilityTags(string $content, array $context): string
+    {
+        return preg_replace_callback(
+            '/\{capability\s+"([^"]+)"(?:\s+with\s+\{([^}]*)\})?\s*\}(.*?)\{\/capability\}/s',
+            function (array $m) use ($context): string {
+                $capId     = trim($m[1]);
+                $withRaw   = trim($m[2] ?? '');
+                $body      = $m[3];
+
+                // Validate capability ID format: "name@version" or "name"
+                if (!preg_match('/^[a-zA-Z0-9_.\-]+(@@?[0-9]+)?$/', $capId)) {
+                    $this->logError("Invalid capability id in template: {$capId}");
+                    return '';
+                }
+
+                // Parse with-block key:value pairs; values may be variable paths
+                $payload = [];
+                if ($withRaw !== '') {
+                    foreach (explode(',', $withRaw) as $pair) {
+                        [$k, $v] = array_pad(explode(':', $pair, 2), 2, '');
+                        $k = trim($k);
+                        $v = trim($v);
+                        if ($k !== '') {
+                            // Resolve variable path if not a literal
+                            $payload[$k] = $this->resolveValue($v, $context) ?? $v;
+                        }
+                    }
+                }
+
+                try {
+                    if (!function_exists('app')) {
+                        return '';
+                    }
+                    $result = app()->capabilities()->call($capId, $payload);
+                    $context['capability_result'] = is_array($result) ? $result : ['value' => $result];
+                } catch (\Throwable $e) {
+                    $this->logError("Capability tag call failed ({$capId}): " . $e->getMessage());
+                    return '';
+                }
+
+                return $this->processVariables(
+                    $this->processControlStructures($body, $context),
+                    $context
+                );
+            },
+            $content
+        ) ?? $content;
+    }
+
+    /**
+     * Process {on "event.key"}...{/on} tags.
+     *
+     * Conditionally renders the body when the event key is present in the
+     * render context (injected as `events.event_key` or `event_key`).
+     * Intended for server-side conditional rendering based on event payload
+     * data passed into the template context by the route handler.
+     *
+     * Syntax:
+     *   {on "order.created"}{component "order-card"}{/on}
+     */
+    private function processOnTags(string $content, array $context): string
+    {
+        return preg_replace_callback(
+            '/\{on\s+"([^"]+)"\s*\}(.*?)\{\/on\}/s',
+            function (array $m) use ($context): string {
+                $eventKey = trim($m[1]);
+                $body     = $m[2];
+
+                // Validate event key format
+                if (!preg_match('/^[a-zA-Z0-9_.\-]+$/', $eventKey)) {
+                    $this->logError("Invalid event key in {on} tag: {$eventKey}");
+                    return '';
+                }
+
+                // Check events sub-array first, then flat context key (normalized: dots→underscores)
+                $normalizedKey = str_replace('.', '_', $eventKey);
+                $events = $context['events'] ?? [];
+
+                $present = (is_array($events) && (
+                    array_key_exists($eventKey, $events) ||
+                    array_key_exists($normalizedKey, $events)
+                )) || array_key_exists($eventKey, $context) || array_key_exists($normalizedKey, $context);
+
+                if (!$present) {
+                    return '';
+                }
+
+                return $this->processVariables(
+                    $this->processControlStructures($body, $context),
+                    $context
+                );
+            },
+            $content
+        ) ?? $content;
+    }
+
     /**
      * Process variables with filters, arithmetic, and ternary expressions.
      * Skips JavaScript template literals (${...}).
@@ -1934,6 +2063,11 @@ class TemplateEngine
                     }
                     $value = $resolveCache[$expr];
 
+                    // Strict mode: warn when a variable resolves to null (undefined in context).
+                    if ($this->strictMode && $value === null) {
+                        $this->logError("[strict] Undefined variable: {$expr}");
+                    }
+
                     if (!is_scalar($value)) {
                         return '';
                     }
@@ -1951,6 +2085,11 @@ class TemplateEngine
                 }
                 $value = $resolveCache[$varPath];
 
+                // Strict mode: warn when filtered variable is undefined.
+                if ($this->strictMode && $value === null) {
+                    $this->logError("[strict] Undefined variable: {$varPath}");
+                }
+
                 foreach ($filters as $filter) {
                     $filter = trim($filter);
                     if ($filter === '') {
@@ -1960,6 +2099,9 @@ class TemplateEngine
                     $filterName = trim(explode(':', $filter, 2)[0]);
                     if ($filterName === 'raw') {
                         $hasRaw = true;
+                        if ($this->strictMode) {
+                            $this->logError("[strict] Raw filter used on variable: {$varPath}");
+                        }
                         continue;
                     }
 
