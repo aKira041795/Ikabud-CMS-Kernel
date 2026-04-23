@@ -250,6 +250,79 @@ function apiMoodleIntegrationEnroll(array $params = []): void
     echo json_encode($result);
 }
 
+function apiMoodleIntegrationSsoValidate(array $params = []): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $input = moodleIntegrationInput();
+    $token = trim((string)($input['token'] ?? ''));
+    $tenantId = (int)($input['tenant_id'] ?? 0);
+
+    if ($token === '' || $tenantId <= 0) {
+        http_response_code(422);
+        echo json_encode(['valid' => false, 'error' => 'token and tenant_id are required']);
+        return;
+    }
+
+    $row = moodleIntegrationConsumeSsoTokenForTenant($tenantId, $token);
+    if ($row === null) {
+        http_response_code(401);
+        echo json_encode(['valid' => false, 'error' => 'Token is invalid, expired, or already used']);
+        return;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    $user = null;
+    $resource = null;
+
+    if ($db instanceof \PDO) {
+        $userId = (int)($row['user_id'] ?? 0);
+        foreach ([
+            'SELECT id, username, email, full_name FROM users WHERE id = :id LIMIT 1',
+            'SELECT id, username, email, display_name AS full_name FROM cms_users WHERE id = :id LIMIT 1',
+        ] as $sql) {
+            try {
+                $stmt = $db->prepare($sql);
+                $stmt->execute([':id' => $userId]);
+                $userRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if (is_array($userRow)) {
+                    $user = $userRow;
+                    break;
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        $learningResourceId = (int)($row['learning_resource_id'] ?? 0);
+        if ($learningResourceId > 0) {
+            $stmt = $db->prepare('SELECT id, provider, provider_id, title, status FROM learning_resources WHERE id = :id AND tenant_id = :tenant_id LIMIT 1');
+            $stmt->execute([':id' => $learningResourceId, ':tenant_id' => $tenantId]);
+            $resourceRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (is_array($resourceRow)) {
+                $resource = $resourceRow;
+            }
+        }
+    }
+
+    echo json_encode([
+        'valid' => true,
+        'user' => $user !== null ? [
+            'id' => (int)($user['id'] ?? 0),
+            'email' => (string)($user['email'] ?? ''),
+            'username' => (string)($user['username'] ?? ''),
+            'full_name' => (string)($user['full_name'] ?? ''),
+        ] : null,
+        'resource' => $resource !== null ? [
+            'id' => (int)($resource['id'] ?? 0),
+            'provider' => (string)($resource['provider'] ?? ''),
+            'provider_id' => (string)($resource['provider_id'] ?? ''),
+            'title' => (string)($resource['title'] ?? ''),
+            'status' => (string)($resource['status'] ?? 'active'),
+        ] : null,
+    ]);
+}
+
 function apiMoodleIntegrationCourseStatus(array $params = []): void
 {
     header('Content-Type: application/json; charset=utf-8');

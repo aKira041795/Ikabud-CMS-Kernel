@@ -308,6 +308,311 @@ function moodleIntegrationGetSettings(): array
     return array_merge(moodleIntegrationSettingsDefaults(), is_array($saved) ? $saved : []);
 }
 
+function moodleIntegrationGetSettingsForTenant(int $tenantId = 0): array
+{
+    $tenantId = $tenantId > 0 ? $tenantId : moodleIntegrationCurrentTenantId();
+    if ($tenantId > 0 && function_exists('getModuleSettingsForTenant')) {
+        $saved = getModuleSettingsForTenant('moodle-integration', $tenantId);
+        return array_merge(moodleIntegrationSettingsDefaults(), is_array($saved) ? $saved : []);
+    }
+
+    return moodleIntegrationGetSettings();
+}
+
+function moodleIntegrationNormalizeEnrollmentMode(string $mode): string
+{
+    $mode = trim(strtolower($mode));
+    if (in_array($mode, ['manual_review', 'auto_enroll', 'paid_then_auto'], true)) {
+        return $mode;
+    }
+
+    return 'manual_review';
+}
+
+function moodleIntegrationSharedTenantCategoryId(?int $tenantId = null, ?array $settings = null): int
+{
+    $tenantId = ($tenantId ?? 0) > 0 ? (int)$tenantId : moodleIntegrationCurrentTenantId();
+    $settings = is_array($settings) ? $settings : moodleIntegrationGetSettingsForTenant($tenantId);
+    if (($settings['tenant_mode'] ?? 'per_instance') !== 'shared') {
+        return 0;
+    }
+
+    $mapRaw = trim((string)($settings['shared_category_map_json'] ?? ''));
+    if ($mapRaw === '') {
+        return 0;
+    }
+
+    $map = json_decode($mapRaw, true);
+    if (!is_array($map)) {
+        return 0;
+    }
+
+    return isset($map[(string)$tenantId]) ? (int)$map[(string)$tenantId] : 0;
+}
+
+function moodleIntegrationCourseBelongsToTenant(array $course, ?int $tenantId = null, ?array $settings = null): bool
+{
+    $tenantId = ($tenantId ?? 0) > 0 ? (int)$tenantId : moodleIntegrationCurrentTenantId();
+    $settings = is_array($settings) ? $settings : moodleIntegrationGetSettingsForTenant($tenantId);
+    if (($settings['tenant_mode'] ?? 'per_instance') !== 'shared') {
+        return true;
+    }
+
+    $expectedCategoryId = moodleIntegrationSharedTenantCategoryId($tenantId, $settings);
+    if ($expectedCategoryId <= 0) {
+        return false;
+    }
+
+    $courseCategoryId = (int)($course['moodle_category_id'] ?? $course['categoryid'] ?? $course['category_id'] ?? 0);
+    return $courseCategoryId > 0 && $courseCategoryId === $expectedCategoryId;
+}
+
+function moodleIntegrationCategoryKey(string $value): string
+{
+    $value = strtolower(trim($value));
+    if ($value === '') {
+        return '';
+    }
+
+    $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
+    return trim($value, '-');
+}
+
+function moodleIntegrationEnsureLearningResourceForTenant(int $tenantId, string $provider, string $providerId, string $title, array $metadata = []): int
+{
+    if ($tenantId <= 0 || $provider === '' || $providerId === '') {
+        return 0;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return 0;
+    }
+
+    $stmt = $db->prepare(
+        'INSERT INTO learning_resources (tenant_id, provider, provider_id, title, metadata_json, created_at, updated_at)
+         VALUES (:tenant_id, :provider, :provider_id, :title, :metadata_json, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE title = VALUES(title), metadata_json = VALUES(metadata_json), status = \'active\', updated_at = NOW()'
+    );
+    $stmt->execute([
+        ':tenant_id' => $tenantId,
+        ':provider' => $provider,
+        ':provider_id' => $providerId,
+        ':title' => $title !== '' ? $title : 'Learning Resource',
+        ':metadata_json' => $metadata !== [] ? json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+    ]);
+
+    $lookup = $db->prepare('SELECT id FROM learning_resources WHERE tenant_id = :tenant_id AND provider = :provider AND provider_id = :provider_id LIMIT 1');
+    $lookup->execute([
+        ':tenant_id' => $tenantId,
+        ':provider' => $provider,
+        ':provider_id' => $providerId,
+    ]);
+
+    return (int)($lookup->fetchColumn() ?: 0);
+}
+
+function moodleIntegrationLearningResourceIdByMoodleCourseId(int $moodleCourseId, ?int $tenantId = null): int
+{
+    if ($moodleCourseId <= 0) {
+        return 0;
+    }
+
+    $tenantId = ($tenantId ?? 0) > 0 ? (int)$tenantId : moodleIntegrationCurrentTenantId();
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return 0;
+    }
+
+    $stmt = $db->prepare('SELECT resource_id FROM moodle_courses_cache WHERE tenant_id = :tenant_id AND moodle_course_id = :moodle_course_id LIMIT 1');
+    $stmt->execute([
+        ':tenant_id' => $tenantId,
+        ':moodle_course_id' => $moodleCourseId,
+    ]);
+
+    return (int)($stmt->fetchColumn() ?: 0);
+}
+
+function moodleIntegrationRecordSsoTokenForTenant(int $tenantId, int $userId, int $learningResourceId, string $token, int $ttlSeconds = 60): bool
+{
+    if ($tenantId <= 0 || $userId <= 0 || $token === '') {
+        return false;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return false;
+    }
+
+    $expiresAt = date('Y-m-d H:i:s', time() + max(30, min($ttlSeconds, 300)));
+    $db->prepare('DELETE FROM moodle_sso_tokens WHERE tenant_id = :tenant_id AND (used_at IS NOT NULL OR expires_at < NOW())')->execute([
+        ':tenant_id' => $tenantId,
+    ]);
+
+    $stmt = $db->prepare(
+        'INSERT INTO moodle_sso_tokens (tenant_id, user_id, learning_resource_id, token_hash, expires_at, created_at)
+         VALUES (:tenant_id, :user_id, :learning_resource_id, :token_hash, :expires_at, NOW())'
+    );
+
+    return $stmt->execute([
+        ':tenant_id' => $tenantId,
+        ':user_id' => $userId,
+        ':learning_resource_id' => $learningResourceId > 0 ? $learningResourceId : null,
+        ':token_hash' => hash('sha256', $token),
+        ':expires_at' => $expiresAt,
+    ]);
+}
+
+function moodleIntegrationConsumeSsoTokenForTenant(int $tenantId, string $token): ?array
+{
+    if ($tenantId <= 0 || $token === '') {
+        return null;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return null;
+    }
+
+    $stmt = $db->prepare(
+        'SELECT * FROM moodle_sso_tokens
+         WHERE tenant_id = :tenant_id AND token_hash = :token_hash AND used_at IS NULL AND expires_at >= NOW()
+         LIMIT 1'
+    );
+    $stmt->execute([
+        ':tenant_id' => $tenantId,
+        ':token_hash' => hash('sha256', $token),
+    ]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $update = $db->prepare('UPDATE moodle_sso_tokens SET used_at = NOW() WHERE tenant_id = :tenant_id AND id = :id AND used_at IS NULL');
+    $update->execute([
+        ':tenant_id' => $tenantId,
+        ':id' => (int)$row['id'],
+    ]);
+    if ($update->rowCount() < 1) {
+        return null;
+    }
+
+    return $row;
+}
+
+/**
+ * Return the parsed capabilities array for a registered learning provider slug.
+ * Returns an empty array if the provider row is not found or its capabilities_json is invalid.
+ */
+function moodleIntegrationGetProviderCapabilities(string $slug): array
+{
+    if ($slug === '') {
+        return [];
+    }
+
+    $tenantId = moodleIntegrationCurrentTenantId();
+    $db = $tenantId > 0 ? moodleIntegrationTenantDb($tenantId) : null;
+    if (!$db instanceof \PDO) {
+        return [];
+    }
+
+    try {
+        $stmt = $db->prepare('SELECT capabilities_json FROM learning_providers WHERE slug = :slug AND is_active = 1 LIMIT 1');
+        $stmt->execute([':slug' => $slug]);
+        $json = $stmt->fetchColumn();
+        if ($json === false || $json === null) {
+            return [];
+        }
+        $decoded = json_decode((string)$json, true);
+        return is_array($decoded) ? $decoded : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Return true if the named capability is truthy for a provider.
+ * Capability keys match the capabilities_json keys (e.g. 'supports_sso').
+ */
+function moodleIntegrationProviderSupports(string $slug, string $capability): bool
+{
+    $caps = moodleIntegrationGetProviderCapabilities($slug);
+    return !empty($caps[$capability]);
+}
+
+/**
+ * Mark a learning resource as inactive (soft-delete from public views).
+ * Historical progress and enrollment rows keep their FK reference intact.
+ */
+function moodleIntegrationDeactivateLearningResource(int $tenantId, int $resourceId): void
+{
+    if ($tenantId <= 0 || $resourceId <= 0) {
+        return;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return;
+    }
+
+    $stmt = $db->prepare('UPDATE learning_resources SET status = \'inactive\', updated_at = NOW() WHERE id = :id AND tenant_id = :tenant_id AND status != \'inactive\'');
+    $stmt->execute([':id' => $resourceId, ':tenant_id' => $tenantId]);
+}
+
+/**
+ * Restore a previously inactive learning resource to active status.
+ */
+function moodleIntegrationActivateLearningResource(int $tenantId, int $resourceId): void
+{
+    if ($tenantId <= 0 || $resourceId <= 0) {
+        return;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return;
+    }
+
+    $stmt = $db->prepare('UPDATE learning_resources SET status = \'active\', updated_at = NOW() WHERE id = :id AND tenant_id = :tenant_id AND status != \'active\'');
+    $stmt->execute([':id' => $resourceId, ':tenant_id' => $tenantId]);
+}
+
+/**
+ * Increment the outbound Moodle API call counter for the current minute window.
+ * Returns false when the counter exceeds $maxPerMinute, signalling the caller to abort the call.
+ * On DB error the function allows the call (fail-open) to avoid blocking legitimate syncs.
+ */
+function moodleIntegrationCheckAndRecordOutboundRequest(int $tenantId, int $maxPerMinute): bool
+{
+    if ($tenantId <= 0 || $maxPerMinute <= 0) {
+        return true;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return true;
+    }
+
+    $windowStart = date('Y-m-d H:i:00');
+
+    try {
+        $stmt = $db->prepare(
+            'INSERT INTO moodle_rate_limit (tenant_id, window_start, request_count, created_at, updated_at)
+             VALUES (:tenant_id, :window_start, 1, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE request_count = request_count + 1, updated_at = NOW()'
+        );
+        $stmt->execute([':tenant_id' => $tenantId, ':window_start' => $windowStart]);
+
+        $check = $db->prepare('SELECT request_count FROM moodle_rate_limit WHERE tenant_id = :tenant_id AND window_start = :window_start LIMIT 1');
+        $check->execute([':tenant_id' => $tenantId, ':window_start' => $windowStart]);
+        $count = (int)($check->fetchColumn() ?: 1);
+
+        return $count <= $maxPerMinute;
+    } catch (\Throwable $e) {
+        return true;
+    }
+}
+
 function moodleIntegrationIsConfigured(): bool
 {
     $settings = moodleIntegrationGetSettings();
@@ -508,6 +813,8 @@ function moodleIntegrationRenderShortcode(string $tag, array $attrs = []): strin
         return moodleIntegrationRenderCourseListBlock([
             'title' => moodleIntegrationShortcodeValue($attrs, 'title', 'Available Courses'),
             'limit' => (int)($attrs['limit'] ?? 6),
+            'category' => moodleIntegrationShortcodeValue($attrs, 'category', ''),
+            'category_id' => (int)($attrs['category_id'] ?? 0),
         ]);
     }
 
@@ -520,6 +827,7 @@ function moodleIntegrationRenderShortcode(string $tag, array $attrs = []): strin
     if (in_array($tag, ['moodle-my-courses', 'moodle_my_courses'], true)) {
         return moodleIntegrationRenderMyCoursesBlock([
             'title' => moodleIntegrationShortcodeValue($attrs, 'title', 'My Courses'),
+            'status' => moodleIntegrationShortcodeValue($attrs, 'status', ''),
         ]);
     }
 
@@ -960,6 +1268,7 @@ function moodleIntegrationEnrollmentRequestHydrateRow(array $row): array
     $row['learner_email'] = trim((string)($row['learner_email'] ?? $row['email'] ?? ''));
     $row['reviewer_name'] = trim((string)($row['reviewer_name'] ?? $row['reviewer_username'] ?? ''));
     $row['review_notes'] = trim((string)($row['review_notes'] ?? ''));
+    $row['enrollment_mode'] = moodleIntegrationNormalizeEnrollmentMode((string)($row['enrollment_mode'] ?? 'manual_review'));
     return $row;
 }
 
@@ -1052,6 +1361,10 @@ function moodleIntegrationSaveEnrollmentRequestForTenant(int $tenantId, int $use
         ? ($options['reviewed_at'] === null ? null : (string)$options['reviewed_at'])
         : ($existing['reviewed_at'] ?? null);
     $syncQueueId = isset($options['sync_queue_id']) ? (int)$options['sync_queue_id'] : (int)($existing['sync_queue_id'] ?? 0);
+    $learningResourceId = isset($options['learning_resource_id'])
+        ? (int)$options['learning_resource_id']
+        : (int)($existing['learning_resource_id'] ?? moodleIntegrationLearningResourceIdByMoodleCourseId($moodleCourseId, $tenantId));
+    $enrollmentMode = moodleIntegrationNormalizeEnrollmentMode((string)($options['enrollment_mode'] ?? ($existing['enrollment_mode'] ?? moodleIntegrationGetSettingsForTenant($tenantId)['enrollment_mode'] ?? 'manual_review')));
 
     if ($status === 'pending_review') {
         $reviewedByUserId = 0;
@@ -1064,7 +1377,9 @@ function moodleIntegrationSaveEnrollmentRequestForTenant(int $tenantId, int $use
             'UPDATE moodle_enrollment_requests
              SET status = :status,
                  review_notes = :review_notes,
+                 enrollment_mode = :enrollment_mode,
                  requested_by_source = :requested_by_source,
+                 learning_resource_id = :learning_resource_id,
                  reviewed_by_user_id = :reviewed_by_user_id,
                  reviewed_at = :reviewed_at,
                  sync_queue_id = :sync_queue_id,
@@ -1074,7 +1389,9 @@ function moodleIntegrationSaveEnrollmentRequestForTenant(int $tenantId, int $use
         $stmt->execute([
             ':status' => $status,
             ':review_notes' => $reviewNotes !== '' ? $reviewNotes : null,
+            ':enrollment_mode' => $enrollmentMode,
             ':requested_by_source' => $requestedBySource !== '' ? $requestedBySource : 'cms',
+            ':learning_resource_id' => $learningResourceId > 0 ? $learningResourceId : null,
             ':reviewed_by_user_id' => $reviewedByUserId > 0 ? $reviewedByUserId : null,
             ':reviewed_at' => $reviewedAt,
             ':sync_queue_id' => $syncQueueId > 0 ? $syncQueueId : null,
@@ -1087,18 +1404,20 @@ function moodleIntegrationSaveEnrollmentRequestForTenant(int $tenantId, int $use
 
     $stmt = $db->prepare(
         'INSERT INTO moodle_enrollment_requests (
-            tenant_id, user_id, moodle_course_id, status, review_notes, requested_by_source,
+            tenant_id, user_id, learning_resource_id, moodle_course_id, status, enrollment_mode, review_notes, requested_by_source,
             reviewed_by_user_id, sync_queue_id, requested_at, reviewed_at, created_at, updated_at
          ) VALUES (
-            :tenant_id, :user_id, :moodle_course_id, :status, :review_notes, :requested_by_source,
+            :tenant_id, :user_id, :learning_resource_id, :moodle_course_id, :status, :enrollment_mode, :review_notes, :requested_by_source,
             :reviewed_by_user_id, :sync_queue_id, NOW(), :reviewed_at, NOW(), NOW()
          )'
     );
     $stmt->execute([
         ':tenant_id' => $tenantId,
         ':user_id' => $userId,
+        ':learning_resource_id' => $learningResourceId > 0 ? $learningResourceId : null,
         ':moodle_course_id' => $moodleCourseId,
         ':status' => $status,
+        ':enrollment_mode' => $enrollmentMode,
         ':review_notes' => $reviewNotes !== '' ? $reviewNotes : null,
         ':requested_by_source' => $requestedBySource !== '' ? $requestedBySource : 'cms',
         ':reviewed_by_user_id' => $reviewedByUserId > 0 ? $reviewedByUserId : null,
@@ -1186,14 +1505,14 @@ function moodleIntegrationEnrollmentRequestStatusSummary(): array
 {
     $db = moodleIntegrationTenantDb(moodleIntegrationCurrentTenantId());
     if (!$db instanceof \PDO) {
-        return ['pending_review' => 0, 'approved' => 0, 'rejected' => 0, 'revoked' => 0];
+        return ['pending_review' => 0, 'pending_payment' => 0, 'approved' => 0, 'rejected' => 0, 'revoked' => 0];
     }
 
     $stmt = $db->prepare('SELECT status, COUNT(*) AS count_rows FROM moodle_enrollment_requests WHERE tenant_id = :tenant_id GROUP BY status');
     $stmt->execute([':tenant_id' => moodleIntegrationCurrentTenantId()]);
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-    $summary = ['pending_review' => 0, 'approved' => 0, 'rejected' => 0, 'revoked' => 0];
+    $summary = ['pending_review' => 0, 'pending_payment' => 0, 'approved' => 0, 'rejected' => 0, 'revoked' => 0];
     foreach ($rows as $row) {
         $status = (string)($row['status'] ?? 'pending_review');
         if (!array_key_exists($status, $summary)) {
@@ -1312,7 +1631,10 @@ if (function_exists('app') && method_exists(app(), 'hooks')) {
 
 function moodleIntegrationRenderCourseListBlock(array $block = []): string
 {
-    $courses = moodleIntegrationCachedCourses((int)($block['limit'] ?? 6));
+    $courses = moodleIntegrationCachedCourses((int)($block['limit'] ?? 6), [
+        'category' => trim((string)($block['category'] ?? '')),
+        'category_id' => (int)($block['category_id'] ?? 0),
+    ]);
     return moodleIntegrationRender('blocks/course-list.disyl', [
         'block_title' => trim((string)($block['title'] ?? 'Available Courses')),
         'courses' => $courses,
@@ -1336,9 +1658,10 @@ function moodleIntegrationRenderMyCoursesBlock(array $block = []): string
 {
     $user = app()->user();
     $isAuthenticated = is_array($user) && !empty($user['id']);
-    $courses = $isAuthenticated ? moodleIntegrationUserProgressRows((int)$user['id']) : [];
+    $statusFilter = array_values(array_filter(array_map('trim', explode(',', (string)($block['status'] ?? '')))));
+    $courses = $isAuthenticated ? moodleIntegrationUserProgressRows((int)$user['id'], ['statuses' => $statusFilter]) : [];
     $requests = $isAuthenticated
-        ? moodleIntegrationUserEnrollmentRequests((int)$user['id'], ['pending_review', 'rejected', 'revoked'], 10)
+        ? moodleIntegrationUserEnrollmentRequests((int)$user['id'], ['pending_review', 'pending_payment', 'rejected', 'revoked'], 10)
         : [];
     $courseCount = count($courses);
     $completedCount = 0;
@@ -1427,10 +1750,43 @@ function moodleIntegrationCachedCourses(int $limit = 20): array
 {
     $tenantId = moodleIntegrationCurrentTenantId();
     $db = moodleIntegrationDb();
-    $stmt = $db->prepare(
-        'SELECT id, moodle_course_id, title, summary, image, updated_at FROM moodle_courses_cache WHERE tenant_id = :tenant_id ORDER BY updated_at DESC, id DESC LIMIT ' . max(1, $limit)
-    );
-    $stmt->execute([':tenant_id' => $tenantId]);
+    return moodleIntegrationCachedCoursesWithFilters($limit, [], $tenantId, $db);
+}
+
+function moodleIntegrationCachedCoursesWithFilters(int $limit = 20, array $filters = [], ?int $tenantId = null, mixed $db = null): array
+{
+    $tenantId = ($tenantId ?? 0) > 0 ? (int)$tenantId : moodleIntegrationCurrentTenantId();
+    $db = $db instanceof \PDO ? $db : moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return [];
+    }
+
+    $sql = 'SELECT id, resource_id, moodle_course_id, moodle_category_id, moodle_category_key, title, summary, image, updated_at
+            FROM moodle_courses_cache
+            WHERE tenant_id = :tenant_id';
+    $params = [':tenant_id' => $tenantId];
+
+    $sharedCategoryId = moodleIntegrationSharedTenantCategoryId($tenantId);
+    if ($sharedCategoryId > 0) {
+        $sql .= ' AND moodle_category_id = :shared_category_id';
+        $params[':shared_category_id'] = $sharedCategoryId;
+    } elseif ((moodleIntegrationGetSettingsForTenant($tenantId)['tenant_mode'] ?? 'per_instance') === 'shared') {
+        return [];
+    }
+
+    $categoryId = (int)($filters['category_id'] ?? 0);
+    $categoryKey = moodleIntegrationCategoryKey((string)($filters['category'] ?? ''));
+    if ($categoryId > 0) {
+        $sql .= ' AND moodle_category_id = :category_id';
+        $params[':category_id'] = $categoryId;
+    } elseif ($categoryKey !== '') {
+        $sql .= ' AND moodle_category_key = :category_key';
+        $params[':category_key'] = $categoryKey;
+    }
+
+    $sql .= ' ORDER BY updated_at DESC, id DESC LIMIT ' . max(1, $limit);
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     return is_array($rows) ? $rows : [];
@@ -1439,26 +1795,76 @@ function moodleIntegrationCachedCourses(int $limit = 20): array
 function moodleIntegrationCachedCourseByMoodleId(int $moodleCourseId): ?array
 {
     $db = moodleIntegrationDb();
-    $stmt = $db->prepare('SELECT id, moodle_course_id, title, summary, image, updated_at FROM moodle_courses_cache WHERE tenant_id = :tenant_id AND moodle_course_id = :moodle_course_id LIMIT 1');
+    $stmt = $db->prepare('SELECT id, resource_id, moodle_course_id, moodle_category_id, moodle_category_key, title, summary, image, updated_at FROM moodle_courses_cache WHERE tenant_id = :tenant_id AND moodle_course_id = :moodle_course_id LIMIT 1');
     $stmt->execute([
         ':tenant_id' => moodleIntegrationCurrentTenantId(),
         ':moodle_course_id' => $moodleCourseId,
     ]);
     $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-    return is_array($row) ? $row : null;
+    if (!is_array($row) || !moodleIntegrationCourseBelongsToTenant($row)) {
+        return null;
+    }
+
+    return $row;
 }
 
-function moodleIntegrationUserProgressRows(int $userId): array
+function moodleIntegrationCachedCourseByResourceId(int $resourceId): ?array
 {
+    if ($resourceId <= 0) {
+        return null;
+    }
+
     $db = moodleIntegrationDb();
-    $stmt = $db->prepare(
-        'SELECT p.course_id, p.progress_percent, p.grade, p.status, p.last_synced, c.title, c.summary, c.image, c.moodle_course_id FROM moodle_user_progress p LEFT JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id WHERE p.tenant_id = :tenant_id AND p.user_id = :user_id ORDER BY p.last_synced DESC, p.id DESC'
-    );
+    $stmt = $db->prepare('SELECT id, resource_id, moodle_course_id, moodle_category_id, moodle_category_key, title, summary, image, updated_at FROM moodle_courses_cache WHERE tenant_id = :tenant_id AND resource_id = :resource_id LIMIT 1');
     $stmt->execute([
         ':tenant_id' => moodleIntegrationCurrentTenantId(),
-        ':user_id' => $userId,
+        ':resource_id' => $resourceId,
     ]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!is_array($row) || !moodleIntegrationCourseBelongsToTenant($row)) {
+        return null;
+    }
+
+    return $row;
+}
+
+function moodleIntegrationUserProgressRows(int $userId, array $filters = []): array
+{
+    $db = moodleIntegrationDb();
+    $tenantId = moodleIntegrationCurrentTenantId();
+    $sql = 'SELECT p.course_id, p.progress_percent, p.grade, p.status, p.last_synced,
+                   c.resource_id, c.title, c.summary, c.image, c.moodle_course_id, c.moodle_category_id, c.moodle_category_key
+            FROM moodle_user_progress p
+            LEFT JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id
+            WHERE p.tenant_id = :tenant_id AND p.user_id = :user_id';
+    $params = [
+        ':tenant_id' => $tenantId,
+        ':user_id' => $userId,
+    ];
+    $sharedCategoryId = moodleIntegrationSharedTenantCategoryId($tenantId);
+    if ($sharedCategoryId > 0) {
+        $sql .= ' AND c.moodle_category_id = :shared_category_id';
+        $params[':shared_category_id'] = $sharedCategoryId;
+    } elseif ((moodleIntegrationGetSettingsForTenant($tenantId)['tenant_mode'] ?? 'per_instance') === 'shared') {
+        return [];
+    }
+
+    $statuses = array_values(array_filter(array_map('trim', (array)($filters['statuses'] ?? []))));
+    if ($statuses !== []) {
+        $placeholders = [];
+        foreach ($statuses as $index => $status) {
+            $key = ':status_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $status;
+        }
+        $sql .= ' AND p.status IN (' . implode(', ', $placeholders) . ')';
+    }
+
+    $sql .= ' ORDER BY p.last_synced DESC, p.id DESC';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     return is_array($rows) ? $rows : [];
@@ -1472,7 +1878,7 @@ function moodleIntegrationUserCourseProgressRow(int $userId, int $moodleCourseId
 
     $db = moodleIntegrationDb();
     $stmt = $db->prepare(
-        'SELECT p.course_id, p.progress_percent, p.grade, p.status, p.last_synced, c.title, c.summary, c.image, c.moodle_course_id
+        'SELECT p.course_id, p.progress_percent, p.grade, p.status, p.last_synced, c.resource_id, c.title, c.summary, c.image, c.moodle_course_id, c.moodle_category_id, c.moodle_category_key
          FROM moodle_user_progress p
          JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id
          WHERE p.tenant_id = :tenant_id AND p.user_id = :user_id AND c.moodle_course_id = :moodle_course_id
@@ -1485,7 +1891,11 @@ function moodleIntegrationUserCourseProgressRow(int $userId, int $moodleCourseId
     ]);
     $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-    return is_array($row) ? $row : null;
+    if (!is_array($row) || !moodleIntegrationCourseBelongsToTenant($row)) {
+        return null;
+    }
+
+    return $row;
 }
 
 function moodleIntegrationLatestEnrollmentQueueRow(int $userId, int $moodleCourseId): ?array
@@ -1542,6 +1952,9 @@ function moodleIntegrationCourseStatusPayload(int $userId, int $moodleCourseId):
     if ($requestStatus === 'pending_review') {
         $state = 'pending_review';
         $message = 'Enrollment request submitted. Waiting for eligibility review.';
+    } elseif ($requestStatus === 'pending_payment') {
+        $state = 'pending_payment';
+        $message = 'Enrollment is waiting for payment confirmation before Moodle sync can begin.';
     } elseif ($requestStatus === 'rejected') {
         $state = 'rejected';
         $message = trim((string)($request['review_notes'] ?? 'Enrollment request was not approved.'));
@@ -1608,6 +2021,7 @@ function moodleIntegrationLearnerCourseAccessState(int $userId, int $moodleCours
     $queueStatus = trim((string)($queue['status'] ?? ''));
     $launchReady = $progress !== null;
     $reviewPending = $requestStatus === 'pending_review';
+    $paymentPending = $requestStatus === 'pending_payment';
     $requestRejected = $requestStatus === 'rejected';
     $requestRevoked = $requestStatus === 'revoked';
     $queueFailed = $requestStatus === 'approved' && $queueStatus === 'failed';
@@ -1619,6 +2033,8 @@ function moodleIntegrationLearnerCourseAccessState(int $userId, int $moodleCours
         $message = 'Enrollment is ready. You can launch this course in Moodle now.';
     } elseif ($reviewPending) {
         $message = 'Enrollment request submitted. Waiting for eligibility review.';
+    } elseif ($paymentPending) {
+        $message = 'Enrollment is waiting for payment confirmation before Moodle sync can begin.';
     } elseif ($requestRejected) {
         $message = trim((string)($request['review_notes'] ?? 'Enrollment request was not approved.'));
     } elseif ($requestRevoked) {
@@ -1634,6 +2050,7 @@ function moodleIntegrationLearnerCourseAccessState(int $userId, int $moodleCours
     return [
         'launch_ready' => $launchReady,
         'review_pending' => $reviewPending,
+        'payment_pending' => $paymentPending,
         'request_rejected' => $requestRejected,
         'request_revoked' => $requestRevoked,
         'queue_pending' => $queuePending,

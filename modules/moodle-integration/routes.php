@@ -18,6 +18,7 @@ return [
         '/api/v1/moodle-integration/status/{id}' => 'moodle-integration:apiMoodleIntegrationCourseStatus',
     ],
     'POST' => [
+        '/api/v1/moodle-integration/sso/validate' => 'moodle-integration:apiMoodleIntegrationSsoValidate',
         '/api/v1/moodle-integration/enroll/{id}' => 'moodle-integration:apiMoodleIntegrationEnroll',
         '/api/v1/moodle-integration/sync' => 'moodle-integration:apiMoodleIntegrationQueueSync',
         '/api/v1/moodle-integration/jobs/sync-courses' => 'moodle-integration:moodleIntegrationSyncCoursesJob',

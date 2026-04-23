@@ -44,11 +44,14 @@ final class SSOService
         }
 
         $header = ['alg' => 'HS256', 'typ' => 'JWT'];
+        $issuedAt = time();
+        $expiresAt = $issuedAt + 60;
         $payload = [
             'iss' => 'applicationos',
             'aud' => 'moodle-integration',
-            'iat' => time(),
-            'exp' => time() + 300,
+            'iat' => $issuedAt,
+            'exp' => $expiresAt,
+            'jti' => bin2hex(random_bytes(16)),
             'tenant_id' => $this->tenantId,
             'user' => [
                 'id' => (int)($user['id'] ?? 0),
@@ -70,17 +73,21 @@ final class SSOService
         $signature = hash_hmac('sha256', implode('.', $segments), $secret, true);
         $segments[] = $this->base64UrlEncode($signature);
 
-        return implode('.', $segments);
+        $token = implode('.', $segments);
+        $recorded = \moodleIntegrationRecordSsoTokenForTenant(
+            $this->tenantId,
+            (int)($user['id'] ?? 0),
+            (int)($course['resource_id'] ?? \moodleIntegrationLearningResourceIdByMoodleCourseId((int)($course['moodle_course_id'] ?? 0), $this->tenantId)),
+            $token,
+            $expiresAt - $issuedAt
+        );
+
+        return $recorded ? $token : null;
     }
 
     private function settings(): array
     {
-        if ($this->tenantId > 0 && function_exists('getModuleSettingsForTenant')) {
-            $settings = \getModuleSettingsForTenant('moodle-integration', $this->tenantId);
-            return array_merge(\moodleIntegrationSettingsDefaults(), is_array($settings) ? $settings : []);
-        }
-
-        return \moodleIntegrationGetSettings();
+        return \moodleIntegrationGetSettingsForTenant($this->tenantId);
     }
 
     private function base64UrlEncode(string $value): string

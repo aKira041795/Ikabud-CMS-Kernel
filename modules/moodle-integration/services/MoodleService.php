@@ -7,6 +7,8 @@ namespace MoodleIntegration\Services;
 final class MoodleService
 {
     private int $tenantId;
+    /** Tracks calls made by this instance to enforce the burst limit. */
+    private int $requestCount = 0;
 
     public function __construct(int $tenantId = 0)
     {
@@ -20,12 +22,7 @@ final class MoodleService
 
     public function settings(): array
     {
-        if ($this->tenantId > 0 && function_exists('getModuleSettingsForTenant')) {
-            $settings = \getModuleSettingsForTenant('moodle-integration', $this->tenantId);
-            return array_merge(\moodleIntegrationSettingsDefaults(), is_array($settings) ? $settings : []);
-        }
-
-        return \moodleIntegrationGetSettings();
+        return \moodleIntegrationGetSettingsForTenant($this->tenantId);
     }
 
     public function isConfigured(): bool
@@ -63,6 +60,10 @@ final class MoodleService
         $course = isset($courses[0]) && is_array($courses[0]) ? $courses[0] : null;
         if ($course === null) {
             return ['ok' => false, 'error' => 'Course not found', 'http_code' => 404];
+        }
+
+        if (!\moodleIntegrationCourseBelongsToTenant($course, $this->tenantId, $this->settings())) {
+            return ['ok' => false, 'error' => 'Course is not assigned to this tenant', 'http_code' => 404];
         }
 
         return ['ok' => true, 'course' => $course, 'http_code' => (int)($result['http_code'] ?? 200)];
@@ -228,6 +229,10 @@ final class MoodleService
             return ['ok' => false, 'error' => 'Moodle integration is not configured', 'http_code' => 503];
         }
 
+        if (!$this->checkThrottle()) {
+            return ['ok' => false, 'error' => 'Moodle request rate limit exceeded', 'http_code' => 429];
+        }
+
         $settings = $this->settings();
         $endpoint = rtrim((string)$settings['moodle_url'], '/') . '/webservice/rest/server.php';
         $formParams = array_merge([
@@ -306,25 +311,31 @@ final class MoodleService
             return $courses;
         }
 
-        $mapRaw = trim((string)($settings['shared_category_map_json'] ?? ''));
-        if ($mapRaw === '') {
-            return $courses;
-        }
-
-        $map = json_decode($mapRaw, true);
-        if (!is_array($map)) {
-            return $courses;
-        }
-
-        $tenantKey = (string)$this->tenantId;
-        $categoryId = isset($map[$tenantKey]) ? (int)$map[$tenantKey] : 0;
+        $categoryId = \moodleIntegrationSharedTenantCategoryId($this->tenantId, $settings);
         if ($categoryId <= 0) {
-            return $courses;
+            return [];
         }
 
         return array_values(array_filter($courses, static function (array $course) use ($categoryId): bool {
             return (int)($course['categoryid'] ?? 0) === $categoryId;
         }));
+    }
+
+    private function checkThrottle(): bool
+    {
+        $settings = $this->settings();
+        $maxPerMin = max(1, (int)($settings['max_requests_per_minute'] ?? 60));
+        $burstLimit = max(1, (int)($settings['burst_limit'] ?? 20));
+
+        // Increment in-process counter; abort if this instance has exceeded the per-job burst cap.
+        $this->requestCount++;
+        if ($this->requestCount > $burstLimit) {
+            \write_log("moodle-integration: burst limit ({$burstLimit}) exceeded for tenant {$this->tenantId} (request #{$this->requestCount})", 'warning');
+            return false;
+        }
+
+        // DB-backed per-minute window enforcement.
+        return \moodleIntegrationCheckAndRecordOutboundRequest($this->tenantId, $maxPerMin);
     }
 
     private function flattenParams(array $params, string $prefix = ''): array

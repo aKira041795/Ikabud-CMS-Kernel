@@ -46,7 +46,20 @@ echo "\n-- Defaults --\n";
 $defaults = moodleIntegrationSettingsDefaults();
 moodleIntegrationTestAssert('moodle_url default present', array_key_exists('moodle_url', $defaults));
 moodleIntegrationTestAssert('tenant_mode default is per_instance', ($defaults['tenant_mode'] ?? '') === 'per_instance');
+moodleIntegrationTestAssert('enrollment_mode default is manual_review', ($defaults['enrollment_mode'] ?? '') === 'manual_review');
 moodleIntegrationTestAssert('sync_interval default is hourly', ($defaults['sync_interval'] ?? '') === 'hourly');
+moodleIntegrationTestAssert('max_requests_per_minute default present', array_key_exists('max_requests_per_minute', $defaults));
+moodleIntegrationTestAssert('burst_limit default present', array_key_exists('burst_limit', $defaults));
+
+echo "\n-- Guardrails --\n";
+moodleIntegrationTestAssert(
+    'shared tenant category helper resolves configured category',
+    moodleIntegrationSharedTenantCategoryId(42, ['tenant_mode' => 'shared', 'shared_category_map_json' => '{"42":77}']) === 77
+);
+moodleIntegrationTestAssert(
+    'shared tenant guard rejects mismatched category',
+    moodleIntegrationCourseBelongsToTenant(['moodle_category_id' => 11], 42, ['tenant_mode' => 'shared', 'shared_category_map_json' => '{"42":77}']) === false
+);
 
 echo "\n-- Routes --\n";
 $routes = require __DIR__ . '/../modules/moodle-integration/routes.php';
@@ -58,6 +71,14 @@ moodleIntegrationTestAssert('launch route exists', ($routes['GET']['/course/{id}
 moodleIntegrationTestAssert('canonical cms my-courses route exists', ($routes['GET']['/cms/my-courses'] ?? '') === 'moodle-integration:pageMoodleIntegrationMyCourses');
 moodleIntegrationTestAssert('status API exists', ($routes['GET']['/api/v1/moodle-integration/status/{id}'] ?? '') === 'moodle-integration:apiMoodleIntegrationCourseStatus');
 moodleIntegrationTestAssert('sync API exists', ($routes['POST']['/api/v1/moodle-integration/sync'] ?? '') === 'moodle-integration:apiMoodleIntegrationQueueSync');
+moodleIntegrationTestAssert('SSO validate API exists', ($routes['POST']['/api/v1/moodle-integration/sso/validate'] ?? '') === 'moodle-integration:apiMoodleIntegrationSsoValidate');
+
+echo "\n-- Function Surface --\n";
+moodleIntegrationTestAssert('moodleIntegrationDeactivateLearningResource exists', function_exists('moodleIntegrationDeactivateLearningResource'));
+moodleIntegrationTestAssert('moodleIntegrationActivateLearningResource exists', function_exists('moodleIntegrationActivateLearningResource'));
+moodleIntegrationTestAssert('moodleIntegrationProviderSupports exists', function_exists('moodleIntegrationProviderSupports'));
+moodleIntegrationTestAssert('moodleIntegrationGetProviderCapabilities exists', function_exists('moodleIntegrationGetProviderCapabilities'));
+moodleIntegrationTestAssert('moodleIntegrationCheckAndRecordOutboundRequest exists', function_exists('moodleIntegrationCheckAndRecordOutboundRequest'));
 
 echo "\n-- CMS Setup --\n";
 moodleIntegrationTestAssert('page setup specs exist', count(moodleIntegrationCmsPageSpecs()) >= 2);

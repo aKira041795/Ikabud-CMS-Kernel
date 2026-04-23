@@ -21,6 +21,7 @@ final class SyncService
 
         $queueId = (int)($payload['sync_queue_id'] ?? 0);
         $db = $this->tenantDb($tenantId);
+        $startedAt = microtime(true);
         $this->markQueue($db, $tenantId, $queueId, 'processing');
 
         try {
@@ -35,16 +36,23 @@ final class SyncService
                 throw new RuntimeException((string)($result['error'] ?? 'Course sync failed.'));
             }
 
+            $syncedMoodleCourseIds = [];
             foreach ((array)($result['courses'] ?? []) as $course) {
                 if (!is_array($course)) {
                     continue;
                 }
                 $this->upsertCourseCache($db, $tenantId, $course);
+                $syncedMoodleCourseIds[] = (int)($course['id'] ?? 0);
             }
 
+            // Soft-deactivate learning resources for Moodle courses no longer returned by the API.
+            $this->deactivateMissingResources($db, $tenantId, $syncedMoodleCourseIds);
+
             $this->markQueue($db, $tenantId, $queueId, 'completed');
+            $this->recordMetric($db, $tenantId, 'courses', true, $startedAt);
         } catch (Throwable $e) {
             $this->markQueue($db, $tenantId, $queueId, 'failed', $e->getMessage());
+            $this->recordMetric($db, $tenantId, 'courses', false, $startedAt, $e->getMessage());
             throw $e;
         }
     }
@@ -58,6 +66,8 @@ final class SyncService
 
         $queueId = (int)($payload['sync_queue_id'] ?? 0);
         $db = $this->tenantDb($tenantId);
+        $startedAt = microtime(true);
+        $syncType = trim((string)($payload['action'] ?? 'refresh')) === 'enroll' ? 'progress_enroll' : 'progress_refresh';
         $this->markQueue($db, $tenantId, $queueId, 'processing');
 
         try {
@@ -75,15 +85,43 @@ final class SyncService
             }
 
             $this->markQueue($db, $tenantId, $queueId, 'completed');
+            $this->recordMetric($db, $tenantId, $syncType, true, $startedAt);
         } catch (Throwable $e) {
             $this->markQueue($db, $tenantId, $queueId, 'failed', $e->getMessage());
+            $this->recordMetric($db, $tenantId, $syncType, false, $startedAt, $e->getMessage());
             throw $e;
         }
     }
 
     private function handleEnrollmentSync(PDO $db, MoodleService $service, int $tenantId, array $payload): void
     {
-        $localUser = $this->loadLocalUser($db, (int)($payload['user_id'] ?? 0));
+        $userId = (int)($payload['user_id'] ?? 0);
+        $moodleCourseId = (int)($payload['moodle_course_id'] ?? 0);
+
+        // Pre-flight: verify the enrollment request is still in an approved state before
+        // writing any progress data or touching the Moodle LMS.
+        if ($userId > 0 && $moodleCourseId > 0) {
+            $reqStmt = $db->prepare(
+                'SELECT status FROM moodle_enrollment_requests WHERE tenant_id = :tenant_id AND user_id = :user_id AND moodle_course_id = :moodle_course_id LIMIT 1'
+            );
+            $reqStmt->execute([':tenant_id' => $tenantId, ':user_id' => $userId, ':moodle_course_id' => $moodleCourseId]);
+            $reqStatus = $reqStmt->fetchColumn();
+
+            if ($reqStatus !== false && !in_array((string)$reqStatus, ['approved', 'auto_approved'], true)) {
+                $this->recordMetric(
+                    $db,
+                    $tenantId,
+                    'enrollment_drift',
+                    false,
+                    microtime(true),
+                    "Enrollment request status '{$reqStatus}' is not approved; skipping Moodle enrollment sync for user {$userId} course {$moodleCourseId}"
+                );
+                \write_log("moodle-integration: skipping enrollment sync — enrollment request status is '{$reqStatus}' for user {$userId} course {$moodleCourseId} tenant {$tenantId}", 'warning');
+                return;
+            }
+        }
+
+        $localUser = $this->loadLocalUser($db, $userId);
         if ($localUser === null) {
             throw new RuntimeException('Local user not found for Moodle enrollment.');
         }
@@ -137,6 +175,12 @@ final class SyncService
                 continue;
             }
 
+            // Skip progress refresh for users whose enrollment has been explicitly revoked or rejected.
+            $enrollmentStatus = $this->getEnrollmentRequestStatus($db, $tenantId, (int)$row['user_id'], (int)$row['moodle_course_id']);
+            if ($enrollmentStatus !== null && in_array($enrollmentStatus, ['rejected', 'revoked', 'cancelled'], true)) {
+                continue;
+            }
+
             $moodleUser = $service->resolveOrCreateMoodleUser($localUser);
             if (empty($moodleUser['ok']) || !is_array($moodleUser['user'] ?? null)) {
                 continue;
@@ -165,15 +209,28 @@ final class SyncService
 
     private function upsertCourseCache(PDO $db, int $tenantId, array $course): int
     {
+        $courseId = (int)($course['id'] ?? 0);
+        $title = trim((string)($course['fullname'] ?? $course['displayname'] ?? $course['shortname'] ?? 'Untitled Course'));
+        $categoryId = (int)($course['categoryid'] ?? 0);
+        $categoryKey = $this->normalizeCategoryKey((string)($course['categoryname'] ?? $course['category'] ?? ($categoryId > 0 ? 'category-' . $categoryId : '')));
+        $resourceId = $this->ensureLearningResource($db, $tenantId, $courseId, $title, [
+            'moodle_course_id' => $courseId,
+            'moodle_category_id' => $categoryId > 0 ? $categoryId : null,
+            'moodle_category_key' => $categoryKey !== '' ? $categoryKey : null,
+            'shortname' => (string)($course['shortname'] ?? ''),
+        ]);
         $stmt = $db->prepare(
-            'INSERT INTO moodle_courses_cache (tenant_id, moodle_course_id, title, summary, image, updated_at, created_at)
-             VALUES (:tenant_id, :moodle_course_id, :title, :summary, :image, NOW(), NOW())
-             ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), image = VALUES(image), updated_at = NOW()'
+            'INSERT INTO moodle_courses_cache (tenant_id, resource_id, moodle_course_id, moodle_category_id, moodle_category_key, title, summary, image, updated_at, created_at)
+             VALUES (:tenant_id, :resource_id, :moodle_course_id, :moodle_category_id, :moodle_category_key, :title, :summary, :image, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE resource_id = VALUES(resource_id), moodle_category_id = VALUES(moodle_category_id), moodle_category_key = VALUES(moodle_category_key), title = VALUES(title), summary = VALUES(summary), image = VALUES(image), updated_at = NOW()'
         );
         $stmt->execute([
             ':tenant_id' => $tenantId,
-            ':moodle_course_id' => (int)($course['id'] ?? 0),
-            ':title' => trim((string)($course['fullname'] ?? $course['displayname'] ?? $course['shortname'] ?? 'Untitled Course')),
+            ':resource_id' => $resourceId > 0 ? $resourceId : null,
+            ':moodle_course_id' => $courseId,
+            ':moodle_category_id' => $categoryId > 0 ? $categoryId : null,
+            ':moodle_category_key' => $categoryKey !== '' ? $categoryKey : null,
+            ':title' => $title,
             ':summary' => (string)($course['summary'] ?? ''),
             ':image' => (string)($course['courseimage'] ?? $course['overviewfiles'][0]['fileurl'] ?? ''),
         ]);
@@ -184,6 +241,129 @@ final class SyncService
             ':moodle_course_id' => (int)($course['id'] ?? 0),
         ]);
         return (int)($lookup->fetchColumn() ?: 0);
+    }
+
+    private function ensureLearningResource(PDO $db, int $tenantId, int $moodleCourseId, string $title, array $metadata): int
+    {
+        if ($tenantId <= 0 || $moodleCourseId <= 0) {
+            return 0;
+        }
+
+        $stmt = $db->prepare(
+            'INSERT INTO learning_resources (tenant_id, provider, provider_id, title, metadata_json, created_at, updated_at)
+             VALUES (:tenant_id, :provider, :provider_id, :title, :metadata_json, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE title = VALUES(title), metadata_json = VALUES(metadata_json), status = \'active\', updated_at = NOW()'
+        );
+        $stmt->execute([
+            ':tenant_id' => $tenantId,
+            ':provider' => 'moodle',
+            ':provider_id' => (string)$moodleCourseId,
+            ':title' => $title,
+            ':metadata_json' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $lookup = $db->prepare('SELECT id FROM learning_resources WHERE tenant_id = :tenant_id AND provider = :provider AND provider_id = :provider_id LIMIT 1');
+        $lookup->execute([
+            ':tenant_id' => $tenantId,
+            ':provider' => 'moodle',
+            ':provider_id' => (string)$moodleCourseId,
+        ]);
+
+        return (int)($lookup->fetchColumn() ?: 0);
+    }
+
+    private function deactivateMissingResources(PDO $db, int $tenantId, array $activeMoodleCourseIds): void
+    {
+        // Guard: if the sync returned zero courses (e.g. empty Moodle site or category filter
+        // produced no results), we skip deactivation to avoid wiping all resources due to a
+        // transient API condition.
+        if ($activeMoodleCourseIds === []) {
+            return;
+        }
+
+        $stmt = $db->prepare(
+            'SELECT lr.id AS resource_id, c.moodle_course_id
+             FROM learning_resources lr
+             LEFT JOIN moodle_courses_cache c ON c.resource_id = lr.id AND c.tenant_id = lr.tenant_id
+             WHERE lr.tenant_id = :tenant_id AND lr.provider = :provider AND lr.status = :status'
+        );
+        $stmt->execute([':tenant_id' => $tenantId, ':provider' => 'moodle', ':status' => 'active']);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $deactivated = 0;
+        foreach ($rows as $row) {
+            $moodleCourseId = (int)($row['moodle_course_id'] ?? 0);
+            if ($moodleCourseId <= 0 || in_array($moodleCourseId, $activeMoodleCourseIds, true)) {
+                continue;
+            }
+            $update = $db->prepare(
+                'UPDATE learning_resources SET status = \'inactive\', updated_at = NOW()
+                 WHERE id = :id AND tenant_id = :tenant_id AND status = \'active\''
+            );
+            $update->execute([':id' => (int)$row['resource_id'], ':tenant_id' => $tenantId]);
+            if ($update->rowCount() > 0) {
+                $deactivated++;
+            }
+        }
+
+        if ($deactivated > 0) {
+            \write_log("moodle-integration: deactivated {$deactivated} learning_resources no longer present in Moodle for tenant {$tenantId}", 'info');
+        }
+    }
+
+    private function getEnrollmentRequestStatus(PDO $db, int $tenantId, int $userId, int $moodleCourseId): ?string
+    {
+        if ($tenantId <= 0 || $userId <= 0 || $moodleCourseId <= 0) {
+            return null;
+        }
+
+        try {
+            $stmt = $db->prepare('SELECT status FROM moodle_enrollment_requests WHERE tenant_id = :tenant_id AND user_id = :user_id AND moodle_course_id = :moodle_course_id LIMIT 1');
+            $stmt->execute([':tenant_id' => $tenantId, ':user_id' => $userId, ':moodle_course_id' => $moodleCourseId]);
+            $status = $stmt->fetchColumn();
+            return $status !== false ? (string)$status : null;
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    private function normalizeCategoryKey(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
+        return trim($value, '-');
+    }
+
+    private function recordMetric(PDO $db, int $tenantId, string $syncType, bool $successful, float $startedAt, ?string $error = null): void
+    {
+        if ($tenantId <= 0 || $syncType === '') {
+            return;
+        }
+
+        $durationMs = round((microtime(true) - $startedAt) * 1000, 2);
+        $stmt = $db->prepare(
+            'INSERT INTO moodle_sync_metrics (tenant_id, sync_type, success_count, failure_count, avg_duration_ms, last_run, last_error, created_at, updated_at)
+             VALUES (:tenant_id, :sync_type, :success_count, :failure_count, :avg_duration_ms, NOW(), :last_error, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE
+                 avg_duration_ms = ROUND((((success_count + failure_count) * avg_duration_ms) + VALUES(avg_duration_ms)) / (success_count + failure_count + 1), 2),
+                 success_count = success_count + VALUES(success_count),
+                 failure_count = failure_count + VALUES(failure_count),
+                 last_run = VALUES(last_run),
+                 last_error = VALUES(last_error),
+                 updated_at = NOW()'
+        );
+        $stmt->execute([
+            ':tenant_id' => $tenantId,
+            ':sync_type' => $syncType,
+            ':success_count' => $successful ? 1 : 0,
+            ':failure_count' => $successful ? 0 : 1,
+            ':avg_duration_ms' => $durationMs,
+            ':last_error' => $successful ? null : substr((string)$error, 0, 4000),
+        ]);
     }
 
     private function upsertUserProgress(PDO $db, int $tenantId, int $userId, int $courseId, float $progressPercent, ?float $grade, string $status): void

@@ -34,6 +34,46 @@ final class EnrollmentController
         }
 
         $tenantId = \moodleIntegrationCurrentTenantId();
+        $learningResourceId = (int)($course['resource_id'] ?? \moodleIntegrationLearningResourceIdByMoodleCourseId($moodleCourseId, $tenantId));
+        $settings = \moodleIntegrationGetSettingsForTenant($tenantId);
+        $enrollmentMode = \moodleIntegrationNormalizeEnrollmentMode((string)($settings['enrollment_mode'] ?? 'manual_review'));
+
+        if ($enrollmentMode === 'auto_enroll') {
+            return $this->approveEnrollment($tenantId, (int)($user['id'] ?? 0), $moodleCourseId, $learningResourceId, [
+                'review_notes' => 'Auto-approved by enrollment mode.',
+                'requested_by_source' => (string)($user['source'] ?? 'kernel'),
+                'enrollment_mode' => $enrollmentMode,
+            ]);
+        }
+
+        if ($enrollmentMode === 'paid_then_auto') {
+            $request = \moodleIntegrationSaveEnrollmentRequestForTenant(
+                $tenantId,
+                (int)($user['id'] ?? 0),
+                $moodleCourseId,
+                'pending_payment',
+                [
+                    'requested_by_source' => (string)($user['source'] ?? 'kernel'),
+                    'review_notes' => '',
+                    'learning_resource_id' => $learningResourceId,
+                    'enrollment_mode' => $enrollmentMode,
+                ]
+            );
+
+            if ($request === null) {
+                return ['ok' => false, 'error' => 'Enrollment request could not be created.', 'http_code' => 500];
+            }
+
+            return [
+                'ok' => true,
+                'queued' => false,
+                'awaiting_payment' => true,
+                'request_id' => (int)($request['id'] ?? 0),
+                'ready_to_launch' => false,
+                'status' => \moodleIntegrationCourseStatusPayload((int)($user['id'] ?? 0), $moodleCourseId),
+            ];
+        }
+
         $request = \moodleIntegrationSaveEnrollmentRequestForTenant(
             $tenantId,
             (int)($user['id'] ?? 0),
@@ -42,6 +82,8 @@ final class EnrollmentController
             [
                 'requested_by_source' => (string)($user['source'] ?? 'kernel'),
                 'review_notes' => '',
+                'learning_resource_id' => $learningResourceId,
+                'enrollment_mode' => $enrollmentMode,
             ]
         );
 
@@ -73,7 +115,9 @@ final class EnrollmentController
 
         $userId = (int)($request['user_id'] ?? 0);
         $moodleCourseId = (int)($request['moodle_course_id'] ?? 0);
+        $learningResourceId = (int)($request['learning_resource_id'] ?? \moodleIntegrationLearningResourceIdByMoodleCourseId($moodleCourseId, $tenantId));
         $reviewedByUserId = (int)($reviewer['id'] ?? 0);
+        $enrollmentMode = \moodleIntegrationNormalizeEnrollmentMode((string)($request['enrollment_mode'] ?? 'manual_review'));
 
         if ($decision === 'rejected') {
             $saved = \moodleIntegrationSaveEnrollmentRequestForTenant($tenantId, $userId, $moodleCourseId, 'rejected', [
@@ -81,6 +125,8 @@ final class EnrollmentController
                 'reviewed_by_user_id' => $reviewedByUserId,
                 'reviewed_at' => date('Y-m-d H:i:s'),
                 'sync_queue_id' => 0,
+                'learning_resource_id' => $learningResourceId,
+                'enrollment_mode' => $enrollmentMode,
             ]);
             \moodleIntegrationDeleteUserProgressForCourse($tenantId, $userId, $moodleCourseId);
             return ['ok' => $saved !== null, 'request' => $saved];
@@ -119,32 +165,43 @@ final class EnrollmentController
                 'reviewed_by_user_id' => $reviewedByUserId,
                 'reviewed_at' => date('Y-m-d H:i:s'),
                 'sync_queue_id' => 0,
+                'learning_resource_id' => $learningResourceId,
+                'enrollment_mode' => $enrollmentMode,
             ]);
 
             return ['ok' => $saved !== null, 'request' => $saved];
         }
 
-        $queueId = \moodleIntegrationQueueTableInsertForTenant($tenantId, 'enrollment', [
-            'tenant_id' => $tenantId,
-            'user_id' => $userId,
-            'moodle_course_id' => $moodleCourseId,
-            'source' => 'cms',
-        ]);
-        $saved = \moodleIntegrationSaveEnrollmentRequestForTenant($tenantId, $userId, $moodleCourseId, 'approved', [
+        return $this->approveEnrollment($tenantId, $userId, $moodleCourseId, $learningResourceId, [
             'review_notes' => $reviewNotes,
             'reviewed_by_user_id' => $reviewedByUserId,
             'reviewed_at' => date('Y-m-d H:i:s'),
-            'sync_queue_id' => $queueId,
+            'source' => 'cms',
+            'enrollment_mode' => $enrollmentMode,
         ]);
+    }
 
+    private function approveEnrollment(int $tenantId, int $userId, int $moodleCourseId, int $learningResourceId, array $options = []): array
+    {
         $payload = [
-            'sync_queue_id' => $queueId,
             'tenant_id' => $tenantId,
             'user_id' => $userId,
+            'learning_resource_id' => $learningResourceId,
             'moodle_course_id' => $moodleCourseId,
             'action' => 'enroll',
-            'source' => 'cms',
+            'source' => (string)($options['source'] ?? 'cms'),
         ];
+        $queueId = \moodleIntegrationQueueTableInsertForTenant($tenantId, 'enrollment', $payload);
+        $saved = \moodleIntegrationSaveEnrollmentRequestForTenant($tenantId, $userId, $moodleCourseId, 'approved', [
+            'review_notes' => (string)($options['review_notes'] ?? ''),
+            'reviewed_by_user_id' => isset($options['reviewed_by_user_id']) ? (int)$options['reviewed_by_user_id'] : 0,
+            'reviewed_at' => $options['reviewed_at'] ?? date('Y-m-d H:i:s'),
+            'sync_queue_id' => $queueId,
+            'learning_resource_id' => $learningResourceId,
+            'enrollment_mode' => (string)($options['enrollment_mode'] ?? 'manual_review'),
+            'requested_by_source' => (string)($options['requested_by_source'] ?? $options['source'] ?? 'cms'),
+        ]);
+        $payload['sync_queue_id'] = $queueId;
 
         try {
             $sync = new SyncService();
