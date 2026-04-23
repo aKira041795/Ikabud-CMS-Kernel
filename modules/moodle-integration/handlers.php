@@ -39,6 +39,168 @@ function pageMoodleIntegrationAdmin(array $params = []): void
     ]));
 }
 
+// ---------------------------------------------------------------------------
+// Resource-ID-based route handlers (provider-agnostic public identifiers).
+// These use learning_resources.id as the URL segment so Moodle course IDs
+// never appear in public URLs. The moodle_course_id is resolved internally.
+// ---------------------------------------------------------------------------
+
+function pageMoodleIntegrationCourseByResource(array $params = []): void
+{
+    $resourceId = (int)($params['rid'] ?? 0);
+    $controller = new \MoodleIntegration\Controllers\CourseController();
+    $course = $resourceId > 0 ? $controller->detailByResourceId($resourceId) : null;
+    $currentUser = moodleIntegrationCurrentUser();
+    $moodleCourseId = (int)($course['moodle_course_id'] ?? 0);
+    $accessState = is_array($currentUser) && !empty($currentUser['id']) && $resourceId > 0
+        ? moodleIntegrationLearnerCourseAccessStateByResourceId((int)$currentUser['id'], $resourceId)
+        : [
+            'launch_ready' => false, 'review_pending' => false, 'request_rejected' => false,
+            'request_revoked' => false, 'queue_pending' => false, 'queue_failed' => false,
+            'can_queue_enrollment' => false, 'message' => 'Submit this course for review before launching in Moodle.',
+        ];
+
+    if ($course === null) {
+        http_response_code(404);
+    }
+
+    echo moodleIntegrationRenderPublicPage('pages/course-detail.disyl', [
+        'page_title' => $course['title'] ?? 'Course Detail',
+        'is_configured' => moodleIntegrationIsConfigured(),
+        'course' => $course,
+        'enroll_url' => moodleIntegrationPath('/cms/learning/' . $resourceId . '/enroll'),
+        'is_authenticated' => $currentUser !== null,
+        'launch_ready' => (bool)($accessState['launch_ready'] ?? false),
+        'review_pending' => (bool)($accessState['review_pending'] ?? false),
+        'queue_pending' => (bool)($accessState['queue_pending'] ?? false),
+        'queue_failed' => (bool)($accessState['queue_failed'] ?? false),
+        'course_access_message' => (string)($accessState['message'] ?? ''),
+        'my_learning_url' => moodleIntegrationPath('/cms/page/my-learning'),
+    ], [
+        'header_title' => $course['title'] ?? 'Course Detail',
+    ]);
+}
+
+function pageMoodleIntegrationEnrollByResource(array $params = []): void
+{
+    $resourceId = (int)($params['rid'] ?? 0);
+    $controller = new \MoodleIntegration\Controllers\CourseController();
+    $course = $resourceId > 0 ? $controller->detailByResourceId($resourceId) : null;
+    $currentUser = moodleIntegrationCurrentUser();
+    $query = moodleIntegrationCurrentQueryParams();
+    $canonicalPath = moodleIntegrationCanonicalPublicPath('/learning/' . $resourceId . '/enroll');
+    $accessState = is_array($currentUser) && !empty($currentUser['id']) && $resourceId > 0
+        ? moodleIntegrationLearnerCourseAccessStateByResourceId((int)$currentUser['id'], $resourceId)
+        : [
+            'launch_ready' => false, 'review_pending' => false, 'request_rejected' => false,
+            'request_revoked' => false, 'queue_pending' => false, 'queue_failed' => false,
+            'can_queue_enrollment' => false, 'message' => 'Submit this course for review before launching in Moodle.',
+        ];
+
+    if ($course === null) {
+        http_response_code(404);
+    }
+
+    if ($currentUser !== null) {
+        moodleIntegrationAssignUserService((int)($currentUser['id'] ?? 0), 'elearning', true, ['origin' => 'moodle_enroll_page']);
+    }
+
+    echo moodleIntegrationRenderPublicPage('pages/enroll.disyl', [
+        'page_title' => $course['title'] ?? 'Enroll',
+        'course' => $course,
+        'is_authenticated' => $currentUser !== null,
+        'authenticated_user_name' => trim((string)($currentUser['name'] ?? $currentUser['display_name'] ?? $currentUser['username'] ?? 'Learner')),
+        'authenticated_user_email' => trim((string)($currentUser['email'] ?? '')),
+        'show_registered_notice' => ((string)($query['registered'] ?? '')) === '1',
+        'show_launch_requires_enrollment_notice' => ((string)($query['launch_requires_enrollment'] ?? '')) === '1',
+        'show_review_requested_notice' => ((string)($query['requested'] ?? '')) === '1',
+        'login_url' => moodleIntegrationLoginUrl($canonicalPath),
+        'register_url' => moodleIntegrationPath('/cms/register?redirect=' . urlencode($canonicalPath)),
+        'launch_url' => moodleIntegrationPath('/cms/learning/' . $resourceId . '/launch'),
+        'enroll_api_url' => moodleIntegrationPath('/api/v1/moodle-integration/learning/' . $resourceId . '/enroll'),
+        'my_learning_url' => moodleIntegrationPath('/cms/page/my-learning'),
+        'launch_ready' => (bool)($accessState['launch_ready'] ?? false),
+        'review_pending' => (bool)($accessState['review_pending'] ?? false),
+        'request_rejected' => (bool)($accessState['request_rejected'] ?? false),
+        'request_revoked' => (bool)($accessState['request_revoked'] ?? false),
+        'queue_pending' => (bool)($accessState['queue_pending'] ?? false),
+        'queue_failed' => (bool)($accessState['queue_failed'] ?? false),
+        'can_queue_enrollment' => (bool)($accessState['can_queue_enrollment'] ?? false),
+        'course_access_message' => (string)($accessState['message'] ?? ''),
+    ], [
+        'header_title' => $course['title'] ?? 'Enroll',
+    ]);
+}
+
+function pageMoodleIntegrationLaunchByResource(array $params = []): void
+{
+    $resourceId = (int)($params['rid'] ?? 0);
+    $canonicalPath = moodleIntegrationCanonicalPublicPath('/learning/' . $resourceId . '/launch');
+    $user = moodleIntegrationRequirePageUser($canonicalPath);
+    moodleIntegrationAssignUserService((int)($user['id'] ?? 0), 'elearning', true, ['origin' => 'moodle_launch']);
+    $controller = new \MoodleIntegration\Controllers\CourseController();
+    $course = $resourceId > 0 ? $controller->detailByResourceId($resourceId) : null;
+    $moodleCourseId = (int)($course['moodle_course_id'] ?? 0);
+
+    if ($course === null || $moodleCourseId <= 0) {
+        http_response_code(404);
+        echo moodleIntegrationRenderPublicPage('pages/course-detail.disyl', [
+            'page_title' => 'Course Not Found',
+            'is_configured' => moodleIntegrationIsConfigured(),
+            'course' => null,
+        ], ['header_title' => 'Course Not Found']);
+        return;
+    }
+
+    $accessState = moodleIntegrationLearnerCourseAccessStateByResourceId((int)($user['id'] ?? 0), $resourceId);
+    if (empty($accessState['launch_ready'])) {
+        if (!empty($accessState['review_pending']) || !empty($accessState['queue_pending'])) {
+            header('Location: ' . moodleIntegrationPath('/cms/page/my-learning?queued=1&rid=' . $resourceId . '&launch_blocked=1'), true, 302);
+            exit;
+        }
+
+        header('Location: ' . moodleIntegrationPath('/cms/learning/' . $resourceId . '/enroll?launch_requires_enrollment=1'), true, 302);
+        exit;
+    }
+
+    $launchController = new \MoodleIntegration\Controllers\LaunchController();
+    $redirectUrl = $launchController->launch($moodleCourseId, $user);
+    if ($redirectUrl === null) {
+        http_response_code(503);
+        echo moodleIntegrationRenderPublicPage('pages/launch-error.disyl', [
+            'page_title' => 'Moodle Launch Unavailable',
+            'course' => $course,
+        ], ['header_title' => 'Moodle Launch Unavailable']);
+        return;
+    }
+
+    header('Location: ' . $redirectUrl, true, 302);
+    exit;
+}
+
+function apiMoodleIntegrationEnrollByResource(array $params = []): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    app()->csrfEnforce();
+    $user = moodleIntegrationRequireUser();
+    moodleIntegrationAssignUserService((int)($user['id'] ?? 0), 'elearning', true, ['origin' => 'moodle_enroll_api']);
+    $resourceId = (int)($params['rid'] ?? 0);
+    $moodleCourseId = moodleIntegrationMoodleCourseIdByResourceId($resourceId);
+    if ($moodleCourseId <= 0) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'Course not found.']);
+        return;
+    }
+
+    $controller = new \MoodleIntegration\Controllers\EnrollmentController();
+    $result = $controller->enroll($moodleCourseId, $user);
+    if (empty($result['ok'])) {
+        http_response_code((int)($result['http_code'] ?? 422));
+    }
+
+    echo json_encode($result);
+}
+
 function pageMoodleIntegrationCourses(array $params = []): void
 {
     moodleIntegrationRedirectToCanonicalPublicPath(moodleIntegrationCanonicalPublicPath('/courses'));
@@ -538,14 +700,14 @@ function apiMoodleIntegrationEvents(array $params = []): void
 
     try {
         $db->prepare(
-            'INSERT INTO moodle_user_progress (tenant_id, user_id, learning_resource_id, course_id, progress_percent, grade, status, last_synced, created_at, updated_at)
-             VALUES (:tenant_id, :user_id, :learning_resource_id, :course_id, :progress_percent, NULL, :status, NOW(), NOW(), NOW())
+            'INSERT INTO moodle_user_progress (tenant_id, user_id, learning_resource_id, course_cache_id, progress_percent, grade, status, last_synced, created_at, updated_at)
+             VALUES (:tenant_id, :user_id, :learning_resource_id, :course_cache_id, :progress_percent, NULL, :status, NOW(), NOW(), NOW())
              ON DUPLICATE KEY UPDATE learning_resource_id = VALUES(learning_resource_id), progress_percent = VALUES(progress_percent), status = VALUES(status), last_synced = NOW(), updated_at = NOW()'
         )->execute([
             ':tenant_id' => $tenantId,
             ':user_id' => $userId,
             ':learning_resource_id' => $resourceId > 0 ? $resourceId : null,
-            ':course_id' => $courseId > 0 ? $courseId : null,
+            ':course_cache_id' => $courseId > 0 ? $courseId : null,
             ':progress_percent' => $progressPercent,
             ':status' => $progressStatus,
         ]);

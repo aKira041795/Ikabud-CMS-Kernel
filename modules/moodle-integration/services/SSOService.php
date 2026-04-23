@@ -4,7 +4,18 @@ declare(strict_types=1);
 
 namespace MoodleIntegration\Services;
 
-final class SSOService
+require_once __DIR__ . '/ProviderAuthAdapterInterface.php';
+
+/**
+ * Moodle SSO adapter.
+ *
+ * Implements ProviderAuthAdapterInterface for the Moodle provider.
+ * Generates HMAC-HS256 signed launch tokens, records them in
+ * `moodle_sso_tokens` for consume-once enforcement, and builds the
+ * Moodle-side redirect URL. `validateInboundToken` atomically consumes
+ * a token and returns user + resource context for the Moodle-side plugin.
+ */
+class SSOService implements ProviderAuthAdapterInterface
 {
     private int $tenantId;
 
@@ -13,7 +24,7 @@ final class SSOService
         $this->tenantId = $tenantId > 0 ? $tenantId : \moodleIntegrationCurrentTenantId();
     }
 
-    public function buildLaunchUrl(array $user, array $course): ?string
+    public function buildLaunchUrl(array $user, array $resource): ?string
     {
         $settings = $this->settings();
         $baseUrl = rtrim((string)($settings['moodle_url'] ?? ''), '/');
@@ -22,12 +33,30 @@ final class SSOService
             return null;
         }
 
-        $token = $this->generateLoginToken($user, $course);
+        $token = $this->generateLoginToken($user, $resource);
         if ($token === null) {
             return null;
         }
 
-        return $baseUrl . '/local/applicationos/sso.php?token=' . rawurlencode($token) . '&course=' . rawurlencode((string)($course['moodle_course_id'] ?? 0));
+        return $baseUrl . '/local/applicationos/sso.php?token=' . rawurlencode($token) . '&course=' . rawurlencode((string)($resource['moodle_course_id'] ?? 0));
+    }
+
+    public function validateInboundToken(string $token, int $tenantId): ?array
+    {
+        if ($token === '' || $tenantId <= 0) {
+            return null;
+        }
+
+        $row = \moodleIntegrationConsumeSsoTokenForTenant($tenantId, $token);
+        if ($row === null) {
+            return null;
+        }
+
+        return [
+            'user_id' => (int)($row['user_id'] ?? 0),
+            'learning_resource_id' => (int)($row['learning_resource_id'] ?? 0),
+            'tenant_id' => $tenantId,
+        ];
     }
 
     public function generateLoginToken(array $user, array $course): ?string

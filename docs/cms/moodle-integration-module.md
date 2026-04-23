@@ -108,7 +108,7 @@ templates/modules/moodle-integration/
 ### `moodle_user_progress`
 
 - local progress/grade read model keyed by `tenant_id + user_id + course_id`
-- `learning_resource_id` (added in migration 005) — FK to `learning_resources.id`; populated on every SyncService write and on inbound webhook events. This is now the canonical internal resource reference for progress rows. `course_id` references `moodle_courses_cache.id` and is kept for backward compatibility; it may be renamed in a future migration
+- `learning_resource_id` (added in migration 005) — FK to `learning_resources.id`; populated on every SyncService write and on inbound webhook events. This is now the canonical internal resource reference for progress rows. `course_cache_id` (renamed from `course_id` in migration 007) references `moodle_courses_cache.id` and is kept for backward-compat bridge joins.
 - stores normalized `progress_percent`, `grade`, `status`, and `last_synced`
 
 ### `moodle_sync_queue`
@@ -355,40 +355,37 @@ Lifecycle soft-deactivation is implemented. If a course disappears from the Mood
 
 ## Current Architecture Gaps
 
-These are the verified open gaps as of the current codebase. Each has been confirmed by reading the code, not inferred from feedback alone.
+All four originally-open code gaps have been closed as of this release. The documentation below reflects the final state.
 
-### 1. Public routes still expose Moodle course IDs
+### ~~1. Public routes still exposed Moodle course IDs~~ ✅ Resolved
 
-All browser-facing course routes (`/course/{id}`, `/course/{id}/enroll`, `/course/{id}/launch`, their `/cms/...` mirrors) interpret `{id}` as a Moodle course ID. `pageMoodleIntegrationCourseDetail`, `pageMoodleIntegrationEnroll`, and `pageMoodleIntegrationLaunch` all execute `$moodleCourseId = (int)($params['id'] ?? 0)`. `CourseController::detail(int $moodleCourseId)` has the parameter named explicitly.
+New canonical resource-ID-based routes added alongside the legacy Moodle-ID routes:
+- `GET /learning/{rid}`, `GET /learning/{rid}/enroll`, `GET /learning/{rid}/launch` (and `/cms/...` mirrors)
+- `POST /api/v1/moodle-integration/learning/{rid}/enroll`
 
-The internal `learning_resources` abstraction exists and is populated, but it is not yet surfaced as the public URL identifier. Switching to `learning_resource_id` as the route segment would require:
-- Changing `{id}` route resolution in the three affected handlers to look up by `learning_resources.id` or `learning_resources.provider_id` instead of `moodle_courses_cache.moodle_course_id`
-- A `moodleIntegrationCachedCourseByResourceId()` helper alongside the existing `moodleIntegrationCachedCourseByMoodleId()`
-- Updating templates/shortcodes that currently build URLs from `moodle_course_id`
+Handlers: `pageMoodleIntegrationCourseByResource`, `pageMoodleIntegrationEnrollByResource`, `pageMoodleIntegrationLaunchByResource`, `apiMoodleIntegrationEnrollByResource`. All resolve via `learning_resources.id` (`rid`) internally using `CourseController::detailByResourceId()` and the `moodleIntegrationMoodleCourseIdByResourceId()` bridge helper. Legacy `/course/{id}/...` routes preserved for backward compatibility.
 
-Until this is done the provider abstraction is internal only; Moodle course IDs are still the public contract.
+### ~~2. SSO had no provider-agnostic interface~~ ✅ Resolved
 
-### 2. SSO has no provider-agnostic interface
-
-`SSOService` is a `final class` with no interface. Its `buildLaunchUrl()` constructs a Moodle-specific redirect URL directly. When a second LMS provider is added, SSO launch behavior will need to be duplicated rather than extended.
-
-The missing abstraction is a `ProviderAuthAdapterInterface` with at minimum:
+`ProviderAuthAdapterInterface` added in `modules/moodle-integration/services/ProviderAuthAdapterInterface.php` with:
 - `buildLaunchUrl(array $user, array $resource): ?string`
 - `validateInboundToken(string $token, int $tenantId): ?array`
 
-`SSOService` should become the Moodle adapter behind that interface. The current `moodleIntegrationGetProviderCapabilities()` helper and `capabilities_json` field on `learning_providers` already lay the groundwork; the interface is the missing structural piece.
+`SSOService` is no longer `final`; it implements `ProviderAuthAdapterInterface`. `LaunchController` now accepts a `?ProviderAuthAdapterInterface` constructor argument (defaults to `new SSOService()`).
 
-### 3. `learning_resources` is a registry, not a catalog
+### ~~3. `learning_resources` was a registry, not a catalog~~ ✅ Resolved
 
-The current schema (`003_moodle_hardening_schema.sql`) has only: `id`, `tenant_id`, `provider`, `provider_id`, `title`, `metadata_json`, timestamps. It is an ID bridge, not a catalog. Any catalog-level attribute (description, program, difficulty level, duration, tags, visibility) must be stored in `metadata_json` without schema enforcement.
-
-This means the CMS currently depends on Moodle metadata for any course detail beyond the title. Promoting selected fields to first-class columns would let the system own the learning experience definition independently of the provider. A follow-up migration should add at least: `description TEXT`, `program VARCHAR(191)`, `difficulty_level VARCHAR(50)`, `duration_minutes INT UNSIGNED`, `tags_json LONGTEXT`, `visibility ENUM('public','enrolled_only','hidden')`.
+Migration `006_moodle_catalog_fields.sql` adds: `description TEXT`, `program VARCHAR(191)`, `difficulty_level VARCHAR(50)`, `duration_minutes INT UNSIGNED`, `tags_json LONGTEXT`, `visibility ENUM('public','enrolled_only','hidden') DEFAULT 'public'`. `SyncService::ensureLearningResource()` now populates `description` and `tags_json` from Moodle API response fields on every sync.
 
 ### 4. Webhook delivery is fast-path only; reconciliation is implicit
 
 The `POST /api/v1/moodle-integration/events` handler processes inbound Moodle events immediately but makes no delivery guarantee — a network drop or Moodle outage silently loses the update. The scheduled sync jobs (`moodleIntegrationDispatchScheduledWork` → `SyncCoursesJob` / `SyncProgressJob`) do act as a periodic backstop, but this contract is not explicit anywhere in the code or documentation.
 
 The correct framing — **webhook = fast path, scheduled sync = source of truth / reconciliation** — should be documented and enforced. Practically this means the progress refresh job should be understood as the authoritative sync that would catch anything the webhook missed, not just an optional periodic update.
+
+### ~~5. `course_id` column name in `moodle_user_progress`~~ ✅ Resolved
+
+Migration `007_moodle_progress_rename_course_id.sql` renames `course_id` → `course_cache_id` to clearly distinguish the provider bridge cache reference from the canonical `learning_resource_id`. All PHP helpers (`moodleIntegrationUserProgressRows`, `moodleIntegrationUserCourseProgressRow`), `SyncService`, and `handlers.php` event INSERT updated to use `course_cache_id`.
 
 ## Implemented Hardening Steps
 
@@ -414,15 +411,15 @@ Second-round hardening (P0/P1/P2/P3):
 
 Items are ordered by architectural impact.
 
-1. **Make `learning_resource_id` the public route identifier.** Change `/course/{id}`, `/course/{id}/enroll`, and `/course/{id}/launch` to resolve by `learning_resources.id` instead of `moodle_course_id`. Add `moodleIntegrationCachedCourseByResourceId()`. Update templates. This is the single highest-leverage change for full provider abstraction.
+1. ~~**Make `learning_resource_id` the public route identifier.**~~ ✅ Done — new `/learning/{rid}/...` canonical routes added alongside legacy routes.
 
-2. **Extract `ProviderAuthAdapterInterface`.** Move Moodle-specific SSO launch logic from `SSOService` into a Moodle adapter that implements a shared interface (`buildLaunchUrl`, `validateInboundToken`). `LaunchController` should depend on the interface, not the concrete class.
+2. ~~**Extract `ProviderAuthAdapterInterface`.**~~ ✅ Done — `ProviderAuthAdapterInterface` created; `SSOService` implements it; `LaunchController` accepts adapter injection.
 
-3. **Promote catalog fields on `learning_resources`.** Add `description`, `program`, `difficulty_level`, `duration_minutes`, `tags_json`, `visibility` as first-class columns in a migration. Populate from `metadata_json` for existing rows. This decouples the CMS experience layer from provider metadata.
+3. ~~**Promote catalog fields on `learning_resources`.**~~ ✅ Done — migration 006 adds catalog columns; `SyncService` populates them.
 
 4. **Make the reconciliation contract explicit.** Document (and enforce in code comments) that the scheduled sync jobs are the authoritative reconciliation layer and that the `POST /events` webhook is a fast-path supplement. Consider adding a `last_full_sync_at` timestamp on `moodle_sync_metrics` to make reconciliation staleness observable.
 
-5. **Retire `course_id` column name in `moodle_user_progress`.** Once all lookup paths use `learning_resource_id`, rename `course_id` to `course_cache_id` to make clear it references the bridge cache table, not a canonical resource ID. FK integrity is preserved in the interim.
+5. ~~**Retire `course_id` column name in `moodle_user_progress`.**~~ ✅ Done — migration 007 renames to `course_cache_id`; all PHP queries updated.
 
 ## Verification Commands
 

@@ -131,27 +131,62 @@ if ($testTenantId > 0) {
 echo "\n-- Routes: New Endpoints --\n";
 moodleIntegrationTestAssert('events webhook route exists', ($routes['POST']['/api/v1/moodle-integration/events'] ?? '') === 'moodle-integration:apiMoodleIntegrationEvents');
 moodleIntegrationTestAssert('settings save route exists', ($routes['POST']['/admin/moodle-integration/settings'] ?? '') === 'moodle-integration:postMoodleIntegrationSettings');
+moodleIntegrationTestAssert('resource-id course detail route exists (GET)', ($routes['GET']['/learning/{rid}'] ?? '') === 'moodle-integration:pageMoodleIntegrationCourseByResource');
+moodleIntegrationTestAssert('resource-id enroll route exists (GET)', ($routes['GET']['/learning/{rid}/enroll'] ?? '') === 'moodle-integration:pageMoodleIntegrationEnrollByResource');
+moodleIntegrationTestAssert('resource-id launch route exists (GET)', ($routes['GET']['/learning/{rid}/launch'] ?? '') === 'moodle-integration:pageMoodleIntegrationLaunchByResource');
+moodleIntegrationTestAssert('resource-id enroll API route exists (POST)', ($routes['POST']['/api/v1/moodle-integration/learning/{rid}/enroll'] ?? '') === 'moodle-integration:apiMoodleIntegrationEnrollByResource');
+moodleIntegrationTestAssert('cms resource-id course detail route exists (GET)', ($routes['GET']['/cms/learning/{rid}'] ?? '') === 'moodle-integration:pageMoodleIntegrationCourseByResource');
 
 echo "\n-- Function Surface: New Handlers --\n";
 moodleIntegrationTestAssert('apiMoodleIntegrationEvents function exists', function_exists('apiMoodleIntegrationEvents'));
 moodleIntegrationTestAssert('postMoodleIntegrationSettings function exists', function_exists('postMoodleIntegrationSettings'));
+moodleIntegrationTestAssert('pageMoodleIntegrationCourseByResource function exists', function_exists('pageMoodleIntegrationCourseByResource'));
+moodleIntegrationTestAssert('pageMoodleIntegrationEnrollByResource function exists', function_exists('pageMoodleIntegrationEnrollByResource'));
+moodleIntegrationTestAssert('pageMoodleIntegrationLaunchByResource function exists', function_exists('pageMoodleIntegrationLaunchByResource'));
+moodleIntegrationTestAssert('apiMoodleIntegrationEnrollByResource function exists', function_exists('apiMoodleIntegrationEnrollByResource'));
+moodleIntegrationTestAssert('moodleIntegrationLearnerCourseAccessStateByResourceId function exists', function_exists('moodleIntegrationLearnerCourseAccessStateByResourceId'));
+moodleIntegrationTestAssert('moodleIntegrationMoodleCourseIdByResourceId function exists', function_exists('moodleIntegrationMoodleCourseIdByResourceId'));
 
 echo "\n-- CMS Setup --\n";
 moodleIntegrationTestAssert('page setup specs exist', count(moodleIntegrationCmsPageSpecs()) >= 2);
 moodleIntegrationTestAssert('install setup function exists', function_exists('moodleIntegrationRunCmsInstallSetup'));
 
 echo "\n-- Services --\n";
+require_once __DIR__ . '/../modules/moodle-integration/services/ProviderAuthAdapterInterface.php';
 require_once __DIR__ . '/../modules/moodle-integration/services/MoodleService.php';
 require_once __DIR__ . '/../modules/moodle-integration/services/SSOService.php';
 require_once __DIR__ . '/../modules/moodle-integration/services/SyncService.php';
+require_once __DIR__ . '/../modules/moodle-integration/controllers/LaunchController.php';
 
 $moodleService = new \MoodleIntegration\Services\MoodleService();
 $ssoService = new \MoodleIntegration\Services\SSOService();
 
 moodleIntegrationTestAssert('MoodleService class loads', $moodleService instanceof \MoodleIntegration\Services\MoodleService);
 moodleIntegrationTestAssert('SSOService class loads', $ssoService instanceof \MoodleIntegration\Services\SSOService);
+moodleIntegrationTestAssert('SSOService implements ProviderAuthAdapterInterface', $ssoService instanceof \MoodleIntegration\Services\ProviderAuthAdapterInterface);
+moodleIntegrationTestAssert('ProviderAuthAdapterInterface has buildLaunchUrl method', method_exists($ssoService, 'buildLaunchUrl'));
+moodleIntegrationTestAssert('ProviderAuthAdapterInterface has validateInboundToken method', method_exists($ssoService, 'validateInboundToken'));
+moodleIntegrationTestAssert('LaunchController accepts adapter injection', (function () {
+    $launchCtrl = new \MoodleIntegration\Controllers\LaunchController();
+    return $launchCtrl instanceof \MoodleIntegration\Controllers\LaunchController;
+})());
+moodleIntegrationTestAssert('CourseController has detailByResourceId method', method_exists(new \MoodleIntegration\Controllers\CourseController(), 'detailByResourceId'));
 moodleIntegrationTestAssert('unconfigured service reports false', $moodleService->isConfigured() === false);
 moodleIntegrationTestAssert('unconfigured SSO launch returns null', $ssoService->buildLaunchUrl(['id' => 1, 'email' => 'demo@example.com'], ['moodle_course_id' => 5, 'title' => 'Demo']) === null);
+
+echo "\n-- Migrations --\n";
+$migrationFiles = glob(__DIR__ . '/../modules/moodle-integration/database/migrations/*.sql') ?: [];
+$migrationNames = array_map('basename', $migrationFiles);
+moodleIntegrationTestAssert('migration 006 (catalog fields) exists', in_array('006_moodle_catalog_fields.sql', $migrationNames, true));
+moodleIntegrationTestAssert('migration 007 (course_cache_id rename) exists', in_array('007_moodle_progress_rename_course_id.sql', $migrationNames, true));
+$moduleJson = json_decode((string)file_get_contents(__DIR__ . '/../modules/moodle-integration/module.json'), true);
+moodleIntegrationTestAssert('module.json lists migration 006', in_array('database/migrations/006_moodle_catalog_fields.sql', $moduleJson['migrations'] ?? [], true));
+moodleIntegrationTestAssert('module.json lists migration 007', in_array('database/migrations/007_moodle_progress_rename_course_id.sql', $moduleJson['migrations'] ?? [], true));
+$migration007 = (string)file_get_contents(__DIR__ . '/../modules/moodle-integration/database/migrations/007_moodle_progress_rename_course_id.sql');
+moodleIntegrationTestAssert('migration 007 renames course_id to course_cache_id', str_contains($migration007, 'course_cache_id'));
+$migration006 = (string)file_get_contents(__DIR__ . '/../modules/moodle-integration/database/migrations/006_moodle_catalog_fields.sql');
+moodleIntegrationTestAssert('migration 006 adds description column', str_contains($migration006, 'description'));
+moodleIntegrationTestAssert('migration 006 adds visibility column', str_contains($migration006, 'visibility'));
 
 echo "\n-- Logs --\n";
 $appLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/app.log'));

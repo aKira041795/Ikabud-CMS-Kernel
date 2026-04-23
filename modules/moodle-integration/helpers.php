@@ -1615,7 +1615,7 @@ function moodleIntegrationDeleteUserProgressForCourse(int $tenantId, int $userId
 
     $stmt = $db->prepare(
         'DELETE p FROM moodle_user_progress p
-         JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id
+         JOIN moodle_courses_cache c ON c.id = p.course_cache_id AND c.tenant_id = p.tenant_id
          WHERE p.tenant_id = :tenant_id AND p.user_id = :user_id AND c.moodle_course_id = :moodle_course_id'
     );
     $stmt->execute([
@@ -1912,10 +1912,10 @@ function moodleIntegrationUserProgressRows(int $userId, array $filters = []): ar
 {
     $db = moodleIntegrationDb();
     $tenantId = moodleIntegrationCurrentTenantId();
-    $sql = 'SELECT p.course_id, p.progress_percent, p.grade, p.status, p.last_synced,
+    $sql = 'SELECT p.course_cache_id, p.progress_percent, p.grade, p.status, p.last_synced,
                    c.resource_id, c.title, c.summary, c.image, c.moodle_course_id, c.moodle_category_id, c.moodle_category_key
             FROM moodle_user_progress p
-            LEFT JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id
+            LEFT JOIN moodle_courses_cache c ON c.id = p.course_cache_id AND c.tenant_id = p.tenant_id
             WHERE p.tenant_id = :tenant_id AND p.user_id = :user_id';
     $params = [
         ':tenant_id' => $tenantId,
@@ -1956,9 +1956,9 @@ function moodleIntegrationUserCourseProgressRow(int $userId, int $moodleCourseId
 
     $db = moodleIntegrationDb();
     $stmt = $db->prepare(
-        'SELECT p.course_id, p.progress_percent, p.grade, p.status, p.last_synced, c.resource_id, c.title, c.summary, c.image, c.moodle_course_id, c.moodle_category_id, c.moodle_category_key
+        'SELECT p.course_cache_id, p.progress_percent, p.grade, p.status, p.last_synced, c.resource_id, c.title, c.summary, c.image, c.moodle_course_id, c.moodle_category_id, c.moodle_category_key
          FROM moodle_user_progress p
-         JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id
+         JOIN moodle_courses_cache c ON c.id = p.course_cache_id AND c.tenant_id = p.tenant_id
          WHERE p.tenant_id = :tenant_id AND p.user_id = :user_id AND c.moodle_course_id = :moodle_course_id
          LIMIT 1'
     );
@@ -2087,6 +2087,49 @@ function moodleIntegrationCourseStatusPayload(int $userId, int $moodleCourseId):
             'last_synced' => (string)($progress['last_synced'] ?? ''),
         ],
     ];
+}
+
+/**
+ * Resolve the canonical moodle_course_id from a learning_resource_id.
+ * Used by resource-ID-keyed route handlers so they don't need to know
+ * the provider-level ID.
+ */
+function moodleIntegrationMoodleCourseIdByResourceId(int $resourceId, ?int $tenantId = null): int
+{
+    if ($resourceId <= 0) {
+        return 0;
+    }
+
+    $tenantId = ($tenantId ?? 0) > 0 ? (int)$tenantId : moodleIntegrationCurrentTenantId();
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return 0;
+    }
+
+    $stmt = $db->prepare('SELECT moodle_course_id FROM moodle_courses_cache WHERE tenant_id = :tenant_id AND resource_id = :resource_id LIMIT 1');
+    $stmt->execute([':tenant_id' => $tenantId, ':resource_id' => $resourceId]);
+    return (int)($stmt->fetchColumn() ?: 0);
+}
+
+/**
+ * Access-state lookup by canonical learning_resource_id.
+ * Resolves the provider-level moodle_course_id internally so callers
+ * never need to pass it.
+ */
+function moodleIntegrationLearnerCourseAccessStateByResourceId(int $userId, int $resourceId): array
+{
+    $moodleCourseId = moodleIntegrationMoodleCourseIdByResourceId($resourceId);
+    if ($moodleCourseId <= 0) {
+        return [
+            'launch_ready' => false, 'review_pending' => false, 'payment_pending' => false,
+            'request_rejected' => false, 'request_revoked' => false, 'queue_pending' => false,
+            'queue_failed' => false, 'can_queue_enrollment' => false, 'can_submit_request' => false,
+            'message' => 'Course not found.',
+            'progress' => null, 'request' => null, 'queue' => null,
+        ];
+    }
+
+    return moodleIntegrationLearnerCourseAccessState($userId, $moodleCourseId);
 }
 
 function moodleIntegrationLearnerCourseAccessState(int $userId, int $moodleCourseId): array

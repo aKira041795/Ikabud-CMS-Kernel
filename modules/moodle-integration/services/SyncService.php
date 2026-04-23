@@ -187,9 +187,9 @@ final class SyncService
     private function refreshExistingProgressRows(PDO $db, MoodleService $service, int $tenantId): void
     {
         $stmt = $db->prepare(
-            'SELECT p.user_id, p.course_id, c.moodle_course_id, c.resource_id AS learning_resource_id
+            'SELECT p.user_id, p.course_cache_id, c.moodle_course_id, c.resource_id AS learning_resource_id
              FROM moodle_user_progress p
-             JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id
+             JOIN moodle_courses_cache c ON c.id = p.course_cache_id AND c.tenant_id = p.tenant_id
              WHERE p.tenant_id = :tenant_id'
         );
         $stmt->execute([':tenant_id' => $tenantId]);
@@ -231,7 +231,7 @@ final class SyncService
                 $db,
                 $tenantId,
                 (int)($row['user_id'] ?? 0),
-                (int)($row['course_id'] ?? 0),
+                (int)($row['course_cache_id'] ?? 0),
                 (int)($row['learning_resource_id'] ?? 0),
                 $this->normalizeProgressPercent($progress['progress'] ?? []),
                 $this->normalizeGrade($grades['grades'] ?? []),
@@ -251,6 +251,9 @@ final class SyncService
             'moodle_category_id' => $categoryId > 0 ? $categoryId : null,
             'moodle_category_key' => $categoryKey !== '' ? $categoryKey : null,
             'shortname' => (string)($course['shortname'] ?? ''),
+        ], [
+            'description' => (string)($course['summary'] ?? ''),
+            'tags_json' => isset($course['customfields']) ? json_encode($course['customfields'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
         ]);
         $stmt = $db->prepare(
             'INSERT INTO moodle_courses_cache (tenant_id, resource_id, moodle_course_id, moodle_category_id, moodle_category_key, title, summary, image, updated_at, created_at)
@@ -276,22 +279,27 @@ final class SyncService
         return ['cache_id' => (int)($lookup->fetchColumn() ?: 0), 'resource_id' => $resourceId];
     }
 
-    private function ensureLearningResource(PDO $db, int $tenantId, int $moodleCourseId, string $title, array $metadata): int
+    private function ensureLearningResource(PDO $db, int $tenantId, int $moodleCourseId, string $title, array $metadata, array $catalog = []): int
     {
         if ($tenantId <= 0 || $moodleCourseId <= 0) {
             return 0;
         }
 
+        $description = isset($catalog['description']) ? (string)$catalog['description'] : null;
+        $tagsJson = isset($catalog['tags_json']) ? (string)$catalog['tags_json'] : null;
+
         $stmt = $db->prepare(
-            'INSERT INTO learning_resources (tenant_id, provider, provider_id, title, metadata_json, created_at, updated_at)
-             VALUES (:tenant_id, :provider, :provider_id, :title, :metadata_json, NOW(), NOW())
-             ON DUPLICATE KEY UPDATE title = VALUES(title), metadata_json = VALUES(metadata_json), status = \'active\', updated_at = NOW()'
+            'INSERT INTO learning_resources (tenant_id, provider, provider_id, title, description, tags_json, metadata_json, created_at, updated_at)
+             VALUES (:tenant_id, :provider, :provider_id, :title, :description, :tags_json, :metadata_json, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description), tags_json = VALUES(tags_json), metadata_json = VALUES(metadata_json), updated_at = NOW()'
         );
         $stmt->execute([
             ':tenant_id' => $tenantId,
             ':provider' => 'moodle',
             ':provider_id' => (string)$moodleCourseId,
             ':title' => $title,
+            ':description' => $description !== '' ? $description : null,
+            ':tags_json' => $tagsJson !== '' ? $tagsJson : null,
             ':metadata_json' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ]);
 
@@ -429,15 +437,15 @@ final class SyncService
     private function upsertUserProgress(PDO $db, int $tenantId, int $userId, int $courseId, int $learningResourceId, float $progressPercent, ?float $grade, string $status): void
     {
         $stmt = $db->prepare(
-            'INSERT INTO moodle_user_progress (tenant_id, user_id, learning_resource_id, course_id, progress_percent, grade, status, last_synced, created_at, updated_at)
-             VALUES (:tenant_id, :user_id, :learning_resource_id, :course_id, :progress_percent, :grade, :status, NOW(), NOW(), NOW())
+            'INSERT INTO moodle_user_progress (tenant_id, user_id, learning_resource_id, course_cache_id, progress_percent, grade, status, last_synced, created_at, updated_at)
+             VALUES (:tenant_id, :user_id, :learning_resource_id, :course_cache_id, :progress_percent, :grade, :status, NOW(), NOW(), NOW())
              ON DUPLICATE KEY UPDATE learning_resource_id = VALUES(learning_resource_id), progress_percent = VALUES(progress_percent), grade = VALUES(grade), status = VALUES(status), last_synced = NOW(), updated_at = NOW()'
         );
         $stmt->execute([
             ':tenant_id' => $tenantId,
             ':user_id' => $userId,
             ':learning_resource_id' => $learningResourceId > 0 ? $learningResourceId : null,
-            ':course_id' => $courseId,
+            ':course_cache_id' => $courseId,
             ':progress_percent' => $progressPercent,
             ':grade' => $grade,
             ':status' => $status,
