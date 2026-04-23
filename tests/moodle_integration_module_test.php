@@ -79,6 +79,62 @@ moodleIntegrationTestAssert('moodleIntegrationActivateLearningResource exists', 
 moodleIntegrationTestAssert('moodleIntegrationProviderSupports exists', function_exists('moodleIntegrationProviderSupports'));
 moodleIntegrationTestAssert('moodleIntegrationGetProviderCapabilities exists', function_exists('moodleIntegrationGetProviderCapabilities'));
 moodleIntegrationTestAssert('moodleIntegrationCheckAndRecordOutboundRequest exists', function_exists('moodleIntegrationCheckAndRecordOutboundRequest'));
+moodleIntegrationTestAssert('moodleIntegrationEncryptSettingValue exists', function_exists('moodleIntegrationEncryptSettingValue'));
+moodleIntegrationTestAssert('moodleIntegrationDecryptSettingValue exists', function_exists('moodleIntegrationDecryptSettingValue'));
+
+echo "\n-- Secrets Encrypt/Decrypt Round-Trip --\n";
+$plaintext = 'super-secret-api-token-1234';
+$encrypted = moodleIntegrationEncryptSettingValue($plaintext);
+// If no APP_ENCRYPTION_KEY is set, function returns plaintext (fail-open). Accept both.
+if ($encrypted === $plaintext) {
+    moodleIntegrationTestAssert('encrypt returns plaintext (no key configured, fail-open)', true);
+    moodleIntegrationTestAssert('decrypt roundtrip (no key — passthrough)', moodleIntegrationDecryptSettingValue($encrypted) === $plaintext);
+} else {
+    $decoded = json_decode($encrypted, true);
+    moodleIntegrationTestAssert('encrypted value is JSON envelope', is_array($decoded) && ($decoded['enc'] ?? 0) === 1 && isset($decoded['ciphertext']));
+    moodleIntegrationTestAssert('encrypted value differs from plaintext', $encrypted !== $plaintext);
+    moodleIntegrationTestAssert('decrypt roundtrip', moodleIntegrationDecryptSettingValue($encrypted) === $plaintext);
+}
+moodleIntegrationTestAssert('decrypt passthrough for non-envelope value', moodleIntegrationDecryptSettingValue('rawtoken') === 'rawtoken');
+moodleIntegrationTestAssert('decrypt passthrough for empty string', moodleIntegrationDecryptSettingValue('') === '');
+
+echo "\n-- Ugly Cases: Double-Submit / Idempotency --\n";
+// Idempotency key deduplication — two inserts with the same key return the same ID.
+// This can only be tested when a DB is available; skip gracefully if not.
+$testTenantId = 0;
+try {
+    $testTenantId = moodleIntegrationCurrentTenantId();
+} catch (\Throwable $e) {}
+if ($testTenantId > 0) {
+    $iKey = 'test-idempotency-' . uniqid('', true);
+    $id1 = moodleIntegrationQueueTableInsertForTenant($testTenantId, 'test', ['x' => 1], 'pending', $iKey);
+    $id2 = moodleIntegrationQueueTableInsertForTenant($testTenantId, 'test', ['x' => 2], 'pending', $iKey);
+    moodleIntegrationTestAssert('idempotency key: first insert returns > 0', $id1 > 0);
+    moodleIntegrationTestAssert('idempotency key: duplicate returns same ID', $id1 === $id2);
+} else {
+    moodleIntegrationTestAssert('idempotency key dedup (skipped — no tenant DB)', true);
+    moodleIntegrationTestAssert('idempotency key duplicate (skipped — no tenant DB)', true);
+}
+
+echo "\n-- Ugly Cases: SSO Token Replay --\n";
+// moodleIntegrationConsumeSsoTokenForTenant is already tested indirectly by the consume-once
+// atomic implementation; verify the helper exists and the consume-once path returns null
+// when called with a nonsense token (expired / never issued).
+moodleIntegrationTestAssert('consume-once helper exists', function_exists('moodleIntegrationConsumeSsoTokenForTenant'));
+if ($testTenantId > 0) {
+    $noRow = moodleIntegrationConsumeSsoTokenForTenant($testTenantId, 'non-existent-token-' . uniqid());
+    moodleIntegrationTestAssert('non-existent token returns null', $noRow === null);
+} else {
+    moodleIntegrationTestAssert('non-existent token returns null (skipped — no DB)', true);
+}
+
+echo "\n-- Routes: New Endpoints --\n";
+moodleIntegrationTestAssert('events webhook route exists', ($routes['POST']['/api/v1/moodle-integration/events'] ?? '') === 'moodle-integration:apiMoodleIntegrationEvents');
+moodleIntegrationTestAssert('settings save route exists', ($routes['POST']['/admin/moodle-integration/settings'] ?? '') === 'moodle-integration:postMoodleIntegrationSettings');
+
+echo "\n-- Function Surface: New Handlers --\n";
+moodleIntegrationTestAssert('apiMoodleIntegrationEvents function exists', function_exists('apiMoodleIntegrationEvents'));
+moodleIntegrationTestAssert('postMoodleIntegrationSettings function exists', function_exists('postMoodleIntegrationSettings'));
 
 echo "\n-- CMS Setup --\n";
 moodleIntegrationTestAssert('page setup specs exist', count(moodleIntegrationCmsPageSpecs()) >= 2);

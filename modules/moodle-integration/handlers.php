@@ -423,6 +423,197 @@ function moodleIntegrationSyncProgressJob(array $payload = []): void
     $job->handle($payload);
 }
 
+/**
+ * Inbound webhook endpoint for Moodle-push events.
+ * Verifies HMAC-SHA256 signature over the raw request body using the tenant's sso_secret,
+ * maps the provider_id to a learning_resource_id, and upserts the user's progress record.
+ * Disabled by default; tenants must have the sso_secret configured before this is usable.
+ */
+function apiMoodleIntegrationEvents(array $params = []): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $rawBody = (string)file_get_contents('php://input');
+    $input = moodleIntegrationInput();
+    $tenantId = (int)($input['tenant_id'] ?? 0);
+
+    if ($tenantId <= 0) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
+        return;
+    }
+
+    $settings = moodleIntegrationGetSettingsForTenant($tenantId);
+    $secret = trim((string)($settings['sso_secret'] ?? ''));
+    if ($secret === '') {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'Webhook intake is not configured for this tenant']);
+        return;
+    }
+
+    // Verify HMAC-SHA256 signature. Moodle sends X-Moodle-Signature: sha256=<hex>.
+    $signatureHeader = trim((string)($_SERVER['HTTP_X_MOODLE_SIGNATURE'] ?? $input['signature'] ?? ''));
+    $expectedSig = 'sha256=' . hash_hmac('sha256', $rawBody, $secret);
+    if (!hash_equals($expectedSig, $signatureHeader)) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Signature mismatch']);
+        return;
+    }
+
+    $event = trim((string)($input['event'] ?? ''));
+    $provider = trim((string)($input['provider'] ?? 'moodle'));
+    $providerId = trim((string)($input['provider_id'] ?? ''));
+    $userPayload = is_array($input['user'] ?? null) ? $input['user'] : [];
+    $userEmail = trim((string)($userPayload['email'] ?? ''));
+
+    if ($event === '' || $providerId === '' || $userEmail === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'event, provider_id, and user.email are required']);
+        return;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'Tenant database unavailable']);
+        return;
+    }
+
+    // Resolve local user by email.
+    $localUser = null;
+    foreach ([
+        'SELECT id FROM users WHERE email = :email LIMIT 1',
+        'SELECT id FROM cms_users WHERE email = :email LIMIT 1',
+    ] as $sql) {
+        try {
+            $stmt = $db->prepare($sql);
+            $stmt->execute([':email' => $userEmail]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                $localUser = $row;
+                break;
+            }
+        } catch (\Throwable $e) {
+            continue;
+        }
+    }
+
+    if ($localUser === null) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'User not found']);
+        return;
+    }
+
+    $userId = (int)$localUser['id'];
+
+    // Resolve learning_resource_id.
+    $resourceId = 0;
+    try {
+        $stmt = $db->prepare('SELECT id FROM learning_resources WHERE tenant_id = :tenant_id AND provider = :provider AND provider_id = :provider_id LIMIT 1');
+        $stmt->execute([':tenant_id' => $tenantId, ':provider' => $provider, ':provider_id' => $providerId]);
+        $resourceId = (int)($stmt->fetchColumn() ?: 0);
+    } catch (\Throwable $e) {
+        // continue; upsert without resource FK if lookup fails
+    }
+
+    // Resolve course cache id for the legacy course_id FK in user_progress.
+    $courseId = 0;
+    try {
+        $stmt = $db->prepare('SELECT id FROM moodle_courses_cache WHERE tenant_id = :tenant_id AND moodle_course_id = :moodle_course_id LIMIT 1');
+        $stmt->execute([':tenant_id' => $tenantId, ':moodle_course_id' => (int)$providerId]);
+        $courseId = (int)($stmt->fetchColumn() ?: 0);
+    } catch (\Throwable $e) {
+        // continue
+    }
+
+    $progressPercent = match ($event) {
+        'course_completed' => 100.0,
+        default => 0.0,
+    };
+    $progressStatus = match ($event) {
+        'course_completed' => 'completed',
+        'quiz_submitted', 'assignment_submitted' => 'in_progress',
+        default => 'in_progress',
+    };
+
+    try {
+        $db->prepare(
+            'INSERT INTO moodle_user_progress (tenant_id, user_id, learning_resource_id, course_id, progress_percent, grade, status, last_synced, created_at, updated_at)
+             VALUES (:tenant_id, :user_id, :learning_resource_id, :course_id, :progress_percent, NULL, :status, NOW(), NOW(), NOW())
+             ON DUPLICATE KEY UPDATE learning_resource_id = VALUES(learning_resource_id), progress_percent = VALUES(progress_percent), status = VALUES(status), last_synced = NOW(), updated_at = NOW()'
+        )->execute([
+            ':tenant_id' => $tenantId,
+            ':user_id' => $userId,
+            ':learning_resource_id' => $resourceId > 0 ? $resourceId : null,
+            ':course_id' => $courseId > 0 ? $courseId : null,
+            ':progress_percent' => $progressPercent,
+            ':status' => $progressStatus,
+        ]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Progress upsert failed: ' . $e->getMessage()]);
+        return;
+    }
+
+    // Record metric.
+    try {
+        $db->prepare(
+            'INSERT INTO moodle_sync_metrics (tenant_id, sync_type, success_count, failure_count, avg_duration_ms, last_run, last_error, created_at, updated_at)
+             VALUES (:tenant_id, :sync_type, 1, 0, 0, NOW(), NULL, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE success_count = success_count + 1, last_run = NOW(), updated_at = NOW()'
+        )->execute([':tenant_id' => $tenantId, ':sync_type' => 'webhook_event_' . $event]);
+    } catch (\Throwable $e) {
+        // non-fatal
+    }
+
+    write_log("moodle-integration: webhook event '{$event}' processed for user {$userId} provider_id {$providerId} tenant {$tenantId}", 'info');
+    echo json_encode(['ok' => true, 'event' => $event, 'user_id' => $userId, 'resource_id' => $resourceId]);
+}
+
+/**
+ * Module-level settings save handler that encrypts api_token and sso_secret at rest
+ * before persisting through the kernel settings layer.
+ */
+function postMoodleIntegrationSettings(array $params = []): void
+{
+    $user = function_exists('cmsRequireCap')
+        ? cmsRequireCap('settings.manage')
+        : moodleIntegrationRequirePageUser('/admin/moodle-integration');
+
+    app()->csrfEnforce();
+
+    $allowedKeys = ['moodle_url', 'api_token', 'sso_secret', 'tenant_mode', 'enrollment_mode', 'sync_interval', 'max_requests_per_minute', 'burst_limit', 'shared_category_map_json'];
+    $toSave = [];
+    foreach ($allowedKeys as $key) {
+        if (isset($_POST[$key])) {
+            $toSave[$key] = trim((string)$_POST[$key]);
+        }
+    }
+
+    // Encrypt secrets before persisting. Empty values are not overwritten so operators
+    // can submit the form without clearing their existing credentials.
+    foreach (['api_token', 'sso_secret'] as $secretKey) {
+        if (isset($toSave[$secretKey]) && $toSave[$secretKey] !== '') {
+            $toSave[$secretKey] = moodleIntegrationEncryptSettingValue($toSave[$secretKey]);
+        } else {
+            unset($toSave[$secretKey]); // keep the existing encrypted value
+        }
+    }
+
+    $tenantId = moodleIntegrationCurrentTenantId();
+    $saved = false;
+    if ($tenantId > 0 && function_exists('saveTenantModuleSettingsForTenant')) {
+        $current = function_exists('getModuleSettingsForTenant') ? (array)(getModuleSettingsForTenant('moodle-integration', $tenantId) ?? []) : [];
+        $saved = saveTenantModuleSettingsForTenant('moodle-integration', $tenantId, array_merge($current, $toSave));
+    } elseif (function_exists('saveTenantModuleSettings')) {
+        $saved = saveTenantModuleSettings('moodle-integration', $toSave);
+    }
+
+    $notice = $saved ? 'settings_saved' : 'settings_error';
+    header('Location: ' . moodleIntegrationPath('/admin/moodle-integration?notice=' . urlencode($notice)), true, 302);
+    exit;
+}
+
 function moodleIntegrationQueueStatusSummary(): array
 {
     $db = moodleIntegrationDb();

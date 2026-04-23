@@ -26,7 +26,8 @@
         "database/migrations/001_moodle_integration_schema.sql",
         "database/migrations/002_moodle_enrollment_requests.sql",
         "database/migrations/003_moodle_hardening_schema.sql",
-        "database/migrations/004_moodle_provider_capabilities_schema.sql"
+        "database/migrations/004_moodle_provider_capabilities_schema.sql",
+        "database/migrations/005_moodle_idempotency_and_progress_fk.sql"
     ],
     "capabilities": {
         "exposes": [],

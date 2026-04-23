@@ -183,6 +183,34 @@ final class EnrollmentController
 
     private function approveEnrollment(int $tenantId, int $userId, int $moodleCourseId, int $learningResourceId, array $options = []): array
     {
+        // Atomically claim the enrollment request in an approvable state.
+        // If another process already moved it (double-click, retry), rowCount === 0 and we return
+        // the current state without triggering a duplicate sync job.
+        $db = \moodleIntegrationTenantDb($tenantId);
+        if ($db instanceof \PDO) {
+            $claim = $db->prepare(
+                'UPDATE moodle_enrollment_requests
+                 SET status = \'approved\', updated_at = NOW()
+                 WHERE tenant_id = :tenant_id AND user_id = :user_id AND moodle_course_id = :moodle_course_id
+                   AND status IN (\'pending_review\', \'pending_payment\', \'auto_approved\')'
+            );
+            $claim->execute([
+                ':tenant_id' => $tenantId,
+                ':user_id' => $userId,
+                ':moodle_course_id' => $moodleCourseId,
+            ]);
+
+            if ($claim->rowCount() === 0) {
+                // Already approved (or rejected) by a concurrent request — return current status.
+                return [
+                    'ok' => true,
+                    'already_processed' => true,
+                    'status' => \moodleIntegrationCourseStatusPayload($userId, $moodleCourseId),
+                ];
+            }
+        }
+
+        $idempotencyKey = 'enroll:' . $tenantId . ':' . $userId . ':' . $moodleCourseId;
         $payload = [
             'tenant_id' => $tenantId,
             'user_id' => $userId,
@@ -191,7 +219,7 @@ final class EnrollmentController
             'action' => 'enroll',
             'source' => (string)($options['source'] ?? 'cms'),
         ];
-        $queueId = \moodleIntegrationQueueTableInsertForTenant($tenantId, 'enrollment', $payload);
+        $queueId = \moodleIntegrationQueueTableInsertForTenant($tenantId, 'enrollment', $payload, 'pending', $idempotencyKey);
         $saved = \moodleIntegrationSaveEnrollmentRequestForTenant($tenantId, $userId, $moodleCourseId, 'approved', [
             'review_notes' => (string)($options['review_notes'] ?? ''),
             'reviewed_by_user_id' => isset($options['reviewed_by_user_id']) ? (int)$options['reviewed_by_user_id'] : 0,

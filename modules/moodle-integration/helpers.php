@@ -313,10 +313,70 @@ function moodleIntegrationGetSettingsForTenant(int $tenantId = 0): array
     $tenantId = $tenantId > 0 ? $tenantId : moodleIntegrationCurrentTenantId();
     if ($tenantId > 0 && function_exists('getModuleSettingsForTenant')) {
         $saved = getModuleSettingsForTenant('moodle-integration', $tenantId);
-        return array_merge(moodleIntegrationSettingsDefaults(), is_array($saved) ? $saved : []);
+        $merged = array_merge(moodleIntegrationSettingsDefaults(), is_array($saved) ? $saved : []);
+    } else {
+        $merged = moodleIntegrationGetSettings();
     }
 
-    return moodleIntegrationGetSettings();
+    // Transparently decrypt secret fields stored as AES-256-GCM envelopes.
+    foreach (['api_token', 'sso_secret'] as $secretKey) {
+        if (isset($merged[$secretKey]) && $merged[$secretKey] !== '') {
+            $merged[$secretKey] = moodleIntegrationDecryptSettingValue((string)$merged[$secretKey]);
+        }
+    }
+
+    return $merged;
+}
+
+/**
+ * Encrypt a secret setting value with the app encryption key.
+ * Returns a JSON string containing the AES-256-GCM envelope; plain text is stored only
+ * when no encryption key is available (fail-open with a warning log entry).
+ */
+function moodleIntegrationEncryptSettingValue(string $plaintext): string
+{
+    if ($plaintext === '') {
+        return '';
+    }
+
+    try {
+        $crypto = new \Ikabud\Kernel\Crypto();
+        $envelope = $crypto->encryptString($plaintext);
+        return json_encode(array_merge(['enc' => 1], $envelope), JSON_UNESCAPED_SLASHES);
+    } catch (\Throwable $e) {
+        write_log('moodle-integration: could not encrypt setting value — ' . $e->getMessage() . '; storing plaintext', 'warning');
+        return $plaintext;
+    }
+}
+
+/**
+ * Decrypt a setting value that may be an AES-256-GCM envelope produced by
+ * moodleIntegrationEncryptSettingValue(). Returns the value as-is when it is
+ * not an envelope (backward compatibility with existing plaintext values).
+ */
+function moodleIntegrationDecryptSettingValue(string $raw): string
+{
+    if ($raw === '') {
+        return '';
+    }
+
+    $parsed = json_decode($raw, true);
+    if (!is_array($parsed) || ($parsed['enc'] ?? 0) !== 1 || empty($parsed['ciphertext'])) {
+        return $raw; // not an encrypted envelope — plaintext passthrough
+    }
+
+    try {
+        $crypto = new \Ikabud\Kernel\Crypto();
+        return $crypto->decryptString(
+            (string)$parsed['ciphertext'],
+            (string)$parsed['iv'],
+            (string)$parsed['tag'],
+            isset($parsed['key_id']) ? (string)$parsed['key_id'] : null
+        );
+    } catch (\Throwable $e) {
+        write_log('moodle-integration: could not decrypt setting value — ' . $e->getMessage(), 'error');
+        return '';
+    }
 }
 
 function moodleIntegrationNormalizeEnrollmentMode(string $mode): string
@@ -1236,19 +1296,26 @@ function moodleIntegrationTenantDb(int $tenantId = 0): ?\PDO
     return null;
 }
 
-function moodleIntegrationQueueTableInsertForTenant(int $tenantId, string $type, array $payload, string $status = 'pending'): int
+function moodleIntegrationQueueTableInsertForTenant(int $tenantId, string $type, array $payload, string $status = 'pending', string $idempotencyKey = ''): int
 {
     $db = moodleIntegrationTenantDb($tenantId);
     if (!$db instanceof \PDO) {
         return 0;
     }
 
+    $idempotencyKeyValue = $idempotencyKey !== '' ? $idempotencyKey : null;
+
+    // Use ON DUPLICATE KEY to return the existing queue row's ID when the same
+    // idempotency_key is submitted again (retry / double-submit guard).
     $stmt = $db->prepare(
-        'INSERT INTO moodle_sync_queue (tenant_id, type, payload_json, status, retries, available_at, created_at, updated_at) VALUES (:tenant_id, :type, :payload_json, :status, 0, NOW(), NOW(), NOW())'
+        'INSERT INTO moodle_sync_queue (tenant_id, type, idempotency_key, payload_json, status, retries, available_at, created_at, updated_at)
+         VALUES (:tenant_id, :type, :idempotency_key, :payload_json, :status, 0, NOW(), NOW(), NOW())
+         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), updated_at = updated_at'
     );
     $stmt->execute([
         ':tenant_id' => $tenantId,
         ':type' => $type,
+        ':idempotency_key' => $idempotencyKeyValue,
         ':payload_json' => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ':status' => $status,
     ]);
@@ -1256,9 +1323,9 @@ function moodleIntegrationQueueTableInsertForTenant(int $tenantId, string $type,
     return (int)$db->lastInsertId();
 }
 
-function moodleIntegrationQueueTableInsert(string $type, array $payload, string $status = 'pending'): int
+function moodleIntegrationQueueTableInsert(string $type, array $payload, string $status = 'pending', string $idempotencyKey = ''): int
 {
-    return moodleIntegrationQueueTableInsertForTenant(moodleIntegrationCurrentTenantId(), $type, $payload, $status);
+    return moodleIntegrationQueueTableInsertForTenant(moodleIntegrationCurrentTenantId(), $type, $payload, $status, $idempotencyKey);
 }
 
 function moodleIntegrationEnrollmentRequestHydrateRow(array $row): array

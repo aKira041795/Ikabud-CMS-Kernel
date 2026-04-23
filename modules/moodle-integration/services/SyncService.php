@@ -33,6 +33,9 @@ final class SyncService
 
             $result = $service->getCourses();
             if (empty($result['ok'])) {
+                if ((int)($result['http_code'] ?? 0) === 429) {
+                    throw new RuntimeException('THROTTLED:' . (string)($result['error'] ?? 'Rate limited fetching courses'));
+                }
                 throw new RuntimeException((string)($result['error'] ?? 'Course sync failed.'));
             }
 
@@ -51,6 +54,11 @@ final class SyncService
             $this->markQueue($db, $tenantId, $queueId, 'completed');
             $this->recordMetric($db, $tenantId, 'courses', true, $startedAt);
         } catch (Throwable $e) {
+            if ($this->isThrottleException($e)) {
+                $this->delayQueue($db, $tenantId, $queueId, 60);
+                $this->recordMetric($db, $tenantId, 'courses', false, $startedAt, 'Rate limited; re-queued with 60s delay');
+                return;
+            }
             $this->markQueue($db, $tenantId, $queueId, 'failed', $e->getMessage());
             $this->recordMetric($db, $tenantId, 'courses', false, $startedAt, $e->getMessage());
             throw $e;
@@ -87,6 +95,11 @@ final class SyncService
             $this->markQueue($db, $tenantId, $queueId, 'completed');
             $this->recordMetric($db, $tenantId, $syncType, true, $startedAt);
         } catch (Throwable $e) {
+            if ($this->isThrottleException($e)) {
+                $this->delayQueue($db, $tenantId, $queueId, 60);
+                $this->recordMetric($db, $tenantId, $syncType, false, $startedAt, 'Rate limited; re-queued with 60s delay');
+                return;
+            }
             $this->markQueue($db, $tenantId, $queueId, 'failed', $e->getMessage());
             $this->recordMetric($db, $tenantId, $syncType, false, $startedAt, $e->getMessage());
             throw $e;
@@ -128,12 +141,21 @@ final class SyncService
 
         $courseResult = $service->getCourseById((int)($payload['moodle_course_id'] ?? 0));
         if (empty($courseResult['ok']) || !is_array($courseResult['course'] ?? null)) {
+            if ((int)($courseResult['http_code'] ?? 0) === 429) {
+                throw new RuntimeException('THROTTLED:' . (string)($courseResult['error'] ?? 'Rate limited fetching course'));
+            }
             throw new RuntimeException((string)($courseResult['error'] ?? 'Unable to fetch Moodle course before enrollment.'));
         }
 
-        $courseRowId = $this->upsertCourseCache($db, $tenantId, $courseResult['course']);
+        $cacheResult = $this->upsertCourseCache($db, $tenantId, $courseResult['course']);
+        $courseRowId = $cacheResult['cache_id'];
+        $learningResourceId = (int)($payload['learning_resource_id'] ?? $cacheResult['resource_id']);
+
         $moodleUser = $service->resolveOrCreateMoodleUser($localUser);
         if (empty($moodleUser['ok']) || !is_array($moodleUser['user'] ?? null)) {
+            if ((int)($moodleUser['http_code'] ?? 0) === 429) {
+                throw new RuntimeException('THROTTLED:' . (string)($moodleUser['error'] ?? 'Rate limited resolving Moodle user'));
+            }
             throw new RuntimeException((string)($moodleUser['error'] ?? 'Unable to create Moodle user.'));
         }
 
@@ -142,6 +164,9 @@ final class SyncService
 
         $enrollResult = $service->enrollUser($moodleUserId, $moodleCourseId);
         if (empty($enrollResult['ok'])) {
+            if ((int)($enrollResult['http_code'] ?? 0) === 429) {
+                throw new RuntimeException('THROTTLED:' . (string)($enrollResult['error'] ?? 'Rate limited enrolling user'));
+            }
             throw new RuntimeException((string)($enrollResult['error'] ?? 'Moodle enrollment failed.'));
         }
 
@@ -152,6 +177,7 @@ final class SyncService
             $tenantId,
             (int)$localUser['id'],
             $courseRowId,
+            $learningResourceId,
             $this->normalizeProgressPercent($progress['progress'] ?? []),
             $this->normalizeGrade($grades['grades'] ?? []),
             $this->normalizeStatus($progress['progress'] ?? [])
@@ -161,7 +187,7 @@ final class SyncService
     private function refreshExistingProgressRows(PDO $db, MoodleService $service, int $tenantId): void
     {
         $stmt = $db->prepare(
-            'SELECT p.user_id, p.course_id, c.moodle_course_id
+            'SELECT p.user_id, p.course_id, c.moodle_course_id, c.resource_id AS learning_resource_id
              FROM moodle_user_progress p
              JOIN moodle_courses_cache c ON c.id = p.course_id AND c.tenant_id = p.tenant_id
              WHERE p.tenant_id = :tenant_id'
@@ -195,11 +221,18 @@ final class SyncService
             $grades = $service->getUserGrades($moodleUserId, $moodleCourseId);
             $progress = $service->getUserProgress($moodleUserId, $moodleCourseId);
 
+            // Partial sync: if we're throttled mid-batch, skip this user and continue with the rest.
+            if ((int)($grades['http_code'] ?? 0) === 429 || (int)($progress['http_code'] ?? 0) === 429) {
+                \write_log("moodle-integration: throttled during progress refresh for user {$moodleUserId} course {$moodleCourseId}; skipping row", 'warning');
+                continue;
+            }
+
             $this->upsertUserProgress(
                 $db,
                 $tenantId,
                 (int)($row['user_id'] ?? 0),
                 (int)($row['course_id'] ?? 0),
+                (int)($row['learning_resource_id'] ?? 0),
                 $this->normalizeProgressPercent($progress['progress'] ?? []),
                 $this->normalizeGrade($grades['grades'] ?? []),
                 $this->normalizeStatus($progress['progress'] ?? [])
@@ -207,7 +240,7 @@ final class SyncService
         }
     }
 
-    private function upsertCourseCache(PDO $db, int $tenantId, array $course): int
+    private function upsertCourseCache(PDO $db, int $tenantId, array $course): array
     {
         $courseId = (int)($course['id'] ?? 0);
         $title = trim((string)($course['fullname'] ?? $course['displayname'] ?? $course['shortname'] ?? 'Untitled Course'));
@@ -240,7 +273,7 @@ final class SyncService
             ':tenant_id' => $tenantId,
             ':moodle_course_id' => (int)($course['id'] ?? 0),
         ]);
-        return (int)($lookup->fetchColumn() ?: 0);
+        return ['cache_id' => (int)($lookup->fetchColumn() ?: 0), 'resource_id' => $resourceId];
     }
 
     private function ensureLearningResource(PDO $db, int $tenantId, int $moodleCourseId, string $title, array $metadata): int
@@ -270,6 +303,33 @@ final class SyncService
         ]);
 
         return (int)($lookup->fetchColumn() ?: 0);
+    }
+
+    private function isThrottleException(Throwable $e): bool
+    {
+        return str_starts_with($e->getMessage(), 'THROTTLED:');
+    }
+
+    /**
+     * Re-queue a sync job to run after a delay by resetting its status to 'pending'
+     * and advancing available_at. Used when the upstream Moodle API rate-limits us:
+     * the job is not failed, just deferred, so retries and error counts are not incremented.
+     */
+    private function delayQueue(PDO $db, int $tenantId, int $queueId, int $delaySeconds = 60): void
+    {
+        if ($queueId <= 0) {
+            return;
+        }
+
+        $stmt = $db->prepare(
+            'UPDATE moodle_sync_queue
+             SET status = \'pending\',
+                 available_at = NOW() + INTERVAL :delay_seconds SECOND,
+                 updated_at = NOW()
+             WHERE tenant_id = :tenant_id AND id = :id'
+        );
+        $stmt->execute([':delay_seconds' => $delaySeconds, ':tenant_id' => $tenantId, ':id' => $queueId]);
+        \write_log("moodle-integration: throttled — re-queued job {$queueId} with {$delaySeconds}s delay for tenant {$tenantId}", 'info');
     }
 
     private function deactivateMissingResources(PDO $db, int $tenantId, array $activeMoodleCourseIds): void
@@ -366,16 +426,17 @@ final class SyncService
         ]);
     }
 
-    private function upsertUserProgress(PDO $db, int $tenantId, int $userId, int $courseId, float $progressPercent, ?float $grade, string $status): void
+    private function upsertUserProgress(PDO $db, int $tenantId, int $userId, int $courseId, int $learningResourceId, float $progressPercent, ?float $grade, string $status): void
     {
         $stmt = $db->prepare(
-            'INSERT INTO moodle_user_progress (tenant_id, user_id, course_id, progress_percent, grade, status, last_synced, created_at, updated_at)
-             VALUES (:tenant_id, :user_id, :course_id, :progress_percent, :grade, :status, NOW(), NOW(), NOW())
-             ON DUPLICATE KEY UPDATE progress_percent = VALUES(progress_percent), grade = VALUES(grade), status = VALUES(status), last_synced = NOW(), updated_at = NOW()'
+            'INSERT INTO moodle_user_progress (tenant_id, user_id, learning_resource_id, course_id, progress_percent, grade, status, last_synced, created_at, updated_at)
+             VALUES (:tenant_id, :user_id, :learning_resource_id, :course_id, :progress_percent, :grade, :status, NOW(), NOW(), NOW())
+             ON DUPLICATE KEY UPDATE learning_resource_id = VALUES(learning_resource_id), progress_percent = VALUES(progress_percent), grade = VALUES(grade), status = VALUES(status), last_synced = NOW(), updated_at = NOW()'
         );
         $stmt->execute([
             ':tenant_id' => $tenantId,
             ':user_id' => $userId,
+            ':learning_resource_id' => $learningResourceId > 0 ? $learningResourceId : null,
             ':course_id' => $courseId,
             ':progress_percent' => $progressPercent,
             ':grade' => $grade,
