@@ -6,6 +6,12 @@
 **Method:** Every public, protected, and private method signature cataloged; every regex audited; every error path traced; every hardcoded value recorded; every cross-dependency mapped.
 
 > **Update 2026-04-16/2026-04-23:** Several items from this evaluation have been resolved since the evaluation date. Items with a ✅ **RESOLVED** note have been addressed. See the Performance Findings section for inline update notes, and the Prioritized Remediation Plan for per-item resolution status.
+>
+> **Update 2026-04-23 (strategic priorities — commit 84f40f3):**
+> - **Compiled mode is now the production default.** `App.php` enables compiled mode in all non-development environments; opt out via `DISYL_COMPILED_MODE=false`. `DISYL_COMPILED_MODE`, `DISYL_STRICT_MODE`, and `DISYL_SHARED_OUTPUT_TTL` are now documented in `.env.example`.
+> - **Strict mode implemented.** `TemplateEngine::enableStrictMode()` added and wired to `DISYL_STRICT_MODE` env var. Logs `[strict]` warnings for undefined variables and `| raw` filter usage.
+> - **`{capability}` and `{on}` template tags implemented.** `processCapabilityTags()` handles `{capability "id" with {key: val}}…{/capability}` — calls `app()->capabilities()->call()` at render time. `processOnTags()` handles `{on "event.key"}…{/on}` — conditionally renders the body when the event key is present in context. Both stages added to the interpreted pipeline (9a/9b).
+> - **D34 ClientBlock handler hardened.** `EventHandler::compile()` now enforces a 512-char limit and character allowlist in addition to the existing event-name whitelist and script-breakout detection. **D34 RESOLVED.**
 
 ---
 
@@ -670,9 +676,9 @@ Client-side hydration runtime. `import(modulePath)` from manifest JSON. Intersec
 
 | # | Gap | Severity | Detail |
 |---|-----|----------|--------|
-| D34 | **EventHandler::compile() embeds $handler in JS without escaping** | **Critical** | Direct string interpolation into generated JavaScript. If handler source is untrusted, this is arbitrary code execution. |
-| D35 | **ClientBlock::toModule() wraps $code in IIFE without sanitization** | **Critical** | Raw JS code embedded in output. Trusted source assumed but not enforced. |
-| D36 | $elementId embedded unsanitized in getElementById() | High | Attribute injection if elementId contains `'` |
+| D34 | ~~EventHandler::compile() embeds $handler in JS without escaping~~ | ~~Critical~~ | **RESOLVED 2026-04-23** — 512-char limit + character allowlist + script-breakout check added to `EventHandler::compile()`. |
+| D35 | **ClientBlock::toModule() wraps $code in IIFE without sanitization** | **Critical** | Raw JS code embedded in output. Internal callers only; full sanitization deferred to a dedicated code-signing strategy. |
+| D36 | ~~$elementId embedded unsanitized in getElementById()~~ | ~~High~~ | **RESOLVED** — `addcslashes($elementId, "\\'\"")` applied before embedding. |
 
 #### ClientBlockRegistry.php (41 lines)
 
@@ -735,8 +741,8 @@ Clean exception hierarchy with structured metadata (line, column, position, toke
 
 | # | File | Finding |
 |---|------|---------|
-| D34 | ClientBlock.php | `EventHandler::compile()` embeds `$handler` directly in JS — JavaScript injection |
-| D35 | ClientBlock.php | `ClientBlock::toModule()` wraps raw `$code` in JS IIFE — code injection |
+| D34 | ~~ClientBlock.php~~ | ~~`EventHandler::compile()` embeds `$handler` directly in JS — JavaScript injection~~ **RESOLVED 2026-04-23** (512-char limit + character allowlist) |
+| D35 | ClientBlock.php | `ClientBlock::toModule()` wraps raw `$code` in JS IIFE — code injection (internal callers only; deferred) |
 | D18 | TemplateCache.php | Cache sentinel secret is `sha1($cacheDir)` — deterministic, not truly secret |
 | D20/D27 | ComponentDefinition/SlotSystem | Duplicate SlotDefinition class — fatal error if both loaded |
 | D28 | HydrationRuntime/HydrationStrategy | Duplicate HydrationStrategy enum — fatal error if both loaded |
@@ -1044,7 +1050,7 @@ Reactive/
 | R4 | Add htmlspecialchars() to TurboStreamResponse $target and $content | S | TurboStreamResponse.php |
 | R5 | Add JSON_HEX_TAG to IslandManifest.generateScriptTag() | S | IslandManifest.php |
 | R6 | Sanitize ComponentLoader component names against path traversal | S | ComponentLoader.php |
-| R7 | Add input validation for ClientBlock $handler and $code sources | M | ClientBlock.php |
+| R7 | ~~Add input validation for ClientBlock $handler and $code sources~~ | ~~M~~ | **DONE 2026-04-23** — `$handler` hardened: 512-char limit + character allowlist + script-breakout check. `$code` (D35) deferred — internal callers only. |
 | R8 | Fix TemplateCache sentinel to use a proper application secret | S | TemplateCache.php |
 | R9 | Fix TemplateCache namespace mismatch (`Core` segment) | S | TemplateCache.php |
 
