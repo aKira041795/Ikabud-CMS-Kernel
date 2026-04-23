@@ -48,9 +48,11 @@ echo $instance->getComputed('label'); // cached computed value
 | `__construct(ComponentDefinition $def, array $props)` | Validates props, initializes state |
 | `getState(string $key)` | Get reactive state value |
 | `setState(string $key, $value)` | Set state, triggers watchers |
-| `getComputed(string $key)` | Get cached computed value |
+| `getComputed(string $key)` | Get cached computed value — **stub: returns null; actual evaluation happens in the renderer** |
 | `getProp(string $key)` | Get resolved prop |
 | `emit(string $event, $payload)` | Emit component event |
+
+> **Note:** `getComputed()`, `callMethod()`, and `triggerWatchers()` are currently stubs in `ComponentInstance`. Computed evaluation and watcher execution are handled by the template renderer, not the instance directly.
 
 ### ComponentLoader
 
@@ -116,6 +118,22 @@ echo json_encode($slot); // JsonSerializable
 | `name` | `string` | Slot name |
 | `required` | `bool` | Whether the slot must be filled |
 | `default` | `string` | Default content when not filled |
+
+### Slot Template Syntax
+
+Inside a component's `.disyl` template, use the `{slot}` tag to mark injection points:
+
+```disyl
+{!-- Self-closing: no default content --}
+{slot header}
+
+{!-- Block form: renders default when caller provides nothing --}
+{slot footer}
+  <p>Default footer</p>
+{/slot}
+```
+
+`SlotDefinition` objects (PHP layer) declare the contract; `{slot}` tags (template layer) are the rendering counterpart. Names must match between the two.
 
 ## Component Lifecycle
 

@@ -21,13 +21,14 @@
 10. [Template Inheritance](#template-inheritance)
 11. [Includes](#includes)
 12. [Components](#components)
-13. [Globals](#globals)
-14. [Custom Filters](#custom-filters)
-15. [Security](#security)
-16. [Error Handling](#error-handling)
-17. [Linter Checks](#linter-checks)
-18. [Performance & Benchmarking](#performance--benchmarking)
-19. [Governance Rules](#governance-rules)
+13. [Slots](#slots)
+14. [Globals](#globals)
+15. [Custom Filters](#custom-filters)
+16. [Security](#security)
+17. [Error Handling](#error-handling)
+18. [Linter Checks](#linter-checks)
+19. [Performance & Benchmarking](#performance--benchmarking)
+20. [Governance Rules](#governance-rules)
 
 ---
 
@@ -173,11 +174,13 @@ Pipe-chain syntax: `{value | filter1 | filter2:arg}`. Multiple filters chain lef
 ### Logical Operators
 
 ```disyl
-{if show and active}       AND
-{if show or fallback}      OR
+{if show and active}       AND (also: &&)
+{if show or fallback}      OR  (also: ||)
 {if not hidden}            NOT / negation
 {if !hidden}               also negation
 ```
+
+`and`/`or` are the canonical forms. `&&`/`||` are recognized equivalents.
 
 ### Truthiness
 
@@ -345,6 +348,10 @@ Assign variables within templates.
 
 ## Comments
 
+DiSyL supports two comment syntaxes. Both are stripped entirely from rendered output.
+
+### Dash comment (recommended)
+
 ```disyl
 {!-- This is a DiSyL comment --}
 {!-- Comments are stripped from output --}
@@ -353,7 +360,14 @@ Assign variables within templates.
      work too --}
 ```
 
-Comments are completely removed from rendered output.
+### Star comment
+
+```disyl
+{* This is also a valid comment *}
+{* Single-line only recommended; not for multi-line *}
+```
+
+Both forms are removed at parse time and produce no output.
 
 ---
 
@@ -498,6 +512,32 @@ Built-in `ikb_*` components render semantic HTML with appropriate classes and at
 ### Component Attributes
 
 All components accept standard HTML attributes (`id`, `class`, etc.) plus component-specific props (`variant`, `tag`, `columns`, `size`, `name`).
+
+---
+
+## Slots
+
+The `{slot}` tag marks an injection point inside a component template. The caller fills the slot with its own content.
+
+### Self-closing (no default)
+
+```disyl
+{slot header}
+```
+
+Renders empty if the caller provides no content for the `header` slot.
+
+### Block form (with default)
+
+```disyl
+{slot footer}
+  <p>Default footer</p>
+{/slot}
+```
+
+If the caller provides `footer` content, it replaces the default. Otherwise the default renders.
+
+Slot names follow the same dot-notation conventions as component names. Slot definitions in the PHP layer (`SlotDefinition`) are the authoritative type contract; the `{slot}` tag is the template-level counterpart.
 
 ---
 

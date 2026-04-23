@@ -1,19 +1,19 @@
 <?php
 /**
- * DiSyL Grammar v2.0.0
+ * DiSyL Grammar v4.0.0
  * 
  * Defines type constants, platform identifiers, and validation rules
  * for the DiSyL template language.
  * 
- * v2.0.0 (DiSyL v11):
- * - Advanced type system constants (generics, union, intersection)
- * - Pattern matching keywords
- * - Async/await keywords
- * - i18n keywords
- * - Plugin hooks
+ * v4.0.0 (schema version aligned with TemplateEngine and v4 Parser):
+ * - Core type system constants
+ * - Platform identifiers
+ * - v11 planned: advanced type system (generics, union, intersection)
+ * - v11 planned: pattern matching, async/await, i18n keywords
+ * - v11.1 planned: experimentation, cache, security, federation, AI keywords
  * 
  * @package Ikabud\Kernel\DiSyL
- * @version 2.0.0
+ * @version 4.0.0
  */
 
 namespace Ikabud\Kernel\DiSyL;
@@ -133,6 +133,7 @@ class Grammar
             self::PLATFORM_DRUPAL,
             self::PLATFORM_JOOMLA,
             self::PLATFORM_NATIVE,
+            self::PLATFORM_IKABUD,
             self::PLATFORM_STATIC,
         ];
     }

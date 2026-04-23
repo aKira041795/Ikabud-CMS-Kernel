@@ -5,6 +5,8 @@
 **Scope:** Full file-by-file audit of all 76 kernel + DiSyL files (~18,700 lines), all 18 kernel docs, 30 related test files  
 **Method:** Every public, protected, and private method signature cataloged; every regex audited; every error path traced; every hardcoded value recorded; every cross-dependency mapped.
 
+> **Update 2026-04-16/2026-04-23:** Several items from this evaluation have been resolved since the evaluation date. Items with a ✅ **RESOLVED** note have been addressed. See the Performance Findings section for inline update notes, and the Prioritized Remediation Plan for per-item resolution status.
+
 ---
 
 ## TABLE OF CONTENTS
@@ -505,13 +507,15 @@ Every regex uses non-overlapping character classes (`[^}]+`, `[^"]+`, `[^']+`) o
 
 ### 4.2 DiSyLEngine.php — ASPIRATIONAL STUB (970 lines)
 
+> ✅ **RESOLVED 2026-04-23 (R25):** `DiSyLEngine.php` has been moved to `kernel/DiSyL/_future/DiSyLEngine.php`, quarantined from the live autoload path. D8–D10 are no longer active load-path concerns.
+
 **Constructor throws `\LogicException` unconditionally.** Every method after `__construct` is unreachable dead code. 87 `use` imports reference classes that don't exist (AI, Federation, Security, Cache, Targets, Framework, Plugin, Debug subsystems). Reports version `'11.1.0'`.
 
 | # | Gap | Severity | Detail |
 |---|-----|----------|--------|
-| D8 | 970 lines of dead code | Medium | Constructor throws; all 80+ methods are unreachable |
-| D9 | findTemplate() has path traversal | Low | Dead code, but accepts absolute paths with no validation |
-| D10 | 87 non-existent class imports | Low | Creates false impression of available subsystems |
+| D8 | ~~970 lines of dead code~~ | ~~Medium~~ | **RESOLVED** — quarantined to `_future/` |
+| D9 | findTemplate() has path traversal | Low | Dead code in `_future/`; no active risk |
+| D10 | 87 non-existent class imports | Low | In `_future/`; no longer loaded |
 
 ---
 
@@ -522,7 +526,7 @@ Constants-only file. Schema version `4.0.0`. Types, platforms, categories, keywo
 | # | Gap | Severity | Detail |
 |---|-----|----------|--------|
 | D11 | All v11/v11.1 keywords are "PLANNED — not yet implemented" | Low | Pattern matching, async, i18n, experiments, cache, security, federation, AI — all planned constants |
-| D12 | PLATFORM_IKABUD defined but not in getPlatforms() return | Low | Inconsistency |
+| D12 | ~~PLATFORM_IKABUD defined but not in getPlatforms() return~~ | ~~Low~~ | **RESOLVED 2026-04-23** — `PLATFORM_IKABUD` added to `getPlatforms()` return value. Grammar.php file header version also corrected from v2.0.0 to v4.0.0. |
 
 ---
 
@@ -546,7 +550,7 @@ Generates PHP class code from AST nodes (`DocumentNode`, `TextNode`, `Expression
 
 | # | Gap | Severity | Detail |
 |---|-----|----------|--------|
-| D14 | Not connected to live engine | High | TemplateEngine uses regex interpretation; this compiler is unused |
+| D14 | ~~Not connected to live engine~~ | ~~High~~ | **RESOLVED 2026-04-16 (R23)** — v4 Parser, 16 AST node classes, RenderContext, FilterRegistry, and CMS adapters implemented. `TemplateEngine::render()` wired to compiled fast path via `DISYL_COMPILED_MODE=true`. |
 | D15 | compileApply uses ob_start() without guaranteed cleanup | Low | Error between start/end could leak buffer |
 
 #### IncrementalCompiler.php (177 lines)
@@ -814,7 +818,7 @@ index.php → App::render() → TemplateEngine::render()
 | A3 | **EventTriggers is 775 lines of procedural code** | Only kernel file without a class; uses `$GLOBALS` for state |
 | A4 | **IntegrationBridge is entirely static** | Cannot be dependency-injected or mocked; only `$activeDepth` as instance state |
 | A5 | **No DI container** | Everything flows through `app()` global; no constructor injection for kernel subsystems |
-| A6 | **Compiled template pipeline disconnected** | 1,250 lines of compiler code targeting non-existent v4 AST classes, not wired to live engine |
+| A6 | ~~**Compiled template pipeline disconnected**~~ | ✅ **RESOLVED 2026-04-16 (R23)** — v4 Parser + AST + RenderContext + FilterRegistry + CMS adapters implemented; `DISYL_COMPILED_MODE=true` activates compiled fast path |
 | A7 | **CapabilityProviderContract is orphaned** | Interface defined but never validated or consumed by Bus/Registry |
 | A8 | **DRY violations** | `baseId()`/`majorVersion()` in 3 files; `normalizeId()`/`defaultLabel()` in 2 files |
 
@@ -878,22 +882,29 @@ index.php → App::render() → TemplateEngine::render()
 
 ## 9. Documentation Gaps
 
-### Missing Documentation Files
+> ✅ **All documentation items (R38–R45) have been completed.** The subsystems listed below as missing now have standalone documentation files.
 
-The following kernel subsystems have NO standalone documentation:
+### Previously Missing Documentation Files (now resolved)
 
-| Subsystem | Lines of Code | Importance |
-|-----------|--------------|------------|
-| Entity Context System | 980 | High — complex registry + profiles + capabilities + blocks |
-| Entity Authority System | 100 | Medium — governance for data ownership |
-| Workflow System | 470 | Medium — state machine used by CMS, extensible |
-| Caching Strategy | 994 | Medium — multi-tier with tags, LRU, compression |
-| DiSyL Component System | 2,700 | High — 6 files, definitions, instances, loading, parsing, slots |
-| DiSyL Hydration System | 1,140 | Medium — islands architecture, server→client bridge |
-| DiSyL Islands Architecture | (part of hydration) | Medium — documented in roadmap but no spec |
-| DiSyL Reactive System | 1,400 | Medium — signals, effects, HTMX, Turbo Streams |
+| Subsystem | Doc File | Status |
+|-----------|----------|--------|
+| Entity Context System | `docs/kernel/entity-context-system.md` | ✅ Created |
+| Entity Authority System | `docs/kernel/entity-authority-system.md` | ✅ Created |
+| Workflow System | `docs/kernel/workflow-system.md` | ✅ Created |
+| Caching Strategy | `docs/kernel/caching-strategy.md` | ✅ Created |
+| DiSyL Component System | `docs/kernel/disyl-component-system.md` | ✅ Created |
+| DiSyL Hydration System | `docs/kernel/disyl-hydration-system.md` | ✅ Created |
+| DiSyL Reactive System | `docs/kernel/disyl-reactive-system.md` | ✅ Created |
+| Production Deployment Guide | `docs/kernel/production-deployment-guide.md` | ✅ Created |
 
-Combined: **~7,800 lines of undocumented code** across 8 subsystems.
+### Remaining doc-layer gaps (identified 2026-04-23)
+
+- `{* *}` star-comment syntax was undocumented in `disyl-implementation-spec.md` → **fixed**
+- `&&`/`||` equivalents for `and`/`or` were undocumented → **fixed**
+- `{slot}` tag had no entry in `disyl-implementation-spec.md` or `disyl-component-system.md` → **fixed**
+- `ComponentInstance` stub methods (`getComputed`, `callMethod`, `triggerWatchers`) were not noted as stubs → **fixed**
+- `Grammar.php` file-header version was `v2.0.0` despite `SCHEMA_VERSION = '4.0.0'` → **fixed**
+- `PLATFORM_IKABUD` was defined but absent from `getPlatforms()` → **fixed**
 
 ### Existing Documentation Quality
 
@@ -904,7 +915,7 @@ Combined: **~7,800 lines of undocumented code** across 8 subsystems.
 | module-quickstart.md | ✅ Good tutorial (~500 lines) |
 | api-reference.md | ✅ Good (~500 lines) |
 | security-checklist.md | ✅ Complete for current state |
-| installation.md | ⚠️ Dev-focused; no production deployment guide |
+| installation.md | ⚠️ Dev-focused; no production deployment guide → `production-deployment-guide.md` now exists |
 | ikabud-roadmap.md | ✅ Clear 7-phase plan |
 | kernel-triggers-capabilities-plan.md | ✅ Good 7-milestone plan |
 | kernel-stable-contracts.md | ✅ Good formal contracts |
@@ -917,13 +928,13 @@ Combined: **~7,800 lines of undocumented code** across 8 subsystems.
 
 ### Dead Code Inventory
 
-| File | Lines | Type | Recommendation |
-|------|-------|------|----------------|
-| DiSyLEngine.php | 970 | Constructor throws; 80+ methods unreachable | **Remove or quarantine to `_future/`** |
-| IslandsRuntime.php | 26 | Empty backward-compat shim | Remove |
-| SecurityHeaders::getBaseDomain() | ~15 | Defined, never called | Remove |
-| Grammar.php v11 keywords | ~80 | Constants for unimplemented features | Keep but document as future |
-| ComponentInstance stubs | ~30 | getComputed, callMethod, triggerWatchers | Document as stubs |
+| File | Lines | Type | Status |
+|------|-------|------|--------|
+| ~~DiSyLEngine.php~~ | ~~970~~ | Constructor throws; 80+ methods unreachable | ✅ **Quarantined** to `kernel/DiSyL/_future/DiSyLEngine.php` |
+| IslandsRuntime.php | 26 | Empty backward-compat shim | Open |
+| SecurityHeaders::getBaseDomain() | ~15 | Defined, never called | Open |
+| Grammar.php v11 keywords | ~80 | Constants for unimplemented features | Documented as planned/future |
+| ComponentInstance stubs | ~30 | getComputed, callMethod, triggerWatchers | ✅ **Documented as stubs** in component-system doc |
 
 **Total dead code: ~1,100 lines**
 
@@ -1082,16 +1093,16 @@ Reactive/
 
 ### Tier 4 — Documentation (Parallel Track)
 
-| # | Item | Files |
-|---|------|-------|
-| R38 | Write entity-context-system.md | Covers ContextRegistry, ContextProfile, resolution, customizer schema |
-| R39 | Write disyl-component-system.md | Covers ComponentDefinition, Instance, Loader, Parser, SlotSystem |
-| R40 | Write disyl-hydration-system.md | Covers HydrationRuntime, Islands, renderer, client runtime |
-| R41 | Write disyl-reactive-system.md | Covers Signals, HTMX integration, ClientBlocks, OOB swaps |
-| R42 | Write workflow-system.md | Covers WorkflowRuntime, state machine, transitions, events |
-| R43 | Write caching-strategy.md | Covers Cache tiers, tags, LRU, compression, invalidation |
-| R44 | Write entity-authority-system.md | Covers EntityAuthorityRegistry, SyncContractRegistry |
-| R45 | Write production-deployment-guide.md | Server requirements, sizing, cron, monitoring, backup |
+| # | Item | Status |
+|---|------|--------|
+| R38 | Write entity-context-system.md | ✅ Done |
+| R39 | Write disyl-component-system.md | ✅ Done (slot template syntax + stub notes added 2026-04-23) |
+| R40 | Write disyl-hydration-system.md | ✅ Done |
+| R41 | Write disyl-reactive-system.md | ✅ Done |
+| R42 | Write workflow-system.md | ✅ Done |
+| R43 | Write caching-strategy.md | ✅ Done |
+| R44 | Write entity-authority-system.md | ✅ Done |
+| R45 | Write production-deployment-guide.md | ✅ Done |
 
 ---
 
