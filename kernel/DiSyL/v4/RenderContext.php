@@ -100,7 +100,7 @@ class RenderContext
         $this->slots[$name] = $content;
     }
 
-    public function setParentTemplate(string $template): void
+    public function setParentTemplate(?string $template): void
     {
         $this->parentTemplate = $template;
     }

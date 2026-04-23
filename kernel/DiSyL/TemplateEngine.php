@@ -34,6 +34,8 @@
 
 namespace Ikabud\Kernel\DiSyL;
 
+use Ikabud\Kernel\DiSyL\v4\RenderContext;
+
 class TemplateEngine
 {
     private string $templateDir;
@@ -201,7 +203,17 @@ class TemplateEngine
         if ($this->compiledMode && $this->compiledCache !== null) {
             try {
                 $compiled = $this->compiledCache->get($templatePath);
-                $result = $compiled->execute($context);
+                $ctx_obj = new RenderContext($context);
+                $result = $compiled->executeRaw($ctx_obj);
+                // Handle {extends} chain: child registers blocks, parent reads them
+                $maxExtendsDepth = 10;
+                while ($ctx_obj->getParentTemplate() !== null && $maxExtendsDepth-- > 0) {
+                    $parentName = $ctx_obj->getParentTemplate();
+                    $ctx_obj->setParentTemplate(null); // prevent infinite loop
+                    $parentPath = $this->resolveTemplatePath($parentName);
+                    $parentCompiled = $this->compiledCache->get($parentPath);
+                    $result = $parentCompiled->executeRaw($ctx_obj);
+                }
                 if (strlen($result) > self::MAX_OUTPUT_BYTES) {
                     $this->logError("Template output exceeds maximum size (" . self::MAX_OUTPUT_BYTES . " bytes): {$template}");
                     throw new \RuntimeException("Template output exceeds maximum allowed size");

@@ -63,6 +63,14 @@ abstract class CompiledTemplate
         $ctx = new RenderContext($variables);
         return $this->render($ctx);
     }
+
+    /**
+     * Execute using a pre-built RenderContext (for extends chain handling).
+     */
+    public function executeRaw(RenderContext $ctx): string
+    {
+        return $this->render($ctx);
+    }
     
     /**
      * Escape HTML

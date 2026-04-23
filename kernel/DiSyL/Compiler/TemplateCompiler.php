@@ -37,16 +37,19 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 1;
+    public const COMPILER_VERSION = 3;
 
     private int $indentLevel = 0;
     private string $indent = '    ';
+    /** Whether the template being compiled extends a parent (child template) */
+    private bool $isChildTemplate = false;
     
     /**
      * Compile AST to PHP class code
      */
     public function compile(DocumentNode $ast, string $className): string
     {
+        $this->isChildTemplate = $this->documentHasExtends($ast);
         $body = $this->compileDocument($ast);
         
         $timestamp = $this->timestamp();
@@ -492,7 +495,24 @@ PHP;
     private function compileBlock(ControlNode $node): string
     {
         $name = var_export($node->getAttribute('name'), true);
-        
+
+        if ($this->isChildTemplate) {
+            // Child template: capture block content into a string and register it in context.
+            // The parent (layout) template will read it via hasBlock/getBlock.
+            $code = $this->line("{ // setBlock({$name})");
+            $this->indentLevel++;
+            $code .= $this->line("\$__prev = \$output; \$output = '';");
+            if ($node->getBody()) {
+                $code .= $this->compileDocument($node->getBody());
+            }
+            $code .= $this->line("\$ctx->setBlock({$name}, \$output);");
+            $code .= $this->line("\$output = \$__prev;");
+            $this->indentLevel--;
+            $code .= $this->line("}");
+            return $code;
+        }
+
+        // Layout template: use the child's block if registered, else render default.
         $code = $this->line("if (\$ctx->hasBlock({$name})) {");
         $this->indentLevel++;
         $code .= $this->line("\$output .= \$this->renderBlock(\$ctx->getBlock({$name}), \$ctx);");
@@ -508,6 +528,19 @@ PHP;
         $code .= $this->line("}");
         
         return $code;
+    }
+
+    /**
+     * Detect if a DocumentNode contains an {extends} node at the top level.
+     */
+    private function documentHasExtends(DocumentNode $ast): bool
+    {
+        foreach ($ast->getChildren() as $child) {
+            if ($child instanceof ControlNode && $child->getTag() === 'extends') {
+                return true;
+            }
+        }
+        return false;
     }
     
     private function compileExtends(ControlNode $node): string
