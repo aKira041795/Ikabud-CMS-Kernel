@@ -308,7 +308,7 @@ class Parser
         return new ControlNode(
             [],
             'if',
-            ['condition' => $this->buildExpressionNode($condition)],
+            ['condition' => $this->parseExprValue($condition)],
             new DocumentNode([], $body),
             $elseDoc
         );
@@ -335,7 +335,7 @@ class Parser
         return new ControlNode(
             [],
             'if',
-            ['condition' => $this->buildExpressionNode($condition)],
+            ['condition' => $this->parseExprValue($condition)],
             new DocumentNode([], $body),
             $elseDoc
         );
@@ -367,7 +367,7 @@ class Parser
         return new ControlNode(
             [],
             'for',
-            ['item' => $itemName, 'iterable' => $this->buildExpressionNode($iterable)],
+            ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)],
             new DocumentNode([], $body),
             $elseDoc
         );
@@ -404,7 +404,7 @@ class Parser
 
         $this->consumeExact('{/foreach}');
 
-        $attrs = ['item' => $itemName, 'iterable' => $this->buildExpressionNode($iterable)];
+        $attrs = ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)];
         if ($keyName !== null) {
             $attrs['key'] = $keyName;
         }
@@ -443,7 +443,7 @@ class Parser
 
         $this->consumeExact('{/each}');
 
-        $attrs = ['item' => $itemName, 'iterable' => $this->buildExpressionNode($iterable)];
+        $attrs = ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)];
         if ($keyName !== null) {
             $attrs['key'] = $keyName;
         }
@@ -467,7 +467,7 @@ class Parser
 
         return new ControlNode([], 'set', [
             'name' => $name,
-            'value' => $this->buildExpressionNode($value),
+            'value' => $this->parseExprValue($value),
         ]);
     }
 
@@ -774,6 +774,18 @@ class Parser
             return new IdentifierNode([], $expr);
         }
 
+        // Filter chain: "base | filter1 | filter2" with a single pipe (not ||) at depth 0.
+        // Handles sub-expressions like "items | count" in "items | count > 0".
+        $pipePos = $this->findOuterSinglePipe($expr);
+        if ($pipePos !== false) {
+            $base = trim(substr($expr, 0, $pipePos));
+            $filterStr = trim(substr($expr, $pipePos + 1));
+            $filterParts = $this->splitByPipe($filterStr);
+            $filters = array_map(fn($f) => $this->parseFilterSpec(trim($f)), $filterParts);
+            $baseNode = $this->parsePrimaryExpr($base);
+            return new ExpressionNode([], $baseNode, new FilterChain($filters), false);
+        }
+
         // Last resort: treat as string literal
         return new LiteralNode([], $expr);
     }
@@ -972,6 +984,33 @@ class Parser
      *
      * @return string[]
      */
+    /**
+     * Find the position of the first single pipe (|) at depth 0, outside quotes.
+     * Returns false if none exists or if the only pipes are double-pipes (||).
+     */
+    private function findOuterSinglePipe(string $expr): int|false
+    {
+        $len = strlen($expr);
+        $inSingle = false; $inDouble = false; $depth = 0;
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $expr[$i];
+            if ($ch === '\\' && ($inSingle || $inDouble) && $i + 1 < $len) { $i++; continue; }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; continue; }
+            if ($inSingle || $inDouble) continue;
+            if ($ch === '(') { $depth++; continue; }
+            if ($ch === ')') { $depth--; continue; }
+            if ($depth === 0 && $ch === '|') {
+                $prev = $i > 0 ? $expr[$i - 1] : '';
+                $next = $i + 1 < $len ? $expr[$i + 1] : '';
+                if ($prev !== '|' && $next !== '|') {
+                    return $i;
+                }
+            }
+        }
+        return false;
+    }
+
     private function splitByPipe(string $expr): array
     {
         $parts = [];
@@ -1007,6 +1046,12 @@ class Parser
                 }
 
                 if ($ch === '|' && $depth === 0) {
+                    // Skip || (double-pipe used as logical-OR operator)
+                    if ($i + 1 < $len && $expr[$i + 1] === '|') {
+                        $current .= '||';
+                        $i++; // consume both chars
+                        continue;
+                    }
                     $parts[] = $current;
                     $current = '';
                     continue;
