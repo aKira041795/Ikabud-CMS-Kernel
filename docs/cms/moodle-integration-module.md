@@ -417,9 +417,52 @@ Items are ordered by architectural impact.
 
 3. ~~**Promote catalog fields on `learning_resources`.**~~ ✅ Done — migration 006 adds catalog columns; `SyncService` populates them.
 
-4. **Make the reconciliation contract explicit.** Document (and enforce in code comments) that the scheduled sync jobs are the authoritative reconciliation layer and that the `POST /events` webhook is a fast-path supplement. Consider adding a `last_full_sync_at` timestamp on `moodle_sync_metrics` to make reconciliation staleness observable.
+4. ~~**Make the reconciliation contract explicit.**~~ ✅ Done — see **Reconciliation Contract** section below.
 
 5. ~~**Retire `course_id` column name in `moodle_user_progress`.**~~ ✅ Done — migration 007 renames to `course_cache_id`; all PHP queries updated.
+
+## Reconciliation Contract
+
+This section codifies the data-correctness guarantee for learning data under imperfect conditions.
+
+### Rule
+
+> **Webhook = fast path. Scheduled sync + targeted refresh = authoritative reconciliation layer.**
+
+The `POST /api/v1/moodle-integration/events` handler processes inbound Moodle progress events immediately. This keeps the UI fresh under normal conditions. However, it carries no delivery guarantee: a network drop or Moodle outage silently drops the update.
+
+The scheduled sync jobs (`SyncCoursesJob`, `SyncProgressJob`) are the source of truth. They will catch anything the webhook missed. Correctness of the system does not depend on webhook delivery.
+
+### Staleness SLA
+
+Progress data older than `staleness_threshold_minutes` (default: 60 minutes) is considered stale. The threshold is configurable per tenant via the module settings UI.
+
+### Observability
+
+`moodle_sync_metrics` now carries two success-only timestamps:
+
+- `last_full_sync_at` — updated only when a `courses` sync completes successfully
+- `last_progress_sync_at` — updated only when a `progress_*` sync completes successfully
+
+Unlike `last_run` (which is set on every attempt), these columns only advance on success. Use `moodleIntegrationSyncFreshnessForTenant()` to read both values with computed `minutes_since_*` and `*_stale` flags. The admin dashboard exposes this via the `sync_freshness` context key.
+
+### Targeted Reconciliation
+
+When a learner opens `/my-courses` or `/learning/{rid}`, the system checks whether their cached progress exceeds the staleness threshold. If stale, a `targeted_refresh` queue job is dispatched immediately — before the page renders. The page shows cached data; the worker picks up the job and the next page load shows fresh data.
+
+Two helper entry points:
+- `moodleIntegrationMaybeDispatchUserProgressSync($tenantId, $userId, $resourceId, $thresholdMinutes)` — single resource
+- `moodleIntegrationMaybeDispatchStaleProgressForUser($tenantId, $userId, $thresholdMinutes)` — all stale rows for a user (capped at 10 per call, oldest-first)
+
+Both use per-minute idempotency keys so rapid page reloads don't flood the queue.
+
+### Discrepancy Audit
+
+`moodle_sync_discrepancies` records rows when the scheduled sync or targeted refresh finds a meaningful difference (≥ 1% progress delta or status change) compared to what is currently cached. This is populated by `SyncService::recordDiscrepancyIfChanged()` during `refreshExistingProgressRows()` and `handleTargetedProgressRefresh()`. It is best-effort (never blocks the write path) and is intended for debugging data integrity issues and building institutional trust in the system.
+
+### Correctness Invariant
+
+The system must behave correctly even if the webhook is completely disabled. If that statement is not true, the reconciliation contract is broken. Scheduled batch sync + targeted on-demand refresh together guarantee eventual consistency independent of webhook delivery.
 
 ## Verification Commands
 

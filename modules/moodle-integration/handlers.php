@@ -30,6 +30,7 @@ function pageMoodleIntegrationAdmin(array $params = []): void
         'is_configured' => moodleIntegrationIsConfigured(),
         'recent_courses' => $controller->list(10),
         'queue_status' => moodleIntegrationQueueStatusSummary(),
+        'sync_freshness' => moodleIntegrationSyncFreshnessForTenant(),
         'request_status' => moodleIntegrationEnrollmentRequestStatusSummary(),
         'pending_requests' => moodleIntegrationAdminEnrollmentRequests(['pending_review'], 25),
         'recent_reviewed_requests' => moodleIntegrationAdminEnrollmentRequests(['approved', 'rejected', 'revoked'], 25),
@@ -52,6 +53,17 @@ function pageMoodleIntegrationCourseByResource(array $params = []): void
     $course = $resourceId > 0 ? $controller->detailByResourceId($resourceId) : null;
     $currentUser = moodleIntegrationCurrentUser();
     $moodleCourseId = (int)($course['moodle_course_id'] ?? 0);
+
+    // Targeted reconciliation: if this learner has stale progress for this resource, queue a refresh.
+    // Fires before the access-state read so the queue job can run during the same request cycle
+    // on the next worker tick. Page renders from cache immediately; data freshens on next load.
+    if (is_array($currentUser) && !empty($currentUser['id']) && $resourceId > 0) {
+        $tenantId = moodleIntegrationCurrentTenantId();
+        $settings = moodleIntegrationGetSettingsForTenant($tenantId);
+        $thresholdMinutes = max(1, (int)($settings['staleness_threshold_minutes'] ?? 60));
+        moodleIntegrationMaybeDispatchUserProgressSync($tenantId, (int)$currentUser['id'], $resourceId, $thresholdMinutes);
+    }
+
     $accessState = is_array($currentUser) && !empty($currentUser['id']) && $resourceId > 0
         ? moodleIntegrationLearnerCourseAccessStateByResourceId((int)$currentUser['id'], $resourceId)
         : [
@@ -315,6 +327,15 @@ function pageMoodleIntegrationMyCourses(array $params = []): void
     moodleIntegrationRedirectToCanonicalPublicPath($canonicalPath);
     $user = moodleIntegrationRequirePageUser($canonicalPath);
     moodleIntegrationAssignUserService((int)($user['id'] ?? 0), 'elearning', true, ['origin' => 'moodle_my_courses']);
+
+    // Targeted reconciliation: queue priority syncs for any stale progress rows before rendering.
+    // The page renders immediately from cache; fresh data arrives after the worker runs the queue.
+    // This enforces: webhook = fast path, scheduled sync / targeted refresh = authoritative truth.
+    $tenantId = moodleIntegrationCurrentTenantId();
+    $settings = moodleIntegrationGetSettingsForTenant($tenantId);
+    $thresholdMinutes = max(1, (int)($settings['staleness_threshold_minutes'] ?? 60));
+    moodleIntegrationMaybeDispatchStaleProgressForUser($tenantId, (int)($user['id'] ?? 0), $thresholdMinutes);
+
     $controller = new \MoodleIntegration\Controllers\CourseController();
 
     echo moodleIntegrationRenderPublicPage('pages/my-courses.disyl', [

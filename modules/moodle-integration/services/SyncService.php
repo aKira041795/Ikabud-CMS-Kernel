@@ -88,6 +88,10 @@ final class SyncService
             $action = trim((string)($payload['action'] ?? 'refresh'));
             if ($action === 'enroll') {
                 $this->handleEnrollmentSync($db, $service, $tenantId, $payload);
+            } elseif ($action === 'targeted_refresh') {
+                // Reconciliation: refresh progress for one specific user + course.
+                // Dispatched when a learner's progress data exceeds the staleness threshold.
+                $this->handleTargetedProgressRefresh($db, $service, $tenantId, $payload);
             } else {
                 $this->refreshExistingProgressRows($db, $service, $tenantId);
             }
@@ -227,15 +231,25 @@ final class SyncService
                 continue;
             }
 
+            $newProgressPercent = $this->normalizeProgressPercent($progress['progress'] ?? []);
+            $newStatus = $this->normalizeStatus($progress['progress'] ?? []);
+
+            // Reconciliation audit: record discrepancy if scheduled sync finds different
+            // data than what the webhook last wrote. Webhook = fast path; this batch is truth.
+            $resourceId = (int)($row['learning_resource_id'] ?? 0);
+            if ($resourceId > 0) {
+                $this->recordDiscrepancyIfChanged($db, $tenantId, (int)($row['user_id'] ?? 0), $resourceId, $newProgressPercent, $newStatus);
+            }
+
             $this->upsertUserProgress(
                 $db,
                 $tenantId,
                 (int)($row['user_id'] ?? 0),
                 (int)($row['course_cache_id'] ?? 0),
                 (int)($row['learning_resource_id'] ?? 0),
-                $this->normalizeProgressPercent($progress['progress'] ?? []),
+                $newProgressPercent,
                 $this->normalizeGrade($grades['grades'] ?? []),
-                $this->normalizeStatus($progress['progress'] ?? [])
+                $newStatus
             );
         }
     }
@@ -413,14 +427,24 @@ final class SyncService
         }
 
         $durationMs = round((microtime(true) - $startedAt) * 1000, 2);
+        $now = date('Y-m-d H:i:s');
+
+        // last_full_sync_at advances only on a successful course sync.
+        // last_progress_sync_at advances only on a successful progress sync.
+        // Using COALESCE in ON DUPLICATE KEY ensures we never overwrite a real timestamp with NULL.
+        $lastFullSyncAt = ($successful && $syncType === 'courses') ? $now : null;
+        $lastProgressSyncAt = ($successful && str_starts_with($syncType, 'progress')) ? $now : null;
+
         $stmt = $db->prepare(
-            'INSERT INTO moodle_sync_metrics (tenant_id, sync_type, success_count, failure_count, avg_duration_ms, last_run, last_error, created_at, updated_at)
-             VALUES (:tenant_id, :sync_type, :success_count, :failure_count, :avg_duration_ms, NOW(), :last_error, NOW(), NOW())
+            'INSERT INTO moodle_sync_metrics (tenant_id, sync_type, success_count, failure_count, avg_duration_ms, last_run, last_full_sync_at, last_progress_sync_at, last_error, created_at, updated_at)
+             VALUES (:tenant_id, :sync_type, :success_count, :failure_count, :avg_duration_ms, NOW(), :last_full_sync_at, :last_progress_sync_at, :last_error, NOW(), NOW())
              ON DUPLICATE KEY UPDATE
                  avg_duration_ms = ROUND((((success_count + failure_count) * avg_duration_ms) + VALUES(avg_duration_ms)) / (success_count + failure_count + 1), 2),
                  success_count = success_count + VALUES(success_count),
                  failure_count = failure_count + VALUES(failure_count),
                  last_run = VALUES(last_run),
+                 last_full_sync_at = COALESCE(VALUES(last_full_sync_at), last_full_sync_at),
+                 last_progress_sync_at = COALESCE(VALUES(last_progress_sync_at), last_progress_sync_at),
                  last_error = VALUES(last_error),
                  updated_at = NOW()'
         );
@@ -430,8 +454,126 @@ final class SyncService
             ':success_count' => $successful ? 1 : 0,
             ':failure_count' => $successful ? 0 : 1,
             ':avg_duration_ms' => $durationMs,
+            ':last_full_sync_at' => $lastFullSyncAt,
+            ':last_progress_sync_at' => $lastProgressSyncAt,
             ':last_error' => $successful ? null : substr((string)$error, 0, 4000),
         ]);
+    }
+
+    /**
+     * Refresh progress for a single user + course pair.
+     * Used by targeted reconciliation: when a learner opens /my-courses or /learning/{rid}
+     * and their cached progress is older than staleness_threshold_minutes, a queue job
+     * is dispatched with action=targeted_refresh to run this path instead of the full batch.
+     * Webhook = fast path; scheduled sync = authoritative reconciliation.
+     */
+    private function handleTargetedProgressRefresh(PDO $db, MoodleService $service, int $tenantId, array $payload): void
+    {
+        $userId = (int)($payload['user_id'] ?? 0);
+        $moodleCourseId = (int)($payload['moodle_course_id'] ?? 0);
+        $learningResourceId = (int)($payload['learning_resource_id'] ?? 0);
+
+        if ($userId <= 0 || $moodleCourseId <= 0) {
+            return;
+        }
+
+        // Skip if enrollment is in a terminal non-active state.
+        $enrollmentStatus = $this->getEnrollmentRequestStatus($db, $tenantId, $userId, $moodleCourseId);
+        if ($enrollmentStatus !== null && in_array($enrollmentStatus, ['rejected', 'revoked', 'cancelled'], true)) {
+            return;
+        }
+
+        $cacheStmt = $db->prepare('SELECT id FROM moodle_courses_cache WHERE tenant_id = :tid AND moodle_course_id = :cid LIMIT 1');
+        $cacheStmt->execute([':tid' => $tenantId, ':cid' => $moodleCourseId]);
+        $courseRowId = (int)($cacheStmt->fetchColumn() ?: 0);
+        if ($courseRowId <= 0) {
+            return;
+        }
+
+        $localUser = $this->loadLocalUser($db, $userId);
+        if ($localUser === null) {
+            return;
+        }
+
+        $moodleUser = $service->resolveOrCreateMoodleUser($localUser);
+        if (empty($moodleUser['ok']) || !is_array($moodleUser['user'] ?? null)) {
+            if ((int)($moodleUser['http_code'] ?? 0) === 429) {
+                throw new RuntimeException('THROTTLED:' . (string)($moodleUser['error'] ?? 'Rate limited'));
+            }
+            return;
+        }
+
+        $moodleUserId = (int)($moodleUser['user']['id'] ?? 0);
+
+        $grades = $service->getUserGrades($moodleUserId, $moodleCourseId);
+        $progress = $service->getUserProgress($moodleUserId, $moodleCourseId);
+
+        if ((int)($grades['http_code'] ?? 0) === 429 || (int)($progress['http_code'] ?? 0) === 429) {
+            throw new RuntimeException('THROTTLED: Rate limited during targeted progress refresh');
+        }
+
+        $newProgress = $this->normalizeProgressPercent($progress['progress'] ?? []);
+        $newGrade = $this->normalizeGrade($grades['grades'] ?? []);
+        $newStatus = $this->normalizeStatus($progress['progress'] ?? []);
+
+        // Record a discrepancy when Moodle data diverges meaningfully from what is cached.
+        // This is the concrete enforcement of: webhook = fast path, scheduled sync = truth.
+        if ($learningResourceId > 0) {
+            $this->recordDiscrepancyIfChanged($db, $tenantId, $userId, $learningResourceId, $newProgress, $newStatus);
+        }
+
+        $this->upsertUserProgress($db, $tenantId, $userId, $courseRowId, $learningResourceId, $newProgress, $newGrade, $newStatus);
+    }
+
+    /**
+     * If the scheduled sync finds meaningfully different progress than what is cached
+     * (delta >= 1% or status change), record a discrepancy row for audit and debugging.
+     * Non-fatal: errors here never block the sync write path.
+     */
+    private function recordDiscrepancyIfChanged(PDO $db, int $tenantId, int $userId, int $learningResourceId, float $newProgress, string $newStatus): void
+    {
+        if ($learningResourceId <= 0) {
+            return;
+        }
+
+        try {
+            $stmt = $db->prepare(
+                'SELECT progress_percent, status FROM moodle_user_progress
+                 WHERE tenant_id = :tid AND user_id = :uid AND learning_resource_id = :rid
+                 LIMIT 1'
+            );
+            $stmt->execute([':tid' => $tenantId, ':uid' => $userId, ':rid' => $learningResourceId]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($existing)) {
+                return; // No cached row yet — nothing to compare against
+            }
+
+            $cachedProgress = (float)($existing['progress_percent'] ?? 0);
+            $cachedStatus = (string)($existing['status'] ?? '');
+            $delta = abs($newProgress - $cachedProgress);
+
+            if ($delta < 1.0 && $cachedStatus === $newStatus) {
+                return; // No meaningful change; skip
+            }
+
+            $db->prepare(
+                'INSERT INTO moodle_sync_discrepancies
+                     (tenant_id, user_id, learning_resource_id, source, cached_progress, actual_progress, cached_status, actual_status, delta_percent, detected_at)
+                 VALUES (:tid, :uid, :rid, :source, :cached_progress, :actual_progress, :cached_status, :actual_status, :delta, NOW())'
+            )->execute([
+                ':tid' => $tenantId,
+                ':uid' => $userId,
+                ':rid' => $learningResourceId,
+                ':source' => 'scheduled_sync',
+                ':cached_progress' => $cachedProgress,
+                ':actual_progress' => $newProgress,
+                ':cached_status' => $cachedStatus,
+                ':actual_status' => $newStatus,
+                ':delta' => round($delta, 2),
+            ]);
+        } catch (Throwable $e) {
+            // Discrepancy tracking is best-effort; never block the sync write path.
+        }
     }
 
     private function upsertUserProgress(PDO $db, int $tenantId, int $userId, int $courseId, int $learningResourceId, float $progressPercent, ?float $grade, string $status): void

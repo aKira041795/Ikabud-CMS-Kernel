@@ -13,7 +13,8 @@
         "moodle_enrollment_requests",
         "moodle_sso_tokens",
         "moodle_sync_metrics",
-        "moodle_rate_limit"
+        "moodle_rate_limit",
+        "moodle_sync_discrepancies"
     ],
     "reads_tables": [
         "users",
@@ -29,7 +30,8 @@
         "database/migrations/004_moodle_provider_capabilities_schema.sql",
         "database/migrations/005_moodle_idempotency_and_progress_fk.sql",
         "database/migrations/006_moodle_catalog_fields.sql",
-        "database/migrations/007_moodle_progress_rename_course_id.sql"
+        "database/migrations/007_moodle_progress_rename_course_id.sql",
+        "database/migrations/008_moodle_reconciliation_observability.sql"
     ],
     "capabilities": {
         "exposes": [],
@@ -151,6 +153,14 @@
             "label": "Burst Limit Per Sync Job",
             "placeholder": "20",
             "help": "Maximum number of Moodle API calls a single sync job execution is allowed to make. Prevents one job from consuming the entire per-minute budget."
+        },
+        {
+            "key": "staleness_threshold_minutes",
+            "type": "text",
+            "default": "60",
+            "label": "Staleness Threshold (minutes)",
+            "placeholder": "60",
+            "help": "Progress data older than this many minutes is considered stale. When a learner opens their dashboard or a course page, a targeted reconciliation sync is dispatched automatically for any stale rows. Set to 0 to disable on-demand reconciliation."
         }
     ],
     "nav": [

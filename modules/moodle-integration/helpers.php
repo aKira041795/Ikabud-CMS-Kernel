@@ -1287,6 +1287,224 @@ function moodleIntegrationAdminShortcodes(): array
     ];
 }
 
+/**
+ * Return sync freshness data for admin dashboards and staleness checks.
+ * Reads last_full_sync_at and last_progress_sync_at from moodle_sync_metrics.
+ * Both columns are only advanced on successful sync completions, so they give
+ * a reliable "how old is our data?" answer independent of retry/failure counts.
+ */
+function moodleIntegrationSyncFreshnessForTenant(int $tenantId = 0): array
+{
+    $tenantId = $tenantId > 0 ? $tenantId : moodleIntegrationCurrentTenantId();
+    $settings = moodleIntegrationGetSettingsForTenant($tenantId);
+    $threshold = max(1, (int)($settings['staleness_threshold_minutes'] ?? 60));
+
+    $result = [
+        'last_full_sync_at' => null,
+        'last_progress_sync_at' => null,
+        'minutes_since_full_sync' => null,
+        'minutes_since_progress_sync' => null,
+        'courses_stale' => false,
+        'progress_stale' => false,
+        'staleness_threshold_minutes' => $threshold,
+    ];
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return $result;
+    }
+
+    try {
+        $stmt = $db->prepare(
+            'SELECT sync_type, last_full_sync_at, last_progress_sync_at
+             FROM moodle_sync_metrics
+             WHERE tenant_id = :tenant_id AND sync_type IN (\'courses\', \'progress_refresh\')
+             LIMIT 10'
+        );
+        $stmt->execute([':tenant_id' => $tenantId]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($rows as $row) {
+            $type = (string)($row['sync_type'] ?? '');
+            if ($type === 'courses' && $row['last_full_sync_at'] !== null) {
+                $result['last_full_sync_at'] = $row['last_full_sync_at'];
+                $ts = strtotime((string)$row['last_full_sync_at']);
+                if ($ts !== false) {
+                    $result['minutes_since_full_sync'] = (int)floor((time() - $ts) / 60);
+                    $result['courses_stale'] = $result['minutes_since_full_sync'] > $threshold;
+                }
+            }
+            if ($type === 'progress_refresh' && $row['last_progress_sync_at'] !== null) {
+                $result['last_progress_sync_at'] = $row['last_progress_sync_at'];
+                $ts = strtotime((string)$row['last_progress_sync_at']);
+                if ($ts !== false) {
+                    $result['minutes_since_progress_sync'] = (int)floor((time() - $ts) / 60);
+                    $result['progress_stale'] = $result['minutes_since_progress_sync'] > $threshold;
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        // Non-fatal; dashboard degrades gracefully
+    }
+
+    return $result;
+}
+
+/**
+ * Dispatch a targeted progress reconciliation sync for a single learner + resource
+ * if their cached progress exceeds the staleness threshold.
+ *
+ * This enforces the reconciliation contract at user-interaction time:
+ *   webhook = fast path (may miss events under network failure)
+ *   scheduled sync + targeted refresh = authoritative reconciliation layer
+ *
+ * The page renders immediately from cache; fresh data arrives after the worker runs.
+ * Idempotency key is scoped to a 1-minute window so rapid page reloads won't flood the queue.
+ *
+ * Returns true if a sync was dispatched (data was stale), false otherwise.
+ */
+function moodleIntegrationMaybeDispatchUserProgressSync(int $tenantId, int $userId, int $learningResourceId, int $thresholdMinutes = 60): bool
+{
+    if ($thresholdMinutes <= 0 || !moodleIntegrationIsConfigured() || $tenantId <= 0 || $userId <= 0 || $learningResourceId <= 0) {
+        return false;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return false;
+    }
+
+    try {
+        // Resolve the Moodle course ID for this resource.
+        $cacheStmt = $db->prepare(
+            'SELECT id AS cache_id, moodle_course_id
+             FROM moodle_courses_cache
+             WHERE tenant_id = :tenant_id AND resource_id = :resource_id
+             LIMIT 1'
+        );
+        $cacheStmt->execute([':tenant_id' => $tenantId, ':resource_id' => $learningResourceId]);
+        $cacheRow = $cacheStmt->fetch(\PDO::FETCH_ASSOC);
+        if (!is_array($cacheRow) || empty($cacheRow['moodle_course_id'])) {
+            return false;
+        }
+
+        $moodleCourseId = (int)$cacheRow['moodle_course_id'];
+
+        // Check last_synced for this user + resource.
+        $progressStmt = $db->prepare(
+            'SELECT last_synced
+             FROM moodle_user_progress
+             WHERE tenant_id = :tenant_id AND user_id = :user_id AND learning_resource_id = :resource_id
+             LIMIT 1'
+        );
+        $progressStmt->execute([':tenant_id' => $tenantId, ':user_id' => $userId, ':resource_id' => $learningResourceId]);
+        $lastSynced = $progressStmt->fetchColumn();
+
+        $isStale = ($lastSynced === false || $lastSynced === null);
+        if (!$isStale) {
+            $lastSyncedTs = strtotime((string)$lastSynced);
+            $isStale = $lastSyncedTs !== false && (time() - $lastSyncedTs) > ($thresholdMinutes * 60);
+        }
+
+        if (!$isStale) {
+            return false;
+        }
+
+        // Use a 1-minute idempotency window to suppress duplicate dispatches from rapid page loads.
+        $minuteWindow = (int)floor(time() / 60);
+        $idempotencyKey = "targeted-progress:{$tenantId}:{$userId}:{$learningResourceId}:{$minuteWindow}";
+
+        moodleIntegrationQueueTableInsertForTenant($tenantId, 'sync_progress', [
+            'tenant_id' => $tenantId,
+            'user_id' => $userId,
+            'moodle_course_id' => $moodleCourseId,
+            'learning_resource_id' => $learningResourceId,
+            'action' => 'targeted_refresh',
+            'source' => 'staleness_check',
+        ], 'pending', $idempotencyKey);
+
+        \write_log("moodle-integration: targeted reconciliation queued for user {$userId} resource {$learningResourceId} tenant {$tenantId} (last_synced={$lastSynced})", 'info');
+        return true;
+    } catch (\Throwable $e) {
+        \write_log('moodle-integration: failed to dispatch targeted progress sync — ' . $e->getMessage(), 'warning');
+        return false;
+    }
+}
+
+/**
+ * Dispatch targeted reconciliation syncs for all of a user's progress rows that
+ * exceed the staleness threshold. Called on /my-courses to keep the dashboard fresh
+ * without waiting for the next scheduled batch run.
+ *
+ * Caps dispatches at 10 rows per call to avoid flooding the queue for learners with
+ * many courses. Rows are prioritised by oldest last_synced first.
+ *
+ * Returns the count of syncs dispatched.
+ */
+function moodleIntegrationMaybeDispatchStaleProgressForUser(int $tenantId, int $userId, int $thresholdMinutes = 60): int
+{
+    if ($thresholdMinutes <= 0 || !moodleIntegrationIsConfigured() || $tenantId <= 0 || $userId <= 0) {
+        return 0;
+    }
+
+    $db = moodleIntegrationTenantDb($tenantId);
+    if (!$db instanceof \PDO) {
+        return 0;
+    }
+
+    try {
+        $stmt = $db->prepare(
+            'SELECT p.learning_resource_id, p.last_synced, c.moodle_course_id
+             FROM moodle_user_progress p
+             JOIN moodle_courses_cache c ON c.id = p.course_cache_id AND c.tenant_id = p.tenant_id
+             WHERE p.tenant_id = :tenant_id
+               AND p.user_id = :user_id
+               AND p.learning_resource_id IS NOT NULL
+               AND (p.last_synced IS NULL OR p.last_synced < NOW() - INTERVAL :threshold_minutes MINUTE)
+             ORDER BY p.last_synced ASC
+             LIMIT 10'
+        );
+        $stmt->execute([
+            ':tenant_id' => $tenantId,
+            ':user_id' => $userId,
+            ':threshold_minutes' => $thresholdMinutes,
+        ]);
+        $staleRows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $dispatched = 0;
+        $minuteWindow = (int)floor(time() / 60);
+
+        foreach ($staleRows as $row) {
+            $resourceId = (int)($row['learning_resource_id'] ?? 0);
+            $moodleCourseId = (int)($row['moodle_course_id'] ?? 0);
+            if ($resourceId <= 0 || $moodleCourseId <= 0) {
+                continue;
+            }
+
+            $idempotencyKey = "targeted-progress:{$tenantId}:{$userId}:{$resourceId}:{$minuteWindow}";
+            moodleIntegrationQueueTableInsertForTenant($tenantId, 'sync_progress', [
+                'tenant_id' => $tenantId,
+                'user_id' => $userId,
+                'moodle_course_id' => $moodleCourseId,
+                'learning_resource_id' => $resourceId,
+                'action' => 'targeted_refresh',
+                'source' => 'staleness_check',
+            ], 'pending', $idempotencyKey);
+
+            $dispatched++;
+        }
+
+        if ($dispatched > 0) {
+            \write_log("moodle-integration: targeted reconciliation queued {$dispatched} stale rows for user {$userId} tenant {$tenantId}", 'info');
+        }
+
+        return $dispatched;
+    } catch (\Throwable $e) {
+        \write_log('moodle-integration: failed to dispatch stale progress syncs — ' . $e->getMessage(), 'warning');
+        return 0;
+    }
+}
+
 function moodleIntegrationTenantDb(int $tenantId = 0): ?\PDO
 {
     $tenantId = $tenantId > 0 ? $tenantId : moodleIntegrationCurrentTenantId();
