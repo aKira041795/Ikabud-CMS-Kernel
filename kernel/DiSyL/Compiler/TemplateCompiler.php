@@ -37,7 +37,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 3;
+    public const COMPILER_VERSION = 4;
 
     private int $indentLevel = 0;
     private string $indent = '    ';
@@ -124,31 +124,46 @@ PHP;
     }
     
     /**
-     * Compile expression node {{ expr }}
+     * Compile expression node {{ expr }} — output context.
+     * Applies filters and auto-escape, then emits an `$output .=` statement.
      */
     private function compileExpression(ExpressionNode $node): string
     {
-        $expr = $this->compileExpressionValue($node->getExpression());
-        
-        // Apply filters
-        if ($node->hasFilters()) {
-            $expr = $this->compileFilterChain($expr, $node->getFilters());
-        }
-        
-        // Auto-escape
+        $expr = $this->compileExpressionRawValue($node);
+
+        // Auto-escape only applies in output context
         if ($node->isAutoEscape()) {
             $expr = "\$this->escape({$expr})";
         }
-        
+
         return $this->line("\$output .= (string)({$expr});");
     }
-    
+
     /**
-     * Compile expression value
+     * Compile an ExpressionNode to a raw PHP value string — value context.
+     * Applies the filter chain but does NOT wrap in auto-escape, making it
+     * safe to use as a condition value, a set-target, or a loop iterable.
+     */
+    private function compileExpressionRawValue(ExpressionNode $node): string
+    {
+        $expr = $this->compileExpressionValue($node->getExpression());
+
+        if ($node->hasFilters()) {
+            $expr = $this->compileFilterChain($expr, $node->getFilters());
+        }
+
+        return $expr;
+    }
+
+    /**
+     * Compile any expression node to a PHP value string.
+     * ExpressionNode (carries a filter chain) is handled via compileExpressionRawValue;
+     * all bare node types are compiled directly.
      */
     private function compileExpressionValue(AbstractNode $node): string
     {
         return match (true) {
+            $node instanceof ExpressionNode => $this->compileExpressionRawValue($node),
             $node instanceof IdentifierNode => $this->compileIdentifier($node),
             $node instanceof LiteralNode => $this->compileLiteral($node),
             $node instanceof PropertyAccessNode => $this->compilePropertyAccess($node),

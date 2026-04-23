@@ -308,7 +308,7 @@ class Parser
         return new ControlNode(
             [],
             'if',
-            ['condition' => $this->parseExprValue($condition)],
+            ['condition' => $this->buildExpressionNode($condition)],
             new DocumentNode([], $body),
             $elseDoc
         );
@@ -335,7 +335,7 @@ class Parser
         return new ControlNode(
             [],
             'if',
-            ['condition' => $this->parseExprValue($condition)],
+            ['condition' => $this->buildExpressionNode($condition)],
             new DocumentNode([], $body),
             $elseDoc
         );
@@ -367,7 +367,7 @@ class Parser
         return new ControlNode(
             [],
             'for',
-            ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)],
+            ['item' => $itemName, 'iterable' => $this->buildExpressionNode($iterable)],
             new DocumentNode([], $body),
             $elseDoc
         );
@@ -404,7 +404,7 @@ class Parser
 
         $this->consumeExact('{/foreach}');
 
-        $attrs = ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)];
+        $attrs = ['item' => $itemName, 'iterable' => $this->buildExpressionNode($iterable)];
         if ($keyName !== null) {
             $attrs['key'] = $keyName;
         }
@@ -443,7 +443,7 @@ class Parser
 
         $this->consumeExact('{/each}');
 
-        $attrs = ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)];
+        $attrs = ['item' => $itemName, 'iterable' => $this->buildExpressionNode($iterable)];
         if ($keyName !== null) {
             $attrs['key'] = $keyName;
         }
@@ -467,7 +467,7 @@ class Parser
 
         return new ControlNode([], 'set', [
             'name' => $name,
-            'value' => $this->parseExprValue($value),
+            'value' => $this->buildExpressionNode($value),
         ]);
     }
 
