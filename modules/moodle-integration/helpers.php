@@ -344,7 +344,18 @@ function moodleIntegrationEncryptSettingValue(string $plaintext): string
         $envelope = $crypto->encryptString($plaintext);
         return json_encode(array_merge(['enc' => 1], $envelope), JSON_UNESCAPED_SLASHES);
     } catch (\Throwable $e) {
-        write_log('moodle-integration: could not encrypt setting value — ' . $e->getMessage() . '; storing plaintext', 'warning');
+        // In production, missing or broken encryption key is a hard error — credentials must not be stored in plaintext.
+        // In development/test environments, fail-open with a logged warning so local setups work without a key.
+        $appEnv = 'development';
+        try {
+            $appEnv = trim((string)(function_exists('app') && method_exists(app(), 'config') ? (app()->config('env') ?? 'development') : ($_ENV['APP_ENV'] ?? 'development')));
+        } catch (\Throwable $_) {}
+
+        if ($appEnv === 'production') {
+            throw new \RuntimeException('moodle-integration: APP_ENCRYPTION_KEY is missing or invalid — refusing to store secret in plaintext in production. Configure APP_ENCRYPTION_KEY. Original error: ' . $e->getMessage());
+        }
+
+        write_log('moodle-integration: could not encrypt setting value — ' . $e->getMessage() . '; storing plaintext (non-production only)', 'warning');
         return $plaintext;
     }
 }

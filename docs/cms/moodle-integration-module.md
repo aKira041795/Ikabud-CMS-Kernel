@@ -161,7 +161,9 @@ Shared-mode isolation is enforced in two places now:
 - Moodle API reads are filtered by the configured tenant category.
 - Local cache/detail lookups also reject courses whose cached category does not match the tenant mapping.
 
-`api_token` and `sso_secret` are encrypted at rest using AES-256-GCM via `kernel/Crypto.php`. The helpers `moodleIntegrationEncryptSettingValue()` and `moodleIntegrationDecryptSettingValue()` wrap the kernel `Crypto` class. `postMoodleIntegrationSettings` encrypts these fields before persisting via `saveTenantModuleSettingsForTenant`, and `moodleIntegrationGetSettingsForTenant` transparently decrypts them on read. Existing plaintext values in older tenants are returned as-is (backward compatibility passthrough). If no `APP_ENCRYPTION_KEY` is configured, encryption is fail-open: a warning is logged and the plaintext value is stored.
+`api_token` and `sso_secret` are encrypted at rest using AES-256-GCM via `kernel/Crypto.php`. The helpers `moodleIntegrationEncryptSettingValue()` and `moodleIntegrationDecryptSettingValue()` wrap the kernel `Crypto` class. `postMoodleIntegrationSettings` encrypts these fields before persisting via `saveTenantModuleSettingsForTenant`, and `moodleIntegrationGetSettingsForTenant` transparently decrypts them on read. Existing plaintext values in older tenants are returned as-is (backward compatibility passthrough).
+
+**Encryption key policy**: when `APP_ENV=production`, `moodleIntegrationEncryptSettingValue()` throws a hard `RuntimeException` if `APP_ENCRYPTION_KEY` is missing or invalid — credentials will not be stored in plaintext. In non-production environments it falls back to plaintext with a warning log, so local setups without a key still function. Set `APP_ENCRYPTION_KEY` before enabling this module on any production tenant.
 
 Outbound rate limiting is manifest-configurable via `max_requests_per_minute` (default `60`) and `burst_limit` (default `20`). `MoodleService` enforces both limits on every outbound call: an in-process burst counter aborts the job if a single sync run exceeds the burst cap, and a DB-backed per-minute window counter (`moodle_rate_limit`) aborts individual calls that exceed the per-minute tenant budget.
 
@@ -351,23 +353,42 @@ app()->hooks()->on('cms.builder.renderers', static function (array $map): array 
 
 Lifecycle soft-deactivation is implemented. If a course disappears from the Moodle API response during a full course sync, `SyncService::deactivateMissingResources()` marks the corresponding `learning_resources` row `inactive`. Historical progress, enrollment, and reporting rows keep their FK references intact. Resources are restored to `active` status automatically the next time `ensureLearningResource` upserts them.
 
-## Gap Analysis Against Current Feedback
+## Current Architecture Gaps
 
-### Accepted And Already Partially Addressed
+These are the verified open gaps as of the current codebase. Each has been confirmed by reading the code, not inferred from feedback alone.
 
-- Resource abstraction: valid gap. The module already has `learning_resources`, `resource_id` on cached courses, and `learning_resource_id` on enrollment requests. The remaining inconsistency is that browser routes and some bridge tables still expose `moodle_course_id`, while progress still uses a legacy `course_id` column name tied to the cache row. The next migration should make `learning_resource_id` the canonical application-level foreign key everywhere and keep provider ids inside the provider-facing bridge layer only.
-- SSO consume-once enforcement: valid gap, but narrower than the feedback suggests. Token hashing, expiry, first-use storage, and helper-level token consumption already exist. The missing piece is the explicit route contract for a Moodle-side plugin to validate and consume tokens through a supported HTTP API.
-- Lifecycle cleanup: valid gap. The current schema and flow describe install, sync, and revoke behavior, but not the long-tail lifecycle for removed or reassigned Moodle courses. Add an inactive lifecycle state instead of deleting learning resources that already have user history.
+### 1. Public routes still expose Moodle course IDs
 
-### Implemented In This Release
+All browser-facing course routes (`/course/{id}`, `/course/{id}/enroll`, `/course/{id}/launch`, their `/cms/...` mirrors) interpret `{id}` as a Moodle course ID. `pageMoodleIntegrationCourseDetail`, `pageMoodleIntegrationEnroll`, and `pageMoodleIntegrationLaunch` all execute `$moodleCourseId = (int)($params['id'] ?? 0)`. `CourseController::detail(int $moodleCourseId)` has the parameter named explicitly.
 
-- **Provider capability layer**: `learning_providers` table seeded with the Moodle row and a `capabilities_json` object (`supports_courses`, `supports_progress`, `supports_grades`, `supports_sso`, `supports_enrollment_api`). Helper surface: `moodleIntegrationProviderSupports($slug, $capability)` and `moodleIntegrationGetProviderCapabilities($slug)`.
-- **Proactive sync guards**: `handleEnrollmentSync` checks enrollment request state before touching Moodle; `refreshExistingProgressRows` skips revoked/rejected enrollments; course sync deactivates disappeared resources. Mismatches are recorded in `moodle_sync_metrics`.
-- **Rate limiting and backpressure**: Two-level throttle in `MoodleService` — in-process burst counter (configurable via `burst_limit`) and DB-backed per-minute window via `moodle_rate_limit` table (configurable via `max_requests_per_minute`).
+The internal `learning_resources` abstraction exists and is populated, but it is not yet surfaced as the public URL identifier. Switching to `learning_resource_id` as the route segment would require:
+- Changing `{id}` route resolution in the three affected handlers to look up by `learning_resources.id` or `learning_resources.provider_id` instead of `moodle_courses_cache.moodle_course_id`
+- A `moodleIntegrationCachedCourseByResourceId()` helper alongside the existing `moodleIntegrationCachedCourseByMoodleId()`
+- Updating templates/shortcodes that currently build URLs from `moodle_course_id`
 
-### Valuable But Not A Core Contract Gap
+Until this is done the provider abstraction is internal only; Moodle course IDs are still the public contract.
 
-- Program-level grouping such as `[moodle-courses program="NCIII"]`: useful product expansion, but it belongs after contract stabilization. It should build on `learning_resources` and future catalog metadata rather than become a substitute for fixing the core provider boundary first.
+### 2. SSO has no provider-agnostic interface
+
+`SSOService` is a `final class` with no interface. Its `buildLaunchUrl()` constructs a Moodle-specific redirect URL directly. When a second LMS provider is added, SSO launch behavior will need to be duplicated rather than extended.
+
+The missing abstraction is a `ProviderAuthAdapterInterface` with at minimum:
+- `buildLaunchUrl(array $user, array $resource): ?string`
+- `validateInboundToken(string $token, int $tenantId): ?array`
+
+`SSOService` should become the Moodle adapter behind that interface. The current `moodleIntegrationGetProviderCapabilities()` helper and `capabilities_json` field on `learning_providers` already lay the groundwork; the interface is the missing structural piece.
+
+### 3. `learning_resources` is a registry, not a catalog
+
+The current schema (`003_moodle_hardening_schema.sql`) has only: `id`, `tenant_id`, `provider`, `provider_id`, `title`, `metadata_json`, timestamps. It is an ID bridge, not a catalog. Any catalog-level attribute (description, program, difficulty level, duration, tags, visibility) must be stored in `metadata_json` without schema enforcement.
+
+This means the CMS currently depends on Moodle metadata for any course detail beyond the title. Promoting selected fields to first-class columns would let the system own the learning experience definition independently of the provider. A follow-up migration should add at least: `description TEXT`, `program VARCHAR(191)`, `difficulty_level VARCHAR(50)`, `duration_minutes INT UNSIGNED`, `tags_json LONGTEXT`, `visibility ENUM('public','enrolled_only','hidden')`.
+
+### 4. Webhook delivery is fast-path only; reconciliation is implicit
+
+The `POST /api/v1/moodle-integration/events` handler processes inbound Moodle events immediately but makes no delivery guarantee — a network drop or Moodle outage silently loses the update. The scheduled sync jobs (`moodleIntegrationDispatchScheduledWork` → `SyncCoursesJob` / `SyncProgressJob`) do act as a periodic backstop, but this contract is not explicit anywhere in the code or documentation.
+
+The correct framing — **webhook = fast path, scheduled sync = source of truth / reconciliation** — should be documented and enforced. Practically this means the progress refresh job should be understood as the authoritative sync that would catch anything the webhook missed, not just an optional periodic update.
 
 ## Implemented Hardening Steps
 
@@ -391,9 +412,17 @@ Second-round hardening (P0/P1/P2/P3):
 
 ## Remaining Follow-up Items
 
-- Retire the legacy `course_id` column name in `moodle_user_progress` in a follow-up migration (rename to `course_cache_id` or remove once all lookup paths use `learning_resource_id`). Existing FK integrity is preserved in the interim.
-- Wire the `postMoodleIntegrationSettings` redirect to the admin module settings page once the CMS admin renderer supports masked secret inputs.
-- Add catalog-layer metadata (`program`, `level`, `prerequisites`) on `learning_resources` to enable future `[moodle-courses program="..."]` shortcodes without exposing Moodle internal IDs in the URL.
+Items are ordered by architectural impact.
+
+1. **Make `learning_resource_id` the public route identifier.** Change `/course/{id}`, `/course/{id}/enroll`, and `/course/{id}/launch` to resolve by `learning_resources.id` instead of `moodle_course_id`. Add `moodleIntegrationCachedCourseByResourceId()`. Update templates. This is the single highest-leverage change for full provider abstraction.
+
+2. **Extract `ProviderAuthAdapterInterface`.** Move Moodle-specific SSO launch logic from `SSOService` into a Moodle adapter that implements a shared interface (`buildLaunchUrl`, `validateInboundToken`). `LaunchController` should depend on the interface, not the concrete class.
+
+3. **Promote catalog fields on `learning_resources`.** Add `description`, `program`, `difficulty_level`, `duration_minutes`, `tags_json`, `visibility` as first-class columns in a migration. Populate from `metadata_json` for existing rows. This decouples the CMS experience layer from provider metadata.
+
+4. **Make the reconciliation contract explicit.** Document (and enforce in code comments) that the scheduled sync jobs are the authoritative reconciliation layer and that the `POST /events` webhook is a fast-path supplement. Consider adding a `last_full_sync_at` timestamp on `moodle_sync_metrics` to make reconciliation staleness observable.
+
+5. **Retire `course_id` column name in `moodle_user_progress`.** Once all lookup paths use `learning_resource_id`, rename `course_id` to `course_cache_id` to make clear it references the bridge cache table, not a canonical resource ID. FK integrity is preserved in the interim.
 
 ## Verification Commands
 
