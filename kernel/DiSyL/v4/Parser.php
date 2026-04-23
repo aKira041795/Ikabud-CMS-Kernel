@@ -805,7 +805,7 @@ class Parser
         $argsStr = substr($spec, $colonPos + 1);
         $args = $this->splitFilterArgs($argsStr);
 
-        // Normalize args: strip quotes, convert numbers
+        // Normalize args: strip quotes, convert numbers, resolve variable paths
         $normalized = [];
         foreach ($args as $arg) {
             $arg = trim($arg);
@@ -813,11 +813,16 @@ class Parser
                 continue;
             }
             if (preg_match('/^["\'](.*)["\']\s*$/', $arg, $m)) {
+                // Quoted string literal → plain string (stays a scalar, not a node)
                 $normalized[] = $m[1];
             } elseif (is_numeric($arg)) {
+                // Numeric literal → scalar
                 $normalized[] = str_contains($arg, '.') ? (float)$arg : (int)$arg;
             } else {
-                $normalized[] = $arg;
+                // Unquoted, non-numeric: parse as an expression so variable paths
+                // (e.g. "entity.title", "user.name") become AbstractNode instances
+                // that compileFilterChain() will compile to runtime $ctx->get() calls.
+                $normalized[] = $this->parsePrimaryExpr($arg);
             }
         }
 
