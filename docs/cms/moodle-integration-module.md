@@ -61,7 +61,8 @@ modules/moodle-integration/
     └── migrations/
         ├── 001_moodle_integration_schema.sql
         ├── 002_moodle_enrollment_requests.sql
-        └── 003_moodle_hardening_schema.sql
+        ├── 003_moodle_hardening_schema.sql
+        └── 004_moodle_provider_capabilities_schema.sql
 
 templates/modules/moodle-integration/
 ├── pages/
@@ -161,7 +162,7 @@ Shared-mode isolation is enforced in two places now:
 
 The current generic admin renderer does not support masked secret inputs, so `api_token` and `sso_secret` are stored as regular manifest-backed fields for now.
 
-Outbound rate limiting is not yet manifest-configurable. Before large shared-instance rollouts, add explicit throttle settings such as `max_requests_per_minute` and `burst_limit` so the bridge can protect Moodle instead of amplifying traffic spikes.
+Outbound rate limiting is manifest-configurable via `max_requests_per_minute` (default `60`) and `burst_limit` (default `20`). `MoodleService` enforces both limits on every outbound call: an in-process burst counter aborts the job if a single sync run exceeds the burst cap, and a DB-backed per-minute window counter (`moodle_rate_limit`) aborts individual calls that exceed the per-minute tenant budget.
 
 ## Service Layer
 
@@ -183,7 +184,7 @@ Implemented methods:
 
 The service performs up to three attempts for transient failures and treats Moodle exception payloads as first-class API errors.
 
-The service does not yet enforce tenant-aware backpressure beyond retry behavior. That is acceptable for the current single-provider rollout, but it is a real scaling gap once multiple institutions or bulk sync waves share the same upstream Moodle instance.
+The service enforces two-level outbound throttling on every call: a per-job burst cap (in-process counter) and a per-tenant per-minute window cap stored in `moodle_rate_limit`. Calls that exceed either limit return a synthetic `{ok: false, http_code: 429}` immediately rather than hitting Moodle.
 
 ### Example API call
 
@@ -223,15 +224,15 @@ https://lms.example.com/local/applicationos/sso.php?token=...&course=123
 
 This assumes a Moodle-side local/auth plugin or equivalent endpoint. Moodle core is not modified.
 
-The ApplicationOS side now records every issued token in `moodle_sso_tokens` with a one-minute expiry and a first-use timestamp slot. Helper-level consume-once enforcement already exists through the local token ledger, but the public bridge contract is still incomplete: the Moodle-side endpoint should call a dedicated validation API before honoring the token.
-
-Recommended validation contract:
+The ApplicationOS side records every issued token in `moodle_sso_tokens` with a one-minute expiry and a first-use timestamp slot. Consume-once is enforced atomically by the helper (`UPDATE ... WHERE used_at IS NULL` rowCount check). The Moodle-side plugin calls the dedicated validation endpoint before honoring any token:
 
 ```text
 POST /api/v1/moodle-integration/sso/validate
 ```
 
-Suggested response shape:
+No kernel authentication is required — the signed token itself is the credential. The handler validates `token` + `tenant_id` from the POST body, atomically consumes the token, then returns user and resource context:
+
+Response shape:
 
 ```json
 {
@@ -262,7 +263,7 @@ Handles:
 - sync metrics rollups inside `moodle_sync_metrics`
 - tenant-explicit DB access through `app()->dbForTenant($tenantId)` when running in queued jobs
 
-The current sync path is still mostly reactive: it records failures well, but it does not yet run a full pre-flight drift check before every enrollment or progress refresh. The next hardening step is to verify local enrollment state, cached course availability, and Moodle user existence before writing progress updates, then record those mismatches into metrics and queue history early.
+Pre-flight drift checks are now in place. `handleEnrollmentSync` verifies the enrollment request is still in `approved` or `auto_approved` state before issuing any Moodle API calls or writing progress rows; mismatches are recorded in `moodle_sync_metrics` and logged. `refreshExistingProgressRows` skips any user whose enrollment request has been `rejected`, `revoked`, or `cancelled`. A full course sync also soft-deactivates any `learning_resources` row whose Moodle course ID was not present in the response set, guarding against stale cache entries after courses are removed or recategorised in Moodle.
 
 ## Controllers and Route Model
 
@@ -283,6 +284,7 @@ Registered routes:
 - `GET /api/v1/moodle-integration/status/{id}`
 - `POST /api/v1/moodle-integration/enroll/{id}`
 - `POST /api/v1/moodle-integration/sync`
+- `POST /api/v1/moodle-integration/sso/validate`
 
 Canonical browser-facing routes are also exposed under `/cms/...`, including `/cms/courses`, `/cms/course/{id}/enroll`, and `/cms/my-courses`.
 
@@ -340,7 +342,7 @@ app()->hooks()->on('cms.builder.renderers', static function (array $map): array 
 - approval-provisioning failure: the request remains reviewed, the queue row captures the failure, and the learner sees the failed provisioning state locally
 - queued sync failure: queue row moves to failed state with `last_error`, and `kernel_jobs` retry semantics still apply
 
-Lifecycle cleanup remains an explicit follow-up item. If a course disappears from Moodle, moves categories, or a tenant disconnects the provider, the safer model is soft deactivation of the internal resource rather than hard deletion so historical progress, auditability, and reporting remain intact.
+Lifecycle soft-deactivation is implemented. If a course disappears from the Moodle API response during a full course sync, `SyncService::deactivateMissingResources()` marks the corresponding `learning_resources` row `inactive`. Historical progress, enrollment, and reporting rows keep their FK references intact. Resources are restored to `active` status automatically the next time `ensureLearningResource` upserts them.
 
 ## Gap Analysis Against Current Feedback
 
@@ -350,23 +352,29 @@ Lifecycle cleanup remains an explicit follow-up item. If a course disappears fro
 - SSO consume-once enforcement: valid gap, but narrower than the feedback suggests. Token hashing, expiry, first-use storage, and helper-level token consumption already exist. The missing piece is the explicit route contract for a Moodle-side plugin to validate and consume tokens through a supported HTTP API.
 - Lifecycle cleanup: valid gap. The current schema and flow describe install, sync, and revoke behavior, but not the long-tail lifecycle for removed or reassigned Moodle courses. Add an inactive lifecycle state instead of deleting learning resources that already have user history.
 
-### Accepted As The Next Scale Hardening Layer
+### Implemented In This Release
 
-- Provider capability layer: good future-proofing. A dedicated `learning_providers` contract with `capabilities_json` is not required for a single-provider launch, but it should be added before introducing a second LMS or any provider that lacks Moodle-style progress and grade semantics.
-- Proactive sync guards: valid. Today the module is observable and recoverable, but still mostly detects issues after a failing call. Add pre-flight checks for enrollment state, course availability, and upstream user existence before mutating local progress or queue state.
-- Rate limiting and backpressure: valid. Retries alone are not enough once enrollment bursts or shared upstream instances are involved. Add per-tenant or per-provider request budgeting before scaling across multiple institutions.
+- **Provider capability layer**: `learning_providers` table seeded with the Moodle row and a `capabilities_json` object (`supports_courses`, `supports_progress`, `supports_grades`, `supports_sso`, `supports_enrollment_api`). Helper surface: `moodleIntegrationProviderSupports($slug, $capability)` and `moodleIntegrationGetProviderCapabilities($slug)`.
+- **Proactive sync guards**: `handleEnrollmentSync` checks enrollment request state before touching Moodle; `refreshExistingProgressRows` skips revoked/rejected enrollments; course sync deactivates disappeared resources. Mismatches are recorded in `moodle_sync_metrics`.
+- **Rate limiting and backpressure**: Two-level throttle in `MoodleService` — in-process burst counter (configurable via `burst_limit`) and DB-backed per-minute window via `moodle_rate_limit` table (configurable via `max_requests_per_minute`).
 
 ### Valuable But Not A Core Contract Gap
 
 - Program-level grouping such as `[moodle-courses program="NCIII"]`: useful product expansion, but it belongs after contract stabilization. It should build on `learning_resources` and future catalog metadata rather than become a substitute for fixing the core provider boundary first.
 
-## Recommended Next Hardening Steps
+## Implemented Hardening Steps
 
-1. Make `learning_resource_id` the canonical internal reference across progress, enrollment, and launch-state lookups, leaving `moodle_course_id` as a provider-edge field only.
-2. Add `POST /api/v1/moodle-integration/sso/validate` and require the Moodle-side plugin to validate and atomically consume launch tokens before granting access.
-3. Introduce provider capability metadata before adding a second LMS so grade, progress, and launch assumptions become explicit instead of implicit.
-4. Add pre-flight drift checks and outbound throttling to the sync layer before multi-institution rollouts.
-5. Add soft-deactivation lifecycle handling for resources that disappear, move, or become tenant-ineligible upstream.
+All five items from the original gap analysis have been implemented:
+
+1. **SSO validation endpoint** — `POST /api/v1/moodle-integration/sso/validate` is live. Moodle-side plugins call it to atomically consume a launch token and receive user + resource context before granting access.
+2. **Provider capability registry** — `learning_providers` table with `capabilities_json`; helper surface via `moodleIntegrationProviderSupports()` and `moodleIntegrationGetProviderCapabilities()`.
+3. **Pre-flight drift checks** — enrollment state verified in `handleEnrollmentSync`; revoked/rejected enrollments skipped in `refreshExistingProgressRows`; drift mismatches recorded in metrics.
+4. **Outbound throttling** — `max_requests_per_minute` and `burst_limit` settings enforce two-level backpressure in `MoodleService`; DB-backed via `moodle_rate_limit`.
+5. **Soft-deactivation lifecycle** — courses that disappear from Moodle API responses are automatically marked `inactive` in `learning_resources`; restored to `active` on re-sync.
+
+## Remaining Follow-up Items
+
+- Make `learning_resource_id` the canonical internal FK across progress, enrollment, and launch-state lookups, retiring the legacy `course_id` column name in `moodle_user_progress`.
 
 ## Verification Commands
 
