@@ -11,6 +11,7 @@
     {if head_code}{head_code|raw}{/if}
     <noscript><style>[data-animate]{opacity:1!important;transform:none!important;}</style></noscript>
     {block head}{/block}
+    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
 </head>
 <body class="minimalist-theme{if builder_enabled && builder_page_settings.body_class} {builder_page_settings.body_class}{/if}">
     {if has_customized_header}
