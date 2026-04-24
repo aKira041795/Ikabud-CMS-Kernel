@@ -10,4 +10,4 @@
 -- been updated in the same release as this migration.
 
 ALTER TABLE `moodle_user_progress`
-    RENAME COLUMN `course_id` TO `course_cache_id`;
+    CHANGE COLUMN `course_id` `course_cache_id` BIGINT UNSIGNED NOT NULL;
