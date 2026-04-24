@@ -180,7 +180,7 @@
             const attachCursors = () => {
                 document.querySelectorAll('.prose img').forEach(img => {
                     if (!img.closest('a')) {
-                        img.classList.add('cursor-zoom-in');
+                        img.style.cursor = "zoom-in";
                     }
                 });
             };

@@ -230,6 +230,50 @@
     {if theme_script_url}<script src="{theme_script_url}" defer></script>{/if}
     {if builder_enabled}<script src="{base_url}/assets/cms/builder-public.js" defer></script>{/if}
     {if body_end_code}{body_end_code|raw}{/if}
+        <div x-data="{
+        lightboxModalSrc: null,
+        init() {
+            // Apply cursor-zoom-in to all eligible images
+            const attachCursors = () => {
+                document.querySelectorAll('.prose img').forEach(img => {
+                    if (!img.closest('a')) {
+                        img.style.cursor = 'zoom-in';
+                    }
+                });
+            };
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', attachCursors);
+            } else {
+                attachCursors();
+            }
+
+            // Delegate click events globally
+            window.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'IMG') return;
+                if (!e.target.closest('.prose')) return;
+                if (e.target.closest('a')) return; // Skip if it's already a link
+
+                this.lightboxModalSrc = e.target.src;
+            });
+        }
+    }">
+        <template x-teleport="body">
+            <div x-show="lightboxModalSrc" 
+                 style="display: none; cursor: zoom-out;"
+                 class="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-8 bg-black/90"
+                 x-transition.opacity.duration.200ms
+                 @click="lightboxModalSrc = null"
+                 @keydown.escape.window="lightboxModalSrc = null">
+                 
+                 <button type="button" class="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-colors z-10 focus:outline-none" @click="lightboxModalSrc = null">
+                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                 </button>
+
+                 <img :src="lightboxModalSrc" @click.stop class="max-w-full max-h-full object-contain rounded shadow-2xl transition-transform duration-200 cursor-default" :class="lightboxModalSrc ? 'scale-100' : 'scale-95'" />
+            </div>
+        </template>
+    </div>
     {block scripts}{/block}
 </body>
 </html>
