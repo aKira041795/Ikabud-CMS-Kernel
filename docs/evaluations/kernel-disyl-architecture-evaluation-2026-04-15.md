@@ -743,7 +743,7 @@ Clean exception hierarchy with structured metadata (line, column, position, toke
 |---|------|---------|
 | D34 | ~~ClientBlock.php~~ | ~~`EventHandler::compile()` embeds `$handler` directly in JS — JavaScript injection~~ **RESOLVED 2026-04-23** (512-char limit + character allowlist) |
 | D35 | ClientBlock.php | `ClientBlock::toModule()` wraps raw `$code` in JS IIFE — code injection (internal callers only; deferred) |
-| D18 | TemplateCache.php | Cache sentinel secret is `sha1($cacheDir)` — deterministic, not truly secret |
+| D18 | ~~TemplateCache.php~~ | ~~Cache sentinel secret is `sha1($cacheDir)` — deterministic, not truly secret~~ **RESOLVED 2026-04-24** (APP_KEY usage) |
 | D20/D27 | ComponentDefinition/SlotSystem | Duplicate SlotDefinition class — fatal error if both loaded |
 | D28 | HydrationRuntime/HydrationStrategy | Duplicate HydrationStrategy enum — fatal error if both loaded |
 | K77 | ContextRegistry.php | 3 methods reference undefined properties — runtime fatal error |
@@ -959,7 +959,7 @@ index.php → App::render() → TemplateEngine::render()
 | Hardcoded allowed callers | WorkflowRuntime `['cms', 'guidance', 'workflow', 'kernel']` | New modules locked out |
 | Source→table map | App.php `['kernel' => 'users', ...]` | New auth sources require code edit |
 | Legacy naming | Cache APCu key `'guidance_cache_stats'` | Confusing origin |
-| Namespace mismatch | TemplateCache compiled class `...Core.DiSyL...` vs actual `...DiSyL...` | require_once failure |
+| Namespace mismatch | ~~TemplateCache compiled class `...Core.DiSyL...` vs actual `...DiSyL...`~~ | **RESOLVED 2026-04-24** |
 
 ---
 
@@ -1051,8 +1051,8 @@ Reactive/
 | R5 | Add JSON_HEX_TAG to IslandManifest.generateScriptTag() | S | IslandManifest.php |
 | R6 | Sanitize ComponentLoader component names against path traversal | S | ComponentLoader.php |
 | R7 | ~~Add input validation for ClientBlock $handler and $code sources~~ | ~~M~~ | **DONE 2026-04-23** — `$handler` hardened: 512-char limit + character allowlist + script-breakout check. `$code` (D35) deferred — internal callers only. |
-| R8 | Fix TemplateCache sentinel to use a proper application secret | S | TemplateCache.php |
-| R9 | Fix TemplateCache namespace mismatch (`Core` segment) | S | TemplateCache.php |
+| R8 | ~~Fix TemplateCache sentinel to use a proper application secret~~ | S | **DONE 2026-04-24** (APP_KEY usage) |
+| R9 | ~~Fix TemplateCache namespace mismatch (`Core` segment)~~ | S | **DONE 2026-04-24** |
 
 ### Tier 1 — High-Impact Reliability & Performance (This Sprint)
 
@@ -1219,7 +1219,7 @@ Reactive/
 | `IDLE_VALIDATION_SECONDS = 15` | ConnectionPool | Environment variable |
 | `256` backtrace cache entries | KernelPDO | Constant (acceptable) |
 | All TemplateEngine depth constants | TemplateEngine | At minimum, move to constructor params |
-| `'DISYL_CACHE_' . sha1(...)` sentinel | TemplateCache | Use APP_ENCRYPTION_KEY |
+| ~~`'DISYL_CACHE_' . sha1(...)` sentinel~~ | TemplateCache | ~~Use APP_ENCRYPTION_KEY~~ **DONE 2026-04-24** (Uses `APP_KEY` environment variable) |
 | CDN hosts in CSP | SecurityHeaders | Config array |
 | HTMX attribute list | TemplateEngine | Constant array (acceptable) |
 

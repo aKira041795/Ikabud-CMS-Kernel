@@ -741,8 +741,8 @@ Env-gated via `DISYL_COMPILED_MODE=true`. When active, `render()` uses pre-compi
 2. `TemplateCache` checks mtime-based staleness → calls `Parser::parse()` on miss
 3. `Parser` produces a `DocumentNode` AST via recursive-descent parsing
 4. `TemplateCompiler::compile(ast, className)` emits a PHP class extending `CompiledTemplate`
-5. The class is written atomically to `storage/cache/compiled/`, validated via HMAC sentinel
-6. `require_once` + instantiate → `CompiledTemplate::execute(array $variables)` wraps context in `RenderContext` and calls `render()`
+5. The class is written atomically to `storage/cache/compiled/`, validated via HMAC sentinel. (If file system writes fail, it silently falls back to an in-memory `eval()` evaluation for robust execution)
+6. Upon successful cache save, `require_once` + instantiate → `CompiledTemplate::execute(array $variables)` wraps context in `RenderContext` and calls `render()`. When in memory, it instantiates the eval'd class directly.
 7. On subsequent requests, opcache serves the compiled class from shared memory — zero parsing, zero compilation
 
 **Components:**
