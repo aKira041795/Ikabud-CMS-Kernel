@@ -57,16 +57,23 @@ class TemplateCache
         }
         
         // Validate cache file integrity before executing
-        if (!$this->validateCacheFile($cachePath)) {
+        if (file_exists($cachePath) && !$this->validateCacheFile($cachePath)) {
             // Recompile to regenerate a valid cache file
             $this->compile($templatePath, $className, $cachePath);
-            if (!$this->validateCacheFile($cachePath)) {
+            if (file_exists($cachePath) && !$this->validateCacheFile($cachePath)) {
                 throw new \RuntimeException("Template cache validation failed for: {$cachePath}");
             }
         }
         
         // Load and instantiate
-        require_once $cachePath;
+        if (file_exists($cachePath)) {
+            require_once $cachePath;
+        } else {
+            $source = file_get_contents($templatePath);
+            $ast = $this->parser->parse($source, $templatePath);
+            $code = $this->compiler->compile($ast, $className);
+            eval("?>" . $code);
+        }
         $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
         
         $template = new $fullClassName();
@@ -95,17 +102,24 @@ class TemplateCache
         }
         
         // Validate cache file integrity before executing
-        if (!$this->validateCacheFile($cachePath)) {
+        if (file_exists($cachePath) && !$this->validateCacheFile($cachePath)) {
             // Regenerate from source
             $ast = $this->parser->parse($source, $name);
             $code = $this->compiler->compile($ast, $className);
             $this->writeCache($cachePath, $code);
-            if (!$this->validateCacheFile($cachePath)) {
+            if (file_exists($cachePath) && !$this->validateCacheFile($cachePath)) {
                 throw new \RuntimeException("Template cache validation failed for compiled source: {$name}");
             }
         }
         
-        require_once $cachePath;
+        if (file_exists($cachePath)) {
+            require_once $cachePath;
+        } else {
+            $source = file_get_contents($templatePath);
+            $ast = $this->parser->parse($source, $templatePath);
+            $code = $this->compiler->compile($ast, $className);
+            eval("?>" . $code);
+        }
         $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
         
         $template = new $fullClassName();
@@ -158,13 +172,13 @@ class TemplateCache
         $codeWithSentinel = "<?php // DISYL_CACHE_SENTINEL:{$sentinel}\n" . $codeBody;
         $tempPath = $cachePath . '.tmp.' . getmypid();
         
-        if (file_put_contents($tempPath, $codeWithSentinel, LOCK_EX) === false) {
-            throw new \RuntimeException("Failed to write template cache: {$cachePath}");
+        if (@file_put_contents($tempPath, $codeWithSentinel, LOCK_EX) === false) {
+            return;
         }
         
         if (!rename($tempPath, $cachePath)) {
             @unlink($tempPath);
-            throw new \RuntimeException("Failed to rename template cache: {$cachePath}");
+            return;
         }
         
         // Invalidate opcache if available

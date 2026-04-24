@@ -63,7 +63,10 @@ modules/moodle-integration/
         ├── 002_moodle_enrollment_requests.sql
         ├── 003_moodle_hardening_schema.sql
         ├── 004_moodle_provider_capabilities_schema.sql
-        └── 005_moodle_idempotency_and_progress_fk.sql
+        ├── 005_moodle_idempotency_and_progress_fk.sql
+        ├── 006_moodle_catalog_fields.sql
+        ├── 007_moodle_progress_rename_course_id.sql
+        └── 008_moodle_reconciliation_observability.sql
 
 templates/modules/moodle-integration/
 ├── pages/
@@ -85,8 +88,8 @@ templates/modules/moodle-integration/
 `module.json` is the authoritative install contract.
 
 - `id`: `moodle-integration`
-- `owns_tables`: `learning_resources`, `moodle_courses_cache`, `moodle_user_progress`, `moodle_sync_queue`, `moodle_enrollment_requests`, `moodle_sso_tokens`, `moodle_sync_metrics`
-- `settings_fields`: `moodle_url`, `api_token`, `sso_secret`, `tenant_mode`, `enrollment_mode`, `sync_interval`, `shared_category_map_json`
+- `owns_tables`: `learning_providers`, `learning_resources`, `moodle_courses_cache`, `moodle_user_progress`, `moodle_sync_queue`, `moodle_enrollment_requests`, `moodle_sso_tokens`, `moodle_sync_metrics`, `moodle_rate_limit`, `moodle_sync_discrepancies`
+- `settings_fields`: `moodle_url`, `api_token`, `sso_secret`, `tenant_mode`, `enrollment_mode`, `sync_interval`, `shared_category_map_json`, `max_requests_per_minute`, `burst_limit`, `staleness_threshold_minutes`
 - `hooks`: CMS admin nav, editor block types, builder renderers, CMS public rendered-content filter for shortcodes
 - `schedules`: one dispatcher handler registered for 15-minute, hourly, and daily frequencies; the handler filters itself against the saved `sync_interval`
 
