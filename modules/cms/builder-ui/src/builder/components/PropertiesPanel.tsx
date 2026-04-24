@@ -1093,7 +1093,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               </button>
             </div>
           )}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mt-2">
             <label className="text-xs text-white/70">Full Width Breakout</label>
             <button
               onClick={() => handlePropChange('fullWidth', !node.props.fullWidth)}
@@ -1102,6 +1102,17 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.fullWidth ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </div>
+          {(node.props.linkUrl as string || '').trim() === '' && (
+            <div className="flex items-center justify-between mt-2">
+              <label className="text-xs text-white/70">Enable Lightbox</label>
+              <button
+                onClick={() => handlePropChange('enableLightbox', !node.props.enableLightbox)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${node.props.enableLightbox ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.enableLightbox ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          )}
         </CollapsibleSection>
       )}
 

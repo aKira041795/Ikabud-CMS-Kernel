@@ -238,6 +238,20 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
     if ($linkUrl !== '') {
         $targetAttr = $linkTarget === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '';
         $imgTag = '<a href="' . cmsBuilderEsc($linkUrl) . '"' . $targetAttr . '>' . $imgTag . '</a>';
+    } elseif (!empty($props['enableLightbox'])) {
+        $imgTag = '<div x-data="{ open: false }">'
+            . '<div @click="open = true" class="cursor-pointer transition-opacity hover:opacity-90">' . $imgTag . '</div>'
+            . '<template x-teleport="body">'
+            . '<div x-show="open" style="display:none" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4 xl:p-8 backdrop-blur-sm" x-transition.opacity @keydown.escape.window="open = false">'
+            . '<button @click="open = false" class="absolute top-4 right-4 z-[10000] text-white/70 hover:text-white transition-colors" aria-label="Close">'
+            . '<svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>'
+            . '</button>'
+            . '<div class="w-full h-full flex items-center justify-center pointer-events-none">'
+            . '<img src="' . cmsBuilderEsc($src) . '" alt="' . cmsBuilderEsc($alt) . '" @click.away="open = false" class="max-w-full max-h-full object-contain shadow-2xl pointer-events-auto">'
+            . '</div>'
+            . '</div>'
+            . '</template>'
+            . '</div>';
     }
 
     $html = '<figure' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
