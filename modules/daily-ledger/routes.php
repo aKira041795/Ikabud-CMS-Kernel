@@ -18,6 +18,7 @@ return [
         '/daily-ledger/admin/sales'                => 'daily-ledger:handleAdminSales',
         '/daily-ledger/admin/variances'            => 'daily-ledger:handleAdminVariances',
         '/daily-ledger/admin/products'             => 'daily-ledger:handleAdminProducts',
+        '/daily-ledger/admin/products/export'      => 'daily-ledger:handleProductsCsvExport',
         '/daily-ledger/admin/branches'             => 'daily-ledger:handleAdminBranches',
         '/daily-ledger/admin/users'                => 'daily-ledger:handleAdminUsers',
         '/daily-ledger/admin/activity'             => 'daily-ledger:handleAdminActivity',
@@ -47,6 +48,7 @@ return [
         // Admin: product management
         '/daily-ledger/api/v1/admin/products'            => 'daily-ledger:apiCreateProduct',
         '/daily-ledger/api/v1/admin/products/update'     => 'daily-ledger:apiUpdateProduct',
+        '/daily-ledger/api/v1/admin/products/import-csv' => 'daily-ledger:apiProductsImportCsv',
 
         // Admin: branch management
         '/daily-ledger/api/v1/admin/branches'            => 'daily-ledger:apiCreateBranch',

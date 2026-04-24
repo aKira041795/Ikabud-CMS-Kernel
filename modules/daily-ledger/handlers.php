@@ -3503,12 +3503,13 @@ function handleProductsCsvExport(): void
     );
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $headers = ['SKU', 'Name', 'Price', 'Sort Order', 'Active', 'Output Pieces', 'Output Unit'];
+    $headers = ['SKU', 'Name', 'Category', 'Price', 'Sort Order', 'Active', 'Output Pieces', 'Output Unit'];
     $rows = [];
     foreach ($items as $item) {
         $rows[] = [
             'SKU'           => (string)($item['sku'] ?? ''),
             'Name'          => (string)($item['name'] ?? ''),
+            'Category'      => ucfirst((string)($item['product_category'] ?? 'bread')),
             'Price'         => (string)($item['current_price'] ?? '0.00'),
             'Sort Order'    => (string)($item['sort_order'] ?? '0'),
             'Active'        => ((int)($item['is_active'] ?? 1) === 1) ? '1' : '0',
