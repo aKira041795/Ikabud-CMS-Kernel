@@ -178,7 +178,7 @@
         init() {
             // Apply cursor-zoom-in to all eligible images
             const attachCursors = () => {
-                document.querySelectorAll('.cms-entity-body img').forEach(img => {
+                document.querySelectorAll('.prose img').forEach(img => {
                     if (!img.closest('a')) {
                         img.classList.add('cursor-zoom-in');
                     }
@@ -194,7 +194,7 @@
             // Delegate click events globally
             window.addEventListener('click', (e) => {
                 if (e.target.tagName !== 'IMG') return;
-                if (!e.target.closest('.cms-entity-body')) return;
+                if (!e.target.closest('.prose')) return;
                 if (e.target.closest('a')) return; // Skip if it's already a link
 
                 this.lightboxModalSrc = e.target.src;
