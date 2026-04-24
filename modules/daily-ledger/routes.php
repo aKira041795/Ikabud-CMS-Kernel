@@ -14,6 +14,7 @@ return [
         '/daily-ledger/admin/dashboard'            => 'daily-ledger:handleAdminDashboard',
         '/daily-ledger/admin/production'           => 'daily-ledger:handleAdminProduction',
         '/daily-ledger/admin/production-output'    => 'daily-ledger:handleAdminProductionOutput',
+        '/daily-ledger/admin/commissary'           => 'daily-ledger:handleAdminCommissary',
         '/daily-ledger/admin/sales'                => 'daily-ledger:handleAdminSales',
         '/daily-ledger/admin/variances'            => 'daily-ledger:handleAdminVariances',
         '/daily-ledger/admin/products'             => 'daily-ledger:handleAdminProducts',
@@ -64,5 +65,9 @@ return [
         '/daily-ledger/api/v1/production/output'          => 'daily-ledger:apiProductionOutput',
         '/daily-ledger/api/v1/production/reverse'         => 'daily-ledger:apiProductionReverse',
         '/daily-ledger/api/v1/production/sync-batch'      => 'daily-ledger:apiProductionSyncBatch',
+
+        // Commissary API
+        '/daily-ledger/api/v1/commissary/run'             => 'daily-ledger:apiSaveProductionRun',
+        '/daily-ledger/api/v1/commissary/material'        => 'daily-ledger:apiSaveCommissaryMaterial',
     ],
 ];

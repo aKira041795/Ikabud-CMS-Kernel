@@ -1,0 +1,241 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Commissary & Production</h2>
+        <p class="text-sm text-gray-500">Record production runs and physical inventory counts.</p>
+    </div>
+    <div>
+        <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/commissary">
+            <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.submit()">
+        </form>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- LEFT: PRODUCTION RUNS -->
+        <div class="card p-0 overflow-hidden flex flex-col">
+                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+                <h3 class="font-medium text-gray-900">Production Runs</h3>
+                <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="form-label text-xs">Production In-Charge / Baker</label>
+                    <input type="text" id="commissary-baker" class="form-input" placeholder="Baker Initials or Name" value="{global_baker_name}" onblur="updateAllRunsMetadata()">
+                </div>
+                <div>
+                    <label class="form-label text-xs">Destination Branch</label>
+                    <select id="commissary-branch" class="form-input font-bold text-indigo-700" onchange="updateAllRunsMetadata()">
+                        <option value="0">-- Keep in Commissary (No Ledger Updates) --</option>
+                        {foreach branches as b}
+                            <option value="{b.id}" {if b.id == global_branch_id}selected{/if}>{b.name}</option>
+                        {/foreach}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <!-- TABS -->
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex px-4 gap-6" aria-label="Tabs">
+                <a href="javascript:void(0)" id="tab-bread" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm" onclick="switchProductTab('bread')">Bread Production</a>
+                <a href="javascript:void(0)" id="tab-cake" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm" onclick="switchProductTab('cake')">Cake Production</a>
+            </nav>
+        </div>
+
+        <div class="overflow-y-auto" style="max-height: 550px;">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="border-b text-xs text-gray-500 text-left">
+                        <th class="px-4 py-2">Description</th>
+                        <th class="px-4 py-2 w-24 text-center">Yield</th>
+                        <th class="px-4 py-2 w-24 text-center">Kilo/Egg</th>
+                        <th class="px-4 py-2 w-20">Unit</th>
+                    </tr>
+                </thead>
+                <!-- BREAD BODY -->
+                <tbody id="tbody-bread" class="divide-y divide-gray-100 align-middle">
+                    {foreach product_rows_bread as pr}
+                    <tr class="hover:bg-blue-50/50" id="run-row-{pr.product_id}">
+                        <td class="px-4 py-2 font-medium">{pr.name}</td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="1" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" id="run-yield-{pr.product_id}" value="{pr.yield_qty}" onchange="saveRunRow({pr.product_id})">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-input-{pr.product_id}" value="{pr.input_qty}" onchange="saveRunRow({pr.product_id})">
+                        </td>
+                        <td class="px-2 py-1">
+                            <select class="form-input px-1 py-1 text-xs w-full bg-gray-50" id="run-type-{pr.product_id}" onchange="saveRunRow({pr.product_id})" disabled>
+                                <option value="kilo" selected>kilo</option>
+                            </select>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+
+                <!-- CAKE BODY -->
+                <tbody id="tbody-cake" class="divide-y divide-gray-100 align-middle hidden">
+                    {foreach product_rows_cake as pr}
+                    <tr class="hover:bg-blue-50/50" id="run-row-{pr.product_id}">
+                        <td class="px-4 py-2 font-medium">{pr.name}</td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="1" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" id="run-yield-{pr.product_id}" value="{pr.yield_qty}" onchange="saveRunRow({pr.product_id})">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-input-{pr.product_id}" value="{pr.input_qty}" onchange="saveRunRow({pr.product_id})">
+                        </td>
+                        <td class="px-2 py-1">
+                            <select class="form-input px-1 py-1 text-xs w-full" id="run-type-{pr.product_id}" onchange="saveRunRow({pr.product_id})">
+                                <option value="kilo" {if pr.input_type == 'kilo'}selected{/if}>kilo</option>
+                                <option value="egg" {if pr.input_type == 'egg'}selected{/if}>egg</option>
+                            </select>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- RIGHT: RAW MATERIALS INVENTORY -->
+    <div class="card p-0 overflow-hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+            <h3 class="font-medium text-gray-900">End of Shift Raw Materials</h3>
+            <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+        </div>
+        <div class="overflow-y-auto" style="max-height: 600px;">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="border-b text-xs text-gray-500 text-left">
+                        <th class="px-4 py-2">Material</th>
+                        <th class="px-4 py-2 text-center" title="Beginning Balance">Beg</th>
+                        <th class="px-4 py-2 text-center" title="Delivery Qty">Del</th>
+                        <th class="px-4 py-2 text-center" title="Used Qty">Used</th>
+                        <th class="px-4 py-2 text-center bg-gray-50 font-medium border-l border-r" title="Actual Manual Count">Actual</th>
+                        <th class="px-4 py-2 text-right">Var</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 align-middle">
+                    {foreach materials as m}
+                    {set var_color = 'text-gray-500'}
+                    {if m.calc_variance < 0}{set var_color = 'text-rose-600 font-bold'}{/if}
+                    {if m.calc_variance > 0}{set var_color = 'text-emerald-600 font-bold'}{/if}
+                    <tr class="hover:bg-blue-50/50">
+                        <td class="px-4 py-2 font-medium">
+                            {m.name} <span class="text-xs text-gray-400 font-mono ml-1">{m.unit}</span>
+                        </td>
+                        <td class="px-2 py-1 w-16">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.beg_bal}" onblur="saveRm({m.material_id}, 'beg_bal', this.value)">
+                        </td>
+                        <td class="px-2 py-1 w-16">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.delivery_qty}" onblur="saveRm({m.material_id}, 'delivery_qty', this.value)">
+                        </td>
+                        <td class="px-2 py-1 w-16">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.used_qty}" onblur="saveRm({m.material_id}, 'used_qty', this.value)">
+                        </td>
+                        <td class="px-2 py-1 w-16 bg-gray-50 border-l border-r border-gray-200">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" value="{m.actual_end_bal}" onblur="saveRm({m.material_id}, 'actual_end_bal', this.value)">
+                        </td>
+                        <td class="px-4 py-2 text-right font-mono text-xs {var_color}">
+                            {m.calc_variance}
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function saveRm(mid, field, val) {
+        if (!val) val = 0;
+        fetch('{base_url}/api/v1/commissary/material', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                date: '{date}',
+                material_id: mid,
+                field: field,
+                value: parseFloat(val)
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) alert('Failed: ' + res.error);
+            else window.location.reload(); // Reload to refresh the DB calculated variance
+        })
+        .catch(function(e) { alert('Network error'); });
+    }
+
+    function saveRunRow(pid) {
+        var row = document.getElementById('run-row-' + pid);
+        row.classList.add('bg-yellow-50');
+        row.classList.remove('bg-blue-50/50');
+        
+        fetch('{base_url}/api/v1/commissary/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                date: '{date}',
+                product_id: parseInt(pid),
+                baker_name: document.getElementById('commissary-baker').value,
+                destination_branch_id: parseInt(document.getElementById('commissary-branch').value) || 0,
+                input_qty: parseFloat(document.getElementById('run-input-' + pid).value) || 0,
+                input_type: document.getElementById('run-type-' + pid).value,
+                yield_qty: parseInt(document.getElementById('run-yield-' + pid).value) || 0
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            row.classList.remove('bg-yellow-50');
+            if (res.ok) {
+                row.classList.add('bg-emerald-50');
+                setTimeout(() => row.classList.remove('bg-emerald-50'), 1500);
+            } else {
+                row.classList.add('bg-rose-50');
+                alert('Failed: ' + res.error);
+            }
+        })
+        .catch(function() { 
+            row.classList.remove('bg-yellow-50');
+            row.classList.add('bg-rose-50');
+        });
+    }
+
+        function switchProductTab(tab) {
+        if (tab === 'bread') {
+            document.getElementById('tbody-bread').classList.remove('hidden');
+            document.getElementById('tbody-cake').classList.add('hidden');
+            
+            document.getElementById('tab-bread').classList.add('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-bread').classList.remove('border-transparent', 'text-gray-500');
+            
+            document.getElementById('tab-cake').classList.remove('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-cake').classList.add('border-transparent', 'text-gray-500');
+        } else {
+            document.getElementById('tbody-cake').classList.remove('hidden');
+            document.getElementById('tbody-bread').classList.add('hidden');
+            
+            document.getElementById('tab-cake').classList.add('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-cake').classList.remove('border-transparent', 'text-gray-500');
+            
+            document.getElementById('tab-bread').classList.remove('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-bread').classList.add('border-transparent', 'text-gray-500');
+        }
+    }
+
+    function updateAllRunsMetadata() {
+        var b = document.getElementById('commissary-baker').value;
+        var rType = document.getElementById('commissary-branch').value;
+        // Optionally flash or save 
+        // This relies on the next row save to pass these values, but since the user wants a single 
+        // baker and branch the backend logic would just stamp it on the runs as they are saved
+    }</script>
+{/block}

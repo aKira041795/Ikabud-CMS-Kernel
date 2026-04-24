@@ -1182,7 +1182,7 @@ function handleCashierLedger(array $params = []): void
         'user_name'   => $userName,
         'user_role'   => $role,
         'current_page'=> 'ledger',
-        'base_url'    => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token'    => (string)kernelCookie(dlCookieName(), ''),
         'branch_id'   => $branchId,
         'branch_name' => $branchName,
@@ -2102,7 +2102,7 @@ function handleAdminDashboard(array $params = []): void
         'user_name'             => $userName,
         'user_role'             => $role,
         'current_page'          => 'dashboard',
-        'base_url'              => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token'              => (string)kernelCookie(dlCookieName(), ''),
         'today'                 => $today,
         'branches'              => $branches,
@@ -2181,7 +2181,7 @@ function handleAdminSales(array $params = []): void
         'user_name'    => $userName,
         'user_role'    => $role,
         'current_page' => 'sales',
-        'base_url'     => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
         'date_from'    => $dateFrom,
         'date_to'      => $dateTo,
@@ -2287,7 +2287,7 @@ function handleAdminProduction(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'production',
-        'base_url' => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'ledger_date' => $ledgerDate,
         'date_from' => $dateFrom,
@@ -2393,7 +2393,7 @@ function handleAdminProductionOutput(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'production_output',
-        'base_url' => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'ledger_date' => $ledgerDate,
         'date_from' => $dateFrom,
@@ -2433,7 +2433,7 @@ function handleAdminSettings(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'settings',
-        'base_url' => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'perm_supervisor_ledger_override' => in_array('ledger.override', $permissions['supervisor'] ?? [], true),
         'perm_supervisor_production_override' => in_array('production.override', $permissions['supervisor'] ?? [], true),
@@ -2603,7 +2603,7 @@ function handleAdminVariances(array $params = []): void
         'user_name'     => $userName,
         'user_role'     => $role,
         'current_page'  => 'variances',
-        'base_url'      => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token'      => (string)kernelCookie(dlCookieName(), ''),
         'branch_id'     => $branchId,
         'status_filter' => $statusFilter,
@@ -2663,7 +2663,7 @@ function handleAdminActivity(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'activity',
-        'base_url' => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'activities' => $activities,
         'date_from' => $dateFrom,
@@ -2710,7 +2710,7 @@ function handleAdminProducts(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'products',
-        'base_url' => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'products' => $products,
         'branches' => $branches,
@@ -2831,6 +2831,8 @@ function apiCreateProduct(array $params = []): void
 
     $input = $ctx->input();
     $name  = trim((string)($input['name'] ?? ''));
+    $category  = strtolower(trim((string)($input['product_category'] ?? 'bread')));
+    if (!in_array($category, ['bread', 'cake', 'other'])) $category = 'bread';
     $price = (float)($input['price'] ?? 0);
     $sort  = (int)($input['sort_order'] ?? 0);
     $outputPiecesPerBatch = dl_normalizePiecesPerBatch($input['output_pieces_per_batch'] ?? null);
@@ -2868,8 +2870,8 @@ function apiCreateProduct(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_products (sku, name, current_price, sort_order, output_pieces_per_batch, output_unit_label) VALUES (:sku, :name, :price, :sort, :oppb, :unit)'
-        )->execute([':sku' => $sku, ':name' => $name, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':unit' => $outputUnitLabel]);
+            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, output_unit_label) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :unit)'
+        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':unit' => $outputUnitLabel]);
 
         $productId = (int)$ctx->db()->lastInsertId();
 
@@ -2922,6 +2924,8 @@ function apiUpdateProduct(array $params = []): void
     $input     = $ctx->input();
     $productId = (int)($input['product_id'] ?? 0);
     $name      = trim((string)($input['name'] ?? ''));
+    $category  = strtolower(trim((string)($input['product_category'] ?? 'bread')));
+    if (!in_array($category, ['bread', 'cake', 'other'])) $category = 'bread';
     $price     = (float)($input['price'] ?? 0);
     $sort      = (int)($input['sort_order'] ?? 0);
     $isActive  = (int)($input['is_active'] ?? 1);
@@ -2976,8 +2980,8 @@ function apiUpdateProduct(array $params = []): void
         }
 
         $ctx->db()->prepare(
-            'UPDATE dl_products SET name = :name, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, output_unit_label = :unit WHERE id = :id'
-        )->execute([':name' => $name, ':price' => $price, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':unit' => $outputUnitLabel, ':id' => $productId]);
+            'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, output_unit_label = :unit WHERE id = :id'
+        )->execute([':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':unit' => $outputUnitLabel, ':id' => $productId]);
 
         dl_auditLog('update_product', null, 'product', (string)$productId, $old, [
             'name' => $name,
@@ -3043,7 +3047,7 @@ function handleAdminBranches(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'branches',
-        'base_url' => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'branches' => $branches,
         'search' => $search,
@@ -3203,7 +3207,7 @@ function handleAdminUsers(array $params = []): void
         'user_name' => $userName,
         'user_role' => $role,
         'current_page' => 'users',
-        'base_url' => '/daily-ledger',
+        'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'users' => $users,
         'branches' => $branches,
@@ -3473,5 +3477,481 @@ function apiUpdateUser(array $params = []): void
     } catch (\Throwable $e) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to update user', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Failed to update user'], 500);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Daily Ledger — CSV Import / Export Handlers
+// ─────────────────────────────────────────────────────────────────────────
+
+function handleProductsCsvExport(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    
+    $user = dlCurrentUser(['admin']);
+
+    $stmt = $ctx->db()->query(
+        "SELECT p.*, COUNT(bp.branch_id) as branch_count
+         FROM dl_products p
+         LEFT JOIN dl_branch_products bp ON p.id = bp.product_id
+         GROUP BY p.id
+         ORDER BY p.name ASC"
+    );
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $headers = ['SKU', 'Name', 'Price', 'Sort Order', 'Active', 'Output Pieces', 'Output Unit'];
+    $rows = [];
+    foreach ($items as $item) {
+        $rows[] = [
+            'SKU'           => (string)($item['sku'] ?? ''),
+            'Name'          => (string)($item['name'] ?? ''),
+            'Price'         => (string)($item['current_price'] ?? '0.00'),
+            'Sort Order'    => (string)($item['sort_order'] ?? '0'),
+            'Active'        => ((int)($item['is_active'] ?? 1) === 1) ? '1' : '0',
+            'Output Pieces' => (string)($item['output_pieces_per_batch'] ?? '0'),
+            'Output Unit'   => (string)($item['output_unit_label'] ?? 'pcs'),
+        ];
+    }
+
+    dlCsvResponse('products-' . date('Y-m-d-His') . '.csv', $headers, $rows);
+}
+
+function apiProductsImportCsv(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    
+    $user = dlCurrentUser(['admin']);
+    
+    $userId = 0;
+    if (isset($user['id']) && is_numeric($user['id'])) {
+        $userId = (int)$user['id'];
+        if ($userId <= 0) $userId = 0;
+    }
+    if ($userId <= 0) {
+        $sub = (string)($user['sub'] ?? '');
+        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
+            $userId = (int)$m[1];
+        } elseif (is_numeric($sub)) {
+            $userId = (int)$sub;
+        }
+    }
+    $kernelActorUserId = null;
+    if (($user['source'] ?? '') === 'kernel' && isset($user['id']) && is_numeric($user['id']) && (int)$user['id'] > 0) {
+        $kernelActorUserId = (int)$user['id'];
+    }
+
+    $upload = dlImportReadUploadedCsv('csv_file');
+    if (empty($upload['ok'])) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => (string)($upload['error'] ?? 'CSV upload failed.'), 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => (string)($upload['error'] ?? 'CSV upload failed.')], 422);
+        return;
+    }
+
+    try {
+        $rows = dlCsvRowsFromString((string)$upload['raw']);
+        if ($rows === []) {
+             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'CSV file is empty.', 'type' => 'error']]));
+             $ctx->json(['ok' => false, 'error' => 'CSV file is empty.'], 422);
+             return;
+        }
+
+        $firstRow = $rows[0] ?? [];
+        $normalizedKeys = array_map('dlCsvNormalizeHeader', array_keys($firstRow));
+        if (!in_array('name', $normalizedKeys, true) || !in_array('price', $normalizedKeys, true)) {
+             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Missing required columns: Name, Price', 'type' => 'error']]));
+             $ctx->json(['ok' => false, 'error' => 'Missing required columns: Name, Price'], 422);
+             return;
+        }
+        
+        $updated = 0;
+        $created = 0;
+        $skipped = 0;
+        
+        foreach ($rows as $rowIndex => $row) {
+            $normalizedRow = [];
+            foreach ($row as $k => $v) {
+                $normalizedRow[dlCsvNormalizeHeader((string)$k)] = $v;
+            }
+            
+            $name = trim((string)($normalizedRow['name'] ?? ''));
+            $price = dlCsvNullableFloat($normalizedRow['price'] ?? null);
+            if ($name === '' || $price === null || $price < 0) {
+                $skipped++;
+                continue;
+            }
+            
+            $sku = trim((string)($normalizedRow['sku'] ?? ''));
+            $sortOrder = dlCsvNullableInt($normalizedRow['sort_order'] ?? null) ?? 0;
+            $isActive = isset($normalizedRow['active']) && in_array(strtolower(trim((string)$normalizedRow['active'])), ['0', 'false', 'no']) ? 0 : 1;
+            $oppb = dl_normalizePiecesPerBatch(dlCsvNullableInt($normalizedRow['output_pieces'] ?? null) ?? 0);
+            $oul = dl_normalizeOutputUnitLabel($normalizedRow['output_unit'] ?? 'pcs');
+            
+            if ($sku !== '') {
+                $stmt = $ctx->db()->prepare('SELECT id, current_price FROM dl_products WHERE sku = :sku');
+                $stmt->execute([':sku' => $sku]);
+                $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                $category = 'bread';
+                if (isset($normalizedRow['category'])) {
+                    $val = strtolower(trim((string)$normalizedRow['category']));
+                    if (in_array($val, ['bread', 'cake', 'other'])) {
+                        $category = $val;
+                    }
+                }
+                
+                if ($existing) {
+                    $pid = (int)$existing['id'];
+                    $oldPrice = (float)$existing['current_price'];
+                    
+                    $ctx->db()->prepare(
+                        'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :act, output_pieces_per_batch = :oppb, output_unit_label = :oul WHERE id = :id'
+                    )->execute([
+                        ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sortOrder, ':act' => $isActive, ':oppb' => $oppb, ':oul' => $oul, ':id' => $pid
+                    ]);
+                    
+                    if (abs($oldPrice - $price) > 0.001) {
+                        $ctx->db()->prepare(
+                            'INSERT INTO dl_product_price_history (product_id, price, changed_by) VALUES (:pid, :price, :uid)'
+                        )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId]);
+                    }
+                    
+                    // Assign active branches if not present
+                    $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
+                    foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
+                        $ctx->db()->prepare(
+                            'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
+                        )->execute([':bid' => (int)$br['id'], ':pid' => $pid]);
+                    }
+                    
+                    dl_auditLog('update_product', null, 'product', (string)$pid, null, [
+                        'csv_import' => true,
+                        'sku' => $sku, 'name' => $name, 'price' => $price, 'is_active' => $isActive
+                    ]);
+                    $updated++;
+                    continue;
+                }
+            }
+            
+            // Create New
+            if ($sku === '') $sku = dl_generateSku();
+            
+            $ctx->db()->prepare(
+                'INSERT INTO dl_products (sku, name, current_price, sort_order, is_active, output_pieces_per_batch, output_unit_label) VALUES (:sku, :name, :price, :sort, :act, :oppb, :oul)'
+            )->execute([
+                ':sku' => $sku, ':name' => $name, ':price' => $price, ':sort' => $sortOrder, ':act' => $isActive, ':oppb' => $oppb, ':oul' => $oul
+            ]);
+            $pid = (int)$ctx->db()->lastInsertId();
+            
+            $ctx->db()->prepare(
+                'INSERT INTO dl_product_price_history (product_id, price, changed_by) VALUES (:pid, :price, :uid)'
+            )->execute([':pid' => $pid, ':price' => $price, ':uid' => $kernelActorUserId]);
+            
+            $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
+            foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
+                $ctx->db()->prepare(
+                    'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
+                )->execute([':bid' => (int)$br['id'], ':pid' => $pid]);
+            }
+            
+            dl_auditLog('create_product', null, 'product', (string)$pid, null, [
+                'csv_import' => true,
+                'sku' => $sku, 'name' => $name, 'price' => $price, 'is_active' => $isActive
+            ]);
+            $created++;
+        }
+        
+        $msg = "Imported: $created created, $updated updated, $skipped skipped.";
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $msg, 'type' => 'success'], 'reloadProducts' => true]));
+        $ctx->json(['ok' => true, 'message' => $msg]);
+    } catch (\Throwable $e) {
+        write_log('dl products import error: ' . $e->getMessage(), 'error', ['module' => 'daily-ledger']);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Import failed: ' . $e->getMessage(), 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Import failed'], 500);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Daily Ledger — Commissary / Production Runs
+// ─────────────────────────────────────────────────────────────────────────
+
+function handleAdminCommissary(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $db = $ctx->db();
+
+    $input = $ctx->input();
+    $rawDate = (string)($input['date'] ?? '');
+    if ($rawDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
+        $rawDate = date('Y-m-d');
+    }
+
+    // Load available products for the dropdown
+    $productsStmt = $db->query("SELECT id, name, product_category, is_active FROM dl_products ORDER BY product_category ASC, sort_order ASC, name ASC");
+    $products = $productsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Load raw materials
+    $materialsStmt = $db->query("SELECT * FROM dl_raw_materials WHERE is_active = 1 ORDER BY sort_order ASC, name ASC");
+    $materials = $materialsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Load commissary ledger for the date
+    $ledgerStmt = $db->prepare("SELECT * FROM dl_commissary_ledger WHERE ledger_date = :date");
+    $ledgerStmt->execute([':date' => $rawDate]);
+    $ledgerRows = $ledgerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    
+    $ledgerMap = [];
+    foreach ($ledgerRows as $r) {
+        $ledgerMap[(int)$r['raw_material_id']] = $r;
+    }
+
+    // Load production runs for the date
+    $runsStmt = $db->prepare(
+        "SELECT pr.*, p.name as product_name
+         FROM dl_production_runs pr
+         JOIN dl_products p ON pr.product_id = p.id
+         WHERE pr.ledger_date = :date"
+    );
+    $runsStmt->execute([':date' => $rawDate]);
+    $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Map runs by product_id so we can associate them 1:1 on the spreadsheet
+    $runMap = [];
+    foreach ($runs as $r) {
+        $runMap[(int)$r['product_id']] = $r;
+    }
+
+    // Combine products + runs state
+    $productRowsBread = [];
+    $productRowsCake = [];
+    foreach ($products as $p) {
+        if (!$p['is_active']) continue;
+        $pid = (int)$p['id'];
+        $r = $runMap[$pid] ?? null;
+        
+        $iqty = $r && $r['primary_input_qty'] > 0 ? (float)$r['primary_input_qty'] : '';
+        if ($iqty !== '') {
+            $iqty = rtrim(rtrim(sprintf('%.3f', $iqty), '0'), '.');
+        }
+
+        $rowData = [
+            'product_id' => $pid,
+            'name'       => $p['name'],
+            'baker_name' => $r ? (string)$r['baker_name'] : '',
+            'input_qty'  => $iqty,
+            'input_type' => $r ? (string)$r['primary_input_type'] : 'kilo',
+            'yield_qty'  => $r && $r['yield_qty'] > 0 ? (int)$r['yield_qty'] : '',
+            'category'   => $p['product_category']
+        ];
+        
+        if ($p['product_category'] === 'cake') {
+            $productRowsCake[] = $rowData;
+        } else {
+            $productRowsBread[] = $rowData;
+        }
+    }
+
+    // Combine material + ledger state
+    $commissaryRows = [];
+    foreach ($materials as $m) {
+        $mid = (int)$m['id'];
+        $l = $ledgerMap[$mid] ?? [];
+                        $commissaryRows[] = [
+            'material_id'      => $mid,
+            'name'             => (string)$m['name'],
+            'unit'             => (string)$m['unit_of_measure'],
+            'category'         => (string)$m['category'],
+            'beg_bal'          => (float)($l['beg_bal'] ?? 0),
+            'delivery_qty'     => (float)($l['delivery_qty'] ?? 0),
+            'used_qty'         => (float)($l['used_qty'] ?? 0),
+            'actual_end_bal'   => (float)($l['actual_end_bal'] ?? 0),
+            'calc_variance'    => (float)($l['calc_variance'] ?? 0),
+        ];
+    }
+
+    
+    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $globalBaker = '';
+    $globalBranch = 0;
+    foreach ($runs as $r) {
+        if ($r['baker_name'] !== '' || (int)$r['destination_branch_id'] > 0) {
+            $globalBaker = (string)$r['baker_name'];
+            $globalBranch = (int)$r['destination_branch_id'];
+            break;
+        }
+    }
+
+    
+    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $globalBaker = '';
+    $globalBranch = 0;
+    foreach ($runs as $r) {
+        if ($r['baker_name'] !== '' || (int)$r['destination_branch_id'] > 0) {
+            $globalBaker = (string)$r['baker_name'];
+            $globalBranch = (int)$r['destination_branch_id'];
+            break;
+        }
+    }
+
+    echo dlRender('modules/daily-ledger/admin/commissary.disyl', [
+        'global_baker_name' => $globalBaker,
+        'global_branch_id'  => $globalBranch,
+        'branches'          => $branches,
+        'global_baker_name' => $globalBaker,
+        'global_branch_id'  => $globalBranch,
+        'branches'          => $branches,
+        'base_url' => dlGetBaseUrl(),
+        'current_page'=> 'commissary',
+        'user'        => $user,
+        'user_name'   => $user['full_name'] ?? $user['username'] ?? 'User',
+        'user_role'   => $user['role'] ?? 'unknown',
+        'date'        => $rawDate,
+        'products'    => $products,
+        'product_rows_bread'=> $productRowsBread,
+        'product_rows_cake' => $productRowsCake,
+        'materials'   => $commissaryRows,
+    ]);}
+
+function apiSaveProductionRun(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $db = $ctx->db();
+
+    $input = $ctx->input();
+    $date          = (string)($input['date'] ?? '');
+    $productId     = (int)($input['product_id'] ?? 0);
+    $bakerName     = trim((string)($input['baker_name'] ?? ''));
+    $type          = 'regular'; // default
+    $inputQty      = (float)($input['input_qty'] ?? 0);
+    $inputType     = (string)($input['input_type'] ?? 'kilo');
+    $yieldQty      = (int)($input['yield_qty'] ?? 0);
+    $destBranchId  = (int)($input['destination_branch_id'] ?? 0);
+    $destBranchId  = (int)($input['destination_branch_id'] ?? 0);
+
+    if ($date === '' || $productId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing date or product'], 400);
+        return;
+    }
+
+    $actorId = (int)($user['id'] ?? 0);
+
+    try {
+        $db->beginTransaction();
+
+        $stmt = $db->prepare("SELECT id FROM dl_production_runs WHERE ledger_date = :d AND product_id = :p");
+        $stmt->execute([':d' => $date, ':p' => $productId]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($bakerName === '' && $yieldQty <= 0 && $inputQty <= 0) {
+            if ($existing) {
+                $db->prepare("DELETE FROM dl_production_runs WHERE id = ?")->execute([$existing['id']]);
+            }
+        } elseif ($existing) {
+            $stmt = $db->prepare(
+                "UPDATE dl_production_runs 
+                 SET baker_name = :baker, primary_input_qty = :iqty, primary_input_type = :itype, yield_qty = :yqty, destination_branch_id = :dest, recorded_by = :actor 
+                 WHERE id = :id"
+            );
+            $stmt->execute([
+                ':baker' => $bakerName,
+                ':iqty'  => $inputQty,
+                ':itype' => $inputType,
+                ':yqty'  => $yieldQty,
+                ':dest'  => $destBranchId > 0 ? $destBranchId : null,
+                ':dest'  => $destBranchId > 0 ? $destBranchId : null,
+                ':actor' => $actorId > 0 ? $actorId : null,
+                ':id'    => $existing['id']
+            ]);
+        } else {
+            $stmt = $db->prepare(
+                "INSERT INTO dl_production_runs (ledger_date, product_id, baker_name, run_type, primary_input_qty, primary_input_type, yield_qty, destination_branch_id, recorded_by)
+                 VALUES (:date, :pid, :baker, :type, :iqty, :itype, :yqty, :dest, :actor)"
+            );
+            $stmt->execute([
+                ':date'  => $date,
+                ':pid'   => $productId,
+                ':baker' => $bakerName,
+                ':type'  => $type,
+                ':iqty'  => $inputQty,
+                ':itype' => $inputType,
+                ':yqty'  => $yieldQty,
+                ':dest'  => $destBranchId > 0 ? $destBranchId : null,
+                ':dest'  => $destBranchId > 0 ? $destBranchId : null,
+                ':actor' => $actorId > 0 ? $actorId : null,
+            ]);
+        }
+
+        $db->commit();
+        $ctx->json(['ok' => true]);
+
+    } catch (Throwable $e) {
+        $db->rollBack();
+        write_log("apiSaveProductionRun error: " . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => 'Database error executing transaction'], 500);
+    }}
+
+function apiSaveCommissaryMaterial(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $db = $ctx->db();
+
+    $input = $ctx->input();
+    $date       = (string)($input['date'] ?? '');
+    $materialId = (int)($input['material_id'] ?? 0);
+    $field      = (string)($input['field'] ?? '');
+    $val        = (float)($input['value'] ?? 0);
+
+    if ($date === '' || $materialId <= 0 || !in_array($field, ['beg_bal', 'delivery_qty', 'used_qty', 'actual_end_bal'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid data'], 400);
+        return;
+    }
+    
+    $actorId = (int)($user['id'] ?? 0);
+
+    try {
+        $stmt = $db->prepare(
+            "INSERT INTO dl_commissary_ledger (ledger_date, raw_material_id, $field, recorded_by)
+             VALUES (:date, :mid, :val, :actor)
+             ON DUPLICATE KEY UPDATE $field = :val, recorded_by = :actor"
+        );
+        $stmt->execute([
+            ':date' => $date,
+            ':mid'  => $materialId,
+            ':val'  => $val,
+            ':actor'=> $actorId > 0 ? $actorId : null,
+        ]);
+        
+        $ctx->json(['ok' => true]);
+    } catch (Throwable $e) {
+        write_log("apiSaveCommissaryMaterial error: " . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => 'Saved failed'], 500);
     }
 }

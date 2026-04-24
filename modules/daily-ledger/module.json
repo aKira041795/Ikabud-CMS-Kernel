@@ -19,6 +19,9 @@
         "dl_product_price_history",
         "dl_branch_products",
         "dl_production_movements",
+        "dl_raw_materials",
+        "dl_commissary_ledger",
+        "dl_production_runs",
         "audit_logs"
     ],
     "reads_tables": [
@@ -35,7 +38,8 @@
         "database/migrations/007_fix_withdrawal_ledger_column.sql",
         "database/migrations/008_reconcile_legacy_kernel_tables.sql",
         "database/migrations/009_add_branch_area.sql",
-        "database/migrations/010_reconcile_auto_increment_ids.sql"
+        "database/migrations/010_reconcile_auto_increment_ids.sql",
+        "database/migrations/011_add_commissary_production_tables.sql"
     ],
     "capabilities": {
         "exposes": [

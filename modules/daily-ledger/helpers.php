@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+/**
+ * Returns the base URL for the Daily Ledger module.
+ */
+function dlGetBaseUrl(): string
+{
+    return '/daily-ledger';
+}
+
 function daily_ledger_capability_handlers(): array
 {
     return [
@@ -280,4 +288,144 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
     } catch (Throwable $e) {
         return null;
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Daily Ledger — CSV Import / Export Helpers
+// ─────────────────────────────────────────────────────────────────────────
+
+function dlCsvResponse(string $filename, array $headers, array $rows): never
+{
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+
+    $stream = fopen('php://output', 'wb');
+    if ($stream === false) {
+        throw new RuntimeException('Unable to open CSV output stream.');
+    }
+
+    fputcsv($stream, $headers);
+    foreach ($rows as $row) {
+        $ordered = [];
+        foreach ($headers as $header) {
+            $ordered[] = $row[$header] ?? '';
+        }
+        fputcsv($stream, $ordered);
+    }
+
+    fclose($stream);
+    exit;
+}
+
+function dlCsvNormalizeHeader(string $header): string
+{
+    $normalized = strtolower(trim($header));
+    $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? '';
+    return trim($normalized, '_');
+}
+
+function dlCsvRowsFromString(string $csvContent): array
+{
+    $csvContent = preg_replace('/^\xEF\xBB\xBF/', '', $csvContent) ?? $csvContent;
+    $csvContent = trim($csvContent);
+    if ($csvContent === '') {
+        throw new RuntimeException('CSV content is required.');
+    }
+
+    $lines = preg_split('/\r\n|\n|\r/', $csvContent) ?: [];
+    $headers = null;
+    $rows = [];
+
+    foreach ($lines as $line) {
+        if (trim($line) === '') {
+            continue;
+        }
+
+        $values = str_getcsv($line);
+        if ($headers === null) {
+            $headers = array_map(static fn(string $header): string => dlCsvNormalizeHeader($header), $values);
+            continue;
+        }
+
+        $values = array_pad($values, count($headers), null);
+        $rows[] = array_combine($headers, array_map(
+            static fn(mixed $value): mixed => is_string($value) ? trim($value) : $value,
+            $values
+        ));
+    }
+
+    if ($headers === null) {
+        throw new RuntimeException('CSV header row is required.');
+    }
+
+    return $rows;
+}
+
+function dlImportReadUploadedCsv(string $field, int $maxBytes = 5242880): array
+{
+    $file = kernelUploadedFile($field);
+    if (!is_array($file) || (int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Upload a valid CSV file first.'];
+    }
+
+    $tmpPath = (string)($file['tmp_name'] ?? '');
+    if ($tmpPath === '' || !is_file($tmpPath)) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded CSV file is not available.'];
+    }
+
+    if (PHP_SAPI !== 'cli' && function_exists('is_uploaded_file') && !is_uploaded_file($tmpPath)) {
+        return ['ok' => false, 'status' => 422, 'error' => 'CSV upload did not arrive through the HTTP upload pipeline.'];
+    }
+
+    $size = (int)($file['size'] ?? 0);
+    if ($size <= 0) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded CSV file is empty.'];
+    }
+    if ($size > $maxBytes) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded CSV file exceeds the maximum allowed size.'];
+    }
+
+    $raw = @file_get_contents($tmpPath);
+    if (!is_string($raw) || trim($raw) === '') {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded CSV file is empty.'];
+    }
+
+    return ['ok' => true, 'file' => $file, 'raw' => $raw];
+}
+
+function dlCsvNullableFloat(mixed $value): ?float
+{
+    if ($value === null) {
+        return null;
+    }
+
+    $normalized = trim((string)$value);
+    if ($normalized === '') {
+        return null;
+    }
+
+    if (!is_numeric($normalized)) {
+        throw new RuntimeException('Expected a numeric decimal value.');
+    }
+
+    return round((float)$normalized, 2);
+}
+
+function dlCsvNullableInt(mixed $value): ?int
+{
+    if ($value === null) {
+        return null;
+    }
+
+    $normalized = trim((string)$value);
+    if ($normalized === '') {
+        return null;
+    }
+
+    if (!preg_match('/^-?\d+$/', $normalized)) {
+        throw new RuntimeException('Expected an integer value.');
+    }
+
+    return (int)$normalized;
 }
