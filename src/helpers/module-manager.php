@@ -1776,7 +1776,7 @@ function executeModuleHandler(string $handler, array $params = []): void
     // API routes (Bearer-authenticated) are exempt; browser form posts must pass.
     $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $isModuleLogin = (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
-    $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri);
+    $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri) || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/refresh$#', $requestUri);
 
     if ($requestMethod === 'POST' && $isModuleLogin) {
         $loginRateLimit = kernelConsumeLoginRateLimit($moduleId);
