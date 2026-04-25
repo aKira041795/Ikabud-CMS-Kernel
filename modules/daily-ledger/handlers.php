@@ -27,6 +27,51 @@ function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType 
     }
 }
 
+function dl_generateAuthTokens(array $payload): array
+{
+    $accessPayload = $payload;
+    unset($accessPayload['token_type']);
+    $accessToken = app()->jwt()->generate($accessPayload);
+
+    $refreshPayload = $payload;
+    $refreshPayload['token_type'] = 'refresh';
+    $refreshJwt = new \Ikabud\Kernel\JWT(
+        config('app.jwt.secret'),
+        30 * 86400
+    );
+    $refreshToken = $refreshJwt->generate($refreshPayload);
+
+    return [
+        'token' => $accessToken,
+        'refresh_token' => $refreshToken,
+        'expires_in' => (int)config('app.jwt.expiration', 86400),
+        'refresh_expires_in' => 30 * 86400,
+    ];
+}
+
+function dl_verifyRefreshToken(string $refreshToken): ?array
+{
+    if ($refreshToken === '') {
+        return null;
+    }
+
+    $refreshJwt = new \Ikabud\Kernel\JWT(
+        config('app.jwt.secret'),
+        30 * 86400
+    );
+    $payload = $refreshJwt->verify($refreshToken);
+    if (!is_array($payload)) {
+        return null;
+    }
+
+    if (($payload['source'] ?? '') !== 'daily-ledger' || ($payload['token_type'] ?? '') !== 'refresh') {
+        return null;
+    }
+
+    unset($payload['token_type']);
+    return $payload;
+}
+
 function dl_getUserBranchId(): ?int
 {
     $ctx = module();
@@ -42,6 +87,7 @@ function dl_getUserBranchId(): ?int
     } elseif (is_numeric($sub)) {
         $userId = (int)$sub;
     }
+    
     $role   = (string)($user['role'] ?? '');
 
     // Admin/supervisor: can work with any branch (selected via param)
@@ -1121,8 +1167,8 @@ function dailyLedgerAuthLogin(): void
         'role' => $role,
         'source' => 'daily-ledger',
     ];
-    $token = app()->jwt()->generate($payload);
-    dlSetAuthCookie($token, (int)config('app.jwt.expiration', 86400));
+    $tokens = dl_generateAuthTokens($payload);
+    dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
 
     if ($role === 'cashier') {
         $redirect = '/daily-ledger/ledger';
@@ -1131,7 +1177,45 @@ function dailyLedgerAuthLogin(): void
     } else {
         $redirect = '/daily-ledger/admin/dashboard';
     }
-    echo json_encode(['ok' => true, 'redirect' => $redirect]);
+    echo json_encode([
+        'ok' => true,
+        'redirect' => $redirect,
+        'token' => $tokens['token'],
+        'refresh_token' => $tokens['refresh_token'],
+        'expires_in' => $tokens['expires_in'],
+        'refresh_expires_in' => $tokens['refresh_expires_in'],
+    ]);
+}
+
+function dailyLedgerAuthRefresh(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $input = dlInput();
+    $refreshToken = trim((string)($input['refresh_token'] ?? ''));
+    if ($refreshToken === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'refresh_token is required.']);
+        return;
+    }
+
+    $payload = dl_verifyRefreshToken($refreshToken);
+    if (!is_array($payload)) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Invalid refresh token.']);
+        return;
+    }
+
+    $tokens = dl_generateAuthTokens($payload);
+    dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
+
+    echo json_encode([
+        'ok' => true,
+        'token' => $tokens['token'],
+        'refresh_token' => $tokens['refresh_token'],
+        'expires_in' => $tokens['expires_in'],
+        'refresh_expires_in' => $tokens['refresh_expires_in'],
+    ]);
 }
 
 function dailyLedgerLogout(): void
@@ -1160,6 +1244,7 @@ function handleCashierLedger(array $params = []): void
     $today      = dl_businessDate();
     $input = $ctx->input();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
+    $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
@@ -1191,6 +1276,7 @@ function handleCashierLedger(array $params = []): void
         'day_status'  => $dayStatus,
         'branches'    => $branches,
         'is_cashier'  => ($role === 'cashier'),
+        'reference_only' => $referenceOnly,
         'can_ledger_override' => $canLedgerOverride,
         'business_date_label' => $clockLabel['business_date'],
         'close_of_day_time' => $clockLabel['close_of_day_time'],
@@ -1210,9 +1296,11 @@ function handleCashierRows(array $params = []): void
     }
 
     $user = dlRequireAuth(['cashier', 'supervisor', 'admin']);
+    $role = (string)($user['role'] ?? '');
     $branchId   = dl_getUserBranchId();
     $input = $ctx->input();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
+    $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
@@ -1245,6 +1333,7 @@ function handleCashierRows(array $params = []): void
         'branch_id'   => $branchId,
         'ledger_date' => $ledgerDate,
         'day_status'  => $dayStatus,
+        'reference_only' => $referenceOnly,
     ]);
 }
 
@@ -1364,6 +1453,11 @@ function apiSaveLedgerField(array $params = []): void
 
     // Check day status — soft lock: cashier can't edit closed days
     $dayStatus = dl_getDayStatus($branchId, $date);
+    if ($role === 'cashier' && $date !== dl_businessDate()) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
     if ($dayStatus === 'closed' && $role === 'cashier') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
@@ -1529,6 +1623,11 @@ function apiSaveLedgerBatch(array $params = []): void
 
     // Check day status — cashier cannot edit closed days
     $dayStatus = dl_getDayStatus($branchId, $date);
+    if ($role === 'cashier' && $date !== dl_businessDate()) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
     if ($dayStatus === 'closed' && $role === 'cashier') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
@@ -1705,6 +1804,62 @@ function apiProductionDestinations(array $params = []): void
     $stmt->execute($allowedBranchIds);
 
     $ctx->json(['ok' => true, 'destinations' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+}
+
+function apiProductionProducts(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $input = $ctx->input();
+    $category = trim((string)($input['category'] ?? ''));
+
+    $sql = 'SELECT id, sku, name, current_price, product_category, output_pieces_per_batch, output_unit_label
+            FROM dl_products
+            WHERE is_active = 1';
+    $bind = [];
+    if ($category !== '' && in_array($category, ['bread', 'cake', 'other'], true)) {
+        $sql .= ' AND product_category = :category';
+        $bind[':category'] = $category;
+    }
+    $sql .= ' ORDER BY sort_order, name';
+
+    $stmt = $ctx->db()->prepare($sql);
+    $stmt->execute($bind);
+
+    $ctx->json([
+        'ok' => true,
+        'products' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+    ]);
+}
+
+function apiCommissaryMaterials(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+
+    $stmt = $ctx->db()->query(
+        'SELECT id, name, unit_of_measure, category, sort_order
+         FROM dl_raw_materials
+         WHERE is_active = 1
+         ORDER BY sort_order, name'
+    );
+
+    $ctx->json([
+        'ok' => true,
+        'materials' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+    ]);
 }
 
 function apiProductionMovements(array $params = []): void
@@ -1925,6 +2080,12 @@ function apiCloseDay(array $params = []): void
     if (!$branchId) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'No branch', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'No branch'], 422);
+        return;
+    }
+
+    if ((string)($user['role'] ?? '') === 'cashier' && $date !== dl_businessDate()) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
         return;
     }
 
@@ -3955,4 +4116,49 @@ function apiSaveCommissaryMaterial(): void
         write_log("apiSaveCommissaryMaterial error: " . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => 'Saved failed'], 500);
     }
+}
+
+function apiDailyLedgerMe(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin', 'production_in_charge']);
+    $allowedBranchIds = dl_accessibleBranchIds($user);
+    $clockLabel = dl_operatingClockLabel();
+    $branches = [];
+
+    if (count($allowedBranchIds) > 0) {
+        $placeholders = implode(',', array_fill(0, count($allowedBranchIds), '?'));
+        $stmt = $ctx->db()->prepare(
+            "SELECT id, code, name
+             FROM dl_branches
+             WHERE is_active = 1 AND id IN ({$placeholders})
+             ORDER BY name"
+        );
+        $stmt->execute($allowedBranchIds);
+        $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $ctx->json([
+        'ok' => true,
+        'user' => [
+            'id' => (int)($user['id'] ?? 0),
+            'username' => (string)($user['username'] ?? ''),
+            'name' => (string)($user['name'] ?? ''),
+            'full_name' => (string)($user['full_name'] ?? $user['name'] ?? ''),
+            'role' => (string)($user['role'] ?? '')
+        ],
+        'branches' => $branches,
+        'clock' => [
+            'business_date' => $clockLabel['business_date'],
+            'close_of_day_time' => $clockLabel['close_of_day_time'],
+            'operating_timezone' => $clockLabel['operating_timezone'],
+            'operating_region' => $clockLabel['operating_region'],
+        ],
+    ]);
 }
