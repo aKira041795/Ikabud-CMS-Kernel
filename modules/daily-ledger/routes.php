@@ -26,14 +26,21 @@ return [
 
         // API: product list for branch (used by cashier form)
         '/daily-ledger/api/v1/cashier/ledger/rows' => 'daily-ledger:apiGetLedgerRows',
+        '/daily-ledger/api/v1/cashier/ledger/day-status' => 'daily-ledger:apiGetLedgerDayStatus',
+
+        // API: get current user and branches (Android sync)
+        '/daily-ledger/api/v1/me'                  => 'daily-ledger:apiDailyLedgerMe',
 
         // Production movements
+        '/daily-ledger/api/v1/production/products'      => 'daily-ledger:apiProductionProducts',
         '/daily-ledger/api/v1/production/destinations' => 'daily-ledger:apiProductionDestinations',
         '/daily-ledger/api/v1/production/movements'    => 'daily-ledger:apiProductionMovements',
+        '/daily-ledger/api/v1/commissary/materials'    => 'daily-ledger:apiCommissaryMaterials',
     ],
     'POST' => [
         // Module-owned login (namespaced)
         '/daily-ledger/auth/login'                => 'daily-ledger:dailyLedgerAuthLogin',
+        '/daily-ledger/auth/refresh'              => 'daily-ledger:dailyLedgerAuthRefresh',
 
         // Cashier: auto-save single field
         '/daily-ledger/api/v1/cashier/ledger/save'       => 'daily-ledger:apiSaveLedgerField',

@@ -381,7 +381,7 @@ function dl_isAllowedAutoCloseTime(string $time): bool
     }
 
     $hours = (int)$matches[1];
-    return $hours >= 0 && $hours < 12;
+    return $hours >= 0 && $hours < 24;
 }
 
 function dl_closeOfDaySettings(): array
@@ -401,20 +401,27 @@ function dl_businessDate(?\DateTimeImmutable $now = null): string
     $settings = dl_closeOfDaySettings();
     $timezone = new \DateTimeZone($settings['operating_timezone']);
     $now = $now ? $now->setTimezone($timezone) : new \DateTimeImmutable('now', $timezone);
+    
     if (!$settings['auto_close_enabled']) {
         return $now->format('Y-m-d');
     }
 
-    $cutoff = \DateTimeImmutable::createFromFormat('Y-m-d H:i', $now->format('Y-m-d') . ' ' . $settings['close_of_day_time'], $timezone);
-    if (!$cutoff) {
-        return $now->format('Y-m-d');
+    list($hours, $minutes) = explode(':', $settings['close_of_day_time']);
+    $hours = (int)$hours;
+    
+    if ($hours < 12) {
+        // Morning cutoff (e.g. 03:00) -> Shift clock backward
+        return $now->modify("-{$hours} hours -{$minutes} minutes")->format('Y-m-d');
+    } else {
+        // Evening cutoff (e.g. 20:00) -> Shift clock forward
+        $shiftHours = 24 - $hours;
+        // Adjust for minutes as well to be precise (e.g. 20:30 means we add 3 hours 30 mins)
+        // Wait, if it's 20:30, and it is 20:29, adding 3h30m gives 23:59. It's the same day.
+        // If it's 20:31, adding 3h30m gives 00:01 next day. Correct.
+        $shiftMinutes = $minutes > 0 ? (60 - $minutes) : 0;
+        $shiftHours = $minutes > 0 ? $shiftHours - 1 : $shiftHours;
+        return $now->modify("+{$shiftHours} hours +{$shiftMinutes} minutes")->format('Y-m-d');
     }
-
-    if ($now < $cutoff) {
-        return $now->modify('-1 day')->format('Y-m-d');
-    }
-
-    return $now->format('Y-m-d');
 }
 
 function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateTimeImmutable $now = null): bool
@@ -430,12 +437,9 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
 
     $timezone = new \DateTimeZone($settings['operating_timezone']);
     $now = $now ? $now->setTimezone($timezone) : new \DateTimeImmutable('now', $timezone);
-    $cutoff = \DateTimeImmutable::createFromFormat('Y-m-d H:i', $now->format('Y-m-d') . ' ' . $settings['close_of_day_time'], $timezone);
-    if (!$cutoff || $now < $cutoff) {
-        return false;
-    }
-
-    $closeDate = $now->modify('-1 day')->format('Y-m-d');
+    // The shift before the *current* business date has already ended.
+    $currentBusinessDate = dl_businessDate($now);
+    $closeDate = (new \DateTimeImmutable($currentBusinessDate))->modify('-1 day')->format('Y-m-d');
     if (dl_getDayStatus($branchId, $closeDate) === 'closed') {
         return false;
     }
@@ -1350,20 +1354,31 @@ function apiGetLedgerRows(array $params = []): void
 
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
-    $branchId   = dl_getUserBranchId();
     $input = $ctx->input();
-    $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
+    $role = (string)($user['role'] ?? '');
+    $branchId = dl_getUserBranchId();
+    if (in_array($role, ['admin', 'supervisor'], true)) {
+        if (!empty($_GET['branch_id'])) {
+            $branchId = (int)$_GET['branch_id'];
+        } elseif (!empty($input['branch_id'])) {
+            $branchId = (int)$input['branch_id'];
+        }
+    }
+    $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
     }
 
+    $dayStatus = $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open';
+
     if (!$branchId) {
-        $ctx->json(['ok' => true, 'rows' => []]);
+        $ctx->json(['ok' => true, 'rows' => [], 'day_status' => $dayStatus]);
+        return;
     }
 
     $stmt = $ctx->db()->prepare(
-        'SELECT p.id AS product_id, p.name, p.current_price,
+        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
                 GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales
@@ -1374,7 +1389,44 @@ function apiGetLedgerRows(array $params = []): void
          ORDER BY p.sort_order, p.name'
     );
     $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
-    $ctx->json(['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+    $ctx->json([
+        'ok' => true,
+        'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+        'day_status' => $dayStatus,
+    ]);
+}
+
+function apiGetLedgerDayStatus(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+
+    $input = $ctx->input();
+    $role = (string)($user['role'] ?? '');
+    $branchId = dl_getUserBranchId();
+    if (in_array($role, ['admin', 'supervisor'], true)) {
+        if (!empty($_GET['branch_id'])) {
+            $branchId = (int)$_GET['branch_id'];
+        } elseif (!empty($input['branch_id'])) {
+            $branchId = (int)$input['branch_id'];
+        }
+    }
+    $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
+
+    if ($branchId) {
+        dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
+    }
+
+    $ctx->json([
+        'ok' => true,
+        'day_status' => $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open',
+    ]);
 }
 
 function apiSaveLedgerField(array $params = []): void
@@ -1588,17 +1640,7 @@ function apiSaveLedgerBatch(array $params = []): void
     $date = (string)($input['date'] ?? dl_businessDate());
     $rows = $input['rows'] ?? null;
 
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-    } else {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
@@ -1607,8 +1649,12 @@ function apiSaveLedgerBatch(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $branchId = dl_getUserBranchId();
-    if (in_array($role, ['admin', 'supervisor'], true) && !empty($input['branch_id'])) {
-        $branchId = (int)$input['branch_id'];
+    if (in_array($role, ['admin', 'supervisor'], true)) {
+        if (!empty($_GET['branch_id'])) {
+            $branchId = (int)$_GET['branch_id'];
+        } elseif (!empty($input['branch_id'])) {
+            $branchId = (int)$input['branch_id'];
+        }
     }
 
     if ($branchId) {
@@ -1623,16 +1669,7 @@ function apiSaveLedgerBatch(array $params = []): void
 
     // Check day status — cashier cannot edit closed days
     $dayStatus = dl_getDayStatus($branchId, $date);
-    if ($role === 'cashier' && $date !== dl_businessDate()) {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
-        return;
-    }
-    if ($dayStatus === 'closed' && $role === 'cashier') {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
-        return;
-    }
+    $isReadOnly = ($role === 'cashier' && ($date > dl_businessDate() || $dayStatus === 'closed'));
 
     // Validate payload and normalize
     $normalized = [];
@@ -1671,7 +1708,8 @@ function apiSaveLedgerBatch(array $params = []): void
     }
 
     try {
-        $ctx->db()->beginTransaction();
+        if (!$isReadOnly) {
+            $ctx->db()->beginTransaction();
 
         $priceStmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :pid');
         $selectOld = $ctx->db()->prepare(
@@ -1737,10 +1775,11 @@ function apiSaveLedgerBatch(array $params = []): void
         }
 
         $ctx->db()->commit();
+        } // end if (!$isReadOnly)
 
         // Return updated rows as fresh read
         $stmt = $ctx->db()->prepare(
-            'SELECT p.id AS product_id, p.name, p.current_price,
+            'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
                     COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                     COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
                     GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales
@@ -1758,6 +1797,7 @@ function apiSaveLedgerBatch(array $params = []): void
             'branch_id' => $branchId,
             'date' => $date,
             'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'day_status' => $dayStatus,
         ]);
     } catch (\Throwable $e) {
         try {
@@ -2100,7 +2140,7 @@ function apiCloseDay(array $params = []): void
         dl_auditLog('close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", null, ['status' => 'closed']);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day closed', 'type' => 'success']]));
-        $ctx->json(['ok' => true]);
+        $ctx->json(['ok' => true, 'day_status' => 'closed']);
     } catch (\Throwable $e) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to close day', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Failed to close day'], 500);
@@ -2164,7 +2204,7 @@ function apiReopenDay(array $params = []): void
         dl_auditLog('reopen_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", ['status' => 'closed'], ['status' => 'open']);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day reopened', 'type' => 'success']]));
-        $ctx->json(['ok' => true]);
+        $ctx->json(['ok' => true, 'day_status' => 'open']);
     } catch (\Throwable $e) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to reopen', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Failed to reopen'], 500);
@@ -2672,7 +2712,7 @@ function apiSaveRolePermissions(array $params = []): void
     if ($autoCloseEnabled && !dl_isAllowedAutoCloseTime($closeOfDayTime)) {
         $ctx->json([
             'ok' => false,
-            'error' => 'Auto close cutoff must be an overnight time between 00:00 and 11:59.',
+            'error' => 'Auto close cutoff must be a valid time (00:00 - 23:59).',
         ], 422);
         return;
     }

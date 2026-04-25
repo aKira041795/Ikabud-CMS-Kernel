@@ -10,6 +10,8 @@ As a Cashier, your main focus is on recording the daily operations of your speci
 * **Recording Sales:** You will input actual sales amounts, cash deposits, and expenses. The system automatically calculates expected sales based on the inventory movement.
 * **Variances:** If there is a difference between your expected sales (based on inventory) and actual cash/remittances, the system logs this as an Over or Short (variance).
 * **Automatic Saving:** As you type numbers into the ledger forms, they save automatically. You do not need to click a "Submit" button for every row!
+* **Offline Work:** If the internet or server is unavailable, the Android app can continue working with locally cached data after you unlock it using your offline PIN.
+* **Reconnect Behavior:** Offline entries are queued and synced automatically when the connection comes back. If the day cannot be closed because the app is offline, reconnect first and try again.
 
 ## 2. Production In-charge (Commissary View)
 If you manage the bakery or commissary, you will be logging the total goods produced each day.
@@ -42,3 +44,5 @@ The Administrator completely configures the system constraints, products, and pe
 
 ---
 *Tip for all users: Keep your browser updated and do not close the window if a row is showing "Saving...". Wait for the green confirmation before navigating away.*
+
+*Android operators: if the app reports that a day is `unknown` while offline, continue recording entries locally and allow the app to refresh status after the network returns.*

@@ -51,6 +51,10 @@
             {if day_status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}
         ">{day_status}</span>
 
+        {if reference_only}
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Reference only</span>
+        {/if}
+
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
         <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
     </div>
@@ -84,7 +88,7 @@
     </div>
 </div>
 
-{if day_status == 'open'}
+{if day_status == 'open' && !reference_only}
 <div class="mt-6 flex justify-end gap-3">
     <button class="btn btn-primary" id="close-day-btn" onclick="closeDay()">Close Day</button>
 </div>
