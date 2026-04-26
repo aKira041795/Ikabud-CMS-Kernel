@@ -64,6 +64,8 @@ return [
         // Admin: user management
         '/daily-ledger/api/v1/admin/dl-users'            => 'daily-ledger:apiCreateUser',
         '/daily-ledger/api/v1/admin/dl-users/update'     => 'daily-ledger:apiUpdateUser',
+        '/daily-ledger/api/v1/admin/dl-users/delete'     => 'daily-ledger:apiDeleteUser',
+        '/daily-ledger/api/v1/admin/dl-users/restore'    => 'daily-ledger:apiRestoreUser',
 
         // Admin: variance status
         '/daily-ledger/api/v1/admin/variances/update'    => 'daily-ledger:apiUpdateVarianceStatus',
