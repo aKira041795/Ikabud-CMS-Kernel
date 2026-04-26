@@ -3361,67 +3361,122 @@ function handleAdminUsers(array $params = []): void
         $tab = 'active';
     }
 
-        $sql = "SELECT u.* FROM (
-              SELECT c.id, c.username, c.full_name, 'cashier' AS role, c.is_active, c.deleted_at,
-                  c.branch_id,
-                  b.name AS branch_names,
-                  CAST(c.branch_id AS CHAR) AS branch_ids_csv
-              FROM dl_cashiers c
-              LEFT JOIN dl_branches b ON b.id = c.branch_id
-              UNION ALL
-              SELECT s.id, s.username, s.full_name, 'supervisor' AS role, s.is_active, s.deleted_at,
-                  NULL AS branch_id,
-                  GROUP_CONCAT(b.name ORDER BY b.name SEPARATOR ', ') AS branch_names,
-                  GROUP_CONCAT(sb.branch_id ORDER BY sb.branch_id SEPARATOR ',') AS branch_ids_csv
-              FROM dl_supervisors s
-              LEFT JOIN dl_supervisor_branches sb ON sb.supervisor_id = s.id
-              LEFT JOIN dl_branches b ON b.id = sb.branch_id
-              GROUP BY s.id, s.username, s.full_name, s.is_active, s.deleted_at
-              UNION ALL
-              SELECT p.id, p.username, p.full_name, 'production_in_charge' AS role, p.is_active, p.deleted_at,
-                  NULL AS branch_id,
-                  GROUP_CONCAT(b.name ORDER BY b.name SEPARATOR ', ') AS branch_names,
-                  GROUP_CONCAT(pb.branch_id ORDER BY pb.branch_id SEPARATOR ',') AS branch_ids_csv
-              FROM dl_production_incharges p
-              LEFT JOIN dl_production_incharge_branches pb ON pb.production_incharge_id = p.id
-              LEFT JOIN dl_branches b ON b.id = pb.branch_id
-              GROUP BY p.id, p.username, p.full_name, p.is_active, p.deleted_at
-              UNION ALL
-              SELECT a.id, a.username, a.full_name, 'admin' AS role, a.is_active, a.deleted_at,
-                  NULL AS branch_id,
-                  NULL AS branch_names,
-                  NULL AS branch_ids_csv
-              FROM dl_admins a
-             ) u WHERE 1=1";
-    $bind = [];
-    if ($tab === 'active') {
-        $sql .= ' AND u.deleted_at IS NULL AND u.is_active = 1';
-    } elseif ($tab === 'inactive') {
-        $sql .= ' AND u.deleted_at IS NULL AND u.is_active = 0';
-    } else {
-        $sql .= ' AND u.deleted_at IS NOT NULL';
-    }
-    if ($search !== '') {
-        $sql .= ' AND (u.username LIKE :q OR u.full_name LIKE :q2 OR u.role LIKE :q3)';
-        $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%"; $bind[':q3'] = "%{$search}%";
-    }
-    $sql .= ' ORDER BY u.full_name';
-    $stmt = $ctx->db()->prepare($sql);
-    $stmt->execute($bind);
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $statusSqlFor = static function (string $table) use ($tab): string {
+        if ($tab === 'active') {
+            return " AND {$table}.deleted_at IS NULL AND {$table}.is_active = 1";
+        }
+        if ($tab === 'inactive') {
+            return " AND {$table}.deleted_at IS NULL AND {$table}.is_active = 0";
+        }
 
-    // Per-tab counts for the tab badges (across all role tables).
-    $countSql = "SELECT
-            SUM(CASE WHEN deleted_at IS NULL AND is_active = 1 THEN 1 ELSE 0 END) AS active_count,
-            SUM(CASE WHEN deleted_at IS NULL AND is_active = 0 THEN 1 ELSE 0 END) AS inactive_count,
-            SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_count
-        FROM (
-            SELECT is_active, deleted_at FROM dl_cashiers
-            UNION ALL SELECT is_active, deleted_at FROM dl_supervisors
-            UNION ALL SELECT is_active, deleted_at FROM dl_production_incharges
-            UNION ALL SELECT is_active, deleted_at FROM dl_admins
-        ) t";
-    $counts = $ctx->db()->query($countSql)->fetch(PDO::FETCH_ASSOC) ?: [];
+        return " AND {$table}.deleted_at IS NOT NULL";
+    };
+
+    $users = [];
+
+    $cashierSql = "SELECT dl_cashiers.id, dl_cashiers.username, dl_cashiers.full_name, 'cashier' AS role,
+            dl_cashiers.is_active, dl_cashiers.deleted_at, dl_cashiers.branch_id,
+            dl_branches.name AS branch_names,
+            CAST(dl_cashiers.branch_id AS CHAR) AS branch_ids_csv
+        FROM dl_cashiers
+        LEFT JOIN dl_branches ON dl_branches.id = dl_cashiers.branch_id
+        WHERE 1=1" . $statusSqlFor('dl_cashiers');
+    $cashierBind = [];
+    if ($search !== '') {
+        $cashierSql .= ' AND (dl_cashiers.username LIKE :q OR dl_cashiers.full_name LIKE :q2 OR :role LIKE :q3)';
+        $cashierBind[':q'] = "%{$search}%";
+        $cashierBind[':q2'] = "%{$search}%";
+        $cashierBind[':q3'] = "%{$search}%";
+        $cashierBind[':role'] = 'cashier';
+    }
+    $stmt = $ctx->db()->prepare($cashierSql);
+    $stmt->execute($cashierBind);
+    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+    $supervisorSql = "SELECT dl_supervisors.id, dl_supervisors.username, dl_supervisors.full_name, 'supervisor' AS role,
+            dl_supervisors.is_active, dl_supervisors.deleted_at,
+            NULL AS branch_id,
+            GROUP_CONCAT(dl_branches.name ORDER BY dl_branches.name SEPARATOR ', ') AS branch_names,
+            GROUP_CONCAT(dl_supervisor_branches.branch_id ORDER BY dl_supervisor_branches.branch_id SEPARATOR ',') AS branch_ids_csv
+        FROM dl_supervisors
+        LEFT JOIN dl_supervisor_branches ON dl_supervisor_branches.supervisor_id = dl_supervisors.id
+        LEFT JOIN dl_branches ON dl_branches.id = dl_supervisor_branches.branch_id
+        WHERE 1=1" . $statusSqlFor('dl_supervisors');
+    $supervisorBind = [];
+    if ($search !== '') {
+        $supervisorSql .= ' AND (dl_supervisors.username LIKE :q OR dl_supervisors.full_name LIKE :q2 OR :role LIKE :q3)';
+        $supervisorBind[':q'] = "%{$search}%";
+        $supervisorBind[':q2'] = "%{$search}%";
+        $supervisorBind[':q3'] = "%{$search}%";
+        $supervisorBind[':role'] = 'supervisor';
+    }
+    $supervisorSql .= ' GROUP BY dl_supervisors.id, dl_supervisors.username, dl_supervisors.full_name, dl_supervisors.is_active, dl_supervisors.deleted_at';
+    $stmt = $ctx->db()->prepare($supervisorSql);
+    $stmt->execute($supervisorBind);
+    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+    $productionSql = "SELECT dl_production_incharges.id, dl_production_incharges.username, dl_production_incharges.full_name, 'production_in_charge' AS role,
+            dl_production_incharges.is_active, dl_production_incharges.deleted_at,
+            NULL AS branch_id,
+            GROUP_CONCAT(dl_branches.name ORDER BY dl_branches.name SEPARATOR ', ') AS branch_names,
+            GROUP_CONCAT(dl_production_incharge_branches.branch_id ORDER BY dl_production_incharge_branches.branch_id SEPARATOR ',') AS branch_ids_csv
+        FROM dl_production_incharges
+        LEFT JOIN dl_production_incharge_branches ON dl_production_incharge_branches.production_incharge_id = dl_production_incharges.id
+        LEFT JOIN dl_branches ON dl_branches.id = dl_production_incharge_branches.branch_id
+        WHERE 1=1" . $statusSqlFor('dl_production_incharges');
+    $productionBind = [];
+    if ($search !== '') {
+        $productionSql .= ' AND (dl_production_incharges.username LIKE :q OR dl_production_incharges.full_name LIKE :q2 OR :role LIKE :q3)';
+        $productionBind[':q'] = "%{$search}%";
+        $productionBind[':q2'] = "%{$search}%";
+        $productionBind[':q3'] = "%{$search}%";
+        $productionBind[':role'] = 'production_in_charge';
+    }
+    $productionSql .= ' GROUP BY dl_production_incharges.id, dl_production_incharges.username, dl_production_incharges.full_name, dl_production_incharges.is_active, dl_production_incharges.deleted_at';
+    $stmt = $ctx->db()->prepare($productionSql);
+    $stmt->execute($productionBind);
+    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+    $adminSql = "SELECT dl_admins.id, dl_admins.username, dl_admins.full_name, 'admin' AS role,
+            dl_admins.is_active, dl_admins.deleted_at,
+            NULL AS branch_id,
+            NULL AS branch_names,
+            NULL AS branch_ids_csv
+        FROM dl_admins
+        WHERE 1=1" . $statusSqlFor('dl_admins');
+    $adminBind = [];
+    if ($search !== '') {
+        $adminSql .= ' AND (dl_admins.username LIKE :q OR dl_admins.full_name LIKE :q2 OR :role LIKE :q3)';
+        $adminBind[':q'] = "%{$search}%";
+        $adminBind[':q2'] = "%{$search}%";
+        $adminBind[':q3'] = "%{$search}%";
+        $adminBind[':role'] = 'admin';
+    }
+    $stmt = $ctx->db()->prepare($adminSql);
+    $stmt->execute($adminBind);
+    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+    usort($users, static function (array $left, array $right): int {
+        return strcasecmp((string)($left['full_name'] ?? ''), (string)($right['full_name'] ?? ''));
+    });
+
+    // Per-tab counts for the tab badges.
+    $counts = [
+        'active_count' => 0,
+        'inactive_count' => 0,
+        'deleted_count' => 0,
+    ];
+    foreach (['dl_cashiers', 'dl_supervisors', 'dl_production_incharges', 'dl_admins'] as $table) {
+        $countSql = "SELECT
+                SUM(CASE WHEN {$table}.deleted_at IS NULL AND {$table}.is_active = 1 THEN 1 ELSE 0 END) AS active_count,
+                SUM(CASE WHEN {$table}.deleted_at IS NULL AND {$table}.is_active = 0 THEN 1 ELSE 0 END) AS inactive_count,
+                SUM(CASE WHEN {$table}.deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_count
+            FROM {$table}";
+        $row = $ctx->db()->query($countSql)->fetch(PDO::FETCH_ASSOC) ?: [];
+        $counts['active_count'] += (int)($row['active_count'] ?? 0);
+        $counts['inactive_count'] += (int)($row['inactive_count'] ?? 0);
+        $counts['deleted_count'] += (int)($row['deleted_count'] ?? 0);
+    }
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
