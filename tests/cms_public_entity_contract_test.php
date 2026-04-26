@@ -450,6 +450,7 @@ try {
 }
 
 $publicHandlerCode = file_get_contents(__DIR__ . '/../modules/cms/handlers/90-public.php') ?: '';
+$publicLayoutCode = file_get_contents(__DIR__ . '/../templates/modules/cms/layouts/public.disyl') ?: '';
 
 echo "\n=== HANDLER CUTOVER ===\n";
 
@@ -463,16 +464,21 @@ t('legacy public inquiry template reference removed', !str_contains($publicHandl
 
 echo "\n=== SINGLE AND PAGE ROUTES ===\n";
 
+t('shared public layout opens lightbox from currentSrc for responsive images', str_contains($publicLayoutCode, 'img.currentSrc || img.src'));
+t('shared public layout filters out small decorative images before enabling zoom', str_contains($publicLayoutCode, 'Math.max(renderedWidth, naturalWidth) < 120') && str_contains($publicLayoutCode, 'naturalWidth * naturalHeight < 20000'), $publicLayoutCode);
+t('shared public layout restores focus and scroll on lightbox close', str_contains($publicLayoutCode, 'document.body.style.overflow = this.previousBodyOverflow') && str_contains($publicLayoutCode, 'activeElement.focus()'), $publicLayoutCode);
 t('post route renders canonical presentation mode', str_contains($singleHtml, 'data-public-presentation-mode="canonical"'));
 t('post route renders canonical route kind', str_contains($singleHtml, 'data-public-route-kind="post"'));
 t('post route renders back-to-blog link', str_contains($singleHtml, '/cms/blog'));
 t('post route renders featured image from featured_image_id', str_contains($singleHtml, cmsResolveUploadUrl('tests/entity-contract-post-hero.jpg')), $singleHtml);
+t('post route marks canonical hero image for shared lightbox behavior', str_contains($singleHtml, 'data-cms-lightbox="true"'), $singleHtml);
 
 t('page route renders canonical presentation mode', str_contains($pageHtml, 'data-public-presentation-mode="canonical"'));
 t('page route renders canonical route kind', str_contains($pageHtml, 'data-public-route-kind="page"'));
 t('page route omits canonical meta block', !str_contains($pageHtml, '<div class="cms-entity-meta'));
 t('page route renders featured image from featured_image_id', str_contains($pageHtml, cmsResolveUploadUrl('tests/entity-contract-page-hero.jpg')), $pageHtml);
 t('page route renders hero media wrapper', str_contains($pageHtml, '<div class="cms-entity-hero'), $pageHtml);
+t('page route marks canonical hero image for shared lightbox behavior', str_contains($pageHtml, 'data-cms-lightbox="true"'), $pageHtml);
 
 echo "\n=== ACTION ROUTES ===\n";
 

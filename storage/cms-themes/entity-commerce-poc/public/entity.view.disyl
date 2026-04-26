@@ -19,7 +19,7 @@
                 {include "modules/cms/public/blocks/media-gallery.block.disyl"}
             {elseif entity.featured_image_url}
             <div class="poc-entity-view__hero">
-                <img src="{entity.featured_image_url}" alt="{entity.title}" class="poc-entity-view__hero-image">
+                <img src="{entity.featured_image_url}" alt="{entity.title}" class="poc-entity-view__hero-image" data-cms-lightbox="true">
             </div>
             {else}
             <div class="poc-entity-view__media-placeholder">
@@ -93,7 +93,7 @@
         {include "modules/cms/public/blocks/media-gallery.block.disyl"}
     {elseif entity.featured_image_url}
     <div class="poc-entity-view__hero">
-        <img src="{entity.featured_image_url}" alt="{entity.title}" class="poc-entity-view__hero-image">
+        <img src="{entity.featured_image_url}" alt="{entity.title}" class="poc-entity-view__hero-image" data-cms-lightbox="true">
     </div>
     {/if}
 
