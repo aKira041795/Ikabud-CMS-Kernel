@@ -54,7 +54,7 @@
                 {include "modules/cms/public/blocks/media-gallery.block.disyl"}
                 {elseif entity.featured_image_url}
                 <div class="cms-entity-hero native-canonical-view__hero">
-                    <img src="{entity.featured_image_url}" alt="{entity.title}">
+                    <img src="{entity.featured_image_url}" alt="{entity.title}" data-cms-lightbox="true">
                 </div>
                 {/if}
             {/if}
@@ -64,7 +64,7 @@
                 {include "modules/cms/public/blocks/media-gallery.block.disyl"}
                 {elseif entity.featured_image_url}
                 <div class="cms-entity-hero native-canonical-view__hero">
-                    <img src="{entity.featured_image_url}" alt="{entity.title}">
+                    <img src="{entity.featured_image_url}" alt="{entity.title}" data-cms-lightbox="true">
                 </div>
                 {/if}
             {/if}

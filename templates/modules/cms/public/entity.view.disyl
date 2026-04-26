@@ -59,6 +59,7 @@
             {elseif entity.featured_image_url}
             <div class="cms-entity-hero mb-8">
                 <img class="w-full max-h-[420px] object-cover rounded-xl"
+                     data-cms-lightbox="true"
                      src="{entity.featured_image_url}"
                      alt="{entity.title}">
             </div>
@@ -72,6 +73,7 @@
             {elseif entity.featured_image_url}
             <div class="cms-entity-hero mb-8">
                 <img class="w-full max-h-[420px] object-cover rounded-xl"
+                     data-cms-lightbox="true"
                      src="{entity.featured_image_url}"
                      alt="{entity.title}">
             </div>
