@@ -191,7 +191,7 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
         $dlStmt = $db->prepare(
             "SELECT id, username, password_hash, full_name, 'admin' AS role
              FROM dl_admins
-             WHERE username = :username AND is_active = 1
+             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
              LIMIT 1"
         );
         $dlStmt->execute([':username' => $username]);
@@ -215,7 +215,7 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
         $dlStmt = $db->prepare(
             "SELECT id, username, password_hash, full_name, 'cashier' AS role
              FROM dl_cashiers
-             WHERE username = :username AND is_active = 1
+             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
              LIMIT 1"
         );
         $dlStmt->execute([':username' => $username]);
@@ -240,7 +240,7 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
         $dlStmt = $db->prepare(
             "SELECT id, username, password_hash, full_name, 'supervisor' AS role
              FROM dl_supervisors
-             WHERE username = :username AND is_active = 1
+             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
              LIMIT 1"
         );
         $dlStmt->execute([':username' => $username]);
@@ -264,7 +264,7 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
         $dlStmt = $db->prepare(
             "SELECT id, username, password_hash, full_name, 'production_in_charge' AS role
              FROM dl_production_incharges
-             WHERE username = :username AND is_active = 1
+             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
              LIMIT 1"
         );
         $dlStmt->execute([':username' => $username]);
