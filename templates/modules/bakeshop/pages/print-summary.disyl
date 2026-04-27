@@ -1,0 +1,115 @@
+{extends "modules/bakeshop/layouts/print.disyl"}
+
+{block head}
+<style>
+    .bakeshop-print { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
+    .bakeshop-print h2 { margin: 0; }
+    .bakeshop-print p { color: var(--text-muted); margin: 0; }
+    .bakeshop-print-meta { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    .bakeshop-print-meta div { border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; background: #fff; }
+    .bakeshop-print-meta p { margin-top: 6px; }
+    .bakeshop-print-note { padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 12px; background: #fff; color: var(--text-muted); line-height: 1.55; }
+    .bakeshop-print-section { border: 1px solid var(--border-color); border-radius: 14px; background: #fff; overflow: hidden; }
+    .bakeshop-print-section-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--border-color); display: grid; gap: 4px; }
+    .bakeshop-print-section-head h3 { margin: 0; }
+    .bakeshop-print-table-wrap { overflow: auto; }
+    .bakeshop-print table { width: 100%; border-collapse: collapse; }
+    .bakeshop-print th,
+    .bakeshop-print td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+    .bakeshop-print th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: #fffaf2; }
+    .bakeshop-print tbody tr:last-child td { border-bottom: 1px solid var(--border-color); }
+    .bakeshop-print tfoot td { font-weight: 700; background: #fffaf2; }
+    .bakeshop-print-ingredient strong { display: block; }
+    .bakeshop-print-ingredient span { color: var(--text-muted); font-size: 0.84rem; }
+    .bakeshop-empty { padding: 18px; border: 1px dashed var(--border-color); border-radius: 12px; color: var(--text-muted); background: #fff; }
+    @media print {
+        .bakeshop-print { max-width: none; }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="bakeshop-print">
+    <h2>{page_title}</h2>
+    <p>Per-store ingredient balance summary showing opening stock, delivery source, delivery totals, production usage, and remaining balance.</p>
+
+    <div class="bakeshop-print-meta">
+        <div>
+            <strong>Branch</strong>
+            <p>{if branch_label}{branch_label}{else}All branches{/if}</p>
+        </div>
+        <div>
+            <strong>From</strong>
+            <p>{if filters.from_date}{filters.from_date}{else}Start of data{/if}</p>
+        </div>
+        <div>
+            <strong>To</strong>
+            <p>{if filters.to_date}{filters.to_date}{else}Latest entry{/if}</p>
+        </div>
+        <div>
+            <strong>Output</strong>
+            <p>{usage_decimal_places} decimal place(s), {print_template} template</p>
+        </div>
+    </div>
+
+    <div class="bakeshop-print-note">
+        Beginning balance reflects stock before the selected From date. Delivery Source summarizes deliveries recorded inside the selected period. Usage is taken from production runs through the recipe quantities consumed for each ingredient.
+    </div>
+
+    {if summary_groups}
+    {each summary_groups as group}
+    <section class="bakeshop-print-section">
+        <div class="bakeshop-print-section-head">
+            <h3>{group.branch_label}</h3>
+            <p>Ingredient movement summary for this branch.</p>
+        </div>
+        <div class="bakeshop-print-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ingredient</th>
+                        <th>Unit</th>
+                        <th>Beginning Balance</th>
+                        <th>Delivery Source</th>
+                        <th>Total Delivery</th>
+                        <th>Usage</th>
+                        <th>Remaining Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {each group.rows as row}
+                    <tr>
+                        <td class="bakeshop-print-ingredient">
+                            <strong>{row.ingredient_name}</strong>
+                            <span>{row.dimension}</span>
+                        </td>
+                        <td>{row.unit_code}</td>
+                        <td>{row.beginning_balance}</td>
+                        <td>{row.supplier_label}</td>
+                        <td>{row.total_delivery}</td>
+                        <td>{row.total_usage}</td>
+                        <td>{row.remaining_balance}</td>
+                    </tr>
+                    {/each}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2">Branch Totals</td>
+                        <td>{group.totals.beginning_balance}</td>
+                        <td>—</td>
+                        <td>{group.totals.total_delivery}</td>
+                        <td>{group.totals.total_usage}</td>
+                        <td>{group.totals.remaining_balance}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+    {/each}
+    {else}
+    <div class="bakeshop-empty">
+        No delivery or production activity matched the selected branch and date filters.
+    </div>
+    {/if}
+</div>
+{/block}

@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title | default:'Bakeshop Operations'}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --page-bg: linear-gradient(180deg, #eef5ff 0%, #e0ecff 48%, #d6e6ff 100%);
+            --surface-color: rgba(248, 251, 255, 0.98);
+            --surface-strong: #ffffff;
+            --surface-soft: #edf4ff;
+            --border-color: #c8d7f2;
+            --sidebar-bg: linear-gradient(180deg, #153b7a 0%, #0f2851 100%);
+            --sidebar-border: rgba(255, 255, 255, 0.08);
+            --sidebar-text: rgba(239, 246, 255, 0.84);
+            --sidebar-text-strong: #f8fbff;
+            --accent: #2563eb;
+            --accent-strong: #1d4ed8;
+            --accent-soft: rgba(37, 99, 235, 0.14);
+            --text-color: #111827;
+            --text-muted: #374151;
+            --shadow-lg: 0 24px 60px rgba(30, 64, 175, 0.12);
+            --shadow-sm: 0 12px 26px rgba(30, 64, 175, 0.08);
+            --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-size-h2: clamp(1.6rem, 2vw, 2rem);
+            --radius-card: 14px;
+            --radius-control: 10px;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; }
+        body {
+            font-family: var(--font-body);
+            color: var(--text-color);
+            background: var(--page-bg);
+        }
+
+        a { color: inherit; }
+        button, input, select, textarea { font: inherit; }
+
+        .bakeshop-admin-shell {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: minmax(238px, 272px) minmax(0, 1fr);
+        }
+
+        .sidebar {
+            background: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            padding: 24px 18px 20px;
+            display: grid;
+            gap: 22px;
+            align-content: start;
+            border-right: 1px solid var(--sidebar-border);
+            position: sticky;
+            top: 0;
+            min-height: 100vh;
+        }
+
+        .bakeshop-brand {
+            display: grid;
+            gap: 10px;
+            padding: 6px 10px 0;
+        }
+
+        .bakeshop-brand-mark {
+            width: 52px;
+            height: 52px;
+            border-radius: var(--radius-card);
+            background: linear-gradient(145deg, rgba(96, 165, 250, 0.24), rgba(37, 99, 235, 0.38));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-body);
+            font-weight: 800;
+            font-size: 1.45rem;
+            color: var(--sidebar-text-strong);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .bakeshop-brand h1 {
+            margin: 0;
+            font-size: 1.45rem;
+            font-weight: 800;
+            line-height: 1.05;
+            color: var(--sidebar-text-strong);
+        }
+
+        .bakeshop-brand p {
+            margin: 0;
+            font-size: 0.92rem;
+            line-height: 1.55;
+        }
+
+        .bakeshop-nav {
+            display: grid;
+            gap: 14px;
+        }
+
+        .bakeshop-nav-group {
+            display: grid;
+            gap: 8px;
+        }
+
+        .bakeshop-nav-label {
+            padding: 0 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255, 247, 237, 0.5);
+        }
+
+        .bakeshop-nav a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-radius: var(--radius-control);
+            padding: 13px 14px;
+            text-decoration: none;
+            color: var(--sidebar-text);
+            border: 1px solid transparent;
+            background: transparent;
+            transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+        }
+
+        .bakeshop-nav a:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.07);
+            transform: translateX(1px);
+        }
+
+        .bakeshop-nav a.active {
+            background: linear-gradient(145deg, rgba(96, 165, 250, 0.2), rgba(37, 99, 235, 0.22));
+            border-color: rgba(147, 197, 253, 0.24);
+            color: var(--sidebar-text-strong);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .bakeshop-nav-title {
+            display: grid;
+            gap: 2px;
+        }
+
+        .bakeshop-nav-title strong {
+            font-size: 0.93rem;
+            font-weight: 600;
+            color: inherit;
+        }
+
+        .bakeshop-nav-title span {
+            font-size: 0.79rem;
+            color: inherit;
+            opacity: 0.82;
+        }
+
+        .bakeshop-sidebar-card {
+            margin-top: auto;
+            border-radius: var(--radius-card);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 16px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .bakeshop-sidebar-card h2 {
+            margin: 0;
+            font-size: 0.98rem;
+            color: var(--sidebar-text-strong);
+        }
+
+        .bakeshop-sidebar-card p {
+            margin: 0;
+            font-size: 0.84rem;
+            line-height: 1.55;
+        }
+
+        .bakeshop-main {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 22px 28px 16px;
+        }
+
+        .bakeshop-title-stack {
+            display: grid;
+            gap: 6px;
+        }
+
+        .bakeshop-kicker {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--accent-strong);
+        }
+
+        .bakeshop-title-stack h2 {
+            margin: 0;
+            font-size: clamp(1.5rem, 2.2vw, 2.2rem);
+            font-weight: 800;
+            line-height: 1.05;
+        }
+
+        .bakeshop-title-stack p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.92rem;
+        }
+
+        .bakeshop-user-card {
+            border-radius: var(--radius-card);
+            padding: 14px 16px;
+            background: rgba(255, 252, 247, 0.82);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+            display: grid;
+            gap: 4px;
+            min-width: 220px;
+        }
+
+        .bakeshop-user-card strong { font-size: 0.96rem; }
+        .bakeshop-user-card span,
+        .bakeshop-user-card small { color: var(--text-muted); }
+        .bakeshop-user-role {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 4px 9px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .bakeshop-content {
+            padding: 0 28px 28px;
+        }
+
+        .bakeshop-content-inner {
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(200, 215, 242, 0.85);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: var(--shadow-lg);
+            backdrop-filter: blur(7px);
+        }
+
+        .bakeshop-shell-note {
+            margin-top: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 8px 12px;
+            background: rgba(219, 234, 254, 0.12);
+            border: 1px solid rgba(219, 234, 254, 0.16);
+            color: var(--sidebar-text-strong);
+            font-size: 0.8rem;
+        }
+
+        .bakeshop-sidebar-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 2px;
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #111827;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .bakeshop-sidebar-inline-form {
+            margin: 0;
+        }
+
+        .bakeshop-sidebar-link:hover {
+            background: #f9fafb;
+        }
+
+        @media (max-width: 980px) {
+            .bakeshop-admin-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+                min-height: auto;
+            }
+
+            .topbar {
+                padding-top: 18px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .bakeshop-user-card {
+                width: 100%;
+                min-width: 0;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .topbar,
+            .bakeshop-content {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+
+            .bakeshop-content-inner {
+                padding: 16px;
+                border-radius: 16px;
+            }
+        }
+    </style>
+    {block head}{/block}
+</head>
+<body>
+    <div class="bakeshop-admin-shell">
+        <aside class="sidebar">
+            <div class="bakeshop-brand">
+                <div class="bakeshop-brand-mark">J</div>
+                <div>
+                    <h1>Julie's Bakeshop</h1>
+                    <p>Production, deliveries, recipes, staff access, and daily reporting inside the bakeshop module.</p>
+                </div>
+            </div>
+
+            <nav class="bakeshop-nav">
+                <div class="bakeshop-nav-group">
+                    <div class="bakeshop-nav-label">Daily Work</div>
+                    <a href="{base_url}/admin/bakeshop" class="{if current_page == 'dashboard'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Operations Dashboard</strong>
+                            <span>Branches, recipes, deliveries, and production</span>
+                        </span>
+                    </a>
+                    <a href="{base_url}/admin/bakeshop/branches" class="{if current_page == 'branches'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Branch Setup</strong>
+                            <span>Store locations and reporting branches</span>
+                        </span>
+                    </a>
+                    <a href="{base_url}/admin/bakeshop/catalog" class="{if current_page == 'catalog'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Products and Recipes</strong>
+                            <span>Catalog, ingredients, and recipe lines</span>
+                        </span>
+                    </a>
+                    <a href="{base_url}/admin/bakeshop/deliveries" class="{if current_page == 'deliveries'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Ingredient Deliveries</strong>
+                            <span>Incoming stock by branch</span>
+                        </span>
+                    </a>
+                    <a href="{base_url}/admin/bakeshop/production" class="{if current_page == 'production'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Production Runs</strong>
+                            <span>Finished goods and recipe output</span>
+                        </span>
+                    </a>
+                    <a href="{base_url}/admin/bakeshop/usage" class="{if current_page == 'usage'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Usage Summary</strong>
+                            <span>Delivered versus consumed ingredients</span>
+                        </span>
+                    </a>
+                </div>
+
+                <div class="bakeshop-nav-group">
+                    <div class="bakeshop-nav-label">Reports</div>
+                    <a href="{base_url}/admin/bakeshop/print" target="_blank" rel="noopener">
+                        <span class="bakeshop-nav-title">
+                            <strong>Print Summary</strong>
+                            <span>Open the clean branch usage report</span>
+                        </span>
+                    </a>
+                </div>
+
+                <div class="bakeshop-nav-group">
+                    <div class="bakeshop-nav-label">Administration</div>
+                    {if can_view_history}
+                    <a href="{base_url}/admin/bakeshop/history" class="{if current_page == 'history'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Activity History</strong>
+                            <span>Changes to staff, settings, and operations</span>
+                        </span>
+                    </a>
+                    {/if}
+                    {if can_manage_users}
+                    <a href="{base_url}/admin/bakeshop/users" class="{if current_page == 'users'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Staff</strong>
+                            <span>Admins, supervisors, onboarding</span>
+                        </span>
+                    </a>
+                    {/if}
+                    {if can_manage_settings}
+                    <a href="{base_url}/admin/bakeshop/settings" class="{if current_page == 'settings'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Settings</strong>
+                            <span>Access rules and module defaults</span>
+                        </span>
+                    </a>
+                    {/if}
+                </div>
+
+                <div class="bakeshop-nav-group">
+                    <div class="bakeshop-nav-label">Account</div>
+                    <a href="{base_url}/admin/bakeshop/account" class="{if current_page == 'account'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>My Account</strong>
+                            <span>Password and account details</span>
+                        </span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="bakeshop-sidebar-card">
+                <h2>Recommended Order</h2>
+                <p>Start with branches and recipes, then stay inside the operations dashboard for deliveries, production, and usage review.</p>
+                {if bootstrap_onboarding.required}
+                <div class="bakeshop-shell-note">Bootstrap admin handoff is still active.</div>
+                {/if}
+                <form class="bakeshop-sidebar-inline-form" method="post" action="{base_url}/bakeshop/logout">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+                    <button class="bakeshop-sidebar-link" type="submit">Sign Out</button>
+                </form>
+            </div>
+        </aside>
+
+        <div class="bakeshop-main">
+            <header class="topbar">
+                <div class="bakeshop-title-stack">
+                    <span class="bakeshop-kicker">Bakeshop Module</span>
+                    <h2>{page_title | default:'Bakeshop Operations'}</h2>
+                    <p>{page_intro | default:'Module-owned workspace UI. This shell no longer inherits the kernel admin navigation.'}</p>
+                </div>
+
+                <div class="bakeshop-user-card">
+                    <strong>{if user.full_name}{user.full_name}{elseif user.name}{user.name}{elseif user.username}{user.username}{else}Bakeshop User{/if}</strong>
+                    <span>{if user.email}{user.email}{else}@{user.username | default:'bakeshop'}{/if}</span>
+                    <span class="bakeshop-user-role">{user.role | default:'user'}</span>
+                </div>
+            </header>
+
+            <main class="bakeshop-content">
+                <div class="bakeshop-content-inner">
+                    {block content}{/block}
+                </div>
+            </main>
+        </div>
+    </div>
+    {block scripts}{/block}
+</body>
+</html>

@@ -125,6 +125,7 @@ switch ($command) {
         out('    ' . green('tenant:db:set') . ' <tenant_id> --host=.. --name=.. --user=.. [--port=3306] [--driver=mysql] [--charset=utf8mb4] [--pass=..]');
         out('    ' . green('tenant:db:check') . ' <tenant_id>    Show DB config + pass status');
         out('    ' . green('tenant:provision') . ' <tenant_id> [--skip-db-create] [--admin-user=..] [--admin-pass=..] [--admin-name=..]');
+        out('    ' . dim('  bakeshop entry tenants require --admin-user and --admin-pass so the module gets a real first admin.') );
         out('    ' . green('tenant:verify') . ' <tenant_id>      Health-check a tenant (DB, tables, isolation, admin user)');
         out('');
         out('  ' . bold('Modules'));
@@ -598,11 +599,19 @@ switch ($command) {
             }
 
             $tenantKey = (string)($tenant['tenant_key'] ?? '');
+            $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
             $dbHost = (string)($tenant['db_host'] ?? '');
             $dbPort = (string)($tenant['db_port'] ?? '3306');
             $dbName = (string)($tenant['db_name'] ?? '');
             $dbUser = (string)($tenant['db_user'] ?? '');
             $dbCharset = (string)($tenant['db_charset'] ?? 'utf8mb4');
+
+            if ($entryModule === 'bakeshop' && ($adminUser === '' || $adminPass === '')) {
+                out('  ' . red('✗ Bakeshop entry tenants require a named admin during provisioning.'));
+                out('  ' . dim('Re-run with: php ikabud tenant:provision ' . (string)$tenantId . ' --admin-user=... --admin-pass=... [--admin-name=...]'));
+                out('');
+                exit(1);
+            }
 
             if ($dbHost === '' || $dbName === '' || $dbUser === '') {
                 out('  ' . red('✗ No DB connection configured for tenant ' . (string)$tenantId . '.'));
@@ -661,7 +670,6 @@ switch ($command) {
             // 5. Run tenant-appropriate module migrations against the tenant database
             out('  Running migrations...');
             $runner = new MigrationRunner($tenantPdo);
-            $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
             $modulePlan = tenantProvisionModulePlan($entryModule !== '' ? $entryModule : null);
             $results = [];
             foreach ($modulePlan as $moduleId) {
@@ -694,7 +702,7 @@ switch ($command) {
                 }
             }
 
-            // 7. Seed admin user (if --admin-user provided and entry module is CMS)
+            // 7. Seed admin user when the entry module owns authentication.
             if ($adminUser !== '' && $adminPass !== '') {
                 out('');
                 out('  Seeding admin user...');
@@ -702,6 +710,8 @@ switch ($command) {
                 $usersTable = 'users';
                 if ($entryModule === 'cms') {
                     $usersTable = 'cms_users';
+                } elseif ($entryModule === 'bakeshop') {
+                    $usersTable = 'bakeshop_users';
                 }
 
                 // Check if users table exists
@@ -718,6 +728,17 @@ switch ($command) {
                             $insertStmt = $tenantPdo->prepare(
                                 "INSERT INTO `cms_users` (username, email, password_hash, display_name, role, is_active) "
                                 . "VALUES (:u, :e, :p, :n, 'administrator', 1)"
+                            );
+                            $insertStmt->execute([
+                                ':u' => $adminUser,
+                                ':e' => $adminUser . '@localhost',
+                                ':p' => $hash,
+                                ':n' => $adminName,
+                            ]);
+                        } elseif ($usersTable === 'bakeshop_users') {
+                            $insertStmt = $tenantPdo->prepare(
+                                "INSERT INTO `bakeshop_users` (username, email, password_hash, full_name, role, is_active) "
+                                . "VALUES (:u, :e, :p, :n, 'admin', 1)"
                             );
                             $insertStmt->execute([
                                 ':u' => $adminUser,

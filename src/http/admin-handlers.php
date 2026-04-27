@@ -684,6 +684,26 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                         $skipped[] = 'users';
                     }
                 }
+
+                // Update bakeshop_users table
+                try {
+                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+                    $r = $tDb->prepare("UPDATE bakeshop_users SET password_hash = :p, updated_at = NOW() WHERE role = :r AND is_active = 1");
+                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
+                    if ($r->rowCount() > 0) {
+                        $pushed[] = 'bakeshop_users';
+                    } else {
+                        $skipped[] = 'bakeshop_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminPasswordPush bakeshop_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'bakeshop_users';
+                }
             } else {
                 $skipped[] = 'tenant_db_not_configured';
             }

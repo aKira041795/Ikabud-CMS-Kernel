@@ -17,6 +17,7 @@ namespace Ikabud\Kernel;
 
 use Ikabud\Kernel\Capabilities\CapabilityBus;
 use Ikabud\Kernel\Capabilities\CapabilityRegistry;
+use Ikabud\Kernel\Database\KernelPDO;
 use Ikabud\Kernel\Database\MigrationRunner;
 use Ikabud\Kernel\EntityContext\ContextRegistry;
 use Ikabud\Kernel\EntityAuthority\EntityAuthorityRegistry;
@@ -179,21 +180,28 @@ class App
 
             $user = $this->user();
             $source = (string)($user['source'] ?? '');
-            // audit_logs.actor_user_id currently references users.id.
-            // CMS users live in cms_users, so keep actor null for non-kernel sources.
-            $actorId = ($user && $source !== 'cms') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
+            // audit_logs.actor_user_id currently references kernel users only.
+            $actorId = ($user && $source === 'kernel') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
             if ($actorId !== null && $actorId <= 0) {
                 $actorId = null;
             }
+            $actorModuleUserId = ($user && $source !== '' && $source !== 'kernel') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
+            if ($actorModuleUserId !== null && $actorModuleUserId <= 0) {
+                $actorModuleUserId = null;
+            }
+            $actorSource = $source !== '' ? $source : null;
 
             try {
+                KernelPDO::kernelEscalationEnter();
                 $stmt = $this->db()->prepare(
-                    'INSERT INTO audit_logs (module, actor_user_id, branch_id, action, entity_type, entity_id, old_data, new_data) '
-                    . 'VALUES (:module, :actor, :branch, :action, :etype, :eid, :old, :new)'
+                    'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
+                    . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
                 );
                 $stmt->execute([
                     ':module' => $module,
                     ':actor' => $actorId,
+                    ':actor_mod' => $actorModuleUserId,
+                    ':actor_src' => $actorSource,
                     ':branch' => $branchId,
                     ':action' => $action,
                     ':etype' => $entityType,
@@ -205,6 +213,8 @@ class App
                 // Best-effort: do not fail the request.
                 $this->log('Audit log write failed: ' . $e->getMessage(), 'error', ['module' => $module, 'action' => $action, 'reason' => $reason]);
                 return ['ok' => false];
+            } finally {
+                KernelPDO::kernelEscalationLeave();
             }
 
             return ['ok' => true];

@@ -1,0 +1,256 @@
+{extends "modules/bakeshop/layouts/app.disyl"}
+
+{block head}
+<style>
+    .bakeshop-settings-shell { display: grid; gap: 20px; }
+    .bakeshop-settings-header { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+    .bakeshop-settings-header h2 { margin: 0 0 6px; font-size: var(--font-size-h2); }
+    .bakeshop-settings-header p { margin: 0; color: var(--text-muted); max-width: 56rem; }
+    .bakeshop-settings-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .bakeshop-settings-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 2px;
+        border: 1px solid #d1d5db;
+        background: #ffffff;
+        color: #111827;
+        padding: 10px 16px;
+        text-decoration: none;
+        font-size: 0.92rem;
+        cursor: pointer;
+    }
+    .bakeshop-settings-button:hover { background: #f9fafb; }
+    .bakeshop-settings-button.secondary {
+        background: #fff;
+        color: #111827;
+        border-color: #d1d5db;
+    }
+    .bakeshop-settings-banner {
+        display: none;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid transparent;
+    }
+    .bakeshop-settings-banner.show { display: block; }
+    .bakeshop-settings-banner.ok { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .bakeshop-settings-banner.error { background: #fff3f2; border-color: #fecaca; color: #991b1b; }
+    .bakeshop-settings-panel {
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        background: var(--surface-color, #fff);
+        overflow: hidden;
+        box-shadow: 0 14px 32px rgba(37, 99, 235, 0.05);
+    }
+    .bakeshop-settings-panel-head {
+        padding: 18px 20px 12px;
+        border-bottom: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
+    }
+    .bakeshop-settings-panel-head h3 { margin: 0 0 6px; }
+    .bakeshop-settings-panel-head p { margin: 0; color: var(--text-muted); }
+    .bakeshop-settings-panel-body { padding: 18px 20px 20px; display: grid; gap: 16px; }
+    .bakeshop-settings-table { width: 100%; border-collapse: collapse; }
+    .bakeshop-settings-table th,
+    .bakeshop-settings-table td { padding: 12px 14px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: top; }
+    .bakeshop-settings-table th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-settings-table tr:last-child td { border-bottom: none; }
+    .bakeshop-settings-note { color: var(--text-muted); font-size: 0.88rem; }
+    .bakeshop-settings-actions-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .bakeshop-settings-check { width: 18px; height: 18px; }
+    .bakeshop-settings-table-wrap { overflow: auto; }
+    .bakeshop-settings-field-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .bakeshop-settings-field { display: grid; gap: 6px; }
+    .bakeshop-settings-field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-settings-field input,
+    .bakeshop-settings-field select { width: 100%; border-radius: 2px; border: 1px solid #d1d5db; padding: 11px 12px; background: #fff; color: #111827; }
+    @media (max-width: 760px) { .bakeshop-settings-field-grid { grid-template-columns: 1fr; } }
+</style>
+{/block}
+
+{block content}
+<div class="bakeshop-settings-shell">
+    <div class="bakeshop-settings-header">
+        <div>
+            <h2>{page_title}</h2>
+            <p>Access rules belong here instead of the day-to-day workspace. Use this page to decide whether supervisors can only read the module or also make changes.</p>
+        </div>
+        <div class="bakeshop-settings-actions">
+            <a class="bakeshop-settings-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
+            <a class="bakeshop-settings-button secondary" href="{base_url}/admin/bakeshop/account">My Account</a>
+        </div>
+    </div>
+
+    <div class="bakeshop-settings-banner" id="bakeshop-settings-banner"></div>
+
+    <section class="bakeshop-settings-panel">
+        <div class="bakeshop-settings-panel-head">
+            <h3>Access Settings</h3>
+            <p>Supervisor access is configurable here. Admin access remains fixed so this page cannot lock itself out of future settings changes.</p>
+        </div>
+        <div class="bakeshop-settings-panel-body">
+            <form id="permissions-form">
+                <table class="bakeshop-settings-table">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Read</th>
+                            <th>Manage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Admin</strong><div class="bakeshop-settings-note">Always enabled</div></td>
+                            <td><input class="bakeshop-settings-check" type="checkbox" checked disabled></td>
+                            <td><input class="bakeshop-settings-check" type="checkbox" checked disabled></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Supervisor</strong><div class="bakeshop-settings-note">Controls page read access and mutation access.</div></td>
+                            <td><input class="bakeshop-settings-check" type="checkbox" name="supervisor_read" value="1" {if permission_matrix.supervisor.read}checked{/if} {if !can_manage_settings}disabled{/if}></td>
+                            <td><input class="bakeshop-settings-check" type="checkbox" name="supervisor_manage" value="1" {if permission_matrix.supervisor.manage}checked{/if} {if !can_manage_settings}disabled{/if}></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="bakeshop-settings-actions-row" style="margin-top:16px;">
+                    <span class="bakeshop-settings-note">{if can_manage_settings}Changes apply to future bakeshop requests immediately after saving.{else}You have bakeshop read access only. Settings changes require bakeshop.manage.{/if}</span>
+                    {if can_manage_settings}
+                    <button class="bakeshop-settings-button" type="submit">Save Access Settings</button>
+                    {/if}
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="bakeshop-settings-panel">
+        <div class="bakeshop-settings-panel-head">
+            <h3>Usage and Print Defaults</h3>
+            <p>These defaults control how ingredient usage values are rounded in the workspace and in the printable summary.</p>
+        </div>
+        <div class="bakeshop-settings-panel-body">
+            <form id="display-settings-form">
+                <div class="bakeshop-settings-field-grid">
+                    <div class="bakeshop-settings-field">
+                        <label for="usage-decimal-places">Usage Decimal Places</label>
+                        <input id="usage-decimal-places" name="usage_decimal_places" type="number" min="0" max="4" step="1" value="{settings.usage_decimal_places}" {if !can_manage_settings}disabled{/if}>
+                    </div>
+                    <div class="bakeshop-settings-field">
+                        <label for="print-template">Print Template</label>
+                        <select id="print-template" name="print_template" {if !can_manage_settings}disabled{/if}>
+                            <option value="standard" {if settings.print_template == 'standard'}selected{/if}>Standard</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="bakeshop-settings-actions-row" style="margin-top:16px;">
+                    <span class="bakeshop-settings-note">Current output uses {settings.usage_decimal_places} decimal place(s) and the {settings.print_template} printable layout.</span>
+                    {if can_manage_settings}
+                    <button class="bakeshop-settings-button" type="submit">Save Usage and Print Defaults</button>
+                    {/if}
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="bakeshop-settings-panel">
+        <div class="bakeshop-settings-panel-head">
+            <h3>Seeded Units</h3>
+            <p>Global defaults for v1. These are the units available in recipe, ingredient, and delivery forms.</p>
+        </div>
+        <div class="bakeshop-settings-panel-body">
+            <div class="bakeshop-settings-table-wrap">
+                <table class="bakeshop-settings-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Dimension</th>
+                            <th>Factor To Base</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {each units as unit}
+                        <tr>
+                            <td>{unit.code}</td>
+                            <td>{unit.name}</td>
+                            <td>{unit.dimension}</td>
+                            <td>{unit.factor_to_base}</td>
+                        </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+(() => {
+    const csrfToken = '{csrf_token}';
+    const permissionForm = document.getElementById('permissions-form');
+    const displayForm = document.getElementById('display-settings-form');
+    const banner = document.getElementById('bakeshop-settings-banner');
+
+    function showBanner(message, ok = true) {
+        banner.textContent = message;
+        banner.className = 'bakeshop-settings-banner show ' + (ok ? 'ok' : 'error');
+    }
+
+    permissionForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = {
+            supervisor_read: permissionForm.querySelector('[name="supervisor_read"]')?.checked ? 1 : 0,
+            supervisor_manage: permissionForm.querySelector('[name="supervisor_manage"]')?.checked ? 1 : 0,
+        };
+
+        try {
+            const response = await fetch('{base_url}/api/v1/bakeshop/settings/permissions', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify(body)
+            });
+
+            const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
+            if (!response.ok || payload.ok === false) {
+                throw new Error(payload.error || 'Request failed');
+            }
+
+            showBanner(payload.data?.message || 'Access settings saved.');
+        } catch (error) {
+            showBanner(error.message || 'Unable to save access settings.', false);
+        }
+    });
+
+    displayForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = {
+            usage_decimal_places: displayForm.querySelector('[name="usage_decimal_places"]')?.value || '2',
+            print_template: displayForm.querySelector('[name="print_template"]')?.value || 'standard',
+        };
+
+        try {
+            const response = await fetch('{base_url}/api/v1/bakeshop/settings/display', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify(body)
+            });
+
+            const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
+            if (!response.ok || payload.ok === false) {
+                throw new Error(payload.error || 'Request failed');
+            }
+
+            showBanner('Usage and print defaults saved.');
+        } catch (error) {
+            showBanner(error.message || 'Unable to save usage and print defaults.', false);
+        }
+    });
+})();
+</script>
+{/block}

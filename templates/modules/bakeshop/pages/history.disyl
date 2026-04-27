@@ -1,0 +1,175 @@
+{extends "modules/bakeshop/layouts/app.disyl"}
+
+{block head}
+<style>
+    .bakeshop-history-shell { display: grid; gap: 20px; }
+    .bakeshop-history-header { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+    .bakeshop-history-header h2 { margin: 0 0 6px; font-size: var(--font-size-h2); }
+    .bakeshop-history-header p { margin: 0; color: var(--text-muted); max-width: 60rem; }
+    .bakeshop-history-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .bakeshop-history-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        background: #fff;
+        color: var(--text-color);
+        padding: 10px 16px;
+        text-decoration: none;
+        font-size: 0.92rem;
+    }
+    .bakeshop-history-link {
+        color: var(--accent-strong, #1d4ed8);
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .bakeshop-history-link:hover { text-decoration: underline; }
+    .bakeshop-history-panel {
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        background: var(--surface-color, #fff);
+        overflow: hidden;
+        box-shadow: 0 14px 32px rgba(37, 99, 235, 0.05);
+    }
+    .bakeshop-history-panel-head {
+        padding: 18px 20px 12px;
+        border-bottom: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
+    }
+    .bakeshop-history-panel-head h3 { margin: 0 0 6px; }
+    .bakeshop-history-panel-head p { margin: 0; color: var(--text-muted); }
+    .bakeshop-history-panel-body { padding: 18px 20px 20px; display: grid; gap: 16px; }
+    .bakeshop-history-filters { display: grid; gap: 14px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .bakeshop-history-field { display: grid; gap: 6px; }
+    .bakeshop-history-field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-history-field input,
+    .bakeshop-history-field select { width: 100%; border-radius: 12px; border: 1px solid var(--border-color); padding: 11px 12px; background: #fff; }
+    .bakeshop-history-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--text-muted); font-size: 0.9rem; }
+    .bakeshop-history-table-wrap { overflow: auto; }
+    .bakeshop-history-table { width: 100%; border-collapse: collapse; }
+    .bakeshop-history-table th,
+    .bakeshop-history-table td { padding: 13px 14px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: top; }
+    .bakeshop-history-table th { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-history-table tr:last-child td { border-bottom: none; }
+    .bakeshop-history-meta { color: var(--text-muted); font-size: 0.84rem; line-height: 1.5; }
+    .bakeshop-history-empty { padding: 18px; border-radius: 12px; background: #f8fafc; color: var(--text-muted); }
+    .bakeshop-history-pager { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+    @media (max-width: 980px) { .bakeshop-history-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 680px) { .bakeshop-history-filters { grid-template-columns: 1fr; } }
+</style>
+{/block}
+
+{block content}
+<div class="bakeshop-history-shell">
+    <div class="bakeshop-history-header">
+        <div>
+            <h2>{page_title}</h2>
+            <p>Review the latest bakeshop changes without leaving the module. This history is limited to staff, settings, delivery, production, and catalog actions recorded for this tenant.</p>
+        </div>
+        <div class="bakeshop-history-actions">
+            <a class="bakeshop-history-button" href="{base_url}/admin/bakeshop">Back to Workspace</a>
+            <a class="bakeshop-history-button" href="{base_url}/admin/bakeshop/settings">Settings</a>
+        </div>
+    </div>
+
+    <section class="bakeshop-history-panel">
+        <div class="bakeshop-history-panel-head">
+            <h3>Filter Activity</h3>
+            <p>Use branch, date, or search text to narrow the log to the exact change you need to review.</p>
+        </div>
+        <div class="bakeshop-history-panel-body">
+            <form method="get" action="{base_url}/admin/bakeshop/history" class="bakeshop-history-filters">
+                <div class="bakeshop-history-field">
+                    <label for="history-branch">Branch</label>
+                    <select id="history-branch" name="branch_id">
+                        <option value="">All branches</option>
+                        {foreach history_branches as branch}
+                        <option value="{branch.id}" {if history_filters.branch_id == branch.id}selected{/if}>{branch.code} - {branch.name}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div class="bakeshop-history-field">
+                    <label for="history-date-from">Date From</label>
+                    <input id="history-date-from" name="date_from" type="date" value="{history_filters.date_from | default:''}">
+                </div>
+                <div class="bakeshop-history-field">
+                    <label for="history-date-to">Date To</label>
+                    <input id="history-date-to" name="date_to" type="date" value="{history_filters.date_to | default:''}">
+                </div>
+                <div class="bakeshop-history-field">
+                    <label for="history-search">Search</label>
+                    <input id="history-search" name="search" value="{history_filters.search | default:''}" placeholder="Action, table, or record id">
+                </div>
+                <div class="bakeshop-history-field">
+                    <label for="history-limit">Rows</label>
+                    <select id="history-limit" name="limit">
+                        <option value="25" {if history_filters.limit == 25}selected{/if}>25</option>
+                        <option value="50" {if history_filters.limit == 50}selected{/if}>50</option>
+                        <option value="100" {if history_filters.limit == 100}selected{/if}>100</option>
+                    </select>
+                </div>
+                <input type="hidden" name="offset" value="0">
+                <div class="bakeshop-history-actions" style="grid-column: 1 / -1;">
+                    <button class="bakeshop-history-button" type="submit">Apply Filters</button>
+                    <a class="bakeshop-history-button" href="{base_url}/admin/bakeshop/history">Reset</a>
+                </div>
+            </form>
+
+            <div class="bakeshop-history-summary">
+                <span>Showing {entries | count} of {history_total} recorded event(s).</span>
+                <span>Older entries stay available through the filters and pager below.</span>
+            </div>
+
+            {if entries | count == 0}
+            <div class="bakeshop-history-empty">No bakeshop activity matched the current filters.</div>
+            {else}
+            <div class="bakeshop-history-table-wrap">
+                <table class="bakeshop-history-table">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Activity</th>
+                            <th>Branch</th>
+                            <th>Actor</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach entries as entry}
+                        <tr>
+                            <td>
+                                <strong>{entry.created_at}</strong>
+                                <div class="bakeshop-history-meta">
+                                    {if entry.entity_url}<a class="bakeshop-history-link" href="{base_url}{entry.entity_url}">{entry.entity_label}</a>{else}{entry.entity_label}{/if}
+                                </div>
+                            </td>
+                            <td>
+                                <strong>{entry.action_label}</strong>
+                                <div class="bakeshop-history-meta">{entry.action}</div>
+                            </td>
+                            <td>{if entry.branch_url}<a class="bakeshop-history-link" href="{base_url}{entry.branch_url}">{entry.branch_label}</a>{else}{entry.branch_label}{/if}</td>
+                            <td>{if entry.actor_url}<a class="bakeshop-history-link" href="{base_url}{entry.actor_url}">{entry.actor_label}</a>{else}{entry.actor_label}{/if}</td>
+                            <td>
+                                <div>{entry.summary}</div>
+                                <div class="bakeshop-history-meta">{entry.entity_type | default:'audit_logs'} / {entry.entity_id | default:'n/a'}</div>
+                            </td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+            {/if}
+
+            <div class="bakeshop-history-pager">
+                {if history_previous_url}
+                <a class="bakeshop-history-button" href="{base_url}{history_previous_url}">Newer Entries</a>
+                {/if}
+                {if history_next_url}
+                <a class="bakeshop-history-button" href="{base_url}{history_next_url}">Older Entries</a>
+                {/if}
+            </div>
+        </div>
+    </section>
+</div>
+{/block}
