@@ -237,7 +237,11 @@ class TenantProvisioner
 
     private function seedAdminUser(PDO $tenantPdo, string $user, string $pass, string $name, string $entryModule): void
     {
-        $table = ($entryModule === 'cms') ? 'cms_users' : 'users';
+        $table = match ($entryModule) {
+            'cms' => 'cms_users',
+            'bakeshop' => 'bakeshop_users',
+            default => 'users',
+        };
 
         try {
             $tableCheck = $tenantPdo->query("SHOW TABLES LIKE '{$table}'")->fetchColumn();
@@ -258,6 +262,12 @@ class TenantProvisioner
                 $stmt = $tenantPdo->prepare(
                     "INSERT INTO `cms_users` (username, email, password_hash, display_name, role, is_active) "
                     . "VALUES (:u, :e, :p, :n, 'administrator', 1)"
+                );
+                $stmt->execute([':u' => $user, ':e' => $user . '@localhost', ':p' => $hash, ':n' => $name]);
+            } elseif ($table === 'bakeshop_users') {
+                $stmt = $tenantPdo->prepare(
+                    "INSERT INTO `bakeshop_users` (username, email, password_hash, full_name, role, is_active) "
+                    . "VALUES (:u, :e, :p, :n, 'admin', 1)"
                 );
                 $stmt->execute([':u' => $user, ':e' => $user . '@localhost', ':p' => $hash, ':n' => $name]);
             } else {

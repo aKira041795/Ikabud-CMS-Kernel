@@ -101,8 +101,14 @@ function dl_getUserBranchId(): ?int
         return $row ? (int)$row['id'] : null;
     }
 
-    // Cashier: locked to assigned branch
-    $stmt = $ctx->db()->prepare('SELECT branch_id FROM dl_cashiers WHERE id = :id AND is_active = 1 LIMIT 1');
+    // Cashier: locked to assigned branch (single row in dl_user_branches)
+    $stmt = $ctx->db()->prepare(
+        'SELECT ub.branch_id
+         FROM dl_user_branches ub
+         INNER JOIN dl_users u ON u.id = ub.user_id
+         WHERE ub.user_id = :id AND u.is_active = 1 AND u.deleted_at IS NULL
+         LIMIT 1'
+    );
     $stmt->execute([':id' => $userId]);
     $bid = (int)($stmt->fetchColumn() ?: 0);
     return $bid > 0 ? $bid : null;
@@ -574,9 +580,9 @@ function dl_accessibleBranchIds(array $user): array
         }
         $stmt = $ctx->db()->prepare(
             'SELECT b.id
-             FROM dl_supervisor_branches sb
-             INNER JOIN dl_branches b ON b.id = sb.branch_id
-             WHERE sb.supervisor_id = :sid AND b.is_active = 1
+             FROM dl_user_branches ub
+             INNER JOIN dl_branches b ON b.id = ub.branch_id
+             WHERE ub.user_id = :sid AND b.is_active = 1
              ORDER BY b.id'
         );
         $stmt->execute([':sid' => $sid]);
@@ -590,9 +596,9 @@ function dl_accessibleBranchIds(array $user): array
         }
         $stmt = $ctx->db()->prepare(
             'SELECT b.id
-             FROM dl_production_incharge_branches pb
-             INNER JOIN dl_branches b ON b.id = pb.branch_id
-             WHERE pb.production_incharge_id = :pid AND b.is_active = 1
+             FROM dl_user_branches ub
+             INNER JOIN dl_branches b ON b.id = ub.branch_id
+             WHERE ub.user_id = :pid AND b.is_active = 1
              ORDER BY b.id'
         );
         $stmt->execute([':pid' => $pid]);
@@ -2768,13 +2774,11 @@ function handleAdminVariances(array $params = []): void
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $sql = 'SELECT vf.*, p.name AS product_name, b.name AS branch_name,
-                   COALESCE(s.full_name, c.full_name, a.full_name, \'Unknown\') AS reviewer_name
+                   COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name
             FROM dl_variance_flags vf
             INNER JOIN dl_products p ON p.id = vf.product_id
             INNER JOIN dl_branches b ON b.id = vf.branch_id
-            LEFT JOIN dl_supervisors s ON s.id = vf.reviewed_by
-            LEFT JOIN dl_cashiers c ON c.id = vf.reviewed_by
-            LEFT JOIN dl_admins a ON a.id = vf.reviewed_by
+            LEFT JOIN dl_users reviewer ON reviewer.id = vf.reviewed_by
             WHERE 1=1';
     $bind = [];
 
@@ -2954,28 +2958,19 @@ function apiUpdateVarianceStatus(array $params = []): void
         }
     }
 
-    // reviewed_by is intended to store the actor id.
+    // reviewed_by stores the actor id.
     // Prefer daily-ledger user ids when the request is coming from the daily-ledger auth source.
     // If the actor is kernel admin (opt-in allowed), store kernel users.id.
     $reviewedBy = null;
     if ($reviewerId > 0) {
         if (($user['source'] ?? '') === 'daily-ledger') {
-            $role = (string)($user['role'] ?? '');
-            if ($role === 'supervisor') {
-                $st = $ctx->db()->prepare('SELECT id FROM dl_supervisors WHERE id = :id LIMIT 1');
-                $st->execute([':id' => $reviewerId]);
-                $exists = (int)($st->fetchColumn() ?: 0);
-                if ($exists > 0) $reviewedBy = $reviewerId;
-            } elseif ($role === 'cashier') {
-                $st = $ctx->db()->prepare('SELECT id FROM dl_cashiers WHERE id = :id LIMIT 1');
-                $st->execute([':id' => $reviewerId]);
-                $exists = (int)($st->fetchColumn() ?: 0);
-                if ($exists > 0) $reviewedBy = $reviewerId;
-            } elseif ($role === 'admin') {
-                $st = $ctx->db()->prepare('SELECT id FROM dl_admins WHERE id = :id LIMIT 1');
-                $st->execute([':id' => $reviewerId]);
-                $exists = (int)($st->fetchColumn() ?: 0);
-                if ($exists > 0) $reviewedBy = $reviewerId;
+            $st = $ctx->db()->prepare(
+                'SELECT id FROM dl_users WHERE id = :id AND deleted_at IS NULL LIMIT 1'
+            );
+            $st->execute([':id' => $reviewerId]);
+            $exists = (int)($st->fetchColumn() ?: 0);
+            if ($exists > 0) {
+                $reviewedBy = $reviewerId;
             }
         } elseif (($user['source'] ?? '') === 'kernel') {
             $reviewedBy = $reviewerId;
@@ -3228,7 +3223,7 @@ function handleAdminBranches(array $params = []): void
     $search = trim((string)($input['q'] ?? ''));
 
     $sql = 'SELECT b.*,
-                (SELECT COUNT(*) FROM dl_cashiers c WHERE c.branch_id = b.id) AS user_count,
+                (SELECT COUNT(*) FROM dl_user_branches ub INNER JOIN dl_users u ON u.id = ub.user_id WHERE ub.branch_id = b.id AND u.role = \'cashier\' AND u.is_active = 1 AND u.deleted_at IS NULL) AS user_count,
                 (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.branch_id = b.id AND bp.is_active = 1) AS product_count
             FROM dl_branches b WHERE 1=1';
     $bind = [];
@@ -3361,122 +3356,51 @@ function handleAdminUsers(array $params = []): void
         $tab = 'active';
     }
 
-    $statusSqlFor = static function (string $table) use ($tab): string {
-        if ($tab === 'active') {
-            return " AND {$table}.deleted_at IS NULL AND {$table}.is_active = 1";
-        }
-        if ($tab === 'inactive') {
-            return " AND {$table}.deleted_at IS NULL AND {$table}.is_active = 0";
-        }
-
-        return " AND {$table}.deleted_at IS NOT NULL";
+    $statusSql = match ($tab) {
+        'inactive' => ' AND u.deleted_at IS NULL AND u.is_active = 0',
+        'deleted' => ' AND u.deleted_at IS NOT NULL',
+        default => ' AND u.deleted_at IS NULL AND u.is_active = 1',
     };
 
-    $users = [];
-
-    $cashierSql = "SELECT dl_cashiers.id, dl_cashiers.username, dl_cashiers.full_name, 'cashier' AS role,
-            dl_cashiers.is_active, dl_cashiers.deleted_at, dl_cashiers.branch_id,
-            dl_branches.name AS branch_names,
-            CAST(dl_cashiers.branch_id AS CHAR) AS branch_ids_csv
-        FROM dl_cashiers
-        LEFT JOIN dl_branches ON dl_branches.id = dl_cashiers.branch_id
-        WHERE 1=1" . $statusSqlFor('dl_cashiers');
-    $cashierBind = [];
+    $sql = "SELECT u.id, u.username, u.full_name, u.role,
+                   u.is_active, u.deleted_at,
+                   CASE WHEN u.role = 'cashier'
+                        THEN (SELECT MIN(ub.branch_id) FROM dl_user_branches ub WHERE ub.user_id = u.id)
+                        ELSE NULL END AS branch_id,
+                   (SELECT GROUP_CONCAT(b.name ORDER BY b.name SEPARATOR ', ')
+                      FROM dl_user_branches ub
+                      INNER JOIN dl_branches b ON b.id = ub.branch_id
+                      WHERE ub.user_id = u.id) AS branch_names,
+                   (SELECT GROUP_CONCAT(ub.branch_id ORDER BY ub.branch_id SEPARATOR ',')
+                      FROM dl_user_branches ub
+                      WHERE ub.user_id = u.id) AS branch_ids_csv
+            FROM dl_users u
+            WHERE 1=1" . $statusSql;
+    $bind = [];
     if ($search !== '') {
-        $cashierSql .= ' AND (dl_cashiers.username LIKE :q OR dl_cashiers.full_name LIKE :q2 OR :role LIKE :q3)';
-        $cashierBind[':q'] = "%{$search}%";
-        $cashierBind[':q2'] = "%{$search}%";
-        $cashierBind[':q3'] = "%{$search}%";
-        $cashierBind[':role'] = 'cashier';
+        $sql .= ' AND (u.username LIKE :q OR u.full_name LIKE :q2 OR u.role LIKE :q3)';
+        $bind[':q'] = "%{$search}%";
+        $bind[':q2'] = "%{$search}%";
+        $bind[':q3'] = "%{$search}%";
     }
-    $stmt = $ctx->db()->prepare($cashierSql);
-    $stmt->execute($cashierBind);
-    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    $sql .= ' ORDER BY u.full_name';
+    $stmt = $ctx->db()->prepare($sql);
+    $stmt->execute($bind);
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $supervisorSql = "SELECT dl_supervisors.id, dl_supervisors.username, dl_supervisors.full_name, 'supervisor' AS role,
-            dl_supervisors.is_active, dl_supervisors.deleted_at,
-            NULL AS branch_id,
-            GROUP_CONCAT(dl_branches.name ORDER BY dl_branches.name SEPARATOR ', ') AS branch_names,
-            GROUP_CONCAT(dl_supervisor_branches.branch_id ORDER BY dl_supervisor_branches.branch_id SEPARATOR ',') AS branch_ids_csv
-        FROM dl_supervisors
-        LEFT JOIN dl_supervisor_branches ON dl_supervisor_branches.supervisor_id = dl_supervisors.id
-        LEFT JOIN dl_branches ON dl_branches.id = dl_supervisor_branches.branch_id
-        WHERE 1=1" . $statusSqlFor('dl_supervisors');
-    $supervisorBind = [];
-    if ($search !== '') {
-        $supervisorSql .= ' AND (dl_supervisors.username LIKE :q OR dl_supervisors.full_name LIKE :q2 OR :role LIKE :q3)';
-        $supervisorBind[':q'] = "%{$search}%";
-        $supervisorBind[':q2'] = "%{$search}%";
-        $supervisorBind[':q3'] = "%{$search}%";
-        $supervisorBind[':role'] = 'supervisor';
-    }
-    $supervisorSql .= ' GROUP BY dl_supervisors.id, dl_supervisors.username, dl_supervisors.full_name, dl_supervisors.is_active, dl_supervisors.deleted_at';
-    $stmt = $ctx->db()->prepare($supervisorSql);
-    $stmt->execute($supervisorBind);
-    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
-
-    $productionSql = "SELECT dl_production_incharges.id, dl_production_incharges.username, dl_production_incharges.full_name, 'production_in_charge' AS role,
-            dl_production_incharges.is_active, dl_production_incharges.deleted_at,
-            NULL AS branch_id,
-            GROUP_CONCAT(dl_branches.name ORDER BY dl_branches.name SEPARATOR ', ') AS branch_names,
-            GROUP_CONCAT(dl_production_incharge_branches.branch_id ORDER BY dl_production_incharge_branches.branch_id SEPARATOR ',') AS branch_ids_csv
-        FROM dl_production_incharges
-        LEFT JOIN dl_production_incharge_branches ON dl_production_incharge_branches.production_incharge_id = dl_production_incharges.id
-        LEFT JOIN dl_branches ON dl_branches.id = dl_production_incharge_branches.branch_id
-        WHERE 1=1" . $statusSqlFor('dl_production_incharges');
-    $productionBind = [];
-    if ($search !== '') {
-        $productionSql .= ' AND (dl_production_incharges.username LIKE :q OR dl_production_incharges.full_name LIKE :q2 OR :role LIKE :q3)';
-        $productionBind[':q'] = "%{$search}%";
-        $productionBind[':q2'] = "%{$search}%";
-        $productionBind[':q3'] = "%{$search}%";
-        $productionBind[':role'] = 'production_in_charge';
-    }
-    $productionSql .= ' GROUP BY dl_production_incharges.id, dl_production_incharges.username, dl_production_incharges.full_name, dl_production_incharges.is_active, dl_production_incharges.deleted_at';
-    $stmt = $ctx->db()->prepare($productionSql);
-    $stmt->execute($productionBind);
-    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
-
-    $adminSql = "SELECT dl_admins.id, dl_admins.username, dl_admins.full_name, 'admin' AS role,
-            dl_admins.is_active, dl_admins.deleted_at,
-            NULL AS branch_id,
-            NULL AS branch_names,
-            NULL AS branch_ids_csv
-        FROM dl_admins
-        WHERE 1=1" . $statusSqlFor('dl_admins');
-    $adminBind = [];
-    if ($search !== '') {
-        $adminSql .= ' AND (dl_admins.username LIKE :q OR dl_admins.full_name LIKE :q2 OR :role LIKE :q3)';
-        $adminBind[':q'] = "%{$search}%";
-        $adminBind[':q2'] = "%{$search}%";
-        $adminBind[':q3'] = "%{$search}%";
-        $adminBind[':role'] = 'admin';
-    }
-    $stmt = $ctx->db()->prepare($adminSql);
-    $stmt->execute($adminBind);
-    $users = array_merge($users, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
-
-    usort($users, static function (array $left, array $right): int {
-        return strcasecmp((string)($left['full_name'] ?? ''), (string)($right['full_name'] ?? ''));
-    });
-
-    // Per-tab counts for the tab badges.
+    // Per-tab counts for the tab badges (single query over dl_users).
+    $countRow = $ctx->db()->query(
+        "SELECT
+            SUM(CASE WHEN deleted_at IS NULL AND is_active = 1 THEN 1 ELSE 0 END) AS active_count,
+            SUM(CASE WHEN deleted_at IS NULL AND is_active = 0 THEN 1 ELSE 0 END) AS inactive_count,
+            SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_count
+         FROM dl_users"
+    )->fetch(PDO::FETCH_ASSOC) ?: [];
     $counts = [
-        'active_count' => 0,
-        'inactive_count' => 0,
-        'deleted_count' => 0,
+        'active_count' => (int)($countRow['active_count'] ?? 0),
+        'inactive_count' => (int)($countRow['inactive_count'] ?? 0),
+        'deleted_count' => (int)($countRow['deleted_count'] ?? 0),
     ];
-    foreach (['dl_cashiers', 'dl_supervisors', 'dl_production_incharges', 'dl_admins'] as $table) {
-        $countSql = "SELECT
-                SUM(CASE WHEN {$table}.deleted_at IS NULL AND {$table}.is_active = 1 THEN 1 ELSE 0 END) AS active_count,
-                SUM(CASE WHEN {$table}.deleted_at IS NULL AND {$table}.is_active = 0 THEN 1 ELSE 0 END) AS inactive_count,
-                SUM(CASE WHEN {$table}.deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_count
-            FROM {$table}";
-        $row = $ctx->db()->query($countSql)->fetch(PDO::FETCH_ASSOC) ?: [];
-        $counts['active_count'] += (int)($row['active_count'] ?? 0);
-        $counts['inactive_count'] += (int)($row['inactive_count'] ?? 0);
-        $counts['deleted_count'] += (int)($row['deleted_count'] ?? 0);
-    }
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -3552,35 +3476,23 @@ function apiCreateUser(array $params = []): void
 
     try {
         $hash = password_hash($password, PASSWORD_BCRYPT);
+
+        $ctx->db()->prepare(
+            'INSERT INTO dl_users (username, password_hash, full_name, role, is_active)
+             VALUES (:u, :p, :n, :r, 1)'
+        )->execute([':u' => $username, ':p' => $hash, ':n' => $fullName, ':r' => $role]);
+        $newUserId = (int)$ctx->db()->lastInsertId();
+
         if ($role === 'cashier') {
             $ctx->db()->prepare(
-                'INSERT INTO dl_cashiers (username, password_hash, full_name, branch_id, is_active) VALUES (:u, :p, :n, :bid, 1)'
-            )->execute([':u' => $username, ':p' => $hash, ':n' => $fullName, ':bid' => $branchId]);
-            $newUserId = (int)$ctx->db()->lastInsertId();
-        } elseif ($role === 'supervisor') {
-            $ctx->db()->prepare(
-                'INSERT INTO dl_supervisors (username, password_hash, full_name, is_active) VALUES (:u, :p, :n, 1)'
-            )->execute([':u' => $username, ':p' => $hash, ':n' => $fullName]);
-            $newUserId = (int)$ctx->db()->lastInsertId();
+                'INSERT IGNORE INTO dl_user_branches (user_id, branch_id) VALUES (:uid, :bid)'
+            )->execute([':uid' => $newUserId, ':bid' => $branchId]);
+        } elseif (in_array($role, ['supervisor', 'production_in_charge'], true)) {
             foreach ($branchIds as $bid) {
-                $ctx->db()->prepare('INSERT IGNORE INTO dl_supervisor_branches (supervisor_id, branch_id) VALUES (:sid, :bid)')
-                    ->execute([':sid' => $newUserId, ':bid' => $bid]);
+                $ctx->db()->prepare(
+                    'INSERT IGNORE INTO dl_user_branches (user_id, branch_id) VALUES (:uid, :bid)'
+                )->execute([':uid' => $newUserId, ':bid' => $bid]);
             }
-        } elseif ($role === 'production_in_charge') {
-            $ctx->db()->prepare(
-                'INSERT INTO dl_production_incharges (username, password_hash, full_name, is_active) VALUES (:u, :p, :n, 1)'
-            )->execute([':u' => $username, ':p' => $hash, ':n' => $fullName]);
-            $newUserId = (int)$ctx->db()->lastInsertId();
-            foreach ($branchIds as $bid) {
-                $ctx->db()->prepare('INSERT IGNORE INTO dl_production_incharge_branches (production_incharge_id, branch_id) VALUES (:pid, :bid)')
-                    ->execute([':pid' => $newUserId, ':bid' => $bid]);
-            }
-        } else {
-            // admin: store in dl_admins
-            $ctx->db()->prepare(
-                'INSERT INTO dl_admins (username, password_hash, full_name, is_active) VALUES (:u, :p, :n, 1)'
-            )->execute([':u' => $username, ':p' => $hash, ':n' => $fullName]);
-            $newUserId = (int)$ctx->db()->lastInsertId();
         }
 
         dl_auditLog('create_user', null, 'user', (string)$newUserId, null, [
@@ -3635,51 +3547,23 @@ function apiUpdateUser(array $params = []): void
             return;
         }
 
-        // Determine current role based on which table contains the ID.
-        // Role changes between cashier/supervisor/admin are not supported (different tables).
-        $isCashierRow = false;
-        $isSupervisorRow = false;
-        $rowDeletedAt = null;
-
-        $st = $ctx->db()->prepare('SELECT deleted_at FROM dl_cashiers WHERE id = :id');
+        $st = $ctx->db()->prepare('SELECT role, deleted_at FROM dl_users WHERE id = :id LIMIT 1');
         $st->execute([':id' => $editId]);
-        $val = $st->fetchColumn();
-        if ($val !== false) { $isCashierRow = true; $rowDeletedAt = $val; }
+        $existing = $st->fetch(PDO::FETCH_ASSOC);
 
-        $st = $ctx->db()->prepare('SELECT deleted_at FROM dl_supervisors WHERE id = :id');
-        $st->execute([':id' => $editId]);
-        $val = $st->fetchColumn();
-        if ($val !== false) { $isSupervisorRow = true; $rowDeletedAt = $val; }
-
-        $st = $ctx->db()->prepare('SELECT deleted_at FROM dl_admins WHERE id = :id');
-        $st->execute([':id' => $editId]);
-        $val = $st->fetchColumn();
-        $isAdminRow = $val !== false;
-        if ($isAdminRow) { $rowDeletedAt = $val; }
-
-        $st = $ctx->db()->prepare('SELECT deleted_at FROM dl_production_incharges WHERE id = :id');
-        $st->execute([':id' => $editId]);
-        $val = $st->fetchColumn();
-        $isProductionRow = $val !== false;
-        if ($isProductionRow) { $rowDeletedAt = $val; }
-
-        if (!$isCashierRow && !$isSupervisorRow && !$isAdminRow && !$isProductionRow) {
+        if (!is_array($existing)) {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'User not found', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'User not found'], 404);
             return;
         }
 
-        if ($rowDeletedAt !== null) {
+        if (!empty($existing['deleted_at'])) {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Restore the user before editing', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'User is deleted; restore first'], 409);
             return;
         }
 
-        $currentRole = $isCashierRow
-            ? 'cashier'
-            : ($isSupervisorRow
-                ? 'supervisor'
-                : ($isProductionRow ? 'production_in_charge' : 'admin'));
+        $currentRole = (string)($existing['role'] ?? '');
         if ($role !== $currentRole) {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Role changes require new account', 'type' => 'error']]));
             $ctx->json([
@@ -3709,58 +3593,27 @@ function apiUpdateUser(array $params = []): void
             return;
         }
 
+        $sql = 'UPDATE dl_users SET full_name = :name, is_active = :active';
         $bind = [':name' => $fullName, ':active' => $isActive, ':id' => $editId];
+        if ($password !== '') {
+            $sql .= ', password_hash = :pass';
+            $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
+        }
+        $sql .= ' WHERE id = :id';
+        $ctx->db()->prepare($sql)->execute($bind);
 
-        if ($role === 'cashier') {
-            $sql = 'UPDATE dl_cashiers SET full_name = :name, is_active = :active, branch_id = :bid';
-            $bind[':bid'] = $branchId;
-            if ($password !== '') {
-                $sql .= ', password_hash = :pass';
-                $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
-            }
-            $sql .= ' WHERE id = :id';
-            $ctx->db()->prepare($sql)->execute($bind);
-        } elseif ($role === 'supervisor') {
-            $sql = 'UPDATE dl_supervisors SET full_name = :name, is_active = :active';
-            if ($password !== '') {
-                $sql .= ', password_hash = :pass';
-                $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
-            }
-            $sql .= ' WHERE id = :id';
-            $ctx->db()->prepare($sql)->execute($bind);
+        if (in_array($role, ['cashier', 'supervisor', 'production_in_charge'], true)) {
+            // Reset branch assignments. Cashier has exactly one; the rest can have many.
+            $ctx->db()->prepare('DELETE FROM dl_user_branches WHERE user_id = :uid')->execute([':uid' => $editId]);
 
-            // supervisor branches
-            $ctx->db()->prepare('DELETE FROM dl_supervisor_branches WHERE supervisor_id = :sid')->execute([':sid' => $editId]);
-            foreach ($branchIds as $bid) {
-                $bid = (int) $bid;
+            $assignments = $role === 'cashier' ? [$branchId] : $branchIds;
+            foreach ($assignments as $bid) {
+                $bid = (int)$bid;
                 if ($bid <= 0) continue;
-                $ctx->db()->prepare('INSERT IGNORE INTO dl_supervisor_branches (supervisor_id, branch_id) VALUES (:sid, :bid)')
-                    ->execute([':sid' => $editId, ':bid' => $bid]);
+                $ctx->db()->prepare(
+                    'INSERT IGNORE INTO dl_user_branches (user_id, branch_id) VALUES (:uid, :bid)'
+                )->execute([':uid' => $editId, ':bid' => $bid]);
             }
-        } elseif ($role === 'production_in_charge') {
-            $sql = 'UPDATE dl_production_incharges SET full_name = :name, is_active = :active';
-            if ($password !== '') {
-                $sql .= ', password_hash = :pass';
-                $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
-            }
-            $sql .= ' WHERE id = :id';
-            $ctx->db()->prepare($sql)->execute($bind);
-
-            $ctx->db()->prepare('DELETE FROM dl_production_incharge_branches WHERE production_incharge_id = :pid')->execute([':pid' => $editId]);
-            foreach ($branchIds as $bid) {
-                $bid = (int) $bid;
-                if ($bid <= 0) continue;
-                $ctx->db()->prepare('INSERT IGNORE INTO dl_production_incharge_branches (production_incharge_id, branch_id) VALUES (:pid, :bid)')
-                    ->execute([':pid' => $editId, ':bid' => $bid]);
-            }
-        } else {
-            $sql = 'UPDATE dl_admins SET full_name = :name, is_active = :active';
-            if ($password !== '') {
-                $sql .= ', password_hash = :pass';
-                $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
-            }
-            $sql .= ' WHERE id = :id';
-            $ctx->db()->prepare($sql)->execute($bind);
         }
 
         dl_auditLog('update_user', null, 'user', (string)$editId, null, [
@@ -3809,19 +3662,12 @@ function apiDeleteUser(array $params = []): void
         return;
     }
 
-    $tableMap = [
-        'cashier'              => 'dl_cashiers',
-        'supervisor'           => 'dl_supervisors',
-        'production_in_charge' => 'dl_production_incharges',
-        'admin'                => 'dl_admins',
-    ];
-    $table = $tableMap[$role];
-
     try {
         $stmt = $ctx->db()->prepare(
-            "UPDATE {$table} SET deleted_at = CURRENT_TIMESTAMP, is_active = 0 WHERE id = :id AND deleted_at IS NULL"
+            'UPDATE dl_users SET deleted_at = CURRENT_TIMESTAMP, is_active = 0
+             WHERE id = :id AND role = :role AND deleted_at IS NULL'
         );
-        $stmt->execute([':id' => $userId]);
+        $stmt->execute([':id' => $userId, ':role' => $role]);
         if ($stmt->rowCount() === 0) {
             $ctx->json(['ok' => false, 'error' => 'User not found or already deleted'], 404);
             return;
@@ -3859,19 +3705,12 @@ function apiRestoreUser(array $params = []): void
         return;
     }
 
-    $tableMap = [
-        'cashier'              => 'dl_cashiers',
-        'supervisor'           => 'dl_supervisors',
-        'production_in_charge' => 'dl_production_incharges',
-        'admin'                => 'dl_admins',
-    ];
-    $table = $tableMap[$role];
-
     try {
         $stmt = $ctx->db()->prepare(
-            "UPDATE {$table} SET deleted_at = NULL WHERE id = :id AND deleted_at IS NOT NULL"
+            'UPDATE dl_users SET deleted_at = NULL
+             WHERE id = :id AND role = :role AND deleted_at IS NOT NULL'
         );
-        $stmt->execute([':id' => $userId]);
+        $stmt->execute([':id' => $userId, ':role' => $role]);
         if ($stmt->rowCount() === 0) {
             $ctx->json(['ok' => false, 'error' => 'User not found or not deleted'], 404);
             return;

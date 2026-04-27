@@ -47,6 +47,8 @@ if (!function_exists('kernelHandlePageLogin')) {
         ];
         if ($entryModuleId === 'wms' && function_exists('wmsLoginPageContext')) {
             $loginContext = wmsLoginPageContext();
+        } elseif ($entryModuleId === 'bakeshop' && function_exists('bakeshopLoginPageContext')) {
+            $loginContext = bakeshopLoginPageContext();
         }
         $ctxBuildMs = round((microtime(true) - $ctxBuildStart) * 1000, 2);
 
