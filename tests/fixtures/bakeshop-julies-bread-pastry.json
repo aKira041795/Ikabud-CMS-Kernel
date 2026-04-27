@@ -1,0 +1,2724 @@
+{
+    "meta": {
+        "source": {
+            "host": "127.0.0.1",
+            "port": "3306",
+            "database": "jbakeshop_live"
+        },
+        "generated_at": "2026-04-27T09:30:49+00:00",
+        "filter": {
+            "bakery_categories": [
+                "Asian Bread",
+                "Bread",
+                "Pastry"
+            ],
+            "excluded_dc_store_codes": [
+                "DC001",
+                "DCM01",
+                "DCBLU01"
+            ],
+            "rule": "Products must be in the bakery category allow-list and must not be explicitly included for DC stores.",
+            "branch_rule": "Branches must be active legacy stores with type branch/outlet, name like Julies %, and non-DC store codes.",
+            "recipe_qty_must_be_positive": true
+        },
+        "counts": {
+            "branches": 10,
+            "products": 81,
+            "ingredients": 30,
+            "recipes": 271
+        }
+    },
+    "branches": [
+        {
+            "store_id": 38,
+            "store_code": "JB01",
+            "name": "Julies Bagting",
+            "address": "Bagting",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-05-27 12:29:21",
+            "updated_at": "2025-05-27 14:04:16"
+        },
+        {
+            "store_id": 2,
+            "store_code": "JES01",
+            "name": "Julies Estaka",
+            "address": "General Luna st.,",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-02-15 11:06:19",
+            "updated_at": "2025-05-01 23:12:58"
+        },
+        {
+            "store_id": 37,
+            "store_code": "JL01",
+            "name": "Julies Lawa-an",
+            "address": "Lawa-an",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-05-27 12:28:28",
+            "updated_at": "2025-05-27 13:40:10"
+        },
+        {
+            "store_id": 43,
+            "store_code": "JMA01",
+            "name": "Julies Mapang",
+            "address": "Poblacion",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-06-13 09:09:29",
+            "updated_at": "2025-06-13 11:29:46"
+        },
+        {
+            "store_id": 3,
+            "store_code": "JMIP01",
+            "name": "Julies Miputak",
+            "address": "Quezon Avenue",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-02-15 11:06:19",
+            "updated_at": "2025-05-01 23:16:38"
+        },
+        {
+            "store_id": 31,
+            "store_code": "JMN01",
+            "name": "Julies Minaog",
+            "address": "Minaog",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-02-28 11:24:32",
+            "updated_at": "2025-05-03 03:42:21"
+        },
+        {
+            "store_id": 36,
+            "store_code": "JP01",
+            "name": "Julies Polo",
+            "address": "Polo",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-05-27 12:27:25",
+            "updated_at": "2025-05-27 13:21:09"
+        },
+        {
+            "store_id": 42,
+            "store_code": "JPI01",
+            "name": "Julies Pinan",
+            "address": "Poblacion",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-06-13 09:08:28",
+            "updated_at": "2025-06-13 10:41:20"
+        },
+        {
+            "store_id": 41,
+            "store_code": "JPO01",
+            "name": "Julies Polanco",
+            "address": "Poblacion",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-06-13 09:07:39",
+            "updated_at": "2025-06-13 10:10:20"
+        },
+        {
+            "store_id": 1,
+            "store_code": "JTUR01",
+            "name": "Julies Turno",
+            "address": "Hi-way Turno,",
+            "type": "branch",
+            "is_active": 1,
+            "created_at": "2025-02-15 11:06:19",
+            "updated_at": "2025-05-17 15:31:56"
+        }
+    ],
+    "products": [
+        {
+            "product_id": 179,
+            "sku": "ASICHE7972",
+            "name": "CHEESE LOAF",
+            "category": "Asian Bread",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:04:15",
+            "updated_at": "2025-04-01 16:04:15"
+        },
+        {
+            "product_id": 114,
+            "sku": "BREAME6862",
+            "name": "AMERICAN LOAF",
+            "category": "Bread",
+            "yield": "4.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 06:51:58",
+            "updated_at": "2025-10-02 15:50:58"
+        },
+        {
+            "product_id": 102,
+            "sku": "BREBAH4351",
+            "name": "BAHUG-BAHUG",
+            "category": "Bread",
+            "yield": "100.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 06:17:02",
+            "updated_at": "2025-04-02 08:30:06"
+        },
+        {
+            "product_id": 121,
+            "sku": "BREBUK5243",
+            "name": "BUKO PANDAN",
+            "category": "Bread",
+            "yield": "55.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 08:50:13",
+            "updated_at": "2025-04-24 08:24:33"
+        },
+        {
+            "product_id": 319,
+            "sku": "BREBUR9664",
+            "name": "BURGER",
+            "category": "Bread",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-05-02 23:58:14",
+            "updated_at": "2025-05-02 23:58:14"
+        },
+        {
+            "product_id": 6,
+            "sku": "BTBR-001",
+            "name": "BUTTER BREAD",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 12:41:25"
+        },
+        {
+            "product_id": 35,
+            "sku": "BTBN-001",
+            "name": "BUTTER BUN",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 07:32:43"
+        },
+        {
+            "product_id": 18,
+            "sku": "BTRL-001",
+            "name": "BUTTER ROLL",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 13:42:59"
+        },
+        {
+            "product_id": 117,
+            "sku": "BRECHE5349",
+            "name": "CHEESE BREAD ",
+            "category": "Bread",
+            "yield": "48.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 20:35:12",
+            "updated_at": "2025-04-24 08:26:24"
+        },
+        {
+            "product_id": 42,
+            "sku": "CHBR-001",
+            "name": "CHEESE PANDESAL",
+            "category": "Bread",
+            "yield": "64.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 10:03:29"
+        },
+        {
+            "product_id": 3,
+            "sku": "CHST-001",
+            "name": "CHEESE STRUESSEL",
+            "category": "Bread",
+            "yield": "69.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:28:23"
+        },
+        {
+            "product_id": 104,
+            "sku": "BRECHO3033",
+            "name": "CHOCO FUDGE",
+            "category": "Bread",
+            "yield": "60.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 06:22:54",
+            "updated_at": "2025-03-31 06:22:54"
+        },
+        {
+            "product_id": 36,
+            "sku": "CHGR-001",
+            "name": "CHOCO GERMAN",
+            "category": "Bread",
+            "yield": "82.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 07:38:20"
+        },
+        {
+            "product_id": 293,
+            "sku": "BRECHO2960",
+            "name": "CHOCO HALF MOON",
+            "category": "Bread",
+            "yield": "76.00",
+            "is_active": 1,
+            "created_at": "2025-04-02 10:05:01",
+            "updated_at": "2025-04-24 09:06:21"
+        },
+        {
+            "product_id": 122,
+            "sku": "BRECHO2827",
+            "name": "CHOCO LOAF",
+            "category": "Bread",
+            "yield": "9.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 09:03:57",
+            "updated_at": "2025-04-01 09:03:57"
+        },
+        {
+            "product_id": 23,
+            "sku": "PDCC-001",
+            "name": "COCO BUN",
+            "category": "Bread",
+            "yield": "60.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:28:58"
+        },
+        {
+            "product_id": 16,
+            "sku": "CRNB-001",
+            "name": "CORN BREAD",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:25:27"
+        },
+        {
+            "product_id": 31,
+            "sku": "CRLF-001",
+            "name": "CREAM LOAF",
+            "category": "Bread",
+            "yield": "7.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:27:25"
+        },
+        {
+            "product_id": 294,
+            "sku": "BRECRU4597",
+            "name": "CRUSTY ONION",
+            "category": "Bread",
+            "yield": "52.00",
+            "is_active": 1,
+            "created_at": "2025-04-02 19:06:02",
+            "updated_at": "2025-04-02 19:06:02"
+        },
+        {
+            "product_id": 76,
+            "sku": "BREENS9427",
+            "name": "ENSAYMADA",
+            "category": "Bread",
+            "yield": "56.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 02:49:56",
+            "updated_at": "2025-03-31 02:49:56"
+        },
+        {
+            "product_id": 7,
+            "sku": "EVLT-001",
+            "name": "EVERLASTING",
+            "category": "Bread",
+            "yield": "47.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 13:41:44"
+        },
+        {
+            "product_id": 323,
+            "sku": "BREEVE2796",
+            "name": "EVERLASTING 4",
+            "category": "Bread",
+            "yield": "47.00",
+            "is_active": 1,
+            "created_at": "2025-05-06 14:36:09",
+            "updated_at": "2025-05-20 12:13:51"
+        },
+        {
+            "product_id": 27,
+            "sku": "FCBR-001",
+            "name": "FANCY BREAD",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:44:55"
+        },
+        {
+            "product_id": 20,
+            "sku": "FGRL-001",
+            "name": "FINGER ROLL",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:34:22"
+        },
+        {
+            "product_id": 33,
+            "sku": "FRNC-001",
+            "name": "FRANCIS",
+            "category": "Bread",
+            "yield": "45.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 07:32:07"
+        },
+        {
+            "product_id": 120,
+            "sku": "BREFRA5636",
+            "name": "FRANCIS (ORIG)",
+            "category": "Bread",
+            "yield": "45.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 08:49:25",
+            "updated_at": "2025-04-24 07:31:45"
+        },
+        {
+            "product_id": 30,
+            "sku": "GRLF-001",
+            "name": "GRACIOSA LOAF",
+            "category": "Bread",
+            "yield": "10.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:35:09"
+        },
+        {
+            "product_id": 321,
+            "sku": "BREGRA1986",
+            "name": "GRANADA",
+            "category": "Bread",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-05-06 14:26:39",
+            "updated_at": "2025-05-06 14:26:39"
+        },
+        {
+            "product_id": 119,
+            "sku": "BREHAW4019",
+            "name": "HAWAIIAN",
+            "category": "Bread",
+            "yield": "55.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 08:48:46",
+            "updated_at": "2025-04-24 08:21:28"
+        },
+        {
+            "product_id": 299,
+            "sku": "SNAHOT6418",
+            "name": "HOTDOG",
+            "category": "Bread",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-02 22:43:58",
+            "updated_at": "2025-10-03 15:59:51"
+        },
+        {
+            "product_id": 78,
+            "sku": "BREHOT3731",
+            "name": "HOTDOG BUN",
+            "category": "Bread",
+            "yield": "39.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 03:18:10",
+            "updated_at": "2025-03-31 03:18:10"
+        },
+        {
+            "product_id": 5,
+            "sku": "KGRL-001",
+            "name": "KING ROLL",
+            "category": "Bread",
+            "yield": "41.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 12:27:21"
+        },
+        {
+            "product_id": 307,
+            "sku": "BREMAR3803",
+            "name": "MARBLE LOAF",
+            "category": "Bread",
+            "yield": "5.00",
+            "is_active": 1,
+            "created_at": "2025-04-04 20:59:53",
+            "updated_at": "2025-04-04 20:59:53"
+        },
+        {
+            "product_id": 295,
+            "sku": "BREMAR5212",
+            "name": "MARBLE RING",
+            "category": "Bread",
+            "yield": "45.00",
+            "is_active": 1,
+            "created_at": "2025-04-02 19:06:22",
+            "updated_at": "2025-04-02 19:06:22"
+        },
+        {
+            "product_id": 37,
+            "sku": "MNBN-001",
+            "name": "MINI BUN",
+            "category": "Bread",
+            "yield": "8.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 07:40:36"
+        },
+        {
+            "product_id": 38,
+            "sku": "MNBG-001",
+            "name": "MONAY BIG",
+            "category": "Bread",
+            "yield": "8.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 07:42:34"
+        },
+        {
+            "product_id": 21,
+            "sku": "MNPT-001",
+            "name": "MONAY PUTOK",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 13:43:43"
+        },
+        {
+            "product_id": 8,
+            "sku": "MNSM-001",
+            "name": "MONAY SMALL",
+            "category": "Bread",
+            "yield": "50.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:31:48"
+        },
+        {
+            "product_id": 322,
+            "sku": "BREMUS5567",
+            "name": "MUSHROOM",
+            "category": "Bread",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-05-06 14:26:58",
+            "updated_at": "2025-05-06 14:26:58"
+        },
+        {
+            "product_id": 75,
+            "sku": "BREPAN7921",
+            "name": "PAN DE JULIA",
+            "category": "Bread",
+            "yield": "37.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 02:49:14",
+            "updated_at": "2025-04-24 07:28:44"
+        },
+        {
+            "product_id": 32,
+            "sku": "PDSL-001",
+            "name": "PAN DE SAL",
+            "category": "Bread",
+            "yield": "55.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 07:26:42"
+        },
+        {
+            "product_id": 26,
+            "sku": "SBBY-001",
+            "name": "SB BAYAN",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:38:59"
+        },
+        {
+            "product_id": 25,
+            "sku": "SBSP-001",
+            "name": "SB CLASSIC",
+            "category": "Bread",
+            "yield": "33.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:41:49"
+        },
+        {
+            "product_id": 24,
+            "sku": "SBRG-001",
+            "name": "SB SPECIAL",
+            "category": "Bread",
+            "yield": "33.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:44:38"
+        },
+        {
+            "product_id": 10,
+            "sku": "SIAK-001",
+            "name": "SIAKOY",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 13:42:26"
+        },
+        {
+            "product_id": 22,
+            "sku": "SIOP-001",
+            "name": "SIOPAO",
+            "category": "Bread",
+            "yield": "25.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:38:28"
+        },
+        {
+            "product_id": 1,
+            "sku": "SPAN-001",
+            "name": "SPANISH BREAD",
+            "category": "Bread",
+            "yield": "48.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 10:54:30"
+        },
+        {
+            "product_id": 4,
+            "sku": "SWMN-001",
+            "name": "SWEET MONAY",
+            "category": "Bread",
+            "yield": "41.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 12:37:20"
+        },
+        {
+            "product_id": 115,
+            "sku": "BRESWE9193",
+            "name": "SWEET ROLL",
+            "category": "Bread",
+            "yield": "38.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 08:42:09",
+            "updated_at": "2025-04-24 13:45:13"
+        },
+        {
+            "product_id": 17,
+            "sku": "TIRB-001",
+            "name": "TIRE BREAD",
+            "category": "Bread",
+            "yield": "12.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:26:41"
+        },
+        {
+            "product_id": 14,
+            "sku": "UBCS-001",
+            "name": "UBE CHIZ DE SAL",
+            "category": "Bread",
+            "yield": "55.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-23 13:22:53"
+        },
+        {
+            "product_id": 15,
+            "sku": "UBST-001",
+            "name": "UBE STRUSSEL",
+            "category": "Bread",
+            "yield": "55.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:52:52"
+        },
+        {
+            "product_id": 28,
+            "sku": "VCRM-001",
+            "name": "V-CREAM",
+            "category": "Bread",
+            "yield": "10.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:26:58"
+        },
+        {
+            "product_id": 202,
+            "sku": "PASAPP9724",
+            "name": "APPLE CRUMBLE",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 0,
+            "created_at": "2025-04-01 16:15:48",
+            "updated_at": "2025-05-19 06:58:28"
+        },
+        {
+            "product_id": 236,
+            "sku": "PASBLA4761",
+            "name": "BLACK ZAMBO",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:49:24",
+            "updated_at": "2025-04-01 16:49:24"
+        },
+        {
+            "product_id": 200,
+            "sku": "PASBLU9860",
+            "name": "BLUEBERRY CHEESECAKE",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:14:57",
+            "updated_at": "2025-04-01 16:14:57"
+        },
+        {
+            "product_id": 2,
+            "sku": "CHMK-001",
+            "name": "CHEESE MILK",
+            "category": "Pastry",
+            "yield": "59.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:28:10"
+        },
+        {
+            "product_id": 41,
+            "sku": "CHST-002",
+            "name": "CHEESE STRUSSEL",
+            "category": "Pastry",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 13:44:51"
+        },
+        {
+            "product_id": 55,
+            "sku": "CHFF-001",
+            "name": "CHIFFON",
+            "category": "Pastry",
+            "yield": "4.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:18:08"
+        },
+        {
+            "product_id": 59,
+            "sku": "CHCP-001",
+            "name": "CHOCO CHIPS",
+            "category": "Pastry",
+            "yield": "12.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:24:26"
+        },
+        {
+            "product_id": 49,
+            "sku": "CRNK-001",
+            "name": "CHOCO CRINKLES",
+            "category": "Pastry",
+            "yield": "112.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:50:19"
+        },
+        {
+            "product_id": 304,
+            "sku": "PASCHO5812",
+            "name": "CHOCO CUPCAKE",
+            "category": "Pastry",
+            "yield": "70.00",
+            "is_active": 1,
+            "created_at": "2025-04-03 11:18:09",
+            "updated_at": "2025-04-03 11:18:09"
+        },
+        {
+            "product_id": 196,
+            "sku": "PASCHO3475",
+            "name": "CHOCO MUFFINS",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:13:26",
+            "updated_at": "2025-04-01 16:13:26"
+        },
+        {
+            "product_id": 54,
+            "sku": "PGPI-001",
+            "name": "FIG PIE",
+            "category": "Pastry",
+            "yield": "95.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:12:42"
+        },
+        {
+            "product_id": 60,
+            "sku": "FRTC-001",
+            "name": "FRUIT CAKE",
+            "category": "Pastry",
+            "yield": "69.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:28:53"
+        },
+        {
+            "product_id": 39,
+            "sku": "HWII-001",
+            "name": "HAWAIIAN",
+            "category": "Pastry",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 13:44:04"
+        },
+        {
+            "product_id": 53,
+            "sku": "MOPI-001",
+            "name": "HOPIA",
+            "category": "Pastry",
+            "yield": "85.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:11:02"
+        },
+        {
+            "product_id": 235,
+            "sku": "PASMAN9020",
+            "name": "MANGO FLOAF",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:48:37",
+            "updated_at": "2025-04-01 16:48:37"
+        },
+        {
+            "product_id": 77,
+            "sku": "PASMAR5681",
+            "name": "MARBLE CUPCAKE",
+            "category": "Pastry",
+            "yield": "64.00",
+            "is_active": 1,
+            "created_at": "2025-03-31 02:53:07",
+            "updated_at": "2025-03-31 02:53:07"
+        },
+        {
+            "product_id": 204,
+            "sku": "PASMIN7825",
+            "name": "MINI CAKE",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:16:22",
+            "updated_at": "2025-04-01 16:16:22"
+        },
+        {
+            "product_id": 34,
+            "sku": "PNPL-001",
+            "name": "PINEAPPLE",
+            "category": "Pastry",
+            "yield": "12.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:32:37"
+        },
+        {
+            "product_id": 43,
+            "sku": "PNPP-001",
+            "name": "PINEAPPLE PIE",
+            "category": "Pastry",
+            "yield": "80.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:32:56"
+        },
+        {
+            "product_id": 50,
+            "sku": "PLVR-001",
+            "name": "POLVORON",
+            "category": "Pastry",
+            "yield": "83.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:51:35"
+        },
+        {
+            "product_id": 317,
+            "sku": "PASROU9168",
+            "name": "ROUND CAKE",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-16 10:05:50",
+            "updated_at": "2025-04-16 10:05:50"
+        },
+        {
+            "product_id": 233,
+            "sku": "PASSPI5030",
+            "name": "SPINACH LASAGNA",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:46:35",
+            "updated_at": "2025-04-01 16:46:35"
+        },
+        {
+            "product_id": 201,
+            "sku": "PASSTR4342",
+            "name": "STRAWBERRY CHEESECAKE",
+            "category": "Pastry",
+            "yield": "1.00",
+            "is_active": 1,
+            "created_at": "2025-04-01 16:15:24",
+            "updated_at": "2025-04-01 16:15:24"
+        },
+        {
+            "product_id": 52,
+            "sku": "SNFL-001",
+            "name": "SUNFLOWER",
+            "category": "Pastry",
+            "yield": "52.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 09:07:46"
+        },
+        {
+            "product_id": 46,
+            "sku": "SWHT-001",
+            "name": "SWEET HEART",
+            "category": "Pastry",
+            "yield": "50.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:41:52"
+        },
+        {
+            "product_id": 83,
+            "sku": "PASTES8358",
+            "name": "TEST PRODUCT",
+            "category": "Pastry",
+            "yield": "45.00",
+            "is_active": 0,
+            "created_at": "2025-03-31 03:32:00",
+            "updated_at": "2025-03-31 04:53:56"
+        },
+        {
+            "product_id": 48,
+            "sku": "UBBR-001",
+            "name": "UBE BAR",
+            "category": "Pastry",
+            "yield": "35.00",
+            "is_active": 1,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 08:47:10"
+        },
+        {
+            "product_id": 19,
+            "sku": "YMRL-001",
+            "name": "YEMA ROLL",
+            "category": "Pastry",
+            "yield": "12.00",
+            "is_active": 0,
+            "created_at": "2025-03-02 18:14:15",
+            "updated_at": "2025-04-24 13:43:20"
+        }
+    ],
+    "ingredients": [
+        {
+            "ingredient_id": 13,
+            "name": "ALL PURPOSE FLOUR",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "48.80",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-22 11:36:00",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 17,
+            "name": "BAKING POWDER",
+            "type": "bread_pastry",
+            "unit_id": 2,
+            "minimum_stock": "300.000",
+            "cost_per_unit": "6.53",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-22 11:42:13",
+            "unit_name": "Gallon",
+            "unit_code": "GAL",
+            "measurement_type": "volume",
+            "measurement_value": "3.790"
+        },
+        {
+            "ingredient_id": 21,
+            "name": "BROWN SUGAR",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "61.20",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-22 12:47:52",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 24,
+            "name": "BUTTER OIL",
+            "type": "bread_pastry",
+            "unit_id": 2,
+            "minimum_stock": "300.000",
+            "cost_per_unit": "0.61",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:04:13",
+            "unit_name": "Gallon",
+            "unit_code": "GAL",
+            "measurement_type": "volume",
+            "measurement_value": "3.790"
+        },
+        {
+            "ingredient_id": 25,
+            "name": "CAKE FLOUR",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "48.80",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:04:23",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 27,
+            "name": "CHEESE (PCS)",
+            "type": "bread_pastry",
+            "unit_id": 3,
+            "minimum_stock": "30.000",
+            "cost_per_unit": "35.69",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:04:54",
+            "unit_name": "Bottle",
+            "unit_code": "BOT",
+            "measurement_type": "volume",
+            "measurement_value": "1.000"
+        },
+        {
+            "ingredient_id": 60,
+            "name": "CHEESE BREAD",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "63.84",
+            "created_at": "2025-03-02 18:30:59",
+            "updated_at": "2025-04-23 15:05:03",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 82,
+            "name": "CHEESE OIL",
+            "type": "non_bread_pastry",
+            "unit_id": 2,
+            "minimum_stock": "300.000",
+            "cost_per_unit": "1.63",
+            "created_at": "2025-04-22 13:38:15",
+            "updated_at": "2025-04-23 15:05:12",
+            "unit_name": "Gallon",
+            "unit_code": "GAL",
+            "measurement_type": "volume",
+            "measurement_value": "3.790"
+        },
+        {
+            "ingredient_id": 31,
+            "name": "COCOA POWDER",
+            "type": "bread_pastry",
+            "unit_id": 2,
+            "minimum_stock": "300.000",
+            "cost_per_unit": "0.74",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:06:31",
+            "unit_name": "Gallon",
+            "unit_code": "GAL",
+            "measurement_type": "volume",
+            "measurement_value": "3.790"
+        },
+        {
+            "ingredient_id": 32,
+            "name": "CORNSTARCH",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "48.00",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:07:06",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 68,
+            "name": "EGG PCS",
+            "type": "bread_pastry",
+            "unit_id": 3,
+            "minimum_stock": "30.000",
+            "cost_per_unit": "8.17",
+            "created_at": "2025-03-02 18:37:09",
+            "updated_at": "2025-04-23 15:07:32",
+            "unit_name": "Bottle",
+            "unit_code": "BOT",
+            "measurement_type": "volume",
+            "measurement_value": "1.000"
+        },
+        {
+            "ingredient_id": 35,
+            "name": "EL POPA (POWDERED SUGAR)",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "120.00",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:07:54",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 33,
+            "name": "FRANCIS ORIG",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "61.23",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:08:11",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 91,
+            "name": "HARD FLOUR (SACK)",
+            "type": "non_bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "39.20",
+            "created_at": "2025-04-23 10:09:12",
+            "updated_at": "2025-04-23 15:02:14",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 38,
+            "name": "JULIE'S BLEND",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.750",
+            "cost_per_unit": "156.80",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 10:10:33",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 39,
+            "name": "LOAF ADDITIVE",
+            "type": "bread_pastry",
+            "unit_id": 2,
+            "minimum_stock": "300.000",
+            "cost_per_unit": "0.30",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:09:01",
+            "unit_name": "Gallon",
+            "unit_code": "GAL",
+            "measurement_type": "volume",
+            "measurement_value": "3.790"
+        },
+        {
+            "ingredient_id": 94,
+            "name": "MARGARINE (20KG)",
+            "type": "non_bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "101.00",
+            "created_at": "2025-04-23 10:16:45",
+            "updated_at": "2025-04-23 15:03:18",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 41,
+            "name": "MARGARINE TUBS",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "86.05",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:03:08",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 42,
+            "name": "OIL",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "86.43",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 10:18:59",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 97,
+            "name": "PANDESAL",
+            "type": "non_bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "61.41",
+            "created_at": "2025-04-23 10:19:45",
+            "updated_at": "2025-04-23 15:09:43",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 61,
+            "name": "PINOY",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "100.00",
+            "created_at": "2025-03-02 18:30:59",
+            "updated_at": "2025-03-15 19:56:28",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 44,
+            "name": "POWDERED MILK",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "66.00",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 10:21:32",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 46,
+            "name": "REFINED SUGAR",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "73.20",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:10:19",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 48,
+            "name": "SALT",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "20.80",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:10:41",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 49,
+            "name": "SBRP",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "63.84",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:01:27",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 98,
+            "name": "SHORTENING (20KG)",
+            "type": "non_bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "101.00",
+            "created_at": "2025-04-23 10:29:04",
+            "updated_at": "2025-04-23 15:11:02",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 55,
+            "name": "SOFT FLOUR",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "36.80",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:12:06",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 58,
+            "name": "VARIETY (FLOUR)",
+            "type": "bread_pastry",
+            "unit_id": 1,
+            "minimum_stock": "3.000",
+            "cost_per_unit": "61.22",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:02:37",
+            "unit_name": "Sack",
+            "unit_code": "SACK",
+            "measurement_type": "weight",
+            "measurement_value": "50.000"
+        },
+        {
+            "ingredient_id": 106,
+            "name": "VIOLET UBE",
+            "type": "non_bread_pastry",
+            "unit_id": 2,
+            "minimum_stock": "300.000",
+            "cost_per_unit": "0.30",
+            "created_at": "2025-04-23 10:41:22",
+            "updated_at": "2025-04-23 15:14:17",
+            "unit_name": "Gallon",
+            "unit_code": "GAL",
+            "measurement_type": "volume",
+            "measurement_value": "3.790"
+        },
+        {
+            "ingredient_id": 59,
+            "name": "YEAST",
+            "type": "bread_pastry",
+            "unit_id": 2,
+            "minimum_stock": "300.000",
+            "cost_per_unit": "0.24",
+            "created_at": "2025-03-02 17:25:57",
+            "updated_at": "2025-04-23 15:14:25",
+            "unit_name": "Gallon",
+            "unit_code": "GAL",
+            "measurement_type": "volume",
+            "measurement_value": "3.790"
+        }
+    ],
+    "recipes": [
+        {
+            "product_id": 1,
+            "ingredient_id": 13,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 1,
+            "ingredient_id": 21,
+            "quantity": "0.340"
+        },
+        {
+            "product_id": 1,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 1,
+            "ingredient_id": 94,
+            "quantity": "0.170"
+        },
+        {
+            "product_id": 1,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 44,
+            "quantity": "0.040"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 46,
+            "quantity": "0.245"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 55,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 58,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 82,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 94,
+            "quantity": "0.080"
+        },
+        {
+            "product_id": 2,
+            "ingredient_id": 98,
+            "quantity": "0.080"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 24,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 46,
+            "quantity": "0.130"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 55,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 82,
+            "quantity": "0.060"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 91,
+            "quantity": "0.800"
+        },
+        {
+            "product_id": 3,
+            "ingredient_id": 98,
+            "quantity": "0.030"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 44,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 46,
+            "quantity": "0.150"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 55,
+            "quantity": "0.400"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 91,
+            "quantity": "0.600"
+        },
+        {
+            "product_id": 4,
+            "ingredient_id": 98,
+            "quantity": "0.700"
+        },
+        {
+            "product_id": 5,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 5,
+            "ingredient_id": 46,
+            "quantity": "0.160"
+        },
+        {
+            "product_id": 5,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 5,
+            "ingredient_id": 55,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 5,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 5,
+            "ingredient_id": 91,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 5,
+            "ingredient_id": 98,
+            "quantity": "0.070"
+        },
+        {
+            "product_id": 6,
+            "ingredient_id": 21,
+            "quantity": "0.150"
+        },
+        {
+            "product_id": 6,
+            "ingredient_id": 46,
+            "quantity": "0.288"
+        },
+        {
+            "product_id": 6,
+            "ingredient_id": 55,
+            "quantity": "0.022"
+        },
+        {
+            "product_id": 6,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 6,
+            "ingredient_id": 91,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 6,
+            "ingredient_id": 98,
+            "quantity": "0.080"
+        },
+        {
+            "product_id": 7,
+            "ingredient_id": 46,
+            "quantity": "0.180"
+        },
+        {
+            "product_id": 7,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 7,
+            "ingredient_id": 91,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 7,
+            "ingredient_id": 98,
+            "quantity": "7.000"
+        },
+        {
+            "product_id": 8,
+            "ingredient_id": 46,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 8,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 8,
+            "ingredient_id": 91,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 8,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 8,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 21,
+            "quantity": "0.040"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 48,
+            "quantity": "7.400"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 55,
+            "quantity": "9.000"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 59,
+            "quantity": "0.012"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 60,
+            "quantity": "0.225"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 94,
+            "quantity": "0.022"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 97,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 14,
+            "ingredient_id": 98,
+            "quantity": "0.040"
+        },
+        {
+            "product_id": 15,
+            "ingredient_id": 46,
+            "quantity": "0.790"
+        },
+        {
+            "product_id": 15,
+            "ingredient_id": 48,
+            "quantity": "0.015"
+        },
+        {
+            "product_id": 15,
+            "ingredient_id": 55,
+            "quantity": "0.400"
+        },
+        {
+            "product_id": 15,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 15,
+            "ingredient_id": 91,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 15,
+            "ingredient_id": 94,
+            "quantity": "0.480"
+        },
+        {
+            "product_id": 15,
+            "ingredient_id": 98,
+            "quantity": "0.220"
+        },
+        {
+            "product_id": 16,
+            "ingredient_id": 41,
+            "quantity": "0.022"
+        },
+        {
+            "product_id": 16,
+            "ingredient_id": 46,
+            "quantity": "0.190"
+        },
+        {
+            "product_id": 16,
+            "ingredient_id": 59,
+            "quantity": "0.012"
+        },
+        {
+            "product_id": 16,
+            "ingredient_id": 91,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 16,
+            "ingredient_id": 98,
+            "quantity": "0.120"
+        },
+        {
+            "product_id": 17,
+            "ingredient_id": 46,
+            "quantity": "0.180"
+        },
+        {
+            "product_id": 17,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 17,
+            "ingredient_id": 91,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 17,
+            "ingredient_id": 94,
+            "quantity": "0.090"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 13,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 17,
+            "quantity": "0.013"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 46,
+            "quantity": "0.150"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 48,
+            "quantity": "0.005"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 55,
+            "quantity": "2.000"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 22,
+            "ingredient_id": 98,
+            "quantity": "0.080"
+        },
+        {
+            "product_id": 23,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 23,
+            "ingredient_id": 46,
+            "quantity": "0.350"
+        },
+        {
+            "product_id": 23,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 23,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 23,
+            "ingredient_id": 91,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 23,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 23,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 24,
+            "quantity": "0.400"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 38,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 39,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 44,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 46,
+            "quantity": "1.700"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 48,
+            "quantity": "0.130"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 59,
+            "quantity": "0.100"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 91,
+            "quantity": "10.000"
+        },
+        {
+            "product_id": 24,
+            "ingredient_id": 98,
+            "quantity": "0.400"
+        },
+        {
+            "product_id": 25,
+            "ingredient_id": 49,
+            "quantity": "12.000"
+        },
+        {
+            "product_id": 25,
+            "ingredient_id": 59,
+            "quantity": "0.100"
+        },
+        {
+            "product_id": 25,
+            "ingredient_id": 98,
+            "quantity": "0.750"
+        },
+        {
+            "product_id": 28,
+            "ingredient_id": 35,
+            "quantity": "0.375"
+        },
+        {
+            "product_id": 28,
+            "ingredient_id": 46,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 28,
+            "ingredient_id": 58,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 28,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 28,
+            "ingredient_id": 82,
+            "quantity": "0.060"
+        },
+        {
+            "product_id": 28,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 28,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 30,
+            "ingredient_id": 35,
+            "quantity": "0.375"
+        },
+        {
+            "product_id": 30,
+            "ingredient_id": 46,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 30,
+            "ingredient_id": 58,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 30,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 30,
+            "ingredient_id": 82,
+            "quantity": "0.060"
+        },
+        {
+            "product_id": 30,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 30,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 21,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 44,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 46,
+            "quantity": "0.150"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 82,
+            "quantity": "0.060"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 91,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 94,
+            "quantity": "0.100"
+        },
+        {
+            "product_id": 31,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 32,
+            "ingredient_id": 42,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 32,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 32,
+            "ingredient_id": 61,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 32,
+            "ingredient_id": 94,
+            "quantity": "0.025"
+        },
+        {
+            "product_id": 33,
+            "ingredient_id": 33,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 34,
+            "ingredient_id": 32,
+            "quantity": "2.000"
+        },
+        {
+            "product_id": 34,
+            "ingredient_id": 46,
+            "quantity": "0.950"
+        },
+        {
+            "product_id": 34,
+            "ingredient_id": 48,
+            "quantity": "0.005"
+        },
+        {
+            "product_id": 34,
+            "ingredient_id": 55,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 34,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 34,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 35,
+            "ingredient_id": 13,
+            "quantity": "6.300"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 21,
+            "quantity": "0.188"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 31,
+            "quantity": "0.015"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 44,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 46,
+            "quantity": "0.150"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 55,
+            "quantity": "0.400"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 91,
+            "quantity": "0.850"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 94,
+            "quantity": "0.145"
+        },
+        {
+            "product_id": 36,
+            "ingredient_id": 98,
+            "quantity": "0.045"
+        },
+        {
+            "product_id": 37,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 37,
+            "ingredient_id": 44,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 37,
+            "ingredient_id": 46,
+            "quantity": "0.140"
+        },
+        {
+            "product_id": 37,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 37,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 37,
+            "ingredient_id": 91,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 37,
+            "ingredient_id": 98,
+            "quantity": "0.100"
+        },
+        {
+            "product_id": 38,
+            "ingredient_id": 46,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 38,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 38,
+            "ingredient_id": 91,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 38,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 38,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 41,
+            "ingredient_id": 27,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 42,
+            "ingredient_id": 42,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 42,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 42,
+            "ingredient_id": 61,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 42,
+            "ingredient_id": 94,
+            "quantity": "0.025"
+        },
+        {
+            "product_id": 43,
+            "ingredient_id": 32,
+            "quantity": "2.000"
+        },
+        {
+            "product_id": 43,
+            "ingredient_id": 46,
+            "quantity": "0.950"
+        },
+        {
+            "product_id": 43,
+            "ingredient_id": 48,
+            "quantity": "0.005"
+        },
+        {
+            "product_id": 43,
+            "ingredient_id": 55,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 43,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 43,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 17,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 35,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 44,
+            "quantity": "0.075"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 46,
+            "quantity": "0.600"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 55,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 91,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 46,
+            "ingredient_id": 106,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 48,
+            "ingredient_id": 17,
+            "quantity": "0.070"
+        },
+        {
+            "product_id": 48,
+            "ingredient_id": 42,
+            "quantity": "0.100"
+        },
+        {
+            "product_id": 48,
+            "ingredient_id": 44,
+            "quantity": "0.070"
+        },
+        {
+            "product_id": 48,
+            "ingredient_id": 46,
+            "quantity": "0.600"
+        },
+        {
+            "product_id": 48,
+            "ingredient_id": 91,
+            "quantity": "0.750"
+        },
+        {
+            "product_id": 48,
+            "ingredient_id": 106,
+            "quantity": "0.003"
+        },
+        {
+            "product_id": 49,
+            "ingredient_id": 13,
+            "quantity": "0.600"
+        },
+        {
+            "product_id": 49,
+            "ingredient_id": 17,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 49,
+            "ingredient_id": 21,
+            "quantity": "0.800"
+        },
+        {
+            "product_id": 49,
+            "ingredient_id": 24,
+            "quantity": "0.060"
+        },
+        {
+            "product_id": 49,
+            "ingredient_id": 35,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 49,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 49,
+            "ingredient_id": 68,
+            "quantity": "8.000"
+        },
+        {
+            "product_id": 50,
+            "ingredient_id": 46,
+            "quantity": "0.750"
+        },
+        {
+            "product_id": 50,
+            "ingredient_id": 55,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 50,
+            "ingredient_id": 68,
+            "quantity": "2.000"
+        },
+        {
+            "product_id": 50,
+            "ingredient_id": 98,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 52,
+            "ingredient_id": 17,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 52,
+            "ingredient_id": 44,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 52,
+            "ingredient_id": 46,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 52,
+            "ingredient_id": 55,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 52,
+            "ingredient_id": 94,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 53,
+            "ingredient_id": 42,
+            "quantity": "0.560"
+        },
+        {
+            "product_id": 53,
+            "ingredient_id": 46,
+            "quantity": "0.815"
+        },
+        {
+            "product_id": 53,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 53,
+            "ingredient_id": 55,
+            "quantity": "1.700"
+        },
+        {
+            "product_id": 53,
+            "ingredient_id": 68,
+            "quantity": "2.000"
+        },
+        {
+            "product_id": 53,
+            "ingredient_id": 91,
+            "quantity": "0.300"
+        },
+        {
+            "product_id": 54,
+            "ingredient_id": 17,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 54,
+            "ingredient_id": 42,
+            "quantity": "0.240"
+        },
+        {
+            "product_id": 54,
+            "ingredient_id": 46,
+            "quantity": "1.150"
+        },
+        {
+            "product_id": 54,
+            "ingredient_id": 48,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 54,
+            "ingredient_id": 55,
+            "quantity": "2.000"
+        },
+        {
+            "product_id": 54,
+            "ingredient_id": 98,
+            "quantity": "0.100"
+        },
+        {
+            "product_id": 55,
+            "ingredient_id": 17,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 55,
+            "ingredient_id": 25,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 55,
+            "ingredient_id": 46,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 55,
+            "ingredient_id": 68,
+            "quantity": "20.000"
+        },
+        {
+            "product_id": 60,
+            "ingredient_id": 17,
+            "quantity": "0.068"
+        },
+        {
+            "product_id": 60,
+            "ingredient_id": 44,
+            "quantity": "0.100"
+        },
+        {
+            "product_id": 60,
+            "ingredient_id": 46,
+            "quantity": "0.800"
+        },
+        {
+            "product_id": 60,
+            "ingredient_id": 55,
+            "quantity": "0.750"
+        },
+        {
+            "product_id": 60,
+            "ingredient_id": 91,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 60,
+            "ingredient_id": 94,
+            "quantity": "0.130"
+        },
+        {
+            "product_id": 75,
+            "ingredient_id": 21,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 75,
+            "ingredient_id": 42,
+            "quantity": "0.080"
+        },
+        {
+            "product_id": 75,
+            "ingredient_id": 59,
+            "quantity": "0.012"
+        },
+        {
+            "product_id": 75,
+            "ingredient_id": 61,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 75,
+            "ingredient_id": 94,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 44,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 46,
+            "quantity": "0.200"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 48,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 55,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 91,
+            "quantity": "0.750"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 94,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 115,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 117,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 117,
+            "ingredient_id": 60,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 117,
+            "ingredient_id": 82,
+            "quantity": "0.140"
+        },
+        {
+            "product_id": 117,
+            "ingredient_id": 94,
+            "quantity": "0.020"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 32,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 46,
+            "quantity": "0.400"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 55,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 91,
+            "quantity": "0.750"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 94,
+            "quantity": "0.035"
+        },
+        {
+            "product_id": 119,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 120,
+            "ingredient_id": 33,
+            "quantity": "1.200"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 32,
+            "quantity": "0.185"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 38,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 46,
+            "quantity": "0.425"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 48,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 55,
+            "quantity": "0.250"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 59,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 91,
+            "quantity": "0.750"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 94,
+            "quantity": "0.025"
+        },
+        {
+            "product_id": 121,
+            "ingredient_id": 98,
+            "quantity": "0.050"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 17,
+            "quantity": "0.010"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 44,
+            "quantity": "0.065"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 46,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 55,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 68,
+            "quantity": "1.000"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 91,
+            "quantity": "0.500"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 94,
+            "quantity": "0.125"
+        },
+        {
+            "product_id": 293,
+            "ingredient_id": 98,
+            "quantity": "0.265"
+        }
+    ]
+}

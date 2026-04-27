@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title | default:'Bakeshop Print Summary'}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --border-color: #ead8bc;
+            --text-color: #2b190c;
+            --text-muted: #7c5a32;
+            --surface-color: #fffdf8;
+            --accent: #92400e;
+            --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-display: 'Fraunces', Georgia, serif;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: var(--font-body);
+            color: var(--text-color);
+            background: linear-gradient(180deg, #fff8ef 0%, #fffdf8 100%);
+            padding: 24px;
+        }
+
+        .bakeshop-print-shell {
+            max-width: 1040px;
+            margin: 0 auto;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 28px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(120, 53, 15, 0.08);
+        }
+
+        .bakeshop-print-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(145deg, #fff7ed, #fffbeb);
+        }
+
+        .bakeshop-print-brand {
+            display: grid;
+            gap: 4px;
+        }
+
+        .bakeshop-print-brand strong {
+            font-family: var(--font-display);
+            font-size: 1.45rem;
+            color: var(--accent);
+        }
+
+        .bakeshop-print-brand span {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+        }
+
+        .bakeshop-print-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .bakeshop-print-actions button,
+        .bakeshop-print-actions a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            color: var(--text-color);
+            padding: 10px 14px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .bakeshop-print-body {
+            padding: 24px;
+        }
+
+        @media (max-width: 720px) {
+            body { padding: 12px; }
+            .bakeshop-print-topbar { padding: 16px; flex-direction: column; align-items: flex-start; }
+            .bakeshop-print-body { padding: 16px; }
+        }
+
+        @media print {
+            body { padding: 0; background: #fff; }
+            .bakeshop-print-shell { border: none; border-radius: 0; box-shadow: none; }
+            .bakeshop-print-topbar { display: none !important; }
+        }
+    </style>
+    {block head}{/block}
+</head>
+<body>
+    <div class="bakeshop-print-shell">
+        <div class="bakeshop-print-topbar">
+            <div class="bakeshop-print-brand">
+                <strong>Julie's Bakeshop</strong>
+                <span>Printable branch ingredient balance summary</span>
+            </div>
+            <div class="bakeshop-print-actions">
+                <a href="javascript:window.close()">Close</a>
+                <button type="button" onclick="window.print()">Print Report</button>
+            </div>
+        </div>
+        <main class="bakeshop-print-body">
+            {block content}{/block}
+        </main>
+    </div>
+    {block scripts}{/block}
+</body>
+</html>

@@ -1,0 +1,219 @@
+<?php
+
+declare(strict_types=1);
+
+$_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'cmsnew.test';
+$_SERVER['REQUEST_URI'] = $_SERVER['REQUEST_URI'] ?? '/admin/bakeshop/print';
+
+require __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../src/helpers/module-manager.php';
+require_once __DIR__ . '/../modules/bakeshop/helpers.php';
+require_once __DIR__ . '/../modules/bakeshop/handlers.php';
+
+$pass = 0;
+$fail = 0;
+$errors = [];
+
+function btPrint(string $label, bool $ok, string $detail = ''): void
+{
+    global $pass, $fail, $errors;
+
+    if ($ok) {
+        $pass++;
+        echo "  ✓ {$label}\n";
+        return;
+    }
+
+    $fail++;
+    $errors[] = $label . ($detail !== '' ? ': ' . $detail : '');
+    echo "  ✗ {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
+}
+
+@file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+@file_put_contents(STORAGE_PATH . '/logs/error.log', '');
+
+echo "\n=== BAKESHOP PRINT SUMMARY TEST ===\n\n";
+
+$originalSettings = getModuleSettings('bakeshop');
+$originalUsageDecimalPlaces = $originalSettings['usage_decimal_places'] ?? null;
+$originalPrintTemplate = $originalSettings['print_template'] ?? null;
+
+$db = app()->db();
+$runner = new \Ikabud\Kernel\Database\MigrationRunner($db);
+$runner->migrate('bakeshop');
+
+$suffix = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+$branchId = 0;
+$productId = 0;
+$ingredientId = 0;
+$deliveryIds = [];
+$runId = 0;
+
+try {
+    saveModuleSettings('bakeshop', [
+        'usage_decimal_places' => '2',
+        'print_template' => 'standard',
+    ]);
+
+    $kgUnitId = (int)($db->query("SELECT id FROM bakeshop_units WHERE code = 'kg' LIMIT 1")->fetchColumn() ?: 0);
+    btPrint('seeded kg unit exists', $kgUnitId > 0);
+
+    $branch = bakeshopDeliveriesCreateBranch([
+        'code' => 'PR' . substr($suffix, 0, 6),
+        'name' => 'Print Branch ' . $suffix,
+        'address' => 'Print Street',
+    ]);
+    $branchId = (int)($branch['id'] ?? 0);
+    btPrint('branch created', $branchId > 0, json_encode($branch, JSON_UNESCAPED_SLASHES));
+
+    $product = bakeshopCatalogSaveProduct([
+        'name' => 'Print Product ' . $suffix,
+        'sku' => 'PRT-PRD-' . $suffix,
+        'category' => 'Bread',
+        'default_yield_qty' => 10,
+        'default_yield_unit_id' => $kgUnitId,
+    ]);
+    $productId = (int)($product['id'] ?? 0);
+    btPrint('product created', $productId > 0, json_encode($product, JSON_UNESCAPED_SLASHES));
+
+    $ingredient = bakeshopCatalogSaveIngredient([
+        'name' => 'Print Flour ' . $suffix,
+        'sku' => 'PRT-ING-' . $suffix,
+        'default_unit_id' => $kgUnitId,
+    ]);
+    $ingredientId = (int)($ingredient['id'] ?? 0);
+    btPrint('ingredient created', $ingredientId > 0, json_encode($ingredient, JSON_UNESCAPED_SLASHES));
+
+    $recipe = bakeshopCatalogSaveRecipe([
+        'product_id' => $productId,
+        'ingredient_id' => $ingredientId,
+        'unit_id' => $kgUnitId,
+        'qty' => 1,
+        'notes' => 'print test line',
+    ]);
+    btPrint('recipe created', (int)($recipe['id'] ?? 0) > 0, json_encode($recipe, JSON_UNESCAPED_SLASHES));
+
+    $openingDelivery = bakeshopDeliveriesCreate([
+        'branch_id' => $branchId,
+        'delivered_at' => '2026-04-25 08:00:00',
+        'reference' => 'PRINT-OPEN-' . $suffix,
+        'received_by' => 'Supervisor',
+        'source_type' => 'commissary',
+        'items' => [
+            [
+                'ingredient_id' => $ingredientId,
+                'unit_id' => $kgUnitId,
+                'qty' => 5,
+                'unit_cost' => 10,
+            ],
+        ],
+    ]);
+    $deliveryIds[] = (int)($openingDelivery['id'] ?? 0);
+    btPrint('opening delivery created', end($deliveryIds) > 0, json_encode($openingDelivery, JSON_UNESCAPED_SLASHES));
+
+    $delivery = bakeshopDeliveriesCreate([
+        'branch_id' => $branchId,
+        'delivered_at' => '2026-04-26 08:00:00',
+        'reference' => 'PRINT-DEL-' . $suffix,
+        'source_type' => 'other',
+        'source_name' => 'Farmer Coop',
+        'received_by' => 'Supervisor',
+        'items' => [
+            [
+                'ingredient_id' => $ingredientId,
+                'unit_id' => $kgUnitId,
+                'qty' => 4,
+                'unit_cost' => 10,
+            ],
+        ],
+    ]);
+    $deliveryIds[] = (int)($delivery['id'] ?? 0);
+    btPrint('delivery created', end($deliveryIds) > 0, json_encode($delivery, JSON_UNESCAPED_SLASHES));
+
+    $run = bakeshopProductionCreate([
+        'branch_id' => $branchId,
+        'product_id' => $productId,
+        'produced_at' => '2026-04-26 10:00:00',
+        'qty_produced' => 20,
+        'produced_by' => 'Baker',
+    ]);
+    $runId = (int)($run['id'] ?? 0);
+    btPrint('production run created', $runId > 0, json_encode($run, JSON_UNESCAPED_SLASHES));
+
+    $filters = bakeshopUsageNormalizeFilters([
+        'branch_id' => $branchId,
+        'from_date' => '2026-04-26',
+        'to_date' => '2026-04-26',
+    ]);
+    $branches = bakeshopUsageBranchOptions();
+    $summaryGroups = bakeshopPrintSummaryBranchGroups($filters);
+    $html = bakeshopRender('pages/print-summary.disyl', [
+        'page_title' => 'Printable Bakeshop Summary',
+        'filters' => $filters,
+        'branch_label' => bakeshopUsageResolveBranchLabel($filters, $branches),
+        'branches' => $branches,
+        'summary_groups' => $summaryGroups,
+        'usage_decimal_places' => bakeshopUsageDecimalPlaces(),
+        'print_template' => bakeshopPrintTemplate(),
+    ]);
+
+    btPrint('print summary renders page title', str_contains($html, 'Printable Bakeshop Summary'));
+    btPrint('print summary renders branch label', str_contains($html, (string)($branch['code'] ?? '') . ' - ' . (string)($branch['name'] ?? '')), $html);
+    btPrint('print summary renders ingredient row', str_contains($html, (string)($ingredient['name'] ?? '')), $html);
+    btPrint('print summary renders new balance headings', str_contains($html, 'Beginning Balance') && str_contains($html, 'Delivery Source') && str_contains($html, 'Remaining Balance'), $html);
+    btPrint('print summary renders beginning balance using configured decimals', str_contains($html, '5.00'), $html);
+    btPrint('print summary renders period delivery using configured decimals', str_contains($html, '4.00'), $html);
+    btPrint('print summary renders usage using configured decimals', str_contains($html, '2.00'), $html);
+    btPrint('print summary renders remaining balance using configured decimals', str_contains($html, '7.00'), $html);
+    btPrint('print summary renders supplier label', str_contains($html, 'Other - Farmer Coop'), $html);
+    btPrint('print summary renders configured output meta', str_contains($html, '2 decimal place(s), standard template'), $html);
+} finally {
+    if ($runId > 0) {
+        $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$runId]);
+        $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$runId]);
+    }
+
+    foreach (array_reverse($deliveryIds) as $deliveryId) {
+        if ($deliveryId <= 0) {
+            continue;
+        }
+
+        $db->prepare('DELETE FROM bakeshop_delivery_items WHERE delivery_id = ?')->execute([$deliveryId]);
+        $db->prepare('DELETE FROM bakeshop_deliveries WHERE id = ?')->execute([$deliveryId]);
+    }
+
+    if ($productId > 0) {
+        $db->prepare('DELETE FROM bakeshop_product_recipe WHERE product_id = ?')->execute([$productId]);
+        $db->prepare('DELETE FROM bakeshop_products WHERE id = ?')->execute([$productId]);
+    }
+
+    if ($ingredientId > 0) {
+        $db->prepare('DELETE FROM bakeshop_ingredients WHERE id = ?')->execute([$ingredientId]);
+    }
+
+    if ($branchId > 0) {
+        $db->prepare('DELETE FROM bakeshop_branches WHERE id = ?')->execute([$branchId]);
+    }
+
+    saveModuleSettings('bakeshop', [
+        'usage_decimal_places' => $originalUsageDecimalPlaces,
+        'print_template' => $originalPrintTemplate,
+    ]);
+}
+
+$appLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/app.log'));
+$errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
+btPrint('no app.log errors', $appLog === '' || !str_contains(strtolower($appLog), 'error'), $appLog);
+btPrint('no error.log errors', $errorLog === '', $errorLog);
+
+echo "\n" . str_repeat('─', 50) . "\n";
+echo "  Result: {$pass} passed, {$fail} failed\n";
+if ($errors !== []) {
+    echo "\n  Failures:\n";
+    foreach ($errors as $error) {
+        echo "    • {$error}\n";
+    }
+}
+echo "\n";
+
+exit($fail > 0 ? 1 : 0);

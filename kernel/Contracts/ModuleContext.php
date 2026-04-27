@@ -22,6 +22,7 @@
 namespace Ikabud\Kernel\Contracts;
 
 use Ikabud\Kernel\App;
+use Ikabud\Kernel\Database\KernelPDO;
 
 class ModuleContext implements AuthContract, LogContract
 {
@@ -110,20 +111,20 @@ class ModuleContext implements AuthContract, LogContract
     ): void {
         $user = $this->app->user();
         $source = (string)($user['source'] ?? '');
-        // audit_logs.actor_user_id references users.id (kernel users),
-        // so CMS-source users should not be written directly.
-        $actorId = ($user && $source !== 'cms') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
+        // audit_logs.actor_user_id references users.id, so only kernel actors belong there.
+        $actorId = ($user && $source === 'kernel') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
         if ($actorId !== null && $actorId <= 0) {
             $actorId = null;
         }
-        // F22: Record module-level user identity and actor source for cross-system audit trails.
-        $actorModuleUserId = ($user && $source === 'cms') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
+        // Record all non-kernel identities in the module-scoped actor slot.
+        $actorModuleUserId = ($user && $source !== '' && $source !== 'kernel') ? (int)($user['id'] ?? $user['sub'] ?? 0) : null;
         if ($actorModuleUserId !== null && $actorModuleUserId <= 0) {
             $actorModuleUserId = null;
         }
         $actorSource = $source !== '' ? $source : null;
 
         try {
+            KernelPDO::kernelEscalationEnter();
             $stmt = $this->app->db()->prepare(
                 'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
                 . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
@@ -143,6 +144,8 @@ class ModuleContext implements AuthContract, LogContract
         } catch (\Throwable $e) {
             // Non-fatal — log but don't crash
             $this->log('Audit log write failed: ' . $e->getMessage(), 'error');
+        } finally {
+            KernelPDO::kernelEscalationLeave();
         }
     }
 

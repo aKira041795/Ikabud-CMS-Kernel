@@ -1,0 +1,157 @@
+{extends "modules/bakeshop/layouts/app.disyl"}
+
+{block head}
+<style>
+    .bakeshop-account-shell { display: grid; gap: 20px; }
+    .bakeshop-account-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+    .bakeshop-account-header h2 { margin: 0 0 6px; font-size: var(--font-size-h2); }
+    .bakeshop-account-header p { margin: 0; color: var(--text-muted); max-width: 54rem; }
+    .bakeshop-account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .bakeshop-account-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid #1f2937; background: #1f2937; color: #fff; text-decoration: none; cursor: pointer; }
+    .bakeshop-account-button.secondary { background: #fff; color: #1f2937; border-color: var(--border-color, #dfe3e8); }
+    .bakeshop-account-banner { display: none; padding: 14px 16px; border-radius: 14px; border: 1px solid transparent; }
+    .bakeshop-account-banner.show { display: block; }
+    .bakeshop-account-banner.ok { background: #effaf4; border-color: #b7ebc7; color: #166534; }
+    .bakeshop-account-banner.error { background: #fff3f2; border-color: #fecaca; color: #b91c1c; }
+    .bakeshop-account-grid { display: grid; gap: 20px; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); }
+    .bakeshop-account-panel { border: 1px solid var(--border-color, #dfe3e8); border-radius: 14px; background: #fff; box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05); overflow: hidden; }
+    .bakeshop-account-panel-head { padding: 18px 20px 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-color, #dfe3e8) 85%, transparent); }
+    .bakeshop-account-panel-head h3 { margin: 0 0 6px; }
+    .bakeshop-account-panel-head p { margin: 0; color: var(--text-muted); }
+    .bakeshop-account-panel-body { padding: 18px 20px 20px; display: grid; gap: 14px; }
+    .bakeshop-account-list { display: grid; gap: 12px; }
+    .bakeshop-account-list dt { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-account-list dd { margin: 4px 0 0; font-size: 0.98rem; }
+    .bakeshop-account-field { display: grid; gap: 6px; }
+    .bakeshop-account-field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-account-field input { width: 100%; border-radius: 12px; border: 1px solid var(--border-color, #dfe3e8); padding: 11px 12px; background: #fff; }
+    .bakeshop-account-note { padding: 12px 14px; border-radius: 12px; background: #fff7ed; color: #9a3412; font-size: 0.9rem; }
+    @media (max-width: 920px) { .bakeshop-account-grid { grid-template-columns: 1fr; } }
+</style>
+{/block}
+
+{block content}
+<div class="bakeshop-account-shell">
+    <div class="bakeshop-account-header">
+        <div>
+            <h2>{page_title}</h2>
+            <p>Keep your bakeshop staff profile visible and your password updated without dropping back into any shared CMS user table.</p>
+        </div>
+        <div class="bakeshop-account-actions">
+            <a class="bakeshop-account-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
+            {if can_manage_users}<a class="bakeshop-account-button secondary" href="{base_url}/admin/bakeshop/users">Manage Staff</a>{/if}
+        </div>
+    </div>
+
+    <div class="bakeshop-account-banner" id="bakeshop-account-banner"></div>
+
+    {if is_bootstrap_user && bootstrap_onboarding.required}
+    <div class="bakeshop-account-note">This is the bootstrap admin account. Change this password now, then create a named admin in Manage Staff and retire @{bootstrap_onboarding.bootstrap_user.username} after the replacement admin can sign in.</div>
+    {/if}
+
+    <div class="bakeshop-account-grid">
+        <section class="bakeshop-account-panel">
+            <div class="bakeshop-account-panel-head">
+                <h3>Account Details</h3>
+                <p>Your active bakeshop login profile for this tenant.</p>
+            </div>
+            <div class="bakeshop-account-panel-body">
+                <dl class="bakeshop-account-list">
+                    <div>
+                        <dt>Full Name</dt>
+                        <dd>{account.full_name}</dd>
+                    </div>
+                    <div>
+                        <dt>Username</dt>
+                        <dd>@{account.username}</dd>
+                    </div>
+                    <div>
+                        <dt>Email</dt>
+                        <dd>{account.email}</dd>
+                    </div>
+                    <div>
+                        <dt>Phone</dt>
+                        <dd>{account.phone | default:'-'}</dd>
+                    </div>
+                    <div>
+                        <dt>Role</dt>
+                        <dd>{account.role}</dd>
+                    </div>
+                    <div>
+                        <dt>Joined</dt>
+                        <dd>{account.created_at}</dd>
+                    </div>
+                </dl>
+            </div>
+        </section>
+
+        <section class="bakeshop-account-panel">
+            <div class="bakeshop-account-panel-head">
+                <h3>Change Password</h3>
+                <p>Use your current password to set a new module-local bakeshop password.</p>
+            </div>
+            <div class="bakeshop-account-panel-body">
+                <form id="bakeshop-account-password-form">
+                    <div class="bakeshop-account-field">
+                        <label for="current-password">Current Password</label>
+                        <input id="current-password" name="current_password" type="password" autocomplete="current-password" required>
+                    </div>
+                    <div class="bakeshop-account-field">
+                        <label for="new-password">New Password</label>
+                        <input id="new-password" name="new_password" type="password" autocomplete="new-password" minlength="8" required>
+                    </div>
+                    <div class="bakeshop-account-field">
+                        <label for="confirm-password">Confirm Password</label>
+                        <input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required>
+                    </div>
+                    <div class="bakeshop-account-note">Changing the password here updates only your bakeshop login. It no longer depends on CMS users for entry-module tenants.</div>
+                    <button class="bakeshop-account-button" type="submit">Update Password</button>
+                </form>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+(() => {
+    const csrfToken = '{csrf_token}';
+    const banner = document.getElementById('bakeshop-account-banner');
+
+    function showBanner(message, ok = true) {
+        banner.textContent = message;
+        banner.className = 'bakeshop-account-banner show ' + (ok ? 'ok' : 'error');
+    }
+
+    function formDataToObject(form) {
+        return Object.fromEntries(new FormData(form).entries());
+    }
+
+    document.getElementById('bakeshop-account-password-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+
+        try {
+            const response = await fetch('{base_url}/api/v1/bakeshop/account/password', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify(formDataToObject(form))
+            });
+
+            const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
+            if (!response.ok || payload.ok === false) {
+                throw new Error(payload.error || 'Request failed');
+            }
+
+            form.reset();
+            showBanner(payload.data?.message || 'Password updated successfully.');
+        } catch (error) {
+            showBanner(error.message || 'Unable to update password.', false);
+        }
+    });
+})();
+</script>
+{/block}

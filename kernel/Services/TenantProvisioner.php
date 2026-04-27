@@ -57,6 +57,16 @@ class TenantProvisioner
                 return $this->result(false, 0);
             }
 
+            $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
+            if ($this->requiresSeededAdminCredentials($entryModule)) {
+                $adminUser = trim((string)($options['admin_user'] ?? ''));
+                $adminPass = trim((string)($options['admin_pass'] ?? ''));
+                if ($adminUser === '' || $adminPass === '') {
+                    $this->error('Entry-module tenant provisioning requires admin_user and admin_pass for ' . $entryModule . '.');
+                    return $this->result(false, 0);
+                }
+            }
+
             // Step 3: Create database (unless skipped)
             if (empty($options['skip_db_create'])) {
                 $ok = $this->createDatabase($creds);
@@ -78,7 +88,6 @@ class TenantProvisioner
             app()->tenant()->setTenantId($tenantId);
 
             // Step 6: Run module migrations
-            $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
             $migrationCount = $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
 
             // Step 7: Run kernel migrations
@@ -282,6 +291,11 @@ class TenantProvisioner
         } catch (Throwable $e) {
             $this->error('User seed failed: ' . $e->getMessage());
         }
+    }
+
+    private function requiresSeededAdminCredentials(string $entryModule): bool
+    {
+        return in_array($entryModule, ['bakeshop'], true);
     }
 
     // ── Logging helpers ─────────────────────────────────────────

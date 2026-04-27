@@ -1,0 +1,361 @@
+{extends "modules/bakeshop/layouts/app.disyl"}
+
+{block head}
+<style>
+    .bakeshop-users-shell { display: grid; gap: 20px; }
+    .bakeshop-users-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+    .bakeshop-users-header h2 { margin: 0 0 6px; font-size: var(--font-size-h2); }
+    .bakeshop-users-header p { margin: 0; color: var(--text-muted); max-width: 58rem; }
+    .bakeshop-users-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .bakeshop-users-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid #1f2937; background: #1f2937; color: #fff; text-decoration: none; cursor: pointer; }
+    .bakeshop-users-button.secondary { background: #fff; color: #1f2937; border-color: var(--border-color, #dfe3e8); }
+    .bakeshop-users-banner { display: none; padding: 14px 16px; border-radius: 14px; border: 1px solid transparent; }
+    .bakeshop-users-banner.show { display: block; }
+    .bakeshop-users-banner.ok { background: #effaf4; border-color: #b7ebc7; color: #166534; }
+    .bakeshop-users-banner.error { background: #fff3f2; border-color: #fecaca; color: #b91c1c; }
+    .bakeshop-users-onboarding { padding: 18px 20px; border-radius: 14px; border: 1px solid #f3d7a5; background: linear-gradient(135deg, #fff7ed, #fffbeb); box-shadow: 0 14px 30px rgba(180, 83, 9, 0.08); display: grid; gap: 12px; }
+    .bakeshop-users-onboarding h3 { margin: 0; }
+    .bakeshop-users-onboarding p { margin: 0; color: #7c5a32; line-height: 1.6; }
+    .bakeshop-users-onboarding strong { color: #92400e; }
+    .bakeshop-users-grid { display: grid; gap: 20px; grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); }
+    .bakeshop-users-panel { border: 1px solid var(--border-color, #dfe3e8); border-radius: 14px; background: #fff; box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05); overflow: hidden; }
+    .bakeshop-users-panel-head { padding: 18px 20px 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-color, #dfe3e8) 85%, transparent); }
+    .bakeshop-users-panel-head h3 { margin: 0 0 6px; }
+    .bakeshop-users-panel-head p { margin: 0; color: var(--text-muted); }
+    .bakeshop-users-panel-body { padding: 18px 20px 20px; display: grid; gap: 14px; }
+    .bakeshop-users-field { display: grid; gap: 6px; }
+    .bakeshop-users-field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-users-field input,
+    .bakeshop-users-field select { width: 100%; border-radius: 12px; border: 1px solid var(--border-color, #dfe3e8); padding: 11px 12px; background: #fff; }
+    .bakeshop-users-help { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+    .bakeshop-users-table-wrap { overflow: auto; }
+    .bakeshop-users-table { width: 100%; border-collapse: collapse; }
+    .bakeshop-users-table th,
+    .bakeshop-users-table td { padding: 12px 14px; border-bottom: 1px solid var(--border-color, #dfe3e8); text-align: left; vertical-align: top; }
+    .bakeshop-users-table th { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-users-table tr:last-child td { border-bottom: none; }
+    .bakeshop-users-status,
+    .bakeshop-users-role { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .bakeshop-users-status.active { background: #effaf4; color: #166534; }
+    .bakeshop-users-status.inactive { background: #f3f4f6; color: #4b5563; }
+    .bakeshop-users-role.admin { background: rgba(180, 83, 9, 0.12); color: #92400e; }
+    .bakeshop-users-role.supervisor { background: rgba(29, 78, 216, 0.12); color: #1d4ed8; }
+    .bakeshop-users-card { border: 1px solid var(--border-color, #dfe3e8); border-radius: 14px; background: #fffdfa; }
+    .bakeshop-users-card.focused { border-color: #eab308; box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.16); }
+    .bakeshop-users-card summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .bakeshop-users-card summary::-webkit-details-marker { display: none; }
+    .bakeshop-users-card form { padding: 0 16px 16px; display: grid; gap: 12px; }
+    .bakeshop-users-meta { color: var(--text-muted); font-size: 0.85rem; }
+    .bakeshop-users-actions-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .bakeshop-users-inline { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .bakeshop-users-note { padding: 12px 14px; border-radius: 12px; background: #f8fafc; color: var(--text-muted); font-size: 0.88rem; }
+    .bakeshop-users-focus-note { padding: 12px 14px; border-radius: 12px; background: #fff8db; color: #854d0e; font-size: 0.88rem; }
+    .bakeshop-users-table tr.focused td { background: #fff8db; }
+    @media (max-width: 980px) { .bakeshop-users-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) { .bakeshop-users-inline { grid-template-columns: 1fr; } }
+</style>
+{/block}
+
+{block content}
+<div class="bakeshop-users-shell">
+    <div class="bakeshop-users-header">
+        <div>
+            <h2>{page_title}</h2>
+            <p>Create and maintain the bakeshop staff accounts that can enter the operations workspace. Admins manage team access here; supervisors keep their own password changes in My Account.</p>
+        </div>
+        <div class="bakeshop-users-actions">
+            <a class="bakeshop-users-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
+            <a class="bakeshop-users-button secondary" href="{base_url}/admin/bakeshop/account">My Account</a>
+        </div>
+    </div>
+
+    <div class="bakeshop-users-banner" id="bakeshop-users-banner"></div>
+
+    {if bootstrap_onboarding.required}
+    <section class="bakeshop-users-onboarding">
+        <h3>Bootstrap Admin Onboarding</h3>
+        {if bootstrap_onboarding.needs_successor_admin}
+        <p>You are still using the default bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong>. Create a named <strong>admin</strong> account for the real operator first, sign in with that account, then come back and retire the bootstrap login.</p>
+        {else}
+        <p>The default bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong> is still active. A replacement admin already exists, so the next step is to sign in with that named admin and deactivate the bootstrap account below.</p>
+        {/if}
+        {if bootstrap_onboarding.password_setup_required}
+        <p>The bootstrap account is currently marked for password setup only. It no longer ships with a shared default password, so create a named admin below or set a fresh password intentionally before any handoff.</p>
+        {/if}
+        <p>{if bootstrap_onboarding.can_retire_bootstrap}Active named admins detected: {bootstrap_onboarding.other_admin_count}.{else}No other active admin accounts exist yet.{/if} Use the form below to keep the handoff inside the bakeshop module.</p>
+    </section>
+    {/if}
+
+    <div class="bakeshop-users-grid">
+        <section class="bakeshop-users-panel">
+            <div class="bakeshop-users-panel-head">
+                <h3>Add Staff Account</h3>
+                <p>Create the next admin or supervisor without leaving the bakeshop module.</p>
+            </div>
+            <div class="bakeshop-users-panel-body">
+                <form id="bakeshop-user-create-form">
+                    <div class="bakeshop-users-field">
+                        <label for="new-full-name">Full Name</label>
+                        <input id="new-full-name" name="full_name" required>
+                    </div>
+                    <div class="bakeshop-users-field">
+                        <label for="new-username">Username</label>
+                        <input id="new-username" name="username" required>
+                    </div>
+                    <div class="bakeshop-users-field">
+                        <label for="new-email">Email</label>
+                        <input id="new-email" name="email" type="email" required>
+                    </div>
+                    <div class="bakeshop-users-field">
+                        <label for="new-phone">Phone</label>
+                        <input id="new-phone" name="phone" type="tel">
+                    </div>
+                    <div class="bakeshop-users-field">
+                        <label for="new-password">Temporary Password</label>
+                        <input id="new-password" name="password" type="password" minlength="8" required>
+                    </div>
+                    <div class="bakeshop-users-field">
+                        <label for="new-role">Role</label>
+                        <select id="new-role" name="role" required>
+                            <option value="supervisor" {if !bootstrap_onboarding.needs_successor_admin}selected{/if}>Supervisor</option>
+                            <option value="admin" {if bootstrap_onboarding.needs_successor_admin}selected{/if}>Admin</option>
+                        </select>
+                    </div>
+                    <button class="bakeshop-users-button" type="submit">Create Staff Account</button>
+                </form>
+                <div class="bakeshop-users-note">Passwords stay module-local now. New bakeshop tenants no longer need CMS users just to sign in.{if bootstrap_onboarding.needs_successor_admin} Start by creating a named admin, not another bootstrap-style shared login.{/if}</div>
+            </div>
+        </section>
+
+        <section class="bakeshop-users-panel">
+            <div class="bakeshop-users-panel-head">
+                <h3>Active Staff</h3>
+                <p>{users | count} staff account(s) currently registered for this bakeshop tenant.</p>
+            </div>
+            <div class="bakeshop-users-panel-body">
+                <div class="bakeshop-users-table-wrap">
+                    <table class="bakeshop-users-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {if users | count == 0}
+                            <tr>
+                                <td colspan="5" class="bakeshop-users-meta">No bakeshop staff accounts yet.</td>
+                            </tr>
+                            {/if}
+                            {foreach users as staff}
+                            <tr data-user-row-id="{staff.id}">
+                                <td>
+                                    <strong>{staff.full_name}</strong>
+                                    <div class="bakeshop-users-meta">{staff.email}</div>
+                                </td>
+                                <td class="bakeshop-users-meta">@{staff.username}</td>
+                                <td><span class="bakeshop-users-role {staff.role}">{staff.role}</span></td>
+                                <td><span class="bakeshop-users-status {if staff.is_active}active{else}inactive{/if}">{if staff.is_active}Active{else}Inactive{/if}</span></td>
+                                <td class="bakeshop-users-meta">{staff.created_at}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="5">
+                                    <details class="bakeshop-users-card" data-user-card-id="{staff.id}">
+                                        <summary>
+                                            <span>
+                                                <strong>Edit {staff.full_name}</strong>
+                                                <span class="bakeshop-users-meta">Update contact details, role, or issue a password reset.</span>
+                                            </span>
+                                            <span class="bakeshop-users-meta">Open</span>
+                                        </summary>
+                                        <form class="bakeshop-user-edit-form" data-user-id="{staff.id}">
+                                            <div class="bakeshop-users-focus-note" data-user-focus-note="{staff.id}" hidden>Reviewing this staff account from activity history. Confirm the details below before saving changes.</div>
+                                            <div class="bakeshop-users-inline">
+                                                <div class="bakeshop-users-field">
+                                                    <label>Full Name</label>
+                                                    <input name="full_name" value="{staff.full_name}" required>
+                                                </div>
+                                                <div class="bakeshop-users-field">
+                                                    <label>Email</label>
+                                                    <input name="email" type="email" value="{staff.email}" required>
+                                                </div>
+                                                <div class="bakeshop-users-field">
+                                                    <label>Phone</label>
+                                                    <input name="phone" type="tel" value="{staff.phone | default:''}">
+                                                </div>
+                                                <div class="bakeshop-users-field">
+                                                    <label>Username</label>
+                                                    <input value="{staff.username}" readonly>
+                                                </div>
+                                                <div class="bakeshop-users-field">
+                                                    <label>Role</label>
+                                                    {if staff.id == current_user_id}
+                                                    <input value="{staff.role}" readonly>
+                                                    <input type="hidden" name="role" value="{staff.role}">
+                                                    {else}
+                                                    <select name="role" required>
+                                                        <option value="supervisor" {if staff.role == 'supervisor'}selected{/if}>Supervisor</option>
+                                                        <option value="admin" {if staff.role == 'admin'}selected{/if}>Admin</option>
+                                                    </select>
+                                                    {/if}
+                                                </div>
+                                                <div class="bakeshop-users-field">
+                                                    <label>Status</label>
+                                                    {if staff.id == current_user_id}
+                                                    <input value="Current account stays active" readonly>
+                                                    <input type="hidden" name="is_active" value="1">
+                                                    {else}
+                                                    <select name="is_active">
+                                                        <option value="1" {if staff.is_active}selected{/if}>Active</option>
+                                                        <option value="0" {if !staff.is_active}selected{/if}>Inactive</option>
+                                                    </select>
+                                                    {/if}
+                                                </div>
+                                            </div>
+                                            <div class="bakeshop-users-field">
+                                                <label>Reset Password</label>
+                                                {if staff.id == current_user_id}
+                                                <input value="Use My Account to change your own password" readonly>
+                                                <input type="hidden" name="password" value="">
+                                                {else}
+                                                <input name="password" type="password" minlength="8" placeholder="Leave blank to keep the current password">
+                                                {/if}
+                                            </div>
+                                            <div class="bakeshop-users-actions-row">
+                                                {if staff.id != current_user_id && staff.is_active}
+                                                <button class="bakeshop-users-button secondary" type="button" data-delete-user="{staff.id}" data-user-name="{staff.full_name}">Deactivate</button>
+                                                {/if}
+                                                <button class="bakeshop-users-button" type="submit">Save Changes</button>
+                                            </div>
+                                        </form>
+                                    </details>
+                                </td>
+                            </tr>
+                            {/foreach}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+(() => {
+    const csrfToken = '{csrf_token}';
+    const banner = document.getElementById('bakeshop-users-banner');
+    const searchParams = new URLSearchParams(window.location.search);
+    const focusUserId = Number(searchParams.get('focus_user_id') || '0');
+
+    function showBanner(message, ok = true) {
+        banner.textContent = message;
+        banner.className = 'bakeshop-users-banner show ' + (ok ? 'ok' : 'error');
+    }
+
+    function formDataToObject(form) {
+        const data = new FormData(form);
+        return Object.fromEntries(data.entries());
+    }
+
+    async function postJson(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify(body)
+        });
+
+        const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
+        if (!response.ok || payload.ok === false) {
+            throw new Error(payload.error || 'Request failed');
+        }
+
+        return payload;
+    }
+
+    document.getElementById('bakeshop-user-create-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+
+        try {
+            await postJson('{base_url}/api/v1/bakeshop/users', formDataToObject(form));
+            showBanner('Staff account created. Reloading list...');
+            window.location.reload();
+        } catch (error) {
+            showBanner(error.message || 'Unable to create staff account.', false);
+        }
+    });
+
+    document.querySelectorAll('.bakeshop-user-edit-form').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const currentForm = event.currentTarget;
+            const userId = currentForm.getAttribute('data-user-id');
+
+            try {
+                await postJson('{base_url}/api/v1/bakeshop/users/' + userId, formDataToObject(currentForm));
+                showBanner('Staff account updated. Reloading list...');
+                window.location.reload();
+            } catch (error) {
+                showBanner(error.message || 'Unable to update staff account.', false);
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-delete-user]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const userId = button.getAttribute('data-delete-user');
+            const userName = button.getAttribute('data-user-name') || 'this user';
+            if (!window.confirm('Deactivate ' + userName + '?')) {
+                return;
+            }
+
+            try {
+                await postJson('{base_url}/api/v1/bakeshop/users/' + userId + '/delete', {});
+                showBanner('Staff account deactivated. Reloading list...');
+                window.location.reload();
+            } catch (error) {
+                showBanner(error.message || 'Unable to deactivate staff account.', false);
+            }
+        });
+    });
+
+    if (searchParams.get('onboarding') === 'bootstrap') {
+        showBanner('Finish bootstrap admin onboarding on this page before returning to the workspace.');
+    }
+
+    if (Number.isFinite(focusUserId) && focusUserId > 0) {
+        const detailsCard = document.querySelector('[data-user-card-id="' + focusUserId + '"]');
+        const userRow = document.querySelector('tr[data-user-row-id="' + focusUserId + '"]');
+        const focusNote = document.querySelector('[data-user-focus-note="' + focusUserId + '"]');
+        const focusField = detailsCard ? detailsCard.querySelector('input[name="full_name"], input[name="email"], select[name="role"]') : null;
+        if (detailsCard) {
+            detailsCard.open = true;
+            detailsCard.classList.add('focused');
+        }
+        if (userRow) {
+            userRow.classList.add('focused');
+            userRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (focusNote) {
+            focusNote.hidden = false;
+        }
+        if (focusField && typeof focusField.focus === 'function') {
+            focusField.focus({ preventScroll: true });
+        }
+        if (detailsCard || userRow) {
+            showBanner('Focused staff account from activity history.');
+            const url = new URL(window.location.href);
+            url.searchParams.delete('focus_user_id');
+            history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + (url.hash ? url.hash : ''));
+        }
+    }
+})();
+</script>
+{/block}

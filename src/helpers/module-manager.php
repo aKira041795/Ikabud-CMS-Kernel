@@ -1758,6 +1758,27 @@ function executeModuleHandler(string $handler, array $params = []): void
         return;
     }
 
+    // ── Kernel-enforced CSRF on state-mutating module routes ──────────
+    // API routes (Bearer-authenticated) are exempt; browser form posts must pass.
+    $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $isModuleLogin = (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
+    $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri) || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/refresh$#', $requestUri);
+
+    if ($requestMethod === 'POST' && $isModuleLogin) {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $loginRateLimit = kernelConsumeLoginRateLimit($moduleId);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
+        if (!empty($loginRateLimit['limited'])) {
+            kernelEmitLoginRateLimitJson($loginRateLimit);
+            modulePopContext();
+            kernel_request_context_delete('_capability_call_context');
+            return;
+        }
+    }
+
     // ── Build scoped ModuleContext ───────────────────────────────────
     $ctx = modulePushContext($moduleId);
     if (!$ctx) {
@@ -1771,22 +1792,6 @@ function executeModuleHandler(string $handler, array $params = []): void
         'user' => $user,
         'request_id' => request_id(),
     ]);
-
-    // ── Kernel-enforced CSRF on state-mutating module routes ──────────
-    // API routes (Bearer-authenticated) are exempt; browser form posts must pass.
-    $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-    $isModuleLogin = (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
-    $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri) || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/refresh$#', $requestUri);
-
-    if ($requestMethod === 'POST' && $isModuleLogin) {
-        $loginRateLimit = kernelConsumeLoginRateLimit($moduleId);
-        if (!empty($loginRateLimit['limited'])) {
-            kernelEmitLoginRateLimitJson($loginRateLimit);
-            modulePopContext();
-            kernel_request_context_delete('_capability_call_context');
-            return;
-        }
-    }
 
     if (in_array($requestMethod, ['POST', 'PUT', 'DELETE'], true) && !$isApiRoute && !$isModuleLogin) {
         app()->csrfEnforce();

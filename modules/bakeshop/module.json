@@ -1,0 +1,149 @@
+{
+    "id": "bakeshop",
+    "name": "Bakeshop Operations",
+    "version": "0.1.0",
+    "description": "Stand-alone bakeshop supervisor operations for products, recipes, deliveries, production, and usage reporting.",
+    "author": "Ikabud Kernel Team",
+    "owns_tables": [
+        "bakeshop_users",
+        "bakeshop_branches",
+        "bakeshop_units",
+        "bakeshop_ingredients",
+        "bakeshop_products",
+        "bakeshop_product_recipe",
+        "bakeshop_deliveries",
+        "bakeshop_delivery_items",
+        "bakeshop_production_runs",
+        "bakeshop_production_items"
+    ],
+    "reads_tables": [
+        "bakeshop_ingredient_usage",
+        "audit_logs"
+    ],
+    "migrations": [
+        "database/migrations/001_bakeshop_core.sql",
+        "database/migrations/002_bakeshop_users.sql",
+        "database/migrations/003_bakeshop_bootstrap_admin.sql",
+        "database/migrations/004_bakeshop_user_token_version.sql",
+        "database/migrations/005_bakeshop_bootstrap_password_reset.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 560,
+                "modes": [
+                    "pipeline"
+                ]
+            },
+            {
+                "id": "bakeshop.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "bakeshop.manage@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "bakeshop.product.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "bakeshop.ingredient.usage.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "kernel.auth.user@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "kernel.auth.authenticate@1": {
+                    "allow_callers": [
+                        "bakeshop",
+                        "kernel"
+                    ]
+                }
+            }
+        }
+    },
+    "auth_cookie": "bakeshop_token",
+    "events": [
+        "bakeshop.branch.created",
+        "bakeshop.delivery.created",
+        "bakeshop.production.created",
+        "bakeshop.product.created",
+        "bakeshop.ingredient.created",
+        "bakeshop.recipe.saved"
+    ],
+    "settings_fields": [
+        {
+            "key": "usage_decimal_places",
+            "type": "number",
+            "label": "Usage Decimal Places",
+            "default": "2",
+            "description": "Number of decimal places used in the ingredient usage summary and printable reports."
+        },
+        {
+            "key": "print_template",
+            "type": "select",
+            "label": "Print Template",
+            "default": "standard",
+            "description": "Printable summary layout for per-branch usage reports.",
+            "options": [
+                {
+                    "label": "Standard",
+                    "value": "standard"
+                }
+            ]
+        },
+        {
+            "key": "role_permissions",
+            "type": "textarea",
+            "label": "Role Permissions",
+            "default": "",
+            "description": "Optional JSON role-to-permission map for bakeshop runtime access. Supported permissions: bakeshop.read, bakeshop.manage."
+        }
+    ],
+    "nav": [
+        {
+            "label": "Bakeshop",
+            "url": "/admin/bakeshop",
+            "icon": "package",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Staff",
+            "url": "/admin/bakeshop/users",
+            "icon": "users",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "My Account",
+            "url": "/admin/bakeshop/account",
+            "icon": "user",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        }
+    ]
+}
