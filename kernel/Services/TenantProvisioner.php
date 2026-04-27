@@ -246,9 +246,22 @@ class TenantProvisioner
 
     private function seedAdminUser(PDO $tenantPdo, string $user, string $pass, string $name, string $entryModule): void
     {
+        // Manifest-driven path: if the entry module declares auth_owned, seed
+        // into its declared users_table using the declared columns/role.
+        $spec = function_exists('kernelAuthOwnedSpecForModule')
+            ? kernelAuthOwnedSpecForModule($entryModule)
+            : null;
+
+        if (is_array($spec)) {
+            $this->seedAdminUserFromAuthOwnedSpec($tenantPdo, $spec, $user, $pass, $name);
+            return;
+        }
+
+        // Legacy fallbacks for entry modules that have not yet declared
+        // auth_owned (cms-via-users, plain `users` table). These remain in
+        // place so existing tenants keep provisioning cleanly.
         $table = match ($entryModule) {
             'cms' => 'cms_users',
-            'bakeshop' => 'bakeshop_users',
             default => 'users',
         };
 
@@ -273,12 +286,6 @@ class TenantProvisioner
                     . "VALUES (:u, :e, :p, :n, 'administrator', 1)"
                 );
                 $stmt->execute([':u' => $user, ':e' => $user . '@localhost', ':p' => $hash, ':n' => $name]);
-            } elseif ($table === 'bakeshop_users') {
-                $stmt = $tenantPdo->prepare(
-                    "INSERT INTO `bakeshop_users` (username, email, password_hash, full_name, role, is_active) "
-                    . "VALUES (:u, :e, :p, :n, 'admin', 1)"
-                );
-                $stmt->execute([':u' => $user, ':e' => $user . '@localhost', ':p' => $hash, ':n' => $name]);
             } else {
                 $stmt = $tenantPdo->prepare(
                     "INSERT INTO `users` (username, password, full_name, role, status) "
@@ -293,8 +300,96 @@ class TenantProvisioner
         }
     }
 
+    /**
+     * Seed an admin user into a module's auth_owned users table using the
+     * normalized manifest spec. Idempotent: re-running for the same username
+     * is a no-op.
+     */
+    private function seedAdminUserFromAuthOwnedSpec(PDO $tenantPdo, array $spec, string $user, string $pass, string $name): void
+    {
+        $table = (string)$spec['users_table'];
+        try {
+            $tableCheck = $tenantPdo->query("SHOW TABLES LIKE '{$table}'")->fetchColumn();
+            if ($tableCheck === false) {
+                $this->log("Table '$table' does not exist — skipping user seed");
+                return;
+            }
+
+            $usernameCol = (string)$spec['username_column'];
+            $emailCol    = (string)$spec['email_column'];
+            $pwdCol      = (string)$spec['password_column'];
+            $nameCol     = (string)$spec['name_column'];
+            $activeCol   = (string)$spec['active_column'];
+            $role        = (string)$spec['default_admin_role'];
+
+            // Idempotency: lookup by username column (or email if no separate
+            // username — e.g. gm_users where username_column == email_column).
+            $exists = $tenantPdo->prepare(
+                "SELECT id FROM `{$table}` WHERE `{$usernameCol}` = :u LIMIT 1"
+            );
+            $exists->execute([':u' => $user]);
+            if ($exists->fetch()) {
+                $this->log("User '$user' already exists in $table");
+                return;
+            }
+
+            $hash = password_hash($pass, PASSWORD_BCRYPT);
+
+            // Build a column list that respects which columns the table actually
+            // has. The manifest declares the canonical names, but a few legacy
+            // tables omit `email`, so keep the username/email columns identical
+            // when the manifest pins them to the same name.
+            $cols = ['`' . $usernameCol . '`'];
+            $vals = [':u'];
+            $params = [':u' => $user];
+
+            if ($emailCol !== '' && $emailCol !== $usernameCol) {
+                $cols[] = '`' . $emailCol . '`';
+                $vals[] = ':e';
+                $params[':e'] = $user . '@localhost';
+            }
+
+            $cols[] = '`' . $pwdCol . '`';
+            $vals[] = ':p';
+            $params[':p'] = $hash;
+
+            if ($nameCol !== '') {
+                $cols[] = '`' . $nameCol . '`';
+                $vals[] = ':n';
+                $params[':n'] = $name;
+            }
+
+            $cols[] = '`role`';
+            $vals[] = ':r';
+            $params[':r'] = $role;
+
+            if ($activeCol !== '') {
+                $cols[] = '`' . $activeCol . '`';
+                $vals[] = '1';
+            }
+
+            $sql = 'INSERT INTO `' . $table . '` (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
+            $tenantPdo->prepare($sql)->execute($params);
+
+            $this->log("Admin user '$user' seeded in $table (auth_owned spec for module {$spec['module_id']})");
+        } catch (Throwable $e) {
+            $this->error('User seed failed for ' . $table . ': ' . $e->getMessage());
+        }
+    }
+
     private function requiresSeededAdminCredentials(string $entryModule): bool
     {
+        // Manifest-driven: a module opts into the named-admin requirement by
+        // setting auth_owned.requires_named_admin_on_provision = true.
+        if (function_exists('kernelAuthOwnedSpecForModule')) {
+            $spec = kernelAuthOwnedSpecForModule($entryModule);
+            if (is_array($spec) && !empty($spec['requires_named_admin_on_provision'])) {
+                return true;
+            }
+        }
+
+        // Backstop: keep bakeshop hardcoded so the kernel default-deny stays
+        // intact even if the module manifest is missing on disk for any reason.
         return in_array($entryModule, ['bakeshop'], true);
     }
 

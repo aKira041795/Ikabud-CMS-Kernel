@@ -43,6 +43,13 @@ android/
 public/debug-opcache.php
 debug_cap_test.php
 
+# Local-only development artifacts
+/bakeshopapp/
+/config/vhosts/juliesbakeshop.test.conf
+/database/*.sqlite
+/tests/daily_ledger_android_api_test.php
+/tests/debug_cashier.php
+
 # Test/validation upload artifacts (runtime-generated, not source)
 modules/cms/assets/uploads/test/
 

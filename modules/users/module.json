@@ -4,6 +4,21 @@
     "version": "1.0.0",
     "description": "CMS users module (accounts, roles, CRUD capabilities).",
     "author": "Noah C. Omamalin",
+    "auth_owned": {
+        "users_table": "cms_users",
+        "username_column": "username",
+        "email_column": "email",
+        "password_column": "password_hash",
+        "name_column": "display_name",
+        "active_column": "is_active",
+        "admin_roles": [
+            "superadmin",
+            "administrator"
+        ],
+        "default_admin_role": "administrator",
+        "requires_named_admin_on_provision": false,
+        "touch_updated_at": false
+    },
     "owns_tables": [],
     "reads_tables": [
         "cms_users"

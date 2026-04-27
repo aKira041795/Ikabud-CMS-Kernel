@@ -833,17 +833,197 @@ function validateModuleCapabilities(array $manifest): array
 }
 
 /**
+ * Validate the optional `auth_owned` block in a module.json manifest.
+ *
+ * The block declares that the module owns its own users table and opts
+ * the module into the platform-wide trusted-provisioning + admin-recovery
+ * pipelines (see kernel/Services/TenantProvisioner.php and
+ * kernelHandleApiTenantAdminPasswordPush() in src/http/admin-handlers.php).
+ *
+ * Shape:
+ *   {
+ *     "users_table":                "bakeshop_users",          // required
+ *     "username_column":            "username",                  // optional, default 'username'
+ *     "email_column":               "email",                     // optional, default 'email'
+ *     "password_column":            "password_hash",             // optional, default 'password_hash'
+ *     "name_column":                "full_name",                 // optional, default 'full_name'
+ *     "active_column":              "is_active",                 // optional, default 'is_active'
+ *     "deleted_column":             null,                        // optional, default null
+ *     "admin_roles":                ["admin"],                   // required, non-empty
+ *     "default_admin_role":         "admin",                     // optional, default first admin_roles entry
+ *     "requires_named_admin_on_provision": true,                 // optional, default false
+ *     "blocked_password_hashes":    ["..."],                     // optional, sentinel hashes the auth provider must reject
+ *     "touch_updated_at":           true                         // optional, default true (adds updated_at = NOW())
+ *   }
+ */
+function validateAuthOwnedSpec(mixed $raw): array
+{
+    if (!is_array($raw)) {
+        return ['ok' => false, 'error' => 'module.json field auth_owned must be an object'];
+    }
+
+    $identRegex = '/^[A-Za-z_][A-Za-z0-9_]*$/';
+
+    $usersTable = (string)($raw['users_table'] ?? '');
+    if ($usersTable === '' || !preg_match($identRegex, $usersTable)) {
+        return ['ok' => false, 'error' => 'module.json field auth_owned.users_table must be a valid identifier'];
+    }
+
+    foreach (['username_column', 'email_column', 'password_column', 'name_column', 'active_column', 'deleted_column'] as $colField) {
+        if (!array_key_exists($colField, $raw) || $raw[$colField] === null) {
+            continue;
+        }
+        if (!is_string($raw[$colField]) || !preg_match($identRegex, $raw[$colField])) {
+            return ['ok' => false, 'error' => "module.json field auth_owned.{$colField} must be null or a valid column identifier"];
+        }
+    }
+
+    $adminRoles = $raw['admin_roles'] ?? null;
+    if (!is_array($adminRoles) || $adminRoles === []) {
+        return ['ok' => false, 'error' => 'module.json field auth_owned.admin_roles must be a non-empty array of role strings'];
+    }
+    foreach ($adminRoles as $role) {
+        if (!is_string($role) || trim($role) === '') {
+            return ['ok' => false, 'error' => 'module.json field auth_owned.admin_roles must contain non-empty strings'];
+        }
+    }
+
+    if (array_key_exists('default_admin_role', $raw)) {
+        if (!is_string($raw['default_admin_role']) || trim($raw['default_admin_role']) === '') {
+            return ['ok' => false, 'error' => 'module.json field auth_owned.default_admin_role must be a non-empty string when provided'];
+        }
+    }
+
+    if (array_key_exists('blocked_password_hashes', $raw)) {
+        if (!is_array($raw['blocked_password_hashes'])) {
+            return ['ok' => false, 'error' => 'module.json field auth_owned.blocked_password_hashes must be an array of strings'];
+        }
+        foreach ($raw['blocked_password_hashes'] as $hash) {
+            if (!is_string($hash) || $hash === '') {
+                return ['ok' => false, 'error' => 'module.json field auth_owned.blocked_password_hashes must contain non-empty strings'];
+            }
+        }
+    }
+
+    return ['ok' => true];
+}
+
+/**
+ * Normalize an auth_owned spec into a deterministic shape with defaults applied.
+ * The returned array uses only validated identifiers, so callers can safely
+ * interpolate the values into prepared SQL fragments.
+ */
+function kernelNormalizeAuthOwnedSpec(string $moduleId, array $raw): array
+{
+    $adminRoles = array_values(array_filter(array_map(
+        static fn($r) => is_string($r) ? trim($r) : '',
+        $raw['admin_roles'] ?? []
+    ), static fn($r) => $r !== ''));
+
+    if ($adminRoles === []) {
+        $adminRoles = ['admin'];
+    }
+
+    $defaultRole = isset($raw['default_admin_role']) && is_string($raw['default_admin_role']) && trim($raw['default_admin_role']) !== ''
+        ? trim($raw['default_admin_role'])
+        : $adminRoles[0];
+
+    $blocked = [];
+    if (isset($raw['blocked_password_hashes']) && is_array($raw['blocked_password_hashes'])) {
+        foreach ($raw['blocked_password_hashes'] as $hash) {
+            if (is_string($hash) && $hash !== '') {
+                $blocked[] = $hash;
+            }
+        }
+    }
+
+    return [
+        'module_id'                          => $moduleId,
+        'users_table'                        => (string)$raw['users_table'],
+        'username_column'                    => (string)($raw['username_column'] ?? 'username'),
+        'email_column'                       => (string)($raw['email_column'] ?? 'email'),
+        'password_column'                    => (string)($raw['password_column'] ?? 'password_hash'),
+        'name_column'                        => (string)($raw['name_column'] ?? 'full_name'),
+        'active_column'                      => isset($raw['active_column']) && $raw['active_column'] !== null ? (string)$raw['active_column'] : 'is_active',
+        'deleted_column'                     => isset($raw['deleted_column']) && $raw['deleted_column'] !== null ? (string)$raw['deleted_column'] : null,
+        'admin_roles'                        => $adminRoles,
+        'default_admin_role'                 => $defaultRole,
+        'requires_named_admin_on_provision'  => !empty($raw['requires_named_admin_on_provision']),
+        'blocked_password_hashes'            => $blocked,
+        'touch_updated_at'                   => array_key_exists('touch_updated_at', $raw) ? (bool)$raw['touch_updated_at'] : true,
+    ];
+}
+
+/**
+ * Discover all enabled modules that declare an `auth_owned` block and return
+ * normalized specs keyed by module id.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function kernelAuthOwnedModules(): array
+{
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $result = [];
+    foreach (getEnabledModules() as $moduleId => $manifest) {
+        if (!is_array($manifest)) {
+            continue;
+        }
+        $raw = $manifest['auth_owned'] ?? null;
+        if (!is_array($raw)) {
+            continue;
+        }
+        $check = validateAuthOwnedSpec($raw);
+        if (empty($check['ok'])) {
+            if (function_exists('write_log')) {
+                write_log(
+                    'auth_owned manifest ignored for module ' . $moduleId . ': ' . (string)($check['error'] ?? 'invalid'),
+                    'warning'
+                );
+            }
+            continue;
+        }
+        $result[(string)$moduleId] = kernelNormalizeAuthOwnedSpec((string)$moduleId, $raw);
+    }
+
+    $cached = $result;
+    return $result;
+}
+
+/**
+ * Reset the kernelAuthOwnedModules() per-request cache. Intended for tests
+ * that toggle module enablement mid-request.
+ */
+function kernelAuthOwnedModulesResetCache(): void
+{
+    static $resetClosure = null;
+    // Reset the static $cached var inside kernelAuthOwnedModules() by
+    // re-declaring it via reflection-free trick: call a sentinel that
+    // re-initializes — but PHP has no native reset for function statics.
+    // Tests should boot a fresh process; this no-op is kept for clarity.
+    unset($resetClosure);
+}
+
+/**
+ * Look up the auth_owned spec for a single module id, or null if the module
+ * is not enabled or does not declare auth_owned.
+ */
+function kernelAuthOwnedSpecForModule(string $moduleId): ?array
+{
+    $all = kernelAuthOwnedModules();
+    return $all[$moduleId] ?? null;
+}
+
+/**
  * Validate optional entity_contexts block in a module manifest.
  * Returns:
  *  - ['ok' => true, 'definitions' => array, 'extensions' => array, 'bindings' => array, 'capability_metadata' => array]
  *  - ['ok' => false, 'error' => '...']
  */
 function validateModuleEntityContexts(array $manifest): array
-{
-    $raw = $manifest['entity_contexts'] ?? null;
-    if ($raw === null) {
-        return ['ok' => true, 'definitions' => [], 'extensions' => [], 'bindings' => [], 'capability_metadata' => []];
-    }
 
     if (!is_array($raw)) {
         return ['ok' => false, 'error' => 'entity_contexts must be an object'];
@@ -2157,6 +2337,17 @@ function validateModuleManifest(string $path): array
         }
         if (!preg_match('/^[A-Za-z0-9_\-]+$/', $manifest['auth_cookie'])) {
             return ['ok' => false, 'error' => 'module.json field auth_cookie contains invalid characters', 'error_code' => 'manifest_invalid_auth_cookie'];
+        }
+    }
+
+    if (array_key_exists('auth_owned', $manifest)) {
+        $authOwnedValidation = validateAuthOwnedSpec($manifest['auth_owned']);
+        if (empty($authOwnedValidation['ok'])) {
+            return [
+                'ok' => false,
+                'error' => (string)($authOwnedValidation['error'] ?? 'module.json field auth_owned is invalid'),
+                'error_code' => 'manifest_invalid_auth_owned',
+            ];
         }
     }
 

@@ -81,6 +81,24 @@
         }
     },
     "auth_cookie": "bakeshop_token",
+    "auth_owned": {
+        "users_table": "bakeshop_users",
+        "username_column": "username",
+        "email_column": "email",
+        "password_column": "password_hash",
+        "name_column": "full_name",
+        "active_column": "is_active",
+        "admin_roles": [
+            "admin"
+        ],
+        "default_admin_role": "admin",
+        "requires_named_admin_on_provision": true,
+        "blocked_password_hashes": [
+            "!bakeshop-bootstrap-password-reset-required!",
+            "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi"
+        ],
+        "touch_updated_at": true
+    },
     "events": [
         "bakeshop.branch.created",
         "bakeshop.delivery.created",

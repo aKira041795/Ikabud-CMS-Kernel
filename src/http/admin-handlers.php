@@ -591,69 +591,76 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
             $skipped = [];
             $tDb = app()->dbForTenant($tenantId);
             if ($tDb !== null) {
-                // Update cms_users
-                try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare('UPDATE cms_users SET password_hash = :p WHERE role IN (:r1, :r2)');
-                    $r->execute([':p' => $hashMsg, ':r1' => 'superadmin', ':r2' => 'administrator']);
-                    if ($r->rowCount() > 0) {
-                        $pushed[] = 'cms_users';
-                    } else {
-                        $skipped[] = 'cms_users:no_matching_row';
+                $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+
+                // Manifest-driven push: every enabled module that declares
+                // auth_owned in its manifest gets the new password applied to
+                // its declared admin role(s) in its declared users table.
+                // This replaces the previous hardcoded per-module blocks.
+                $authOwned = function_exists('kernelAuthOwnedModules')
+                    ? kernelAuthOwnedModules()
+                    : [];
+
+                foreach ($authOwned as $moduleId => $spec) {
+                    $table     = (string)$spec['users_table'];
+                    $pwdCol    = (string)$spec['password_column'];
+                    $activeCol = (string)$spec['active_column'];
+                    $deletedCol = $spec['deleted_column'] ?? null;
+                    $roles     = (array)$spec['admin_roles'];
+                    $touch     = !empty($spec['touch_updated_at']);
+
+                    try {
+                        $setParts = ['`' . $pwdCol . '` = :p'];
+                        if ($touch) {
+                            $setParts[] = '`updated_at` = NOW()';
+                        }
+
+                        $whereParts = [];
+                        $params = [':p' => $hashMsg];
+
+                        // Build role IN (...) clause with named placeholders.
+                        $rolePlaceholders = [];
+                        foreach (array_values($roles) as $idx => $role) {
+                            $ph = ':r' . $idx;
+                            $rolePlaceholders[] = $ph;
+                            $params[$ph] = $role;
+                        }
+                        $whereParts[] = '`role` IN (' . implode(', ', $rolePlaceholders) . ')';
+
+                        if ($activeCol !== '') {
+                            $whereParts[] = '`' . $activeCol . '` = 1';
+                        }
+                        if ($deletedCol !== null && $deletedCol !== '') {
+                            $whereParts[] = '`' . $deletedCol . '` IS NULL';
+                        }
+
+                        $sql = 'UPDATE `' . $table . '` SET ' . implode(', ', $setParts)
+                            . ' WHERE ' . implode(' AND ', $whereParts);
+
+                        $stmt = $tDb->prepare($sql);
+                        $stmt->execute($params);
+
+                        if ($stmt->rowCount() > 0) {
+                            $pushed[] = $table;
+                        } else {
+                            $skipped[] = $table . ':no_matching_row';
+                        }
+                    } catch (Throwable $ex) {
+                        $msg = $ex->getMessage();
+                        if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                            write_log('apiTenantAdminPasswordPush ' . $table . ' failed: ' . $msg, 'error', [
+                                'tenant_id' => $tenantId, 'request_id' => request_id(),
+                                'module_id' => $moduleId,
+                            ]);
+                        }
+                        $skipped[] = $table;
                     }
-                } catch (Throwable $ex) {
-                    $msg = $ex->getMessage();
-                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        write_log('apiTenantAdminPasswordPush cms_users failed: ' . $msg, 'error', [
-                            'tenant_id' => $tenantId, 'request_id' => request_id(),
-                        ]);
-                    }
-                    $skipped[] = 'cms_users';
                 }
 
-                // Update gm_users
+                // Legacy `users` table fallback — kept outside the manifest
+                // loop because the kernel installer table is not module-owned
+                // and its column shape varies (`password_hash` vs `password`).
                 try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare('UPDATE gm_users SET password_hash = :p WHERE role = :r AND deleted_at IS NULL');
-                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
-                    if ($r->rowCount() > 0) {
-                        $pushed[] = 'gm_users';
-                    } else {
-                        $skipped[] = 'gm_users:no_matching_row';
-                    }
-                } catch (Throwable $ex) {
-                    $msg = $ex->getMessage();
-                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        write_log('apiTenantAdminPasswordPush gm_users failed: ' . $msg, 'error', [
-                            'tenant_id' => $tenantId, 'request_id' => request_id(),
-                        ]);
-                    }
-                    $skipped[] = 'gm_users';
-                }
-
-                // Update wms_users
-                try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare('UPDATE wms_users SET password_hash = :p WHERE role = :r');
-                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
-                    if ($r->rowCount() > 0) {
-                        $pushed[] = 'wms_users';
-                    } else {
-                        $skipped[] = 'wms_users:no_matching_row';
-                    }
-                } catch (Throwable $ex) {
-                    $msg = $ex->getMessage();
-                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        write_log('apiTenantAdminPasswordPush wms_users failed: ' . $msg, 'error', [
-                            'tenant_id' => $tenantId, 'request_id' => request_id(),
-                        ]);
-                    }
-                    $skipped[] = 'wms_users';
-                }
-
-                // Update users table
-                try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
                     $r = $tDb->prepare('UPDATE users SET password_hash = :p WHERE role IN (:r1, :r2)');
                     $r->execute([':p' => $hashMsg, ':r1' => 'admin', ':r2' => 'superadmin']);
                     if ($r->rowCount() > 0) {
@@ -664,15 +671,13 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                 } catch (Throwable $ex) {
                     $msg = $ex->getMessage();
                     if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        // Some old users tables used `password`, let's try that.
                         try {
-                            $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
                             $r = $tDb->prepare('UPDATE users SET password = :p WHERE role IN (:r1, :r2)');
                             $r->execute([':p' => $hashMsg, ':r1' => 'admin', ':r2' => 'superadmin']);
                             if ($r->rowCount() > 0) {
                                 $pushed[] = 'users(password)';
-                                $keyRemoved = array_search('users', $skipped);
-                                if ($keyRemoved !== false) unset($skipped[$keyRemoved]);
+                            } else {
+                                $skipped[] = 'users:no_matching_row';
                             }
                         } catch (Throwable $e2) {
                             write_log('apiTenantAdminPasswordPush users fallback failed: ' . $e2->getMessage(), 'error', [
@@ -684,26 +689,6 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                         $skipped[] = 'users';
                     }
                 }
-
-                // Update bakeshop_users table
-                try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare("UPDATE bakeshop_users SET password_hash = :p, updated_at = NOW() WHERE role = :r AND is_active = 1");
-                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
-                    if ($r->rowCount() > 0) {
-                        $pushed[] = 'bakeshop_users';
-                    } else {
-                        $skipped[] = 'bakeshop_users:no_matching_row';
-                    }
-                } catch (Throwable $ex) {
-                    $msg = $ex->getMessage();
-                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        write_log('apiTenantAdminPasswordPush bakeshop_users failed: ' . $msg, 'error', [
-                            'tenant_id' => $tenantId, 'request_id' => request_id(),
-                        ]);
-                    }
-                    $skipped[] = 'bakeshop_users';
-                }
             } else {
                 $skipped[] = 'tenant_db_not_configured';
             }
@@ -711,8 +696,8 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
             adminViewCacheInvalidate(['admin:view:tenants']);
             echo json_encode([
                 'ok' => true,
-                'pushed' => $pushed,
-                'skipped' => array_values($skipped),
+                'pushed' => array_values(array_unique($pushed)),
+                'skipped' => array_values(array_unique($skipped)),
             ]);
         } catch (Throwable $e) {
             http_response_code(500);
