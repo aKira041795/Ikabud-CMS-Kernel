@@ -141,13 +141,13 @@ CREATE TABLE IF NOT EXISTS `bakeshop_production_items` (
 
 INSERT INTO `bakeshop_units` (`code`, `name`, `dimension`, `base_unit_id`, `factor_to_base`, `sort_order`)
 SELECT * FROM (
-    SELECT 'kg', 'Kilogram', 'mass', NULL, 1.000000, 10
+    SELECT 'kg' AS `code`, 'Kilogram' AS `name`, 'mass' AS `dimension`, NULL AS `base_unit_id`, 1.000000 AS `factor_to_base`, 10 AS `sort_order`
     UNION ALL SELECT 'g', 'Gram', 'mass', 1, 0.001000, 20
     UNION ALL SELECT 'L', 'Liter', 'volume', NULL, 1.000000, 30
     UNION ALL SELECT 'mL', 'Milliliter', 'volume', 3, 0.001000, 40
     UNION ALL SELECT 'pc', 'Piece', 'count', NULL, 1.000000, 50
     UNION ALL SELECT 'pack', 'Pack', 'count', 5, 1.000000, 60
-) AS seed (`code`, `name`, `dimension`, `base_unit_id`, `factor_to_base`, `sort_order`)
+) AS seed
 WHERE NOT EXISTS (
     SELECT 1 FROM `bakeshop_units` existing WHERE existing.`code` = seed.`code`
 );
