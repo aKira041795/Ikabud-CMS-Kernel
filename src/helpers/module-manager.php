@@ -1024,6 +1024,11 @@ function kernelAuthOwnedSpecForModule(string $moduleId): ?array
  *  - ['ok' => false, 'error' => '...']
  */
 function validateModuleEntityContexts(array $manifest): array
+{
+    $raw = $manifest['entity_contexts'] ?? null;
+    if ($raw === null) {
+        return ['ok' => true, 'definitions' => [], 'extensions' => [], 'bindings' => [], 'capability_metadata' => []];
+    }
 
     if (!is_array($raw)) {
         return ['ok' => false, 'error' => 'entity_contexts must be an object'];
