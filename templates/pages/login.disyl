@@ -28,6 +28,29 @@
         .btn-login:disabled { opacity: .6; cursor: not-allowed; }
         .error-msg { background: #fee2e2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
         .error-msg.show { display: block; }
+        .login-helper {
+            margin: 18px 0 0;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.6);
+            border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .login-helper strong {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text);
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .login-helper ul {
+            margin: 8px 0 0 18px;
+            padding: 0;
+        }
+        .login-helper li + li { margin-top: 4px; }
     </style>
     {if gui.css_overrides}<style>{gui.css_overrides}</style>{/if}
 </head>
@@ -51,6 +74,13 @@
             </div>
             <button type="submit" class="btn-login" id="login-btn">{login_button_text | default:'Sign In'}</button>
         </form>
+
+        {if login_helper_title || login_helper_html}
+        <div class="login-helper">
+            {if login_helper_title}<strong>{login_helper_title}</strong>{/if}
+            {if login_helper_html}{login_helper_html | raw}{/if}
+        </div>
+        {/if}
     </div>
 
     <script>

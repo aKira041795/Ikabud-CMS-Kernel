@@ -184,107 +184,38 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
         return null;
     }
 
-    $db = $ctx->db();
-
     try {
-        // Try admin
-        $dlStmt = $db->prepare(
-            "SELECT id, username, password_hash, full_name, 'admin' AS role
-             FROM dl_admins
+        $stmt = $ctx->db()->prepare(
+            "SELECT id, username, password_hash, full_name, role
+             FROM dl_users
              WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
              LIMIT 1"
         );
-        $dlStmt->execute([':username' => $username]);
-        $dlUser = $dlStmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->execute([':username' => $username]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (is_array($dlUser) && password_verify($password, (string)($dlUser['password_hash'] ?? ''))) {
-            $id = (int)($dlUser['id'] ?? 0);
-            return [
-                'user' => [
-                    'id' => 0,
-                    'sub' => 'admin:' . $id,
-                    'username' => (string)($dlUser['username'] ?? ''),
-                    'full_name' => (string)($dlUser['full_name'] ?? ''),
-                    'role' => 'admin',
-                ],
-                'source' => 'daily-ledger',
-            ];
+        if (!is_array($row) || !password_verify($password, (string)($row['password_hash'] ?? ''))) {
+            return null;
         }
 
-        // Try cashier
-        $dlStmt = $db->prepare(
-            "SELECT id, username, password_hash, full_name, 'cashier' AS role
-             FROM dl_cashiers
-             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
-             LIMIT 1"
-        );
-        $dlStmt->execute([':username' => $username]);
-        $dlUser = $dlStmt->fetch(PDO::FETCH_ASSOC);
-
-        if (is_array($dlUser) && password_verify($password, (string)($dlUser['password_hash'] ?? ''))) {
-            $id = (int)($dlUser['id'] ?? 0);
-            return [
-                'user' => [
-                    // IMPORTANT: do not collide with kernel users.id (used by audit_logs FK)
-                    'id' => 0,
-                    'sub' => 'cashier:' . $id,
-                    'username' => (string)($dlUser['username'] ?? ''),
-                    'full_name' => (string)($dlUser['full_name'] ?? ''),
-                    'role' => 'cashier',
-                ],
-                'source' => 'daily-ledger',
-            ];
+        $id = (int)($row['id'] ?? 0);
+        $role = (string)($row['role'] ?? '');
+        if ($id <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
+            return null;
         }
 
-        // Try supervisor
-        $dlStmt = $db->prepare(
-            "SELECT id, username, password_hash, full_name, 'supervisor' AS role
-             FROM dl_supervisors
-             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
-             LIMIT 1"
-        );
-        $dlStmt->execute([':username' => $username]);
-        $dlUser = $dlStmt->fetch(PDO::FETCH_ASSOC);
-
-        if (is_array($dlUser) && password_verify($password, (string)($dlUser['password_hash'] ?? ''))) {
-            $id = (int)($dlUser['id'] ?? 0);
-            return [
-                'user' => [
-                    'id' => 0,
-                    'sub' => 'supervisor:' . $id,
-                    'username' => (string)($dlUser['username'] ?? ''),
-                    'full_name' => (string)($dlUser['full_name'] ?? ''),
-                    'role' => 'supervisor',
-                ],
-                'source' => 'daily-ledger',
-            ];
-        }
-
-        // Try production in-charge
-        $dlStmt = $db->prepare(
-            "SELECT id, username, password_hash, full_name, 'production_in_charge' AS role
-             FROM dl_production_incharges
-             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
-             LIMIT 1"
-        );
-        $dlStmt->execute([':username' => $username]);
-        $dlUser = $dlStmt->fetch(PDO::FETCH_ASSOC);
-
-        if (is_array($dlUser) && password_verify($password, (string)($dlUser['password_hash'] ?? ''))) {
-            $id = (int)($dlUser['id'] ?? 0);
-            return [
-                'user' => [
-                    'id' => 0,
-                    'sub' => 'production_in_charge:' . $id,
-                    'username' => (string)($dlUser['username'] ?? ''),
-                    'full_name' => (string)($dlUser['full_name'] ?? ''),
-                    'role' => 'production_in_charge',
-                ],
-                'source' => 'daily-ledger',
-            ];
-        }
-
-        return null;
+        return [
+            'user' => [
+                // IMPORTANT: do not collide with kernel users.id (used by audit_logs FK).
+                // The actual dl_users id is encoded in `sub` and parsed by dl_getActorUserId().
+                'id' => 0,
+                'sub' => $role . ':' . $id,
+                'username' => (string)($row['username'] ?? ''),
+                'full_name' => (string)($row['full_name'] ?? ''),
+                'role' => $role,
+            ],
+            'source' => 'daily-ledger',
+        ];
     } catch (Throwable $e) {
         return null;
     }

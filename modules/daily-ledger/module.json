@@ -5,6 +5,8 @@
     "description": "Daily sales report encoding system \u2014 digital mirror of paper ledger",
     "author": "Noah C. Omamalin",
     "owns_tables": [
+        "dl_users",
+        "dl_user_branches",
         "dl_admins",
         "dl_branches",
         "dl_cashiers",
@@ -39,7 +41,10 @@
         "database/migrations/008_reconcile_legacy_kernel_tables.sql",
         "database/migrations/009_add_branch_area.sql",
         "database/migrations/010_reconcile_auto_increment_ids.sql",
-        "database/migrations/011_add_commissary_production_tables.sql"
+        "database/migrations/011_add_commissary_production_tables.sql",
+        "database/migrations/012_add_product_category.sql",
+        "database/migrations/013_add_user_soft_delete.sql",
+        "database/migrations/014_consolidate_dl_users.sql"
     ],
     "capabilities": {
         "exposes": [
