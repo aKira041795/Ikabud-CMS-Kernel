@@ -142,6 +142,7 @@ function myModuleGlobalHelper(): string
 | `reads_tables` | string[] | Tables the module may read (SELECT only). Used for ModuleDB enforcement. |
 | `migrations` | string[] | Paths to SQL migration files (relative to module dir). |
 | `auth_cookie` | string | Additional auth cookie name this module uses for page sessions. When set, the kernel will recognize this cookie for `app()->user()` so kernel layouts can render `user` and `nav_items` consistently. |
+| `auth_owned` | object | Declares that this module owns its own users table. The kernel uses this for tenant provisioning (admin seeding) and the admin password-push recovery flow. See [Module-owned authentication (`auth_owned`)](#module-owned-authentication-auth_owned) below. |
 | `capabilities` | object | Capability contracts exposed and required by this module. |
 | `nav` | object[] | Navigation items injected into the top nav bar. |
 
@@ -215,6 +216,76 @@ Common examples:
 | `url` | string | Route path (e.g. `/my-module/page`). |
 | `icon` | string | Icon name (reserved for future icon support). Use `"separator"` for separators. |
 | `roles` | string[] | Which roles see this link. Values: `"admin"`, `"supervisor"`, `"cashier"`, or `"*"` for all. |
+
+---
+
+## Module-owned authentication (`auth_owned`)
+
+Modules that own their own users table (instead of relying on the kernel-installer `users` table or the `cms_users` table) can declare an `auth_owned` block in `module.json`. The kernel uses this declaration to drive **two platform-wide flows** without any module-specific code in the kernel:
+
+1. **Tenant provisioning** (`php ikabud tenant:provision` and `Ikabud\Kernel\Services\TenantProvisioner::provision()`) — when the tenant's `entry_module_id` matches a module that declares `auth_owned`, the provisioner seeds the initial admin user directly into the module's users table using the spec's columns and `default_admin_role`. Idempotent: if a row with the same username already exists it is left in place.
+2. **Admin password push / recovery** (`POST /api/v1/admin/tenants/password-push`) — the kernel iterates every enabled module's `auth_owned` spec and runs a single `UPDATE` per declared users table, scoped to `admin_roles` (and optionally `active_column` / `deleted_column`). Tables are de-duplicated, so two modules declaring the same physical table (e.g. `users` and `cms` both declaring `cms_users`) result in exactly one update.
+
+> The kernel-installer `users` table is intentionally **not** declared by any module — it remains a separate fallback inside the password-push handler.
+
+### Schema
+
+```json
+"auth_owned": {
+    "users_table": "my_module_users",
+    "username_column": "username",
+    "email_column": "email",
+    "password_column": "password_hash",
+    "name_column": "full_name",
+    "active_column": "is_active",
+    "deleted_column": "deleted_at",
+    "admin_roles": ["admin"],
+    "default_admin_role": "admin",
+    "requires_named_admin_on_provision": false,
+    "blocked_password_hashes": [
+        "!my-module-bootstrap-password-reset-required!"
+    ],
+    "touch_updated_at": true
+}
+```
+
+| Field | Required | Default | Notes |
+|-------|----------|---------|-------|
+| `users_table` | yes | — | Physical table name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
+| `username_column` | no | `username` | Column the auth provider matches `:username` against. |
+| `email_column` | no | `email` | Optional — used by user-CRUD capabilities; not required for login. |
+| `password_column` | no | `password_hash` | Column updated by the password-push flow and read by `password_verify()`. |
+| `name_column` | no | `full_name` | Column the provisioner writes the seeded admin's display name to. |
+| `active_column` | no | `is_active` | Set to `null` to disable the `WHERE is_active = 1` filter on push. |
+| `deleted_column` | no | — | When set, push handler appends `AND <col> IS NULL`. |
+| `admin_roles` | yes | — | Non-empty array of role values eligible for the password-push update. |
+| `default_admin_role` | no | first of `admin_roles` | Role assigned to the provisioner-seeded admin row. |
+| `requires_named_admin_on_provision` | no | `false` | When `true`, `tenant:provision` refuses to run without explicit `--admin-user` / `--admin-pass`. |
+| `blocked_password_hashes` | no | `[]` | Sentinel hashes the module's auth provider must reject (e.g. bootstrap placeholders). The kernel does not enforce this directly — your `kernel.auth.authenticate@1` provider should consult this list. |
+| `touch_updated_at` | no | `true` | When `false`, the push `UPDATE` omits `updated_at = NOW()` (use this when the column does not exist or has trigger semantics that conflict). |
+
+### How the kernel discovers it
+
+Helpers in [src/helpers/module-manager.php](../../src/helpers/module-manager.php):
+
+- `validateAuthOwnedSpec(array $raw): array` — manifest-time validation; called from `validateModuleManifest()`.
+- `kernelNormalizeAuthOwnedSpec(string $moduleId, array $raw): array` — fills defaults.
+- `kernelAuthOwnedModules(): array` — discovery: returns `[moduleId => normalizedSpec]` for every enabled module declaring `auth_owned` (statically cached per process).
+- `kernelAuthOwnedSpecForModule(string $moduleId): ?array` — single-module lookup (used by the provisioner).
+
+Consumers:
+
+- [kernel/Services/TenantProvisioner.php](../../kernel/Services/TenantProvisioner.php) — `seedAdminUserFromAuthOwnedSpec()` and `requiresSeededAdminCredentials()`.
+- [src/http/admin-handlers.php](../../src/http/admin-handlers.php) — `kernelHandleApiTenantAdminPasswordPush()` iterates `kernelAuthOwnedModules()` and dedupes by table name.
+
+### Onboarding a new auth-owning module
+
+1. Add `auth_owned` to your `module.json` (and include the users table in `owns_tables`).
+2. Implement a `kernel.auth.authenticate@1` provider that reads from your `users_table` using the spec's columns.
+3. If you set `blocked_password_hashes`, make your auth provider reject those hashes early.
+4. (Optional) Set `requires_named_admin_on_provision: true` if your module must never be provisioned with auto-generated credentials.
+
+No kernel changes are required.
 
 ---
 

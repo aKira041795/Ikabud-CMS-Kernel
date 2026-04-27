@@ -1150,6 +1150,42 @@ modules/wms/
 | **Events** | `module('wms')->fireEvent()` | `wms.delivery.received`, `wms.order.dispatched`, `wms.stock.low`, `wms.movement.created` |
 | **Capabilities** | `app()->capabilities()->register()` | `wms.stock.query@1`, `wms.stock.reserve@1`, `wms.stock.release@1` |
 | **Entry module** | `kernel_tenants.entry_module_id = 'wms'` | Tenant entry via TenantEntryRouter; `/` rewrites to `/wms` |
+| **Provisioning + admin recovery** | `auth_owned` manifest block | Declares `wms_users` to the kernel so `tenant:provision` seeds the initial admin row directly into `wms_users`, and `POST /api/v1/admin/tenants/password-push` updates `wms_users.password_hash` for rows in `admin_roles`. See [Module-owned authentication (`auth_owned`)](../kernel/module-development-guide.md#module-owned-authentication-auth_owned) in the module development guide. |
+
+---
+
+## Provisioning & Admin Password Recovery
+
+WMS owns its own users table (`wms_users`) and declares it via the `auth_owned` manifest block in [modules/wms/module.json](../../modules/wms/module.json):
+
+```json
+"auth_owned": {
+    "users_table": "wms_users",
+    "username_column": "username",
+    "password_column": "password_hash",
+    "name_column": "full_name",
+    "active_column": "is_active",
+    "admin_roles": ["admin"],
+    "default_admin_role": "admin",
+    "requires_named_admin_on_provision": false,
+    "touch_updated_at": true
+}
+```
+
+Two kernel flows consume this declaration with **no WMS-specific code in the kernel**:
+
+1. **`php ikabud tenant:provision --entry-module=wms`** — `TenantProvisioner::seedAdminUserFromAuthOwnedSpec()` inserts the seeded admin row directly into `wms_users` using the spec's columns and `default_admin_role`. Idempotent: if a row with the same username already exists it is left in place.
+2. **`POST /api/v1/admin/tenants/password-push`** — kernel iterates every enabled `auth_owned` module and runs one `UPDATE` per declared users table; for WMS that yields:
+
+   ```sql
+   UPDATE `wms_users`
+       SET `password_hash` = :p, updated_at = NOW()
+       WHERE `role` IN ('admin') AND `is_active` = 1
+   ```
+
+   The WMS `kernel.auth.authenticate@1` provider then immediately accepts the new password.
+
+To change the recovery scope (e.g. include a second admin role) or rename a column, edit the `auth_owned` block — the kernel picks it up at the next request without code changes.
 
 ---
 

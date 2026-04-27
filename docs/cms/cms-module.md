@@ -159,6 +159,15 @@ The CMS owns a large but still bounded data model. Main table groups include:
 
 Cross-module dependencies are declared in `module.json`. The CMS also reads `workflow_definitions`, `kernel_event_triggers`, and `rate_limits`, and depends on kernel capabilities plus AI / workflow / TinyMCE module contracts.
 
+### Provisioning & admin password recovery
+
+The CMS module declares `cms_users` as its `auth_owned` users table in [modules/cms/module.json](../../modules/cms/module.json). The kernel uses this declaration for two flows:
+
+- **`php ikabud tenant:provision --entry-module=cms`** — `TenantProvisioner::seedAdminUserFromAuthOwnedSpec()` seeds the initial admin row directly into `cms_users` with `default_admin_role = "administrator"` and `password_hash = password_hash($pass, PASSWORD_BCRYPT)`.
+- **`POST /api/v1/admin/tenants/password-push`** — the kernel iterates every enabled `auth_owned` module and runs one `UPDATE` per declared users table; the CMS spec scopes the update to `role IN ('superadmin', 'administrator') AND is_active = 1` and sets `touch_updated_at: false` (cms_users has no expected `updated_at = NOW()` semantics on this path).
+
+The companion `users` module (declared as a CMS dependency) also declares `cms_users` in its `auth_owned` block. The push handler de-duplicates by physical table name via `array_unique`, so `cms_users` is updated exactly once. See [Module-owned authentication (`auth_owned`)](../kernel/module-development-guide.md#module-owned-authentication-auth_owned) for the manifest schema.
+
 ---
 
 ## 5. Theme system summary
