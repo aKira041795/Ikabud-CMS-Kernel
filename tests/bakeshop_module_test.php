@@ -54,12 +54,16 @@ bt('bakeshop.ingredient.usage.read capability declared', in_array('bakeshop.ingr
 bt('catalog events declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.product.created', $manifest['events'], true));
 bt('delivery events declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.delivery.created', $manifest['events'], true));
 bt('production event declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.production.created', $manifest['events'], true));
+bt('production update event declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.production.updated', $manifest['events'], true));
 bt('role_permissions setting declared', array_reduce($manifest['settings_fields'] ?? [], static function (bool $carry, array $field): bool {
     return $carry || (($field['key'] ?? '') === 'role_permissions');
 }, false));
 bt('module.json lists bootstrap admin migration', in_array('database/migrations/003_bakeshop_bootstrap_admin.sql', $manifest['migrations'] ?? [], true));
 bt('module.json lists token version migration', in_array('database/migrations/004_bakeshop_user_token_version.sql', $manifest['migrations'] ?? [], true));
 bt('module.json lists bootstrap password reset migration', in_array('database/migrations/005_bakeshop_bootstrap_password_reset.sql', $manifest['migrations'] ?? [], true));
+bt('module.json lists password reset token migration', in_array('database/migrations/006_bakeshop_password_resets.sql', $manifest['migrations'] ?? [], true));
+bt('module.json lists delivery cost basis migration', in_array('database/migrations/007_bakeshop_delivery_item_cost_basis.sql', $manifest['migrations'] ?? [], true));
+bt('module.json lists production voiding migration', in_array('database/migrations/008_bakeshop_production_voiding.sql', $manifest['migrations'] ?? [], true));
 
 echo "\n── Discovery ──\n";
 $all = discoverModules();
@@ -71,6 +75,8 @@ bt('routes.php exists', is_file($routesFile));
 $routes = require $routesFile;
 bt('routes.php returns array', is_array($routes));
 bt('login page route declared', ($routes['GET']['/bakeshop/login'] ?? '') === 'bakeshop:bakeshopPageLogin');
+bt('forgot password page route declared', ($routes['GET']['/bakeshop/forgot-password'] ?? '') === 'bakeshop:bakeshopForgotPasswordPage');
+bt('reset password page route declared', ($routes['GET']['/bakeshop/reset-password'] ?? '') === 'bakeshop:bakeshopResetPasswordPage');
 bt('logout route declared as POST', ($routes['POST']['/bakeshop/logout'] ?? '') === 'bakeshop:bakeshopLogout');
 bt('admin page route declared', ($routes['GET']['/admin/bakeshop'] ?? '') === 'bakeshop:bakeshopPageSupervisor');
 bt('branches page route declared', ($routes['GET']['/admin/bakeshop/branches'] ?? '') === 'bakeshop:bakeshopPageBranches');
@@ -87,6 +93,8 @@ bt('users API route declared', ($routes['GET']['/api/v1/bakeshop/users'] ?? '') 
 bt('units API route declared', ($routes['GET']['/api/v1/bakeshop/units'] ?? '') === 'bakeshop:bakeshopApiUnitsIndex');
 bt('usage API route declared', ($routes['GET']['/api/v1/bakeshop/usage'] ?? '') === 'bakeshop:bakeshopApiUsageIndex');
 bt('module auth login route declared', ($routes['POST']['/bakeshop/auth/login'] ?? '') === 'bakeshop:bakeshopAuthLogin');
+bt('forgot password API route declared', ($routes['POST']['/api/v1/bakeshop/auth/forgot-password'] ?? '') === 'bakeshop:bakeshopApiForgotPassword');
+bt('reset password API route declared', ($routes['POST']['/api/v1/bakeshop/auth/reset-password'] ?? '') === 'bakeshop:bakeshopApiResetPassword');
 bt('account password API route declared', ($routes['POST']['/api/v1/bakeshop/account/password'] ?? '') === 'bakeshop:bakeshopApiAccountPasswordUpdate');
 bt('create user API route declared', ($routes['POST']['/api/v1/bakeshop/users'] ?? '') === 'bakeshop:bakeshopApiUserCreate');
 bt('settings permissions API route declared', ($routes['POST']['/api/v1/bakeshop/settings/permissions'] ?? '') === 'bakeshop:bakeshopApiSettingsSavePermissions');
@@ -96,7 +104,8 @@ bt('product status API route declared', ($routes['POST']['/api/v1/bakeshop/produ
 bt('ingredient status API route declared', ($routes['POST']['/api/v1/bakeshop/ingredients/{id}/status'] ?? '') === 'bakeshop:bakeshopApiIngredientsStatusUpdate');
 bt('recipe delete API route declared', ($routes['POST']['/api/v1/bakeshop/recipes/delete'] ?? '') === 'bakeshop:bakeshopApiRecipesDelete');
 bt('delivery delete API route declared', ($routes['POST']['/api/v1/bakeshop/deliveries/delete'] ?? '') === 'bakeshop:bakeshopApiDeliveriesDelete');
-bt('production delete API route declared', ($routes['POST']['/api/v1/bakeshop/production/delete'] ?? '') === 'bakeshop:bakeshopApiProductionDelete');
+bt('production void API route declared', ($routes['POST']['/api/v1/bakeshop/production/void'] ?? '') === 'bakeshop:bakeshopApiProductionVoid');
+bt('production delete API route aliases void handler', ($routes['POST']['/api/v1/bakeshop/production/delete'] ?? '') === 'bakeshop:bakeshopApiProductionDelete');
 
 echo "\n── Helpers ──\n";
 $helpersFile = BASE_PATH . '/modules/bakeshop/helpers.php';
@@ -115,6 +124,10 @@ bt('bakeshop unsafe bootstrap password helper exists', function_exists('bakeshop
 bt('bakeshop capability handler export exists', function_exists('bakeshop_capability_handlers'));
 bt('bakeshop bootstrap onboarding helper exists', function_exists('bakeshopBootstrapOnboardingState'));
 bt('bakeshop bootstrap redirect helper exists', function_exists('bakeshopShouldForceBootstrapOnboarding'));
+bt('bakeshop forgot password page function exists', function_exists('bakeshopForgotPasswordPage'));
+bt('bakeshop reset password page function exists', function_exists('bakeshopResetPasswordPage'));
+bt('bakeshop forgot password API function exists', function_exists('bakeshopApiForgotPassword'));
+bt('bakeshop reset password API function exists', function_exists('bakeshopApiResetPassword'));
 bt('bakeshop supervisor workspace renderer exists', function_exists('bakeshopRenderSupervisorWorkspace'));
 bt('bakeshop history page function exists', function_exists('bakeshopPageHistory'));
 bt('bakeshop users page function exists', function_exists('bakeshopPageUsers'));
@@ -158,6 +171,8 @@ bt('users template exists', is_file($templateBase . '/users.disyl'));
 bt('account template exists', is_file($templateBase . '/account.disyl'));
 bt('settings template exists', is_file($templateBase . '/settings.disyl'));
 bt('history template exists', is_file($templateBase . '/history.disyl'));
+bt('forgot password template exists', is_file($templateBase . '/forgot-password.disyl'));
+bt('reset password template exists', is_file($templateBase . '/reset-password.disyl'));
 $layoutBase = BASE_PATH . '/templates/modules/bakeshop/layouts';
 bt('bakeshop app layout exists', is_file($layoutBase . '/app.disyl'));
 bt('bakeshop print layout exists', is_file($layoutBase . '/print.disyl'));
@@ -166,9 +181,10 @@ try {
     $loginHtml = app()->render('pages/login.disyl', bakeshopLoginPageContext());
     bt('login template renders bakeshop brand', str_contains($loginHtml, "Julie&#039;s Bakeshop") || str_contains($loginHtml, "Julie's Bakeshop"));
     bt('login template renders bakeshop CTA', str_contains($loginHtml, 'Enter Bakeshop'));
-    bt('login template renders bakeshop subtitle', str_contains($loginHtml, 'Sign in with your bakeshop staff account to manage recipes, deliveries, production, and daily usage.'));
+    bt('login template renders store description subtitle', str_contains($loginHtml, 'Production, deliveries, recipes, staff access, and daily reporting inside the bakeshop module.'));
     bt('login template renders bakeshop helper title', str_contains($loginHtml, 'After You Sign In'));
     bt('login template posts to bakeshop auth route', str_contains($loginHtml, '/bakeshop/auth/login'));
+    bt('login template renders forgot password link', str_contains($loginHtml, '/bakeshop/forgot-password'));
 } catch (Throwable $e) {
     bt('login template renders with bakeshop context', false, $e->getMessage());
 }
@@ -200,10 +216,13 @@ try {
     bt('supervisor template sets history review note when opening focused editor', str_contains($shellHtml, "Reviewing this product from activity history."));
     bt('supervisor template frames deliveries as daily branch receiving', str_contains($shellHtml, 'Saving posts one daily branch receipt and includes only ingredients with a quantity greater than zero.'));
     bt('supervisor template exposes delivery CSV import controls', str_contains($shellHtml, 'delivery-csv-file') && str_contains($shellHtml, 'Download CSV Template'));
-    bt('supervisor template lists a daily ingredient delivery sheet', str_contains($shellHtml, 'Every ingredient is listed below in its default unit.'));
+    bt('supervisor template lists a daily ingredient delivery sheet', str_contains($shellHtml, 'Every ingredient is listed below in its default unit.') && str_contains($shellHtml, 'cost_basis'));
     bt('supervisor template frames usage as inventory movement', str_contains($shellHtml, 'Read the inventory movement view: received deliveries minus recipe-based production consumption'));
-    bt('supervisor template exposes current ingredient inventory panel', str_contains($shellHtml, 'Current Ingredient Inventory'));
-    bt('supervisor template explains branch-only inventory snapshot scope', str_contains($shellHtml, 'The branch filter applies here; the date range does not.'));
+    bt('supervisor template exposes factual summary usage counters', str_contains($shellHtml, 'usage-factual-ingredients') && str_contains($shellHtml, 'usage-factual-deliveries') && str_contains($shellHtml, 'usage-factual-runs'));
+    bt('supervisor template exposes as-of-date inventory panel', str_contains($shellHtml, 'Ingredient Inventory As Of Scope End'));
+    bt('supervisor template explains end-date inventory snapshot scope', str_contains($shellHtml, 'The branch filter always applies, and if only a from date is set it is used as the as-of date.'));
+    bt('supervisor template exposes production void flow', str_contains($shellHtml, 'production/void') && str_contains($shellHtml, 'Void this production run and exclude its snapshot lines from usage and inventory?') && str_contains($shellHtml, 'void-production'));
+    bt('supervisor template exposes production metadata edit flow', str_contains($shellHtml, 'Update Production Metadata') && str_contains($shellHtml, 'Editing production metadata only.') && str_contains($shellHtml, 'edit-production'));
 } catch (Throwable $e) {
     bt('supervisor template renders in bakeshop shell', false, $e->getMessage());
 }
@@ -214,6 +233,11 @@ bt('migration exists', is_file($migrationPath));
 $migration = (string) file_get_contents($migrationPath);
 bt('migration creates bakeshop_branches', str_contains($migration, 'CREATE TABLE IF NOT EXISTS `bakeshop_branches`'));
 bt('migration defines usage view', str_contains($migration, 'CREATE OR REPLACE VIEW `bakeshop_ingredient_usage`'));
+bt('migration defines production void columns', str_contains($migration, '`voided_at` DATETIME NULL') && str_contains($migration, '`void_reason` TEXT NULL'));
+$productionVoidMigrationPath = BASE_PATH . '/modules/bakeshop/database/migrations/008_bakeshop_production_voiding.sql';
+bt('production void migration exists', is_file($productionVoidMigrationPath));
+$productionVoidMigration = (string) file_get_contents($productionVoidMigrationPath);
+bt('production void migration rebuilds usage view with void exclusion', str_contains($productionVoidMigration, 'ALTER TABLE bakeshop_production_runs ADD COLUMN voided_at DATETIME NULL AFTER notes') && str_contains($productionVoidMigration, 'WHERE pr.`voided_at` IS NULL'));
 $userMigrationPath = BASE_PATH . '/modules/bakeshop/database/migrations/002_bakeshop_users.sql';
 bt('user migration exists', is_file($userMigrationPath));
 $userMigration = (string) file_get_contents($userMigrationPath);
@@ -237,6 +261,11 @@ bt('bootstrap password reset migration exists', is_file($bootstrapPasswordResetM
 $bootstrapPasswordResetMigration = (string) file_get_contents($bootstrapPasswordResetMigrationPath);
 bt('bootstrap password reset migration scrubs legacy shared hash', str_contains($bootstrapPasswordResetMigration, '92IXUNpkjO0rOQ5byMi'));
 bt('bootstrap password reset migration applies reset marker', str_contains($bootstrapPasswordResetMigration, '!bakeshop-bootstrap-password-reset-required!'));
+$passwordResetMigrationPath = BASE_PATH . '/modules/bakeshop/database/migrations/006_bakeshop_password_resets.sql';
+bt('password reset token migration exists', is_file($passwordResetMigrationPath));
+$passwordResetMigration = (string) file_get_contents($passwordResetMigrationPath);
+bt('password reset token migration creates bakeshop_password_resets', str_contains($passwordResetMigration, 'CREATE TABLE IF NOT EXISTS `bakeshop_password_resets`'));
+bt('password reset token migration references bakeshop_users', str_contains($passwordResetMigration, 'FOREIGN KEY (`user_id`) REFERENCES `bakeshop_users`(`id`)'));
 
 echo "\n── Handlers ──\n";
 $handlersPath = BASE_PATH . '/modules/bakeshop/handlers/10-pages.php';

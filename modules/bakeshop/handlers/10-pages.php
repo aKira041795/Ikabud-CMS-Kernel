@@ -99,7 +99,8 @@ function bakeshopAuditHistoryActionLabel(string $action): string
         'bakeshop.delivery.created' => 'Delivery Recorded',
         'bakeshop.delivery.deleted' => 'Delivery Deleted',
         'bakeshop.production.created' => 'Production Run Recorded',
-        'bakeshop.production.deleted' => 'Production Run Deleted',
+        'bakeshop.production.updated' => 'Production Run Updated',
+        'bakeshop.production.voided' => 'Production Run Voided',
         'bakeshop.settings.role_permissions.updated' => 'Access Settings Updated',
         'bakeshop.user.created' => 'Staff Account Created',
         'bakeshop.user.updated' => 'Staff Account Updated',
@@ -478,6 +479,7 @@ function bakeshopRenderSupervisorWorkspace(array $user, string $currentPage, str
     $summaryBranches = bakeshopUsageBranchOptions();
     $summaryGroups = $isDashboard ? bakeshopPrintSummaryBranchGroups($summaryFilters) : [];
     $summaryBounds = $isDashboard ? bakeshopUsageVisibleDateBounds($summaryFilters) : ['from_date' => null, 'to_date' => null];
+    $summaryFactualSummary = $isDashboard ? bakeshopUsageFactualSummary($summaryFilters) : [];
     $summaryBranchLabel = bakeshopUsageResolveBranchLabel($summaryFilters, $summaryBranches);
     $summaryBranchScopeLabel = $summaryBranchLabel;
     if ($summaryBranchScopeLabel === null) {
@@ -533,6 +535,7 @@ function bakeshopRenderSupervisorWorkspace(array $user, string $currentPage, str
             'display_from_date' => $summaryDisplayFromDate,
             'display_to_date' => $summaryDisplayToDate,
             'groups' => $summaryGroups,
+            'factual_summary' => $summaryFactualSummary,
             'print_template' => bakeshopPrintTemplate(),
             'dashboard_url' => '/admin/bakeshop',
             'print_url' => '/admin/bakeshop/print' . ($summaryQuery === [] ? '' : ('?' . http_build_query($summaryQuery))),
@@ -603,6 +606,7 @@ function bakeshopPagePrintSummary(array $params = []): void
         $filters = bakeshopUsageNormalizeFilters(bakeshopInput());
         $branches = bakeshopUsageBranchOptions();
         $summaryGroups = bakeshopPrintSummaryBranchGroups($filters);
+        $factualSummary = bakeshopUsageFactualSummary($filters);
         $visibleBounds = bakeshopUsageVisibleDateBounds($filters);
         $usageDecimalPlaces = bakeshopUsageDecimalPlaces();
         $printTemplate = bakeshopPrintTemplate();
@@ -614,6 +618,7 @@ function bakeshopPagePrintSummary(array $params = []): void
             'branch_scope_label' => bakeshopPrintSummaryScopeLabel($filters, $branches, $summaryGroups),
             'branches' => $branches,
             'summary_groups' => $summaryGroups,
+            'factual_summary' => $factualSummary,
             'display_from_date' => bakeshopPrintSummaryFormatDate($filters['from_date'] ?? $visibleBounds['from_date']),
             'display_to_date' => bakeshopPrintSummaryFormatDate($filters['to_date'] ?? $visibleBounds['to_date']),
             'usage_decimal_places' => $usageDecimalPlaces,

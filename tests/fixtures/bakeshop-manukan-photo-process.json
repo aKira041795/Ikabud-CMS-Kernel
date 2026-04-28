@@ -1,0 +1,1240 @@
+{
+    "meta": {
+        "source": [
+            "Photo 1: DPL price list dated Apr. 20, 2026",
+            "Photo 2: Julie's Bakeshop Dipolog delivery receipt dated 04/15/26",
+            "Photo 3: Julie's Bakeshop Manukan branch production sheet dated 04/15/26"
+        ],
+        "notes": "Recipes in this fixture are placeholder process recipes, not actual bakery formulas. The goal is to test delivery intake, production runs, and usage summary flow with photo-derived products and ingredients.",
+        "counts": {
+            "ingredients": 26,
+            "products": 28,
+            "delivery_items": 26,
+            "production_runs": 28
+        },
+        "recipe_sources": {
+            "filipino_enriched_bread_dough": {
+                "urls": [
+                    "https://www.kawalingpinoy.com/monay/",
+                    "https://www.kawalingpinoy.com/pandesal/"
+                ],
+                "summary": "Used for the bun and loaf variants in this fixture. Search results for monay and pandesal consistently describe Filipino enriched doughs built around flour, sugar, milk, eggs, yeast, and fat, which matches the delivered ingredient set available in the source documents."
+            },
+            "siopao_asado": {
+                "urls": [
+                    "https://panlasangpinoy.com/how-to-make-home-made-siopao-asado-recipe/",
+                    "https://www.kawalingpinoy.com/siopao-asado/"
+                ],
+                "summary": "Used for siopao-style pork-filled buns. Search results describe a soft flour dough with a savory-sweet pork filling, which is why the fixture keeps flour, pork, and wrapper consumption together for the related products."
+            },
+            "filipino_egg_pie": {
+                "urls": [
+                    "https://panlasangpinoy.com/filipino-egg-pie-recipe/",
+                    "https://www.kingarthurbaking.com/recipes/filipino-egg-pie-recipe"
+                ],
+                "summary": "Used for the egg pie variants. Search results consistently describe a flour crust with an egg-heavy custard filling, so the fixture treats egg and flour as the factual core and varies the filling accent with delivered ingredients such as cheese or ube mung paste."
+            },
+            "filipino_carioca": {
+                "urls": [
+                    "https://www.kawalingpinoy.com/carioca/",
+                    "https://panlasangpinoy.com/karioka-carioca-recipe/"
+                ],
+                "summary": "Used for carioca. Published recipes usually center on chewy coconut-forward doughs; this fixture keeps the coconut-heavy profile but approximates the dough with delivered flour because no separate glutinous rice flour delivery is visible in the source documents."
+            },
+            "filipino_doughnut": {
+                "urls": [
+                    "https://www.kawalingpinoy.com/bicho-bicho/",
+                    "https://www.yummy.ph/recipe/bicho-bicho-recipe-a518-20230311"
+                ],
+                "summary": "Used for the doughnut line. Search results describe a fried Filipino dough enriched with flour, sugar, egg, and oil, which aligns with the flour, oil, egg, and sugar ingredients carried in the delivery document."
+            },
+            "chocolate_cupcake_batter": {
+                "urls": [
+                    "https://www.allrecipes.com/recipe/17377/chocolate-cupcakes/",
+                    "https://sallysbakingaddiction.com/super-moist-chocolate-cupcakes/"
+                ],
+                "summary": "Used for the cupcake variants. Search results consistently point to a flour, egg, cocoa, sugar, oil, and milk style batter, so the fixture uses the delivered cocoa, eggs, and flour as its factual base."
+            },
+            "chocolate_crinkles": {
+                "urls": [
+                    "https://www.allrecipes.com/recipe/9861/chocolate-crinkles-ii/",
+                    "https://www.kingarthurbaking.com/recipes/chocolate-crinkle-cookies-recipe"
+                ],
+                "summary": "Used for the crinkles line. Search results consistently describe a cocoa-based dough rolled in powdered sugar, matching the delivered cocoa powder and confectioners sugar in the source documents."
+            }
+        }
+    },
+    "branch": {
+        "code": "MNKPHOTO",
+        "name": "Julie's Manukan Branch",
+        "address": "Manukan, Zamboanga del Norte"
+    },
+    "ingredients": [
+        {
+            "key": "all_purpose_flour",
+            "name": "All Purpose Flour",
+            "sku": "MNK-FLOUR",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "powdered_sugar",
+            "name": "Powdered Sugar",
+            "sku": "MNK-PSUGAR",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "cheese",
+            "name": "Cheese",
+            "sku": "MNK-CHEESE",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "cocoa_powder",
+            "name": "Cocoa Powder",
+            "sku": "MNK-COCOA",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "oil",
+            "name": "Oil",
+            "sku": "MNK-OIL",
+            "default_unit_code": "L"
+        },
+        {
+            "key": "small_egg",
+            "name": "Small Egg",
+            "sku": "MNK-EGG",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "iodized_salt",
+            "name": "Iodized Salt",
+            "sku": "MNK-SALT",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "grated_coconut",
+            "name": "Grated Coconut",
+            "sku": "MNK-GCOCONUT",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "coconut_young",
+            "name": "Coconut Young",
+            "sku": "MNK-YCOCONUT",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "butter_milk",
+            "name": "Butter Milk",
+            "sku": "MNK-BMILK",
+            "default_unit_code": "L"
+        },
+        {
+            "key": "sesame_seeds",
+            "name": "Sesame Seeds",
+            "sku": "MNK-SESAME",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "siopao_pork",
+            "name": "Siopao Pork",
+            "sku": "MNK-SIOPAOPORK",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "ube_mung_paste",
+            "name": "Ube Mung Bean Paste",
+            "sku": "MNK-UBEPASTE",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "vanilla",
+            "name": "Vanilla",
+            "sku": "MNK-VANILLA",
+            "default_unit_code": "g"
+        },
+        {
+            "key": "wheat_loaf_wrapper",
+            "name": "Wheat Loaf Wrapper",
+            "sku": "MNK-WLOAFWRAP",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "sliced_bread_wrapper_regular",
+            "name": "Sliced Bread Wrapper Regular",
+            "sku": "MNK-SBWRAP",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "cracked_wheat",
+            "name": "Cracked Wheat",
+            "sku": "MNK-CRACKWHEAT",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "bar_soap",
+            "name": "Bar Soap",
+            "sku": "MNK-BARSOAP",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "chlorine",
+            "name": "Chlorine",
+            "sku": "MNK-CHLORINE",
+            "default_unit_code": "g"
+        },
+        {
+            "key": "cornstarch",
+            "name": "Cornstarch",
+            "sku": "MNK-CORNSTARCH",
+            "default_unit_code": "kg"
+        },
+        {
+            "key": "generic_wrapper",
+            "name": "Generic Wrapper",
+            "sku": "MNK-GENWRAP",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "sando_bag_large",
+            "name": "Sando Bag Large",
+            "sku": "MNK-SANDOLARGE",
+            "default_unit_code": "pack"
+        },
+        {
+            "key": "sando_bag_medium",
+            "name": "Sando Bag Medium",
+            "sku": "MNK-SANDOMEDIUM",
+            "default_unit_code": "pack"
+        },
+        {
+            "key": "sando_bag_small",
+            "name": "Sando Bag Small",
+            "sku": "MNK-SANDOSMALL",
+            "default_unit_code": "pack"
+        },
+        {
+            "key": "roll_bag",
+            "name": "Roll Bag",
+            "sku": "MNK-ROLLBAG",
+            "default_unit_code": "pc"
+        },
+        {
+            "key": "sliced_bread_wrapper_special",
+            "name": "Sliced Bread Wrapper Special",
+            "sku": "MNK-SBWRAPSPEC",
+            "default_unit_code": "pc"
+        }
+    ],
+    "delivery": {
+        "delivered_at": "2026-04-15 05:30:00",
+        "reference": "DEL-PHOTO-041526",
+        "received_by": "Manukan Receiver",
+        "notes": "Photo-derived delivery fixture based on the Dipolog receipt and supporting DPL list.",
+        "receipt_total_amount": 10046.54,
+        "extended_total_amount": 10716.54,
+        "source_document_map": {
+            "all_purpose_flour": "receipt",
+            "bar_soap": "receipt",
+            "cheese": "receipt",
+            "coconut_young": "receipt",
+            "chlorine": "receipt",
+            "cocoa_powder": "receipt",
+            "cornstarch": "receipt",
+            "cracked_wheat": "receipt",
+            "oil": "receipt",
+            "small_egg": "receipt",
+            "powdered_sugar": "receipt",
+            "generic_wrapper": "receipt",
+            "grated_coconut": "receipt",
+            "butter_milk": "receipt",
+            "sando_bag_large": "receipt",
+            "sando_bag_medium": "receipt",
+            "sando_bag_small": "receipt",
+            "roll_bag": "receipt",
+            "iodized_salt": "receipt",
+            "wheat_loaf_wrapper": "receipt",
+            "sliced_bread_wrapper_regular": "receipt",
+            "sliced_bread_wrapper_special": "receipt",
+            "sesame_seeds": "receipt",
+            "siopao_pork": "receipt",
+            "vanilla": "receipt",
+            "ube_mung_paste": "dpl_price_list"
+        },
+        "source_document_notes": {
+            "receipt": "Printed Dipolog delivery receipt dated 04/15/26 with a visible grand total of 10046.54.",
+            "dpl_price_list": "Supplemental DPL price list dated Apr. 20, 2026 used only for the ube mung bean paste line; the sheet prices it at 670.00 per 5 kg pack, so the delivery unit_cost is normalized to 134.00 per kg."
+        },
+        "items": [
+            {
+                "ingredient_key": "all_purpose_flour",
+                "qty": 5,
+                "unit_code": "kg",
+                "unit_cost": 50.00
+            },
+            {
+                "ingredient_key": "bar_soap",
+                "qty": 14,
+                "unit_code": "pc",
+                "unit_cost": 5.4129
+            },
+            {
+                "ingredient_key": "cheese",
+                "qty": 25,
+                "unit_code": "pc",
+                "unit_cost": 35.6868
+            },
+            {
+                "ingredient_key": "coconut_young",
+                "qty": 2,
+                "unit_code": "pc",
+                "unit_cost": 11.25
+            },
+            {
+                "ingredient_key": "chlorine",
+                "qty": 250,
+                "unit_code": "g",
+                "unit_cost": 0.0875
+            },
+            {
+                "ingredient_key": "cocoa_powder",
+                "qty": 1000,
+                "unit_code": "g",
+                "unit_cost": 0.7360
+            },
+            {
+                "ingredient_key": "cornstarch",
+                "qty": 5,
+                "unit_code": "kg",
+                "unit_cost": 52.00
+            },
+            {
+                "ingredient_key": "cracked_wheat",
+                "qty": 3,
+                "unit_code": "kg",
+                "unit_cost": 52.90
+            },
+            {
+                "ingredient_key": "oil",
+                "qty": 30,
+                "unit_code": "L",
+                "unit_cost": 81.5383
+            },
+            {
+                "ingredient_key": "small_egg",
+                "qty": 90,
+                "unit_code": "pc",
+                "unit_cost": 7.3333
+            },
+            {
+                "ingredient_key": "powdered_sugar",
+                "qty": 6,
+                "unit_code": "kg",
+                "unit_cost": 124.74
+            },
+            {
+                "ingredient_key": "generic_wrapper",
+                "qty": 35,
+                "unit_code": "pc",
+                "unit_cost": 0.9171
+            },
+            {
+                "ingredient_key": "grated_coconut",
+                "qty": 14,
+                "unit_code": "kg",
+                "unit_cost": 25.00
+            },
+            {
+                "ingredient_key": "butter_milk",
+                "qty": 4,
+                "unit_code": "L",
+                "unit_cost": 130.00
+            },
+            {
+                "ingredient_key": "sando_bag_large",
+                "qty": 5,
+                "unit_code": "pack",
+                "unit_cost": 90.00
+            },
+            {
+                "ingredient_key": "sando_bag_medium",
+                "qty": 5,
+                "unit_code": "pack",
+                "unit_cost": 58.00
+            },
+            {
+                "ingredient_key": "sando_bag_small",
+                "qty": 5,
+                "unit_code": "pack",
+                "unit_cost": 30.00
+            },
+            {
+                "ingredient_key": "roll_bag",
+                "qty": 2,
+                "unit_code": "pc",
+                "unit_cost": 24.00
+            },
+            {
+                "ingredient_key": "iodized_salt",
+                "qty": 1,
+                "unit_code": "kg",
+                "unit_cost": 20.80
+            },
+            {
+                "ingredient_key": "wheat_loaf_wrapper",
+                "qty": 21,
+                "unit_code": "pc",
+                "unit_cost": 1.6633
+            },
+            {
+                "ingredient_key": "sliced_bread_wrapper_regular",
+                "qty": 150,
+                "unit_code": "pc",
+                "unit_cost": 2.0216
+            },
+            {
+                "ingredient_key": "sliced_bread_wrapper_special",
+                "qty": 150,
+                "unit_code": "pc",
+                "unit_cost": 2.0216
+            },
+            {
+                "ingredient_key": "sesame_seeds",
+                "qty": 1000,
+                "unit_code": "g",
+                "unit_cost": 0.2240
+            },
+            {
+                "ingredient_key": "siopao_pork",
+                "qty": 3.5,
+                "unit_code": "kg",
+                "unit_cost": 295.00
+            },
+            {
+                "ingredient_key": "ube_mung_paste",
+                "qty": 5,
+                "unit_code": "kg",
+                "unit_cost": 134.00
+            },
+            {
+                "ingredient_key": "vanilla",
+                "qty": 300,
+                "unit_code": "g",
+                "unit_cost": 0.0537
+            }
+        ]
+    },
+    "recipe_source_map": {
+        "sb_classic": "filipino_enriched_bread_dough",
+        "sb_special": "filipino_enriched_bread_dough",
+        "monay_small": "filipino_enriched_bread_dough",
+        "egg_pie_mongo": "filipino_egg_pie",
+        "egg_pie_cheese": "filipino_egg_pie",
+        "butter_bread": "filipino_enriched_bread_dough",
+        "butter_pandan": "filipino_enriched_bread_dough",
+        "cheese_bread": "filipino_enriched_bread_dough",
+        "hawaiian": "filipino_enriched_bread_dough",
+        "siopao": "siopao_asado",
+        "carioca": "filipino_carioca",
+        "american": "filipino_enriched_bread_dough",
+        "doughnut": "filipino_doughnut",
+        "buko_pandan": "filipino_enriched_bread_dough",
+        "ube_bread": "filipino_enriched_bread_dough",
+        "cheese_streusel": "filipino_enriched_bread_dough",
+        "choco_flower": "filipino_enriched_bread_dough",
+        "ube_streusel": "filipino_enriched_bread_dough",
+        "sliced_loaf": "filipino_enriched_bread_dough",
+        "mocha_cupcake": "chocolate_cupcake_batter",
+        "choco_cupcake": "chocolate_cupcake_batter",
+        "egg_pie": "filipino_egg_pie",
+        "sunflower": "filipino_enriched_bread_dough",
+        "choco_crinkles": "chocolate_crinkles",
+        "pork_asado": "siopao_asado",
+        "pon_de_sal": "filipino_enriched_bread_dough",
+        "pon_de_pandan": "filipino_enriched_bread_dough",
+        "v_cream": "filipino_enriched_bread_dough"
+    },
+    "factual_summary": {
+        "ingredient_count": 26,
+        "delivery_item_count": 26,
+        "production_run_count": 28,
+        "recipe_source_family_count": 7,
+        "receipt_source_line_count": 25,
+        "supplemental_source_line_count": 1,
+        "receipt_total_amount": 10046.54,
+        "extended_total_amount": 10716.54,
+        "delivered_qty_base": 583.05,
+        "consumed_qty_base": 139.92,
+        "variance_qty_base": 443.14,
+        "inventory_on_hand_qty_base": 443.14
+    },
+    "products": [
+        {
+            "key": "sb_classic",
+            "name": "SB Classic",
+            "sku": "MNK-SBCLASSIC",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 06:30:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.25,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "butter_milk",
+                    "qty": 0.20,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "sliced_bread_wrapper_regular",
+                    "qty": 10,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "sb_special",
+            "name": "SB Special",
+            "sku": "MNK-SBSPECIAL",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 06:45:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.25,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "butter_milk",
+                    "qty": 0.20,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "cheese",
+                    "qty": 2,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "sliced_bread_wrapper_regular",
+                    "qty": 10,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "monay_small",
+            "name": "Monay Small",
+            "sku": "MNK-MONAYSMALL",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 17:00:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.20,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 2,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "powdered_sugar",
+                    "qty": 0.05,
+                    "unit_code": "kg"
+                }
+            ]
+        },
+        {
+            "key": "egg_pie_mongo",
+            "name": "Egg Pie Mongo",
+            "sku": "MNK-EGGPIEMONGO",
+            "category": "Pastry",
+            "yield_qty": 1,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 17:20:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.12,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 4,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "ube_mung_paste",
+                    "qty": 0.25,
+                    "unit_code": "kg"
+                }
+            ]
+        },
+        {
+            "key": "egg_pie_cheese",
+            "name": "Egg Pie Cheese",
+            "sku": "MNK-EGGPIECHEESE",
+            "category": "Pastry",
+            "yield_qty": 1,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 17:30:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.12,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 4,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "cheese",
+                    "qty": 2,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "butter_bread",
+            "name": "Butter Bread",
+            "sku": "MNK-BUTTERBREAD",
+            "category": "Bread",
+            "yield_qty": 17,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 18:00:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.35,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 4,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "oil",
+                    "qty": 0.08,
+                    "unit_code": "L"
+                }
+            ]
+        },
+        {
+            "key": "butter_pandan",
+            "name": "Butter Pandan",
+            "sku": "MNK-BUTTERPANDAN",
+            "category": "Bread",
+            "yield_qty": 17,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 18:15:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.30,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "oil",
+                    "qty": 0.07,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "vanilla",
+                    "qty": 20,
+                    "unit_code": "g"
+                }
+            ]
+        },
+        {
+            "key": "cheese_bread",
+            "name": "Cheese Bread",
+            "sku": "MNK-CHEESEBREAD",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 18:30:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.25,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "cheese",
+                    "qty": 4,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 2,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "hawaiian",
+            "name": "Hawaiian",
+            "sku": "MNK-HAWAIIAN",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 18:05:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.24,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "butter_milk",
+                    "qty": 0.20,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "sliced_bread_wrapper_special",
+                    "qty": 10,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "siopao",
+            "name": "Siopao",
+            "sku": "MNK-SIOPAO",
+            "category": "Bread",
+            "yield_qty": 27,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 18:45:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.45,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "siopao_pork",
+                    "qty": 1.00,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "generic_wrapper",
+                    "qty": 20,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "carioca",
+            "name": "Carioca",
+            "sku": "MNK-CARIOCA",
+            "category": "Bread",
+            "yield_qty": 12,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 19:00:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.20,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "grated_coconut",
+                    "qty": 0.60,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "oil",
+                    "qty": 0.05,
+                    "unit_code": "L"
+                }
+            ]
+        },
+        {
+            "key": "american",
+            "name": "American",
+            "sku": "MNK-AMERICAN",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 19:15:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.25,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "butter_milk",
+                    "qty": 0.40,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "wheat_loaf_wrapper",
+                    "qty": 10,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "doughnut",
+            "name": "Doughnut",
+            "sku": "MNK-DOUGHNUT",
+            "category": "Bread",
+            "yield_qty": 7,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 07:00:00",
+            "produced_by": "Day Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.18,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "oil",
+                    "qty": 0.20,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "powdered_sugar",
+                    "qty": 0.12,
+                    "unit_code": "kg"
+                }
+            ]
+        },
+        {
+            "key": "buko_pandan",
+            "name": "Buko Pandan",
+            "sku": "MNK-BUKOPANDAN",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 07:15:00",
+            "produced_by": "Day Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.22,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "coconut_young",
+                    "qty": 1,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "vanilla",
+                    "qty": 15,
+                    "unit_code": "g"
+                }
+            ]
+        },
+        {
+            "key": "ube_bread",
+            "name": "Ube",
+            "sku": "MNK-UBE",
+            "category": "Bread",
+            "yield_qty": 14,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 07:10:00",
+            "produced_by": "Sweet Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.20,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "ube_mung_paste",
+                    "qty": 0.35,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "powdered_sugar",
+                    "qty": 0.08,
+                    "unit_code": "kg"
+                }
+            ]
+        },
+        {
+            "key": "cheese_streusel",
+            "name": "Cheese Streusel",
+            "sku": "MNK-CHEESESTREUSEL",
+            "category": "Bread",
+            "yield_qty": 8,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 07:30:00",
+            "produced_by": "Day Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.20,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "cheese",
+                    "qty": 5,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 1,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "choco_flower",
+            "name": "Choco Flower",
+            "sku": "MNK-CHOCOFLOWER",
+            "category": "Bread",
+            "yield_qty": 6,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 07:45:00",
+            "produced_by": "Day Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.18,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "cocoa_powder",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "powdered_sugar",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                }
+            ]
+        },
+        {
+            "key": "ube_streusel",
+            "name": "Ube Streusel",
+            "sku": "MNK-UBESTREUSEL",
+            "category": "Bread",
+            "yield_qty": 8,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 08:00:00",
+            "produced_by": "Day Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.18,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "ube_mung_paste",
+                    "qty": 0.45,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "powdered_sugar",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                }
+            ]
+        },
+        {
+            "key": "sliced_loaf",
+            "name": "Sliced Loaf",
+            "sku": "MNK-SLICEDLOAF",
+            "category": "Bread",
+            "yield_qty": 2,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 08:15:00",
+            "produced_by": "Day Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.30,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "butter_milk",
+                    "qty": 0.20,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "sliced_bread_wrapper_regular",
+                    "qty": 2,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "mocha_cupcake",
+            "name": "Mocha Cupcake",
+            "sku": "MNK-MOCHACUPCAKE",
+            "category": "Pastry",
+            "yield_qty": 21,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 20:00:00",
+            "produced_by": "Sweet Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.20,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "cocoa_powder",
+                    "qty": 0.08,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 6,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "choco_cupcake",
+            "name": "Choco Cupcake",
+            "sku": "MNK-CHOCOCUPCAKE",
+            "category": "Pastry",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 20:15:00",
+            "produced_by": "Sweet Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.15,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "cocoa_powder",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 4,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "egg_pie",
+            "name": "Egg Pie",
+            "sku": "MNK-EGGPIE",
+            "category": "Pastry",
+            "yield_qty": 9,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 20:30:00",
+            "produced_by": "Sweet Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.18,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 12,
+                    "unit_code": "pc"
+                },
+                {
+                    "ingredient_key": "vanilla",
+                    "qty": 10,
+                    "unit_code": "g"
+                }
+            ]
+        },
+        {
+            "key": "sunflower",
+            "name": "Sunflower",
+            "sku": "MNK-SUNFLOWER",
+            "category": "Pastry",
+            "yield_qty": 7,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 20:45:00",
+            "produced_by": "Sweet Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.12,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "cracked_wheat",
+                    "qty": 0.40,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "sesame_seeds",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                }
+            ]
+        },
+        {
+            "key": "choco_crinkles",
+            "name": "Choco Crinkles",
+            "sku": "MNK-CHOCOCRINKLES",
+            "category": "Pastry",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 20:35:00",
+            "produced_by": "Sweet Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "cocoa_powder",
+                    "qty": 0.08,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "powdered_sugar",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "small_egg",
+                    "qty": 2,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "pork_asado",
+            "name": "Pork Asado",
+            "sku": "MNK-PORKASADO",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 21:00:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.20,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "siopao_pork",
+                    "qty": 0.70,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "generic_wrapper",
+                    "qty": 10,
+                    "unit_code": "pc"
+                }
+            ]
+        },
+        {
+            "key": "pon_de_sal",
+            "name": "Pon de Sal",
+            "sku": "MNK-PONDESAL",
+            "category": "Bread",
+            "yield_qty": 18,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 21:05:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.28,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "iodized_salt",
+                    "qty": 0.02,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "oil",
+                    "qty": 0.04,
+                    "unit_code": "L"
+                }
+            ]
+        },
+        {
+            "key": "pon_de_pandan",
+            "name": "Pon de Pandan",
+            "sku": "MNK-PONDEPANDAN",
+            "category": "Bread",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 21:10:00",
+            "produced_by": "Night Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.28,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "oil",
+                    "qty": 0.04,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "vanilla",
+                    "qty": 10,
+                    "unit_code": "g"
+                }
+            ]
+        },
+        {
+            "key": "v_cream",
+            "name": "V-Cream",
+            "sku": "MNK-VCREAM",
+            "category": "Pastry",
+            "yield_qty": 10,
+            "yield_unit_code": "pc",
+            "produced_at": "2026-04-15 21:15:00",
+            "produced_by": "Sweet Baker",
+            "recipe": [
+                {
+                    "ingredient_key": "all_purpose_flour",
+                    "qty": 0.15,
+                    "unit_code": "kg"
+                },
+                {
+                    "ingredient_key": "butter_milk",
+                    "qty": 0.20,
+                    "unit_code": "L"
+                },
+                {
+                    "ingredient_key": "powdered_sugar",
+                    "qty": 0.10,
+                    "unit_code": "kg"
+                }
+            ]
+        }
+    ]
+}

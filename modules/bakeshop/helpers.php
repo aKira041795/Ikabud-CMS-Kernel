@@ -20,6 +20,11 @@ function bakeshopBaseUrl(): string
     return rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 }
 
+function bakeshopExternalBaseUrl(): string
+{
+    return external_base_url((string)config('app.url', ''));
+}
+
 function bakeshopCookieName(): string
 {
     return 'bakeshop_token';
@@ -238,21 +243,35 @@ app()->hooks()->on('kernel.home_url', function (?string $url, string $role, ?arr
 function bakeshopLoginPageContext(array $overrides = []): array
 {
     $baseUrl = bakeshopBaseUrl();
+    $brandSettings = bakeshopBrandSettings();
+    $storeName = (string)($brandSettings['store_name'] ?? 'Bakeshop');
+    $storeDescription = (string)($brandSettings['store_description'] ?? '');
+    $storeInitial = htmlspecialchars((string)($brandSettings['store_initial'] ?? 'B'), ENT_QUOTES, 'UTF-8');
+    $storeLogoUrl = trim((string)($brandSettings['store_logo_url'] ?? ''));
+    $escapedStoreName = htmlspecialchars($storeName, ENT_QUOTES, 'UTF-8');
+    $loginLogoHtml = $storeLogoUrl !== ''
+        ? '<img src="' . htmlspecialchars($storeLogoUrl, ENT_QUOTES, 'UTF-8') . '" alt="' . $escapedStoreName . ' logo">'
+        : '<span>' . $storeInitial . '</span>';
 
     return array_merge([
         'page_title' => 'Bakeshop Sign In',
-        'login_subtitle' => 'Sign in with your bakeshop staff account to manage recipes, deliveries, production, and daily usage.',
+        'brand_settings' => $brandSettings,
+        'brand_mark_html' => $loginLogoHtml,
+        'login_logo_html' => $loginLogoHtml,
+        'login_subtitle' => $storeDescription,
         'login_username_label' => 'Bakeshop Username or Email',
         'login_endpoint' => $baseUrl . '/bakeshop/auth/login',
         'login_button_text' => 'Enter Bakeshop',
         'login_loading_text' => 'Opening workspace...',
-        'login_brand_html' => '<span>Julie\'s</span> Bakeshop',
+        'login_brand_html' => $escapedStoreName,
+        'login_forgot_url' => $baseUrl . '/bakeshop/forgot-password',
+        'login_forgot_text' => 'Forgot password?',
         'login_helper_title' => 'After You Sign In',
         'login_helper_html' => '<p>You will land directly in the operations workspace with your bakeshop role applied.</p><ul><li>Admins can manage staff accounts, passwords, and workspace permissions.</li><li>Supervisors can stay focused on production, deliveries, and usage reporting.</li><li>Use the print summary when you need a clean branch usage report.</li></ul>',
         'gui' => [
-            'app_name' => 'Julie\'s Bakeshop',
-            'app_name_accent' => 'Julie\'s',
-            'app_name_rest' => 'Bakeshop',
+            'app_name' => $storeName,
+            'app_name_accent' => $storeName,
+            'app_name_rest' => '',
             'font_url' => 'https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap',
             'font_family' => 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             'color_primary' => '#b45309',

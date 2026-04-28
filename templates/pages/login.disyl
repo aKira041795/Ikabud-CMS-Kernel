@@ -16,6 +16,29 @@
         body { font-family: {gui.font_family | raw}; background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .login-card { background: var(--surface); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); width: 100%; max-width: 380px; padding: 40px 32px; }
         .login-logo { text-align: center; margin-bottom: 32px; }
+        .login-mark {
+            width: 78px;
+            height: 78px;
+            margin: 0 auto 14px;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: color-mix(in srgb, var(--primary-light) 72%, white);
+            border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+            color: var(--primary);
+            font-size: 28px;
+            font-weight: 700;
+            box-shadow: 0 18px 32px rgba(120, 53, 15, 0.12);
+        }
+        .login-mark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #fff;
+            padding: 10px;
+        }
         .login-logo h1 { font-size: 24px; font-weight: 700; color: var(--text); }
         .login-logo h1 span { color: var(--primary); }
         .login-logo p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
@@ -28,6 +51,18 @@
         .btn-login:disabled { opacity: .6; cursor: not-allowed; }
         .error-msg { background: #fee2e2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
         .error-msg.show { display: block; }
+        .login-links {
+            display: flex;
+            justify-content: flex-end;
+            margin: -8px 0 18px;
+        }
+        .login-links a {
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .login-links a:hover { color: var(--primary-hover); text-decoration: underline; }
         .login-helper {
             margin: 18px 0 0;
             padding: 14px 16px;
@@ -57,6 +92,7 @@
 <body>
     <div class="login-card">
         <div class="login-logo">
+            {if login_logo_html}<div class="login-mark">{login_logo_html | raw}</div>{/if}
             <h1>{if login_brand_html}{login_brand_html | raw}{else}<span>{gui.app_name_accent}</span> {gui.app_name_rest}{/if}</h1>
             <p>{login_subtitle | default:'Sign in to continue'}</p>
         </div>
@@ -72,6 +108,11 @@
                 <label class="form-label" for="password">Password</label>
                 <input class="form-input" type="password" id="password" name="password" autocomplete="current-password" required>
             </div>
+            {if login_forgot_url}
+            <div class="login-links">
+                <a href="{login_forgot_url}">{login_forgot_text | default:'Forgot password?'}</a>
+            </div>
+            {/if}
             <button type="submit" class="btn-login" id="login-btn">{login_button_text | default:'Sign In'}</button>
         </form>
 

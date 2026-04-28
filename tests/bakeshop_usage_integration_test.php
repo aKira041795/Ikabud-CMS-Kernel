@@ -55,7 +55,9 @@ $productId = 0;
 $flourId = 0;
 $sugarId = 0;
 $deliveryId = 0;
+$futureDeliveryId = 0;
 $runId = 0;
+$voidedRunId = 0;
 
 try {
     $kgUnitId = (int)($db->query("SELECT id FROM bakeshop_units WHERE code = 'kg' LIMIT 1")->fetchColumn() ?: 0);
@@ -128,18 +130,24 @@ try {
                 'unit_id' => $kgUnitId,
                 'qty' => 5,
                 'unit_cost' => 42.5,
+                'cost_basis' => 'receipt',
             ],
             [
                 'ingredient_id' => $sugarId,
                 'unit_id' => $gUnitId,
                 'qty' => 2000,
                 'unit_cost' => 0.08,
+                'cost_basis' => 'manual',
             ],
         ],
     ]);
     $deliveryId = (int)($delivery['id'] ?? 0);
     btUsage('delivery created', $deliveryId > 0, json_encode($delivery, JSON_UNESCAPED_SLASHES));
     btUsage('delivery contains two items', count((array)($delivery['items'] ?? [])) === 2);
+    $flourDelivery = btUsageFindRow((array)($delivery['items'] ?? []), static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
+    $sugarDelivery = btUsageFindRow((array)($delivery['items'] ?? []), static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
+    btUsage('delivery item cost basis preserves receipt provenance', (string)($flourDelivery['cost_basis'] ?? '') === 'receipt', json_encode($flourDelivery, JSON_UNESCAPED_SLASHES));
+    btUsage('delivery item cost basis preserves manual provenance', (string)($sugarDelivery['cost_basis'] ?? '') === 'manual', json_encode($sugarDelivery, JSON_UNESCAPED_SLASHES));
 
     $run = bakeshopProductionCreate([
         'branch_id' => $branchId,
@@ -158,6 +166,63 @@ try {
     btUsage('production snapshot scales flour to 2.0000 kg', abs((float)($snapshotFlour['qty_used'] ?? 0) - 2.0) < 0.0001, json_encode($snapshotFlour, JSON_UNESCAPED_SLASHES));
     btUsage('production snapshot scales sugar to 1000.0000 g', abs((float)($snapshotSugar['qty_used'] ?? 0) - 1000.0) < 0.0001, json_encode($snapshotSugar, JSON_UNESCAPED_SLASHES));
 
+    $updatedRun = bakeshopProductionUpdate([
+        'id' => $runId,
+        'produced_at' => '2026-04-26 10:30:00',
+        'produced_by' => 'Lead Baker',
+        'notes' => 'Updated production note',
+    ]);
+    btUsage('production run metadata updated', (string)($updatedRun['produced_by'] ?? '') === 'Lead Baker' && (string)($updatedRun['notes'] ?? '') === 'Updated production note' && (string)($updatedRun['produced_at'] ?? '') === '2026-04-26 10:30:00', json_encode($updatedRun, JSON_UNESCAPED_SLASHES));
+    btUsage('production run update preserves snapshot item count', count((array)($updatedRun['items'] ?? [])) === 2, json_encode($updatedRun['items'] ?? [], JSON_UNESCAPED_SLASHES));
+
+    $voidedRun = bakeshopProductionCreate([
+        'branch_id' => $branchId,
+        'product_id' => $productId,
+        'produced_at' => '2026-04-26 11:00:00',
+        'qty_produced' => 10,
+        'produced_by' => 'Baker',
+        'notes' => 'Run to void',
+    ]);
+    $voidedRunId = (int)($voidedRun['id'] ?? 0);
+    btUsage('second production run created for void test', $voidedRunId > 0, json_encode($voidedRun, JSON_UNESCAPED_SLASHES));
+
+    $voidedRunRecord = bakeshopProductionVoid([
+        'id' => $voidedRunId,
+        'void_reason' => 'Operator entered duplicate run.',
+    ], [
+        'full_name' => 'Supervisor',
+    ]);
+    btUsage('production run voided', (int)($voidedRunRecord['id'] ?? 0) === $voidedRunId && trim((string)($voidedRunRecord['voided_at'] ?? '')) !== '', json_encode($voidedRunRecord, JSON_UNESCAPED_SLASHES));
+
+    $visibleProductionRuns = bakeshopProductionList();
+    btUsage('voided production run is hidden from production list', btUsageFindRow($visibleProductionRuns, static fn (array $row): bool => (int)($row['id'] ?? 0) === $voidedRunId) === null, json_encode($visibleProductionRuns, JSON_UNESCAPED_SLASHES));
+
+    $futureDelivery = bakeshopDeliveriesCreate([
+        'branch_id' => $branchId,
+        'delivered_at' => '2026-04-27 08:00:00',
+        'reference' => 'DEL-FUTURE-' . $suffix,
+        'received_by' => 'Supervisor',
+        'notes' => 'Future inventory restock',
+        'items' => [
+            [
+                'ingredient_id' => $flourId,
+                'unit_id' => $kgUnitId,
+                'qty' => 2,
+                'unit_cost' => 43,
+                'cost_basis' => 'price_list',
+            ],
+            [
+                'ingredient_id' => $sugarId,
+                'unit_id' => $gUnitId,
+                'qty' => 500,
+                'unit_cost' => 0.08,
+                'cost_basis' => 'receipt',
+            ],
+        ],
+    ]);
+    $futureDeliveryId = (int)($futureDelivery['id'] ?? 0);
+    btUsage('future delivery created', $futureDeliveryId > 0, json_encode($futureDelivery, JSON_UNESCAPED_SLASHES));
+
     $usageRows = bakeshopUsageReportRows([
         'branch_id' => $branchId,
         'from_date' => '2026-04-26',
@@ -169,11 +234,11 @@ try {
     $sugarUsage = btUsageFindRow($usageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
 
     btUsage('flour delivered base qty equals 5.0000', abs((float)($flourUsage['delivered_qty_base'] ?? 0) - 5.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
-    btUsage('flour consumed base qty equals 2.0000', abs((float)($flourUsage['consumed_qty_base'] ?? 0) - 2.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
+    btUsage('flour consumed base qty equals 2.0000 after void exclusion', abs((float)($flourUsage['consumed_qty_base'] ?? 0) - 2.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
     btUsage('flour variance base qty equals 3.0000', abs((float)($flourUsage['variance_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
 
     btUsage('sugar delivered base qty normalizes 2000 g to 2.0000 kg-base', abs((float)($sugarUsage['delivered_qty_base'] ?? 0) - 2.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
-    btUsage('sugar consumed base qty normalizes 1000 g to 1.0000 kg-base', abs((float)($sugarUsage['consumed_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
+    btUsage('sugar consumed base qty normalizes 1000 g to 1.0000 kg-base after void exclusion', abs((float)($sugarUsage['consumed_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
     btUsage('sugar variance base qty equals 1.0000', abs((float)($sugarUsage['variance_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
 
     $totals = bakeshopUsageTotals($usageRows);
@@ -183,21 +248,47 @@ try {
 
     $inventoryRows = bakeshopInventorySnapshotRows([
         'branch_id' => $branchId,
+        'to_date' => '2026-04-26',
     ]);
     btUsage('inventory snapshot returned rows', count($inventoryRows) >= 2, json_encode($inventoryRows, JSON_UNESCAPED_SLASHES));
 
     $flourInventory = btUsageFindRow($inventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     $sugarInventory = btUsageFindRow($inventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
-    btUsage('flour current inventory snapshot equals 3.0000', abs((float)($flourInventory['on_hand_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($flourInventory, JSON_UNESCAPED_SLASHES));
-    btUsage('sugar current inventory snapshot equals 1.0000', abs((float)($sugarInventory['on_hand_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarInventory, JSON_UNESCAPED_SLASHES));
+    btUsage('flour inventory as of selected end date equals 3.0000', abs((float)($flourInventory['on_hand_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($flourInventory, JSON_UNESCAPED_SLASHES));
+    btUsage('sugar inventory as of selected end date equals 1.0000', abs((float)($sugarInventory['on_hand_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarInventory, JSON_UNESCAPED_SLASHES));
 
     $inventoryTotals = bakeshopInventorySnapshotTotals($inventoryRows);
     btUsage('inventory snapshot totals aggregate on-hand base qty', abs((float)($inventoryTotals['on_hand_qty_base'] ?? 0) - 4.0) < 0.0001, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
     btUsage('inventory snapshot totals count tracked ingredient lines', (int)($inventoryTotals['item_count'] ?? 0) === 2, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
+
+    $factualSummary = bakeshopUsageFactualSummary([
+        'branch_id' => $branchId,
+        'from_date' => '2026-04-26',
+        'to_date' => '2026-04-26',
+    ]);
+    btUsage('factual summary excludes voided production runs', (int)($factualSummary['production_run_count'] ?? 0) === 1, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+
+    $currentInventoryRows = bakeshopInventorySnapshotRows([
+        'branch_id' => $branchId,
+    ]);
+    $currentFlourInventory = btUsageFindRow($currentInventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
+    $currentSugarInventory = btUsageFindRow($currentInventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
+    btUsage('current inventory includes later flour restock', abs((float)($currentFlourInventory['on_hand_qty_base'] ?? 0) - 5.0) < 0.0001, json_encode($currentFlourInventory, JSON_UNESCAPED_SLASHES));
+    btUsage('current inventory includes later sugar restock', abs((float)($currentSugarInventory['on_hand_qty_base'] ?? 0) - 1.5) < 0.0001, json_encode($currentSugarInventory, JSON_UNESCAPED_SLASHES));
 } finally {
+    if ($voidedRunId > 0) {
+        $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$voidedRunId]);
+        $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$voidedRunId]);
+    }
+
     if ($runId > 0) {
         $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$runId]);
         $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$runId]);
+    }
+
+    if ($futureDeliveryId > 0) {
+        $db->prepare('DELETE FROM bakeshop_delivery_items WHERE delivery_id = ?')->execute([$futureDeliveryId]);
+        $db->prepare('DELETE FROM bakeshop_deliveries WHERE id = ?')->execute([$futureDeliveryId]);
     }
 
     if ($deliveryId > 0) {

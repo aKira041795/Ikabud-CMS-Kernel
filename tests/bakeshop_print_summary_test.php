@@ -153,6 +153,7 @@ try {
     ]);
     $branches = bakeshopUsageBranchOptions();
     $summaryGroups = bakeshopPrintSummaryBranchGroups($filters);
+    $factualSummary = bakeshopUsageFactualSummary($filters);
     $html = bakeshopRender('pages/print-summary.disyl', [
         'page_title' => 'Printable Bakeshop Summary',
         'brand_settings' => bakeshopBrandSettings(),
@@ -160,6 +161,7 @@ try {
         'branch_scope_label' => bakeshopPrintSummaryScopeLabel($filters, $branches, $summaryGroups),
         'branches' => $branches,
         'summary_groups' => $summaryGroups,
+        'factual_summary' => $factualSummary,
         'display_from_date' => bakeshopPrintSummaryFormatDate($filters['from_date'] ?? null),
         'display_to_date' => bakeshopPrintSummaryFormatDate($filters['to_date'] ?? null),
         'usage_decimal_places' => bakeshopUsageDecimalPlaces(),
@@ -179,6 +181,8 @@ try {
     btPrint('print summary renders remaining balance using configured decimals', str_contains($html, '7.00'), $html);
     btPrint('print summary renders supplier label', str_contains($html, 'Other - Farmer Coop'), $html);
     btPrint('print summary renders configured output meta', str_contains($html, 'Rounded to 2 decimal places') && str_contains($html, 'Standard template'), $html);
+    btPrint('print summary renders factual summary cards', str_contains($html, 'Tracked Ingredients') && str_contains($html, 'Delivery Lines') && str_contains($html, 'Production Runs') && str_contains($html, 'On Hand At Scope End'), $html);
+    btPrint('print summary explains inventory as of the selected end date', str_contains($html, 'inventory values reflect stock as of the selected end date'), $html);
 } finally {
     if ($runId > 0) {
         $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$runId]);
