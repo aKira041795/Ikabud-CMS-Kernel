@@ -63,6 +63,8 @@
 
         .bakeshop-brand {
             display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: start;
             gap: 10px;
             padding: 6px 10px 0;
         }
@@ -81,6 +83,16 @@
             color: var(--sidebar-text-strong);
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .bakeshop-brand-mark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            padding: 5px;
+            background: #ffffff;
         }
 
         .bakeshop-brand h1 {
@@ -337,10 +349,10 @@
     <div class="bakeshop-admin-shell">
         <aside class="sidebar">
             <div class="bakeshop-brand">
-                <div class="bakeshop-brand-mark">J</div>
+                <div class="bakeshop-brand-mark">{if brand_settings.store_logo_url}<img src="{brand_settings.store_logo_url}" alt="{brand_settings.store_name} logo">{else}{brand_settings.store_initial}{/if}</div>
                 <div>
-                    <h1>Julie's Bakeshop</h1>
-                    <p>Production, deliveries, recipes, staff access, and daily reporting inside the bakeshop module.</p>
+                    <h1>{brand_settings.store_name}</h1>
+                    <p>{brand_settings.store_description}</p>
                 </div>
             </div>
 

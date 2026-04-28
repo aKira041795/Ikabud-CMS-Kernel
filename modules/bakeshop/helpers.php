@@ -313,6 +313,7 @@ function bakeshopPageContext(array $user, string $currentPage, array $extra = []
         'can_manage_users' => bakeshopCanManageUsers($user),
         'can_manage_settings' => bakeshopCanManageSettings($user),
         'can_view_history' => bakeshopCanViewHistory($user),
+        'brand_settings' => bakeshopBrandSettings(),
     ], $extra);
 }
 
@@ -515,6 +516,356 @@ function bakeshopNormalizeUsageDecimalPlaces(mixed $value): int
     }
 
     return $places;
+}
+
+function bakeshopNormalizeStoreName(mixed $value): string
+{
+    $default = (string)(bakeshopSettingsDefaults()['store_name'] ?? 'Bakeshop');
+    $name = trim(strip_tags((string)$value));
+    $name = preg_replace('/\s+/', ' ', $name ?? '') ?? '';
+    if ($name === '') {
+        $name = $default;
+    }
+
+    if (function_exists('mb_strlen') && mb_strlen($name) > 120) {
+        throw new InvalidArgumentException('Store name must be 120 characters or fewer.');
+    }
+    if (strlen($name) > 120) {
+        throw new InvalidArgumentException('Store name must be 120 characters or fewer.');
+    }
+
+    return $name;
+}
+
+function bakeshopNormalizeStoreDescription(mixed $value): string
+{
+    $default = (string)(bakeshopSettingsDefaults()['store_description'] ?? '');
+    $description = trim(strip_tags((string)$value));
+    $description = preg_replace('/\s+/', ' ', $description ?? '') ?? '';
+    if ($description === '') {
+        $description = $default;
+    }
+
+    if (function_exists('mb_strlen') && mb_strlen($description) > 280) {
+        throw new InvalidArgumentException('Store description must be 280 characters or fewer.');
+    }
+    if (strlen($description) > 280) {
+        throw new InvalidArgumentException('Store description must be 280 characters or fewer.');
+    }
+
+    return $description;
+}
+
+function bakeshopNormalizeStoreLogoUrl(mixed $value): string
+{
+    $logoUrl = trim((string)$value);
+    if ($logoUrl === '') {
+        return '';
+    }
+
+    if (function_exists('mb_strlen') && mb_strlen($logoUrl) > 2048) {
+        throw new InvalidArgumentException('Store logo URL must be 2048 characters or fewer.');
+    }
+    if (strlen($logoUrl) > 2048) {
+        throw new InvalidArgumentException('Store logo URL must be 2048 characters or fewer.');
+    }
+
+    $scheme = strtolower((string)parse_url($logoUrl, PHP_URL_SCHEME));
+    if ($scheme !== '' && !in_array($scheme, ['http', 'https'], true)) {
+        throw new InvalidArgumentException('Store logo URL must use http, https, or a relative path.');
+    }
+
+    return $logoUrl;
+}
+
+function bakeshopStoreLogoUploadMaxBytes(): int
+{
+    if (function_exists('cmsMediaMaxUploadBytes')) {
+        return max(262144, (int)cmsMediaMaxUploadBytes());
+    }
+
+    return 2 * 1024 * 1024;
+}
+
+function bakeshopStoreLogoMaxDimension(): int
+{
+    return 512;
+}
+
+function bakeshopStoreLogoEditableMime(string $mimeType): bool
+{
+    return in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true);
+}
+
+function bakeshopStoreLogoLoadImageResource(string $absolutePath, string $mimeType)
+{
+    if (function_exists('cmsMediaLoadImageResource')) {
+        return cmsMediaLoadImageResource($absolutePath, $mimeType);
+    }
+
+    return match ($mimeType) {
+        'image/jpeg' => @imagecreatefromjpeg($absolutePath),
+        'image/png' => @imagecreatefrompng($absolutePath),
+        'image/gif' => @imagecreatefromgif($absolutePath),
+        'image/webp' => @imagecreatefromwebp($absolutePath),
+        default => null,
+    };
+}
+
+function bakeshopStoreLogoCreateCanvas(int $width, int $height, string $mimeType)
+{
+    if (function_exists('cmsMediaCreateCanvas')) {
+        return cmsMediaCreateCanvas($width, $height, $mimeType);
+    }
+
+    $canvas = imagecreatetruecolor($width, $height);
+    if (in_array($mimeType, ['image/png', 'image/gif', 'image/webp'], true)) {
+        imagealphablending($canvas, false);
+        imagesavealpha($canvas, true);
+        $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+        imagefilledrectangle($canvas, 0, 0, $width, $height, $transparent);
+    }
+
+    return $canvas;
+}
+
+function bakeshopStoreLogoSaveImageResource($image, string $absolutePath, string $mimeType): bool
+{
+    if (function_exists('cmsMediaSaveImageResource')) {
+        return cmsMediaSaveImageResource($image, $absolutePath, $mimeType);
+    }
+
+    return match ($mimeType) {
+        'image/jpeg' => (bool)@imagejpeg($image, $absolutePath, 88),
+        'image/png' => (bool)@imagepng($image, $absolutePath, 6),
+        'image/gif' => (bool)@imagegif($image, $absolutePath),
+        'image/webp' => (bool)@imagewebp($image, $absolutePath, 88),
+        default => false,
+    };
+}
+
+function bakeshopNormalizeStoredLogoImage(string $absolutePath, string $mimeType): array
+{
+    if (!bakeshopStoreLogoEditableMime($mimeType)) {
+        return [
+            'width' => null,
+            'height' => null,
+            'normalized' => false,
+        ];
+    }
+
+    $info = @getimagesize($absolutePath);
+    if (!is_array($info) || (int)($info[0] ?? 0) <= 0 || (int)($info[1] ?? 0) <= 0) {
+        throw new InvalidArgumentException('Uploaded logo image could not be read.');
+    }
+
+    $width = (int)$info[0];
+    $height = (int)$info[1];
+    $maxDimension = bakeshopStoreLogoMaxDimension();
+    if ($width <= $maxDimension && $height <= $maxDimension) {
+        return [
+            'width' => $width,
+            'height' => $height,
+            'normalized' => false,
+        ];
+    }
+
+    if (!extension_loaded('gd')) {
+        throw new InvalidArgumentException('Oversized raster logos require the GD extension so they can be normalized.');
+    }
+
+    $source = bakeshopStoreLogoLoadImageResource($absolutePath, $mimeType);
+    if (!$source) {
+        throw new InvalidArgumentException('Uploaded logo image could not be processed.');
+    }
+
+    $ratio = min($maxDimension / $width, $maxDimension / $height);
+    $targetWidth = max(1, (int)round($width * $ratio));
+    $targetHeight = max(1, (int)round($height * $ratio));
+    $canvas = bakeshopStoreLogoCreateCanvas($targetWidth, $targetHeight, $mimeType);
+    imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+    $saved = bakeshopStoreLogoSaveImageResource($canvas, $absolutePath, $mimeType);
+    imagedestroy($canvas);
+    imagedestroy($source);
+
+    if (!$saved) {
+        throw new InvalidArgumentException('Uploaded logo image could not be normalized.');
+    }
+
+    return [
+        'width' => $targetWidth,
+        'height' => $targetHeight,
+        'normalized' => true,
+    ];
+}
+
+function bakeshopStoreLogoFallbackPath(): string
+{
+    $tenantId = app()->tenant()->current();
+    $tenantSegment = $tenantId !== null ? ('/t' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$tenantId)) : '';
+    return BASE_PATH . '/public/uploads/bakeshop' . $tenantSegment;
+}
+
+function bakeshopStoreLogoFallbackUrl(string $relativePath): string
+{
+    $tenantId = app()->tenant()->current();
+    $tenantSegment = $tenantId !== null ? ('/t' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$tenantId)) : '';
+    return '/uploads/bakeshop' . $tenantSegment . '/' . ltrim($relativePath, '/');
+}
+
+function bakeshopStoreLogoUpload(array $file): array
+{
+    if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException('Upload a logo image first.');
+    }
+
+    $tmpPath = trim((string)($file['tmp_name'] ?? ''));
+    if ($tmpPath === '' || !is_file($tmpPath)) {
+        throw new InvalidArgumentException('Uploaded logo file is not available.');
+    }
+
+    if (PHP_SAPI !== 'cli' && function_exists('is_uploaded_file') && !is_uploaded_file($tmpPath)) {
+        throw new InvalidArgumentException('Logo upload did not arrive through the HTTP upload pipeline.');
+    }
+
+    $originalName = trim((string)($file['name'] ?? 'logo.png'));
+    $declaredSize = (int)($file['size'] ?? 0);
+    if ($declaredSize <= 0) {
+        $declaredSize = (int)(@filesize($tmpPath) ?: 0);
+    }
+    if ($declaredSize <= 0) {
+        throw new InvalidArgumentException('Uploaded logo file is empty.');
+    }
+    if ($declaredSize > bakeshopStoreLogoUploadMaxBytes()) {
+        throw new InvalidArgumentException('Uploaded logo file exceeds the maximum allowed size.');
+    }
+
+    if (function_exists('cmsValidateMediaUploadFile') && function_exists('cmsUploadsPath') && function_exists('cmsResolveUploadUrl')) {
+        $validated = cmsValidateMediaUploadFile($tmpPath, $originalName, $declaredSize);
+        if (!($validated['ok'] ?? false)) {
+            throw new InvalidArgumentException((string)($validated['error'] ?? 'Uploaded logo file is invalid.'));
+        }
+
+        $mimeType = (string)($validated['mime_type'] ?? '');
+        if ($mimeType === '' || !str_starts_with($mimeType, 'image/')) {
+            throw new InvalidArgumentException('Store logo must be an image file.');
+        }
+
+        $subPath = 'bakeshop/branding/' . date('Y') . '/' . date('m');
+        $destinationDir = cmsUploadsPath() . '/' . $subPath;
+        if (!kernelEnsureDirectory($destinationDir)) {
+            throw new InvalidArgumentException('Unable to prepare the logo upload directory.');
+        }
+
+        $filename = (string)($validated['filename'] ?? cmsGenerateMediaFilename($originalName));
+        $destinationPath = $destinationDir . '/' . $filename;
+        if (!kernelCopyFile($tmpPath, $destinationPath)) {
+            throw new InvalidArgumentException('Unable to save the uploaded logo file.');
+        }
+
+        if ($mimeType === 'image/svg+xml' && function_exists('cmsSanitizeSvgContent')) {
+            $svg = (string)@file_get_contents($destinationPath);
+            if ($svg !== '') {
+                @file_put_contents($destinationPath, cmsSanitizeSvgContent($svg));
+            }
+        }
+
+        try {
+            $imageMeta = bakeshopNormalizeStoredLogoImage($destinationPath, $mimeType);
+        } catch (Throwable $e) {
+            if (is_file($destinationPath)) {
+                @unlink($destinationPath);
+            }
+            throw $e;
+        }
+
+        $relativePath = $subPath . '/' . $filename;
+
+        return [
+            'store_logo_url' => cmsResolveUploadUrl($relativePath),
+            'relative_path' => $relativePath,
+            'absolute_path' => $destinationPath,
+            'mime_type' => $mimeType,
+            'file_size' => (int)(@filesize($destinationPath) ?: $declaredSize),
+            'width' => $imageMeta['width'],
+            'height' => $imageMeta['height'],
+            'normalized' => $imageMeta['normalized'],
+        ];
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = (string)($finfo->file($tmpPath) ?: '');
+    $allowed = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($allowed[$mimeType])) {
+        throw new InvalidArgumentException('Store logo must be a JPG, PNG, GIF, or WEBP image.');
+    }
+
+    $relativeDir = 'branding/' . date('Y') . '/' . date('m');
+    $destinationDir = bakeshopStoreLogoFallbackPath() . '/' . $relativeDir;
+    if (!kernelEnsureDirectory($destinationDir)) {
+        throw new InvalidArgumentException('Unable to prepare the logo upload directory.');
+    }
+
+    $filename = date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '.' . $allowed[$mimeType];
+    $destinationPath = $destinationDir . '/' . $filename;
+    if (!kernelCopyFile($tmpPath, $destinationPath)) {
+        throw new InvalidArgumentException('Unable to save the uploaded logo file.');
+    }
+
+    try {
+        $imageMeta = bakeshopNormalizeStoredLogoImage($destinationPath, $mimeType);
+    } catch (Throwable $e) {
+        if (is_file($destinationPath)) {
+            @unlink($destinationPath);
+        }
+        throw $e;
+    }
+
+    $relativePath = $relativeDir . '/' . $filename;
+
+    return [
+        'store_logo_url' => bakeshopStoreLogoFallbackUrl($relativePath),
+        'relative_path' => $relativePath,
+        'absolute_path' => $destinationPath,
+        'mime_type' => $mimeType,
+        'file_size' => (int)(@filesize($destinationPath) ?: $declaredSize),
+        'width' => $imageMeta['width'],
+        'height' => $imageMeta['height'],
+        'normalized' => $imageMeta['normalized'],
+    ];
+}
+
+function bakeshopStoreInitial(string $storeName): string
+{
+    $trimmed = trim($storeName);
+    if ($trimmed === '') {
+        return 'B';
+    }
+
+    if (function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+        return mb_strtoupper((string)mb_substr($trimmed, 0, 1));
+    }
+
+    return strtoupper(substr($trimmed, 0, 1));
+}
+
+function bakeshopBrandSettings(): array
+{
+    $settings = bakeshopSettings();
+    $storeName = bakeshopNormalizeStoreName($settings['store_name'] ?? null);
+
+    return [
+        'store_name' => $storeName,
+        'store_description' => bakeshopNormalizeStoreDescription($settings['store_description'] ?? null),
+        'store_logo_url' => bakeshopNormalizeStoreLogoUrl($settings['store_logo_url'] ?? null),
+        'store_initial' => bakeshopStoreInitial($storeName),
+    ];
 }
 
 function bakeshopSupportedPrintTemplates(): array

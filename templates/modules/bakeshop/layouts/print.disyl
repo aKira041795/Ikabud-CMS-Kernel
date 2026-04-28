@@ -48,6 +48,30 @@
         }
 
         .bakeshop-print-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .bakeshop-print-brand-logo {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            flex: 0 0 auto;
+        }
+
+        .bakeshop-print-brand-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            padding: 5px;
+        }
+
+        .bakeshop-print-brand-copy {
             display: grid;
             gap: 4px;
         }
@@ -62,6 +86,13 @@
         .bakeshop-print-brand span {
             color: var(--text-muted);
             font-size: 0.92rem;
+        }
+
+        .bakeshop-print-brand small {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         .bakeshop-print-actions {
@@ -112,8 +143,16 @@
     <div class="bakeshop-print-shell">
         <div class="bakeshop-print-topbar">
             <div class="bakeshop-print-brand">
-                <strong>Julie's Bakeshop</strong>
-                <span>Printable branch ingredient balance summary</span>
+                {if brand_settings.store_logo_url}
+                <div class="bakeshop-print-brand-logo">
+                    <img src="{brand_settings.store_logo_url}" alt="{brand_settings.store_name} logo">
+                </div>
+                {/if}
+                <div class="bakeshop-print-brand-copy">
+                    <strong>{brand_settings.store_name}</strong>
+                    <span>{brand_settings.store_description}</span>
+                    <small>Printable branch ingredient balance summary</small>
+                </div>
             </div>
             <div class="bakeshop-print-actions">
                 <a href="javascript:window.close()">Close</a>

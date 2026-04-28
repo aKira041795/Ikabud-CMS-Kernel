@@ -566,11 +566,15 @@ function bakeshopPageSettings(array $params = []): void
         );
         $units = $unitsStmt ? ($unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
         $settings = bakeshopSettings();
+        $brandSettings = bakeshopBrandSettings();
 
         echo bakeshopRender('pages/settings.disyl', bakeshopPageContext($user, 'settings', [
             'page_title' => 'Bakeshop Settings',
             'units' => $units,
             'settings' => [
+                'store_name' => $brandSettings['store_name'],
+                'store_description' => $brandSettings['store_description'],
+                'store_logo_url' => $brandSettings['store_logo_url'],
                 'usage_decimal_places' => bakeshopNormalizeUsageDecimalPlaces($settings['usage_decimal_places'] ?? null),
                 'print_template' => bakeshopNormalizePrintTemplate($settings['print_template'] ?? null),
             ],
@@ -603,6 +607,7 @@ function bakeshopPagePrintSummary(array $params = []): void
 
         echo bakeshopRender('pages/print-summary.disyl', [
             'page_title' => 'Printable Bakeshop Summary',
+            'brand_settings' => bakeshopBrandSettings(),
             'filters' => $filters,
             'branch_scope_label' => bakeshopPrintSummaryScopeLabel($filters, $branches, $summaryGroups),
             'branches' => $branches,

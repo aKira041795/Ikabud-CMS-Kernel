@@ -56,6 +56,9 @@ echo "\n=== BAKESHOP SUPERVISOR SETTINGS PANEL TEST ===\n\n";
 
 $originalSettings = getModuleSettings('bakeshop');
 $originalRolePermissions = $originalSettings['role_permissions'] ?? null;
+$originalStoreName = $originalSettings['store_name'] ?? null;
+$originalStoreDescription = $originalSettings['store_description'] ?? null;
+$originalStoreLogoUrl = $originalSettings['store_logo_url'] ?? null;
 $originalUsageDecimalPlaces = $originalSettings['usage_decimal_places'] ?? null;
 
 try {
@@ -64,6 +67,9 @@ try {
             'admin' => ['bakeshop.read', 'bakeshop.manage'],
             'supervisor' => ['bakeshop.read'],
         ], JSON_UNESCAPED_SLASHES),
+        'store_name' => 'Crust & Crumb',
+        'store_description' => 'Morning bake production and delivery control center.',
+        'store_logo_url' => '/uploads/bakeshop/crust-and-crumb.png',
         'usage_decimal_places' => '2',
     ]);
 
@@ -110,8 +116,13 @@ try {
     ob_start();
     bakeshopPageSettings();
     $settingsHtml = (string)ob_get_clean();
-    btPanel('settings page renders usage defaults section', str_contains($settingsHtml, 'Usage and Print Defaults'));
-    btPanel('settings page renders print defaults save action', str_contains($settingsHtml, 'Save Usage and Print Defaults'));
+    btPanel('settings page renders branding section', str_contains($settingsHtml, 'Branding, Usage, and Print Defaults'));
+    btPanel('settings page renders store branding fields', str_contains($settingsHtml, 'Store Name') && str_contains($settingsHtml, 'Store Description') && str_contains($settingsHtml, 'Upload Logo'), $settingsHtml);
+    btPanel('settings page renders branding save action', str_contains($settingsHtml, 'Save Branding and Display Defaults'));
+    btPanel('settings page renders logo upload controls', str_contains($settingsHtml, 'store_logo_file') && str_contains($settingsHtml, 'Use Lettermark'), $settingsHtml);
+    btPanel('shell sidebar uses configured store name', str_contains($adminHtml, 'Crust &amp; Crumb') || str_contains($adminHtml, 'Crust & Crumb'), $adminHtml);
+    btPanel('shell sidebar uses configured store description', str_contains($adminHtml, 'Morning bake production and delivery control center.'), $adminHtml);
+    btPanel('shell sidebar renders configured logo', str_contains($adminHtml, '/uploads/bakeshop/crust-and-crumb.png'), $adminHtml);
 
     $supervisorHtml = renderBakeshopSupervisorForUser([
         'id' => 2,
@@ -125,6 +136,9 @@ try {
 } finally {
     saveModuleSettings('bakeshop', [
         'role_permissions' => $originalRolePermissions,
+        'store_name' => $originalStoreName,
+        'store_description' => $originalStoreDescription,
+        'store_logo_url' => $originalStoreLogoUrl,
         'usage_decimal_places' => $originalUsageDecimalPlaces,
     ]);
 }
