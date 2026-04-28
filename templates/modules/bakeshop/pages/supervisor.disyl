@@ -1461,6 +1461,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...((options.method || 'GET').toUpperCase() !== 'GET' ? { 'X-CSRF-Token': csrfToken } : {}),
                 ...(options.headers || {})
             },
+            credentials: 'same-origin',
             ...options
         });
 
@@ -2030,7 +2031,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const data = await request(url, {
                 method: 'POST',
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ _token: csrfToken, ...payload })
             });
             showBanner(successMessage, true);
             if (typeof after === 'function') {
