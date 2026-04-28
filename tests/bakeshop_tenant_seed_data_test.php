@@ -46,6 +46,139 @@ function getPrivateProperty(object $object, string $property): mixed
     return $ref->getValue($object);
 }
 
+function runTenantSeedJsonRequest(string $rawBody, array $user, string $csrfToken): array
+{
+    $patchedAppPath = sys_get_temp_dir() . '/ikabud-app-json-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
+    $runnerPath = sys_get_temp_dir() . '/ikabud-tenant-seed-json-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
+
+    $appSource = (string)file_get_contents(__DIR__ . '/../kernel/App.php');
+    $replacement = "file_get_contents('data://text/plain," . rawurlencode($rawBody) . "')";
+    $appSource = str_replace("file_get_contents('php://input')", $replacement, $appSource);
+    file_put_contents($patchedAppPath, $appSource);
+
+    $bootstrap = var_export(__DIR__ . '/../bootstrap.php', true);
+    $moduleManager = var_export(__DIR__ . '/../src/helpers/module-manager.php', true);
+    $moduleMigrations = var_export(__DIR__ . '/../src/helpers/module-migrations.php', true);
+    $adminViewCache = var_export(__DIR__ . '/../src/http/admin-view-cache.php', true);
+    $adminHandlers = var_export(__DIR__ . '/../src/http/admin-handlers.php', true);
+    $patchedApp = var_export($patchedAppPath, true);
+    $userExport = var_export($user, true);
+    $csrfTokenExport = var_export($csrfToken, true);
+
+    $runner = <<<PHP
+<?php
+require {$patchedApp};
+require {$bootstrap};
+require_once {$moduleManager};
+require_once {$moduleMigrations};
+require_once {$adminViewCache};
+require_once {$adminHandlers};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\$_SERVER['HTTP_HOST'] = 'applicationos.test';
+\$_SERVER['REQUEST_METHOD'] = 'POST';
+\$_SERVER['REQUEST_URI'] = '/api/v1/admin/tenants/seed-data';
+\$_SERVER['CONTENT_TYPE'] = 'application/json';
+\$_GET = [];
+\$_POST = [];
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+\$_SESSION['_csrf_token'] = {$csrfTokenExport};
+app()->setUser({$userExport});
+http_response_code(200);
+ob_start();
+kernelHandleApiTenantSeedData();
+\$body = (string)ob_get_clean();
+echo json_encode(['status' => (int)(http_response_code() ?: 200), 'body' => \$body], JSON_UNESCAPED_SLASHES);
+PHP;
+
+    file_put_contents($runnerPath, $runner);
+
+    $output = [];
+    $exitCode = 0;
+    exec('php ' . escapeshellarg($runnerPath) . ' 2>&1', $output, $exitCode);
+
+    @unlink($runnerPath);
+    @unlink($patchedAppPath);
+
+    $decoded = json_decode(implode("\n", $output), true);
+    if (!is_array($decoded)) {
+        return [
+            'status' => $exitCode === 0 ? 0 : $exitCode,
+            'body' => implode("\n", $output),
+            'exit_code' => $exitCode,
+        ];
+    }
+
+    $decoded['exit_code'] = $exitCode;
+    return $decoded;
+}
+
+function runTenantSeedEntrypointRequest(array $post, array $user, string $csrfToken): array
+{
+    $runnerPath = sys_get_temp_dir() . '/ikabud-tenant-seed-entrypoint-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
+    $bootstrap = var_export(__DIR__ . '/../bootstrap.php', true);
+    $entrypoint = var_export(__DIR__ . '/../public/index.php', true);
+    $postExport = var_export($post, true);
+    $userExport = var_export($user, true);
+    $csrfTokenExport = var_export($csrfToken, true);
+
+    $runner = <<<PHP
+<?php
+require {$bootstrap};
+
+
+
+
+
+
+\$_SERVER['HTTP_HOST'] = 'applicationos.test';
+\$_SERVER['REQUEST_METHOD'] = 'POST';
+\$_SERVER['REQUEST_URI'] = '/api/v1/admin/tenants/seed-data';
+\$_SERVER['CONTENT_TYPE'] = 'application/x-www-form-urlencoded';
+\$_GET = [];
+\$_POST = {$postExport};
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+\$_SESSION['_csrf_token'] = {$csrfTokenExport};
+app()->setUser({$userExport});
+register_shutdown_function(static function (): void {
+    echo "\n__BODY_END__\n";
+});
+require {$entrypoint};
+PHP;
+
+    file_put_contents($runnerPath, $runner);
+
+    $output = [];
+    $exitCode = 0;
+    exec('php ' . escapeshellarg($runnerPath) . ' 2>&1', $output, $exitCode);
+    @unlink($runnerPath);
+
+    return [
+        'body' => implode("\n", $output),
+        'exit_code' => $exitCode,
+    ];
+}
+
 @file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 @file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 
@@ -139,6 +272,52 @@ try {
     btTenantSeed('tenant seed endpoint reports 81 Julie products', is_array($decoded) && (int)(($decoded['counts']['products'] ?? 0)) === 81, $body);
     btTenantSeed('tenant seed endpoint reports 30 Julie ingredients', is_array($decoded) && (int)(($decoded['counts']['ingredients'] ?? 0)) === 30, $body);
     btTenantSeed('tenant seed endpoint omits Julie recipe counts', is_array($decoded) && is_array($decoded['counts'] ?? null) && !array_key_exists('recipes', $decoded['counts']), $body);
+
+    $entrypointResponse = runTenantSeedEntrypointRequest([
+        'tenant_id' => (string)$tenantId,
+        'seed_id' => 'bakeshop_julies_bread_pastry',
+        '_token' => $app->csrfToken(),
+    ], [
+        'id' => 1,
+        'username' => 'admin',
+        'role' => 'admin',
+        'source' => 'kernel',
+    ], $app->csrfToken());
+    btTenantSeed('tenant seed route does not fall through to unknown handler', !str_contains((string)($entrypointResponse['body'] ?? ''), 'Unknown handler'), (string)($entrypointResponse['body'] ?? ''));
+
+    $jsonPayload = json_encode([
+        'tenant_id' => $tenantId,
+        'seed_id' => 'bakeshop_julies_bread_pastry',
+        '_token' => $app->csrfToken(),
+    ], JSON_UNESCAPED_SLASHES);
+    $jsonResponse = runTenantSeedJsonRequest(
+        $jsonPayload === false ? '{}' : $jsonPayload,
+        [
+            'id' => 1,
+            'username' => 'admin',
+            'role' => 'admin',
+            'source' => 'kernel',
+        ],
+        $app->csrfToken()
+    );
+    $jsonDecoded = json_decode((string)($jsonResponse['body'] ?? ''), true);
+    btTenantSeed('tenant seed JSON request returns HTTP 200', (int)($jsonResponse['status'] ?? 0) === 200, json_encode($jsonResponse, JSON_UNESCAPED_SLASHES));
+    btTenantSeed('tenant seed JSON request returns JSON payload', is_array($jsonDecoded), (string)($jsonResponse['body'] ?? ''));
+    btTenantSeed('tenant seed JSON request payload ok=true', is_array($jsonDecoded) && !empty($jsonDecoded['ok']), (string)($jsonResponse['body'] ?? ''));
+
+    $invalidJsonResponse = runTenantSeedJsonRequest(
+        '{"tenant_id":',
+        [
+            'id' => 1,
+            'username' => 'admin',
+            'role' => 'admin',
+            'source' => 'kernel',
+        ],
+        $app->csrfToken()
+    );
+    $invalidJsonDecoded = json_decode((string)($invalidJsonResponse['body'] ?? ''), true);
+    btTenantSeed('tenant seed invalid JSON request returns HTTP 422', (int)($invalidJsonResponse['status'] ?? 0) === 422, json_encode($invalidJsonResponse, JSON_UNESCAPED_SLASHES));
+    btTenantSeed('tenant seed invalid JSON request returns explicit error', is_array($invalidJsonDecoded) && ($invalidJsonDecoded['error'] ?? '') === 'Invalid JSON request body', (string)($invalidJsonResponse['body'] ?? ''));
 
     $tenantDb = $app->reconnectDbForTenant($tenantId);
     btTenantSeed('tenant DB reconnects after seeding', $tenantDb instanceof PDO);
