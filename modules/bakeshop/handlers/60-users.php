@@ -248,6 +248,7 @@ function bakeshopPageUsers(array $params = []): void
         $bootstrapOnboarding = bakeshopBootstrapOnboardingState();
         echo bakeshopRender('pages/users.disyl', bakeshopPageContext($user, 'users', [
             'page_title' => 'Bakeshop Staff',
+            'page_intro' => 'Create admins and supervisors, manage account status, and keep staff access inside the Bakeshop module.',
             'current_user_id' => (int)($user['id'] ?? 0),
             'bootstrap_onboarding' => $bootstrapOnboarding,
             'is_bootstrap_user' => bakeshopIsBootstrapUser($user),
@@ -273,6 +274,7 @@ function bakeshopPageAccount(array $params = []): void
 
         echo bakeshopRender('pages/account.disyl', bakeshopPageContext($user, 'account', [
             'page_title' => 'My Bakeshop Account',
+            'page_intro' => 'Review your Bakeshop profile, update your password, and complete bootstrap handoff tasks when needed.',
             'account' => $account,
             'bootstrap_onboarding' => $bootstrapOnboarding,
             'is_bootstrap_user' => bakeshopIsBootstrapUser($user),

@@ -34,8 +34,7 @@
 <div class="bakeshop-account-shell">
     <div class="bakeshop-account-header">
         <div>
-            <h2>{page_title}</h2>
-            <p>Keep your bakeshop staff profile visible and your password updated without dropping back into any shared CMS user table.</p>
+            <p>Keep your staff profile visible, update your password, and handle bootstrap handoff tasks without leaving the Bakeshop module.</p>
         </div>
         <div class="bakeshop-account-actions">
             <a class="bakeshop-account-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
