@@ -35,24 +35,40 @@ function btDisplay(string $label, bool $ok, string $detail = ''): void
 echo "\n=== BAKESHOP DISPLAY SETTINGS SAVE TEST ===\n\n";
 
 $originalSettings = getModuleSettings('bakeshop');
+$originalStoreName = $originalSettings['store_name'] ?? null;
+$originalStoreDescription = $originalSettings['store_description'] ?? null;
+$originalStoreLogoUrl = $originalSettings['store_logo_url'] ?? null;
 $originalUsageDecimalPlaces = $originalSettings['usage_decimal_places'] ?? null;
 $originalPrintTemplate = $originalSettings['print_template'] ?? null;
 
 try {
     $saved = bakeshopSaveDisplaySettings([
+        'store_name' => 'Juliana Bread Co.',
+        'store_description' => 'Wholesale baking, delivery planning, and branch stock reporting.',
+        'store_logo_url' => '/uploads/bakeshop/juliana-logo.png',
         'usage_decimal_places' => '3',
         'print_template' => 'standard',
     ]);
 
+    btDisplay('store name persists normalized value', ($saved['store_name'] ?? '') === 'Juliana Bread Co.', json_encode($saved, JSON_UNESCAPED_SLASHES));
+    btDisplay('store description persists normalized value', ($saved['store_description'] ?? '') === 'Wholesale baking, delivery planning, and branch stock reporting.', json_encode($saved, JSON_UNESCAPED_SLASHES));
+    btDisplay('store logo url persists value', ($saved['store_logo_url'] ?? '') === '/uploads/bakeshop/juliana-logo.png', json_encode($saved, JSON_UNESCAPED_SLASHES));
     btDisplay('usage decimal places are normalized to int', ($saved['usage_decimal_places'] ?? null) === 3, json_encode($saved, JSON_UNESCAPED_SLASHES));
     btDisplay('print template persists standard option', ($saved['print_template'] ?? '') === 'standard', json_encode($saved, JSON_UNESCAPED_SLASHES));
 
     $stored = getModuleSettings('bakeshop');
+    btDisplay('stored store name persists', ($stored['store_name'] ?? '') === 'Juliana Bread Co.', json_encode($stored, JSON_UNESCAPED_SLASHES));
+    btDisplay('stored store description persists', ($stored['store_description'] ?? '') === 'Wholesale baking, delivery planning, and branch stock reporting.', json_encode($stored, JSON_UNESCAPED_SLASHES));
+    btDisplay('stored store logo url persists', ($stored['store_logo_url'] ?? '') === '/uploads/bakeshop/juliana-logo.png', json_encode($stored, JSON_UNESCAPED_SLASHES));
     btDisplay('stored usage decimal places persist as string', ($stored['usage_decimal_places'] ?? '') === '3', json_encode($stored, JSON_UNESCAPED_SLASHES));
     btDisplay('stored print template persists', ($stored['print_template'] ?? '') === 'standard', json_encode($stored, JSON_UNESCAPED_SLASHES));
 
+    $brand = bakeshopBrandSettings();
     $places = bakeshopUsageDecimalPlaces();
     $template = bakeshopPrintTemplate();
+    btDisplay('brand helper returns saved store name', ($brand['store_name'] ?? '') === 'Juliana Bread Co.', json_encode($brand, JSON_UNESCAPED_SLASHES));
+    btDisplay('brand helper returns saved description', ($brand['store_description'] ?? '') === 'Wholesale baking, delivery planning, and branch stock reporting.', json_encode($brand, JSON_UNESCAPED_SLASHES));
+    btDisplay('brand helper returns saved logo url', ($brand['store_logo_url'] ?? '') === '/uploads/bakeshop/juliana-logo.png', json_encode($brand, JSON_UNESCAPED_SLASHES));
     btDisplay('usage decimal helper returns saved value', $places === 3, (string)$places);
     btDisplay('print template helper returns saved value', $template === 'standard', $template);
 
@@ -66,6 +82,9 @@ try {
     btDisplay('usage totals apply configured decimal places', ($totals['delivered_qty_base'] ?? '') === '1.235', json_encode($totals, JSON_UNESCAPED_SLASHES));
 } finally {
     saveModuleSettings('bakeshop', [
+        'store_name' => $originalStoreName,
+        'store_description' => $originalStoreDescription,
+        'store_logo_url' => $originalStoreLogoUrl,
         'usage_decimal_places' => $originalUsageDecimalPlaces,
         'print_template' => $originalPrintTemplate,
     ]);

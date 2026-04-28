@@ -35,6 +35,9 @@ function btPrint(string $label, bool $ok, string $detail = ''): void
 echo "\n=== BAKESHOP PRINT SUMMARY TEST ===\n\n";
 
 $originalSettings = getModuleSettings('bakeshop');
+$originalStoreName = $originalSettings['store_name'] ?? null;
+$originalStoreDescription = $originalSettings['store_description'] ?? null;
+$originalStoreLogoUrl = $originalSettings['store_logo_url'] ?? null;
 $originalUsageDecimalPlaces = $originalSettings['usage_decimal_places'] ?? null;
 $originalPrintTemplate = $originalSettings['print_template'] ?? null;
 
@@ -51,6 +54,9 @@ $runId = 0;
 
 try {
     saveModuleSettings('bakeshop', [
+        'store_name' => 'North Oven Bakery',
+        'store_description' => 'Printable branch balances for the wholesale bakery team.',
+        'store_logo_url' => '/uploads/bakeshop/north-oven.png',
         'usage_decimal_places' => '2',
         'print_template' => 'standard',
     ]);
@@ -149,15 +155,21 @@ try {
     $summaryGroups = bakeshopPrintSummaryBranchGroups($filters);
     $html = bakeshopRender('pages/print-summary.disyl', [
         'page_title' => 'Printable Bakeshop Summary',
+        'brand_settings' => bakeshopBrandSettings(),
         'filters' => $filters,
-        'branch_label' => bakeshopUsageResolveBranchLabel($filters, $branches),
+        'branch_scope_label' => bakeshopPrintSummaryScopeLabel($filters, $branches, $summaryGroups),
         'branches' => $branches,
         'summary_groups' => $summaryGroups,
+        'display_from_date' => bakeshopPrintSummaryFormatDate($filters['from_date'] ?? null),
+        'display_to_date' => bakeshopPrintSummaryFormatDate($filters['to_date'] ?? null),
         'usage_decimal_places' => bakeshopUsageDecimalPlaces(),
-        'print_template' => bakeshopPrintTemplate(),
+        'print_template_label' => bakeshopPrintSummaryTemplateLabel(bakeshopPrintTemplate()),
+        'output_summary_label' => 'Rounded to ' . bakeshopUsageDecimalPlaces() . ' decimal place' . (bakeshopUsageDecimalPlaces() === 1 ? '' : 's'),
     ]);
 
     btPrint('print summary renders page title', str_contains($html, 'Printable Bakeshop Summary'));
+    btPrint('print summary renders configured store branding', str_contains($html, 'North Oven Bakery') && str_contains($html, 'Printable branch balances for the wholesale bakery team.'), $html);
+    btPrint('print summary renders configured store logo', str_contains($html, '/uploads/bakeshop/north-oven.png'), $html);
     btPrint('print summary renders branch label', str_contains($html, (string)($branch['code'] ?? '') . ' - ' . (string)($branch['name'] ?? '')), $html);
     btPrint('print summary renders ingredient row', str_contains($html, (string)($ingredient['name'] ?? '')), $html);
     btPrint('print summary renders new balance headings', str_contains($html, 'Beginning Balance') && str_contains($html, 'Delivery Source') && str_contains($html, 'Remaining Balance'), $html);
@@ -166,7 +178,7 @@ try {
     btPrint('print summary renders usage using configured decimals', str_contains($html, '2.00'), $html);
     btPrint('print summary renders remaining balance using configured decimals', str_contains($html, '7.00'), $html);
     btPrint('print summary renders supplier label', str_contains($html, 'Other - Farmer Coop'), $html);
-    btPrint('print summary renders configured output meta', str_contains($html, '2 decimal place(s), standard template'), $html);
+    btPrint('print summary renders configured output meta', str_contains($html, 'Rounded to 2 decimal places') && str_contains($html, 'Standard template'), $html);
 } finally {
     if ($runId > 0) {
         $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$runId]);
@@ -196,6 +208,9 @@ try {
     }
 
     saveModuleSettings('bakeshop', [
+        'store_name' => $originalStoreName,
+        'store_description' => $originalStoreDescription,
+        'store_logo_url' => $originalStoreLogoUrl,
         'usage_decimal_places' => $originalUsageDecimalPlaces,
         'print_template' => $originalPrintTemplate,
     ]);

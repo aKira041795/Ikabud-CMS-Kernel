@@ -109,6 +109,27 @@
     ],
     "settings_fields": [
         {
+            "key": "store_name",
+            "type": "text",
+            "label": "Store Name",
+            "default": "Julie's Bakeshop",
+            "description": "Brand name shown in the bakeshop admin shell and printable summary."
+        },
+        {
+            "key": "store_description",
+            "type": "text",
+            "label": "Store Description",
+            "default": "Production, deliveries, recipes, staff access, and daily reporting inside the bakeshop module.",
+            "description": "Short supporting copy shown below the store name in the bakeshop shell and printable summary."
+        },
+        {
+            "key": "store_logo_url",
+            "type": "text",
+            "label": "Store Logo",
+            "default": "",
+            "description": "Optional uploaded logo image used for the bakeshop shell and printable summary."
+        },
+        {
             "key": "usage_decimal_places",
             "type": "number",
             "label": "Usage Decimal Places",
