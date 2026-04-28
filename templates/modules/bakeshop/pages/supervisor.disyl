@@ -726,6 +726,7 @@
                                 <div class="bakeshop-form-actions">
                                     <span class="bakeshop-help">Units are seeded globally as `kg`, `g`, `L`, `mL`, `pc`, and `pack`.</span>
                                     <div class="bakeshop-actions">
+                                            <button class="bakeshop-button secondary" type="button" id="ingredient-add">Add Ingredient</button>
                                         <button class="bakeshop-button secondary" type="button" id="ingredient-cancel" hidden>Cancel Edit</button>
                                         <button class="bakeshop-button" type="submit" id="ingredient-submit">Save Ingredient</button>
                                     </div>
@@ -2412,6 +2413,10 @@ document.addEventListener('DOMContentLoaded', () => {
         productForm.elements.namedItem('name').focus();
     });
     $('#product-cancel').addEventListener('click', resetProductForm);
+    $('#ingredient-add').addEventListener('click', () => {
+        resetIngredientForm();
+        ingredientForm.elements.namedItem('name').focus();
+    });
     $('#ingredient-cancel').addEventListener('click', resetIngredientForm);
     $('#recipe-cancel').addEventListener('click', resetRecipeForm);
 
