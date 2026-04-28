@@ -80,6 +80,23 @@
     .bakeshop-button.print:hover {
         background: #4b5563;
     }
+    .bakeshop-button.staff {
+        background: #eab308;
+        border-color: #ca8a04;
+        color: #111827;
+    }
+    .bakeshop-button.staff:hover {
+        background: #ca8a04;
+        color: #111827;
+    }
+    .bakeshop-button.refresh {
+        background: #f97316;
+        border-color: #ea580c;
+        color: #ffffff;
+    }
+    .bakeshop-button.refresh:hover {
+        background: #ea580c;
+    }
     .bakeshop-button.success {
         background: #16a34a;
         border-color: #15803d;
@@ -344,10 +361,10 @@
     <div class="bakeshop-header" style="justify-content:flex-end;">
         <div class="bakeshop-actions">
             {if can_manage_users}
-            <a class="bakeshop-button secondary" href="{base_url}/admin/bakeshop/users">Manage Staff</a>
+            <a class="bakeshop-button staff" href="{base_url}/admin/bakeshop/users">Manage Staff</a>
             {/if}
             <a class="bakeshop-button print" id="bakeshop-print-link" href="{if current_page == 'dashboard'}{base_url}{summary_report.print_url}{else}{base_url}/admin/bakeshop/print{/if}" target="_blank" rel="noopener">Open Print Summary</a>
-            <button class="bakeshop-button secondary" type="button" id="bakeshop-refresh">Refresh Data</button>
+            <button class="bakeshop-button refresh" type="button" id="bakeshop-refresh">Refresh Data</button>
         </div>
     </div>
 
@@ -363,7 +380,7 @@
         {/if}
         <p>{if bootstrap_onboarding.can_retire_bootstrap}Active named admins detected: {bootstrap_onboarding.other_admin_count}.{else}No other active admin accounts exist yet.{/if} The workspace stays available while you complete the handoff.</p>
         <div class="bakeshop-onboarding-actions">
-            <a class="bakeshop-button secondary" href="{base_url}/admin/bakeshop/users?onboarding=bootstrap">Manage Staff Handoff</a>
+            <a class="bakeshop-button staff" href="{base_url}/admin/bakeshop/users?onboarding=bootstrap">Manage Staff Handoff</a>
         </div>
     </section>
     {/if}
