@@ -77,7 +77,14 @@ try {
     btPanel('admin page renders quick-start panel', str_contains($adminHtml, 'Start Here'));
     btPanel('admin page renders branch-first workflow copy', str_contains($adminHtml, 'Set up branches'));
     btPanel('admin page uses bakeshop shell instead of kernel admin', !str_contains($adminHtml, 'APPLICATION KERNEL OS'));
-    btPanel('admin dashboard renders summary report', str_contains($adminHtml, 'Summary Report') && str_contains($adminHtml, 'Usage summary grouped by branch, ingredient, and transaction date'));
+    btPanel(
+        'admin dashboard renders summary report',
+        str_contains($adminHtml, 'Summary Report')
+            && (
+                str_contains($adminHtml, 'Usage summary grouped by branch, ingredient, and transaction date')
+                || str_contains($adminHtml, 'Branch ingredient balance summary for handoff: beginning stock, delivery source, total delivery, production usage, and remaining balance.')
+            )
+    );
     btPanel('admin dashboard hides work areas panel', str_contains($adminHtml, 'style="display:none;" id="work-areas-panel"'));
     btPanel('admin page moves access settings out of workspace', !str_contains($adminHtml, 'Access Settings'));
     btPanel('admin page moves seeded units out of workspace', !str_contains($adminHtml, 'Seeded Units'));

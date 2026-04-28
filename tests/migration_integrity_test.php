@@ -247,6 +247,9 @@ t('No dangerous DROP DATABASE in migrations', $dangerousPatterns === 0);
 $createsWithoutIfNotExists = 0;
 foreach ($allMigrationFiles as $file) {
     $sql = file_get_contents($file);
+    $sql = preg_replace('/\/\*.*?\*\//s', '', $sql) ?? $sql;
+    $sql = preg_replace('/^\s*--.*$/m', '', $sql) ?? $sql;
+    $sql = preg_replace('/^\s*#.*$/m', '', $sql) ?? $sql;
     if (preg_match_all('/CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i', $sql, $matches)) {
         $createsWithoutIfNotExists += count($matches[0]);
     }

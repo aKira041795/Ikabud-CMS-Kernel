@@ -133,6 +133,9 @@ class TemplateEngine
     /** @var array<string, string> Per-request template source cache */
     private array $templateSourceCache = [];
 
+    /** @var array<string, bool> Per-request cache of compiled-mode eligibility */
+    private array $compiledEligibilityCache = [];
+
     /** Maximum number of entries in the in-memory output cache */
     private const OUTPUT_CACHE_MAX = 200;
 
@@ -199,8 +202,10 @@ class TemplateEngine
             self::$cacheMetrics['output_misses']++;
         }
 
-        // Compiled-mode fast path: use pre-compiled PHP class when available
-        if ($this->compiledMode && $this->compiledCache !== null) {
+        // Compiled-mode fast path: use pre-compiled PHP class when available.
+        // Templates that still rely on interpreted-only component tags must stay
+        // on the interpreted pipeline to avoid leaking raw DiSyL markup.
+        if ($this->compiledMode && $this->compiledCache !== null && $this->isCompiledEligibleTemplate($templatePath)) {
             try {
                 $compiled = $this->compiledCache->get($templatePath);
                 
@@ -1790,6 +1795,53 @@ class TemplateEngine
         }
 
         return $content;
+    }
+
+    private function isCompiledEligibleTemplate(string $templatePath): bool
+    {
+        if ($templatePath === '') {
+            return false;
+        }
+
+        if (array_key_exists($templatePath, $this->compiledEligibilityCache)) {
+            return $this->compiledEligibilityCache[$templatePath];
+        }
+
+        $visited = [];
+        $eligible = !$this->templateGraphUsesComponentTags($templatePath, $visited);
+        $this->compiledEligibilityCache[$templatePath] = $eligible;
+
+        return $eligible;
+    }
+
+    private function templateGraphUsesComponentTags(string $templatePath, array &$visited): bool
+    {
+        if ($templatePath === '' || isset($visited[$templatePath])) {
+            return false;
+        }
+
+        $visited[$templatePath] = true;
+        $source = $this->readTemplateSource($templatePath);
+        if (!is_string($source)) {
+            return false;
+        }
+
+        if (str_contains($source, '{ikb_') || str_contains($source, '{island')) {
+            return true;
+        }
+
+        if (!preg_match_all('/\{(?:extends|include)\s+"([^"]+)"/', $source, $matches)) {
+            return false;
+        }
+
+        foreach ($matches[1] as $relatedTemplate) {
+            $relatedPath = $this->resolveTemplatePath($relatedTemplate);
+            if ($relatedPath !== '' && $this->templateGraphUsesComponentTags($relatedPath, $visited)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

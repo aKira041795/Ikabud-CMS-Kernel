@@ -92,7 +92,7 @@ ecProductSaveAttributes($redProductId, ecProductParseAttributeLines("Color: Red\
 ecProductSaveAttributes($blueProductId, ecProductParseAttributeLines("Color: Blue\nMaterial: Linen"));
 
 $payload = ecBuildCatalogSearchPayload([
-    'search' => 'Ajax',
+    'search' => $seed,
     'attribute_filters' => ['color' => ['red']],
     'base_list_url' => '/ecommerce/shop',
     'search_action_url' => '/ecommerce/shop',

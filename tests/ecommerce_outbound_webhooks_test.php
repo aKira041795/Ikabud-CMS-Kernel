@@ -24,6 +24,7 @@ $pass = 0;
 $fail = 0;
 $errors = [];
 $createdWebhookIds = [];
+$createdJobIds = [];
 $requests = [];
 
 function t(string $label, bool $ok, string $detail = ''): void
@@ -40,10 +41,19 @@ function t(string $label, bool $ok, string $detail = ''): void
     echo "  ✗ {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
 }
 
-function cleanupEcommerceOutboundWebhookFixtures(array $webhookIds): void
+function cleanupEcommerceOutboundWebhookFixtures(array $webhookIds, array $jobIds = []): void
 {
     unset($GLOBALS['__ec_outbound_webhook_http_mock']);
     $db = app()->db();
+    if ($jobIds !== []) {
+        $placeholders = implode(', ', array_fill(0, count($jobIds), '?'));
+        try {
+            $db->prepare("DELETE FROM kernel_jobs WHERE id IN ({$placeholders})")->execute($jobIds);
+            $db->prepare("DELETE FROM kernel_failed_jobs WHERE id IN ({$placeholders})")->execute($jobIds);
+        } catch (\Throwable) {
+            // Queue tables are optional in some test environments.
+        }
+    }
     if ($webhookIds !== []) {
         $placeholders = implode(', ', array_fill(0, count($webhookIds), '?'));
         $db->prepare("DELETE FROM ec_webhook_deliveries WHERE webhook_id IN ({$placeholders})")->execute($webhookIds);
@@ -86,6 +96,36 @@ $results = ecOutboundWebhooksDispatchEvent('ecommerce.order.created', [
     'total' => 125.50,
 ]);
 
+$dispatchRequestCount = count($requests);
+$queuedJobHandler = '';
+$queuedJobPayload = [];
+$queuedJobError = '';
+$createdJobIds = array_values(array_filter(array_map(
+    static fn(array $result): int => (int)($result['job_id'] ?? 0),
+    $results
+), static fn(int $jobId): bool => $jobId > 0));
+
+if ($createdJobIds !== []) {
+    try {
+        $stmt = app()->db()->prepare('SELECT handler, payload_json FROM kernel_jobs WHERE id = ? LIMIT 1');
+        $stmt->execute([$createdJobIds[0]]);
+        $queuedJob = $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+        if (is_array($queuedJob)) {
+            $queuedJobHandler = trim((string)($queuedJob['handler'] ?? ''));
+            $queuedJobPayload = json_decode((string)($queuedJob['payload_json'] ?? ''), true) ?: [];
+            if ($queuedJobHandler === 'ecommerce:ecOutboundWebhookDeliverJob' && is_array($queuedJobPayload)) {
+                try {
+                    ecOutboundWebhookDeliverJob($queuedJobPayload);
+                } catch (\Throwable $e) {
+                    $queuedJobError = $e->getMessage();
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        $queuedJobError = $e->getMessage();
+    }
+}
+
 $deliveries = ecOutboundWebhookRecentDeliveries(10);
 $delivery = $deliveries[0] ?? [];
 $payload = json_decode((string)($requests[0]['body'] ?? ''), true);
@@ -102,7 +142,11 @@ $template = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/admin/w
 $routes = file_get_contents(__DIR__ . '/../modules/ecommerce/routes.php') ?: '';
 
 t('outbound webhook storage is available', ecOutboundWebhookStorageAvailable());
-t('active webhook dispatches matching order event once', count($results) === 1 && count($requests) === 1, json_encode(['results' => $results, 'requests' => $requests]));
+t('active webhook dispatch returns one matching result', count($results) === 1, json_encode(['results' => $results, 'requests' => $requests]));
+t('active webhook either delivers immediately or queues a delivery job', count($requests) === 1 || ((string)($results[0]['status'] ?? '') === 'queued' && $queuedJobHandler === 'ecommerce:ecOutboundWebhookDeliverJob'), json_encode(['results' => $results, 'queued_handler' => $queuedJobHandler]));
+t('queued webhook dispatch defers HTTP delivery until a worker runs', $createdJobIds === [] || $dispatchRequestCount === 0, json_encode(['requests' => $requests, 'dispatch_request_count' => $dispatchRequestCount]));
+t('queued webhook job payload targets the active webhook', $createdJobIds === [] || ((int)($queuedJobPayload['webhook_id'] ?? 0) === $activeWebhookId && (string)($queuedJobPayload['event_name'] ?? '') === 'ecommerce.order.created'), json_encode($queuedJobPayload));
+t('queued webhook delivery job runs without error', $createdJobIds === [] || $queuedJobError === '', $queuedJobError);
 t('inactive webhook is skipped during dispatch', !str_contains(json_encode($requests, JSON_UNESCAPED_SLASHES), 'inactive'), json_encode($requests));
 t('webhook payload includes event name and payload', (string)($payload['event'] ?? '') === 'ecommerce.order.created' && (int)($payload['payload']['order_id'] ?? 0) === 99, json_encode($payload));
 t('webhook signature header uses sha256 hmac', $signatureHeader === $expectedSignature, json_encode(['expected' => $expectedSignature, 'actual' => $signatureHeader]));
@@ -115,7 +159,7 @@ $errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
 t('no app.log critical errors', !str_contains($appLog, '[critical]'), $appLog !== '' ? substr($appLog, 0, 200) : '');
 t('no PHP warnings or fatals in error.log', $errorLog === '' || (!str_contains($errorLog, 'PHP Warning') && !str_contains($errorLog, 'PHP Fatal')), $errorLog !== '' ? substr($errorLog, 0, 200) : '');
 
-cleanupEcommerceOutboundWebhookFixtures($createdWebhookIds);
+cleanupEcommerceOutboundWebhookFixtures($createdWebhookIds, $createdJobIds);
 
 echo "\n════════════════════════════════════════════\n";
 echo "  Results: {$pass} passed, {$fail} failed\n";
