@@ -27,6 +27,14 @@
         color: #111827;
         border-color: #d1d5db;
     }
+    .bakeshop-settings-button.danger {
+        background: #dc2626;
+        border-color: #b91c1c;
+        color: #ffffff;
+    }
+    .bakeshop-settings-button.danger:hover {
+        background: #b91c1c;
+    }
     .bakeshop-settings-banner {
         display: none;
         padding: 14px 16px;
@@ -186,7 +194,7 @@
                 <div class="bakeshop-settings-actions-row" style="margin-top:16px;">
                     <span class="bakeshop-settings-note">Use 1.000000 for a base unit in the chosen dimension, or enter a conversion factor relative to that dimension's base unit. Units already used in recipes, deliveries, production, or dependent conversions can still be renamed, but their dimension and conversion factor stay locked by validation.</span>
                     <div class="bakeshop-settings-actions" style="justify-content:flex-end;">
-                        <button class="bakeshop-settings-button secondary" type="button" id="unit-cancel" hidden>Cancel Edit</button>
+                        <button class="bakeshop-settings-button danger" type="button" id="unit-cancel" hidden>Cancel Edit</button>
                         <button class="bakeshop-settings-button" type="submit" id="unit-submit">Add Unit</button>
                     </div>
                 </div>
