@@ -372,6 +372,9 @@
                 + '    <button class="btn btn-primary btn-sm" onclick="openDbConn(' + (t.id||0) + ')">' + dbBtn + '</button>'
                 + '    <button class="btn btn-outline btn-sm" onclick="openAdminEmail(' + (t.id||0) + ')">Admin email</button>'
                 + '    <button class="btn btn-outline btn-sm" onclick="openAdminPassword(' + (t.id||0) + ')">Password</button>'
+                + (t.entry_module_id === 'bakeshop' && t.db_configured
+                    ? '    <button class="btn btn-outline btn-sm" onclick="runTenantSeed(' + (t.id||0) + ',\'bakeshop_julies_bread_pastry\',\'Julie\\\'s seed\')">Run Julie\'s seed</button>'
+                    : '')
                 + '    <button class="btn btn-sm ' + (statusBtnCls ? 'btn-primary' : 'btn-outline') + '" onclick="toggleTenantStatus(' + (t.id||0) + ',\'' + escapeHtml(status) + '\')">' + statusBtnLabel + '</button>'
                 + '    <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="deleteTenant(' + (t.id||0) + ',\'' + escapeHtml(t.tenant_key || '') + '\')">Delete</button>'
                 + '  </div>'
@@ -415,6 +418,35 @@
         document.getElementById('ap-tenant-id').value = String(tenantId || '');
         document.getElementById('ap-password').value = '';
         openModal('modal-admin-password');
+    }
+
+    function runTenantSeed(tenantId, seedId, label) {
+        var tid = parseInt(tenantId || 0, 10);
+        if (tid <= 0) return;
+        var seedLabel = String(label || 'seed data');
+        if (!window.confirm('Run ' + seedLabel + ' for tenant #' + tid + '? This applies data to the tenant\'s own database.')) return;
+
+        fetch(BASE + '/api/v1/admin/tenants/seed-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: tid, seed_id: String(seedId || ''), _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                var counts = res && res.counts ? res.counts : null;
+                var summary = counts
+                    ? ' branches=' + String(counts.branches || 0)
+                        + ', products=' + String(counts.products || 0)
+                        + ', ingredients=' + String(counts.ingredients || 0)
+                    : '';
+                showToast('Seed completed.' + summary);
+                reloadTenants();
+            } else {
+                showToast(res.error || 'Seed failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
     }
 
     function saveAdminPassword() {

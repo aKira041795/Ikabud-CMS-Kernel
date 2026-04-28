@@ -138,6 +138,48 @@ function bakeshopAuditHistoryEntityLabel(?string $entityType, ?string $entityId)
     return $label . ' #' . $identifier;
 }
 
+function bakeshopPrintSummaryScopeLabel(array $filters, array $branches, array $summaryGroups): string
+{
+    $branchLabel = bakeshopUsageResolveBranchLabel($filters, $branches);
+    if ($branchLabel !== null) {
+        return $branchLabel;
+    }
+
+    if (count($summaryGroups) === 1) {
+        return (string)($summaryGroups[0]['branch_label'] ?? 'Branch');
+    }
+
+    if (count($summaryGroups) > 1) {
+        return 'All branches with activity';
+    }
+
+    return 'No branch activity yet';
+}
+
+function bakeshopPrintSummaryFormatDate(?string $value): ?string
+{
+    $raw = trim((string)($value ?? ''));
+    if ($raw === '') {
+        return null;
+    }
+
+    try {
+        return (new DateTimeImmutable($raw))->format('M d, Y');
+    } catch (Throwable $ignored) {
+        return $raw;
+    }
+}
+
+function bakeshopPrintSummaryTemplateLabel(string $template): string
+{
+    $normalized = trim(str_replace(['_', '-'], ' ', $template));
+    if ($normalized === '') {
+        return 'Standard template';
+    }
+
+    return ucwords($normalized) . ' template';
+}
+
 function bakeshopAuditHistoryBuildUrl(string $path, array $params = []): string
 {
     $params = array_filter($params, static fn (mixed $value): bool => $value !== null && $value !== '');
@@ -520,7 +562,7 @@ function bakeshopPageSettings(array $params = []): void
         $role = (string)($user['role'] ?? '');
         $rolePermissions = bakeshopRolePermissions();
         $unitsStmt = bakeshopDb()->query(
-            'SELECT code, name, dimension, factor_to_base FROM bakeshop_units ORDER BY dimension ASC, sort_order ASC, code ASC'
+            'SELECT id, code, name, dimension, factor_to_base FROM bakeshop_units ORDER BY dimension ASC, sort_order ASC, code ASC'
         );
         $units = $unitsStmt ? ($unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
         $settings = bakeshopSettings();
@@ -555,15 +597,21 @@ function bakeshopPagePrintSummary(array $params = []): void
         $filters = bakeshopUsageNormalizeFilters(bakeshopInput());
         $branches = bakeshopUsageBranchOptions();
         $summaryGroups = bakeshopPrintSummaryBranchGroups($filters);
+        $visibleBounds = bakeshopUsageVisibleDateBounds($filters);
+        $usageDecimalPlaces = bakeshopUsageDecimalPlaces();
+        $printTemplate = bakeshopPrintTemplate();
 
         echo bakeshopRender('pages/print-summary.disyl', [
             'page_title' => 'Printable Bakeshop Summary',
             'filters' => $filters,
-            'branch_label' => bakeshopUsageResolveBranchLabel($filters, $branches),
+            'branch_scope_label' => bakeshopPrintSummaryScopeLabel($filters, $branches, $summaryGroups),
             'branches' => $branches,
             'summary_groups' => $summaryGroups,
-            'usage_decimal_places' => bakeshopUsageDecimalPlaces(),
-            'print_template' => bakeshopPrintTemplate(),
+            'display_from_date' => bakeshopPrintSummaryFormatDate($filters['from_date'] ?? $visibleBounds['from_date']),
+            'display_to_date' => bakeshopPrintSummaryFormatDate($filters['to_date'] ?? $visibleBounds['to_date']),
+            'usage_decimal_places' => $usageDecimalPlaces,
+            'print_template_label' => bakeshopPrintSummaryTemplateLabel($printTemplate),
+            'output_summary_label' => 'Rounded to ' . $usageDecimalPlaces . ' decimal place' . ($usageDecimalPlaces === 1 ? '' : 's'),
         ]);
     });
 }

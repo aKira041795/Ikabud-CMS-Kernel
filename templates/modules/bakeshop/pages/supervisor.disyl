@@ -56,21 +56,65 @@
         justify-content: center;
         gap: 8px;
         border-radius: 2px;
-        border: 1px solid #d1d5db;
-        background: #ffffff;
-        color: #111827;
+        border: 1px solid #1d4ed8;
+        background: #2563eb;
+        color: #ffffff;
         padding: 10px 16px;
         text-decoration: none;
         font-size: 0.92rem;
         cursor: pointer;
     }
     .bakeshop-button:hover {
-        background: #f9fafb;
+        background: #1d4ed8;
     }
     .bakeshop-button.secondary {
-        background: #fff;
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #1d4ed8;
+    }
+    .bakeshop-button.secondary:hover {
+        background: #1d4ed8;
+    }
+    .bakeshop-button.print {
+        background: #6b7280;
+        border-color: #6b7280;
+        color: #ffffff;
+    }
+    .bakeshop-button.print:hover {
+        background: #4b5563;
+    }
+    .bakeshop-button.staff {
+        background: #eab308;
+        border-color: #ca8a04;
         color: #111827;
-        border-color: #d1d5db;
+    }
+    .bakeshop-button.staff:hover {
+        background: #ca8a04;
+        color: #111827;
+    }
+    .bakeshop-button.refresh {
+        background: #f97316;
+        border-color: #ea580c;
+        color: #ffffff;
+    }
+    .bakeshop-button.refresh:hover {
+        background: #ea580c;
+    }
+    .bakeshop-button.success {
+        background: #16a34a;
+        border-color: #15803d;
+        color: #ffffff;
+    }
+    .bakeshop-button.success:hover {
+        background: #15803d;
+    }
+    .bakeshop-button.danger {
+        background: #dc2626;
+        border-color: #b91c1c;
+        color: #ffffff;
+    }
+    .bakeshop-button.danger:hover {
+        background: #b91c1c;
     }
     .bakeshop-banner {
         display: none;
@@ -320,10 +364,10 @@
     <div class="bakeshop-header" style="justify-content:flex-end;">
         <div class="bakeshop-actions">
             {if can_manage_users}
-            <a class="bakeshop-button secondary" href="{base_url}/admin/bakeshop/users">Manage Staff</a>
+            <a class="bakeshop-button staff" href="{base_url}/admin/bakeshop/users">Manage Staff</a>
             {/if}
-            <a class="bakeshop-button secondary" id="bakeshop-print-link" href="{if current_page == 'dashboard'}{base_url}{summary_report.print_url}{else}{base_url}/admin/bakeshop/print{/if}" target="_blank" rel="noopener">Open Print Summary</a>
-            <button class="bakeshop-button secondary" type="button" id="bakeshop-refresh">Refresh Data</button>
+            <a class="bakeshop-button print" id="bakeshop-print-link" href="{if current_page == 'dashboard'}{base_url}{summary_report.print_url}{else}{base_url}/admin/bakeshop/print{/if}" target="_blank" rel="noopener">Open Print Summary</a>
+            <button class="bakeshop-button refresh" type="button" id="bakeshop-refresh">Refresh Data</button>
         </div>
     </div>
 
@@ -339,7 +383,7 @@
         {/if}
         <p>{if bootstrap_onboarding.can_retire_bootstrap}Active named admins detected: {bootstrap_onboarding.other_admin_count}.{else}No other active admin accounts exist yet.{/if} The workspace stays available while you complete the handoff.</p>
         <div class="bakeshop-onboarding-actions">
-            <a class="bakeshop-button secondary" href="{base_url}/admin/bakeshop/users?onboarding=bootstrap">Manage Staff Handoff</a>
+            <a class="bakeshop-button staff" href="{base_url}/admin/bakeshop/users?onboarding=bootstrap">Manage Staff Handoff</a>
         </div>
     </section>
     {/if}
@@ -426,7 +470,7 @@
                         {if summary_report.has_active_filters}
                         <a class="bakeshop-button secondary" href="{base_url}{summary_report.dashboard_url}">Reset</a>
                         {/if}
-                        <a class="bakeshop-button secondary" href="{base_url}{summary_report.print_url}" target="_blank" rel="noopener">Open Print View</a>
+                        <a class="bakeshop-button print" href="{base_url}{summary_report.print_url}" target="_blank" rel="noopener">Open Print View</a>
                         <button class="bakeshop-button" type="submit">Apply Filters</button>
                     </div>
                 </div>
@@ -544,7 +588,7 @@
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                 <span class="bakeshop-help">Branch IDs are owned by this module. No ecommerce or WMS bridge is wired in v1.</span>
                                 <div class="bakeshop-actions">
-                                    <button class="bakeshop-button secondary" type="button" id="branch-cancel" hidden>Cancel Edit</button>
+                                    <button class="bakeshop-button danger" type="button" id="branch-cancel" hidden>Cancel Edit</button>
                                     <button class="bakeshop-button" type="submit" id="branch-submit">Save Branch</button>
                                 </div>
                             </div>
@@ -609,8 +653,8 @@
                                 <div class="bakeshop-form-actions">
                                     <span class="bakeshop-help">Default yield drives recipe scaling for production runs.</span>
                                     <div class="bakeshop-actions">
-                                            <button class="bakeshop-button secondary" type="button" id="product-add">Add Product</button>
-                                        <button class="bakeshop-button secondary" type="button" id="product-cancel" hidden>Cancel Edit</button>
+                                            <button class="bakeshop-button success" type="button" id="product-add">Add Product</button>
+                                        <button class="bakeshop-button danger" type="button" id="product-cancel" hidden>Cancel Edit</button>
                                         <button class="bakeshop-button" type="submit" id="product-submit">Save Product</button>
                                     </div>
                                 </div>
@@ -653,7 +697,7 @@
                                         <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                             <span class="bakeshop-help">Update the ingredient usage for this product.</span>
                                             <div class="bakeshop-actions">
-                                                <button class="bakeshop-button secondary" type="button" id="recipe-cancel" hidden>Cancel Edit</button>
+                                                <button class="bakeshop-button danger" type="button" id="recipe-cancel" hidden>Cancel Edit</button>
                                                 <button class="bakeshop-button" type="submit" id="recipe-submit">Save Recipe Line</button>
                                             </div>
                                         </div>
@@ -726,7 +770,8 @@
                                 <div class="bakeshop-form-actions">
                                     <span class="bakeshop-help">Units are seeded globally as `kg`, `g`, `L`, `mL`, `pc`, and `pack`.</span>
                                     <div class="bakeshop-actions">
-                                        <button class="bakeshop-button secondary" type="button" id="ingredient-cancel" hidden>Cancel Edit</button>
+                                            <button class="bakeshop-button success" type="button" id="ingredient-add">Add Ingredient</button>
+                                        <button class="bakeshop-button danger" type="button" id="ingredient-cancel" hidden>Cancel Edit</button>
                                         <button class="bakeshop-button" type="submit" id="ingredient-submit">Save Ingredient</button>
                                     </div>
                                 </div>
@@ -1049,26 +1094,119 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const csrfToken = '{csrf_token}';
+    const baseUrl = '{base_url}';
+
+    function normalizePathPrefix(value) {
+        if (!value) {
+            return '';
+        }
+
+        let pathname = String(value || '').trim();
+        if (pathname === '') {
+            return '';
+        }
+
+        try {
+            pathname = new URL(pathname, window.location.origin).pathname || '';
+        } catch (error) {
+            pathname = String(value || '').trim();
+        }
+
+        pathname = pathname.replace(/\/+$/, '');
+        if (pathname === '/' || pathname === '.') {
+            return '';
+        }
+
+        return pathname;
+    }
+
+    function bakeshopAppBasePath() {
+        const candidates = [window.location.pathname, baseUrl];
+        for (const candidate of candidates) {
+            const normalized = normalizePathPrefix(candidate);
+            if (normalized === '') {
+                continue;
+            }
+
+            const match = normalized.match(/^(.*?)(\/admin\/bakeshop(?:\/.*)?|\/bakeshop(?:\/.*)?)$/);
+            if (match) {
+                return match[1] || '';
+            }
+
+            if (!normalized.startsWith('/api/')) {
+                return normalized;
+            }
+        }
+
+        return '';
+    }
+
+    function bakeshopApiPath(path) {
+        return bakeshopAppBasePath() + String(path || '');
+    }
+
+    function normalizedRowId(kind, row) {
+        if (!row || typeof row !== 'object') {
+            return 0;
+        }
+
+        const candidates = [row.id];
+        if (kind === 'product') {
+            candidates.push(row.product_id);
+        } else if (kind === 'ingredient') {
+            candidates.push(row.ingredient_id);
+        } else if (kind === 'branch') {
+            candidates.push(row.branch_id);
+        }
+
+        for (const candidate of candidates) {
+            const numericId = Number(candidate);
+            if (Number.isFinite(numericId) && numericId > 0) {
+                return numericId;
+            }
+        }
+
+        return 0;
+    }
+
+    function normalizeMaintenanceRows(kind, rows) {
+        if (!Array.isArray(rows)) {
+            return [];
+        }
+
+        return rows.map((row) => {
+            if (!row || typeof row !== 'object') {
+                return row;
+            }
+
+            const resolvedId = normalizedRowId(kind, row);
+            return {
+                ...row,
+                id: resolvedId > 0 ? resolvedId : row.id
+            };
+        });
+    }
+
     const api = {
-        branches: '/api/v1/bakeshop/branches',
-        units: '/api/v1/bakeshop/units',
-        products: '/api/v1/bakeshop/products',
-        productStatus: '/api/v1/bakeshop/products/{id}/status',
-        productsDelete: '/api/v1/bakeshop/products/delete',
-        ingredients: '/api/v1/bakeshop/ingredients',
-        ingredientStatus: '/api/v1/bakeshop/ingredients/{id}/status',
-        ingredientsDelete: '/api/v1/bakeshop/ingredients/delete',
-        recipes: '/api/v1/bakeshop/recipes',
-        recipesDelete: '/api/v1/bakeshop/recipes/delete',
-        deliveries: '/api/v1/bakeshop/deliveries',
-        deliveriesDelete: '/api/v1/bakeshop/deliveries/delete',
-        production: '/api/v1/bakeshop/production',
-        productionDelete: '/api/v1/bakeshop/production/delete',
-        permissionsSettings: '/api/v1/bakeshop/settings/permissions',
-        usage: '/api/v1/bakeshop/usage'
+        branches: bakeshopApiPath('/api/v1/bakeshop/branches'),
+        units: bakeshopApiPath('/api/v1/bakeshop/units'),
+        products: bakeshopApiPath('/api/v1/bakeshop/products'),
+        productStatus: bakeshopApiPath('/api/v1/bakeshop/products/[id]/status'),
+        productsDelete: bakeshopApiPath('/api/v1/bakeshop/products/delete'),
+        ingredients: bakeshopApiPath('/api/v1/bakeshop/ingredients'),
+        ingredientStatus: bakeshopApiPath('/api/v1/bakeshop/ingredients/[id]/status'),
+        ingredientsDelete: bakeshopApiPath('/api/v1/bakeshop/ingredients/delete'),
+        recipes: bakeshopApiPath('/api/v1/bakeshop/recipes'),
+        recipesDelete: bakeshopApiPath('/api/v1/bakeshop/recipes/delete'),
+        deliveries: bakeshopApiPath('/api/v1/bakeshop/deliveries'),
+        deliveriesDelete: bakeshopApiPath('/api/v1/bakeshop/deliveries/delete'),
+        production: bakeshopApiPath('/api/v1/bakeshop/production'),
+        productionDelete: bakeshopApiPath('/api/v1/bakeshop/production/delete'),
+        permissionsSettings: bakeshopApiPath('/api/v1/bakeshop/settings/permissions'),
+        usage: bakeshopApiPath('/api/v1/bakeshop/usage')
     };
 
-    api.branchStatus = '/api/v1/bakeshop/branches/{id}/status';
+    api.branchStatus = bakeshopApiPath('/api/v1/bakeshop/branches/[id]/status');
 
     const canManageSettings = {if can_manage_settings}true{else}false{/if};
     const defaultUsageDecimalPlaces = Number('{usage_decimal_places | default:"2"}');
@@ -1166,12 +1304,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function rowActionButtons(kind, row) {
+        const rowId = normalizedRowId(kind, row);
+        const actionId = rowId > 0 ? String(rowId) : '';
         return '<div class="bakeshop-row-actions">'
-            + '<button type="button" class="bakeshop-link-button" data-kind="' + escapeHtml(kind) + '" data-action="edit" data-id="' + escapeHtml(row.id) + '">Edit</button>'
+            + '<button type="button" class="bakeshop-link-button" data-kind="' + escapeHtml(kind) + '" data-action="edit" data-id="' + escapeHtml(actionId) + '">Edit</button>'
             + ((kind === 'product' || kind === 'ingredient')
-                ? '<button type="button" class="bakeshop-link-button warn" data-kind="' + escapeHtml(kind) + '" data-action="delete" data-id="' + escapeHtml(row.id) + '">Delete</button>'
+                ? '<button type="button" class="bakeshop-link-button warn" data-kind="' + escapeHtml(kind) + '" data-action="delete" data-id="' + escapeHtml(actionId) + '">Delete</button>'
                 : '')
-            + '<button type="button" class="bakeshop-link-button ' + (Number(row.is_active) === 0 ? '' : 'warn') + '" data-kind="' + escapeHtml(kind) + '" data-action="toggle-active" data-id="' + escapeHtml(row.id) + '">' + (Number(row.is_active) === 0 ? 'Restore' : 'Archive') + '</button>'
+            + '<button type="button" class="bakeshop-link-button ' + (Number(row.is_active) === 0 ? '' : 'warn') + '" data-kind="' + escapeHtml(kind) + '" data-action="toggle-active" data-id="' + escapeHtml(actionId) + '"' + (rowId > 0 ? '' : ' disabled') + '>' + (Number(row.is_active) === 0 ? 'Restore' : 'Archive') + '</button>'
             + '</div>';
     }
 
@@ -1358,13 +1498,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function request(url, options = {}) {
-        const response = await fetch(url, {
+        const requestUrl = new URL(String(url || ''), window.location.origin).toString();
+        const response = await fetch(requestUrl, {
             headers: {
                 'Accept': 'application/json',
                 ...(options.body ? { 'Content-Type': 'application/json' } : {}),
                 ...((options.method || 'GET').toUpperCase() !== 'GET' ? { 'X-CSRF-Token': csrfToken } : {}),
                 ...(options.headers || {})
             },
+            credentials: 'same-origin',
             ...options
         });
 
@@ -1426,8 +1568,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tbody.innerHTML = rows.map((row) => {
             const cells = columns.map((column) => '<td>' + column(row) + '</td>').join('');
-            const rowAttrs = rowKind && row && row.id !== undefined
-                ? ' data-row-kind="' + escapeHtml(rowKind) + '" data-row-id="' + escapeHtml(row.id) + '"'
+            const resolvedRowId = rowKind ? normalizedRowId(rowKind, row) : Number(row && row.id ? row.id : 0);
+            const rowAttrs = rowKind && resolvedRowId > 0
+                ? ' data-row-kind="' + escapeHtml(rowKind) + '" data-row-id="' + escapeHtml(resolvedRowId) + '"'
                 : '';
             return '<tr' + rowAttrs + '>' + cells + '</tr>';
         }).join('');
@@ -1855,7 +1998,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadBranches() {
         const data = await request(api.branches);
-        state.branches = data.items || [];
+        state.branches = normalizeMaintenanceRows('branch', data.items || []);
         renderBranchTables();
     }
 
@@ -1867,14 +2010,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadProducts() {
         const data = await request(api.products);
-        state.products = data.items || [];
+        state.products = normalizeMaintenanceRows('product', data.items || []);
         renderCatalogTables();
         updateStats();
     }
 
     async function loadIngredients() {
         const data = await request(api.ingredients);
-        state.ingredients = data.items || [];
+        state.ingredients = normalizeMaintenanceRows('ingredient', data.items || []);
         renderCatalogTables();
         renderDeliverySheet();
         filterDeliverySheet();
@@ -1933,7 +2076,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const data = await request(url, {
                 method: 'POST',
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ _token: csrfToken, ...payload })
             });
             showBanner(successMessage, true);
             if (typeof after === 'function') {
@@ -2136,9 +2279,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function toggleActive(kind, row) {
+        const rowId = normalizedRowId(kind, row);
+        if (!Number.isFinite(rowId) || rowId <= 0) {
+            showBanner('Selected ' + String(kind || 'record') + ' could not be resolved.', false);
+            return;
+        }
+
         const nextActive = Number(row.is_active) === 0 ? 1 : 0;
         if (kind === 'branch') {
-            await submitJson(api.branchStatus.replace('{id}', encodeURIComponent(String(row.id))), {
+            await submitJson(api.branchStatus.replace('[id]', encodeURIComponent(String(rowId))), {
                 is_active: nextActive
             }, nextActive === 1 ? 'Branch restored.' : 'Branch archived.', async () => {
                 if (branchForm.elements.namedItem('id').value === String(row.id)) {
@@ -2150,7 +2299,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (kind === 'product') {
-            await submitJson(api.productStatus.replace('{id}', encodeURIComponent(String(row.id))), {
+            await submitJson(api.productStatus.replace('[id]', encodeURIComponent(String(rowId))), {
                 is_active: nextActive
             }, nextActive === 1 ? 'Product restored.' : 'Product archived.', async () => {
                 if (productForm.elements.namedItem('id').value === String(row.id)) {
@@ -2163,7 +2312,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (kind === 'ingredient') {
-            await submitJson(api.ingredientStatus.replace('{id}', encodeURIComponent(String(row.id))), {
+            await submitJson(api.ingredientStatus.replace('[id]', encodeURIComponent(String(rowId))), {
                 is_active: nextActive
             }, nextActive === 1 ? 'Ingredient restored.' : 'Ingredient archived.', async () => {
                 if (ingredientForm.elements.namedItem('id').value === String(row.id)) {
@@ -2206,7 +2355,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const kind = button.getAttribute('data-kind');
-            const row = findStateRow(kind, button.getAttribute('data-id'));
+            const buttonRowId = Number(button.getAttribute('data-id') || '0');
+            if (!Number.isFinite(buttonRowId) || buttonRowId <= 0) {
+                showBanner('Selected record could not be resolved.', false);
+                return;
+            }
+
+            const row = findStateRow(kind, buttonRowId);
             if (!row) {
                 showBanner('Selected record could not be found.', false);
                 return;
@@ -2302,6 +2457,10 @@ document.addEventListener('DOMContentLoaded', () => {
         productForm.elements.namedItem('name').focus();
     });
     $('#product-cancel').addEventListener('click', resetProductForm);
+    $('#ingredient-add').addEventListener('click', () => {
+        resetIngredientForm();
+        ingredientForm.elements.namedItem('name').focus();
+    });
     $('#ingredient-cancel').addEventListener('click', resetIngredientForm);
     $('#recipe-cancel').addEventListener('click', resetRecipeForm);
 

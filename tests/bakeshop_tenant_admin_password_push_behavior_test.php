@@ -11,6 +11,7 @@ require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../src/helpers/module-migrations.php';
 require_once __DIR__ . '/../src/http/admin-view-cache.php';
 require_once __DIR__ . '/../src/http/admin-handlers.php';
+require_once __DIR__ . '/../modules/bakeshop/helpers.php';
 
 use Ikabud\Kernel\Services\TenantProvisioner;
 
@@ -61,6 +62,7 @@ $originalGet = $_GET;
 $originalPost = $_POST;
 $originalCurrentUser = getPrivateProperty($app, 'currentUser');
 $originalResolvingCurrentUser = getPrivateProperty($app, 'resolvingCurrentUser');
+$originalTenantId = $app->tenant()->current();
 
 $tenantKey = 'bakeshop-password-push-' . bin2hex(random_bytes(4));
 $tenantId = null;
@@ -169,6 +171,23 @@ try {
         btPasswordPush('password hash changes after password push', is_array($beforePush) && is_array($afterPush) && (string)($beforePush['password_hash'] ?? '') !== (string)($afterPush['password_hash'] ?? ''), json_encode($afterPush, JSON_UNESCAPED_SLASHES));
         btPasswordPush('new password verifies after password push', is_array($afterPush) && password_verify($pushedAdminPass, (string)($afterPush['password_hash'] ?? '')), json_encode($afterPush, JSON_UNESCAPED_SLASHES));
         btPasswordPush('old password no longer verifies after password push', is_array($afterPush) && !password_verify($seededAdminPass, (string)($afterPush['password_hash'] ?? '')), json_encode($afterPush, JSON_UNESCAPED_SLASHES));
+
+        $app->tenant()->setTenantId($tenantId);
+        $app->reconnectDb();
+        invalidateModuleContextCache('bakeshop');
+
+        $authWithOldPassword = bakeshop_cap_kernel_auth_authenticate_1([
+            'username' => '@bakeshop:' . $seededAdminUser,
+            'password' => $seededAdminPass,
+        ]);
+        $authWithPushedPassword = bakeshop_cap_kernel_auth_authenticate_1([
+            'username' => '@bakeshop:' . $seededAdminUser,
+            'password' => $pushedAdminPass,
+        ]);
+
+        btPasswordPush('auth provider rejects the old password after admin recovery push', $authWithOldPassword === null, json_encode($authWithOldPassword, JSON_UNESCAPED_SLASHES));
+        btPasswordPush('auth provider immediately accepts the pushed password for the tenant admin', is_array($authWithPushedPassword) && ($authWithPushedPassword['source'] ?? '') === 'bakeshop', json_encode($authWithPushedPassword, JSON_UNESCAPED_SLASHES));
+        btPasswordPush('auth provider returns the affected tenant admin identity after password push', is_array($authWithPushedPassword) && (($authWithPushedPassword['user']['username'] ?? '') === $seededAdminUser), json_encode($authWithPushedPassword, JSON_UNESCAPED_SLASHES));
     }
 
     $appLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/app.log'));
@@ -179,6 +198,9 @@ try {
     $_SERVER = $originalServer;
     $_GET = $originalGet;
     $_POST = $originalPost;
+    $app->tenant()->setTenantId($originalTenantId);
+    $app->reconnectDb();
+    invalidateModuleContextCache('bakeshop');
     setPrivateProperty($app, 'currentUser', $originalCurrentUser);
     setPrivateProperty($app, 'resolvingCurrentUser', $originalResolvingCurrentUser);
 

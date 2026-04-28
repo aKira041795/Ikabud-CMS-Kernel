@@ -35,6 +35,21 @@
         ]
     },
     "author": "Noah C. Omamalin",
+    "auth_owned": {
+        "users_table": "gm_users",
+        "username_column": "email",
+        "email_column": "email",
+        "password_column": "password",
+        "name_column": "first_name",
+        "active_column": "is_active",
+        "deleted_column": "deleted_at",
+        "admin_roles": [
+            "admin"
+        ],
+        "default_admin_role": "admin",
+        "requires_named_admin_on_provision": false,
+        "touch_updated_at": true
+    },
     "owns_tables": [
         "gm_users",
         "gm_password_resets",

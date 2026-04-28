@@ -133,7 +133,7 @@ try {
     btSeedSql('seed sql declares expected branch count comment', str_contains($seedSql, 'branches=10'), 'header mismatch');
     btSeedSql('seed sql declares expected product count comment', str_contains($seedSql, 'products=81'), 'header mismatch');
     btSeedSql('seed sql declares expected ingredient count comment', str_contains($seedSql, 'ingredients=30'), 'header mismatch');
-    btSeedSql('seed sql declares expected recipe count comment', str_contains($seedSql, 'recipes=271'), 'header mismatch');
+    btSeedSql('seed sql omits recipe count comment', !str_contains($seedSql, 'recipes='), 'header mismatch');
 
     $db->exec("DELETE FROM bakeshop_product_recipe WHERE notes LIKE 'Imported from Julie''s live bakery seed.%'");
     $db->exec("DELETE FROM bakeshop_products WHERE sku LIKE 'JBS-PRD-%'");
@@ -150,7 +150,7 @@ try {
     btSeedSql('seed sql inserts Julie\'s branches', $seededBranches === 10, (string)$seededBranches);
     btSeedSql('seed sql inserts Julie\'s products', $seededProducts === 81, (string)$seededProducts);
     btSeedSql('seed sql inserts Julie\'s ingredients', $seededIngredients === 30, (string)$seededIngredients);
-    btSeedSql('seed sql inserts Julie\'s recipes', $seededRecipes === 271, (string)$seededRecipes);
+    btSeedSql('seed sql does not import Julie\'s recipes', $seededRecipes === 0, (string)$seededRecipes);
 
     $productsMissingYieldUnit = (int)($db->query("SELECT COUNT(*) FROM bakeshop_products WHERE sku LIKE 'JBS-PRD-%' AND default_yield_unit_id IS NULL")->fetchColumn() ?: 0);
     btSeedSql('seed sql assigns yield units to Julie\'s products', $productsMissingYieldUnit === 0, (string)$productsMissingYieldUnit);
@@ -165,90 +165,15 @@ try {
     btSeedSql('sample seeded branch exists for setup flow', is_array($sampleBranch) && (int)($sampleBranch['id'] ?? 0) > 0, json_encode($sampleBranch, JSON_UNESCAPED_SLASHES));
 
     $sampleProduct = $db->query(
-        "SELECT p.id, p.name, p.default_yield_qty, p.default_yield_unit_id, u.code AS default_yield_unit_code
+        "SELECT p.id, p.sku, p.name, p.default_yield_qty, p.default_yield_unit_id, u.code AS default_yield_unit_code
          FROM bakeshop_products p
          LEFT JOIN bakeshop_units u ON u.id = p.default_yield_unit_id
-         INNER JOIN bakeshop_product_recipe r ON r.product_id = p.id
          WHERE p.sku LIKE 'JBS-PRD-%'
-         GROUP BY p.id, p.name, p.default_yield_qty, p.default_yield_unit_id, u.code
-         HAVING COUNT(r.id) BETWEEN 2 AND 6
          ORDER BY p.id ASC
          LIMIT 1"
     )->fetch(PDO::FETCH_ASSOC);
-    if (!is_array($sampleProduct)) {
-        throw new RuntimeException('Unable to find a seeded product with recipe lines.');
-    }
-    btSeedSql('sample seeded product with recipe exists', (int)($sampleProduct['id'] ?? 0) > 0, json_encode($sampleProduct, JSON_UNESCAPED_SLASHES));
-    btSeedSql('sample seeded product uses piece yield units', (string)($sampleProduct['default_yield_unit_code'] ?? '') === 'pc', json_encode($sampleProduct, JSON_UNESCAPED_SLASHES));
-
-    $sampleRecipeItems = $db->prepare(
-        'SELECT r.ingredient_id, r.qty, r.unit_id, u.factor_to_base
-         FROM bakeshop_product_recipe r
-         INNER JOIN bakeshop_units u ON u.id = r.unit_id
-         WHERE r.product_id = ?
-         ORDER BY r.id ASC'
-    );
-    $sampleRecipeItems->execute([(int)$sampleProduct['id']]);
-    $recipeItems = $sampleRecipeItems->fetchAll(PDO::FETCH_ASSOC);
-    btSeedSql('seeded product recipe lines loaded', $recipeItems !== [], json_encode($recipeItems, JSON_UNESCAPED_SLASHES));
-
-    $validationBranchId = (int)($sampleBranch['id'] ?? 0);
-
-    $deliveryItems = [];
-    foreach ($recipeItems as $item) {
-        $deliveryItems[] = [
-            'ingredient_id' => (int)$item['ingredient_id'],
-            'unit_id' => (int)$item['unit_id'],
-            'qty' => number_format(((float)$item['qty']) * 3, 4, '.', ''),
-            'unit_cost' => null,
-        ];
-    }
-
-    $delivery = bakeshopDeliveriesCreate([
-        'branch_id' => $validationBranchId,
-        'delivered_at' => '2026-04-27 08:00:00',
-        'reference' => 'JSEEDSQL',
-        'received_by' => 'Seed Validator',
-        'notes' => 'Julie\'s seed SQL validation delivery',
-        'items' => $deliveryItems,
-    ]);
-    $deliveryId = (int)($delivery['id'] ?? 0);
-    btSeedSql('delivery created from seeded ingredients', $deliveryId > 0, json_encode($delivery, JSON_UNESCAPED_SLASHES));
-
-    $run = bakeshopProductionCreate([
-        'branch_id' => $validationBranchId,
-        'product_id' => (int)$sampleProduct['id'],
-        'produced_at' => '2026-04-27 10:00:00',
-        'qty_produced' => max(1, (float)($sampleProduct['default_yield_qty'] ?? 1)),
-        'produced_by' => 'Seed Validator',
-        'notes' => 'Julie\'s seed SQL validation production',
-    ]);
-    $runId = (int)($run['id'] ?? 0);
-    btSeedSql('production run created from seeded product', $runId > 0, json_encode($run, JSON_UNESCAPED_SLASHES));
-
-    $usageRows = bakeshopUsageReportRows([
-        'branch_id' => $validationBranchId,
-        'from_date' => '2026-04-27',
-        'to_date' => '2026-04-27',
-    ]);
-    $inventoryRows = bakeshopInventorySnapshotRows([
-        'branch_id' => $validationBranchId,
-    ]);
-    btSeedSql('usage rows generated for seed validation flow', count($usageRows) >= count($recipeItems), json_encode($usageRows, JSON_UNESCAPED_SLASHES));
-    btSeedSql('inventory snapshot rows generated for seed validation flow', count($inventoryRows) >= count($recipeItems), json_encode($inventoryRows, JSON_UNESCAPED_SLASHES));
-
-    $firstItem = $recipeItems[0] ?? null;
-    if (!is_array($firstItem)) {
-        throw new RuntimeException('Seed validation recipe items are empty.');
-    }
-
-    $usageRow = btSeedSqlFindRow($usageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === (int)$firstItem['ingredient_id']);
-    $inventoryRow = btSeedSqlFindRow($inventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === (int)$firstItem['ingredient_id']);
-    $expectedDelivered = ((float)$firstItem['qty']) * 3 * ((float)$firstItem['factor_to_base']);
-    $expectedConsumed = ((float)$firstItem['qty']) * ((float)$firstItem['factor_to_base']);
-    btSeedSql('usage delivered qty matches seeded delivery after normalization', abs((float)($usageRow['delivered_qty_base'] ?? 0) - $expectedDelivered) < 0.0001, json_encode($usageRow, JSON_UNESCAPED_SLASHES));
-    btSeedSql('usage consumed qty matches seeded recipe after normalization', abs((float)($usageRow['consumed_qty_base'] ?? 0) - $expectedConsumed) < 0.0001, json_encode($usageRow, JSON_UNESCAPED_SLASHES));
-    btSeedSql('inventory snapshot reflects remaining seeded stock', abs((float)($inventoryRow['on_hand_qty_base'] ?? 0) - ($expectedDelivered - $expectedConsumed)) < 0.0001, json_encode($inventoryRow, JSON_UNESCAPED_SLASHES));
+    btSeedSql('sample seeded product exists', is_array($sampleProduct) && (int)($sampleProduct['id'] ?? 0) > 0, json_encode($sampleProduct, JSON_UNESCAPED_SLASHES));
+    btSeedSql('sample seeded product keeps a yield unit', is_array($sampleProduct) && (string)($sampleProduct['default_yield_unit_code'] ?? '') !== '', json_encode($sampleProduct, JSON_UNESCAPED_SLASHES));
 } finally {
     if ($runId > 0) {
         $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$runId]);

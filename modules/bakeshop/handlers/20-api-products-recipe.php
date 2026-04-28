@@ -53,6 +53,30 @@ function bakeshopCatalogRequireName(mixed $value, string $field = 'name'): strin
     return $name;
 }
 
+function bakeshopCatalogRequireUnitCode(mixed $value): string
+{
+    $code = trim((string)$value);
+    if ($code === '') {
+        throw new InvalidArgumentException('Code is required.');
+    }
+    if (mb_strlen($code) > 20) {
+        throw new InvalidArgumentException('Code must not exceed 20 characters.');
+    }
+
+    return $code;
+}
+
+function bakeshopCatalogRequireUnitDimension(mixed $value): string
+{
+    $dimension = strtolower(trim((string)$value));
+    $allowed = ['mass', 'volume', 'count'];
+    if (!in_array($dimension, $allowed, true)) {
+        throw new InvalidArgumentException('dimension must be one of: mass, volume, count.');
+    }
+
+    return $dimension;
+}
+
 function bakeshopCatalogNormalizeActiveFlag(mixed $value, int $default = 1): int
 {
     if ($value === null || $value === '') {
@@ -103,6 +127,37 @@ function bakeshopCatalogFindIngredientById(int $id): ?array
          WHERE i.id = :id LIMIT 1',
         [':id' => $id]
     );
+}
+
+function bakeshopCatalogFindUnitById(int $id): ?array
+{
+    return bakeshopCatalogFetchOne(
+        'SELECT id, code, name, dimension, base_unit_id, factor_to_base, sort_order, created_at, updated_at
+         FROM bakeshop_units
+         WHERE id = :id
+         LIMIT 1',
+        [':id' => $id]
+    );
+}
+
+function bakeshopCatalogUnitReferenceCount(int $unitId): int
+{
+    if ($unitId <= 0) {
+        return 0;
+    }
+
+    $row = bakeshopCatalogFetchOne(
+        'SELECT
+            (SELECT COUNT(*) FROM bakeshop_ingredients WHERE default_unit_id = :unit_id) +
+            (SELECT COUNT(*) FROM bakeshop_products WHERE default_yield_unit_id = :unit_id) +
+            (SELECT COUNT(*) FROM bakeshop_product_recipe WHERE unit_id = :unit_id) +
+            (SELECT COUNT(*) FROM bakeshop_delivery_items WHERE unit_id = :unit_id) +
+            (SELECT COUNT(*) FROM bakeshop_production_items WHERE unit_id = :unit_id) +
+            (SELECT COUNT(*) FROM bakeshop_units WHERE base_unit_id = :unit_id) AS reference_count',
+        [':unit_id' => $unitId]
+    );
+
+    return max(0, (int)($row['reference_count'] ?? 0));
 }
 
 function bakeshopCatalogAssertRecordExists(string $table, int $id): void
@@ -356,6 +411,139 @@ function bakeshopCatalogSaveProduct(array $input): array
 function bakeshopCatalogCreateProduct(array $input): array
 {
     return bakeshopCatalogSaveProduct($input);
+}
+
+function bakeshopCatalogSaveUnit(array $input): array
+{
+    $id = null;
+    $existing = null;
+    if (($input['id'] ?? null) !== null && (string)$input['id'] !== '') {
+        $id = bakeshopCatalogRequirePositiveInt($input['id'], 'id');
+        $existing = bakeshopCatalogFindUnitById($id);
+        if ($existing === null) {
+            throw new InvalidArgumentException('Unit not found.');
+        }
+    }
+
+    $code = bakeshopCatalogRequireUnitCode($input['code'] ?? null);
+    $name = bakeshopCatalogRequireName($input['name'] ?? null);
+    $dimension = bakeshopCatalogRequireUnitDimension($input['dimension'] ?? null);
+
+    $factorRaw = $input['factor_to_base'] ?? 1;
+    if (!is_numeric($factorRaw) || (float)$factorRaw <= 0) {
+        throw new InvalidArgumentException('factor_to_base must be greater than zero.');
+    }
+
+    $factorToBase = number_format((float)$factorRaw, 6, '.', '');
+    $existingCode = bakeshopCatalogFetchOne(
+        'SELECT id FROM bakeshop_units WHERE LOWER(code) = LOWER(:code) AND (:id IS NULL OR id <> :id) LIMIT 1',
+        [':code' => $code, ':id' => $id]
+    );
+    if ($existingCode !== null) {
+        throw new InvalidArgumentException('Unit code already exists.');
+    }
+
+    if ($existing !== null) {
+        $referenceCount = bakeshopCatalogUnitReferenceCount($id ?? 0);
+        $dimensionChanged = (string)($existing['dimension'] ?? '') !== $dimension;
+        $factorChanged = number_format((float)($existing['factor_to_base'] ?? 1), 6, '.', '') !== $factorToBase;
+        if ($referenceCount > 0 && ($dimensionChanged || $factorChanged)) {
+            throw new InvalidArgumentException('Units already used in ingredients, recipes, deliveries, production, or dependent conversions can only update code and name.');
+        }
+    }
+
+    $baseUnitId = null;
+    if (abs((float)$factorToBase - 1.0) > 0.0000005) {
+        $bindings = [':dimension' => $dimension];
+        $sql = 'SELECT id
+             FROM bakeshop_units
+             WHERE dimension = :dimension AND factor_to_base = 1.000000';
+        if ($id !== null) {
+            $sql .= ' AND id <> :current_id';
+            $bindings[':current_id'] = $id;
+        }
+        $sql .= ' ORDER BY sort_order ASC, code ASC LIMIT 1';
+
+        $baseUnit = bakeshopCatalogFetchOne(
+            $sql,
+            $bindings
+        );
+        if ($baseUnit === null) {
+            throw new InvalidArgumentException('A base unit for this dimension must exist before adding conversion units.');
+        }
+        $baseUnitId = (int)($baseUnit['id'] ?? 0);
+    }
+
+    $sortOrder = (int)($existing['sort_order'] ?? 0);
+    if ($existing === null || (string)($existing['dimension'] ?? '') !== $dimension) {
+        $sortOrderRow = bakeshopCatalogFetchOne(
+            'SELECT COALESCE(MAX(sort_order), 0) + 10 AS next_sort_order FROM bakeshop_units WHERE dimension = :dimension',
+            [':dimension' => $dimension]
+        );
+        $sortOrder = max(10, (int)($sortOrderRow['next_sort_order'] ?? 10));
+    }
+
+    if ($existing !== null) {
+        $stmt = bakeshopDb()->prepare(
+            'UPDATE bakeshop_units
+             SET code = :code,
+                 name = :name,
+                 dimension = :dimension,
+                 base_unit_id = :base_unit_id,
+                 factor_to_base = :factor_to_base,
+                 sort_order = :sort_order,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            ':id' => $id,
+            ':code' => $code,
+            ':name' => $name,
+            ':dimension' => $dimension,
+            ':base_unit_id' => $baseUnitId,
+            ':factor_to_base' => $factorToBase,
+            ':sort_order' => $sortOrder,
+        ]);
+
+        $row = bakeshopCatalogFindUnitById($id ?? 0) ?? [];
+        bakeshopAudit(
+            bakeshopResolveActiveMutationAction('bakeshop.unit', $existing, $row),
+            null,
+            'bakeshop_units',
+            (string)$id,
+            $existing,
+            $row
+        );
+
+        return $row;
+    }
+
+    $stmt = bakeshopDb()->prepare(
+        'INSERT INTO bakeshop_units (code, name, dimension, base_unit_id, factor_to_base, sort_order)
+         VALUES (:code, :name, :dimension, :base_unit_id, :factor_to_base, :sort_order)'
+    );
+    $stmt->execute([
+        ':code' => $code,
+        ':name' => $name,
+        ':dimension' => $dimension,
+        ':base_unit_id' => $baseUnitId,
+        ':factor_to_base' => $factorToBase,
+        ':sort_order' => $sortOrder,
+    ]);
+
+    $id = (int)bakeshopDb()->lastInsertId();
+    $row = bakeshopCatalogFindUnitById($id) ?? [];
+
+    app()->events()->fire('bakeshop.unit.created', [
+        'id' => $id,
+        'code' => $code,
+        'name' => $name,
+        'dimension' => $dimension,
+    ]);
+
+    bakeshopAudit('bakeshop.unit.created', null, 'bakeshop_units', (string)$id, null, $row);
+
+    return $row;
 }
 
 function bakeshopCatalogSaveIngredient(array $input): array
@@ -664,6 +852,17 @@ function bakeshopApiUnitsIndex(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         bakeshopCurrentUser('bakeshop.read');
         bakeshopJsonOk(['items' => bakeshopCatalogListUnits()]);
+    });
+}
+
+function bakeshopApiUnitsStore(array $params = []): void
+{
+    bakeshopResponseGuard(static function (): void {
+        bakeshopEnforceCsrf();
+        bakeshopCurrentUser('bakeshop.manage');
+        $isUpdate = (bakeshopInput('id') ?? null) !== null && (string)bakeshopInput('id') !== '';
+        $item = bakeshopCatalogSaveUnit(bakeshopInput());
+        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
     });
 }
 

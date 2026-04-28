@@ -15,11 +15,116 @@ if (!function_exists('kernelPrepareTenantAdminJsonRequest')) {
             return false;
         }
 
+        $input = app()->input();
+        if (isset($input['_json_error'])) {
+            http_response_code(422);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Invalid JSON request body',
+                'details' => (string)$input['_json_error'],
+                'request_id' => request_id(),
+            ]);
+            return false;
+        }
+
         if ($enforceCsrf) {
             app()->csrfEnforce();
         }
 
         return true;
+    }
+}
+
+if (!function_exists('kernelTenantSeedCatalog')) {
+    function kernelTenantSeedCatalog(): array
+    {
+        return [
+            'bakeshop_julies_bread_pastry' => [
+                'label' => "Julie's Bakeshop Bread/Pastry",
+                'entry_module_id' => 'bakeshop',
+                'path' => BASE_PATH . '/database/seeds/002_bakeshop_julies_bread_pastry.sql',
+                'counts' => [
+                    'branches' => "SELECT COUNT(*) FROM bakeshop_branches WHERE external_store_id IS NOT NULL AND code IN ('JB01', 'JES01', 'JL01', 'JMA01', 'JMIP01', 'JMN01', 'JP01', 'JPI01', 'JPO01', 'JTUR01')",
+                    'products' => "SELECT COUNT(*) FROM bakeshop_products WHERE sku LIKE 'JBS-PRD-%'",
+                    'ingredients' => "SELECT COUNT(*) FROM bakeshop_ingredients WHERE sku LIKE 'JBS-ING-%'",
+                ],
+            ],
+        ];
+    }
+}
+
+if (!function_exists('kernelExecuteSqlStatements')) {
+    function kernelExecuteSqlStatements(PDO $db, string $sql): void
+    {
+        $length = strlen($sql);
+        $buffer = '';
+        $delimiter = ';';
+        $singleQuoted = false;
+        $doubleQuoted = false;
+        $lineComment = false;
+        $blockComment = false;
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $sql[$index];
+            $next = $index + 1 < $length ? $sql[$index + 1] : '';
+
+            if ($lineComment) {
+                if ($char === "\n") {
+                    $lineComment = false;
+                }
+                continue;
+            }
+
+            if ($blockComment) {
+                if ($char === '*' && $next === '/') {
+                    $blockComment = false;
+                    $index++;
+                }
+                continue;
+            }
+
+            if (!$singleQuoted && !$doubleQuoted) {
+                if ($char === '-' && $next === '-') {
+                    $lineComment = true;
+                    $index++;
+                    continue;
+                }
+
+                if ($char === '/' && $next === '*') {
+                    $blockComment = true;
+                    $index++;
+                    continue;
+                }
+            }
+
+            if ($char === "'" && !$doubleQuoted) {
+                $escaped = $index > 0 && $sql[$index - 1] === '\\';
+                if (!$escaped) {
+                    $singleQuoted = !$singleQuoted;
+                }
+            } elseif ($char === '"' && !$singleQuoted) {
+                $escaped = $index > 0 && $sql[$index - 1] === '\\';
+                if (!$escaped) {
+                    $doubleQuoted = !$doubleQuoted;
+                }
+            }
+
+            if (!$singleQuoted && !$doubleQuoted && $char === $delimiter) {
+                $statement = trim($buffer);
+                if ($statement !== '') {
+                    $db->exec($statement);
+                }
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $statement = trim($buffer);
+        if ($statement !== '') {
+            $db->exec($statement);
+        }
     }
 }
 
@@ -409,6 +514,142 @@ if (!function_exists('kernelHandleApiTenantStatusSet')) {
     }
 }
 
+if (!function_exists('kernelHandleApiTenantSeedData')) {
+    function kernelHandleApiTenantSeedData(): void
+    {
+        if (!kernelPrepareTenantAdminJsonRequest()) {
+            return;
+        }
+
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+        $seedId = trim((string)($input['seed_id'] ?? ''));
+
+        if ($tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'tenant_id is required', 'request_id' => request_id()]);
+            return;
+        }
+        if ($seedId === '') {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'seed_id is required', 'request_id' => request_id()]);
+            return;
+        }
+
+        $catalog = kernelTenantSeedCatalog();
+        $seed = $catalog[$seedId] ?? null;
+        if (!is_array($seed)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Unsupported seed_id', 'request_id' => request_id()]);
+            return;
+        }
+
+        try {
+            $tenantStmt = app()->controlDb()->prepare('SELECT id, tenant_key, entry_module_id FROM kernel_tenants WHERE id = :tenant_id LIMIT 1');
+            $tenantStmt->execute([':tenant_id' => $tenantId]);
+            $tenant = $tenantStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!is_array($tenant)) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'Tenant not found', 'request_id' => request_id()]);
+                return;
+            }
+
+            $expectedEntryModuleId = (string)($seed['entry_module_id'] ?? '');
+            $tenantEntryModuleId = (string)($tenant['entry_module_id'] ?? '');
+            if ($expectedEntryModuleId !== '' && $tenantEntryModuleId !== $expectedEntryModuleId) {
+                http_response_code(422);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Seed data is only available for matching tenant entry modules',
+                    'expected_entry_module_id' => $expectedEntryModuleId,
+                    'entry_module_id' => $tenantEntryModuleId,
+                    'request_id' => request_id(),
+                ]);
+                return;
+            }
+
+            $seedPath = (string)($seed['path'] ?? '');
+            if ($seedPath === '' || !is_file($seedPath)) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => 'Seed file is not available', 'request_id' => request_id()]);
+                return;
+            }
+
+            $sync = syncTenantMigrationsForTenant($tenantId, $tenantEntryModuleId !== '' ? $tenantEntryModuleId : null);
+            if (empty($sync['ok'])) {
+                http_response_code(500);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Tenant migrations failed to synchronize before seeding',
+                    'details' => $sync['error'] ?? 'Unknown error',
+                    'request_id' => request_id(),
+                ]);
+                return;
+            }
+
+            $tenantDb = app()->reconnectDbForTenant($tenantId);
+            if (!$tenantDb instanceof PDO) {
+                http_response_code(422);
+                echo json_encode(['ok' => false, 'error' => 'Tenant DB is not configured', 'request_id' => request_id()]);
+                return;
+            }
+
+            $seedSql = (string)file_get_contents($seedPath);
+            if (trim($seedSql) === '') {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => 'Seed file is empty', 'request_id' => request_id()]);
+                return;
+            }
+
+            kernelExecuteSqlStatements($tenantDb, $seedSql);
+
+            $counts = [];
+            foreach ((array)($seed['counts'] ?? []) as $key => $query) {
+                $statement = $tenantDb->query((string)$query);
+                if (!$statement instanceof PDOStatement) {
+                    $errorInfo = $tenantDb->errorInfo();
+                    throw new RuntimeException('Seed count query failed for ' . (string)$key . ': ' . (string)($errorInfo[2] ?? 'Unknown SQL error'));
+                }
+                $counts[(string)$key] = (int)($statement->fetchColumn() ?: 0);
+            }
+
+            write_log('Tenant seed data applied', 'info', [
+                'tenant_id' => $tenantId,
+                'tenant_key' => (string)($tenant['tenant_key'] ?? ''),
+                'seed_id' => $seedId,
+                'request_id' => request_id(),
+                'counts' => $counts,
+            ]);
+
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
+            echo json_encode([
+                'ok' => true,
+                'tenant_id' => $tenantId,
+                'seed_id' => $seedId,
+                'label' => (string)($seed['label'] ?? $seedId),
+                'counts' => $counts,
+                'request_id' => request_id(),
+            ]);
+        } catch (Throwable $e) {
+            write_log('apiTenantSeedData failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'seed_id' => $seedId,
+                'request_id' => request_id(),
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            http_response_code(500);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Failed to run tenant seed data',
+                'details' => $e->getMessage(),
+                'request_id' => request_id(),
+            ]);
+        }
+    }
+}
+
 if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
     function kernelHandleApiTenantAdminEmailPush(): void
     {
@@ -591,69 +832,76 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
             $skipped = [];
             $tDb = app()->dbForTenant($tenantId);
             if ($tDb !== null) {
-                // Update cms_users
-                try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare('UPDATE cms_users SET password_hash = :p WHERE role IN (:r1, :r2)');
-                    $r->execute([':p' => $hashMsg, ':r1' => 'superadmin', ':r2' => 'administrator']);
-                    if ($r->rowCount() > 0) {
-                        $pushed[] = 'cms_users';
-                    } else {
-                        $skipped[] = 'cms_users:no_matching_row';
+                $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
+
+                // Manifest-driven push: every enabled module that declares
+                // auth_owned in its manifest gets the new password applied to
+                // its declared admin role(s) in its declared users table.
+                // This replaces the previous hardcoded per-module blocks.
+                $authOwned = function_exists('kernelAuthOwnedModules')
+                    ? kernelAuthOwnedModules()
+                    : [];
+
+                foreach ($authOwned as $moduleId => $spec) {
+                    $table     = (string)$spec['users_table'];
+                    $pwdCol    = (string)$spec['password_column'];
+                    $activeCol = (string)$spec['active_column'];
+                    $deletedCol = $spec['deleted_column'] ?? null;
+                    $roles     = (array)$spec['admin_roles'];
+                    $touch     = !empty($spec['touch_updated_at']);
+
+                    try {
+                        $setParts = ['`' . $pwdCol . '` = :p'];
+                        if ($touch) {
+                            $setParts[] = '`updated_at` = NOW()';
+                        }
+
+                        $whereParts = [];
+                        $params = [':p' => $hashMsg];
+
+                        // Build role IN (...) clause with named placeholders.
+                        $rolePlaceholders = [];
+                        foreach (array_values($roles) as $idx => $role) {
+                            $ph = ':r' . $idx;
+                            $rolePlaceholders[] = $ph;
+                            $params[$ph] = $role;
+                        }
+                        $whereParts[] = '`role` IN (' . implode(', ', $rolePlaceholders) . ')';
+
+                        if ($activeCol !== '') {
+                            $whereParts[] = '`' . $activeCol . '` = 1';
+                        }
+                        if ($deletedCol !== null && $deletedCol !== '') {
+                            $whereParts[] = '`' . $deletedCol . '` IS NULL';
+                        }
+
+                        $sql = 'UPDATE `' . $table . '` SET ' . implode(', ', $setParts)
+                            . ' WHERE ' . implode(' AND ', $whereParts);
+
+                        $stmt = $tDb->prepare($sql);
+                        $stmt->execute($params);
+
+                        if ($stmt->rowCount() > 0) {
+                            $pushed[] = $table;
+                        } else {
+                            $skipped[] = $table . ':no_matching_row';
+                        }
+                    } catch (Throwable $ex) {
+                        $msg = $ex->getMessage();
+                        if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                            write_log('apiTenantAdminPasswordPush ' . $table . ' failed: ' . $msg, 'error', [
+                                'tenant_id' => $tenantId, 'request_id' => request_id(),
+                                'module_id' => $moduleId,
+                            ]);
+                        }
+                        $skipped[] = $table;
                     }
-                } catch (Throwable $ex) {
-                    $msg = $ex->getMessage();
-                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        write_log('apiTenantAdminPasswordPush cms_users failed: ' . $msg, 'error', [
-                            'tenant_id' => $tenantId, 'request_id' => request_id(),
-                        ]);
-                    }
-                    $skipped[] = 'cms_users';
                 }
 
-                // Update gm_users
+                // Legacy `users` table fallback — kept outside the manifest
+                // loop because the kernel installer table is not module-owned
+                // and its column shape varies (`password_hash` vs `password`).
                 try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare('UPDATE gm_users SET password_hash = :p WHERE role = :r AND deleted_at IS NULL');
-                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
-                    if ($r->rowCount() > 0) {
-                        $pushed[] = 'gm_users';
-                    } else {
-                        $skipped[] = 'gm_users:no_matching_row';
-                    }
-                } catch (Throwable $ex) {
-                    $msg = $ex->getMessage();
-                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        write_log('apiTenantAdminPasswordPush gm_users failed: ' . $msg, 'error', [
-                            'tenant_id' => $tenantId, 'request_id' => request_id(),
-                        ]);
-                    }
-                    $skipped[] = 'gm_users';
-                }
-
-                // Update wms_users
-                try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
-                    $r = $tDb->prepare('UPDATE wms_users SET password_hash = :p WHERE role = :r');
-                    $r->execute([':p' => $hashMsg, ':r' => 'admin']);
-                    if ($r->rowCount() > 0) {
-                        $pushed[] = 'wms_users';
-                    } else {
-                        $skipped[] = 'wms_users:no_matching_row';
-                    }
-                } catch (Throwable $ex) {
-                    $msg = $ex->getMessage();
-                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        write_log('apiTenantAdminPasswordPush wms_users failed: ' . $msg, 'error', [
-                            'tenant_id' => $tenantId, 'request_id' => request_id(),
-                        ]);
-                    }
-                    $skipped[] = 'wms_users';
-                }
-
-                // Update users table
-                try {
-                    $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
                     $r = $tDb->prepare('UPDATE users SET password_hash = :p WHERE role IN (:r1, :r2)');
                     $r->execute([':p' => $hashMsg, ':r1' => 'admin', ':r2' => 'superadmin']);
                     if ($r->rowCount() > 0) {
@@ -664,15 +912,13 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                 } catch (Throwable $ex) {
                     $msg = $ex->getMessage();
                     if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
-                        // Some old users tables used `password`, let's try that.
                         try {
-                            $hashMsg = password_hash($newPassword, PASSWORD_BCRYPT);
                             $r = $tDb->prepare('UPDATE users SET password = :p WHERE role IN (:r1, :r2)');
                             $r->execute([':p' => $hashMsg, ':r1' => 'admin', ':r2' => 'superadmin']);
                             if ($r->rowCount() > 0) {
                                 $pushed[] = 'users(password)';
-                                $keyRemoved = array_search('users', $skipped);
-                                if ($keyRemoved !== false) unset($skipped[$keyRemoved]);
+                            } else {
+                                $skipped[] = 'users:no_matching_row';
                             }
                         } catch (Throwable $e2) {
                             write_log('apiTenantAdminPasswordPush users fallback failed: ' . $e2->getMessage(), 'error', [
@@ -711,8 +957,8 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
             adminViewCacheInvalidate(['admin:view:tenants']);
             echo json_encode([
                 'ok' => true,
-                'pushed' => $pushed,
-                'skipped' => array_values($skipped),
+                'pushed' => array_values(array_unique($pushed)),
+                'skipped' => array_values(array_unique($skipped)),
             ]);
         } catch (Throwable $e) {
             http_response_code(500);

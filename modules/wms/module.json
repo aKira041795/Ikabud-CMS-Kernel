@@ -4,6 +4,20 @@
     "version": "1.4.0",
     "description": "Entity-driven warehouse management for inventory, task execution, imports, diagnostics, onboarding, and financial supply loops.",
     "author": "Ikabud Kernel Team",
+    "auth_owned": {
+        "users_table": "wms_users",
+        "username_column": "username",
+        "email_column": "email",
+        "password_column": "password_hash",
+        "name_column": "full_name",
+        "active_column": "is_active",
+        "admin_roles": [
+            "admin"
+        ],
+        "default_admin_role": "admin",
+        "requires_named_admin_on_provision": false,
+        "touch_updated_at": true
+    },
     "owns_tables": [
         "wms_users",
         "wms_products",
