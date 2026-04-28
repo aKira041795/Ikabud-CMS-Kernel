@@ -23,6 +23,99 @@ if (!function_exists('kernelPrepareTenantAdminJsonRequest')) {
     }
 }
 
+if (!function_exists('kernelTenantSeedCatalog')) {
+    function kernelTenantSeedCatalog(): array
+    {
+        return [
+            'bakeshop_julies_bread_pastry' => [
+                'label' => "Julie's Bakeshop Bread/Pastry",
+                'entry_module_id' => 'bakeshop',
+                'path' => BASE_PATH . '/database/seeds/002_bakeshop_julies_bread_pastry.sql',
+                'counts' => [
+                    'branches' => "SELECT COUNT(*) FROM bakeshop_branches WHERE external_store_id IS NOT NULL AND code IN ('JB01', 'JES01', 'JL01', 'JMA01', 'JMIP01', 'JMN01', 'JP01', 'JPI01', 'JPO01', 'JTUR01')",
+                    'products' => "SELECT COUNT(*) FROM bakeshop_products WHERE sku LIKE 'JBS-PRD-%'",
+                    'ingredients' => "SELECT COUNT(*) FROM bakeshop_ingredients WHERE sku LIKE 'JBS-ING-%'",
+                ],
+            ],
+        ];
+    }
+}
+
+if (!function_exists('kernelExecuteSqlStatements')) {
+    function kernelExecuteSqlStatements(PDO $db, string $sql): void
+    {
+        $length = strlen($sql);
+        $buffer = '';
+        $delimiter = ';';
+        $singleQuoted = false;
+        $doubleQuoted = false;
+        $lineComment = false;
+        $blockComment = false;
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $sql[$index];
+            $next = $index + 1 < $length ? $sql[$index + 1] : '';
+
+            if ($lineComment) {
+                if ($char === "\n") {
+                    $lineComment = false;
+                }
+                continue;
+            }
+
+            if ($blockComment) {
+                if ($char === '*' && $next === '/') {
+                    $blockComment = false;
+                    $index++;
+                }
+                continue;
+            }
+
+            if (!$singleQuoted && !$doubleQuoted) {
+                if ($char === '-' && $next === '-') {
+                    $lineComment = true;
+                    $index++;
+                    continue;
+                }
+
+                if ($char === '/' && $next === '*') {
+                    $blockComment = true;
+                    $index++;
+                    continue;
+                }
+            }
+
+            if ($char === "'" && !$doubleQuoted) {
+                $escaped = $index > 0 && $sql[$index - 1] === '\\';
+                if (!$escaped) {
+                    $singleQuoted = !$singleQuoted;
+                }
+            } elseif ($char === '"' && !$singleQuoted) {
+                $escaped = $index > 0 && $sql[$index - 1] === '\\';
+                if (!$escaped) {
+                    $doubleQuoted = !$doubleQuoted;
+                }
+            }
+
+            if (!$singleQuoted && !$doubleQuoted && $char === $delimiter) {
+                $statement = trim($buffer);
+                if ($statement !== '') {
+                    $db->exec($statement);
+                }
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $statement = trim($buffer);
+        if ($statement !== '') {
+            $db->exec($statement);
+        }
+    }
+}
+
 if (!function_exists('kernelHandleApiTenantCreate')) {
     function kernelHandleApiTenantCreate(): void
     {
@@ -405,6 +498,128 @@ if (!function_exists('kernelHandleApiTenantStatusSet')) {
         } catch (Throwable $e) {
             http_response_code(500);
             echo json_encode(['ok' => false, 'error' => 'Failed to update tenant status']);
+        }
+    }
+}
+
+if (!function_exists('kernelHandleApiTenantSeedData')) {
+    function kernelHandleApiTenantSeedData(): void
+    {
+        if (!kernelPrepareTenantAdminJsonRequest()) {
+            return;
+        }
+
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+        $seedId = trim((string)($input['seed_id'] ?? ''));
+
+        if ($tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
+            return;
+        }
+        if ($seedId === '') {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'seed_id is required']);
+            return;
+        }
+
+        $catalog = kernelTenantSeedCatalog();
+        $seed = $catalog[$seedId] ?? null;
+        if (!is_array($seed)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Unsupported seed_id']);
+            return;
+        }
+
+        try {
+            $tenantStmt = app()->controlDb()->prepare('SELECT id, tenant_key, entry_module_id FROM kernel_tenants WHERE id = :tenant_id LIMIT 1');
+            $tenantStmt->execute([':tenant_id' => $tenantId]);
+            $tenant = $tenantStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!is_array($tenant)) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'Tenant not found']);
+                return;
+            }
+
+            $expectedEntryModuleId = (string)($seed['entry_module_id'] ?? '');
+            $tenantEntryModuleId = (string)($tenant['entry_module_id'] ?? '');
+            if ($expectedEntryModuleId !== '' && $tenantEntryModuleId !== $expectedEntryModuleId) {
+                http_response_code(422);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Seed data is only available for matching tenant entry modules',
+                    'expected_entry_module_id' => $expectedEntryModuleId,
+                    'entry_module_id' => $tenantEntryModuleId,
+                ]);
+                return;
+            }
+
+            $seedPath = (string)($seed['path'] ?? '');
+            if ($seedPath === '' || !is_file($seedPath)) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => 'Seed file is not available']);
+                return;
+            }
+
+            $sync = syncTenantMigrationsForTenant($tenantId, $tenantEntryModuleId !== '' ? $tenantEntryModuleId : null);
+            if (empty($sync['ok'])) {
+                http_response_code(500);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Tenant migrations failed to synchronize before seeding',
+                    'details' => $sync['error'] ?? 'Unknown error',
+                ]);
+                return;
+            }
+
+            $tenantDb = app()->reconnectDbForTenant($tenantId);
+            if (!$tenantDb instanceof PDO) {
+                http_response_code(422);
+                echo json_encode(['ok' => false, 'error' => 'Tenant DB is not configured']);
+                return;
+            }
+
+            $seedSql = (string)file_get_contents($seedPath);
+            if (trim($seedSql) === '') {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => 'Seed file is empty']);
+                return;
+            }
+
+            kernelExecuteSqlStatements($tenantDb, $seedSql);
+
+            $counts = [];
+            foreach ((array)($seed['counts'] ?? []) as $key => $query) {
+                $counts[(string)$key] = (int)($tenantDb->query((string)$query)->fetchColumn() ?: 0);
+            }
+
+            write_log('Tenant seed data applied', 'info', [
+                'tenant_id' => $tenantId,
+                'tenant_key' => (string)($tenant['tenant_key'] ?? ''),
+                'seed_id' => $seedId,
+                'request_id' => request_id(),
+                'counts' => $counts,
+            ]);
+
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
+            echo json_encode([
+                'ok' => true,
+                'tenant_id' => $tenantId,
+                'seed_id' => $seedId,
+                'label' => (string)($seed['label'] ?? $seedId),
+                'counts' => $counts,
+                'request_id' => request_id(),
+            ]);
+        } catch (Throwable $e) {
+            write_log('apiTenantSeedData failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'seed_id' => $seedId,
+                'request_id' => request_id(),
+            ]);
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to run tenant seed data']);
         }
     }
 }
