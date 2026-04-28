@@ -520,7 +520,7 @@ function bakeshopPageSettings(array $params = []): void
         $role = (string)($user['role'] ?? '');
         $rolePermissions = bakeshopRolePermissions();
         $unitsStmt = bakeshopDb()->query(
-            'SELECT code, name, dimension, factor_to_base FROM bakeshop_units ORDER BY dimension ASC, sort_order ASC, code ASC'
+            'SELECT id, code, name, dimension, factor_to_base FROM bakeshop_units ORDER BY dimension ASC, sort_order ASC, code ASC'
         );
         $units = $unitsStmt ? ($unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
         $settings = bakeshopSettings();
