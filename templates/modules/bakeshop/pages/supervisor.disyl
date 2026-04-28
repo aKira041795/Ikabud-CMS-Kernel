@@ -72,6 +72,14 @@
         color: #111827;
         border-color: #d1d5db;
     }
+    .bakeshop-button.print {
+        background: #6b7280;
+        border-color: #6b7280;
+        color: #ffffff;
+    }
+    .bakeshop-button.print:hover {
+        background: #4b5563;
+    }
     .bakeshop-button.success {
         background: #16a34a;
         border-color: #15803d;
@@ -338,7 +346,7 @@
             {if can_manage_users}
             <a class="bakeshop-button secondary" href="{base_url}/admin/bakeshop/users">Manage Staff</a>
             {/if}
-            <a class="bakeshop-button secondary" id="bakeshop-print-link" href="{if current_page == 'dashboard'}{base_url}{summary_report.print_url}{else}{base_url}/admin/bakeshop/print{/if}" target="_blank" rel="noopener">Open Print Summary</a>
+            <a class="bakeshop-button print" id="bakeshop-print-link" href="{if current_page == 'dashboard'}{base_url}{summary_report.print_url}{else}{base_url}/admin/bakeshop/print{/if}" target="_blank" rel="noopener">Open Print Summary</a>
             <button class="bakeshop-button secondary" type="button" id="bakeshop-refresh">Refresh Data</button>
         </div>
     </div>
@@ -442,7 +450,7 @@
                         {if summary_report.has_active_filters}
                         <a class="bakeshop-button secondary" href="{base_url}{summary_report.dashboard_url}">Reset</a>
                         {/if}
-                        <a class="bakeshop-button secondary" href="{base_url}{summary_report.print_url}" target="_blank" rel="noopener">Open Print View</a>
+                        <a class="bakeshop-button print" href="{base_url}{summary_report.print_url}" target="_blank" rel="noopener">Open Print View</a>
                         <button class="bakeshop-button" type="submit">Apply Filters</button>
                     </div>
                 </div>
