@@ -5,6 +5,8 @@ declare(strict_types=1);
 return [
     'GET' => [
         '/bakeshop/login' => 'bakeshop:bakeshopPageLogin',
+        '/bakeshop/forgot-password' => 'bakeshop:bakeshopForgotPasswordPage',
+        '/bakeshop/reset-password' => 'bakeshop:bakeshopResetPasswordPage',
         '/admin/bakeshop' => 'bakeshop:bakeshopPageSupervisor',
         '/admin/bakeshop/branches' => 'bakeshop:bakeshopPageBranches',
         '/admin/bakeshop/catalog' => 'bakeshop:bakeshopPageCatalog',
@@ -33,6 +35,8 @@ return [
     'POST' => [
         '/bakeshop/auth/login' => 'bakeshop:bakeshopAuthLogin',
         '/api/v1/bakeshop/auth/login' => 'bakeshop:bakeshopAuthLogin',
+        '/api/v1/bakeshop/auth/forgot-password' => 'bakeshop:bakeshopApiForgotPassword',
+        '/api/v1/bakeshop/auth/reset-password' => 'bakeshop:bakeshopApiResetPassword',
         '/bakeshop/logout' => 'bakeshop:bakeshopLogout',
         '/api/v1/bakeshop/account/password' => 'bakeshop:bakeshopApiAccountPasswordUpdate',
         '/api/v1/bakeshop/users' => 'bakeshop:bakeshopApiUserCreate',
