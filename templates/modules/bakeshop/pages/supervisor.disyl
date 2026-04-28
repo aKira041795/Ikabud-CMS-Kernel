@@ -56,21 +56,37 @@
         justify-content: center;
         gap: 8px;
         border-radius: 2px;
-        border: 1px solid #d1d5db;
-        background: #ffffff;
-        color: #111827;
+        border: 1px solid #1d4ed8;
+        background: #2563eb;
+        color: #ffffff;
         padding: 10px 16px;
         text-decoration: none;
         font-size: 0.92rem;
         cursor: pointer;
     }
     .bakeshop-button:hover {
-        background: #f9fafb;
+        background: #1d4ed8;
     }
     .bakeshop-button.secondary {
         background: #fff;
         color: #111827;
         border-color: #d1d5db;
+    }
+    .bakeshop-button.success {
+        background: #16a34a;
+        border-color: #15803d;
+        color: #ffffff;
+    }
+    .bakeshop-button.success:hover {
+        background: #15803d;
+    }
+    .bakeshop-button.danger {
+        background: #dc2626;
+        border-color: #b91c1c;
+        color: #ffffff;
+    }
+    .bakeshop-button.danger:hover {
+        background: #b91c1c;
     }
     .bakeshop-banner {
         display: none;
@@ -544,7 +560,7 @@
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                 <span class="bakeshop-help">Branch IDs are owned by this module. No ecommerce or WMS bridge is wired in v1.</span>
                                 <div class="bakeshop-actions">
-                                    <button class="bakeshop-button secondary" type="button" id="branch-cancel" hidden>Cancel Edit</button>
+                                    <button class="bakeshop-button danger" type="button" id="branch-cancel" hidden>Cancel Edit</button>
                                     <button class="bakeshop-button" type="submit" id="branch-submit">Save Branch</button>
                                 </div>
                             </div>
@@ -609,8 +625,8 @@
                                 <div class="bakeshop-form-actions">
                                     <span class="bakeshop-help">Default yield drives recipe scaling for production runs.</span>
                                     <div class="bakeshop-actions">
-                                            <button class="bakeshop-button secondary" type="button" id="product-add">Add Product</button>
-                                        <button class="bakeshop-button secondary" type="button" id="product-cancel" hidden>Cancel Edit</button>
+                                            <button class="bakeshop-button success" type="button" id="product-add">Add Product</button>
+                                        <button class="bakeshop-button danger" type="button" id="product-cancel" hidden>Cancel Edit</button>
                                         <button class="bakeshop-button" type="submit" id="product-submit">Save Product</button>
                                     </div>
                                 </div>
@@ -653,7 +669,7 @@
                                         <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                             <span class="bakeshop-help">Update the ingredient usage for this product.</span>
                                             <div class="bakeshop-actions">
-                                                <button class="bakeshop-button secondary" type="button" id="recipe-cancel" hidden>Cancel Edit</button>
+                                                <button class="bakeshop-button danger" type="button" id="recipe-cancel" hidden>Cancel Edit</button>
                                                 <button class="bakeshop-button" type="submit" id="recipe-submit">Save Recipe Line</button>
                                             </div>
                                         </div>
@@ -726,8 +742,8 @@
                                 <div class="bakeshop-form-actions">
                                     <span class="bakeshop-help">Units are seeded globally as `kg`, `g`, `L`, `mL`, `pc`, and `pack`.</span>
                                     <div class="bakeshop-actions">
-                                            <button class="bakeshop-button secondary" type="button" id="ingredient-add">Add Ingredient</button>
-                                        <button class="bakeshop-button secondary" type="button" id="ingredient-cancel" hidden>Cancel Edit</button>
+                                            <button class="bakeshop-button success" type="button" id="ingredient-add">Add Ingredient</button>
+                                        <button class="bakeshop-button danger" type="button" id="ingredient-cancel" hidden>Cancel Edit</button>
                                         <button class="bakeshop-button" type="submit" id="ingredient-submit">Save Ingredient</button>
                                     </div>
                                 </div>
