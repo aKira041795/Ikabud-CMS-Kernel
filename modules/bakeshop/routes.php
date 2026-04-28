@@ -40,6 +40,7 @@ return [
         '/api/v1/bakeshop/users/{id}/delete' => 'bakeshop:bakeshopApiUserDelete',
         '/api/v1/bakeshop/settings/permissions' => 'bakeshop:bakeshopApiSettingsSavePermissions',
         '/api/v1/bakeshop/settings/display' => 'bakeshop:bakeshopApiSettingsSaveDisplay',
+        '/api/v1/bakeshop/units' => 'bakeshop:bakeshopApiUnitsStore',
         '/api/v1/bakeshop/branches' => 'bakeshop:bakeshopApiBranchesStore',
         '/api/v1/bakeshop/branches/{id}/status' => 'bakeshop:bakeshopApiBranchesStatusUpdate',
         '/api/v1/bakeshop/products' => 'bakeshop:bakeshopApiProductsStore',

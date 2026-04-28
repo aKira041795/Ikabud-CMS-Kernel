@@ -53,6 +53,30 @@ function bakeshopCatalogRequireName(mixed $value, string $field = 'name'): strin
     return $name;
 }
 
+function bakeshopCatalogRequireUnitCode(mixed $value): string
+{
+    $code = trim((string)$value);
+    if ($code === '') {
+        throw new InvalidArgumentException('Code is required.');
+    }
+    if (mb_strlen($code) > 20) {
+        throw new InvalidArgumentException('Code must not exceed 20 characters.');
+    }
+
+    return $code;
+}
+
+function bakeshopCatalogRequireUnitDimension(mixed $value): string
+{
+    $dimension = strtolower(trim((string)$value));
+    $allowed = ['mass', 'volume', 'count'];
+    if (!in_array($dimension, $allowed, true)) {
+        throw new InvalidArgumentException('dimension must be one of: mass, volume, count.');
+    }
+
+    return $dimension;
+}
+
 function bakeshopCatalogNormalizeActiveFlag(mixed $value, int $default = 1): int
 {
     if ($value === null || $value === '') {
@@ -101,6 +125,17 @@ function bakeshopCatalogFindIngredientById(int $id): ?array
          FROM bakeshop_ingredients i
          INNER JOIN bakeshop_units u ON u.id = i.default_unit_id
          WHERE i.id = :id LIMIT 1',
+        [':id' => $id]
+    );
+}
+
+function bakeshopCatalogFindUnitById(int $id): ?array
+{
+    return bakeshopCatalogFetchOne(
+        'SELECT id, code, name, dimension, base_unit_id, factor_to_base, sort_order, created_at, updated_at
+         FROM bakeshop_units
+         WHERE id = :id
+         LIMIT 1',
         [':id' => $id]
     );
 }
@@ -356,6 +391,76 @@ function bakeshopCatalogSaveProduct(array $input): array
 function bakeshopCatalogCreateProduct(array $input): array
 {
     return bakeshopCatalogSaveProduct($input);
+}
+
+function bakeshopCatalogSaveUnit(array $input): array
+{
+    $code = bakeshopCatalogRequireUnitCode($input['code'] ?? null);
+    $name = bakeshopCatalogRequireName($input['name'] ?? null);
+    $dimension = bakeshopCatalogRequireUnitDimension($input['dimension'] ?? null);
+
+    $factorRaw = $input['factor_to_base'] ?? 1;
+    if (!is_numeric($factorRaw) || (float)$factorRaw <= 0) {
+        throw new InvalidArgumentException('factor_to_base must be greater than zero.');
+    }
+
+    $factorToBase = number_format((float)$factorRaw, 6, '.', '');
+    $existingCode = bakeshopCatalogFetchOne(
+        'SELECT id FROM bakeshop_units WHERE LOWER(code) = LOWER(:code) LIMIT 1',
+        [':code' => $code]
+    );
+    if ($existingCode !== null) {
+        throw new InvalidArgumentException('Unit code already exists.');
+    }
+
+    $baseUnitId = null;
+    if (abs((float)$factorToBase - 1.0) > 0.0000005) {
+        $baseUnit = bakeshopCatalogFetchOne(
+            'SELECT id
+             FROM bakeshop_units
+             WHERE dimension = :dimension AND factor_to_base = 1.000000
+             ORDER BY sort_order ASC, code ASC
+             LIMIT 1',
+            [':dimension' => $dimension]
+        );
+        if ($baseUnit === null) {
+            throw new InvalidArgumentException('A base unit for this dimension must exist before adding conversion units.');
+        }
+        $baseUnitId = (int)($baseUnit['id'] ?? 0);
+    }
+
+    $sortOrderRow = bakeshopCatalogFetchOne(
+        'SELECT COALESCE(MAX(sort_order), 0) + 10 AS next_sort_order FROM bakeshop_units WHERE dimension = :dimension',
+        [':dimension' => $dimension]
+    );
+    $sortOrder = max(10, (int)($sortOrderRow['next_sort_order'] ?? 10));
+
+    $stmt = bakeshopDb()->prepare(
+        'INSERT INTO bakeshop_units (code, name, dimension, base_unit_id, factor_to_base, sort_order)
+         VALUES (:code, :name, :dimension, :base_unit_id, :factor_to_base, :sort_order)'
+    );
+    $stmt->execute([
+        ':code' => $code,
+        ':name' => $name,
+        ':dimension' => $dimension,
+        ':base_unit_id' => $baseUnitId,
+        ':factor_to_base' => $factorToBase,
+        ':sort_order' => $sortOrder,
+    ]);
+
+    $id = (int)bakeshopDb()->lastInsertId();
+    $row = bakeshopCatalogFindUnitById($id) ?? [];
+
+    app()->events()->fire('bakeshop.unit.created', [
+        'id' => $id,
+        'code' => $code,
+        'name' => $name,
+        'dimension' => $dimension,
+    ]);
+
+    bakeshopAudit('bakeshop.unit.created', null, 'bakeshop_units', (string)$id, null, $row);
+
+    return $row;
 }
 
 function bakeshopCatalogSaveIngredient(array $input): array
@@ -664,6 +769,16 @@ function bakeshopApiUnitsIndex(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         bakeshopCurrentUser('bakeshop.read');
         bakeshopJsonOk(['items' => bakeshopCatalogListUnits()]);
+    });
+}
+
+function bakeshopApiUnitsStore(array $params = []): void
+{
+    bakeshopResponseGuard(static function (): void {
+        bakeshopEnforceCsrf();
+        bakeshopCurrentUser('bakeshop.manage');
+        $item = bakeshopCatalogSaveUnit(bakeshopInput());
+        bakeshopJsonOk(['item' => $item], 201);
     });
 }
 

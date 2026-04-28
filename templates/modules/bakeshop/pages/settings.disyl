@@ -64,6 +64,7 @@
     .bakeshop-settings-field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
     .bakeshop-settings-field input,
     .bakeshop-settings-field select { width: 100%; border-radius: 2px; border: 1px solid #d1d5db; padding: 11px 12px; background: #fff; color: #111827; }
+    .bakeshop-settings-field-grid.units { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     @media (max-width: 760px) { .bakeshop-settings-field-grid { grid-template-columns: 1fr; } }
 </style>
 {/block}
@@ -152,10 +153,40 @@
 
     <section class="bakeshop-settings-panel">
         <div class="bakeshop-settings-panel-head">
-            <h3>Seeded Units</h3>
-            <p>Global defaults for v1. These are the units available in recipe, ingredient, and delivery forms.</p>
+            <h3>Units</h3>
+            <p>Seeded defaults and any units you add here are available in recipe, ingredient, and delivery forms.</p>
         </div>
         <div class="bakeshop-settings-panel-body">
+            {if can_manage_settings}
+            <form id="units-form">
+                <div class="bakeshop-settings-field-grid units">
+                    <div class="bakeshop-settings-field">
+                        <label for="unit-code">Code</label>
+                        <input id="unit-code" name="code" maxlength="20" placeholder="box">
+                    </div>
+                    <div class="bakeshop-settings-field">
+                        <label for="unit-name">Name</label>
+                        <input id="unit-name" name="name" maxlength="100" placeholder="Box">
+                    </div>
+                    <div class="bakeshop-settings-field">
+                        <label for="unit-dimension">Dimension</label>
+                        <select id="unit-dimension" name="dimension">
+                            <option value="mass">Mass</option>
+                            <option value="volume">Volume</option>
+                            <option value="count" selected>Count</option>
+                        </select>
+                    </div>
+                    <div class="bakeshop-settings-field">
+                        <label for="unit-factor-to-base">Factor To Base</label>
+                        <input id="unit-factor-to-base" name="factor_to_base" type="number" min="0.000001" step="0.000001" value="1.000000">
+                    </div>
+                </div>
+                <div class="bakeshop-settings-actions-row" style="margin-top:16px;">
+                    <span class="bakeshop-settings-note">Use 1.000000 for a base unit in the chosen dimension, or enter a conversion factor relative to that dimension's base unit.</span>
+                    <button class="bakeshop-settings-button" type="submit">Add Unit</button>
+                </div>
+            </form>
+            {/if}
             <div class="bakeshop-settings-table-wrap">
                 <table class="bakeshop-settings-table">
                     <thead>
@@ -166,7 +197,7 @@
                             <th>Factor To Base</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="units-table-body">
                         {each units as unit}
                         <tr>
                             <td>{unit.code}</td>
@@ -187,11 +218,32 @@
     const csrfToken = '{csrf_token}';
     const permissionForm = document.getElementById('permissions-form');
     const displayForm = document.getElementById('display-settings-form');
+    const unitsForm = document.getElementById('units-form');
     const banner = document.getElementById('bakeshop-settings-banner');
 
     function showBanner(message, ok = true) {
         banner.textContent = message;
         banner.className = 'bakeshop-settings-banner show ' + (ok ? 'ok' : 'error');
+    }
+
+    async function postJson(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ _token: csrfToken, ...body })
+        });
+
+        const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
+        if (!response.ok || payload.ok === false) {
+            throw new Error(payload.error || 'Request failed');
+        }
+
+        return payload;
     }
 
     permissionForm?.addEventListener('submit', async (event) => {
@@ -202,20 +254,7 @@
         };
 
         try {
-            const response = await fetch('{base_url}/api/v1/bakeshop/settings/permissions', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                body: JSON.stringify(body)
-            });
-
-            const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
-            if (!response.ok || payload.ok === false) {
-                throw new Error(payload.error || 'Request failed');
-            }
+            const payload = await postJson('{base_url}/api/v1/bakeshop/settings/permissions', body);
 
             showBanner(payload.data?.message || 'Access settings saved.');
         } catch (error) {
@@ -231,24 +270,31 @@
         };
 
         try {
-            const response = await fetch('{base_url}/api/v1/bakeshop/settings/display', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                body: JSON.stringify(body)
-            });
-
-            const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
-            if (!response.ok || payload.ok === false) {
-                throw new Error(payload.error || 'Request failed');
-            }
+            await postJson('{base_url}/api/v1/bakeshop/settings/display', body);
 
             showBanner('Usage and print defaults saved.');
         } catch (error) {
             showBanner(error.message || 'Unable to save usage and print defaults.', false);
+        }
+    });
+
+    unitsForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const body = {
+            code: unitsForm.querySelector('[name="code"]')?.value || '',
+            name: unitsForm.querySelector('[name="name"]')?.value || '',
+            dimension: unitsForm.querySelector('[name="dimension"]')?.value || 'count',
+            factor_to_base: unitsForm.querySelector('[name="factor_to_base"]')?.value || '1.000000',
+        };
+
+        try {
+            await postJson('{base_url}/api/v1/bakeshop/units', body);
+            showBanner('Unit added.');
+            unitsForm.reset();
+            window.location.reload();
+        } catch (error) {
+            showBanner(error.message || 'Unable to add unit.', false);
         }
     });
 })();
