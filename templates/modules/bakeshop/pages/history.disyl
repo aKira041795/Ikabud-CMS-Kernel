@@ -64,8 +64,7 @@
 <div class="bakeshop-history-shell">
     <div class="bakeshop-history-header">
         <div>
-            <h2>{page_title}</h2>
-            <p>Review the latest bakeshop changes without leaving the module. This history is limited to staff, settings, delivery, production, and catalog actions recorded for this tenant.</p>
+            <p>Review the latest staff, settings, delivery, production, and catalog activity recorded for this tenant from one place.</p>
         </div>
         <div class="bakeshop-history-actions">
             <a class="bakeshop-history-button" href="{base_url}/admin/bakeshop">Back to Workspace</a>

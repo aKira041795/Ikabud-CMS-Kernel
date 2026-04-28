@@ -107,8 +107,7 @@
 <div class="bakeshop-settings-shell">
     <div class="bakeshop-settings-header">
         <div>
-            <h2>{page_title}</h2>
-            <p>Access rules belong here instead of the day-to-day workspace. Use this page to decide whether supervisors can only read the module or also make changes.</p>
+            <p>Use the panels below to manage access, store branding, print defaults, and unit setup without returning to the operations workspace.</p>
         </div>
         <div class="bakeshop-settings-actions">
             <a class="bakeshop-settings-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>

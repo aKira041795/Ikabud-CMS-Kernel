@@ -444,6 +444,7 @@ function bakeshopPageHistory(array $params = []): void
 
         echo bakeshopRender('pages/history.disyl', bakeshopPageContext($user, 'history', [
             'page_title' => 'Activity History',
+            'page_intro' => 'Review tenant-specific staff, settings, delivery, production, and catalog activity inside the Bakeshop module.',
             'entries' => $history['items'],
             'history_total' => $history['total'],
             'history_has_more' => $history['has_more'],
@@ -570,6 +571,7 @@ function bakeshopPageSettings(array $params = []): void
 
         echo bakeshopRender('pages/settings.disyl', bakeshopPageContext($user, 'settings', [
             'page_title' => 'Bakeshop Settings',
+            'page_intro' => 'Access rules, store branding, print defaults, and unit setup for the Bakeshop workspace.',
             'units' => $units,
             'settings' => [
                 'store_name' => $brandSettings['store_name'],

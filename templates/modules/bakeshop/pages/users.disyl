@@ -60,8 +60,7 @@
 <div class="bakeshop-users-shell">
     <div class="bakeshop-users-header">
         <div>
-            <h2>{page_title}</h2>
-            <p>Create and maintain the bakeshop staff accounts that can enter the operations workspace. Admins manage team access here; supervisors keep their own password changes in My Account.</p>
+            <p>Create and maintain the Bakeshop staff accounts that can enter the workspace while supervisors handle their own password changes in My Account.</p>
         </div>
         <div class="bakeshop-users-actions">
             <a class="bakeshop-users-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
