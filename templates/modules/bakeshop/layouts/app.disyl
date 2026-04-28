@@ -254,12 +254,11 @@
         }
 
         .bakeshop-content-inner {
-            background: rgba(255, 255, 255, 0.72);
+            background: rgba(255, 255, 255, 0.9);
             border: 1px solid rgba(200, 215, 242, 0.85);
             border-radius: 20px;
             padding: 22px;
             box-shadow: var(--shadow-lg);
-            backdrop-filter: blur(7px);
         }
 
         .bakeshop-shell-note {
