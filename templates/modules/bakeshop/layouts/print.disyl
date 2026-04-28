@@ -107,12 +107,19 @@
             align-items: center;
             justify-content: center;
             border-radius: 999px;
-            border: 1px solid var(--border-color);
-            background: #fff;
-            color: var(--text-color);
+            border: 1px solid #1d4ed8;
+            background: #2563eb;
+            color: #ffffff;
             padding: 10px 14px;
             text-decoration: none;
             cursor: pointer;
+        }
+        .bakeshop-print-actions button:hover,
+        .bakeshop-print-actions a:hover { background: #1d4ed8; }
+        .bakeshop-print-actions .secondary {
+            border-color: var(--border-color);
+            background: #fff;
+            color: var(--text-color);
         }
 
         .bakeshop-print-body {
@@ -155,7 +162,7 @@
                 </div>
             </div>
             <div class="bakeshop-print-actions">
-                <a href="javascript:window.close()">Close</a>
+                <a class="secondary" href="javascript:window.close()">Close</a>
                 <button type="button" onclick="window.print()">Print Report</button>
             </div>
         </div>
