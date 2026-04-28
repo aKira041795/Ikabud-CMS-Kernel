@@ -13,15 +13,15 @@
         justify-content: center;
         gap: 8px;
         border-radius: 2px;
-        border: 1px solid #d1d5db;
-        background: #ffffff;
-        color: #111827;
+        border: 1px solid #1d4ed8;
+        background: #2563eb;
+        color: #ffffff;
         padding: 10px 16px;
         text-decoration: none;
         font-size: 0.92rem;
         cursor: pointer;
     }
-    .bakeshop-settings-button:hover { background: #f9fafb; }
+    .bakeshop-settings-button:hover { background: #1d4ed8; }
     .bakeshop-settings-button.secondary {
         background: #fff;
         color: #111827;
