@@ -64,8 +64,17 @@ t3assert(function_exists('ecSavedPaymentMethodGet'), 'ecSavedPaymentMethodGet ex
 t3assert(function_exists('ecSavedPaymentMethodSave'), 'ecSavedPaymentMethodSave exists');
 t3assert(function_exists('ecSavedPaymentMethodDelete'), 'ecSavedPaymentMethodDelete exists');
 t3assert(function_exists('ecSavedPaymentMethodSetDefault'), 'ecSavedPaymentMethodSetDefault exists');
-// Table detection (no DB available → false)
-t3assert(ecSavedPaymentMethodsAvailable() === false, 'ecSavedPaymentMethodsAvailable returns false when no DB');
+$savedPaymentMethodsAvailable = false;
+try {
+    ecDb()->query('SELECT 1 FROM ec_saved_payment_methods LIMIT 1');
+    $savedPaymentMethodsAvailable = true;
+} catch (\Throwable) {
+    $savedPaymentMethodsAvailable = false;
+}
+t3assert(
+    ecSavedPaymentMethodsAvailable() === $savedPaymentMethodsAvailable,
+    'ecSavedPaymentMethodsAvailable reflects saved payment methods table availability'
+);
 
 // Stripe customer API functions exist
 t3assert(function_exists('ecStripeCreateCustomer'), 'ecStripeCreateCustomer exists');

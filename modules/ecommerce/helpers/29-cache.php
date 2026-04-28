@@ -187,7 +187,16 @@ function ecCacheInvalidateCategory(int $categoryId = 0): int
  */
 function ecCacheKeyForProductList(array $filters): string
 {
-    // Normalize to a stable, sorted representation
+    // Inventory overlays depend on integration mode and the selected WMS warehouse,
+    // so identical listing filters can still produce different inventory payloads.
+    $filters['__inventory_context'] = [
+        'integration_mode' => function_exists('ecActiveIntegrationMode') ? (string)ecActiveIntegrationMode() : '',
+        'default_wms_warehouse_id' => function_exists('ecSettings') ? (int)ecSettings('default_wms_warehouse_id') : 0,
+    ];
+
+    // Normalize to a stable, sorted representation.
     ksort($filters);
+    ksort($filters['__inventory_context']);
+
     return 'ec:productlist:' . md5(serialize($filters));
 }
