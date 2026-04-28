@@ -115,6 +115,9 @@ CREATE TABLE IF NOT EXISTS `bakeshop_production_runs` (
     `qty_produced` DECIMAL(14,4) NOT NULL,
     `produced_by` VARCHAR(255) NULL,
     `notes` TEXT NULL,
+    `voided_at` DATETIME NULL,
+    `voided_by` VARCHAR(255) NULL,
+    `void_reason` TEXT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -187,6 +190,7 @@ FROM (
     FROM `bakeshop_production_runs` pr
     INNER JOIN `bakeshop_production_items` pi ON pi.`run_id` = pr.`id`
     INNER JOIN `bakeshop_units` u ON u.`id` = pi.`unit_id`
+    WHERE pr.`voided_at` IS NULL
 ) AS branch_rows
 INNER JOIN `bakeshop_branches` branches ON branches.`id` = branch_rows.`branch_id`
 INNER JOIN `bakeshop_ingredients` ingredients ON ingredients.`id` = branch_rows.`ingredient_id`

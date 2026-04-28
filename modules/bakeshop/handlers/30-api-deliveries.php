@@ -54,6 +54,11 @@ function bakeshopDeliveriesHasSourceColumns(): bool
         && bakeshopTableHasColumn('bakeshop_deliveries', 'source_name');
 }
 
+function bakeshopDeliveriesHasItemCostBasisColumn(): bool
+{
+    return bakeshopTableHasColumn('bakeshop_delivery_items', 'cost_basis');
+}
+
 function bakeshopDeliveriesSourceSelectSql(string $alias = 'd'): string
 {
     if (bakeshopDeliveriesHasSourceColumns()) {
@@ -61,6 +66,135 @@ function bakeshopDeliveriesSourceSelectSql(string $alias = 'd'): string
     }
 
     return "NULL AS source_type,\n            NULL AS source_name,";
+}
+
+function bakeshopDeliveriesItemCostBasisSelectSql(string $alias = 'di'): string
+{
+    if (bakeshopDeliveriesHasItemCostBasisColumn()) {
+        return "{$alias}.cost_basis,";
+    }
+
+    return "NULL AS cost_basis,";
+}
+
+function bakeshopDeliveriesNormalizeCostBasis(mixed $value): ?string
+{
+    $normalized = strtolower(trim((string)$value));
+    if ($normalized === '' || $normalized === 'delivery_source') {
+        return null;
+    }
+
+    if (!in_array($normalized, ['receipt', 'price_list', 'manual'], true)) {
+        throw new InvalidArgumentException('cost_basis must be receipt, price_list, manual, or blank.');
+    }
+
+    return $normalized;
+}
+
+function bakeshopDeliveriesCostBasisLabel(?string $value): string
+{
+    return match (strtolower(trim((string)$value))) {
+        'receipt' => 'Receipt',
+        'price_list' => 'Price List',
+        'manual' => 'Manual',
+        default => 'Delivery Source',
+    };
+}
+
+function bakeshopDeliveriesSourceLabel(array $delivery): string
+{
+    $sourceType = strtolower(trim((string)($delivery['source_type'] ?? '')));
+    $sourceName = trim((string)($delivery['source_name'] ?? ''));
+
+    if ($sourceType === 'other') {
+        return $sourceName !== '' ? ('Other - ' . $sourceName) : 'Other';
+    }
+
+    return 'Commissary';
+}
+
+function bakeshopDeliveriesFetchItemsByDeliveryIds(array $deliveryIds): array
+{
+    if ($deliveryIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($deliveryIds), '?'));
+    $rows = bakeshopCatalogFetchAll(
+        'SELECT
+            di.delivery_id,
+            di.id,
+            di.ingredient_id,
+            di.qty,
+            di.unit_id,
+            di.unit_cost,
+            ' . bakeshopDeliveriesItemCostBasisSelectSql('di') . '
+            i.name AS ingredient_name,
+            u.code AS unit_code
+         FROM bakeshop_delivery_items di
+         INNER JOIN bakeshop_ingredients i ON i.id = di.ingredient_id
+         INNER JOIN bakeshop_units u ON u.id = di.unit_id
+         WHERE di.delivery_id IN (' . $placeholders . ')
+         ORDER BY di.delivery_id ASC, di.id ASC',
+        array_values(array_map('intval', $deliveryIds))
+    );
+
+    $itemsByDeliveryId = [];
+    foreach ($rows as $row) {
+        $deliveryId = (int)($row['delivery_id'] ?? 0);
+        $unitCost = ($row['unit_cost'] ?? null) !== null ? (float)$row['unit_cost'] : null;
+        $qty = (float)($row['qty'] ?? 0);
+        $costBasis = trim((string)($row['cost_basis'] ?? ''));
+        $row['cost_basis'] = $costBasis !== '' ? $costBasis : null;
+        $row['cost_basis_label'] = bakeshopDeliveriesCostBasisLabel($row['cost_basis']);
+        $row['line_amount'] = $unitCost !== null ? round($qty * $unitCost, 2) : null;
+        $row['line_amount_display'] = $row['line_amount'] !== null ? number_format((float)$row['line_amount'], 2, '.', '') : '—';
+        $itemsByDeliveryId[$deliveryId][] = $row;
+    }
+
+    return $itemsByDeliveryId;
+}
+
+function bakeshopDeliveriesAttachDerivedFields(array $delivery): array
+{
+    $items = array_values((array)($delivery['items'] ?? []));
+    $delivery['items'] = $items;
+    $delivery['source_label'] = bakeshopDeliveriesSourceLabel($delivery);
+
+    $totalAmount = 0.0;
+    $hasPricedLine = false;
+    $costBasisLabels = [];
+    foreach ($items as $item) {
+        if (($item['line_amount'] ?? null) !== null) {
+            $totalAmount += (float)$item['line_amount'];
+            $hasPricedLine = true;
+        }
+        $costBasisLabels[] = (string)($item['cost_basis_label'] ?? bakeshopDeliveriesCostBasisLabel(null));
+    }
+
+    $costBasisLabels = array_values(array_unique(array_filter($costBasisLabels, static fn (string $label): bool => trim($label) !== '')));
+    $delivery['cost_basis_summary'] = $costBasisLabels === []
+        ? bakeshopDeliveriesCostBasisLabel(null)
+        : (count($costBasisLabels) === 1 ? $costBasisLabels[0] : 'Mixed');
+    $delivery['total_amount'] = $hasPricedLine ? round($totalAmount, 2) : null;
+    $delivery['total_amount_display'] = $hasPricedLine ? number_format((float)$delivery['total_amount'], 2, '.', '') : '—';
+
+    return $delivery;
+}
+
+function bakeshopDeliveriesHydrateCollection(array $deliveries): array
+{
+    $deliveryIds = array_values(array_filter(array_map(static fn (array $delivery): int => (int)($delivery['id'] ?? 0), $deliveries)));
+    $itemsByDeliveryId = bakeshopDeliveriesFetchItemsByDeliveryIds($deliveryIds);
+
+    foreach ($deliveries as &$delivery) {
+        $deliveryId = (int)($delivery['id'] ?? 0);
+        $delivery['items'] = $itemsByDeliveryId[$deliveryId] ?? [];
+        $delivery = bakeshopDeliveriesAttachDerivedFields($delivery);
+    }
+    unset($delivery);
+
+    return $deliveries;
 }
 
 function bakeshopDeliveriesCreateBranch(array $input): array
@@ -184,6 +318,7 @@ function bakeshopDeliveriesNormalizeItems(mixed $rawItems): array
     }
 
     $items = [];
+    $hasItemCostBasisColumn = bakeshopDeliveriesHasItemCostBasisColumn();
     foreach ($rawItems as $index => $rawItem) {
         if (!is_array($rawItem)) {
             throw new InvalidArgumentException('Delivery item at index ' . $index . ' is invalid.');
@@ -215,6 +350,7 @@ function bakeshopDeliveriesNormalizeItems(mixed $rawItems): array
             'unit_id' => $unitId,
             'qty' => $qty,
             'unit_cost' => $unitCost,
+            'cost_basis' => $hasItemCostBasisColumn ? bakeshopDeliveriesNormalizeCostBasis($rawItem['cost_basis'] ?? null) : null,
         ];
     }
 
@@ -223,7 +359,7 @@ function bakeshopDeliveriesNormalizeItems(mixed $rawItems): array
 
 function bakeshopDeliveriesList(): array
 {
-    return bakeshopCatalogFetchAll(
+    return bakeshopDeliveriesHydrateCollection(bakeshopCatalogFetchAll(
         'SELECT
             d.id,
             d.branch_id,
@@ -246,7 +382,7 @@ function bakeshopDeliveriesList(): array
                 GROUP BY delivery_id
             ) di_agg ON di_agg.delivery_id = d.id
          ORDER BY d.delivered_at DESC, d.id DESC'
-    );
+    ));
 }
 
 function bakeshopDeliveriesCreate(array $input): array
@@ -299,19 +435,27 @@ function bakeshopDeliveriesCreate(array $input): array
         }
 
         $deliveryId = (int)$db->lastInsertId();
+        $hasItemCostBasisColumn = bakeshopDeliveriesHasItemCostBasisColumn();
         $itemStmt = $db->prepare(
-            'INSERT INTO bakeshop_delivery_items (delivery_id, ingredient_id, qty, unit_id, unit_cost)
-             VALUES (:delivery_id, :ingredient_id, :qty, :unit_id, :unit_cost)'
+            $hasItemCostBasisColumn
+                ? 'INSERT INTO bakeshop_delivery_items (delivery_id, ingredient_id, qty, unit_id, unit_cost, cost_basis)
+                   VALUES (:delivery_id, :ingredient_id, :qty, :unit_id, :unit_cost, :cost_basis)'
+                : 'INSERT INTO bakeshop_delivery_items (delivery_id, ingredient_id, qty, unit_id, unit_cost)
+                   VALUES (:delivery_id, :ingredient_id, :qty, :unit_id, :unit_cost)'
         );
 
         foreach ($items as $item) {
-            $itemStmt->execute([
+            $bindings = [
                 ':delivery_id' => $deliveryId,
                 ':ingredient_id' => $item['ingredient_id'],
                 ':qty' => $item['qty'],
                 ':unit_id' => $item['unit_id'],
                 ':unit_cost' => $item['unit_cost'],
-            ]);
+            ];
+            if ($hasItemCostBasisColumn) {
+                $bindings[':cost_basis'] = $item['cost_basis'];
+            }
+            $itemStmt->execute($bindings);
         }
 
         $db->commit();
@@ -341,22 +485,8 @@ function bakeshopDeliveriesCreate(array $input): array
         [':id' => $deliveryId]
     ) ?? [];
 
-    $delivery['items'] = bakeshopCatalogFetchAll(
-        'SELECT
-            di.id,
-            di.ingredient_id,
-            di.qty,
-            di.unit_id,
-            di.unit_cost,
-            i.name AS ingredient_name,
-            u.code AS unit_code
-         FROM bakeshop_delivery_items di
-         INNER JOIN bakeshop_ingredients i ON i.id = di.ingredient_id
-         INNER JOIN bakeshop_units u ON u.id = di.unit_id
-         WHERE di.delivery_id = :delivery_id
-         ORDER BY di.id ASC',
-        [':delivery_id' => $deliveryId]
-    );
+    $delivery['items'] = bakeshopDeliveriesFetchItemsByDeliveryIds([$deliveryId])[$deliveryId] ?? [];
+    $delivery = bakeshopDeliveriesAttachDerivedFields($delivery);
 
     app()->events()->fire('bakeshop.delivery.created', [
         'id' => $deliveryId,
@@ -393,24 +523,9 @@ function bakeshopDeliveriesFindById(int $id): ?array
         return null;
     }
 
-    $delivery['items'] = bakeshopCatalogFetchAll(
-        'SELECT
-            di.id,
-            di.ingredient_id,
-            di.qty,
-            di.unit_id,
-            di.unit_cost,
-            i.name AS ingredient_name,
-            u.code AS unit_code
-         FROM bakeshop_delivery_items di
-         INNER JOIN bakeshop_ingredients i ON i.id = di.ingredient_id
-         INNER JOIN bakeshop_units u ON u.id = di.unit_id
-         WHERE di.delivery_id = :delivery_id
-         ORDER BY di.id ASC',
-        [':delivery_id' => $id]
-    );
+    $delivery['items'] = bakeshopDeliveriesFetchItemsByDeliveryIds([$id])[$id] ?? [];
 
-    return $delivery;
+    return bakeshopDeliveriesAttachDerivedFields($delivery);
 }
 
 function bakeshopDeliveriesDelete(array $input): array

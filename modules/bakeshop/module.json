@@ -27,7 +27,9 @@
         "database/migrations/003_bakeshop_bootstrap_admin.sql",
         "database/migrations/004_bakeshop_user_token_version.sql",
         "database/migrations/005_bakeshop_bootstrap_password_reset.sql",
-        "database/migrations/006_bakeshop_password_resets.sql"
+        "database/migrations/006_bakeshop_password_resets.sql",
+        "database/migrations/007_bakeshop_delivery_item_cost_basis.sql",
+        "database/migrations/008_bakeshop_production_voiding.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -105,6 +107,8 @@
         "bakeshop.branch.created",
         "bakeshop.delivery.created",
         "bakeshop.production.created",
+        "bakeshop.production.updated",
+        "bakeshop.production.voided",
         "bakeshop.product.created",
         "bakeshop.ingredient.created",
         "bakeshop.recipe.saved"

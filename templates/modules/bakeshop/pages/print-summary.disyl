@@ -52,10 +52,26 @@
             <strong>Output</strong>
             <p>{output_summary_label}<span>{print_template_label}</span></p>
         </div>
+        <div>
+            <strong>Tracked Ingredients</strong>
+            <p>{factual_summary.ingredient_count | default:'0'}</p>
+        </div>
+        <div>
+            <strong>Delivery Lines</strong>
+            <p>{factual_summary.delivery_item_count | default:'0'}</p>
+        </div>
+        <div>
+            <strong>Production Runs</strong>
+            <p>{factual_summary.production_run_count | default:'0'}</p>
+        </div>
+        <div>
+            <strong>On Hand At Scope End</strong>
+            <p>{factual_summary.inventory_on_hand_qty_base | default:'0.00'}</p>
+        </div>
     </div>
 
     <div class="bakeshop-print-note">
-        Beginning balance reflects stock before the first visible report date. Usage comes from production runs through recipe quantities, and all displayed values follow the configured {usage_decimal_places}-decimal output setting.
+        Beginning balance reflects stock before the first visible report date. Usage comes from production runs through recipe quantities, and inventory values reflect stock as of the selected end date. All displayed values follow the configured {usage_decimal_places}-decimal output setting.
     </div>
 
     {if summary_groups}

@@ -54,6 +54,7 @@ bt('bakeshop.ingredient.usage.read capability declared', in_array('bakeshop.ingr
 bt('catalog events declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.product.created', $manifest['events'], true));
 bt('delivery events declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.delivery.created', $manifest['events'], true));
 bt('production event declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.production.created', $manifest['events'], true));
+bt('production update event declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.production.updated', $manifest['events'], true));
 bt('role_permissions setting declared', array_reduce($manifest['settings_fields'] ?? [], static function (bool $carry, array $field): bool {
     return $carry || (($field['key'] ?? '') === 'role_permissions');
 }, false));
@@ -61,6 +62,8 @@ bt('module.json lists bootstrap admin migration', in_array('database/migrations/
 bt('module.json lists token version migration', in_array('database/migrations/004_bakeshop_user_token_version.sql', $manifest['migrations'] ?? [], true));
 bt('module.json lists bootstrap password reset migration', in_array('database/migrations/005_bakeshop_bootstrap_password_reset.sql', $manifest['migrations'] ?? [], true));
 bt('module.json lists password reset token migration', in_array('database/migrations/006_bakeshop_password_resets.sql', $manifest['migrations'] ?? [], true));
+bt('module.json lists delivery cost basis migration', in_array('database/migrations/007_bakeshop_delivery_item_cost_basis.sql', $manifest['migrations'] ?? [], true));
+bt('module.json lists production voiding migration', in_array('database/migrations/008_bakeshop_production_voiding.sql', $manifest['migrations'] ?? [], true));
 
 echo "\n── Discovery ──\n";
 $all = discoverModules();
@@ -101,7 +104,8 @@ bt('product status API route declared', ($routes['POST']['/api/v1/bakeshop/produ
 bt('ingredient status API route declared', ($routes['POST']['/api/v1/bakeshop/ingredients/{id}/status'] ?? '') === 'bakeshop:bakeshopApiIngredientsStatusUpdate');
 bt('recipe delete API route declared', ($routes['POST']['/api/v1/bakeshop/recipes/delete'] ?? '') === 'bakeshop:bakeshopApiRecipesDelete');
 bt('delivery delete API route declared', ($routes['POST']['/api/v1/bakeshop/deliveries/delete'] ?? '') === 'bakeshop:bakeshopApiDeliveriesDelete');
-bt('production delete API route declared', ($routes['POST']['/api/v1/bakeshop/production/delete'] ?? '') === 'bakeshop:bakeshopApiProductionDelete');
+bt('production void API route declared', ($routes['POST']['/api/v1/bakeshop/production/void'] ?? '') === 'bakeshop:bakeshopApiProductionVoid');
+bt('production delete API route aliases void handler', ($routes['POST']['/api/v1/bakeshop/production/delete'] ?? '') === 'bakeshop:bakeshopApiProductionDelete');
 
 echo "\n── Helpers ──\n";
 $helpersFile = BASE_PATH . '/modules/bakeshop/helpers.php';
@@ -212,10 +216,13 @@ try {
     bt('supervisor template sets history review note when opening focused editor', str_contains($shellHtml, "Reviewing this product from activity history."));
     bt('supervisor template frames deliveries as daily branch receiving', str_contains($shellHtml, 'Saving posts one daily branch receipt and includes only ingredients with a quantity greater than zero.'));
     bt('supervisor template exposes delivery CSV import controls', str_contains($shellHtml, 'delivery-csv-file') && str_contains($shellHtml, 'Download CSV Template'));
-    bt('supervisor template lists a daily ingredient delivery sheet', str_contains($shellHtml, 'Every ingredient is listed below in its default unit.'));
+    bt('supervisor template lists a daily ingredient delivery sheet', str_contains($shellHtml, 'Every ingredient is listed below in its default unit.') && str_contains($shellHtml, 'cost_basis'));
     bt('supervisor template frames usage as inventory movement', str_contains($shellHtml, 'Read the inventory movement view: received deliveries minus recipe-based production consumption'));
-    bt('supervisor template exposes current ingredient inventory panel', str_contains($shellHtml, 'Current Ingredient Inventory'));
-    bt('supervisor template explains branch-only inventory snapshot scope', str_contains($shellHtml, 'The branch filter applies here; the date range does not.'));
+    bt('supervisor template exposes factual summary usage counters', str_contains($shellHtml, 'usage-factual-ingredients') && str_contains($shellHtml, 'usage-factual-deliveries') && str_contains($shellHtml, 'usage-factual-runs'));
+    bt('supervisor template exposes as-of-date inventory panel', str_contains($shellHtml, 'Ingredient Inventory As Of Scope End'));
+    bt('supervisor template explains end-date inventory snapshot scope', str_contains($shellHtml, 'The branch filter always applies, and if only a from date is set it is used as the as-of date.'));
+    bt('supervisor template exposes production void flow', str_contains($shellHtml, 'production/void') && str_contains($shellHtml, 'Void this production run and exclude its snapshot lines from usage and inventory?') && str_contains($shellHtml, 'void-production'));
+    bt('supervisor template exposes production metadata edit flow', str_contains($shellHtml, 'Update Production Metadata') && str_contains($shellHtml, 'Editing production metadata only.') && str_contains($shellHtml, 'edit-production'));
 } catch (Throwable $e) {
     bt('supervisor template renders in bakeshop shell', false, $e->getMessage());
 }
@@ -226,6 +233,11 @@ bt('migration exists', is_file($migrationPath));
 $migration = (string) file_get_contents($migrationPath);
 bt('migration creates bakeshop_branches', str_contains($migration, 'CREATE TABLE IF NOT EXISTS `bakeshop_branches`'));
 bt('migration defines usage view', str_contains($migration, 'CREATE OR REPLACE VIEW `bakeshop_ingredient_usage`'));
+bt('migration defines production void columns', str_contains($migration, '`voided_at` DATETIME NULL') && str_contains($migration, '`void_reason` TEXT NULL'));
+$productionVoidMigrationPath = BASE_PATH . '/modules/bakeshop/database/migrations/008_bakeshop_production_voiding.sql';
+bt('production void migration exists', is_file($productionVoidMigrationPath));
+$productionVoidMigration = (string) file_get_contents($productionVoidMigrationPath);
+bt('production void migration rebuilds usage view with void exclusion', str_contains($productionVoidMigration, 'ALTER TABLE bakeshop_production_runs ADD COLUMN voided_at DATETIME NULL AFTER notes') && str_contains($productionVoidMigration, 'WHERE pr.`voided_at` IS NULL'));
 $userMigrationPath = BASE_PATH . '/modules/bakeshop/database/migrations/002_bakeshop_users.sql';
 bt('user migration exists', is_file($userMigrationPath));
 $userMigration = (string) file_get_contents($userMigrationPath);

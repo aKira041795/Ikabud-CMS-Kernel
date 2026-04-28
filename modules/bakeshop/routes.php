@@ -59,6 +59,7 @@ return [
         '/api/v1/bakeshop/deliveries' => 'bakeshop:bakeshopApiDeliveriesStore',
         '/api/v1/bakeshop/deliveries/delete' => 'bakeshop:bakeshopApiDeliveriesDelete',
         '/api/v1/bakeshop/production' => 'bakeshop:bakeshopApiProductionStore',
+        '/api/v1/bakeshop/production/void' => 'bakeshop:bakeshopApiProductionVoid',
         '/api/v1/bakeshop/production/delete' => 'bakeshop:bakeshopApiProductionDelete',
     ],
 ];
