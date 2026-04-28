@@ -3,11 +3,13 @@
 {block head}
 <style>
     .bakeshop-print { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
-    .bakeshop-print h2 { margin: 0; }
+    .bakeshop-print h2 { margin: 0; font-size: var(--font-size-h2, 2rem); font-weight: 800; }
     .bakeshop-print p { color: var(--text-muted); margin: 0; }
     .bakeshop-print-meta { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     .bakeshop-print-meta div { border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; background: #fff; }
-    .bakeshop-print-meta p { margin-top: 6px; }
+    .bakeshop-print-meta strong { display: block; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-print-meta p { margin-top: 8px; font-size: 1.05rem; font-weight: 600; color: var(--text-color); }
+    .bakeshop-print-meta span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.88rem; font-weight: 400; }
     .bakeshop-print-note { padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 12px; background: #fff; color: var(--text-muted); line-height: 1.55; }
     .bakeshop-print-section { border: 1px solid var(--border-color); border-radius: 14px; background: #fff; overflow: hidden; }
     .bakeshop-print-section-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--border-color); display: grid; gap: 4px; }
@@ -36,24 +38,24 @@
     <div class="bakeshop-print-meta">
         <div>
             <strong>Branch</strong>
-            <p>{if branch_label}{branch_label}{else}All branches{/if}</p>
+            <p>{branch_scope_label}</p>
         </div>
         <div>
             <strong>From</strong>
-            <p>{if filters.from_date}{filters.from_date}{else}Start of data{/if}</p>
+            <p>{if display_from_date}{display_from_date}{else}No activity yet{/if}</p>
         </div>
         <div>
             <strong>To</strong>
-            <p>{if filters.to_date}{filters.to_date}{else}Latest entry{/if}</p>
+            <p>{if display_to_date}{display_to_date}{else}No activity yet{/if}</p>
         </div>
         <div>
             <strong>Output</strong>
-            <p>{usage_decimal_places} decimal place(s), {print_template} template</p>
+            <p>{output_summary_label}<span>{print_template_label}</span></p>
         </div>
     </div>
 
     <div class="bakeshop-print-note">
-        Beginning balance reflects stock before the selected From date. Delivery Source summarizes deliveries recorded inside the selected period. Usage is taken from production runs through the recipe quantities consumed for each ingredient.
+        Beginning balance reflects stock before the first visible report date. Usage comes from production runs through recipe quantities, and all displayed values follow the configured {usage_decimal_places}-decimal output setting.
     </div>
 
     {if summary_groups}
