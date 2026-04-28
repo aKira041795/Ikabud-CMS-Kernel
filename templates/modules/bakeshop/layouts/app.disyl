@@ -366,6 +366,12 @@
                             <span>Catalog, ingredients, and recipe lines</span>
                         </span>
                     </a>
+                    <a href="{base_url}/admin/bakeshop/ingredients" class="{if current_page == 'ingredients'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Ingredients</strong>
+                            <span>Raw materials and stock units</span>
+                        </span>
+                    </a>
                     <a href="{base_url}/admin/bakeshop/deliveries" class="{if current_page == 'deliveries'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Ingredient Deliveries</strong>
