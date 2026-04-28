@@ -68,9 +68,12 @@
         background: #1d4ed8;
     }
     .bakeshop-button.secondary {
-        background: #fff;
-        color: #111827;
-        border-color: #d1d5db;
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #1d4ed8;
+    }
+    .bakeshop-button.secondary:hover {
+        background: #1d4ed8;
     }
     .bakeshop-button.print {
         background: #6b7280;
