@@ -7,8 +7,9 @@
     .bakeshop-account-header h2 { margin: 0 0 6px; font-size: var(--font-size-h2); }
     .bakeshop-account-header p { margin: 0; color: var(--text-muted); max-width: 54rem; }
     .bakeshop-account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-    .bakeshop-account-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid #1f2937; background: #1f2937; color: #fff; text-decoration: none; cursor: pointer; }
-    .bakeshop-account-button.secondary { background: #fff; color: #1f2937; border-color: var(--border-color, #dfe3e8); }
+    .bakeshop-account-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid #1d4ed8; background: #2563eb; color: #fff; text-decoration: none; cursor: pointer; }
+    .bakeshop-account-button:hover { background: #1d4ed8; }
+    .bakeshop-account-button.secondary { background: #fff; color: #111827; border-color: var(--border-color, #dfe3e8); }
     .bakeshop-account-banner { display: none; padding: 14px 16px; border-radius: 14px; border: 1px solid transparent; }
     .bakeshop-account-banner.show { display: block; }
     .bakeshop-account-banner.ok { background: #effaf4; border-color: #b7ebc7; color: #166534; }

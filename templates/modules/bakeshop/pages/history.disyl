@@ -13,12 +13,18 @@
         justify-content: center;
         gap: 8px;
         border-radius: 10px;
-        border: 1px solid var(--border-color);
-        background: #fff;
-        color: var(--text-color);
+        border: 1px solid #1d4ed8;
+        background: #2563eb;
+        color: #ffffff;
         padding: 10px 16px;
         text-decoration: none;
         font-size: 0.92rem;
+    }
+    .bakeshop-history-button:hover { background: #1d4ed8; }
+    .bakeshop-history-button.secondary {
+        border-color: var(--border-color);
+        background: #fff;
+        color: var(--text-color);
     }
     .bakeshop-history-link {
         color: var(--accent-strong, #1d4ed8);
@@ -67,8 +73,8 @@
             <p>Review the latest staff, settings, delivery, production, and catalog activity recorded for this tenant from one place.</p>
         </div>
         <div class="bakeshop-history-actions">
-            <a class="bakeshop-history-button" href="{base_url}/admin/bakeshop">Back to Workspace</a>
-            <a class="bakeshop-history-button" href="{base_url}/admin/bakeshop/settings">Settings</a>
+            <a class="bakeshop-history-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
+            <a class="bakeshop-history-button secondary" href="{base_url}/admin/bakeshop/settings">Settings</a>
         </div>
     </div>
 
@@ -111,7 +117,7 @@
                 <input type="hidden" name="offset" value="0">
                 <div class="bakeshop-history-actions" style="grid-column: 1 / -1;">
                     <button class="bakeshop-history-button" type="submit">Apply Filters</button>
-                    <a class="bakeshop-history-button" href="{base_url}/admin/bakeshop/history">Reset</a>
+                    <a class="bakeshop-history-button secondary" href="{base_url}/admin/bakeshop/history">Reset</a>
                 </div>
             </form>
 
@@ -162,10 +168,10 @@
 
             <div class="bakeshop-history-pager">
                 {if history_previous_url}
-                <a class="bakeshop-history-button" href="{base_url}{history_previous_url}">Newer Entries</a>
+                <a class="bakeshop-history-button secondary" href="{base_url}{history_previous_url}">Newer Entries</a>
                 {/if}
                 {if history_next_url}
-                <a class="bakeshop-history-button" href="{base_url}{history_next_url}">Older Entries</a>
+                <a class="bakeshop-history-button secondary" href="{base_url}{history_next_url}">Older Entries</a>
                 {/if}
             </div>
         </div>
