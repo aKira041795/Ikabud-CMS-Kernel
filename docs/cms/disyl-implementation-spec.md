@@ -5,6 +5,8 @@
 **Test suite:** `tests/disyl_engine_test.php` (257 tests, 42 sections)  
 **Linter:** `php ikabud disyl:lint [path] [--verbose]`
 
+DiSyL is the kernel's rendering language and UI runtime, not only a template parser. The implementation spans interpreted rendering, compiled execution, reusable components, slot composition, reactive client blocks, capability-aware tags, and hydration-oriented output contracts.
+
 ---
 
 ## Table of Contents

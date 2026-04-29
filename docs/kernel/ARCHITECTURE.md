@@ -6,7 +6,7 @@ Ikabud is an **application-kernel modular infrastructure framework** — a PHP r
 
 **Version:** v3.1.0 (codename: "clarity")  
 **Runtime:** PHP 8.2+ / MySQL 8+ / Apache with mod_rewrite  
-**Template Engine:** DiSyL (Declarative Ikabud Syntax Language)
+**Rendering Runtime:** DiSyL (Declarative Ikabud Syntax Language)
 
 Contributor workflow and refactor guardrails are documented in:
 
@@ -22,7 +22,7 @@ Contributor workflow and refactor guardrails are documented in:
 |-------|-----------|
 | Runtime | PHP 8.2+ |
 | Database | MySQL 8+ (per-tenant isolation) |
-| Template Engine | DiSyL v4.0 — layouts, blocks, 40+ filters, reactive client blocks |
+| Rendering Runtime | DiSyL v4.0 — layouts, blocks, components, hydration, 40+ filters, and reactive client blocks |
 | Frontend | HTMX 1.9 + Alpine.js (server-first), React/Vite (page builder UI) |
 | Auth | JWT HS256 (cookie-based, httpOnly, secure) |
 | CSS | Tailwind CSS |
@@ -51,7 +51,7 @@ ikabud/
 │   ├── Capabilities/          # Contract registry and capability bus
 │   ├── Contracts/             # Interface definitions
 │   ├── Database/              # QueryBuilder, KernelPDO, migrations
-│   ├── DiSyL/                 # Template engine core
+│   ├── DiSyL/                 # Rendering runtime, compiler, components, hydration, reactive system
 │   └── Http/                  # TenantEntryRouter, request utilities
 ├── modules/                   # Feature modules (manifest-driven)
 │   ├── ai/                    # AI model integrations
@@ -387,9 +387,9 @@ Relevant helpers in `src/helpers/module-manager.php`:
 
 ---
 
-## DiSyL Template Engine (`kernel/DiSyL/`)
+## DiSyL Rendering Runtime (`kernel/DiSyL/`)
 
-**DiSyL** (Declarative Ikabud Syntax Language) is the kernel's native template engine.
+**DiSyL** (Declarative Ikabud Syntax Language) is the kernel's native rendering runtime and UI language. It covers server-side rendering, compiled and interpreted execution, components, slot composition, hydration islands, reactive client blocks, and request-aware HTML generation.
 
 ### Key Features
 
@@ -397,10 +397,12 @@ Relevant helpers in `src/helpers/module-manager.php`:
 - **Variables** — `{$page.title}`, `{$user.name}` (dot notation)
 - **Filters** — `{$title|upper}`, `{$content|raw}`, `{$date|date:"M d, Y"}` (40+ built-in filters)
 - **Control flow** — `{if $user.role == "admin"}...{/if}`, `{foreach $items as $item}...{/foreach}`
-- **Components** — `{component "partials/card" with title=$card.title}`
+- **Components & slots** — `{component "partials/card" with title=$card.title}` with structured composition primitives
 - **Auto-escaping** — HTML output escaped by default; use `|raw` for trusted content
-- **Reactive client blocks** — Bridge to Alpine.js for interactive components
-- **Compiled cache** — Templates are compiled to PHP and cached in `storage/cache/`
+- **Reactive client blocks** — Secure progressive enhancement hooks and request-aware interactivity
+- **Hydration islands** — SSR-first interactive regions that can hydrate on load, idle, visible, media, or interaction
+- **Compiled + interpreted execution** — Templates can run through the compiler pipeline or the interpreted renderer depending on environment and feature path
+- **Compiled cache** — Render artifacts are compiled to PHP and cached in `storage/cache/`
 
 ---
 
@@ -479,7 +481,7 @@ Cache tags used:
 | [module-development-guide.md](module-development-guide.md) | Building new modules |
 | [cms-architecture.md](cms-architecture.md) | CMS module architecture |
 | [page-builder-technical-spec.md](page-builder-technical-spec.md) | Page builder specification |
-| [disyl-implementation-spec.md](disyl-implementation-spec.md) | DiSyL v4.0 template engine spec |
+| [disyl-implementation-spec.md](disyl-implementation-spec.md) | DiSyL v4.0 rendering/runtime spec |
 | [tenancy-roadmap.md](tenancy-roadmap.md) | Multi-tenancy design and roadmap |
 | [ikabud-roadmap.md](ikabud-roadmap.md) | Overall project roadmap |
 | [kernel-auto-wiring.md](kernel-auto-wiring.md) | Auto-wiring flow and patterns |

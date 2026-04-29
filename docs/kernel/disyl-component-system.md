@@ -6,7 +6,7 @@
 
 ## Overview
 
-The DiSyL Component System implements single-file components with props, slots, reactive state, computed properties, watchers, events, methods, scoped styles, and client-side behavior. Components are defined declaratively via directive-annotated PHP/HTML files and parsed into `ComponentDefinition` objects for rendering.
+The DiSyL Component System is one part of the broader DiSyL rendering runtime. It implements single-file components with props, slots, reactive state, computed properties, watchers, events, methods, scoped styles, and client-side behavior. Components are defined declaratively via directive-annotated PHP/HTML files and parsed into `ComponentDefinition` objects for rendering.
 
 ## Core Classes
 

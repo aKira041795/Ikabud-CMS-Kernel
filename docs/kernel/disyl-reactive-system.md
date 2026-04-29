@@ -6,7 +6,7 @@
 
 ## Overview
 
-The DiSyL Reactive System provides server-driven reactivity through three complementary subsystems:
+The DiSyL Reactive System is the request-aware interactivity layer inside the broader DiSyL rendering runtime. It provides server-driven reactivity through three complementary subsystems:
 
 1. **Signal System** — Fine-grained reactive primitives (`Signal`, `Computed`, `Effect`) for server-side reactive state management
 2. **HTMX Integration** — Request/response helpers for HTMX-driven partial page updates

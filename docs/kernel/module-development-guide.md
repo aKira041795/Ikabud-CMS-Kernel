@@ -526,7 +526,9 @@ These variables are always available in templates:
 
 ## Templates (DiSyL)
 
-Templates use the DiSyL template engine. Place them in `templates/modules/your-module/`.
+Templates use the DiSyL rendering runtime. Place them in `templates/modules/your-module/`.
+
+DiSyL is not just a string templating layer. It is the kernel's native rendering language, so module templates can participate in layouts, blocks, components, slots, reactive client blocks, and other request-aware rendering features without introducing a separate view engine.
 
 ### Basic Template
 

@@ -6,7 +6,7 @@
 
 ## Overview
 
-The DiSyL Hydration System enables progressive hydration of server-rendered HTML. Components are rendered as "islands" — self-contained interactive regions — with configurable hydration strategies that control when client-side JavaScript activates. Islands are registered, rendered with SSR markup, and bundled with a client runtime that hydrates them based on their strategy.
+The DiSyL Hydration System is the progressive enhancement layer of the broader DiSyL rendering runtime. It enables progressive hydration of server-rendered HTML. Components are rendered as "islands" — self-contained interactive regions — with configurable hydration strategies that control when client-side JavaScript activates. Islands are registered, rendered with SSR markup, and bundled with a client runtime that hydrates them based on their strategy.
 
 ## Core Classes
 
