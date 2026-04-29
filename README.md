@@ -62,6 +62,7 @@ See [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) for the full Kern
 | [cms-module.md](docs/cms/cms-module.md) | CMS module documentation |
 | [wms-module.md](docs/wms/wms-module.md) | WMS module documentation |
 | [bakeshop-module.md](docs/bakeshop/bakeshop-module.md) | Bakeshop module documentation (module-owned auth, trusted provisioning + recovery) |
+| [guidance-module.md](docs/guidance/guidance-module.md) | Guidance module documentation (module-owned auth, counseling workflows, standardized password reset) |
 | [cms-architecture.md](docs/cms/cms-architecture.md) | CMS module architecture |
 | [page-builder-technical-spec.md](docs/page-builder/page-builder-technical-spec.md) | Visual page builder spec |
 | [evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md](docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md) | Baseline metrics and required regression gates for kernel refactors |

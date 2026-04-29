@@ -359,6 +359,27 @@ function createNote() {
 
 Then update `pageNotesHome` in handlers.php to pass `notes` to the template:
 
+---
+
+## Auth-Owned Modules: Standard Password Reset Directive
+
+If your new module owns its own users table and includes a public login, wire password recovery the same way every time:
+
+- `GET /<module-id>/forgot-password`
+- `GET /<module-id>/reset-password`
+- `POST /api/v1/<module-id>/auth/forgot-password`
+- `POST /api/v1/<module-id>/auth/reset-password`
+
+Implementation rules:
+
+- Return generic success from forgot-password (`{ok: true, message: ...}`) to avoid account enumeration.
+- Hash reset tokens in storage, expire them after 60 minutes, and rate-limit both issuance and reset attempts.
+- Validate reset tokens before rendering the reset form so expired links show a recovery message instead of a dead submit button.
+- Require `password` and `confirm_password`, enforce a minimum length of 8, and return a login redirect on success.
+- Keep kernel admin password-push as the trusted admin recovery flow for tenant admins.
+
+The full contract lives in [module-development-guide.md](module-development-guide.md#module-owned-authentication-auth_owned).
+
 ```php
 function pageNotesHome(array $params = []): void
 {

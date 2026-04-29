@@ -287,6 +287,29 @@ Consumers:
 
 No kernel changes are required.
 
+### Standard self-service password reset directive
+
+If an auth-owning module exposes end-user sign-in and supports self-service recovery, treat forgot/reset password as a standard contract, not a one-off feature:
+
+1. Guest pages: `GET /<module-id>/forgot-password` and `GET /<module-id>/reset-password`.
+2. Canonical browser APIs: `POST /api/v1/<module-id>/auth/forgot-password` and `POST /api/v1/<module-id>/auth/reset-password`.
+3. Forgot-password API behavior:
+    - accept the module's login identity field (`identity`, `email`, or equivalent)
+    - rate-limit requests
+    - return generic success (`{ok: true, message: ...}`) even when the account does not exist
+    - issue a 64-character token, hash it in storage, and email a 60-minute reset link
+4. Reset-password page behavior:
+    - validate the token server-side before rendering the form
+    - show an explicit invalid/expired state instead of submitting a dead token
+5. Reset-password API behavior:
+    - require a 64-character hex token
+    - require `password` + `confirm_password`
+    - enforce a minimum password length of 8
+    - return `{ok: true, message: ..., redirect: '/<module-id>/login'}` on success
+6. Keep the kernel admin password-push flow as the trusted admin recovery path; self-service reset does not replace tenant-admin recovery.
+
+Legacy aliases may be kept for backward compatibility, but new templates and tests should target the canonical `/api/v1/<module-id>/auth/*` endpoints.
+
 ---
 
 ## routes.php — Route Definitions
@@ -1003,6 +1026,7 @@ Add these checks to the standard module checklist:
 - [ ] No direct writes to `storage/*.json` from any handler called in a tenant request context
 - [ ] Sub-modules: use `_cmsRegisterSubModule()` / `_cmsUnregisterSubModule()`, never write `cms-installed-modules.json`
 - [ ] Enable/disable: use `enableModule()` / `disableModule()`, never write `modules.json` directly
+- [ ] If the module owns auth and supports self-service recovery, add the canonical forgot/reset pages and `/api/v1/<module-id>/auth/{forgot-password,reset-password}` endpoints with the standard `{ok,message,redirect}` contract
 
 ---
 

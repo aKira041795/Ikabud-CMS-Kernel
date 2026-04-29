@@ -9581,6 +9581,11 @@ function guidancePasswordResetTokenHash(string $token): string {
     return hash('sha256', $token);
 }
 
+function guidanceExternalBaseUrl(): string
+{
+    return external_base_url((string)config('app.url', ''));
+}
+
 function guidanceIssuePasswordResetToken(string $email, int $ttlSeconds = 3600): string {
     $token = bin2hex(random_bytes(32));
     $db = guidanceDb();
@@ -9604,6 +9609,40 @@ function guidanceMarkPasswordResetUsed(int|string $id): void {
     guidanceDb()->prepare('UPDATE gm_password_resets SET used_at = NOW() WHERE id = ?')->execute([$id]);
 }
 
+function guidanceResetTokenIsValid(string $token): bool
+{
+    if ($token === '' || preg_match('/^[a-f0-9]{64}$/', $token) !== 1) {
+        return false;
+    }
+
+    return guidanceFindActivePasswordReset($token) !== null;
+}
+
+function guidancePasswordResetJson(array $payload, int $status = 200): void
+{
+    header('Content-Type: application/json');
+    http_response_code($status);
+    echo json_encode($payload);
+}
+
+function guidancePasswordResetSuccessPayload(string $message, array $extra = []): array
+{
+    return array_merge([
+        'ok' => true,
+        'success' => true,
+        'message' => $message,
+    ], $extra);
+}
+
+function guidancePasswordResetError(string $message, int $status = 422): void
+{
+    guidancePasswordResetJson([
+        'ok' => false,
+        'success' => false,
+        'error' => $message,
+    ], $status);
+}
+
 function pageGuidanceForgotPassword(): void {
     if (guidanceUserFromCookie()) {
         guidanceRedirect('/admin/guidance');
@@ -9612,6 +9651,8 @@ function pageGuidanceForgotPassword(): void {
         'hide_sidebar' => true,
         'page_title' => 'Forgot Password',
         'base_url' => '/guidance',
+        'forgot_password_endpoint' => '/api/v1/guidance/auth/forgot-password',
+        'login_page_url' => '/guidance/login',
     ]);
 }
 
@@ -9619,124 +9660,130 @@ function pageGuidanceResetPassword(): void {
     if (guidanceUserFromCookie()) {
         guidanceRedirect('/admin/guidance');
     }
-    $token = guidanceInput('token', '');
+    $token = trim((string)guidanceInput('token', ''));
     echo guidanceRender('modules/guidance/pages/reset-password.disyl', [
         'hide_sidebar' => true,
         'page_title' => 'Reset Password',
         'base_url' => '/guidance',
+        'reset_password_endpoint' => '/api/v1/guidance/auth/reset-password',
+        'login_page_url' => '/guidance/login',
         'reset_token' => $token,
+        'token_valid' => guidanceResetTokenIsValid($token),
     ]);
 }
 
 function apiGuidanceForgotPassword(): void {
+    $email = trim((string)guidanceInput('email', guidanceInput('identity', '')));
+    if ($email === '') {
+        guidancePasswordResetError('Email is required.');
+        return;
+    }
+
+    $ip = clientIp();
+    if (!rateLimit('guidance_forgot:' . $ip, 3, 900)) {
+        guidancePasswordResetError('Too many password reset requests. Please wait before trying again.', 429);
+        return;
+    }
+
+    $successMsg = 'If the account exists, a reset link has been sent.';
+
     try {
-        $email = trim(guidanceInput('email', ''));
-        if (empty($email)) {
-            throw new Exception("Email is required");
-        }
-
-        $ip = clientIp();
-        if (!rateLimit('guidance_forgot_' . $ip, 3, 900)) {
-            throw new Exception("Too many reset requests. Please try again later.");
-        }
-
-        $successMsg = 'If an account with that email exists, a password reset link has been sent.';
-        
-        $stmt = guidanceDb()->prepare("SELECT id, first_name FROM gm_users WHERE email = ? AND deleted_at IS NULL AND is_active = 1 LIMIT 1");
+        $stmt = guidanceDb()->prepare(
+            'SELECT id, email, first_name
+             FROM gm_users
+             WHERE email = ?
+               AND deleted_at IS NULL
+               AND is_active = 1
+             LIMIT 1'
+        );
         $stmt->execute([$email]);
-        $user = $stmt->fetch();
-        
-        if (!$user) {
-            app()->json(['success' => true, 'message' => $successMsg]);
-            return;
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (is_array($user)) {
+            $token = guidanceIssuePasswordResetToken((string)$user['email'], 3600);
+            $resetUrl = guidanceExternalBaseUrl() . '/guidance/reset-password?token=' . urlencode($token);
+
+            if (function_exists('sendEmail') && function_exists('buildEmailTemplate')) {
+                $name = trim((string)($user['first_name'] ?? 'there'));
+                $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8') . ',</p>'
+                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your Guidance password.</p>'
+                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in 60 minutes. If you did not request this, you can safely ignore this email.</p>';
+                $body = buildEmailTemplate('Reset Your Guidance Password', $content, 'Reset Password', $resetUrl);
+                $sent = sendEmail((string)$user['email'], 'Guidance Password Reset', $body);
+                if (!$sent) {
+                    write_log('guidance forgot-password email dispatch failed for user_id=' . (string)$user['id'], 'error');
+                }
+            }
         }
-        
-        $token = guidanceIssuePasswordResetToken($email, 3600);
-        // Let's use the current host if possible or just relative base + protocol
-        $scheme = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $resetUrl = $scheme . "://" . $host . '/guidance/reset-password?token=' . $token;
-        
-        if (function_exists('sendEmail') && function_exists('buildEmailTemplate')) {
-            $content = "
-            <p style=\"margin: 0 0 20px; color: #4b5563; font-size: 16px;\">
-                Someone requested a password reset for your Guidance Monitoring System account.
-            </p>
-            <p style=\"margin: 0 0 20px; color: #4b5563; font-size: 16px;\">
-                If you did not request this, you can ignore this email.
-                This link expires in 1 hour.
-            </p>";
-            $body = buildEmailTemplate(
-                'Reset Your Password',
-                $content,
-                'Reset Password',
-                $resetUrl
-            );
-            sendEmail($email, 'Password Reset Request', $body);
-        } else {
-            // fallback if mailer is missing
-            error_log("Cannot send password reset email: Mailer helpers missing.");
-        }
-        
-        app()->json(['success' => true, 'message' => $successMsg]);
+
+        guidancePasswordResetJson(guidancePasswordResetSuccessPayload($successMsg));
     } catch (Throwable $e) {
-        app()->json(['error' => $e->getMessage()], 400);
+        write_log('guidance forgot-password failed: ' . $e->getMessage(), 'error');
+        guidancePasswordResetError('Unable to process request right now.', 500);
     }
 }
 
 function apiGuidanceResetPassword(): void {
+    $token = trim((string)guidanceInput('token', ''));
+    $password = (string)guidanceInput('password', '');
+    $confirm = (string)guidanceInput('confirm_password', guidanceInput('password_confirm', ''));
+
+    if ($token === '' || preg_match('/^[a-f0-9]{64}$/', $token) !== 1) {
+        guidancePasswordResetError('Invalid reset token.');
+        return;
+    }
+
+    if (strlen($password) < 8) {
+        guidancePasswordResetError('Password must be at least 8 characters.');
+        return;
+    }
+
+    if ($password !== $confirm) {
+        guidancePasswordResetError('Passwords do not match.');
+        return;
+    }
+
+    $ip = clientIp();
+    if (!rateLimit('guidance_reset:' . $ip, 5, 900)) {
+        guidancePasswordResetError('Too many reset attempts. Please wait before trying again.', 429);
+        return;
+    }
+
     try {
-        $token = guidanceInput('token', '');
-        $password = guidanceInput('password', '');
-        $confirm = guidanceInput('password_confirm', '');
-        
-        if (empty($token)) throw new Exception('Invalid or missing token.');
-        if (empty($password)) throw new Exception('Password cannot be empty.');
-        if (strlen($password) < 6) throw new Exception('Password must be at least 6 characters.');
-        if ($password !== $confirm) throw new Exception('Passwords do not match.');
-
-        $ip = clientIp();
-        if (!rateLimit('guidance_reset_' . $ip, 5, 900)) {
-            throw new Exception('Too many attempts. Please try again later.');
-        }
-
         $resetData = guidanceFindActivePasswordReset($token);
-        if (!$resetData) {
-            throw new Exception('Invalid or expired reset token. Please request a new one.');
+        if (!is_array($resetData)) {
+            guidancePasswordResetError('Reset link is invalid or expired.');
+            return;
         }
 
-        $email = $resetData['email'];
-        
-        // Find user to get ID and update kernel credential if attached
-        $stmt = guidanceDb()->prepare("SELECT id FROM gm_users WHERE email = ? AND deleted_at IS NULL AND is_active = 1 LIMIT 1");
+        $email = (string)($resetData['email'] ?? '');
+        $stmt = guidanceDb()->prepare(
+            'SELECT id
+             FROM gm_users
+             WHERE email = ?
+               AND deleted_at IS NULL
+               AND is_active = 1
+             LIMIT 1'
+        );
         $stmt->execute([$email]);
-        $user = $stmt->fetch();
-        if (!$user) {
-            throw new Exception('Account not found or inactive.');
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($user)) {
+            guidancePasswordResetError('Account not found or inactive.');
+            return;
         }
-        
+
         $hash = password_hash($password, PASSWORD_DEFAULT);
         guidanceDb()->prepare('UPDATE gm_users SET password = ?, updated_at = NOW() WHERE id = ?')
-                   ->execute([$hash, $user['id']]);
-                   
-        // also try kernel update if we can
-        try {
-            app()->cap()->invoke('kernel.auth.updatePassword', [
-                'username' => '@guidance:' . $email,
-                'password' => $password
-            ]);
-        } catch (Throwable $e) {
-            // Ignore error here
-        }
+            ->execute([$hash, (int)$user['id']]);
 
-        guidanceMarkPasswordResetUsed($resetData['id']);
-        
-        app()->json([
-            'success' => true,
-            'message' => 'Password reset successfully. You can now log in.'
-        ]);
-        
+        guidanceMarkPasswordResetUsed((int)$resetData['id']);
+
+        guidancePasswordResetJson(guidancePasswordResetSuccessPayload(
+            'Password reset successful. You can now sign in.',
+            ['redirect' => '/guidance/login']
+        ));
     } catch (Throwable $e) {
-        app()->json(['error' => $e->getMessage()], 400);
+        write_log('guidance reset-password failed: ' . $e->getMessage(), 'error');
+        guidancePasswordResetError('Unable to reset password right now.', 500);
     }
 }
