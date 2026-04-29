@@ -42,6 +42,18 @@
         a { color: inherit; }
         button, input, select, textarea { font: inherit; }
 
+        .bakeshop-sidebar-toggle {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .bakeshop-mobile-overlay,
+        .bakeshop-mobile-nav-button,
+        .bakeshop-sidebar-close {
+            display: none;
+        }
+
         .bakeshop-admin-shell {
             min-height: 100vh;
             display: grid;
@@ -59,6 +71,23 @@
             position: sticky;
             top: 0;
             min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .bakeshop-sidebar-close {
+            align-items: center;
+            justify-content: center;
+            align-self: flex-end;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--sidebar-text-strong);
+            background: rgba(255, 255, 255, 0.08);
+            cursor: pointer;
         }
 
         .bakeshop-brand {
@@ -207,6 +236,18 @@
             padding: 22px 28px 16px;
         }
 
+        .bakeshop-topbar-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .bakeshop-topbar-signout {
+            margin: 0;
+        }
+
         .bakeshop-title-stack {
             display: grid;
             gap: 6px;
@@ -261,6 +302,24 @@
             text-transform: uppercase;
         }
 
+        .bakeshop-mobile-nav-button {
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: fit-content;
+            min-height: 44px;
+            border-radius: 999px;
+            padding: 0 16px;
+            border: 1px solid rgba(37, 99, 235, 0.18);
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: var(--shadow-sm);
+            color: var(--accent-strong);
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            cursor: pointer;
+        }
+
         .bakeshop-content {
             padding: 0 28px 28px;
         }
@@ -313,15 +372,57 @@
                 grid-template-columns: 1fr;
             }
 
+            .bakeshop-mobile-overlay {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, 0.52);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.18s ease;
+                z-index: 39;
+            }
+
             .sidebar {
-                position: static;
-                min-height: auto;
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: min(86vw, 320px);
+                min-height: 100vh;
+                z-index: 40;
+                box-shadow: 0 28px 64px rgba(15, 23, 42, 0.3);
+                transform: translateX(calc(-100% - 18px));
+                transition: transform 0.22s ease;
+            }
+
+            .bakeshop-sidebar-close,
+            .bakeshop-mobile-nav-button {
+                display: inline-flex;
+            }
+
+            .bakeshop-sidebar-toggle:checked ~ .bakeshop-mobile-overlay {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            .bakeshop-sidebar-toggle:checked ~ .bakeshop-admin-shell .sidebar {
+                transform: translateX(0);
             }
 
             .topbar {
                 padding-top: 18px;
                 flex-direction: column;
                 align-items: flex-start;
+            }
+
+            .bakeshop-topbar-actions {
+                position: sticky;
+                top: 0;
+                z-index: 30;
+                justify-content: space-between;
+                padding: 10px 0 6px;
+                background: linear-gradient(180deg, rgba(238, 245, 255, 0.98) 0%, rgba(238, 245, 255, 0.92) 78%, rgba(238, 245, 255, 0) 100%);
             }
 
             .bakeshop-user-card {
@@ -346,8 +447,11 @@
     {block head}{/block}
 </head>
 <body>
+    <input class="bakeshop-sidebar-toggle" type="checkbox" id="bakeshop-sidebar-toggle" aria-hidden="true">
+    <label class="bakeshop-mobile-overlay" for="bakeshop-sidebar-toggle" aria-hidden="true"></label>
     <div class="bakeshop-admin-shell">
         <aside class="sidebar">
+            <label class="bakeshop-sidebar-close" for="bakeshop-sidebar-toggle">Close</label>
             <div class="bakeshop-brand">
                 <div class="bakeshop-brand-mark">{if brand_settings.store_logo_url}<img src="{brand_settings.store_logo_url}" alt="{brand_settings.store_name} logo">{else}{brand_settings.store_initial}{/if}</div>
                 <div>
@@ -458,15 +562,18 @@
                 {if bootstrap_onboarding.required}
                 <div class="bakeshop-shell-note">Bootstrap admin handoff is still active.</div>
                 {/if}
-                <form class="bakeshop-sidebar-inline-form" method="post" action="{base_url}/bakeshop/logout">
-                    <input type="hidden" name="_token" value="{csrf_token}">
-                    <button class="bakeshop-sidebar-link" type="submit">Sign Out</button>
-                </form>
             </div>
         </aside>
 
         <div class="bakeshop-main">
             <header class="topbar">
+                <div class="bakeshop-topbar-actions">
+                    <label class="bakeshop-mobile-nav-button" for="bakeshop-sidebar-toggle">Menu</label>
+                    <form class="bakeshop-topbar-signout" method="post" action="{base_url}/bakeshop/logout">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <button class="bakeshop-sidebar-link" type="submit">Sign Out</button>
+                    </form>
+                </div>
                 <div class="bakeshop-title-stack">
                     <span class="bakeshop-kicker">Bakeshop Module</span>
                     <h2>{page_title | default:'Bakeshop Operations'}</h2>
