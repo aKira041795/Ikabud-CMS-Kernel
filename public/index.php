@@ -7,6 +7,66 @@ declare(strict_types=1);
 // On a cache hit the response is served in ~5–20 ms and PHP exits.
 require_once __DIR__ . '/../src/helpers/fast-path-cache.php';
 
+// ── Ultra-early module uploads static file handler ───────────────────────
+// Serves /assets/modules/<moduleId>/uploads/... directly from disk WITHOUT
+// booting bootstrap.php, opening a DB connection, or loading module-manager.
+// On shared hosting (Bluehost) this cuts upload-image latency from ~1500ms
+// to ~5ms and eliminates DB connection pressure from static-asset requests.
+// Must come before require_once bootstrap.php below.
+(static function (): void {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+        return;
+    }
+    $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    $uri = rawurldecode(rtrim($uri, '/'));
+    if (!preg_match('#^/assets/modules/([a-zA-Z0-9\-]+)/uploads/(.+)$#', $uri, $m)) {
+        return;
+    }
+    $modId = $m[1];
+    $rel   = ltrim($m[2], '/');
+    if ($rel === '' || str_contains($rel, '..') || str_contains($rel, "\0") || str_contains($rel, '\\')) {
+        http_response_code(404);
+        exit;
+    }
+    $base = realpath(__DIR__ . '/../modules/' . $modId . '/assets/uploads');
+    if ($base === false) {
+        return; // module doesn't exist or has no uploads dir — fall through
+    }
+    $real = realpath($base . '/' . $rel);
+    if ($real === false || !str_starts_with($real, $base) || !is_file($real)) {
+        return; // not found — fall through to full bootstrap for proper 404
+    }
+    $ext   = strtolower(pathinfo($real, PATHINFO_EXTENSION));
+    $types = [
+        'png'  => 'image/png',
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif'  => 'image/gif',
+        'webp' => 'image/webp',
+        'svg'  => 'image/svg+xml',
+        'ico'  => 'image/x-icon',
+        'pdf'  => 'application/pdf',
+    ];
+    $ctype = $types[$ext] ?? null;
+    if ($ctype === null) {
+        return; // unknown type — let full bootstrap handle it
+    }
+    $mtime = (int) @filemtime($real);
+    $fsize = (int) @filesize($real);
+    $etag  = 'W/"' . sha1($real . '|' . $mtime . '|' . $fsize) . '"';
+    header('ETag: ' . $etag);
+    header('Cache-Control: public, max-age=86400, stale-while-revalidate=3600');
+    header('X-Content-Type-Options: nosniff');
+    if (!empty($_SERVER['HTTP_IF_NONE_MATCH']) && trim((string)$_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+        http_response_code(304);
+        exit;
+    }
+    header('Content-Type: ' . $ctype);
+    header('Content-Length: ' . $fsize);
+    readfile($real);
+    exit;
+})();
+
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/security.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';

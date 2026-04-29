@@ -316,19 +316,52 @@ class DatabaseManager
 
             $dsn = $this->buildDsn($dbConfig);
             $pdoClass = '\\Ikabud\\Kernel\\Database\\KernelPDO';
-            $this->db = new $pdoClass(
-                $dsn,
-                $dbConfig['username'] ?? '',
-                $dbConfig['password'] ?? '',
-                $dbConfig['options'] ?? [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false,
-                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
-                ]
-            );
-            $this->dbTenantTarget = $tenantTarget;
-            $this->dbLastVerified = time();
+            $pdoOptions = $dbConfig['options'] ?? [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
+            ];
+
+            // On shared hosting (e.g. Bluehost) max_user_connections can be hit
+            // briefly under traffic spikes.  Retry up to 3 times with a short
+            // exponential back-off (50ms → 100ms → 200ms) before re-throwing.
+            $maxAttempts = 3;
+            $attempt = 0;
+            $lastEx = null;
+            while ($attempt < $maxAttempts) {
+                try {
+                    $this->db = new $pdoClass(
+                        $dsn,
+                        $dbConfig['username'] ?? '',
+                        $dbConfig['password'] ?? '',
+                        $pdoOptions
+                    );
+                    $this->dbTenantTarget = $tenantTarget;
+                    $this->dbLastVerified = time();
+                    break; // success
+                } catch (\Throwable $e) {
+                    $lastEx = $e;
+                    $attempt++;
+                    // Only retry on max_user_connections (SQLSTATE HY000 code 1203) or
+                    // connection-related transient errors; rethrow all others immediately.
+                    $code = (int)$e->getCode();
+                    $msg  = $e->getMessage();
+                    $isTransient = $code === 1203
+                        || str_contains($msg, 'max_user_connections')
+                        || str_contains($msg, 'Too many connections');
+                    if (!$isTransient || $attempt >= $maxAttempts) {
+                        throw $e;
+                    }
+                    ($this->logger)(
+                        'DB connection attempt ' . $attempt . ' failed (transient): ' . $msg,
+                        'warning',
+                        ['attempt' => $attempt, 'sqlstate' => $code]
+                    );
+                    // Exponential back-off: 50ms, 100ms, 200ms …
+                    usleep(50000 * (1 << ($attempt - 1)));
+                }
+            }
         }
 
         return $this->db;
