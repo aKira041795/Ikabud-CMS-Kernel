@@ -1,6 +1,6 @@
 {
     "name": "ikabud/kernel",
-    "description": "Ikabud Kernel",
+    "description": "Multi-tenant application platform and modular business OS with DiSyL templating, visual CMS, workflow automation, commerce, and tenant-scoped operations modules.",
     "type": "project",
     "scripts": {
         "test": "php scripts/run-tests.php",
