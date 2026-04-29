@@ -59,6 +59,7 @@ See [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) for the full Kern
 | [api-reference.md](docs/kernel/api-reference.md) | REST API reference |
 | [module-development-guide.md](docs/kernel/module-development-guide.md) | Guide for building new modules |
 | [kernel-stable-contracts.md](docs/kernel/kernel-stable-contracts.md) | Stable kernel extension points versus refactorable internals |
+| [disyl-overview.md](docs/kernel/disyl-overview.md) | High-level DiSyL overview: what it is, why it matters, and where to use it |
 | [cms-module.md](docs/cms/cms-module.md) | CMS module documentation |
 | [wms-module.md](docs/wms/wms-module.md) | WMS module documentation |
 | [bakeshop-module.md](docs/bakeshop/bakeshop-module.md) | Bakeshop module documentation (module-owned auth, trusted provisioning + recovery) |

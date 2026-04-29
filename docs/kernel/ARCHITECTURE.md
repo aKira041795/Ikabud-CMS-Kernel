@@ -479,6 +479,7 @@ Cache tags used:
 |----------|-------|
 | [api-reference.md](api-reference.md) | REST API reference (auth, content negotiation) |
 | [module-development-guide.md](module-development-guide.md) | Building new modules |
+| [disyl-overview.md](disyl-overview.md) | High-level DiSyL overview and positioning |
 | [cms-architecture.md](cms-architecture.md) | CMS module architecture |
 | [page-builder-technical-spec.md](page-builder-technical-spec.md) | Page builder specification |
 | [disyl-implementation-spec.md](disyl-implementation-spec.md) | DiSyL v4.0 rendering/runtime spec |

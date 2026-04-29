@@ -1,0 +1,164 @@
+# DiSyL Overview
+
+## What DiSyL Is
+
+DiSyL, the Declarative Ikabud Syntax Language, is the kernel's native rendering language and UI runtime.
+
+It started as a server-side template layer, but it is no longer just a templating engine. In the current architecture, DiSyL is the rendering contract that ties together:
+
+- server-rendered pages and layouts
+- reusable components and slot composition
+- compiled and interpreted render paths
+- request-aware reactive client blocks
+- progressive hydration islands
+- capability-aware and context-aware rendering
+
+DiSyL gives the platform one rendering model across CMS pages, module UIs, entity views, theme layers, and progressively enhanced interactive surfaces.
+
+## What DiSyL Includes Now
+
+DiSyL is best understood as a stack, not a single parser.
+
+### 1. Rendering language
+
+The base syntax handles:
+
+- layouts and inheritance
+- blocks and includes
+- variables and dot-path access
+- filters and expression pipelines
+- conditions, loops, and composition
+
+This is the part most people first recognize as "templating."
+
+### 2. Component model
+
+DiSyL supports reusable components with:
+
+- props
+- named slots
+- scoped styles
+- methods, events, and client behavior
+- state, computed values, and watchers
+
+That means teams can build UI primitives once and reuse them across modules without introducing a separate component framework for every surface.
+
+### 3. Reactive runtime
+
+DiSyL includes request-aware interactivity primitives for:
+
+- signal-style state
+- server-driven partial refresh patterns
+- HTMX-friendly response behavior
+- secure client blocks for progressive enhancement
+
+This lets the platform stay server-first while still supporting rich interaction.
+
+### 4. Hydration layer
+
+DiSyL can render SSR-first islands that hydrate later based on strategy:
+
+- on page load
+- on idle
+- when visible
+- on interaction
+- under media-query conditions
+
+This gives developers a controlled way to add interactivity without turning the whole page into a client app.
+
+### 5. Execution pipeline
+
+DiSyL now spans both:
+
+- interpreted rendering for compatibility and flexible execution
+- compiled rendering for performance and production throughput
+
+The important architectural point is that both paths still belong to the same language/runtime model.
+
+## Developer Advantage
+
+### One rendering model across the platform
+
+Developers do not have to stitch together one template engine, one separate component DSL, one separate hydration layer, and one unrelated progressive-enhancement story. DiSyL provides one kernel-native model for all of those concerns.
+
+### Server-first without being stuck in static HTML
+
+DiSyL keeps the performance, operability, and SEO advantages of server rendering, while still giving teams structured interactivity when they need it.
+
+### Safer defaults
+
+DiSyL is designed for controlled rendering in a multi-tenant platform:
+
+- HTML escapes by default
+- includes and render paths are constrained
+- rendering happens inside the kernel's request and policy model
+- module surfaces stay inside the same platform conventions
+
+### Better module ergonomics
+
+Because DiSyL is part of the kernel, modules do not need to invent their own rendering story. Module authors can rely on the same runtime for CMS pages, admin pages, entity displays, shared components, and interactive fragments.
+
+### Lower architectural drift
+
+Without a unified rendering runtime, systems usually drift into multiple UI stacks over time. DiSyL reduces that drift by giving the platform a standard way to render, compose, and enhance UI across modules.
+
+## Why Use DiSyL
+
+Use DiSyL when you want:
+
+- a server-first UI architecture that can still scale to interactive product surfaces
+- one rendering language across modules, themes, builder output, and admin UIs
+- reusable components without fragmenting into several frontend stacks
+- predictable rendering behavior inside a multi-tenant kernel
+- progressive enhancement instead of defaulting every feature to a full SPA build
+- a runtime that is owned by the platform, not bolted on from unrelated layers
+
+In Ikabud, DiSyL is valuable not only because it renders HTML, but because it gives the kernel a consistent UI contract.
+
+## Practical Scenarios
+
+### CMS pages and marketing sites
+
+Use DiSyL layouts, blocks, widgets, and reusable components to build public-facing pages that stay fast, server-rendered, and easy to theme.
+
+### Admin dashboards and workflow screens
+
+Use DiSyL for forms, tables, detail views, and HTMX-driven updates where full client-side application overhead would add complexity without adding value.
+
+### Multi-tenant branded experiences
+
+Use DiSyL when each tenant needs consistent rendering primitives with different themes, settings, navigation, or module composition, while still staying inside one kernel contract.
+
+### Entity and storefront rendering
+
+Use DiSyL for schema-driven entity views, builder documents, CMS-driven product displays, and other dynamic rendering paths where composition and predictable escaping matter.
+
+### Interactive islands inside server-rendered pages
+
+Use hydration islands when a page is mostly server-rendered but a few areas need richer behavior, such as live filters, contextual controls, or reactive widgets.
+
+### Shared UI primitives across modules
+
+Use the component system when CMS, commerce, guidance, or internal operations modules need the same cards, shells, forms, banners, and display patterns without duplicating markup logic.
+
+## DiSyL Compared To "Just a Template Engine"
+
+Calling DiSyL only a template engine leaves out several parts of the actual system:
+
+- components
+- slots
+- reactive primitives
+- client blocks
+- hydration strategies
+- compiled execution
+- kernel-aware rendering contracts
+
+That older description was accurate earlier in the project. It is incomplete now.
+
+## Where To Read Next
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) for the kernel-level rendering/runtime view
+- [disyl-implementation-spec.md](../cms/disyl-implementation-spec.md) for syntax and language behavior
+- [disyl-component-system.md](disyl-component-system.md) for single-file components and slots
+- [disyl-reactive-system.md](disyl-reactive-system.md) for reactive primitives and HTMX integration
+- [disyl-hydration-system.md](disyl-hydration-system.md) for hydration islands and progressive activation
