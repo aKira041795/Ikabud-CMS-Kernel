@@ -1,96 +1,237 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<!-- Quick actions -->
-<div class="flex flex-wrap gap-2 mb-6">
-    <a href="{base_url}/cms/admin/content/create?type=post" class="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        New Post
-    </a>
-    <a href="{base_url}/cms/admin/content/create?type=page" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        New Page
-    </a>
-    <a href="{base_url}/cms/admin/media" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        Media Library
-    </a>
-    <a href="{base_url}/cms" target="_blank" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        View Site
-    </a>
-</div>
-
-<!-- Stats grid -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts</div>
-        <div class="text-3xl font-bold text-gray-900">{post_total}</div>
-    </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Pages</div>
-        <div class="text-3xl font-bold text-gray-900">{page_total}</div>
-    </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Media Files</div>
-        <div class="text-3xl font-bold text-gray-900">{media_count}</div>
-    </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">CMS Users</div>
-        <div class="text-3xl font-bold text-gray-900">{user_count}</div>
-    </div>
-</div>
-
-<!-- Two-column layout for recent content + activity -->
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <!-- Recent content -->
-    <div class="bg-white rounded-lg border border-gray-200">
-        <div class="px-5 py-3 border-b border-gray-200 font-semibold text-sm text-gray-700">Recently Updated</div>
-        {if recent_content | count == 0}
-        <div class="px-5 py-10 text-center text-gray-400">
-            No content yet. Create your first post to get started.
-        </div>
-        {/if}
-        {foreach recent_content as item}
-        <a href="{base_url}/cms/admin/content/edit/{item.id}" class="flex items-center gap-3 px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors no-underline">
-            <span class="flex-1 text-sm font-medium text-gray-900 truncate">{item.title}</span>
-            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold {if item.type == 'post'}bg-sky-50 text-sky-700{else}bg-violet-50 text-violet-700{/if}">{item.type}</span>
-            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold {if item.status == 'published'}bg-emerald-50 text-emerald-700{else}bg-amber-50 text-amber-700{/if}">{item.status}</span>
-            <span class="text-xs text-gray-400 hidden md:inline">{item.updated_at}</span>
-        </a>
-        {/foreach}
-    </div>
-
-    <!-- Activity feed -->
-    <div class="bg-white rounded-lg border border-gray-200">
-        <div class="px-5 py-3 border-b border-gray-200 font-semibold text-sm text-gray-700">Activity Feed</div>
-        {if activity_feed | count == 0}
-        <div class="px-5 py-10 text-center text-gray-400 text-sm">
-            No recent activity.
-        </div>
-        {/if}
-        {foreach activity_feed as evt}
-        <div class="flex items-start gap-3 px-5 py-2.5 border-b border-gray-100 last:border-b-0">
-            <div class="mt-1 shrink-0">
-                {if evt.action == 'cms.content.created' || evt.action == 'content.create'}<span class="block w-2 h-2 rounded-full bg-sky-400"></span>
-                {else}{if evt.action == 'cms.content.published' || evt.action == 'content.publish'}<span class="block w-2 h-2 rounded-full bg-emerald-500"></span>
-                {else}{if evt.action == 'cms.content.deleted' || evt.action == 'content.trash'}<span class="block w-2 h-2 rounded-full bg-red-400"></span>
-                {else}{if evt.action == 'cms.media.uploaded' || evt.action == 'media.upload'}<span class="block w-2 h-2 rounded-full bg-violet-400"></span>
-                {else}<span class="block w-2 h-2 rounded-full bg-gray-300"></span>
-                {/if}{/if}{/if}{/if}
+<div class="space-y-6">
+    <section class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <h1 class="text-[2rem] font-bold tracking-tight text-slate-900">{welcome_headline}</h1>
+                <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">Today</span>
             </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-xs text-gray-700">
-                    <span class="font-medium">{if evt.actor_name}{evt.actor_name}{else}System{/if}</span>
-                    <span class="text-gray-400"> — </span>
-                    <span class="text-gray-500">{evt.action}</span>
-                    {if evt.entity_type}<span class="text-gray-400"> on </span><span class="text-gray-500">{evt.entity_type}</span>{/if}
-                    {if evt.entity_id}<span class="text-gray-400"> #{evt.entity_id}</span>{/if}
-                </p>
-                <p class="text-[11px] text-gray-400 mt-0.5">{evt.created_at}</p>
+            <p class="mt-2 max-w-3xl text-sm text-slate-500">This dashboard is using the CMS data already wired into the admin layer: content volume, publishing state, recent updates, and activity events.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="{base_url}/cms/admin/content?type=all" class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm shadow-slate-200/40 transition-colors hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                View All Content
+            </a>
+            <a href="{base_url}/cms/admin/content/create?type=post" class="inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition-colors hover:bg-sky-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
+                Quick Create
+            </a>
+        </div>
+    </section>
+
+    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="flex items-center justify-between gap-3">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </span>
+                <span class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Posts</span>
+            </div>
+            <div class="mt-5 text-3xl font-bold tracking-tight text-slate-900">{post_total}</div>
+            <p class="mt-2 text-sm text-slate-500">Published and draft posts currently in the CMS.</p>
+        </div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="flex items-center justify-between gap-3">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </span>
+                <span class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Pages</span>
+            </div>
+            <div class="mt-5 text-3xl font-bold tracking-tight text-slate-900">{page_total}</div>
+            <p class="mt-2 text-sm text-slate-500">Static pages and destination content currently available.</p>
+        </div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="flex items-center justify-between gap-3">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-500">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </span>
+                <span class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Media</span>
+            </div>
+            <div class="mt-5 text-3xl font-bold tracking-tight text-slate-900">{media_count}</div>
+            <p class="mt-2 text-sm text-slate-500">Assets ready for use across content and builder flows.</p>
+        </div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="flex items-center justify-between gap-3">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                </span>
+                <span class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Users</span>
+            </div>
+            <div class="mt-5 text-3xl font-bold tracking-tight text-slate-900">{user_count}</div>
+            <p class="mt-2 text-sm text-slate-500">Active CMS users able to publish, edit, or manage content.</p>
+        </div>
+    </section>
+
+    <section class="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)]">
+        <div class="rounded-[30px] border border-slate-200 bg-white/92 p-6 shadow-[0_22px_44px_rgba(15,23,42,0.05)]">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">Content Overview</h2>
+                    <p class="mt-1 text-sm text-slate-500">Distribution of all content entities currently managed in CMS.</p>
+                </div>
+                <a href="{base_url}/cms/admin/content?type=all" class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700">View Content</a>
+            </div>
+            <div class="mt-6 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
+                <div class="relative mx-auto h-52 w-52">
+                    <svg class="h-full w-full -rotate-90" viewBox="0 0 200 200" fill="none">
+                        <circle cx="100" cy="100" r="80" stroke="#e2e8f0" stroke-width="38"/>
+                        {if total_content > 0}
+                        <circle cx="100" cy="100" r="80" stroke="#2563eb" stroke-width="38"
+                            stroke-dasharray="{(post_total / total_content) * 503} 503"/>
+                        <circle cx="100" cy="100" r="80" stroke="#06b6d4" stroke-width="38"
+                            stroke-dasharray="{(page_total / total_content) * 503} 503"
+                            transform="rotate({(post_total / total_content) * 360} 100 100)"/>
+                        <circle cx="100" cy="100" r="80" stroke="#f43f5e" stroke-width="38"
+                            stroke-dasharray="{((total_content - post_total - page_total) / total_content) * 503} 503"
+                            transform="rotate({((post_total + page_total) / total_content) * 360} 100 100)"/>
+                        {/if}
+                    </svg>
+                    <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                        <div class="text-[3rem] font-bold leading-none tracking-[-0.04em] text-slate-950">{total_content}</div>
+                        <div class="mt-1.5 text-[0.8rem] font-medium text-slate-400">Total Content</div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    {foreach content_overview as segment}
+                    <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="h-3 w-3 rounded-full shrink-0" style="background:{segment.color}"></span>
+                            <div class="min-w-0">
+                                <div class="text-sm font-semibold text-slate-800">{segment.label}</div>
+                                <div class="text-xs text-slate-500">{segment.share}% of total content volume</div>
+                            </div>
+                        </div>
+                        <div class="text-sm font-semibold text-slate-700">{segment.count}</div>
+                    </div>
+                    {/foreach}
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        {foreach activity_summary as summary}
+                        <div class="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm shadow-slate-200/40">
+                            <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{summary.label}</div>
+                            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900">{summary.value}</div>
+                        </div>
+                        {/foreach}
+                    </div>
+                </div>
             </div>
         </div>
-        {/foreach}
-    </div>
+
+        <div class="rounded-[30px] border border-slate-200 bg-white/92 p-6 shadow-[0_22px_44px_rgba(15,23,42,0.05)]">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">Quick Actions</h2>
+                    <p class="mt-1 text-sm text-slate-500">Jump into the parts of CMS that are already wired and ready to use.</p>
+                </div>
+                <a href="{base_url}/cms" target="_blank" class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700">View Site</a>
+            </div>
+            <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                {foreach quick_actions as action}
+                <a href="{base_url}{action.url}" class="group rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/30 transition-transform duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_32px_rgba(15,23,42,0.08)] no-underline">
+                    <div class="flex items-start gap-3">
+                        <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl {if action.accent == 'sky'}bg-sky-100 text-sky-600{elseif action.accent == 'emerald'}bg-emerald-100 text-emerald-600{elseif action.accent == 'amber'}bg-amber-100 text-amber-500{elseif action.accent == 'violet'}bg-violet-100 text-violet-600{elseif action.accent == 'rose'}bg-rose-100 text-rose-500{else}bg-indigo-100 text-indigo-600{/if}">
+                            {if action.icon == 'post'}
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            {elseif action.icon == 'page'}
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            {elseif action.icon == 'media'}
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            {elseif action.icon == 'builder'}
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg>
+                            {elseif action.icon == 'theme'}
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                            {else}
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                            {/if}
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-semibold text-slate-900">{action.label}</span>
+                            <span class="mt-1 block text-xs text-slate-500">{action.description}</span>
+                        </span>
+                    </div>
+                </a>
+                {/foreach}
+            </div>
+        </div>
+    </section>
+
+    <section class="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)]">
+        <div class="rounded-[30px] border border-slate-200 bg-white/92 shadow-[0_22px_44px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">Recently Updated</h2>
+                    <p class="mt-1 text-sm text-slate-500">Most recently touched content entities across the CMS.</p>
+                </div>
+                <a href="{base_url}/cms/admin/content?type=all" class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700">View All</a>
+            </div>
+            {if recent_content | count == 0}
+            <div class="px-6 py-16 text-center text-sm text-slate-400">No content yet. Create your first item to populate the dashboard.</div>
+            {/if}
+            {foreach recent_content as item}
+            <a href="{base_url}/cms/admin/content/edit/{item.id}" class="flex items-center gap-4 border-b border-slate-100 px-6 py-4 last:border-b-0 transition-colors hover:bg-slate-50/80 no-underline">
+                <div class="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm shadow-slate-200/40">
+                    {if item.featured_image_url}
+                    <img src="{item.featured_image_url}" alt="{item.title}" class="h-full w-full object-cover" loading="lazy">
+                    {else}
+                    <div class="flex h-full w-full items-center justify-center text-slate-400">
+                        {if item.type == 'post'}
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        {elseif item.type == 'page'}
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        {else}
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 7a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7zm4 0v10m8-10v10M4 12h16"/></svg>
+                        {/if}
+                    </div>
+                    {/if}
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-semibold text-slate-900">{item.title}</div>
+                    <div class="mt-1 truncate text-[11px] text-slate-400">{if item.type == 'post'}/blog/{elseif item.type == 'page'}/page/{else}/{item.type}/{/if}{item.slug}</div>
+                </div>
+                <div class="hidden lg:flex items-center gap-2">
+                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{item.type}</span>
+                    <span class="inline-flex items-center rounded-full {if item.status == 'published'}bg-emerald-50 text-emerald-700{else}bg-amber-50 text-amber-700{/if} px-2.5 py-1 text-[11px] font-semibold">{item.status}</span>
+                </div>
+                <div class="hidden xl:block text-xs text-slate-400 whitespace-nowrap">{item.updated_at}</div>
+            </a>
+            {/foreach}
+        </div>
+
+        <div class="rounded-[30px] border border-slate-200 bg-white/92 shadow-[0_22px_44px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="border-b border-slate-100 px-6 py-4">
+                <h2 class="text-base font-semibold text-slate-900">Activity Feed</h2>
+                <p class="mt-1 text-sm text-slate-500">Latest audit events already emitted by the CMS module.</p>
+            </div>
+            {if activity_feed | count == 0}
+            <div class="px-6 py-16 text-center text-sm text-slate-400">No recent activity.</div>
+            {/if}
+            <div class="divide-y divide-slate-100">
+                {foreach activity_feed as evt}
+                <div class="flex items-start gap-3 px-6 py-4">
+                    <div class="mt-1 shrink-0">
+                        {if evt.action == 'cms.content.created' || evt.action == 'content.create'}<span class="block h-2.5 w-2.5 rounded-full bg-sky-400"></span>
+                        {else}{if evt.action == 'cms.content.published' || evt.action == 'content.publish'}<span class="block h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                        {else}{if evt.action == 'cms.content.deleted' || evt.action == 'content.trash'}<span class="block h-2.5 w-2.5 rounded-full bg-red-400"></span>
+                        {else}{if evt.action == 'cms.media.uploaded' || evt.action == 'media.upload'}<span class="block h-2.5 w-2.5 rounded-full bg-violet-400"></span>
+                        {else}<span class="block h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+                        {/if}{/if}{/if}{/if}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm text-slate-700">
+                            <span class="font-semibold text-slate-900">{if evt.actor_name}{evt.actor_name}{else}System{/if}</span>
+                            <span class="text-slate-400"> pushed </span>
+                            <span class="text-slate-600">{evt.action}</span>
+                            {if evt.entity_type}<span class="text-slate-400"> on </span><span class="text-slate-600">{evt.entity_type}</span>{/if}
+                            {if evt.entity_id}<span class="text-slate-400"> #{evt.entity_id}</span>{/if}
+                        </p>
+                        <p class="mt-1 text-[11px] text-slate-400">{evt.created_at}</p>
+                    </div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+    </section>
 </div>
 {/block}

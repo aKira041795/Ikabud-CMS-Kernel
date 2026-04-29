@@ -1,7 +1,7 @@
 -- ============================================================
 -- Content Ingestion — Content Provenance Map
 -- Maps (source, external_id) → cms_content.id and tracks sync state.
--- Owned by content-ingestion; no cross-module CMS meta writes needed.
+-- Owned by content-ingestion — no cross-module CMS meta writes needed.
 -- Idempotent (IF NOT EXISTS).
 -- ============================================================
 

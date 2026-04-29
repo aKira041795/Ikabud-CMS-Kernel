@@ -1435,6 +1435,11 @@ function _cmsRunModuleMigrations(string $moduleId, array $meta, string $moduleDi
             $sql = trim((string)file_get_contents($fullPath));
             if ($sql === '') continue;
 
+            // Strip single-line comments before splitting on semicolons.
+            // A naive explode(';', ...) without comment stripping will split on
+            // semicolons that appear inside -- comment lines, producing invalid
+            // SQL fragments that MySQL rejects.
+            $sql = (string)preg_replace('/--[^\r\n]*/', '', $sql);
             // Split on semicolons for multi-statement files
             $statements = array_filter(array_map('trim', explode(';', $sql)));
             foreach ($statements as $stmt) {

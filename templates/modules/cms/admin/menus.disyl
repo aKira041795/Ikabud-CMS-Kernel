@@ -1,25 +1,26 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<div class="page-header mb-6">
-    <h1 class="text-xl font-bold text-gray-900">Menu Manager</h1>
-    <p class="text-sm text-gray-500 mt-1">Create and manage navigation menus. Assign menus to theme locations.</p>
-</div>
+<div class="space-y-5">
+    <div>
+        <h1 class="text-xl font-bold text-slate-900">Menu Manager</h1>
+        <p class="text-sm text-slate-500 mt-0.5">Create and manage navigation menus. Assign menus to theme locations.</p>
+    </div>
 
-<div x-data="menuManager()">
+<div x-data="menuManager()" x-init="init()">
 
     <!-- Top: Menu selector bar -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 p-4">
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-4">
         <div class="flex items-center gap-4 flex-wrap">
-            <label class="text-sm font-medium text-gray-700">Select a menu to edit:</label>
-            <select x-model="selectedMenuId" @change="selectMenu()" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white min-w-[200px]">
+            <label class="text-sm font-medium text-slate-600">Select a menu to edit:</label>
+            <select x-model="selectedMenuId" @change="selectMenu()" class="text-sm border border-slate-200 rounded-2xl px-3 py-2 bg-white min-w-[200px] focus:outline-none focus:border-sky-500">
                 <option value="">— Select —</option>
                 <template x-for="m in allMenus" :key="m.id">
                     <option :value="m.id" x-text="m.name + ' (' + (m.item_count||0) + ' items)'"></option>
                 </template>
             </select>
-            <span class="text-gray-300">or</span>
-            <button type="button" @click="showCreateModal=true" class="px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Create New Menu</button>
+            <span class="text-slate-300">or</span>
+            <button type="button" @click="showCreateModal=true" class="px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 transition-colors">Create New Menu</button>
         </div>
     </div>
 
@@ -27,16 +28,16 @@
     <template x-if="showCreateModal">
         <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" @click.self="showCreateModal=false">
             <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                <h2 class="text-lg font-bold text-gray-900 mb-4">Create New Menu</h2>
+                <h2 class="text-lg font-bold text-slate-900 mb-4">Create New Menu</h2>
                 <div class="space-y-3">
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Menu Name</label>
-                    <input type="text" x-model="newMenuName" placeholder="e.g. Main Navigation" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Description <span class="text-gray-400 font-normal">(optional)</span></label>
-                    <input type="text" x-model="newMenuDesc" placeholder="What is this menu for?" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"></div>
+                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Menu Name</label>
+                    <input type="text" x-model="newMenuName" placeholder="e.g. Main Navigation" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2"></div>
+                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Description <span class="text-slate-400 font-normal">(optional)</span></label>
+                    <input type="text" x-model="newMenuDesc" placeholder="What is this menu for?" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2"></div>
                 </div>
                 <div class="flex justify-end gap-3 mt-5">
-                    <button type="button" @click="showCreateModal=false" class="px-4 py-2 text-sm text-gray-600">Cancel</button>
-                    <button type="button" @click="createMenu()" :disabled="!newMenuName.trim()" class="px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50">Create Menu</button>
+                    <button type="button" @click="showCreateModal=false" class="px-4 py-2 text-sm text-slate-600">Cancel</button>
+                    <button type="button" @click="createMenu()" :disabled="!newMenuName.trim()" class="px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 disabled:opacity-50">Create Menu</button>
                 </div>
             </div>
         </div>
@@ -49,65 +50,65 @@
         <!-- Left sidebar -->
         <div class="space-y-4">
             <!-- Add items -->
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div class="px-4 py-3 border-b border-gray-100"><span class="text-sm font-semibold text-gray-700">Add Menu Items</span></div>
+            <div class="bg-white rounded-[28px] border border-slate-200 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+                <div class="px-4 py-3 border-b border-slate-100"><span class="text-sm font-semibold text-slate-700">Add Menu Items</span></div>
                 <div class="p-4 space-y-3">
-                    <details class="group"><summary class="text-xs font-semibold text-gray-600 cursor-pointer select-none">Custom Link</summary>
+                    <details class="group"><summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none">Custom Link</summary>
                         <div class="mt-2 space-y-2">
-                            <input type="text" x-model="customLabel" placeholder="Label" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2">
-                            <input type="text" x-model="customUrl" placeholder="https://" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2">
-                            <button type="button" @click="addCustomLink()" class="w-full px-3 py-1.5 text-xs font-medium bg-sky-600 text-white rounded-lg hover:bg-sky-700">Add to Menu</button>
+                            <input type="text" x-model="customLabel" placeholder="Label" class="w-full text-xs border border-slate-200 rounded-xl px-2.5 py-2">
+                            <input type="text" x-model="customUrl" placeholder="https://" class="w-full text-xs border border-slate-200 rounded-xl px-2.5 py-2">
+                            <button type="button" @click="addCustomLink()" class="w-full px-3 py-1.5 text-xs font-medium bg-sky-600 text-white rounded-2xl hover:bg-sky-700">Add to Menu</button>
                         </div>
                     </details>
-                    <details class="group"><summary class="text-xs font-semibold text-gray-600 cursor-pointer select-none">Pages</summary>
+                    <details class="group"><summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none">Pages</summary>
                         <div class="mt-2 max-h-[150px] overflow-y-auto space-y-0.5">
-                            {foreach link_pages as pg}<label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1"><input type="checkbox" value="{pg.slug}" data-label="{pg.title}" class="page-checkbox w-3.5 h-3.5 rounded border-gray-300 text-sky-600"><span class="text-xs text-gray-700">{pg.title}</span></label>{/foreach}
-                            <button type="button" @click="addCheckedItems('page')" class="w-full px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 mt-1">Add Selected</button>
+                            {foreach link_pages as pg}<label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1"><input type="checkbox" value="{pg.slug}" data-label="{pg.title}" class="page-checkbox w-3.5 h-3.5 rounded border-slate-300 text-sky-600"><span class="text-xs text-slate-700">{pg.title}</span></label>{/foreach}
+                            <button type="button" @click="addCheckedItems('page')" class="w-full px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 mt-1">Add Selected</button>
                         </div>
                     </details>
-                    <details class="group"><summary class="text-xs font-semibold text-gray-600 cursor-pointer select-none">Posts</summary>
+                    <details class="group"><summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none">Posts</summary>
                         <div class="mt-2 max-h-[150px] overflow-y-auto space-y-0.5">
-                            {foreach link_posts as ps}<label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1"><input type="checkbox" value="{ps.slug}" data-label="{ps.title}" class="post-checkbox w-3.5 h-3.5 rounded border-gray-300 text-sky-600"><span class="text-xs text-gray-700">{ps.title}</span></label>{/foreach}
-                            <button type="button" @click="addCheckedItems('post')" class="w-full px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 mt-1">Add Selected</button>
+                            {foreach link_posts as ps}<label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1"><input type="checkbox" value="{ps.slug}" data-label="{ps.title}" class="post-checkbox w-3.5 h-3.5 rounded border-slate-300 text-sky-600"><span class="text-xs text-slate-700">{ps.title}</span></label>{/foreach}
+                            <button type="button" @click="addCheckedItems('post')" class="w-full px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 mt-1">Add Selected</button>
                         </div>
                     </details>
-                    <details class="group"><summary class="text-xs font-semibold text-gray-600 cursor-pointer select-none">Categories</summary>
+                    <details class="group"><summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none">Categories</summary>
                         <div class="mt-2 max-h-[150px] overflow-y-auto space-y-0.5">
-                            {foreach link_categories as cat}<label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1"><input type="checkbox" value="{cat.slug}" data-label="{cat.name}" class="cat-checkbox w-3.5 h-3.5 rounded border-gray-300 text-sky-600"><span class="text-xs text-gray-700">{cat.name}</span></label>{/foreach}
-                            <button type="button" @click="addCheckedItems('category')" class="w-full px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 mt-1">Add Selected</button>
+                            {foreach link_categories as cat}<label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1"><input type="checkbox" value="{cat.slug}" data-label="{cat.name}" class="cat-checkbox w-3.5 h-3.5 rounded border-slate-300 text-sky-600"><span class="text-xs text-slate-700">{cat.name}</span></label>{/foreach}
+                            <button type="button" @click="addCheckedItems('category')" class="w-full px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 mt-1">Add Selected</button>
                         </div>
                     </details>
-                    <details class="group"><summary class="text-xs font-semibold text-gray-600 cursor-pointer select-none">Tags</summary>
+                    <details class="group"><summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none">Tags</summary>
                         <div class="mt-2 max-h-[150px] overflow-y-auto space-y-0.5">
-                            {foreach link_tags as tg}<label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1"><input type="checkbox" value="{tg.slug}" data-label="{tg.name}" class="tag-checkbox w-3.5 h-3.5 rounded border-gray-300 text-sky-600"><span class="text-xs text-gray-700">{tg.name}</span></label>{/foreach}
-                            <button type="button" @click="addCheckedItems('tag')" class="w-full px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 mt-1">Add Selected</button>
+                            {foreach link_tags as tg}<label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1"><input type="checkbox" value="{tg.slug}" data-label="{tg.name}" class="tag-checkbox w-3.5 h-3.5 rounded border-slate-300 text-sky-600"><span class="text-xs text-slate-700">{tg.name}</span></label>{/foreach}
+                            <button type="button" @click="addCheckedItems('tag')" class="w-full px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 mt-1">Add Selected</button>
                         </div>
                     </details>
-                    <details class="group"><summary class="text-xs font-semibold text-gray-600 cursor-pointer select-none">Special</summary>
+                    <details class="group"><summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none">Special</summary>
                         <div class="mt-2 space-y-1">
-                            <button type="button" @click="addItem({label:'Home',link_type:'home'})" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg">+ Home Page</button>
-                            <button type="button" @click="addItem({label:'Blog',url:CMS_BASE+'/cms/blog',link_type:'custom'})" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg">+ Blog Archive</button>
-                            <button type="button" @click="addItem({label:'Search',url:CMS_BASE+'/cms/search',link_type:'custom'})" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg">+ Search Page</button>
+                            <button type="button" @click="addItem({label:'Home',link_type:'home'})" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Home Page</button>
+                            <button type="button" @click="addItem({label:'Blog',url:CMS_BASE+'/cms/blog',link_type:'custom'})" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Blog Archive</button>
+                            <button type="button" @click="addItem({label:'Search',url:CMS_BASE+'/cms/search',link_type:'custom'})" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Search Page</button>
                         </div>
                     </details>
                 </div>
             </div>
 
             <!-- Theme Locations -->
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                    <span class="text-sm font-semibold text-gray-700">Theme Locations</span>
+            <div class="bg-white rounded-[28px] border border-slate-200 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+                <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <span class="text-sm font-semibold text-slate-700">Theme Locations</span>
                     <button type="button" @click="saveLocations()" class="text-xs font-medium text-sky-600 hover:text-sky-800">Save</button>
                 </div>
                 <div class="p-4 space-y-3">
                     <template x-for="loc in locations" :key="loc.slug">
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1" x-text="loc.label"></label>
-                            <select x-model="locationAssignments[loc.slug]" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white">
+                            <label class="block text-xs font-medium text-slate-600 mb-1" x-text="loc.label"></label>
+                            <select x-model="locationAssignments[loc.slug]" class="w-full text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white">
                                 <option value="">— No menu —</option>
                                 <template x-for="m in allMenus" :key="m.id"><option :value="m.id" x-text="m.name"></option></template>
                             </select>
-                            <p class="text-[10px] text-gray-400 mt-0.5" x-text="loc.description||''"></p>
+                            <p class="text-[10px] text-slate-400 mt-0.5" x-text="loc.description||''"></p>
                         </div>
                     </template>
                 </div>
@@ -116,58 +117,58 @@
 
         <!-- Right: Menu structure -->
         <div class="space-y-4">
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="bg-white rounded-[28px] border border-slate-200 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
                 <div class="px-4 py-3 flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <input type="text" x-model="menuName" placeholder="Menu name" class="text-sm font-semibold border-0 border-b-2 border-transparent focus:border-sky-500 px-1 py-0.5 bg-transparent outline-none" style="min-width:200px">
-                        <span class="text-xs text-gray-400" x-text="items.length+' items'"></span>
+                        <span class="text-xs text-slate-400" x-text="items.length+' items'"></span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button type="button" @click="deleteMenu()" class="px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg">Delete Menu</button>
-                        <button type="button" @click="saveMenu()" :disabled="saving" class="px-5 py-1.5 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 shadow-sm" x-text="saving?'Saving…':'Save Menu'"></button>
+                        <button type="button" @click="deleteMenu()" class="px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-2xl">Delete Menu</button>
+                        <button type="button" @click="saveMenu()" :disabled="saving" class="px-5 py-1.5 text-sm font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 disabled:opacity-50 shadow-sm" x-text="saving?'Saving…':'Save Menu'"></button>
                     </div>
                 </div>
             </div>
 
-            <div x-show="items.length>0" class="text-xs text-gray-500 bg-sky-50 border border-sky-100 rounded-lg px-4 py-2.5">
+            <div x-show="items.length>0" class="text-xs text-slate-500 bg-sky-50 border border-sky-100 rounded-2xl px-4 py-2.5">
                 <strong>Tip:</strong> Drag any item to reorder — its children move with it. Use ← → arrows or the <span class="font-mono">+</span> child button to nest up to 3 levels deep. Labels and URLs are editable inline.
             </div>
 
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div class="bg-white rounded-[28px] border border-slate-200 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-4">
                 <template x-if="items.length===0">
-                    <div class="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
-                        <svg class="w-8 h-8 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
-                        <p class="text-sm text-gray-400">No menu items yet. Add from the left panel.</p>
+                    <div class="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-slate-200 rounded-xl">
+                        <svg class="w-8 h-8 text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                        <p class="text-sm text-slate-400">No menu items yet. Add from the left panel.</p>
                     </div>
                 </template>
                 <div class="space-y-1">
                     <template x-for="(item,idx) in items" :key="item._uid">
                         <div :style="'margin-left:'+(item._depth*28)+'px'" :class="itemClass(item,idx)" draggable="true" @dragstart="dragStart(idx,$event)" @dragover.prevent @drop="dragDrop(idx)" @dragend="dragEnd()">
                             <div class="flex items-center gap-1.5 px-3 py-2">
-                                <svg class="w-3.5 h-3.5 text-gray-400 cursor-grab shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
-                                <button type="button" @click="outdentItem(idx)" :disabled="item._depth===0" class="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-20 shrink-0" title="Move out (outdent)"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>
-                                <button type="button" @click="indentItem(idx)" :disabled="idx===0||item._depth>=3" class="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-20 shrink-0" title="Make child (indent)"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg></button>
-                                <button type="button" @click.stop="addChildItem(idx)" x-show="item._depth<3" class="p-0.5 rounded text-gray-400 hover:text-emerald-600 shrink-0" title="Add child item"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg></button>
+                                <svg class="w-3.5 h-3.5 text-slate-400 cursor-grab shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
+                                <button type="button" @click="outdentItem(idx)" :disabled="item._depth===0" class="p-0.5 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 shrink-0" title="Move out (outdent)"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>
+                                <button type="button" @click="indentItem(idx)" :disabled="idx===0||item._depth>=3" class="p-0.5 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 shrink-0" title="Make child (indent)"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg></button>
+                                <button type="button" @click.stop="addChildItem(idx)" x-show="item._depth<3" class="p-0.5 rounded text-slate-400 hover:text-emerald-600 shrink-0" title="Add child item"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg></button>
                                 <div x-show="item._depth>=3" class="w-4 shrink-0"></div>
                                 <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-                                    <input type="text" x-model="item.label" placeholder="(no label)" @mousedown.stop @click.stop class="text-sm font-medium text-gray-800 w-full bg-transparent border-0 border-b border-transparent hover:border-gray-200 focus:border-sky-400 outline-none px-0.5 py-0 leading-snug">
-                                    <input x-show="item.link_type==='custom'" type="text" x-model="item.url" placeholder="https://…" @mousedown.stop @click.stop class="text-xs text-gray-400 w-full bg-transparent border-0 border-b border-transparent hover:border-gray-200 focus:border-sky-400 outline-none px-0.5 py-0 leading-snug">
+                                    <input type="text" x-model="item.label" placeholder="(no label)" @mousedown.stop @click.stop class="text-sm font-medium text-slate-800 w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-sky-400 outline-none px-0.5 py-0 leading-snug">
+                                    <input x-show="item.link_type==='custom'" type="text" x-model="item.url" placeholder="https://…" @mousedown.stop @click.stop class="text-xs text-slate-400 w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-sky-400 outline-none px-0.5 py-0 leading-snug">
                                 </div>
                                 <span class="text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0" :class="{'bg-blue-50 text-blue-600':item.link_type==='page','bg-green-50 text-green-600':item.link_type==='post','bg-purple-50 text-purple-600':item.link_type==='custom','bg-amber-50 text-amber-600':item.link_type==='category','bg-teal-50 text-teal-600':item.link_type==='tag','bg-orange-50 text-orange-600':item.link_type==='home'}" x-text="item.link_type"></span>
-                                <span x-show="item._depth>0" class="text-[9px] font-bold px-1 py-0.5 rounded bg-gray-100 text-gray-400 shrink-0" x-text="'L'+item._depth"></span>
-                                <button type="button" @click="moveItem(idx,-1)" :disabled="idx===0" class="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-20 shrink-0"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg></button>
-                                <button type="button" @click="moveItem(idx,1)" :disabled="idx===items.length-1" class="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-20 shrink-0"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg></button>
-                                <button type="button" @click="item._open=!item._open" class="p-0.5 rounded text-gray-400 hover:text-gray-600 shrink-0" title="Advanced options"><svg class="w-3.5 h-3.5 transition-transform" :class="item._open&&'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
+                                <span x-show="item._depth>0" class="text-[9px] font-bold px-1 py-0.5 rounded bg-slate-100 text-slate-400 shrink-0" x-text="'L'+item._depth"></span>
+                                <button type="button" @click="moveItem(idx,-1)" :disabled="idx===0" class="p-0.5 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 shrink-0"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg></button>
+                                <button type="button" @click="moveItem(idx,1)" :disabled="idx===items.length-1" class="p-0.5 rounded text-slate-400 hover:text-slate-600 disabled:opacity-20 shrink-0"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg></button>
+                                <button type="button" @click="item._open=!item._open" class="p-0.5 rounded text-slate-400 hover:text-slate-600 shrink-0" title="Advanced options"><svg class="w-3.5 h-3.5 transition-transform" :class="item._open&&'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></button>
                             </div>
-                            <div x-show="item._open" x-cloak class="px-3 pb-3 pt-1 border-t border-gray-100 space-y-2">
+                            <div x-show="item._open" x-cloak class="px-3 pb-3 pt-1 border-t border-slate-100 space-y-2">
                                 <div class="grid grid-cols-3 gap-2">
-                                    <div><label class="block text-[10px] font-medium text-gray-500 mb-1">Target</label><select x-model="item.target" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white"><option value="_self">Same window</option><option value="_blank">New tab</option></select></div>
-                                    <div><label class="block text-[10px] font-medium text-gray-500 mb-1">Title Attr</label><input type="text" x-model="item.title_attr" placeholder="Tooltip" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5"></div>
-                                    <div><label class="block text-[10px] font-medium text-gray-500 mb-1">CSS Class</label><input type="text" x-model="item.css_class" placeholder="Optional" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5"></div>
+                                    <div><label class="block text-[10px] font-medium text-slate-500 mb-1">Target</label><select x-model="item.target" class="w-full text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white"><option value="_self">Same window</option><option value="_blank">New tab</option></select></div>
+                                    <div><label class="block text-[10px] font-medium text-slate-500 mb-1">Title Attr</label><input type="text" x-model="item.title_attr" placeholder="Tooltip" class="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"></div>
+                                    <div><label class="block text-[10px] font-medium text-slate-500 mb-1">CSS Class</label><input type="text" x-model="item.css_class" placeholder="Optional" class="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"></div>
                                 </div>
-                                <div><label class="block text-[10px] font-medium text-gray-500 mb-1">Description</label><input type="text" x-model="item.description" placeholder="Optional description" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5"></div>
+                                <div><label class="block text-[10px] font-medium text-slate-500 mb-1">Description</label><input type="text" x-model="item.description" placeholder="Optional description" class="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"></div>
                                 <div class="flex items-center justify-between pt-1">
-                                    <span class="text-[10px] text-gray-400" x-text="'Type: '+item.link_type+(item.link_ref?' → '+item.link_ref:'')"></span>
+                                    <span class="text-[10px] text-slate-400" x-text="'Type: '+item.link_type+(item.link_ref?' → '+item.link_ref:'')"></span>
                                     <button type="button" @click="removeItem(idx)" class="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
                                 </div>
                             </div>
@@ -180,12 +181,13 @@
     </template>
 
     <template x-if="!selectedMenuId">
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
-            <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
-            <h3 class="text-base font-medium text-gray-700 mb-1">Select or create a menu</h3>
-            <p class="text-sm text-gray-400">Use the dropdown above to edit an existing menu, or create a new one.</p>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-12 text-center">
+            <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
+            <h3 class="text-base font-medium text-slate-700 mb-1">Select or create a menu</h3>
+            <p class="text-sm text-slate-400">Use the dropdown above to edit an existing menu, or create a new one.</p>
         </div>
     </template>
+</div>
 </div>
 {/block}
 
@@ -312,10 +314,10 @@ function menuManager() {
             const dragging = this.dragIdx !== null && this.dragGroupEnd !== null && idx >= this.dragIdx && idx < this.dragGroupEnd;
             if (dragging) return 'opacity-40 border-2 border-dashed border-sky-400 rounded-lg bg-sky-50';
             const dc = [
-                'border border-gray-200',
-                'border border-gray-200 border-l-[3px] border-l-blue-300',
-                'border border-gray-200 border-l-[3px] border-l-purple-300',
-                'border border-gray-200 border-l-[3px] border-l-emerald-400',
+                'border border-slate-200',
+                'border border-slate-200 border-l-[3px] border-l-blue-300',
+                'border border-slate-200 border-l-[3px] border-l-purple-300',
+                'border border-slate-200 border-l-[3px] border-l-emerald-400',
             ];
             return 'rounded-lg bg-white transition-colors ' + (dc[item._depth] || dc[0]);
         },

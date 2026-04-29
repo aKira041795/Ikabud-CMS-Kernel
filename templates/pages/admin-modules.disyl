@@ -3,39 +3,39 @@
 {block head}
 <style>
     .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
-    .module-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: box-shadow .15s; }
+    .module-card { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; padding: 20px; transition: box-shadow .15s; }
     .module-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
     .module-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
     .module-name { font-size: 16px; font-weight: 700; color: var(--text); }
-    .module-version { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
+    .module-version { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 2px; white-space: nowrap; }
     .module-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
     .module-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-light); margin-bottom: 14px; flex-wrap: wrap; }
     .module-meta span { display: flex; align-items: center; gap: 4px; }
-    .entity-authority-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 6px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); color: #2563eb; border-radius: 6px; font-weight: 600; margin-bottom: 8px; }
+    .entity-authority-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 6px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); color: #2563eb; border-radius: 2px; font-weight: 600; margin-bottom: 8px; }
     .module-actions { display: flex; gap: 8px; align-items: center; }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .status-dot { width: 6px; height: 6px; border-radius: 2px; }
     .status-pill.enabled .status-dot { background: var(--success); }
     .status-pill.disabled .status-dot { background: var(--danger); }
-    .btn-enable { background: var(--success-light); color: var(--success); border: none; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .btn-enable { background: var(--success-light); color: var(--success); border: none; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 2px; cursor: pointer; transition: filter .15s; }
     .btn-enable:hover { filter: brightness(.95); }
-    .btn-disable { background: var(--danger-light); color: var(--danger); border: none; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .btn-disable { background: var(--danger-light); color: var(--danger); border: none; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 2px; cursor: pointer; transition: filter .15s; }
     .btn-disable:hover { filter: brightness(.95); }
-    .btn-config { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .btn-config { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 2px; cursor: pointer; transition: filter .15s; }
     .btn-config:hover { filter: brightness(.98); }
-    .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 32px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; background: var(--surface); }
+    .upload-zone { border: 2px dashed var(--border); border-radius: 2px; padding: 32px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; background: var(--surface); }
     .upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: rgba(59,130,246,.04); }
     .upload-zone input[type="file"] { display: none; }
     .upload-zone p { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
     .upload-zone .upload-icon { font-size: 28px; margin-bottom: 4px; color: var(--text-muted); }
     .upload-progress { display: none; margin-top: 12px; font-size: 13px; color: var(--text-muted); }
     .upload-progress.show { display: block; }
-    .install-diagnostics { display: none; margin-top: 12px; font-size: 12px; border-radius: 10px; padding: 10px 12px; }
+    .install-diagnostics { display: none; margin-top: 12px; font-size: 12px; border-radius: 2px; padding: 10px 12px; }
     .install-diagnostics.show { display: block; }
     .install-diagnostics.ok { background: var(--success-light); color: var(--success); border: 1px solid var(--success); }
     .install-diagnostics.err { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
     .install-diagnostics code { font-family: monospace; font-size: 11px; }
     .module-id { font-family: monospace; font-size: 11px; color: var(--text-light); margin-top: 2px; }
-    .cap-warning { margin-top: 10px; font-size: 12px; background: var(--warning-light); color: var(--warning); border: 1px solid var(--warning); border-radius: 10px; padding: 10px 12px; }
+    .cap-warning { margin-top: 10px; font-size: 12px; background: var(--warning-light); color: var(--warning); border: 1px solid var(--warning); border-radius: 2px; padding: 10px 12px; }
     .cap-warning strong { font-weight: 700; }
     .btn-disabled { opacity: .55; cursor: not-allowed; }
     .optin-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
@@ -44,7 +44,7 @@
     .cap-section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
     .cap-section-header h3 { font-size: 15px; font-weight: 600; color: var(--text); }
     .cap-section-header span { font-size: 12px; color: var(--text-muted); }
-    .cap-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; font-size: 12px; color: var(--text); min-height: 48px; }
+    .cap-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; padding: 14px 16px; font-size: 12px; color: var(--text); min-height: 48px; }
     .cap-panel-loading { color: var(--text-muted); }
     .cap-panel-error { color: var(--danger); }
     .cap-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
@@ -53,9 +53,9 @@
     .cap-table tr:nth-child(even) td { background: var(--bg); }
     .cap-provider { font-family: monospace; font-size: 11px; }
     .cap-cap-list { display: flex; flex-wrap: wrap; gap: 4px; }
-    .cap-cap-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+    .cap-cap-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 2px; font-size: 11px; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
     .cap-cap-pill-code { font-family: monospace; }
-    .cap-metric-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 999px; font-size: 10px; }
+    .cap-metric-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 2px; font-size: 10px; }
     .cap-metric-badge.ok { background: var(--success-light); color: var(--success); }
     .cap-metric-badge.warn { background: var(--warning-light); color: var(--warning); }
     .cap-metric-badge.err { background: var(--danger-light); color: var(--danger); }
@@ -65,18 +65,18 @@
     .cap-access-row { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; }
     .cap-access { font-size: 10px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 2px; }
     .caller-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
-    .caller-header select { font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); }
+    .caller-header select { font-size: 12px; padding: 3px 6px; border-radius: 2px; border: 1px solid var(--border); background: var(--bg); }
     .caller-cap-list { display: flex; flex-wrap: wrap; gap: 4px; }
-    .caller-cap-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--bg); border: 1px solid var(--border); }
+    .caller-cap-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 2px; font-size: 11px; background: var(--bg); border: 1px solid var(--border); }
     .caller-cap-item-code { font-family: monospace; }
     .caller-cap-provider { font-size: 10px; color: var(--text-muted); }
     .config-modal { position: fixed; inset: 0; z-index: 1200; display: none; }
     .config-modal.show { display: block; }
     .config-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); }
-    .config-modal-dialog { position: absolute; top: 8vh; left: 50%; transform: translateX(-50%); width: min(720px, 95vw); max-height: 84vh; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 30px rgba(2, 6, 23, .25); overflow: hidden; display: flex; flex-direction: column; }
+    .config-modal-dialog { position: absolute; top: 8vh; left: 50%; transform: translateX(-50%); width: min(720px, 95vw); max-height: 84vh; background: var(--surface); border: 1px solid var(--border); border-radius: 2px; box-shadow: 0 14px 30px rgba(2, 6, 23, .25); overflow: hidden; display: flex; flex-direction: column; }
     .config-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg); }
     .config-modal-title { font-size: 13px; font-weight: 700; color: var(--text); }
-    .config-modal-close { border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    .config-modal-close { border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: 2px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
     .config-modal-close:hover { color: var(--text); }
     .config-modal-body { padding: 14px; overflow-y: auto; }
     .config-form-grid { display: grid; gap: 12px; }
@@ -84,11 +84,11 @@
     .config-field-inline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
     .config-field-label { font-size: 12px; font-weight: 600; color: var(--text); }
     .config-field-help { font-size: 11px; color: var(--text-muted); }
-    .config-input, .config-select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); }
+    .config-input, .config-select { width: 100%; border: 1px solid var(--border); border-radius: 2px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); }
     .config-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-    .btn-save { background: var(--primary); color: #fff; border: none; padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; }
+    .btn-save { background: var(--primary); color: #fff; border: none; padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 2px; cursor: pointer; }
     .btn-save:hover { filter: brightness(.95); }
-    .btn-muted { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; }
+    .btn-muted { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 2px; cursor: pointer; }
     .config-status { margin-bottom: 10px; font-size: 12px; color: var(--text-muted); }
     .config-status.err { color: var(--danger); }
     .config-status.ok { color: var(--success); }
@@ -158,7 +158,7 @@
                     Authority
                 </span>
                 {foreach mod.entities_owned as entity}
-                    <span style="font-size: 11px; padding: 2px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text-light); font-family: monospace;">{entity}</span>
+                    <span style="font-size: 11px; padding: 2px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 2px; color: var(--text-light); font-family: monospace;">{entity}</span>
                 {/foreach}
             </div>
             {/if}

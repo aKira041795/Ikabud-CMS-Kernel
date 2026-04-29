@@ -5,12 +5,12 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">CMS Modules</h1>
-            <p class="mt-1 text-sm text-gray-500">Manage CMS-installed extension modules. Kernel/application modules are managed at the system level.</p>
+            <h1 class="text-xl font-bold text-slate-900">CMS Modules</h1>
+            <p class="mt-0.5 text-sm text-slate-500">Manage CMS-installed extension modules. Kernel/application modules are managed at the system level.</p>
         </div>
         <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-400" x-text="modules.length ? modules.length + ' CMS module(s) installed' : 'No CMS modules installed'"></span>
-            <button @click="showUpload = !showUpload" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors">
+            <span class="text-xs text-slate-400" x-text="modules.length ? modules.length + ' CMS module(s) installed' : 'No CMS modules installed'"></span>
+            <button @click="showUpload = !showUpload" class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 transition-colors shadow-sm shadow-sky-600/20">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                 Upload ZIP
             </button>
@@ -18,21 +18,21 @@
     </div>
 
     <!-- Available Host Modules -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-                <h3 class="text-sm font-semibold text-gray-700">Available Modules</h3>
-                <p class="mt-1 text-xs text-gray-500">Install bundled CMS addons that already exist on this host, plus approved catalog modules. Free and freemium catalog modules can be installed directly; paid modules still need superadmin access first.</p>
+                <h3 class="text-sm font-semibold text-slate-700">Available Modules</h3>
+                <p class="mt-1 text-xs text-slate-500">Install bundled CMS addons that already exist on this host, plus approved catalog modules. Free and freemium catalog modules can be installed directly; paid modules still need superadmin access first.</p>
             </div>
-            <span class="text-xs text-gray-400" x-text="catalogModules.length ? catalogModules.length + ' module(s) available' : 'No host modules available'"></span>
+            <span class="text-xs text-slate-400" x-text="catalogModules.length ? catalogModules.length + ' module(s) available' : 'No host modules available'"></span>
         </div>
         <div x-show="catalogMsg" x-cloak class="mb-4 text-sm rounded-lg px-4 py-2" :class="catalogOk ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'" x-text="catalogMsg"></div>
         <div x-show="catalogModules.length > 0" x-cloak class="space-y-3">
             <template x-for="mod in catalogModules" :key="mod.id">
-                <div class="flex flex-col gap-4 rounded-xl border border-gray-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
-                            <p class="font-semibold text-sm text-gray-900" x-text="mod.name"></p>
+                            <p class="font-semibold text-sm text-slate-900" x-text="mod.name"></p>
                             <span x-show="mod.availability_source === 'bundled'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-sky-100 text-sky-700">Bundled</span>
                             <span x-show="mod.availability_source !== 'bundled'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-700" x-text="(mod.commercial_mode || 'free').toUpperCase()"></span>
                             <span x-show="mod.entitlement_allowed" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">Access ready</span>
@@ -40,8 +40,8 @@
                             <span x-show="mod.request_status === 'pending'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700">Request pending</span>
                             <span x-show="mod.request_status === 'rejected'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-rose-100 text-rose-700">Request needs update</span>
                         </div>
-                        <p class="mt-1 text-xs text-gray-500 max-w-2xl" x-text="mod.description || 'No description available.'"></p>
-                        <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-400">
+                        <p class="mt-1 text-xs text-slate-500 max-w-2xl" x-text="mod.description || 'No description available.'"></p>
+                        <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-400">
                             <span x-text="'Version ' + mod.version"></span>
                             <span x-show="mod.author" x-text="'By ' + mod.author"></span>
                             <span x-show="mod.request_license_ref" x-text="'License: ' + mod.request_license_ref"></span>
@@ -49,7 +49,7 @@
                     </div>
                     <div class="flex items-center gap-2 lg:justify-end">
                         <template x-if="mod.can_install">
-                            <button @click="installCatalogModule(mod)" :disabled="installingCatalog === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                            <button @click="installCatalogModule(mod)" :disabled="installingCatalog === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-2xl hover:bg-emerald-700 disabled:opacity-50 transition-colors">
                                 <template x-if="installingCatalog === mod.id">
                                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                                 </template>
@@ -57,7 +57,7 @@
                             </button>
                         </template>
                         <template x-if="!mod.can_install">
-                            <button @click="openRequestAccess(mod)" :disabled="requestingAccess === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                            <button @click="openRequestAccess(mod)" :disabled="requestingAccess === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-700 bg-amber-50 rounded-2xl hover:bg-amber-100 disabled:opacity-50 transition-colors">
                                 <template x-if="requestingAccess === mod.id">
                                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                                 </template>
@@ -68,46 +68,46 @@
                 </div>
             </template>
         </div>
-        <div x-show="catalogModules.length === 0" x-cloak class="text-sm text-gray-500 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center">
+        <div x-show="catalogModules.length === 0" x-cloak class="text-sm text-slate-500 rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
             No bundled or approved host modules are currently available for this tenant.
         </div>
     </div>
 
     <div x-show="requestAccessOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4" @keydown.escape.window="closeRequestAccess()">
         <div class="fixed inset-0 bg-black/35 backdrop-blur-sm" @click="closeRequestAccess()" x-transition.opacity></div>
-        <div class="relative w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-2xl" x-show="requestAccessOpen" x-transition>
-            <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+        <div class="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20" x-show="requestAccessOpen" x-transition>
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
                 <div>
-                    <h3 class="text-base font-semibold text-gray-900">Request Catalog Access</h3>
-                    <p class="mt-1 text-sm text-gray-500" x-text="requestAccessForm.moduleName ? 'Submit or update the access request for ' + requestAccessForm.moduleName + '.' : 'Submit an access request for this catalog module.'"></p>
+                    <h3 class="text-base font-semibold text-slate-900">Request Catalog Access</h3>
+                    <p class="mt-1 text-sm text-slate-500" x-text="requestAccessForm.moduleName ? 'Submit or update the access request for ' + requestAccessForm.moduleName + '.' : 'Submit an access request for this catalog module.'"></p>
                 </div>
-                <button type="button" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50" @click="closeRequestAccess()">Close</button>
+                <button type="button" class="rounded-2xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors" @click="closeRequestAccess()">Close</button>
             </div>
             <form @submit.prevent="submitRequestAccess" class="space-y-4 px-6 py-5">
-                <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                    <div class="flex flex-wrap gap-2 text-xs text-gray-500">
-                        <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600" x-text="'Mode: ' + (requestAccessForm.commercialMode || 'paid')"></span>
-                        <span x-show="requestAccessForm.requestStatus && requestAccessForm.requestStatus !== 'none'" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600" x-text="'Current request: ' + requestAccessForm.requestStatus"></span>
-                        <span x-show="requestAccessForm.licenseRef" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600" x-text="'Saved ref: ' + requestAccessForm.licenseRef"></span>
-                        <span x-show="requestAccessForm.hasLicenseKey" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600">License key on file</span>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    <div class="flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-slate-600" x-text="'Mode: ' + (requestAccessForm.commercialMode || 'paid')"></span>
+                        <span x-show="requestAccessForm.requestStatus && requestAccessForm.requestStatus !== 'none'" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-slate-600" x-text="'Current request: ' + requestAccessForm.requestStatus"></span>
+                        <span x-show="requestAccessForm.licenseRef" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-slate-600" x-text="'Saved ref: ' + requestAccessForm.licenseRef"></span>
+                        <span x-show="requestAccessForm.hasLicenseKey" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-slate-600">License key on file</span>
                     </div>
                     <p x-show="requestAccessForm.reviewNotes" class="mt-3 text-xs text-rose-700" x-text="'Latest review note: ' + requestAccessForm.reviewNotes"></p>
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">License Key</label>
-                    <input type="text" x-model="requestAccessForm.licenseKey" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20" placeholder="Optional. Leave blank to request review without a key.">
-                    <p class="mt-1 text-[11px] text-gray-400">A new key is stored securely. Existing keys stay masked and are not shown again.</p>
+                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">License Key</label>
+                    <input type="text" x-model="requestAccessForm.licenseKey" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20" placeholder="Optional. Leave blank to request review without a key.">
+                    <p class="mt-1 text-[11px] text-slate-400">A new key is stored securely. Existing keys stay masked and are not shown again.</p>
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Request Note</label>
-                    <textarea x-model="requestAccessForm.requestNotes" rows="4" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20" placeholder="Tell the superadmin what this tenant needs."></textarea>
+                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Request Note</label>
+                    <textarea x-model="requestAccessForm.requestNotes" rows="4" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20" placeholder="Tell the superadmin what this tenant needs."></textarea>
                 </div>
 
-                <div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
-                    <button type="button" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50" @click="closeRequestAccess()">Cancel</button>
-                    <button type="submit" :disabled="requestingAccess === requestAccessForm.moduleId" class="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
+                <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                    <button type="button" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors" @click="closeRequestAccess()">Cancel</button>
+                    <button type="submit" :disabled="requestingAccess === requestAccessForm.moduleId" class="inline-flex items-center gap-2 rounded-2xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors">
                         <template x-if="requestingAccess === requestAccessForm.moduleId">
                             <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                         </template>
@@ -119,15 +119,15 @@
     </div>
 
     <!-- Upload Panel -->
-    <div x-show="showUpload" x-cloak x-transition class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h3 class="text-sm font-semibold text-gray-700 mb-3">Upload New Module ZIP</h3>
-        <p class="text-xs text-gray-500 mb-4">Upload a CMS extension module package (.zip) containing a <code class="bg-gray-100 px-1 rounded">module.json</code> manifest. The upload installs the module for this tenant immediately, runs its migrations, and creates or updates a pending catalog submission so a superadmin can approve reuse for other tenants later.</p>
+    <div x-show="showUpload" x-cloak x-transition class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3">Upload New Module ZIP</h3>
+        <p class="text-xs text-slate-500 mb-4">Upload a CMS extension module package (.zip) containing a <code class="bg-slate-100 px-1 rounded">module.json</code> manifest. The upload installs the module for this tenant immediately, runs its migrations, and creates or updates a pending catalog submission so a superadmin can approve reuse for other tenants later.</p>
         <form @submit.prevent="uploadModule" class="flex items-end gap-4">
             <div class="flex-1">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Module Package (.zip)</label>
-                <input type="file" x-ref="moduleFile" accept=".zip" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Module Package (.zip)</label>
+                <input type="file" x-ref="moduleFile" accept=".zip" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
             </div>
-            <button type="submit" :disabled="uploading" class="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">
+            <button type="submit" :disabled="uploading" class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 disabled:opacity-50 transition-colors">
                 <template x-if="uploading">
                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                 </template>
@@ -138,13 +138,13 @@
     </div>
 
     <!-- Reset Email Test -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <h3 class="text-sm font-semibold text-gray-700">Password Reset Email Test</h3>
-                <p class="mt-1 text-xs text-gray-500">Send a test reset email to your current CMS admin account email.</p>
+                <h3 class="text-sm font-semibold text-slate-700">Password Reset Email Test</h3>
+                <p class="mt-1 text-xs text-slate-500">Send a test reset email to your current CMS admin account email.</p>
             </div>
-            <button @click="sendResetEmailTest" :disabled="testingResetEmail" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-cms-600 rounded-lg hover:bg-cms-700 disabled:opacity-50 transition-colors">
+            <button @click="sendResetEmailTest" :disabled="testingResetEmail" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-cms-600 rounded-2xl hover:bg-cms-700 disabled:opacity-50 transition-colors">
                 <template x-if="testingResetEmail">
                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                 </template>
@@ -155,45 +155,45 @@
     </div>
 
     <!-- Module List -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50/60">
                 <tr>
-                    <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Module</th>
-                    <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Version</th>
-                    <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Details</th>
-                    <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th class="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">Module</th>
+                    <th class="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">Version</th>
+                    <th class="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">Details</th>
+                    <th class="px-5 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">Status</th>
+                    <th class="px-5 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">Actions</th>
                 </tr>
             </thead>
             <!-- One tbody per module so settings row can be adjacent -->
             <template x-for="mod in modules" :key="mod.id">
-                <tbody class="divide-y divide-gray-100">
+                <tbody class="divide-y divide-slate-100">
                     <!-- Module row -->
-                    <tr class="hover:bg-gray-50 transition-colors" :class="openConfig === mod.id ? 'bg-sky-50/40' : ''">
+                    <tr class="hover:bg-slate-50/40 transition-colors" :class="openConfig === mod.id ? 'bg-sky-50/40' : ''">
                         <!-- Name & Description -->
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-sky-100">
+                                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-sky-100">
                                     <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                                 </div>
                                 <div>
-                                    <p class="font-semibold text-sm text-gray-900" x-text="mod.name"></p>
-                                    <p class="text-xs text-gray-500 mt-0.5 max-w-xs truncate" x-text="mod.description || '—'"></p>
+                                    <p class="font-semibold text-sm text-slate-900" x-text="mod.name"></p>
+                                    <p class="text-xs text-slate-500 mt-0.5 max-w-xs truncate" x-text="mod.description || '—'"></p>
                                 </div>
                             </div>
                         </td>
                         <!-- Version -->
                         <td class="px-5 py-4">
-                            <span class="text-sm text-gray-600" x-text="mod.version"></span>
-                            <p class="text-xs text-gray-400 mt-0.5" x-show="mod.author" x-text="mod.author"></p>
+                            <span class="text-sm text-slate-600" x-text="mod.version"></span>
+                            <p class="text-xs text-slate-400 mt-0.5" x-show="mod.author" x-text="mod.author"></p>
                         </td>
                         <!-- Details -->
                         <td class="px-5 py-4">
                             <div class="flex flex-wrap gap-1.5">
                                 <span x-show="mod.has_routes" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700">Routes</span>
                                 <span x-show="mod.capabilities_count > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-100 text-purple-700" x-text="mod.capabilities_count + ' caps'"></span>
-                                <span x-show="mod.depends_count > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-600" x-text="mod.depends_count + ' deps'"></span>
+                                <span x-show="mod.depends_count > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-600" x-text="mod.depends_count + ' deps'"></span>
                                 <span x-show="mod.tables && mod.tables.length > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700" x-text="mod.tables.length + ' tables'"></span>
                                 <span x-show="mod.settings_fields && mod.settings_fields.length > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700" x-text="mod.settings_fields.length + ' settings'"></span>
                                 <span x-show="mod.catalog_managed" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-700" x-text="'Catalog • ' + (mod.commercial_mode || 'free')"></span>
@@ -201,7 +201,7 @@
                         </td>
                         <!-- Status -->
                         <td class="px-5 py-4 text-center">
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full" :class="mod.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full" :class="mod.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'">
                                 <span class="w-1.5 h-1.5 rounded-full" :class="mod.enabled ? 'bg-green-500' : 'bg-gray-400'"></span>
                                 <span x-text="mod.enabled ? 'Enabled' : 'Disabled'"></span>
                             </span>
@@ -212,7 +212,7 @@
                                 <!-- Configure (only when settings_fields exist) -->
                                 <template x-if="mod.settings_fields && mod.settings_fields.length > 0">
                                     <button @click="toggleConfig(mod)"
-                                        class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                                        class="px-3 py-1.5 text-xs font-medium rounded-2xl transition-colors"
                                         :class="openConfig === mod.id
                                             ? 'text-sky-700 bg-sky-100 ring-1 ring-sky-300'
                                             : 'text-sky-700 bg-sky-50 hover:bg-sky-100'">
@@ -220,11 +220,11 @@
                                     </button>
                                 </template>
                                 <!-- Toggle Enable/Disable -->
-                                <button @click="toggleModule(mod)" :disabled="toggling === mod.id" class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors" :class="mod.enabled ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-green-700 bg-green-50 hover:bg-green-100'" x-text="mod.enabled ? 'Disable' : 'Enable'">
+                                <button @click="toggleModule(mod)" :disabled="toggling === mod.id" class="px-3 py-1.5 text-xs font-medium rounded-2xl transition-colors" :class="mod.enabled ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-green-700 bg-green-50 hover:bg-green-100'" x-text="mod.enabled ? 'Disable' : 'Enable'">
                                 </button>
                                 <!-- Delete (only disabled modules) -->
                                 <template x-if="!mod.enabled">
-                                    <button @click="deleteModule(mod)" class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                                    <button @click="deleteModule(mod)" class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-2xl hover:bg-red-100 transition-colors">
                                         Delete
                                     </button>
                                 </template>
@@ -237,7 +237,7 @@
                         <td colspan="5" class="px-0 py-0 bg-sky-50/60 border-t border-sky-100">
                             <div class="px-6 py-5">
                                 <div class="flex items-center justify-between mb-4">
-                                    <h4 class="text-sm font-semibold text-gray-700" x-text="mod.name + ' Settings'"></h4>
+                                    <h4 class="text-sm font-semibold text-slate-700" x-text="mod.name + ' Settings'"></h4>
                                     <div class="flex items-center gap-2">
                                         <span x-show="configSaved[mod.id]" x-transition.opacity class="text-xs text-green-600 font-medium flex items-center gap-1">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
@@ -249,13 +249,13 @@
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                                     <template x-for="field in mod.settings_fields" :key="field.key">
                                         <div>
-                                            <label class="block text-xs font-medium text-gray-500 mb-1" x-text="field.label"></label>
+                                            <label class="block text-xs font-medium text-slate-500 mb-1" x-text="field.label"></label>
                                             <!-- select -->
                                             <template x-if="field.type === 'select'">
                                                 <select
                                                     :value="configValues[mod.id] && configValues[mod.id][field.key]"
                                                     @change="setConfigValue(mod.id, field.key, $event.target.value)"
-                                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                                                    class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                                                     <template x-for="opt in field.options" :key="opt.value">
                                                         <option :value="opt.value" :selected="(configValues[mod.id] && configValues[mod.id][field.key]) === opt.value" x-text="opt.label"></option>
                                                     </template>
@@ -268,18 +268,18 @@
                                                     :value="configValues[mod.id] && configValues[mod.id][field.key]"
                                                     @input="setConfigValue(mod.id, field.key, $event.target.value)"
                                                     :placeholder="field.placeholder || ''"
-                                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                                                    class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                                             </template>
-                                            <p x-show="field.help" x-text="field.help" class="text-[11px] text-gray-400 mt-1"></p>
+                                            <p x-show="field.help" x-text="field.help" class="text-[11px] text-slate-400 mt-1"></p>
                                         </div>
                                     </template>
                                 </div>
                                 <div class="flex items-center gap-3 pt-3 border-t border-sky-100">
                                     <button @click="saveConfig(mod)" :disabled="savingConfig === mod.id"
-                                        class="px-4 py-1.5 text-xs font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">
+                                        class="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 disabled:opacity-50 transition-colors">
                                         <span x-text="savingConfig === mod.id ? 'Saving…' : 'Save Settings'"></span>
                                     </button>
-                                    <button @click="openConfig = null" class="px-4 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <button @click="openConfig = null" class="px-4 py-2 text-xs font-medium text-slate-500 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors">
                                         Close
                                     </button>
                                 </div>
@@ -292,10 +292,10 @@
     </div>
 
     <!-- Empty State -->
-    <div x-show="modules.length === 0" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <svg class="w-16 h-16 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-        <p class="mt-4 text-sm text-gray-500">No CMS extension modules installed yet.</p>
-        <p class="mt-1 text-xs text-gray-400">Upload a module package (.zip) to extend your CMS. Kernel modules are managed at the application level.</p>
+    <div x-show="modules.length === 0" class="text-center py-16 rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+        <svg class="w-16 h-16 text-slate-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <p class="mt-4 text-sm text-slate-500">No CMS extension modules installed yet.</p>
+        <p class="mt-1 text-xs text-slate-400">Upload a module package (.zip) to extend your CMS. Kernel modules are managed at the application level.</p>
     </div>
 </div>
 

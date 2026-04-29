@@ -770,18 +770,14 @@ class TemplateEngine
             );
         }
         
-        // Second pass: arithmetic
-        if (strpbrk($content, '+-*/%') !== false) {
+        // Second pass: arithmetic (including parenthesized and chained expressions)
+        if (strpbrk($content, '+-*/%()') !== false) {
             $content = preg_replace_callback(
-                '/\{([a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+)\}/',
+                '/\{((?:[a-zA-Z_(]|\d)[^}]*[+\-*\/%][^}]*)\}/',
                 function($match) use ($context) {
                     $result = $this->evaluateArithmetic(trim($match[1]), $context);
                     if ($result !== null) {
                         return (string) $result;
-                    }
-                    // Arithmetic operands with dots are template expressions — output empty
-                    if (str_contains($match[1], '.')) {
-                        return '';
                     }
                     return $match[0];
                 },
@@ -882,40 +878,150 @@ class TemplateEngine
      * Evaluate arithmetic expressions: var + num, var - num, var * num, var / num, var % num
      * Returns null if the expression is not arithmetic.
      */
-    private function evaluateArithmetic(string $expr, array $context)
+    private function evaluateArithmetic(string $expr, array $context): int|float|null
     {
-        // Match: operand operator operand (e.g. "page + 1", "total - count", "price * 1.1")
-        if (preg_match('/^(.+?)\s*([+\-*\/%])\s*(.+)$/', $expr, $m)) {
-            $leftRaw = trim($m[1]);
-            $op = $m[2];
-            $rightRaw = trim($m[3]);
-            
-            // Resolve left operand
-            $left = $this->resolveValue($leftRaw, $context);
-            if ($left === null && is_numeric($leftRaw)) $left = $leftRaw + 0;
-            if ($left === null) return null;
-            
-            // Resolve right operand
-            $right = $this->resolveValue($rightRaw, $context);
-            if ($right === null && is_numeric($rightRaw)) $right = $rightRaw + 0;
-            if ($right === null) return null;
-            
-            $left = (float) $left;
-            $right = (float) $right;
-            
-            return match($op) {
-                '+' => ($left + $right == (int)($left + $right)) ? (int)($left + $right) : $left + $right,
-                '-' => ($left - $right == (int)($left - $right)) ? (int)($left - $right) : $left - $right,
-                '*' => ($left * $right == (int)($left * $right)) ? (int)($left * $right) : $left * $right,
-                '/' => $right != 0 ? (($left / $right == (int)($left / $right)) ? (int)($left / $right) : $left / $right) : 0,
-                '%' => $right != 0 ? (int)$left % (int)$right : 0,
-                default => null,
-            };
+        $tokens = $this->tokenizeArithExpr($expr);
+        if ($tokens === null || count($tokens) === 0) {
+            return null;
         }
-        
+        // Require at least one arithmetic operator — bare variable/literal lookups
+        // must not be handled here (they are handled by resolveValue elsewhere).
+        $hasOp = false;
+        foreach ($tokens as $tok) {
+            if (is_string($tok) && in_array($tok, ['+', '-', '*', '/', '%'], true)) {
+                $hasOp = true;
+                break;
+            }
+        }
+        if (!$hasOp) {
+            return null;
+        }
+        $pos = 0;
+        $result = $this->exprAdd($tokens, $pos, $context);
+        if ($result === null || $pos !== count($tokens)) {
+            return null; // Not all tokens consumed — not a pure arithmetic expression
+        }
+        // Return as int when value is a whole number
+        if (is_float($result) && $result == (int)$result) {
+            return (int)$result;
+        }
+        return $result;
+    }
+
+    /**
+     * Tokenize an arithmetic expression into an array of typed tokens:
+     *   - int|float   : numeric literal
+     *   - ['var', str]: variable path (dot-notation)
+     *   - string      : single-char operator (+,-,*,/,%) or parenthesis
+     * Returns null if the expression contains characters not valid in arithmetic.
+     */
+    private function tokenizeArithExpr(string $expr): ?array
+    {
+        $tokens = [];
+        $i = 0;
+        $len = strlen($expr);
+        while ($i < $len) {
+            $c = $expr[$i];
+            if ($c === ' ') { $i++; continue; }
+            if ($c === '(' || $c === ')' || in_array($c, ['+', '-', '*', '/', '%'], true)) {
+                $tokens[] = $c;
+                $i++;
+                continue;
+            }
+            // Numeric literal (integer or decimal)
+            if (ctype_digit($c) || ($c === '.' && $i + 1 < $len && ctype_digit($expr[$i + 1]))) {
+                $j = $i;
+                while ($j < $len && (ctype_digit($expr[$j]) || $expr[$j] === '.')) {
+                    $j++;
+                }
+                $num = substr($expr, $i, $j - $i);
+                $tokens[] = str_contains($num, '.') ? (float)$num : (int)$num;
+                $i = $j;
+                continue;
+            }
+            // Identifier / variable path (dot-notation)
+            if (ctype_alpha($c) || $c === '_') {
+                $j = $i;
+                while ($j < $len && (ctype_alnum($expr[$j]) || $expr[$j] === '_' || $expr[$j] === '.')) {
+                    $j++;
+                }
+                $tokens[] = ['var', substr($expr, $i, $j - $i)];
+                $i = $j;
+                continue;
+            }
+            return null; // Unknown character — not a valid arithmetic expression
+        }
+        return $tokens;
+    }
+
+    /** Recursive-descent: additive level (+, -) */
+    private function exprAdd(array $tokens, int &$pos, array $context): int|float|null
+    {
+        $left = $this->exprMul($tokens, $pos, $context);
+        if ($left === null) return null;
+        $n = count($tokens);
+        while ($pos < $n && ($tokens[$pos] === '+' || $tokens[$pos] === '-')) {
+            $op = $tokens[$pos++];
+            $right = $this->exprMul($tokens, $pos, $context);
+            if ($right === null) return null;
+            $left = $op === '+' ? $left + $right : $left - $right;
+        }
+        return $left;
+    }
+
+    /** Recursive-descent: multiplicative level (*, /, %) */
+    private function exprMul(array $tokens, int &$pos, array $context): int|float|null
+    {
+        $left = $this->exprUnary($tokens, $pos, $context);
+        if ($left === null) return null;
+        $n = count($tokens);
+        while ($pos < $n && in_array($tokens[$pos], ['*', '/', '%'], true)) {
+            $op = $tokens[$pos++];
+            $right = $this->exprUnary($tokens, $pos, $context);
+            if ($right === null) return null;
+            if ($op === '*') $left = $left * $right;
+            elseif ($op === '/') $left = $right != 0 ? $left / $right : 0;
+            else $left = $right != 0 ? (int)$left % (int)$right : 0;
+        }
+        return $left;
+    }
+
+    /** Recursive-descent: unary minus */
+    private function exprUnary(array $tokens, int &$pos, array $context): int|float|null
+    {
+        if ($pos < count($tokens) && $tokens[$pos] === '-') {
+            $pos++;
+            $val = $this->exprPrimary($tokens, $pos, $context);
+            return $val !== null ? -$val : null;
+        }
+        return $this->exprPrimary($tokens, $pos, $context);
+    }
+
+    /** Recursive-descent: primary (literal, variable, parenthesized expression) */
+    private function exprPrimary(array $tokens, int &$pos, array $context): int|float|null
+    {
+        if ($pos >= count($tokens)) return null;
+        $tok = $tokens[$pos];
+        if (is_int($tok) || is_float($tok)) {
+            $pos++;
+            return $tok;
+        }
+        if (is_array($tok)) { // ['var', 'path.name']
+            $pos++;
+            $val = $this->resolveValue($tok[1], $context);
+            return ($val !== null && is_numeric($val)) ? (float)$val : null;
+        }
+        if ($tok === '(') {
+            $pos++; // consume '('
+            $val = $this->exprAdd($tokens, $pos, $context);
+            if ($pos < count($tokens) && $tokens[$pos] === ')') {
+                $pos++; // consume ')'
+            }
+            return $val;
+        }
         return null;
     }
-    
+
     /**
      * Remove template comments
      */
@@ -2117,7 +2223,7 @@ class TemplateEngine
         $resolveCache = [];
 
         $content = preg_replace_callback(
-            '/(?<!\$)\{([a-zA-Z_][\w.]*[^}]*)\}/',
+            '/(?<!\$)\{((?:[a-zA-Z_(]|\d)[^}]*)\}/',
             function($match) use ($context, &$resolveCache) {
                 $expr = trim($match[1]);
 
@@ -2131,16 +2237,14 @@ class TemplateEngine
                     }
                 }
 
-                // 2. Arithmetic: {var + num}, {var - num}, etc.
-                //    Only check if no pipe (filters) and operator-like chars exist
-                if (!str_contains($expr, '|') && strpbrk($expr, '+-*/%') !== false) {
-                    if (preg_match('/^[a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+$/', $expr)) {
-                        $result = $this->evaluateArithmetic($expr, $context);
-                        if ($result !== null) {
-                            return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
-                        }
-                        return '';
+                // 2. Arithmetic/expression: no pipe + contains operators or parentheses.
+                //    Handles simple {a + b}, chained {a / b * c}, parenthesized {(a + b) * c}.
+                if (!str_contains($expr, '|') && strpbrk($expr, '+-*/%()') !== false) {
+                    $result = $this->evaluateArithmetic($expr, $context);
+                    if ($result !== null) {
+                        return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
                     }
+                    // Not a valid arithmetic expression — fall through to variable resolution
                 }
 
                 // 3. Simple variable (no filters)

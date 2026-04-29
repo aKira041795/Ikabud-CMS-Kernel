@@ -2,16 +2,16 @@
 
 {block content}
 <!-- Upload zone -->
-<div class="mb-6" x-data="cmsUploader()">
-    <div class="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors bg-white"
-         :class="dragover ? 'border-sky-400 bg-sky-50' : 'border-gray-300 hover:border-gray-400'"
+<div class="space-y-5" x-data="cmsUploader()">
+    <div class="rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors bg-white/92"
+         :class="dragover ? 'border-sky-400 bg-sky-50' : 'border-slate-200 hover:border-slate-400'"
          @click="$refs.fileInput.click()"
          @dragover.prevent="dragover=true" @dragleave="dragover=false" @drop.prevent="handleDrop($event)">
         <input type="file" x-ref="fileInput" @change="upload($event)" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" multiple class="hidden">
         <div x-show="!uploading">
-            <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-            <p class="text-sm font-medium text-gray-600">Drop files here or click to upload</p>
-            <p class="text-xs text-gray-400 mt-1">Max 2MB per file · Images, PDF, Office documents</p>
+            <svg class="w-10 h-10 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <p class="text-sm font-medium text-slate-600">Drop files here or click to upload</p>
+            <p class="text-xs text-slate-400 mt-1">Max 2MB per file · Images, PDF, Office documents</p>
         </div>
         <div x-show="uploading" class="text-sky-600">
             <svg class="w-8 h-8 mx-auto animate-spin mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
@@ -20,38 +20,38 @@
     </div>
 </div>
 
-<div x-data="cmsMediaLibrary()" x-init="init()">
-<div class="flex items-center justify-between mb-3">
-    <span class="text-xs text-gray-400">{total} files</span>
-    <div class="inline-flex items-center bg-gray-100 rounded-lg p-0.5">
-        <button @click="viewMode = 'grid'" class="px-2.5 py-1 text-xs font-medium rounded-md transition-all" :class="viewMode === 'grid' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+<div x-data="cmsMediaLibrary()" x-init="init()" class="space-y-4">
+<div class="flex items-center justify-between">
+    <span class="text-xs text-slate-400">{total} files</span>
+    <div class="inline-flex items-center bg-slate-100 rounded-xl p-0.5">
+        <button @click="viewMode = 'grid'" class="px-2.5 py-1 text-xs font-medium rounded-lg transition-all" :class="viewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
         </button>
-        <button @click="viewMode = 'list'" class="px-2.5 py-1 text-xs font-medium rounded-md transition-all" :class="viewMode === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+        <button @click="viewMode = 'list'" class="px-2.5 py-1 text-xs font-medium rounded-lg transition-all" :class="viewMode === 'list' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
         </button>
     </div>
 </div>
 
 {if media | count == 0}
-<div class="bg-white rounded-lg border border-gray-200 py-16 text-center">
+<div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] py-16 text-center">
     <svg class="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-    <p class="text-gray-400">No media files yet. Upload your first file above.</p>
+    <p class="text-slate-400">No media files yet. Upload your first file above.</p>
 </div>
 {/if}
 
     <!-- Grid view -->
     <div x-show="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {foreach media as item}
-        <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden relative" x-data="{ copied: false }">
+        <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden relative" x-data="{ copied: false }">
             {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
-            <img class="w-full h-32 object-cover bg-gray-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
+            <img class="w-full h-32 object-cover bg-slate-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
             {else}
-            <div class="w-full h-32 flex items-center justify-center bg-gray-50 text-gray-400 text-xs font-mono">{item.mime_type}</div>
+            <div class="w-full h-32 flex items-center justify-center bg-slate-50 text-slate-400 text-xs font-mono">{item.mime_type}</div>
             {/if}
             <div class="px-2.5 py-2">
-                <div class="text-xs font-medium text-gray-700 truncate" title="{item.original_name}">{item.original_name}</div>
-                <div class="text-[10px] text-gray-400 mt-0.5">{item.created_at}</div>
+                <div class="text-xs font-medium text-slate-700 truncate" title="{item.original_name}">{item.original_name}</div>
+                <div class="text-[10px] text-slate-400 mt-0.5">{item.created_at}</div>
             </div>
             <div class="absolute top-1.5 right-1.5 hidden group-hover:flex gap-1">
                 {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
@@ -69,33 +69,33 @@
     </div>
 
     <!-- List view -->
-    <div x-show="viewMode === 'list'" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div x-show="viewMode === 'list'" class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
         <table class="w-full">
             <thead>
-                <tr class="bg-gray-50/80 border-b border-gray-200">
-                    <th class="w-16 px-3 py-2.5"></th>
-                    <th class="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Name</th>
-                    <th class="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden md:table-cell">Type</th>
-                    <th class="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden sm:table-cell">Date</th>
-                    <th class="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">Actions</th>
+                <tr class="border-b border-slate-200 bg-slate-50/60">
+                    <th class="w-16 px-4 py-3"></th>
+                    <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Name</th>
+                    <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 hidden md:table-cell">Type</th>
+                    <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 hidden sm:table-cell">Date</th>
+                    <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
+            <tbody class="divide-y divide-slate-100">
                 {foreach media as item}
-                <tr class="group hover:bg-gray-50 transition-colors" x-data="{ copied: false }">
-                    <td class="px-3 py-2">
+                <tr class="group hover:bg-slate-50/40 transition-colors" x-data="{ copied: false }">
+                    <td class="px-4 py-3">
                         {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
-                        <img class="w-10 h-10 object-cover rounded bg-gray-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
+                        <img class="w-10 h-10 object-cover rounded-xl bg-slate-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
                         {else}
-                        <div class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded text-gray-400 text-[9px] font-mono">{item.mime_type}</div>
+                        <div class="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-xl text-slate-400 text-[9px] font-mono">{item.mime_type}</div>
                         {/if}
                     </td>
-                    <td class="px-3 py-2">
-                        <span class="text-sm font-medium text-gray-700" title="{item.original_name}">{item.original_name}</span>
+                    <td class="px-4 py-3">
+                        <span class="text-sm font-medium text-slate-700" title="{item.original_name}">{item.original_name}</span>
                     </td>
-                    <td class="px-3 py-2 hidden md:table-cell"><span class="text-xs text-gray-400">{item.mime_type}</span></td>
-                    <td class="px-3 py-2 hidden sm:table-cell"><span class="text-xs text-gray-400">{item.created_at}</span></td>
-                    <td class="px-3 py-2 text-right">
+                    <td class="px-4 py-3 hidden md:table-cell"><span class="text-xs text-slate-400">{item.mime_type}</span></td>
+                    <td class="px-4 py-3 hidden sm:table-cell"><span class="text-xs text-slate-400">{item.created_at}</span></td>
+                    <td class="px-4 py-3 text-right">
                         <div class="flex items-center justify-end gap-1">
                             {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
                             <button class="px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 rounded hover:bg-amber-100 transition-colors"
@@ -116,14 +116,14 @@
 
     <div x-show="editorOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4" @keydown.escape.window="closeEditor()" @keydown.window="nudgeCrop($event)" @mousemove.window="updateCropSelection($event)" @mouseup.window="finishCropSelection()">
         <div class="absolute inset-0 bg-black/40" @click="closeEditor()"></div>
-        <div class="relative w-full max-w-5xl bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                <h3 class="text-sm font-semibold text-gray-800">Edit Image</h3>
-                <button class="text-gray-400 hover:text-gray-600" @click="closeEditor()">✕</button>
+        <div class="relative w-full max-w-5xl bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-900/20 overflow-hidden max-h-[92vh] flex flex-col">
+            <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-800">Edit Image</h3>
+                <button class="text-slate-400 hover:text-slate-600" @click="closeEditor()">✕</button>
             </div>
             <div class="p-4 grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 overflow-y-auto">
                 <div class="space-y-4 min-w-0">
-                    <div class="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                    <div class="rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
                         <div class="overflow-auto max-h-[62vh] p-4 flex justify-center">
                             <div class="relative inline-block select-none">
                                 <img x-ref="editorImage" :src="editorImageUrl" alt="Selected image" class="max-w-full h-auto block"
@@ -162,8 +162,8 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                        <span class="px-2 py-1 rounded bg-gray-100 text-gray-600">Original: <span x-text="imageNaturalWidth || '—'"></span> × <span x-text="imageNaturalHeight || '—'"></span></span>
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span class="px-2 py-1 rounded bg-slate-100 text-slate-600">Original: <span x-text="imageNaturalWidth || '—'"></span> × <span x-text="imageNaturalHeight || '—'"></span></span>
                         <template x-if="selectedOperation === 'crop'">
                             <span class="px-2 py-1 rounded bg-sky-50 text-sky-700">Crop: <span x-text="cropWidth || 0"></span> × <span x-text="cropHeight || 0"></span></span>
                         </template>
@@ -178,127 +178,127 @@
                 </div>
 
                 <div class="space-y-4">
-                <div class="rounded-lg border border-gray-200 p-3 bg-white/80 space-y-2">
+                <div class="rounded-lg border border-slate-200 p-3 bg-white/80 space-y-2">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Canvas Zoom</span>
-                        <button class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50" @click="resetZoom()">Reset</button>
+                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Canvas Zoom</span>
+                        <button class="px-2 py-1 text-xs rounded border border-slate-200 text-slate-600 hover:bg-slate-50" @click="resetZoom()">Reset</button>
                     </div>
                     <input type="range" min="0.5" max="3" step="0.05" x-model.number="zoomLevel" class="w-full accent-sky-600">
                 </div>
 
-                <div class="rounded-lg border border-gray-200 p-3 bg-white/80 space-y-2">
+                <div class="rounded-lg border border-slate-200 p-3 bg-white/80 space-y-2">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Edit History</span>
-                        <span class="text-[11px] text-gray-400" x-text="historyStack.length + ' steps'"></span>
+                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Edit History</span>
+                        <span class="text-[11px] text-slate-400" x-text="historyStack.length + ' steps'"></span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button class="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50" @click="undoEditorState()" :disabled="!historyStack.length">Undo</button>
-                        <button class="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50" @click="resetEditorState()">Reset All</button>
+                        <button class="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50" @click="undoEditorState()" :disabled="!historyStack.length">Undo</button>
+                        <button class="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50" @click="resetEditorState()">Reset All</button>
                     </div>
-                    <p class="text-[11px] text-gray-500">History controls affect editor settings before save. Original media remains unchanged unless you apply with replace mode.</p>
+                    <p class="text-[11px] text-slate-500">History controls affect editor settings before save. Original media remains unchanged unless you apply with replace mode.</p>
                 </div>
 
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
-                            :class="selectedOperation === 'rotate_left' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            :class="selectedOperation === 'rotate_left' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50 text-slate-700'"
                             @click="setOperation('rotate_left')">Rotate Left</button>
                     <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
-                            :class="selectedOperation === 'rotate_right' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            :class="selectedOperation === 'rotate_right' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50 text-slate-700'"
                             @click="setOperation('rotate_right')">Rotate Right</button>
                     <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
-                            :class="selectedOperation === 'flip_horizontal' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            :class="selectedOperation === 'flip_horizontal' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50 text-slate-700'"
                             @click="setOperation('flip_horizontal')">Flip Horizontal</button>
                     <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
-                            :class="selectedOperation === 'flip_vertical' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            :class="selectedOperation === 'flip_vertical' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50 text-slate-700'"
                             @click="setOperation('flip_vertical')">Flip Vertical</button>
                     <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
-                            :class="selectedOperation === 'crop' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            :class="selectedOperation === 'crop' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50 text-slate-700'"
                             @click="setOperation('crop')">Crop</button>
                     <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
-                            :class="selectedOperation === 'resize' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            :class="selectedOperation === 'resize' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50 text-slate-700'"
                             @click="setOperation('resize')">Resize</button>
                 </div>
 
-                <div x-show="selectedOperation === 'crop'" class="space-y-3 rounded-lg border border-gray-200 p-3 bg-gray-50/70">
+                <div x-show="selectedOperation === 'crop'" class="space-y-3 rounded-lg border border-slate-200 p-3 bg-slate-50/70">
                     <div>
-                        <div class="text-sm font-medium text-gray-700">Crop selection</div>
-                    <p class="text-xs text-gray-500 mt-1">Drag directly on the image to define the crop area, or fine-tune the numbers below. You can lock a preset ratio and define output size.</p>
+                        <div class="text-sm font-medium text-slate-700">Crop selection</div>
+                    <p class="text-xs text-slate-500 mt-1">Drag directly on the image to define the crop area, or fine-tune the numbers below. You can lock a preset ratio and define output size.</p>
                     </div>
                     <div class="space-y-2">
-                    <div class="text-xs text-gray-600">Aspect preset</div>
+                    <div class="text-xs text-slate-600">Aspect preset</div>
                     <div class="flex flex-wrap gap-1.5">
                         <button type="button" class="px-2 py-1 text-[11px] rounded border"
-                            :class="cropAspectPreset === 'free' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            :class="cropAspectPreset === 'free' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-white'"
                             @click="setCropAspectPreset('free')">Free</button>
                         <button type="button" class="px-2 py-1 text-[11px] rounded border"
-                            :class="cropAspectPreset === '1:1' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            :class="cropAspectPreset === '1:1' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-white'"
                             @click="setCropAspectPreset('1:1')">1:1</button>
                         <button type="button" class="px-2 py-1 text-[11px] rounded border"
-                            :class="cropAspectPreset === '4:3' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            :class="cropAspectPreset === '4:3' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-white'"
                             @click="setCropAspectPreset('4:3')">4:3</button>
                         <button type="button" class="px-2 py-1 text-[11px] rounded border"
-                            :class="cropAspectPreset === '16:9' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            :class="cropAspectPreset === '16:9' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-white'"
                             @click="setCropAspectPreset('16:9')">16:9</button>
                         <button type="button" class="px-2 py-1 text-[11px] rounded border"
-                            :class="cropAspectPreset === '1200:630' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            :class="cropAspectPreset === '1200:630' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-white'"
                             @click="setCropAspectPreset('1200:630')">OG 1200×630</button>
                     </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <label class="block text-xs text-gray-600">X
-                            <input type="number" min="0" x-model.number="cropX" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">X
+                            <input type="number" min="0" x-model.number="cropX" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
-                        <label class="block text-xs text-gray-600">Y
-                            <input type="number" min="0" x-model.number="cropY" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">Y
+                            <input type="number" min="0" x-model.number="cropY" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
-                        <label class="block text-xs text-gray-600">Width
-                            <input type="number" min="1" x-model.number="cropWidth" @input="syncCropFromWidth()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">Width
+                            <input type="number" min="1" x-model.number="cropWidth" @input="syncCropFromWidth()" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
-                        <label class="block text-xs text-gray-600">Height
-                            <input type="number" min="1" x-model.number="cropHeight" @input="syncCropFromHeight()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">Height
+                            <input type="number" min="1" x-model.number="cropHeight" @input="syncCropFromHeight()" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <label class="block text-xs text-gray-600">Output Width (optional)
-                            <input type="number" min="0" x-model.number="cropOutputWidth" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">Output Width (optional)
+                            <input type="number" min="0" x-model.number="cropOutputWidth" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
-                        <label class="block text-xs text-gray-600">Output Height (optional)
-                            <input type="number" min="0" x-model.number="cropOutputHeight" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">Output Height (optional)
+                            <input type="number" min="0" x-model.number="cropOutputHeight" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
                     </div>
-                    <button class="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 text-gray-600 hover:bg-white"
+                    <button class="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 text-slate-600 hover:bg-white"
                             @click="resetCropBox()">Reset crop to full image</button>
                 </div>
 
-                <div x-show="selectedOperation === 'resize'" class="space-y-3 rounded-lg border border-gray-200 p-3 bg-gray-50/70">
+                <div x-show="selectedOperation === 'resize'" class="space-y-3 rounded-lg border border-slate-200 p-3 bg-slate-50/70">
                     <div>
-                        <div class="text-sm font-medium text-gray-700">Resize image</div>
-                        <p class="text-xs text-gray-500 mt-1">Adjust dimensions before saving. Aspect ratio lock is enabled by default.</p>
+                        <div class="text-sm font-medium text-slate-700">Resize image</div>
+                        <p class="text-xs text-slate-500 mt-1">Adjust dimensions before saving. Aspect ratio lock is enabled by default.</p>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <label class="block text-xs text-gray-600">Width
-                            <input type="number" min="1" x-model.number="resizeWidth" @input="syncResizeFromWidth()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">Width
+                            <input type="number" min="1" x-model.number="resizeWidth" @input="syncResizeFromWidth()" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
-                        <label class="block text-xs text-gray-600">Height
-                            <input type="number" min="1" x-model.number="resizeHeight" @input="syncResizeFromHeight()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        <label class="block text-xs text-slate-600">Height
+                            <input type="number" min="1" x-model.number="resizeHeight" @input="syncResizeFromHeight()" class="mt-1 w-full rounded-md border-slate-200 text-sm focus:border-sky-500 focus:ring-sky-500">
                         </label>
                     </div>
-                    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                        <input type="checkbox" x-model="lockAspectRatio" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" x-model="lockAspectRatio" class="rounded border-slate-200 text-sky-600 focus:ring-sky-500">
                         Keep aspect ratio
                     </label>
                 </div>
 
-                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                    <input type="checkbox" x-model="replaceOriginal" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" x-model="replaceOriginal" class="rounded border-slate-200 text-sky-600 focus:ring-sky-500">
                     Replace original image
                 </label>
-                <p class="text-xs text-gray-500">Best practice is to keep this unchecked so edits create a new copy and preserve the original asset.</p>
+                <p class="text-xs text-slate-500">Best practice is to keep this unchecked so edits create a new copy and preserve the original asset.</p>
                 </div>
             </div>
-            <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2">
-                <button class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800" @click="closeEditor()" :disabled="editorBusy">Cancel</button>
-                <button class="px-3 py-1.5 text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60"
+            <div class="px-5 py-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button class="px-4 py-2 text-sm text-slate-600 rounded-2xl hover:bg-slate-50 transition-colors" @click="closeEditor()" :disabled="editorBusy">Cancel</button>
+                <button class="px-4 py-2 text-sm font-semibold rounded-2xl text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60 transition-colors"
                         @click="applyEdit()" :disabled="editorBusy || !canApplyEdit()" x-text="editorBusy ? 'Saving...' : 'Apply Edit'"></button>
             </div>
         </div>
@@ -306,9 +306,9 @@
 
 {if total_pages > 1}
 <div class="flex items-center justify-center gap-2 mt-5">
-    {if page_num > 1}<a href="{base_url}/cms/admin/media?page=1" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">«</a>{/if}
-    <span class="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-md">{page_num} / {total_pages}</span>
-    {if page_num < total_pages}<a href="{base_url}/cms/admin/media?page={next_page}" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">»</a>{/if}
+    {if page_num > 1}<a href="{base_url}/cms/admin/media?page=1" class="px-3 py-1.5 text-sm border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors">«</a>{/if}
+    <span class="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-2xl">{page_num} / {total_pages}</span>
+    {if page_num < total_pages}<a href="{base_url}/cms/admin/media?page={next_page}" class="px-3 py-1.5 text-sm border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors">»</a>{/if}
 </div>
 {/if}
 </div>

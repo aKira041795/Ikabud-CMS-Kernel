@@ -1,13 +1,19 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<div x-data="cmsSettings()" class="max-w-5xl">
-    <div class="flex items-start justify-between mb-6">
+<div x-data="cmsSettings()" class="max-w-5xl space-y-5">
+    <div class="flex items-start justify-between">
         <div>
-            <h2 class="text-xl font-bold text-gray-900">CMS Settings</h2>
-            <p class="text-sm text-gray-400 mt-0.5">Configure site-wide behaviour, content defaults, and integrations.</p>
+            <h1 class="text-xl font-bold text-slate-900">CMS Settings</h1>
+            <p class="text-sm text-slate-500 mt-0.5">Configure site-wide behaviour, content defaults, and integrations.</p>
         </div>
-        <button type="button" @click="resetDefaults()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-red-500 transition-colors">
+        <button type="button" @click="resetDefaults()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 hover:text-red-500 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Reset to Defaults
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             Reset to Defaults
         </button>
@@ -16,89 +22,89 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         <!-- General -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-violet-600 bg-violet-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">General</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-violet-600 bg-violet-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">General</span></div>
             <div class="p-4 space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Site Title</label>
-                    <input type="text" x-model="settings.site_title" placeholder="My Website" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Displayed in the browser title bar and public pages.</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Site Title</label>
+                    <input type="text" x-model="settings.site_title" placeholder="My Website" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Displayed in the browser title bar and public pages.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Site Tagline</label>
-                    <input type="text" x-model="settings.site_tagline" placeholder="Just another site" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">A short description, used in feeds and meta tags.</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Site Tagline</label>
+                    <input type="text" x-model="settings.site_tagline" placeholder="Just another site" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">A short description, used in feeds and meta tags.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Posts Per Page</label>
-                    <input type="number" x-model="settings.posts_per_page" min="1" max="100" placeholder="10" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Posts shown on archive/blog pages (1–100).</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Posts Per Page</label>
+                    <input type="number" x-model="settings.posts_per_page" min="1" max="100" placeholder="10" class="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Posts shown on archive/blog pages (1–100).</p>
                 </div>
             </div>
         </div>
 
         <!-- Content & Comments -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-sky-600 bg-sky-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Content &amp; Comments</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-sky-600 bg-sky-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Content &amp; Comments</span></div>
             <div class="p-4 space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Default Post Status</label>
-                    <select x-model="settings.default_post_status" class="w-48 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Default Post Status</label>
+                    <select x-model="settings.default_post_status" class="w-48 px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="draft">Draft</option>
                         <option value="published">Published</option>
                     </select>
-                    <p class="text-[11px] text-gray-400 mt-1">New posts are created with this status.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">New posts are created with this status.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Excerpt Length</label>
-                    <input type="number" x-model="settings.excerpt_length" min="20" max="500" placeholder="160" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Max characters for auto-generated excerpts (20–500).</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Excerpt Length</label>
+                    <input type="number" x-model="settings.excerpt_length" min="20" max="500" placeholder="160" class="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Max characters for auto-generated excerpts (20–500).</p>
                 </div>
-                <hr class="border-gray-100">
+                <hr class="border-slate-100">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Comments System</label>
-                    <select x-model="settings.comments_enabled" class="w-48 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Comments System</label>
+                    <select x-model="settings.comments_enabled" class="w-48 px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="1">Enabled</option>
                         <option value="0">Disabled</option>
                     </select>
-                    <p class="text-[11px] text-gray-400 mt-1">Master switch for the commenting system.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Master switch for the commenting system.</p>
                 </div>
                 <div x-show="settings.comments_enabled === '1' || settings.comments_enabled === 1" x-transition>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Default Comment Status</label>
-                    <select x-model="settings.default_comment_status" class="w-48 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Default Comment Status</label>
+                    <select x-model="settings.default_comment_status" class="w-48 px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="open">Open</option>
                         <option value="closed">Closed</option>
                     </select>
-                    <p class="text-[11px] text-gray-400 mt-1">New posts default to this comment status. Each post can override.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">New posts default to this comment status. Each post can override.</p>
                 </div>
             </div>
         </div>
 
         <!-- Reading / Homepage -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-emerald-600 bg-emerald-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Reading / Homepage</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-emerald-600 bg-emerald-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Reading / Homepage</span></div>
             <div class="p-4 space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Homepage Displays</label>
-                    <select x-model="settings.homepage_type" class="w-56 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Homepage Displays</label>
+                    <select x-model="settings.homepage_type" class="w-56 px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="posts">Latest posts</option>
                         <option value="page">A static page</option>
                     </select>
                 </div>
                 <div x-show="settings.homepage_type === 'page'" x-transition>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Homepage Page</label>
-                    <select x-model="settings.homepage_page_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Homepage Page</label>
+                    <select x-model="settings.homepage_page_id" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="">— Select a page —</option>
                         {foreach pages as pg}
                         <option value="{pg.id}">{pg.title}</option>
                         {/foreach}
                     </select>
-                    <p class="text-[11px] text-gray-400 mt-1">Only published pages are listed.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Only published pages are listed.</p>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Date Format</label>
-                        <select x-model="settings.date_format" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Date Format</label>
+                        <select x-model="settings.date_format" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                             <option value="M j, Y">Mar 10, 2026</option>
                             <option value="F j, Y">March 10, 2026</option>
                             <option value="Y-m-d">2026-03-10</option>
@@ -106,109 +112,109 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Time Format</label>
-                        <select x-model="settings.time_format" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Time Format</label>
+                        <select x-model="settings.time_format" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                             <option value="g:i A">2:30 PM</option>
                             <option value="H:i">14:30</option>
                         </select>
                     </div>
                 </div>
-                <hr class="border-gray-100">
+                <hr class="border-slate-100">
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500">Estimated Reading Time</label>
-                        <p class="text-[11px] text-gray-400 mt-0.5">Show "X min read" on posts.</p>
+                        <label class="block text-xs font-medium text-slate-500">Estimated Reading Time</label>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Show "X min read" on posts.</p>
                     </div>
-                    <select x-model="settings.reading_time_enabled" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <select x-model="settings.reading_time_enabled" class="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="1">On</option>
                         <option value="0">Off</option>
                     </select>
                 </div>
                 <div x-show="settings.reading_time_enabled === '1' || settings.reading_time_enabled === 1" x-transition>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Words Per Minute</label>
-                    <input type="number" x-model="settings.reading_time_wpm" min="100" max="500" placeholder="200" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Average reading speed for calculation (100–500 WPM).</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Words Per Minute</label>
+                    <input type="number" x-model="settings.reading_time_wpm" min="100" max="500" placeholder="200" class="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Average reading speed for calculation (100–500 WPM).</p>
                 </div>
             </div>
         </div>
 
         <!-- SEO -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-amber-600 bg-amber-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">SEO</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-amber-600 bg-amber-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">SEO</span></div>
             <div class="p-4 space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Title Separator</label>
-                    <input type="text" x-model="settings.seo_title_separator" maxlength="3" placeholder="|" class="w-20 px-3 py-2 text-sm border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Between page title and site name (e.g. | — –).</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Title Separator</label>
+                    <input type="text" x-model="settings.seo_title_separator" maxlength="3" placeholder="|" class="w-20 px-3 py-2 text-sm border border-slate-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Between page title and site name (e.g. | — –).</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Default Meta Description</label>
-                    <textarea x-model="settings.seo_meta_description" rows="2" placeholder="A brief description of your site..." class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-vertical"></textarea>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Default Meta Description</label>
+                    <textarea x-model="settings.seo_meta_description" rows="2" placeholder="A brief description of your site..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-vertical"></textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Default OG Image URL</label>
-                    <input type="url" x-model="settings.seo_og_image" placeholder="https://example.com/og.jpg" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Fallback Open Graph image for social sharing.</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Default OG Image URL</label>
+                    <input type="url" x-model="settings.seo_og_image" placeholder="https://example.com/og.jpg" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Fallback Open Graph image for social sharing.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Robots Directive</label>
-                    <select x-model="settings.seo_robots" class="w-56 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Robots Directive</label>
+                    <select x-model="settings.seo_robots" class="w-56 px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="index, follow">index, follow</option>
                         <option value="noindex, follow">noindex, follow</option>
                         <option value="index, nofollow">index, nofollow</option>
                         <option value="noindex, nofollow">noindex, nofollow</option>
                     </select>
-                    <p class="text-[11px] text-gray-400 mt-1">Global robots meta. Pages can override.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Global robots meta. Pages can override.</p>
                 </div>
             </div>
         </div>
 
         <!-- Media -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-pink-600 bg-pink-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Media</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-pink-600 bg-pink-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Media</span></div>
             <div class="p-4 space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Max Upload Size (MB)</label>
-                    <input type="number" x-model="settings.max_upload_mb" min="1" max="64" placeholder="2" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Server PHP limit may also apply.</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Max Upload Size (MB)</label>
+                    <input type="number" x-model="settings.max_upload_mb" min="1" max="64" placeholder="2" class="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Server PHP limit may also apply.</p>
                 </div>
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500">Require Alt Text</label>
-                        <p class="text-[11px] text-gray-400 mt-0.5">Prompt editors to add alt text for accessibility.</p>
+                        <label class="block text-xs font-medium text-slate-500">Require Alt Text</label>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Prompt editors to add alt text for accessibility.</p>
                     </div>
-                    <select x-model="settings.media_alt_required" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <select x-model="settings.media_alt_required" class="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="1">Yes</option>
                         <option value="0">No</option>
                     </select>
                 </div>
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500">Usage Tracking</label>
-                        <p class="text-[11px] text-gray-400 mt-0.5">Track which content uses which media files.</p>
+                        <label class="block text-xs font-medium text-slate-500">Usage Tracking</label>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Track which content uses which media files.</p>
                     </div>
-                    <select x-model="settings.media_usage_tracking" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <select x-model="settings.media_usage_tracking" class="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="1">On</option>
                         <option value="0">Off</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Extra Allowed Extensions</label>
-                    <input type="text" x-model="settings.media_extra_allowed_exts" placeholder="webp,avif,heic" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">Comma-separated file extensions beyond the defaults (e.g. webp,avif).</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Extra Allowed Extensions</label>
+                    <input type="text" x-model="settings.media_extra_allowed_exts" placeholder="webp,avif,heic" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Comma-separated file extensions beyond the defaults (e.g. webp,avif).</p>
                 </div>
             </div>
         </div>
 
         <!-- Page Builder -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-indigo-600 bg-indigo-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Page Builder</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-indigo-600 bg-indigo-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Page Builder</span></div>
             <div class="p-4 space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Enabled Content Types</label>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Enabled Content Types</label>
                     <div class="flex flex-wrap gap-3 mt-1.5">
                         <template x-for="ctype in ['page','post']" :key="ctype">
-                            <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer">
+                            <label class="inline-flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
                                 <input type="checkbox" :value="ctype"
                                     :checked="settings.builder_enabled_types.split(',').map(s=>s.trim()).includes(ctype)"
                                     @change="
@@ -217,29 +223,29 @@
                                         else { arr = arr.filter(x => x !== ctype); }
                                         settings.builder_enabled_types = arr.join(',');
                                     "
-                                    class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20">
+                                    class="rounded border-slate-300 text-sky-600 focus:ring-sky-500/20">
                                 <span class="capitalize" x-text="ctype"></span>
                             </label>
                         </template>
                     </div>
-                    <p class="text-[11px] text-gray-400 mt-1.5">Content types that can use the visual page builder.</p>
+                    <p class="text-[11px] text-slate-400 mt-1.5">Content types that can use the visual page builder.</p>
                 </div>
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500">Enforce Builder Lock</label>
-                        <p class="text-[11px] text-gray-400 mt-0.5">Prevent editing builder content in the classic editor.</p>
+                        <label class="block text-xs font-medium text-slate-500">Enforce Builder Lock</label>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Prevent editing builder content in the classic editor.</p>
                     </div>
-                    <select x-model="settings.builder_enforce_lock" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <select x-model="settings.builder_enforce_lock" class="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="1">Yes</option>
                         <option value="0">No</option>
                     </select>
                 </div>
-                <div class="flex items-center justify-between gap-4 pt-3 mt-1 border-t border-gray-100">
+                <div class="flex items-center justify-between gap-4 pt-3 mt-1 border-t border-slate-100">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500">Show Sidebar</label>
-                        <p class="text-[11px] text-gray-400 mt-0.5">Show theme sidebar on pages built with the page builder.</p>
+                        <label class="block text-xs font-medium text-slate-500">Show Sidebar</label>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Show theme sidebar on pages built with the page builder.</p>
                     </div>
-                    <select x-model="settings.page_builder_show_sidebar" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <select x-model="settings.page_builder_show_sidebar" class="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="1">Yes</option>
                         <option value="0">No</option>
                     </select>
@@ -248,13 +254,13 @@
         </div>
 
         <!-- Post Formats -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-teal-600 bg-teal-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Post Formats</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-teal-600 bg-teal-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Post Formats</span></div>
             <div class="p-4">
-                <p class="text-[11px] text-gray-400 mb-3">Enable the post formats available in the editor. Disable all to hide the format selector.</p>
+                <p class="text-[11px] text-slate-400 mb-3">Enable the post formats available in the editor. Disable all to hide the format selector.</p>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-2">
                     <template x-for="fmt in postFormats" :key="fmt.key">
-                        <label class="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
                             <input type="checkbox" :value="fmt.key"
                                 :checked="settings.enabled_post_formats.split(',').map(s=>s.trim()).includes(fmt.key)"
                                 @change="
@@ -263,7 +269,7 @@
                                     else { arr = arr.filter(x => x !== fmt.key); }
                                     settings.enabled_post_formats = arr.join(',');
                                 "
-                                class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20">
+                                class="rounded border-slate-300 text-sky-600 focus:ring-sky-500/20">
                             <span x-text="fmt.label"></span>
                         </label>
                     </template>
@@ -272,47 +278,47 @@
         </div>
 
         <!-- Performance -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-orange-600 bg-orange-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Performance</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-orange-600 bg-orange-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Performance</span></div>
             <div class="p-4 space-y-4">
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500">Page Cache</label>
-                        <p class="text-[11px] text-gray-400 mt-0.5">Cache rendered pages for faster load times.</p>
+                        <label class="block text-xs font-medium text-slate-500">Page Cache</label>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Cache rendered pages for faster load times.</p>
                     </div>
-                    <select x-model="settings.cache_enabled" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <select x-model="settings.cache_enabled" class="w-24 px-2 py-1.5 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="1">On</option>
                         <option value="0">Off</option>
                     </select>
                 </div>
                 <div x-show="settings.cache_enabled === '1' || settings.cache_enabled === 1" x-transition>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Cache TTL (seconds)</label>
-                    <input type="number" x-model="settings.cache_ttl" min="0" max="86400" placeholder="600" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                    <p class="text-[11px] text-gray-400 mt-1">How long pages stay cached (0 = forever, max 86400).</p>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Cache TTL (seconds)</label>
+                    <input type="number" x-model="settings.cache_ttl" min="0" max="86400" placeholder="600" class="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-slate-400 mt-1">How long pages stay cached (0 = forever, max 86400).</p>
                 </div>
             </div>
         </div>
 
         <!-- Social Links -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-blue-600 bg-blue-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Social Links</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-blue-600 bg-blue-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Social Links</span></div>
             <div class="p-4 space-y-3">
                 <template x-for="s in socialFields" :key="s.key">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1" x-text="s.label"></label>
-                        <input type="url" x-model="settings[s.key]" :placeholder="s.placeholder" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <label class="block text-xs font-medium text-slate-500 mb-1" x-text="s.label"></label>
+                        <input type="url" x-model="settings[s.key]" :placeholder="s.placeholder" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                     </div>
                 </template>
             </div>
         </div>
 
         <!-- Theme (full-span) -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden lg:col-span-2">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-purple-600 bg-purple-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Theme</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden lg:col-span-2">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-purple-600 bg-purple-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Theme</span></div>
             <div class="p-4 space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Active Theme</label>
-                    <select x-model="settings.active_theme" class="w-64 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Active Theme</label>
+                    <select x-model="settings.active_theme" class="w-64 px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                         <option value="default">Default (built-in)</option>
                         {if available_themes}
                         {foreach available_themes as th}
@@ -320,39 +326,39 @@
                         {/foreach}
                         {/if}
                     </select>
-                    <p class="text-[11px] text-gray-400 mt-1">Themes override public page templates. Admin pages are never themed.</p>
-                    <button type="button" @click="showPreview = !showPreview" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors">
+                    <p class="text-[11px] text-slate-400 mt-1">Themes override public page templates. Admin pages are never themed.</p>
+                    <button type="button" @click="showPreview = !showPreview" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-2xl hover:bg-violet-100 transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                         <span x-text="showPreview ? 'Hide Preview' : 'Live Preview'"></span>
                     </button>
                 </div>
-                <div x-show="showPreview" x-transition class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                    <div class="flex items-center justify-between px-3 py-2 bg-gray-100 border-b border-gray-200">
-                        <span class="text-[11px] text-gray-500 font-medium">Theme Preview (current saved theme)</span>
+                <div x-show="showPreview" x-transition class="border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                    <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b border-slate-200">
+                        <span class="text-[11px] text-slate-500 font-medium">Theme Preview (current saved theme)</span>
                         <div class="inline-flex items-center gap-1">
-                            <button @click="previewWidth = '100%'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '100%' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400'">Desktop</button>
-                            <button @click="previewWidth = '768px'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '768px' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400'">Tablet</button>
-                            <button @click="previewWidth = '375px'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '375px' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400'">Mobile</button>
+                            <button @click="previewWidth = '100%'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '100%' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'">Desktop</button>
+                            <button @click="previewWidth = '768px'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '768px' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'">Tablet</button>
+                            <button @click="previewWidth = '375px'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '375px' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'">Mobile</button>
                         </div>
                     </div>
-                    <div class="flex justify-center p-2 bg-gray-50">
-                        <iframe :src="CMS_BASE + '/cms'" class="bg-white border border-gray-200 rounded transition-all duration-300" :style="'width:' + previewWidth + ';height:400px'" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+                    <div class="flex justify-center p-2 bg-slate-50">
+                        <iframe :src="CMS_BASE + '/cms'" class="bg-white border border-slate-200 rounded transition-all duration-300" :style="'width:' + previewWidth + ';height:400px'" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
                     </div>
                 </div>
                 {if available_themes && available_themes | count > 0}
                 <div class="space-y-2">
-                    <p class="text-xs font-medium text-gray-500">Installed Themes</p>
+                    <p class="text-xs font-medium text-slate-500">Installed Themes</p>
                     {foreach available_themes as th}
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
                         <div>
-                            <span class="text-sm font-medium text-gray-700">{th.name}</span>
-                            <span class="text-xs text-gray-400 ml-1">v{th.version}</span>
-                            {if th.author}<span class="text-xs text-gray-400 ml-2">by {th.author}</span>{/if}
-                            {if th.description}<p class="text-xs text-gray-400 mt-0.5">{th.description}</p>{/if}
+                            <span class="text-sm font-medium text-slate-700">{th.name}</span>
+                            <span class="text-xs text-slate-400 ml-1">v{th.version}</span>
+                            {if th.author}<span class="text-xs text-slate-400 ml-2">by {th.author}</span>{/if}
+                            {if th.description}<p class="text-xs text-slate-400 mt-0.5">{th.description}</p>{/if}
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="text-xs text-gray-400">{th.override_count} override(s)</span>
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium {if active_theme == th.slug}bg-green-100 text-green-700{else}bg-gray-100 text-gray-500{/if}">
+                            <span class="text-xs text-slate-400">{th.override_count} override(s)</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium {if active_theme == th.slug}bg-green-100 text-green-700{else}bg-slate-100 text-slate-500{/if}">
                                 {if active_theme == th.slug}Active{else}Inactive{/if}
                             </span>
                         </div>
@@ -360,37 +366,37 @@
                     {/foreach}
                 </div>
                 {else}
-                <p class="text-xs text-gray-400">No themes installed. Add themes to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">storage/cms-themes/</code></p>
+                <p class="text-xs text-slate-400">No themes installed. Add themes to <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">storage/cms-themes/</code></p>
                 {/if}
             </div>
         </div>
 
         <!-- Password Reset Email Test (full-span) -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden lg:col-span-2">
-            <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-red-600 bg-red-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Email Diagnostics</span></div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden lg:col-span-2">
+            <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2"><span class="inline-flex items-center justify-center w-5 h-5 rounded text-red-600 bg-red-50"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></span><span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Email Diagnostics</span></div>
             <div class="p-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h3 class="text-sm font-semibold text-gray-700">Password Reset Email Test</h3>
-                        <p class="mt-1 text-xs text-gray-500">Sends a test reset email to your current CMS admin account email.</p>
+                        <h3 class="text-sm font-semibold text-slate-700">Password Reset Email Test</h3>
+                        <p class="mt-1 text-xs text-slate-500">Sends a test reset email to your current CMS admin account email.</p>
                     </div>
-                    <button type="button" @click="sendResetEmailTest()" :disabled="testingResetEmail" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-cms-600 rounded-lg hover:bg-cms-700 disabled:opacity-50 transition-colors">
+                    <button type="button" @click="sendResetEmailTest()" :disabled="testingResetEmail" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 disabled:opacity-50 transition-colors">
                         <template x-if="testingResetEmail">
                             <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                         </template>
                         <span x-text="testingResetEmail ? 'Sending…' : 'Send Test Reset Email'"></span>
                     </button>
                 </div>
-                <div x-show="resetEmailMsg" x-cloak class="mt-3 text-sm rounded-lg px-4 py-2" :class="resetEmailOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'" x-text="resetEmailMsg"></div>
+                <div x-show="resetEmailMsg" x-cloak class="mt-3 text-sm rounded-2xl px-4 py-2" :class="resetEmailOk ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'" x-text="resetEmailMsg"></div>
             </div>
         </div>
 
     </div>
 
     <!-- Sticky Save Bar -->
-    <div class="sticky bottom-0 mt-6 bg-white border border-gray-200 rounded-lg px-5 py-3 flex items-center justify-between shadow-sm z-50">
-        <span class="text-xs text-gray-400" x-text="statusMsg"></span>
-        <button class="px-5 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors" @click="save()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save Settings'"></button>
+    <div class="sticky bottom-0 mt-6 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl px-5 py-3 flex items-center justify-between shadow-[0_-4px_20px_rgba(15,23,42,0.06)] z-50">
+        <span class="text-xs text-slate-400" x-text="statusMsg"></span>
+        <button class="px-5 py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-2xl hover:bg-sky-700 disabled:opacity-50 transition-colors" @click="save()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save Settings'"></button>
     </div>
 </div>
 {/block}

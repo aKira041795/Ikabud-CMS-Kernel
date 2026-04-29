@@ -5,7 +5,7 @@
     .sa-header { margin-bottom: 24px; }
     .sa-header h2 { font-size: 20px; font-weight: 700; color: var(--text); }
     .sa-header .sa-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-    .sa-catalog { margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .sa-catalog { margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; }
     .sa-catalog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
     .sa-catalog-title { font-size: 15px; font-weight: 700; color: var(--text); }
     .sa-catalog-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
@@ -15,18 +15,18 @@
     .sa-catalog-table th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
     .sa-catalog-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
     .sa-catalog-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
-    .sa-tenant-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+    .sa-tenant-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 2px; }
     .sa-tenant-bar label { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
-    .sa-tenant-select { flex: 1; max-width: 360px; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; color: var(--text); background: var(--bg); }
+    .sa-tenant-select { flex: 1; max-width: 360px; border: 1px solid var(--border); border-radius: 2px; padding: 7px 10px; font-size: 13px; color: var(--text); background: var(--bg); }
     .sa-module-list { display: grid; gap: 20px; }
-    .sa-module { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: opacity .2s; }
+    .sa-module { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; transition: opacity .2s; }
     .sa-module.sa-disabled { opacity: .65; }
     .sa-module-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
     .sa-module-left { display: flex; align-items: center; gap: 12px; }
     .sa-module-right { display: flex; align-items: center; gap: 10px; }
     .sa-module-name { font-size: 15px; font-weight: 700; color: var(--text); }
-    .sa-module-version { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--surface); padding: 2px 8px; border-radius: 8px; }
-    .sa-module-collapse { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); padding: 6px 10px; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+    .sa-module-version { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--surface); padding: 2px 8px; border-radius: 2px; }
+    .sa-module-collapse { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 2px; background: var(--surface); color: var(--text-muted); padding: 6px 10px; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
     .sa-module-collapse:hover { border-color: var(--primary, #2563eb); color: var(--text); background: var(--bg); }
     .sa-module-collapse-label { font-size: 11px; font-weight: 600; }
     .sa-module-chevron { width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform .15s ease; margin-top: -2px; }
@@ -53,37 +53,37 @@
     .sa-field-inline { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); }
     .sa-field-label { font-size: 12px; font-weight: 600; color: var(--text); }
     .sa-field-help { font-size: 11px; color: var(--text-muted); }
-    .sa-input, .sa-select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); }
+    .sa-input, .sa-select { width: 100%; border: 1px solid var(--border); border-radius: 2px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); }
     .sa-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); }
-    .sa-btn-save { background: var(--primary); color: #fff; border: none; padding: 8px 18px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .sa-btn-save { background: var(--primary); color: #fff; border: none; padding: 8px 18px; font-size: 12px; font-weight: 600; border-radius: 2px; cursor: pointer; transition: filter .15s; }
     .sa-btn-save:hover { filter: brightness(.92); }
     .sa-btn-save:disabled { opacity: .55; cursor: not-allowed; }
-    .sa-btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 7px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
+    .sa-btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 7px 12px; font-size: 12px; font-weight: 600; border-radius: 2px; cursor: pointer; transition: border-color .15s, background .15s; }
     .sa-btn-secondary:hover { border-color: var(--primary, #2563eb); background: var(--bg); }
     .sa-modal { position: fixed; inset: 0; z-index: 1200; display: none; }
     .sa-modal.show { display: block; }
     .sa-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); }
-    .sa-modal-dialog { position: absolute; top: 10vh; left: 50%; transform: translateX(-50%); width: min(640px, 94vw); max-height: 80vh; overflow: hidden; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 18px 38px rgba(2, 6, 23, .25); display: flex; flex-direction: column; }
+    .sa-modal-dialog { position: absolute; top: 10vh; left: 50%; transform: translateX(-50%); width: min(640px, 94vw); max-height: 80vh; overflow: hidden; border-radius: 2px; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 18px 38px rgba(2, 6, 23, .25); display: flex; flex-direction: column; }
     .sa-modal-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); background: var(--bg); }
     .sa-modal-title { font-size: 14px; font-weight: 700; color: var(--text); }
     .sa-modal-subtitle { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
     .sa-modal-body { padding: 18px; overflow-y: auto; display: grid; gap: 14px; }
-    .sa-modal-section { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 14px; }
+    .sa-modal-section { border: 1px solid var(--border); border-radius: 2px; background: var(--bg); padding: 14px; }
     .sa-modal-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .sa-modal-label { font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--text-muted); }
     .sa-modal-value { margin-top: 4px; font-size: 13px; color: var(--text); }
     .sa-modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border); }
-    .sa-textarea { width: 100%; min-height: 120px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--text); background: var(--surface); }
+    .sa-textarea { width: 100%; min-height: 120px; resize: vertical; border: 1px solid var(--border); border-radius: 2px; padding: 10px 12px; font-size: 13px; color: var(--text); background: var(--surface); }
     .sa-review-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .sa-status { font-size: 12px; padding: 0 20px 12px; }
     .sa-status.ok { color: var(--success, #059669); }
     .sa-status.err { color: var(--danger, #dc2626); }
     .sa-empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 14px; }
     .sa-tenant-info { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-left: 12px; }
-    .sa-tenant-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+    .sa-tenant-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 2px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
     .sa-module-count { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
     .sa-module-notice { font-size: 12px; color: var(--text-muted); padding: 20px; text-align: center; }
-    .sa-db-warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #92400e; display: flex; align-items: center; gap: 8px; }
+    .sa-db-warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 2px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #92400e; display: flex; align-items: center; gap: 8px; }
     .sa-db-warning strong { font-weight: 700; }
 </style>
 {/block}

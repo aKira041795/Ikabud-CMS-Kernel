@@ -191,6 +191,10 @@
                 The downloaded file has your endpoint URL and API token pre-embedded — no manual configuration needed.
             </p>
 
+            <div class="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-2.5 text-xs text-blue-800 mb-4">
+                <strong>Recommended:</strong> Install as a <strong>Must-Use (mu-plugin)</strong> so it runs automatically and cannot be accidentally deactivated from the WordPress admin. The <code class="bg-blue-100 rounded px-1 font-mono">mu-plugins</code> folder may not exist — create it if missing.
+            </div>
+
             <ol class="space-y-3 text-sm text-gray-700">
                 <li class="flex gap-3">
                     <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
@@ -198,21 +202,32 @@
                 </li>
                 <li class="flex gap-3">
                     <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
-                    <span>Click <strong>Download Companion Plugin</strong> below. The downloaded file is named <code class="bg-gray-100 rounded px-1 font-mono text-xs">applicationos-bridge-connector.php</code>.</span>
+                    <span>Click <strong>Download Companion Plugin</strong> below. The file is named <code class="bg-gray-100 rounded px-1 font-mono text-xs">applicationos-bridge-connector.php</code> and has your endpoint URL and token pre-embedded.</span>
                 </li>
                 <li class="flex gap-3">
                     <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">3</span>
-                    <span>Upload the file to your WordPress site's <code class="bg-gray-100 rounded px-1 font-mono text-xs">wp-content/plugins/</code> directory.</span>
+                    <div>
+                        <span>Upload the file to your WordPress site's <code class="bg-gray-100 rounded px-1 font-mono text-xs">wp-content/mu-plugins/</code> folder.</span>
+                        <div class="mt-1.5 text-xs text-gray-500">If the <code class="bg-gray-100 rounded px-1 font-mono">mu-plugins</code> folder doesn't exist, create it via FTP, cPanel File Manager, or SSH at that path. Alternatively you can use <code class="bg-gray-100 rounded px-1 font-mono">wp-content/plugins/</code> and activate manually — see note below.</div>
+                    </div>
                 </li>
                 <li class="flex gap-3">
                     <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">4</span>
-                    <span>Activate the plugin in the WordPress admin panel under <strong>Plugins → Installed Plugins</strong>.</span>
+                    <span>No activation step needed for mu-plugins — WordPress loads them automatically on every request.</span>
                 </li>
                 <li class="flex gap-3">
                     <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">5</span>
                     <span>Save or publish any post in WordPress — confirm it appears in the <a href="/cms/admin/bridge" class="text-blue-600 underline hover:text-blue-800">Bridge Dashboard</a> Recent Activity log.</span>
                 </li>
             </ol>
+
+            <details class="mt-3 text-xs text-gray-500">
+                <summary class="cursor-pointer font-medium text-gray-600 hover:text-gray-800">Using regular plugins folder instead?</summary>
+                <div class="mt-2 pl-3 border-l-2 border-gray-200 space-y-1">
+                    <p>Upload to <code class="bg-gray-100 rounded px-1 font-mono">wp-content/plugins/</code> instead, then activate under <strong>Plugins → Installed Plugins</strong> in the WordPress admin.</p>
+                    <p>Note: a site admin could deactivate this plugin, which would silently pause live sync without any notification here.</p>
+                </div>
+            </details>
 
             <div class="flex items-center gap-3 pt-1">
                 <a

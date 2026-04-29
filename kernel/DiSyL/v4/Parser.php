@@ -156,6 +156,10 @@ class Parser
         if (ctype_alpha($next) || $next === '_') {
             return true;
         }
+        // Parenthesized expressions {(a + b) * c} and numeric literals {503}
+        if ($next === '(' || ctype_digit($next)) {
+            return true;
+        }
         return false;
     }
 

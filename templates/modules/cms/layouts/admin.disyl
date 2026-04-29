@@ -25,12 +25,25 @@
     <style>
         [x-cloak] { display: none !important; }
 
+        :root {
+            --cms-shell-bg: linear-gradient(180deg, #0f1f38 0%, #0c1830 52%, #081222 100%);
+            --cms-shell-border: rgba(148, 163, 184, 0.14);
+            --cms-shell-text: #e5eefc;
+            --cms-shell-muted: rgba(203, 213, 225, 0.72);
+            --cms-shell-active: rgba(59, 130, 246, 0.18);
+            --cms-panel-bg: rgba(255, 255, 255, 0.88);
+            --cms-panel-border: rgba(148, 163, 184, 0.2);
+        }
+
         /* Second pass: improve overall legibility and contrast across admin surfaces. */
         .cms-admin {
             color: #1f2937;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             text-rendering: optimizeLegibility;
+            background:
+                radial-gradient(circle at top center, rgba(59, 130, 246, 0.08), transparent 28%),
+                linear-gradient(180deg, #f9fbff 0%, #eef4fb 44%, #f6f8fc 100%);
         }
 
         .cms-admin main {
@@ -117,6 +130,113 @@
             border-radius: 0.6rem;
         }
 
+        .cms-admin .cms-shell {
+            background: transparent;
+        }
+
+        .cms-admin .cms-sidebar {
+            background: var(--cms-shell-bg);
+            border-right: 1px solid var(--cms-shell-border);
+            box-shadow: 18px 0 36px rgba(2, 6, 23, 0.24);
+        }
+
+        .cms-admin .cms-sidebar nav a {
+            border: 1px solid transparent;
+            border-radius: 14px;
+            color: var(--cms-shell-muted) !important;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+        }
+
+        .cms-admin .cms-sidebar nav a:hover {
+            background: rgba(255,255,255,.05) !important;
+            color: var(--cms-shell-text) !important;
+            transform: translateX(1px);
+        }
+
+        .cms-admin .cms-sidebar nav a.bg-slate-800,
+        .cms-admin .cms-sidebar nav a.text-white {
+            background: linear-gradient(180deg, rgba(37, 99, 235, 0.28), rgba(37, 99, 235, 0.18)) !important;
+            border-color: rgba(96, 165, 250, 0.22) !important;
+            color: #ffffff !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 18px rgba(2, 6, 23, 0.2);
+        }
+
+        .cms-admin .cms-sidebar nav > div > span {
+            color: rgba(191, 203, 222, 0.72) !important;
+        }
+
+        .cms-admin .cms-topbar {
+            background: rgba(255,255,255,.78);
+            backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        }
+
+        .cms-admin .cms-topbar-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.9rem;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(255,255,255,.82);
+            color: #64748b;
+            transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+        }
+
+        .cms-admin .cms-topbar-button:hover {
+            background: rgba(37,99,235,.08);
+            border-color: rgba(37,99,235,.18);
+            color: #1d4ed8;
+        }
+
+        .cms-admin .cms-search-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: .75rem;
+            min-width: min(30rem, 52vw);
+            padding: .8rem 1rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(255,255,255,.88);
+            color: #64748b;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+            transition: border-color .15s ease, box-shadow .15s ease, color .15s ease;
+        }
+
+        .cms-admin .cms-search-trigger:hover {
+            border-color: rgba(37,99,235,.24);
+            color: #334155;
+            box-shadow: 0 8px 20px rgba(37,99,235,.08);
+        }
+
+        .cms-admin .cms-main {
+            padding: 1.75rem 1.75rem 2rem;
+        }
+
+        .cms-admin--customizer .cms-main {
+            padding: 1.25rem 1.25rem 1.75rem;
+        }
+
+        .cms-admin--customizer .cms-sidebar {
+            box-shadow: 10px 0 28px rgba(2, 6, 23, 0.18);
+        }
+
+        .cms-admin .cms-avatar {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #1e40af, #2563eb);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .85rem;
+            font-weight: 700;
+            box-shadow: 0 8px 20px rgba(37,99,235,.22);
+        }
+
         .cms-admin main input::placeholder,
         .cms-admin main textarea::placeholder {
             color: #6b7280;
@@ -125,17 +245,22 @@
     </style>
     {block head}{/block}
 </head>
-<body class="cms-admin bg-gray-50 min-h-screen" x-data="{ sidebarOpen: true, mobileMenu: false }">
-    <div class="flex h-screen overflow-hidden">
+<body class="cms-admin min-h-screen {if current_page == 'customize'}cms-admin--customizer{/if}" x-data="{ sidebarOpen: {if current_page == 'customize'}false{else}true{/if}, mobileMenu: false }">
+    <div class="cms-shell flex min-h-screen items-stretch">
 
         <!-- Sidebar -->
-        <aside class="hidden lg:flex lg:flex-col bg-slate-900 text-white transition-all duration-200"
-               :class="sidebarOpen ? 'w-60' : 'w-16'">
-            <div class="flex items-center h-14 px-4 border-b border-slate-700/50 shrink-0">
-                <svg class="w-6 h-6 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
-                <span class="ml-2 font-bold text-sm tracking-wide" x-show="sidebarOpen" x-cloak>CMS</span>
+        <aside class="cms-sidebar hidden lg:flex lg:flex-col text-white transition-all duration-200"
+               :class="sidebarOpen ? 'w-64' : 'w-20'">
+            <div class="flex items-center h-[72px] px-5 border-b border-white/10 shrink-0">
+                <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10 shadow-lg shadow-black/10 shrink-0">
+                    <svg class="w-6 h-6 text-sky-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                </div>
+                <div class="ml-3 min-w-0" x-show="sidebarOpen" x-cloak>
+                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300/70">Kernel OS</div>
+                    <div class="font-bold text-base tracking-tight text-white">CMS</div>
+                </div>
             </div>
-            <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+            <nav class="flex-1 py-3 px-2 space-y-0.5">
                 <a href="{base_url}/cms/admin" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'dashboard'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Dashboard</span>
@@ -143,47 +268,55 @@
                 <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
                     <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Content</span>
                 </div>
-                <a href="{base_url}/cms/admin/content?type=post" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'posts'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Posts</span>
+                <a href="{base_url}/cms/admin/content?type=all" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'content' || current_page == 'posts' || current_page == 'pages'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>All Content</span>
                 </a>
-                <a href="{base_url}/cms/admin/content?type=page" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'pages'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Pages</span>
+                <a href="{base_url}/cms/admin/content-types" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'content_types'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h10M7 12h6m-6 5h10M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Entities</span>
                 </a>
+                <a href="{base_url}/cms/admin/categories" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'categories'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Collections</span>
+                </a>
+                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Experience</span>
+                </div>
                 <a href="{base_url}/cms/admin/react-builder/create" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'react_builder'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Page Builder</span>
                 </a>
-                <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'media'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Media</span>
-                </a>
-                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Appearance</span>
-                </div>
                 <a href="{base_url}/cms/admin/customize" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'customize'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Customize</span>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Theme</span>
                 </a>
                 <a href="{base_url}/cms/admin/themes" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'themes'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Themes</span>
-                </a>
-                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
-                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Structure</span>
-                </div>
-                <a href="{base_url}/cms/admin/categories" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'categories'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Categories</span>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Theme Library</span>
                 </a>
                 <a href="{base_url}/cms/admin/menus" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'menus'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Menus</span>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Navigation</span>
+                </a>
+                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">System</span>
+                </div>
+                <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'media'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Media Library</span>
+                </a>
+                <a href="{base_url}/cms/admin/modules" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'modules'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Modules</span>
+                </a>
+                <a href="{base_url}/cms/admin/ai-automation" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'ai_automation'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.75h4.5m-7.5 4.5h10.5m-12 4.5h13.5m-12 4.5h10.5M12 3.75v16.5"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>AI Automation</span>
                 </a>
                 <a href="{base_url}/cms/admin/redirects" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'redirects'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Redirects</span>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Routing</span>
                 </a>
                 <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
                     <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Admin</span>
@@ -196,25 +329,13 @@
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Permissions</span>
                 </a>
-                <a href="{base_url}/cms/admin/ai-automation" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'ai_automation'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.75h4.5m-7.5 4.5h10.5m-12 4.5h13.5m-12 4.5h10.5M12 3.75v16.5"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>AI Automation</span>
-                </a>
                 <a href="{base_url}/cms/admin/settings" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'settings'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Settings</span>
                 </a>
-                <a href="{base_url}/cms/admin/content-types" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'content_types'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h10M7 12h6m-6 5h10M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Content Types</span>
-                </a>
                 <a href="{base_url}/cms/admin/import-export" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'import_export'}bg-slate-800 text-white{else}text-slate-300{/if}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Import / Export</span>
-                </a>
-                <a href="{base_url}/cms/admin/modules" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'modules'}bg-slate-800 text-white{else}text-slate-300{/if}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Modules</span>
                 </a>
                 {if ext_nav_items && ext_nav_items | count > 0}
                 {foreach ext_nav_items as enav}
@@ -249,7 +370,7 @@
                 {/foreach}
                 {/if}
             </nav>
-            <div class="border-t border-slate-700/50 px-3 py-3 shrink-0">
+            <div class="border-t border-white/10 px-3 py-4 shrink-0">
                 <a href="{base_url}/cms" target="_blank" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-400 hover:text-white hover:bg-slate-800">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>View Site</span>
@@ -275,45 +396,65 @@
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                         <span class="ml-3">Dashboard</span>
                     </a>
-                    <a href="{base_url}/cms/admin/content?type=post" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                        <span class="ml-3">Posts</span>
+                    <div class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Content</div>
+                    <a href="{base_url}/cms/admin/content?type=all" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        <span class="ml-3">All Content</span>
                     </a>
-                    <a href="{base_url}/cms/admin/content?type=page" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        <span class="ml-3">Pages</span>
+                    <a href="{base_url}/cms/admin/content-types" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h10M7 12h6m-6 5h10M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                        <span class="ml-3">Entities</span>
                     </a>
+                    <a href="{base_url}/cms/admin/categories" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+                        <span class="ml-3">Collections</span>
+                    </a>
+                    <div class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Experience</div>
                     <a href="{base_url}/cms/admin/react-builder/create" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg>
                         <span class="ml-3">Page Builder</span>
                     </a>
-                    <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                        <span class="ml-3">Media</span>
-                    </a>
                     <a href="{base_url}/cms/admin/customize" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
-                        <span class="ml-3">Customize</span>
+                        <span class="ml-3">Theme</span>
                     </a>
-                    <a href="{base_url}/cms/admin/categories" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
-                        <span class="ml-3">Categories</span>
+                    <a href="{base_url}/cms/admin/themes" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+                        <span class="ml-3">Theme Library</span>
                     </a>
                     <a href="{base_url}/cms/admin/menus" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
-                        <span class="ml-3">Menus</span>
+                        <span class="ml-3">Navigation</span>
                     </a>
-                    <a href="{base_url}/cms/admin/users" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                        <span class="ml-3">Users</span>
+                    <div class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">System</div>
+                    <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <span class="ml-3">Media Library</span>
                     </a>
-                    <a href="{base_url}/cms/admin/settings" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        <span class="ml-3">Settings</span>
+                    <a href="{base_url}/cms/admin/modules" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        <span class="ml-3">Modules</span>
                     </a>
                     <a href="{base_url}/cms/admin/ai-automation" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.75h4.5m-7.5 4.5h10.5m-12 4.5h13.5m-12 4.5h10.5M12 3.75v16.5"/></svg>
                         <span class="ml-3">AI Automation</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/redirects" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+                        <span class="ml-3">Routing</span>
+                    </a>
+                    <div class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Admin</div>
+                    <a href="{base_url}/cms/admin/users" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                        <span class="ml-3">Users</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/permissions" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                        <span class="ml-3">Permissions</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/settings" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <span class="ml-3">Settings</span>
                     </a>
                     {if ext_nav_items && ext_nav_items | count > 0}
                     {foreach ext_nav_items as menav}
@@ -347,26 +488,48 @@
         </div>
 
         <!-- Main content area -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <div class="flex-1 flex min-w-0 flex-col">
             <!-- Top header -->
-            <header class="bg-white border-b border-gray-200 h-14 flex items-center justify-between px-4 lg:px-6 shrink-0">
+            <header class="cms-topbar h-[72px] flex items-center justify-between px-4 lg:px-6 shrink-0">
                 <div class="flex items-center gap-3">
-                    <button class="lg:hidden text-gray-500 hover:text-gray-700" @click="mobileMenu=true">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-                    </button>
-                    <button class="hidden lg:block text-gray-400 hover:text-gray-600" @click="sidebarOpen=!sidebarOpen">
+                    <button class="cms-topbar-button" @click="if (window.innerWidth >= 1024) { sidebarOpen = !sidebarOpen; } else { mobileMenu = true; }" aria-label="Toggle navigation">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                     </button>
-                    <h1 class="text-base font-semibold text-gray-900">{page_title}</h1>
+                    {if current_page == 'customize'}
+                    <div class="hidden md:flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/88 px-4 py-2 shadow-sm shadow-slate-200/30">
+                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                        </span>
+                        <div class="leading-tight">
+                            <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Customizer Focus Mode</div>
+                            <div class="text-sm font-medium text-slate-700">Use the local studio toolbar to switch sections and preview context.</div>
+                        </div>
+                    </div>
+                    {else}
+                    <button @click="$dispatch('cms-search-open')" class="cms-search-trigger hidden md:inline-flex text-left" title="Ctrl+K">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <span class="text-sm">Search content, media, users, modules...</span>
+                        <span class="ml-auto inline-flex items-center rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-400">⌘ K</span>
+                    </button>
+                    {/if}
                 </div>
                 <div class="flex items-center gap-3">
-                    <button @click="$dispatch('cms-search-open')" class="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Ctrl+K">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                        <span>Search…</span>
-                        <kbd class="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-white border border-gray-200 rounded">⌘K</kbd>
+                    {if current_page != 'customize'}
+                    <a href="{base_url}/cms/admin/content/create?type=post" class="hidden md:inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/85 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm shadow-slate-200/40 transition-colors hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
+                        Quick Create
+                    </a>
+                    <button class="cms-topbar-button hidden sm:inline-flex" type="button" aria-label="Notifications">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                     </button>
-                    <span class="hidden sm:inline text-sm text-gray-500">{cms_user_display}</span>
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700">{cms_user_role}</span>
+                    {/if}
+                    <div class="hidden sm:flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/82 px-3 py-2 shadow-sm shadow-slate-200/40">
+                        <span class="cms-avatar">A</span>
+                        <div class="leading-tight">
+                            <div class="text-sm font-semibold text-slate-800">{cms_user_display}</div>
+                            <div class="text-xs text-slate-400">{cms_user_role}</div>
+                        </div>
+                    </div>
                     <a href="{base_url}/auth/logout" class="text-sm text-gray-400 hover:text-gray-600">Logout</a>
                 </div>
             </header>
@@ -384,7 +547,7 @@
             {/if}
 
             <!-- Page content -->
-            <main class="flex-1 overflow-y-auto p-4 lg:p-6">
+            <main class="cms-main flex-1 min-w-0">
                 {block content}{/block}
             </main>
         </div>

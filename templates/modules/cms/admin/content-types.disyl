@@ -1,10 +1,20 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<div x-data="cmsContentTypes()" x-init="init()">
+<div x-data="cmsContentTypes()" x-init="init()" class="space-y-5">
 
-    <!-- What are Content Types? -->
-    <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 mb-5 flex gap-4">
+    <!-- Page header -->
+    <div class="flex items-start justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">Content Types</h1>
+            <p class="text-sm text-slate-500 mt-0.5">Define custom content types and their fields. Fields are stored in <span class="font-mono">cms_content_meta</span>.</p>
+        </div>
+        <button class="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-2xl hover:bg-sky-700 transition-colors shadow-sm shadow-sky-600/20" @click="openCreateType()">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New Content Type
+        </button>
+    </div>
+    <div class="bg-sky-50 border border-sky-200 rounded-2xl p-4 flex gap-4">
         <div class="flex-shrink-0 mt-0.5">
             <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
@@ -22,34 +32,24 @@
         </div>
     </div>
 
-    <div class="flex items-center justify-between mb-4">
-        <div>
-            <div class="text-sm text-gray-500">Define custom content types and their fields. Fields are stored in <span class="font-mono">cms_content_meta</span>.</div>
-        </div>
-        <button class="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition-colors" @click="openCreateType()">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            New Content Type
-        </button>
-    </div>
-
     <div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
         <!-- Content types list -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Content Types</div>
-            <div class="divide-y divide-gray-100">
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 bg-slate-50/60">Content Types</div>
+            <div class="divide-y divide-slate-100">
                 <template x-if="types.length === 0">
-                    <div class="p-6 text-sm text-gray-400">No content types found.</div>
+                    <div class="p-6 text-sm text-slate-400">No content types found.</div>
                 </template>
                 <template x-for="t in types" :key="t.id">
-                    <button class="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                    <button class="w-full text-left px-5 py-3.5 hover:bg-slate-50/40 transition-colors"
                             :class="selectedType && selectedType.id === t.id ? 'bg-sky-50' : ''"
                             @click="selectType(t)">
                         <div class="flex items-center justify-between gap-3">
                             <div>
-                                <div class="text-sm font-semibold text-gray-900" x-text="t.label"></div>
-                                <div class="text-[11px] text-gray-400" x-text="t.slug"></div>
+                                <div class="text-sm font-semibold text-slate-900" x-text="t.label"></div>
+                                <div class="text-[11px] text-slate-400 font-mono" x-text="t.slug"></div>
                             </div>
-                            <div class="text-[11px] font-semibold" :class="String(t.is_active) === '1' ? 'text-emerald-700' : 'text-gray-400'" x-text="String(t.is_active) === '1' ? 'Active' : 'Disabled'"></div>
+                            <div class="text-[11px] font-semibold" :class="String(t.is_active) === '1' ? 'text-emerald-700' : 'text-slate-400'" x-text="String(t.is_active) === '1' ? 'Active' : 'Disabled'"></div>
                         </div>
                     </button>
                 </template>
@@ -57,54 +57,54 @@
         </div>
 
         <!-- Fields for selected type -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
-                <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Fields</div>
+        <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Fields</div>
                 <div class="flex items-center gap-2">
                     <template x-if="selectedType">
-                        <button class="px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200" @click="openEditType(selectedType)">Edit Type</button>
+                        <button class="px-3 py-2 bg-slate-100 text-slate-600 text-xs font-medium rounded-2xl hover:bg-slate-200 transition-colors" @click="openEditType(selectedType)">Edit Type</button>
                     </template>
                     <template x-if="selectedType">
-                        <button class="px-3 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700" @click="openCreateField()">Add Field</button>
+                        <button class="px-3 py-2 bg-sky-600 text-white text-xs font-semibold rounded-2xl hover:bg-sky-700 transition-colors" @click="openCreateField()">Add Field</button>
                     </template>
                 </div>
             </div>
 
             <template x-if="!selectedType">
-                <div class="p-8 text-sm text-gray-400">Select a content type to manage its fields.</div>
+                <div class="p-8 text-sm text-slate-400">Select a content type to manage its fields.</div>
             </template>
 
             <template x-if="selectedType">
                 <div>
-                    <div class="px-4 py-3 text-sm text-gray-500 border-b border-gray-100">
-                        <span class="font-semibold text-gray-700" x-text="selectedType.label"></span>
-                        <span class="text-gray-300 mx-2">/</span>
+                    <div class="px-5 py-3 text-sm text-slate-500 border-b border-slate-100">
+                        <span class="font-semibold text-slate-700" x-text="selectedType.label"></span>
+                        <span class="text-slate-300 mx-2">/</span>
                         <span class="font-mono text-xs" x-text="selectedType.slug"></span>
                     </div>
 
                     <template x-if="fields.length === 0">
-                        <div class="p-8 text-sm text-gray-400">No fields defined yet.</div>
+                        <div class="p-8 text-sm text-slate-400">No fields defined yet.</div>
                     </template>
 
                     <template x-if="fields.length > 0">
                         <table class="w-full">
                             <thead>
-                                <tr class="bg-gray-50 border-b border-gray-200">
-                                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Key</th>
-                                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Label</th>
-                                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Type</th>
-                                    <th class="px-4 py-2.5 w-24"></th>
+                                <tr class="border-b border-slate-200 bg-slate-50/60">
+                                    <th class="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Key</th>
+                                    <th class="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Label</th>
+                                    <th class="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Type</th>
+                                    <th class="px-5 py-3 w-24"></th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-slate-100">
                                 <template x-for="f in fields" :key="f.id">
-                                    <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-4 py-3 text-xs font-mono text-gray-700" x-text="f.field_key"></td>
-                                        <td class="px-4 py-3 text-sm text-gray-700" x-text="f.label"></td>
-                                        <td class="px-4 py-3 text-xs text-gray-500" x-text="f.field_type"></td>
-                                        <td class="px-4 py-3 text-right">
-                                            <button class="text-xs text-gray-400 hover:text-sky-600" @click="openEditField(f)">Edit</button>
-                                            <button class="ml-2 text-xs text-red-600 hover:text-red-700" @click="deleteField(f)">Del</button>
+                                    <tr class="hover:bg-slate-50/40 transition-colors">
+                                        <td class="px-5 py-3.5 text-xs font-mono text-slate-700" x-text="f.field_key"></td>
+                                        <td class="px-5 py-3.5 text-sm text-slate-700" x-text="f.label"></td>
+                                        <td class="px-5 py-3.5 text-xs text-slate-500" x-text="f.field_type"></td>
+                                        <td class="px-5 py-3.5 text-right">
+                                            <button class="text-xs text-slate-400 hover:text-sky-600 transition-colors" @click="openEditField(f)">Edit</button>
+                                            <button class="ml-2 text-xs text-red-500 hover:text-red-700 transition-colors" @click="deleteField(f)">Del</button>
                                         </td>
                                     </tr>
                                 </template>
@@ -119,26 +119,26 @@
     <!-- Type modal -->
     <template x-if="showTypeModal">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeModals()">
-            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6" @click.stop>
-                <h3 class="text-lg font-semibold text-gray-900 mb-4" x-text="typeForm.id ? 'Edit Content Type' : 'Create Content Type'"></h3>
+            <div class="bg-white rounded-2xl shadow-2xl shadow-slate-900/20 w-full max-w-lg p-6" @click.stop>
+                <h3 class="text-lg font-semibold text-slate-900 mb-4" x-text="typeForm.id ? 'Edit Content Type' : 'Create Content Type'"></h3>
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Slug</label>
-                        <input type="text" x-model="typeForm.slug" placeholder="product" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" :disabled="!!typeForm.id">
-                        <div class="text-[11px] text-gray-400 mt-1">Used as <span class="font-mono">cms_content.type</span>. Cannot be changed after creation.</div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Slug</label>
+                        <input type="text" x-model="typeForm.slug" placeholder="product" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500" :disabled="!!typeForm.id">
+                        <div class="text-[11px] text-slate-400 mt-1">Used as <span class="font-mono">cms_content.type</span>. Cannot be changed after creation.</div>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Label</label>
-                        <input type="text" x-model="typeForm.label" placeholder="Product" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Label</label>
+                        <input type="text" x-model="typeForm.label" placeholder="Product" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500">
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Icon</label>
-                            <input type="text" x-model="typeForm.icon" placeholder="file-text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                            <label class="block text-xs font-medium text-slate-500 mb-1">Icon</label>
+                            <input type="text" x-model="typeForm.icon" placeholder="file-text" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                            <select x-model="typeForm.is_active" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                            <label class="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                            <select x-model="typeForm.is_active" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-sky-500">
                                 <option value="1">Active</option>
                                 <option value="0">Disabled</option>
                             </select>
@@ -150,11 +150,11 @@
 
                 <div class="flex justify-between items-center mt-6">
                     <template x-if="typeForm.id">
-                        <button class="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700" @click="deleteType()">Delete Type</button>
+                        <button class="px-4 py-2 text-sm text-white bg-red-600 rounded-2xl hover:bg-red-700 transition-colors" @click="deleteType()">Delete Type</button>
                     </template>
                     <div class="ml-auto flex gap-2">
-                        <button class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200" @click="closeModals()">Cancel</button>
-                        <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50" @click="saveType()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
+                        <button class="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors" @click="closeModals()">Cancel</button>
+                        <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-2xl hover:bg-sky-700 disabled:opacity-50 transition-colors" @click="saveType()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
                     </div>
                 </div>
             </div>
@@ -164,18 +164,18 @@
     <!-- Field modal -->
     <template x-if="showFieldModal">
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeModals()">
-            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6" @click.stop>
-                <h3 class="text-lg font-semibold text-gray-900 mb-4" x-text="fieldForm.id ? 'Edit Field' : 'Create Field'"></h3>
+            <div class="bg-white rounded-2xl shadow-2xl shadow-slate-900/20 w-full max-w-lg p-6" @click.stop>
+                <h3 class="text-lg font-semibold text-slate-900 mb-4" x-text="fieldForm.id ? 'Edit Field' : 'Create Field'"></h3>
 
                 <div class="space-y-3">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Field Key</label>
-                            <input type="text" x-model="fieldForm.field_key" placeholder="price" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" :disabled="!!fieldForm.id">
+                            <label class="block text-xs font-medium text-slate-500 mb-1">Field Key</label>
+                            <input type="text" x-model="fieldForm.field_key" placeholder="price" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500" :disabled="!!fieldForm.id">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Field Type</label>
-                            <select x-model="fieldForm.field_type" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                            <label class="block text-xs font-medium text-slate-500 mb-1">Field Type</label>
+                            <select x-model="fieldForm.field_type" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-sky-500">
                                 <option value="text">Text</option>
                                 <option value="textarea">Textarea</option>
                                 <option value="number">Number</option>
@@ -187,28 +187,28 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Label</label>
-                        <input type="text" x-model="fieldForm.label" placeholder="Price" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Label</label>
+                        <input type="text" x-model="fieldForm.label" placeholder="Price" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Placeholder</label>
-                        <input type="text" x-model="fieldForm.placeholder" placeholder="Optional" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Placeholder</label>
+                        <input type="text" x-model="fieldForm.placeholder" placeholder="Optional" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500">
                     </div>
                     <div x-show="fieldForm.field_type === 'select'" x-cloak>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Select Options (JSON)</label>
-                        <textarea x-model="fieldForm.options_json" placeholder='[{"value":"red","label":"Red"}]' class="w-full min-h-[90px] resize-y text-sm font-mono border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Select Options (JSON)</label>
+                        <textarea x-model="fieldForm.options_json" placeholder='[{"value":"red","label":"Red"}]' class="w-full min-h-[90px] resize-y text-sm font-mono border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500"></textarea>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Validation Rules (JSON)</label>
-                        <textarea x-model="fieldForm.validation_json" placeholder='{"required":true,"min":0,"max":999}' class="w-full min-h-[90px] resize-y text-sm font-mono border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Validation Rules (JSON)</label>
+                        <textarea x-model="fieldForm.validation_json" placeholder='{"required":true,"min":0,"max":999}' class="w-full min-h-[90px] resize-y text-sm font-mono border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-sky-500"></textarea>
                     </div>
                 </div>
 
                 <div x-show="formError" class="text-xs text-red-600 mt-2" x-text="formError"></div>
 
                 <div class="flex justify-end gap-2 mt-6">
-                    <button class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200" @click="closeModals()">Cancel</button>
-                    <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50" @click="saveField()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
+                    <button class="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors" @click="closeModals()">Cancel</button>
+                    <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-2xl hover:bg-sky-700 disabled:opacity-50 transition-colors" @click="saveField()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
                 </div>
             </div>
         </div>

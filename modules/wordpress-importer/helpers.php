@@ -15,7 +15,11 @@ function wordpressImporterPrepareRenderContext(string $relativePath, array $cont
 function wordpressImporterNormalizeAdminRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
 {
     return kernelApplyRenderContextShape($context, [
-        'page_title' => 'WordPress Import',
+        'page_title'           => 'WordPress Import',
+        'bridge_available'     => false,
+        'bridge_enabled'       => false,
+        'bridge_settings_url'  => '',
+        'bridge_companion_url' => '',
     ], ['page_title'], $missingKeys, $typeMismatches);
 }
 

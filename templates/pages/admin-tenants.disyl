@@ -2,21 +2,51 @@
 
 {block head}
 <style>
-    .tenant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
-    .tenant-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; transition: box-shadow .15s; }
-    .tenant-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
-    .tenant-title { display:flex; align-items:flex-start; justify-content:space-between; gap: 8px; margin-bottom: 8px; }
-    .tenant-key { font-weight: 800; font-size: 14px; }
-    .tenant-id { font-family: monospace; font-size: 11px; color: var(--text-light); }
+    .tenant-shell { display: grid; gap: 18px; }
+    .tenant-toolbar { display: grid; gap: 14px; }
+    .tenant-filter-grid { display: grid; grid-template-columns: minmax(280px, 1.5fr) minmax(150px, .55fr) minmax(180px, .7fr) auto; gap: 12px; align-items: end; }
+    .tenant-filter-grid .form-group { margin-bottom: 0; }
+    .tenant-toolbar-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .tenant-results-meta { font-size: 12px; color: var(--text-muted); }
+    .tenant-view-controls { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+    .view-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 4px; background: rgba(255,255,255,.84); border: 1px solid rgba(148,163,184,.2); border-radius: var(--radius); }
+    .view-toggle button { border: none; background: transparent; color: var(--text-muted); padding: 8px 12px; border-radius: var(--radius); font-size: 12px; font-weight: 700; cursor: pointer; }
+    .view-toggle button.active { background: var(--primary); color: #fff; box-shadow: 0 8px 16px rgba(37,99,235,.18); }
+    .tenant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+    .tenant-grid.list-view { grid-template-columns: 1fr; }
+    .tenant-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.88)); border: 1px solid rgba(148,163,184,.18); border-radius: var(--radius); padding: 18px; transition: transform .15s ease, box-shadow .15s ease; box-shadow: 0 16px 28px rgba(15,23,42,.05); }
+    .tenant-card:hover { box-shadow: 0 20px 38px rgba(15,23,42,.08); transform: translateY(-1px); }
+    .tenant-grid.list-view .tenant-card { grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); align-items: start; }
+    .tenant-card-main, .tenant-card-side { min-width: 0; }
+    .tenant-title { display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
+    .tenant-key { font-weight: 800; font-size: 20px; letter-spacing: -.03em; }
+    .tenant-id { font-family: monospace; font-size: 11px; color: var(--text-light); margin-top: 3px; }
+    .tenant-contact { font-size: 12px; color: var(--text-muted); }
+    .tenant-side-card { background: rgba(37,99,235,.05); border: 1px solid rgba(37,99,235,.08); border-radius: var(--radius); padding: 14px; display: grid; gap: 10px; }
+    .tenant-stat { display: grid; gap: 3px; }
+    .tenant-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); }
+    .tenant-stat-value { font-size: 13px; color: var(--text); word-break: break-word; }
     .meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    .domain-heading { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-light); margin-top: 12px; }
     .domain-list { margin-top: 10px; display:flex; flex-wrap: wrap; gap: 6px; }
-    .domain-pill { display:inline-flex; align-items:center; gap: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 12px; }
+    .domain-pill { display:inline-flex; align-items:center; gap: 8px; padding: 6px 10px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg); font-size: 12px; }
     .domain-pill code { font-family: monospace; font-size: 11px; }
     .domain-pill button { border: none; background: transparent; cursor: pointer; color: var(--danger); font-weight: 800; }
-    .actions { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .tenant-actions { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; grid-column: 1 / -1; }
     .tenants-loading { text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px; }
-    .entry-module-row { display:flex; align-items:center; gap: 8px; margin-top: 10px; }
-    .entry-module-value { min-width: 0; flex: 1; }
+
+    @media (max-width: 960px) {
+        .tenant-filter-grid { grid-template-columns: 1fr 1fr; }
+        .tenant-view-controls { align-items: stretch; }
+    }
+
+    @media (max-width: 720px) {
+        .tenant-filter-grid { grid-template-columns: 1fr; }
+        .tenant-grid,
+        .tenant-grid.list-view { grid-template-columns: 1fr; }
+        .tenant-grid.list-view .tenant-card { grid-template-columns: 1fr; }
+        .tenant-toolbar-foot { align-items: stretch; }
+    }
 </style>
 {/block}
 
@@ -32,14 +62,50 @@
     </div>
 </div>
 
-<div id="tenants-loading" class="tenants-loading">Loading tenants…</div>
+<div class="tenant-shell">
+    <div class="panel tenant-toolbar">
+        <div class="tenant-filter-grid">
+            <div class="form-group">
+                <label class="form-label" for="tenant-search">Search</label>
+                <input class="form-input" id="tenant-search" type="text" placeholder="Search tenants, domains, emails, modules..." oninput="applyTenantFilters()" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="tenant-status-filter">Status</label>
+                <select class="form-input" id="tenant-status-filter" onchange="applyTenantFilters()">
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="tenant-module-filter">Module</label>
+                <select class="form-input" id="tenant-module-filter" onchange="applyTenantFilters()">
+                    <option value="all">All modules</option>
+                </select>
+            </div>
+            <div class="tenant-view-controls">
+                <label class="form-label">View</label>
+                <div class="view-toggle" role="group" aria-label="Tenant view mode">
+                    <button type="button" id="tenant-view-grid" onclick="setTenantView('grid')">Grid</button>
+                    <button type="button" id="tenant-view-list" onclick="setTenantView('list')">List</button>
+                </div>
+            </div>
+        </div>
+        <div class="tenant-toolbar-foot">
+            <div id="tenant-results-meta" class="tenant-results-meta">Loading tenants…</div>
+            <button class="btn btn-outline btn-sm" type="button" onclick="clearTenantFilters()">Clear filters</button>
+        </div>
+    </div>
 
-<div id="tenants-empty" class="empty-state" style="display:none;">
-    <h3>No tenants found</h3>
-    <p>Create your first tenant to begin.</p>
+    <div id="tenants-loading" class="tenants-loading">Loading tenants…</div>
+
+    <div id="tenants-empty" class="empty-state" style="display:none;">
+        <h3 id="tenants-empty-title">No tenants found</h3>
+        <p id="tenants-empty-copy">Create your first tenant to begin.</p>
+    </div>
+
+    <div id="tenants-grid" class="tenant-grid"></div>
 </div>
-
-<div id="tenants-grid" class="tenant-grid"></div>
 
 <!-- Create tenant modal -->
 <div class="modal-overlay" id="modal-create" onclick="onBackdrop(event, 'modal-create')">
@@ -182,6 +248,30 @@
     var BASE = '{base_url}';
     var CSRF = '{csrf_token}';
     var ENTRY_MODULE_OPTIONS = {entry_module_options_json|raw};
+    var TENANT_VIEW_STORAGE_KEY = 'kernel-admin-tenants:view';
+    var TENANT_VIEW_STATE = {
+        list: [],
+        query: '',
+        status: 'all',
+        module: 'all',
+        view: readSavedTenantView()
+    };
+
+    function readSavedTenantView() {
+        try {
+            var saved = window.localStorage ? window.localStorage.getItem(TENANT_VIEW_STORAGE_KEY) : '';
+            return saved === 'list' ? 'list' : 'grid';
+        } catch (e) {
+            return 'grid';
+        }
+    }
+
+    function writeSavedTenantView(view) {
+        try {
+            if (window.localStorage) window.localStorage.setItem(TENANT_VIEW_STORAGE_KEY, view);
+        } catch (e) {
+        }
+    }
 
     function openModal(id) {
         var el = document.getElementById(id);
@@ -197,6 +287,201 @@
 
     function refreshEntryModuleOptions(options) {
         ENTRY_MODULE_OPTIONS = Array.isArray(options) ? options : [];
+    }
+
+    function updateTenantViewButtons() {
+        var gridBtn = document.getElementById('tenant-view-grid');
+        var listBtn = document.getElementById('tenant-view-list');
+        if (gridBtn) gridBtn.classList.toggle('active', TENANT_VIEW_STATE.view === 'grid');
+        if (listBtn) listBtn.classList.toggle('active', TENANT_VIEW_STATE.view === 'list');
+    }
+
+    function setTenantView(view) {
+        TENANT_VIEW_STATE.view = (view === 'list') ? 'list' : 'grid';
+        writeSavedTenantView(TENANT_VIEW_STATE.view);
+        applyTenantFilters();
+    }
+
+    function renderTenantModuleOptions(list) {
+        var select = document.getElementById('tenant-module-filter');
+        if (!select) return;
+        var seen = {};
+        var modules = [];
+        (Array.isArray(list) ? list : []).forEach(function(tenant) {
+            var moduleId = String((tenant && tenant.entry_module_id) || '').trim();
+            if (!moduleId || seen[moduleId]) return;
+            seen[moduleId] = true;
+            modules.push(moduleId);
+        });
+        modules.sort();
+
+        var html = '<option value="all">All modules</option>';
+        modules.forEach(function(moduleId) {
+            var selected = TENANT_VIEW_STATE.module === moduleId ? ' selected' : '';
+            html += '<option value="' + escapeHtml(moduleId) + '"' + selected + '>' + escapeHtml(moduleId) + '</option>';
+        });
+        select.innerHTML = html;
+        if (TENANT_VIEW_STATE.module !== 'all' && !seen[TENANT_VIEW_STATE.module]) {
+            TENANT_VIEW_STATE.module = 'all';
+            select.value = 'all';
+        }
+    }
+
+    function syncTenantFiltersFromUi() {
+        var queryEl = document.getElementById('tenant-search');
+        var statusEl = document.getElementById('tenant-status-filter');
+        var moduleEl = document.getElementById('tenant-module-filter');
+        TENANT_VIEW_STATE.query = String((queryEl && queryEl.value) || '').trim().toLowerCase();
+        TENANT_VIEW_STATE.status = String((statusEl && statusEl.value) || 'all').trim().toLowerCase() || 'all';
+        TENANT_VIEW_STATE.module = String((moduleEl && moduleEl.value) || 'all').trim() || 'all';
+    }
+
+    function clearTenantFilters() {
+        var queryEl = document.getElementById('tenant-search');
+        var statusEl = document.getElementById('tenant-status-filter');
+        var moduleEl = document.getElementById('tenant-module-filter');
+        if (queryEl) queryEl.value = '';
+        if (statusEl) statusEl.value = 'all';
+        if (moduleEl) moduleEl.value = 'all';
+        TENANT_VIEW_STATE.query = '';
+        TENANT_VIEW_STATE.status = 'all';
+        TENANT_VIEW_STATE.module = 'all';
+        applyTenantFilters();
+    }
+
+    function updateTenantResultsMeta(filteredCount, totalCount) {
+        var meta = document.getElementById('tenant-results-meta');
+        if (!meta) return;
+        if (totalCount <= 0) {
+            meta.textContent = 'No tenants are currently configured.';
+            return;
+        }
+        if (filteredCount === totalCount) {
+            meta.textContent = 'Showing all ' + totalCount + ' tenant' + (totalCount === 1 ? '' : 's') + '.';
+            return;
+        }
+        meta.textContent = 'Showing ' + filteredCount + ' of ' + totalCount + ' tenants.';
+    }
+
+    function applyTenantFilters() {
+        var grid = document.getElementById('tenants-grid');
+        var empty = document.getElementById('tenants-empty');
+        var emptyTitle = document.getElementById('tenants-empty-title');
+        var emptyCopy = document.getElementById('tenants-empty-copy');
+        var loading = document.getElementById('tenants-loading');
+        var list = Array.isArray(TENANT_VIEW_STATE.list) ? TENANT_VIEW_STATE.list : [];
+        if (!grid) return;
+        if (loading) loading.style.display = 'none';
+
+        syncTenantFiltersFromUi();
+        updateTenantViewButtons();
+
+        var filtered = list.filter(function(tenant) {
+            var status = String((tenant && tenant.status) || 'active').toLowerCase();
+            var moduleId = String((tenant && tenant.entry_module_id) || '');
+            var searchHaystack = [
+                tenant && tenant.tenant_key,
+                tenant && tenant.admin_email,
+                moduleId,
+                Array.isArray(tenant && tenant.domains) ? tenant.domains.join(' ') : ''
+            ].join(' ').toLowerCase();
+
+            if (TENANT_VIEW_STATE.status !== 'all' && status !== TENANT_VIEW_STATE.status) return false;
+            if (TENANT_VIEW_STATE.module !== 'all' && moduleId !== TENANT_VIEW_STATE.module) return false;
+            if (TENANT_VIEW_STATE.query && searchHaystack.indexOf(TENANT_VIEW_STATE.query) === -1) return false;
+            return true;
+        });
+
+        grid.className = 'tenant-grid' + (TENANT_VIEW_STATE.view === 'list' ? ' list-view' : '');
+        updateTenantResultsMeta(filtered.length, list.length);
+
+        if (list.length === 0) {
+            grid.innerHTML = '';
+            if (emptyTitle) emptyTitle.textContent = 'No tenants found';
+            if (emptyCopy) emptyCopy.textContent = 'Create your first tenant to begin.';
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+
+        if (filtered.length === 0) {
+            grid.innerHTML = '';
+            if (emptyTitle) emptyTitle.textContent = 'No tenants match the current filters';
+            if (emptyCopy) emptyCopy.textContent = 'Clear or adjust the search, status, or module filters.';
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+
+        if (empty) empty.style.display = 'none';
+
+        var html = '';
+        filtered.forEach(function(t) {
+            var status = String(t.status || 'active');
+            var pillCls = (status === 'active') ? 'active' : 'suspended';
+            var domains = Array.isArray(t.domains) ? t.domains : [];
+            var db = (t && t.db) ? t.db : null;
+            var dbSummary = (db && (db.db_host || db.db_name || db.db_user))
+                ? ('host=' + escapeHtml(db.db_host || '-') + ', db=' + escapeHtml(db.db_name || '-') + ', user=' + escapeHtml(db.db_user || '-'))
+                : '-';
+            var dbBtn = t.db_configured ? 'Edit DB' : 'Add DB';
+            var statusBtnLabel = (status === 'active') ? 'Disable' : 'Enable';
+            var statusBtnCls = (status === 'active') ? '' : 'primary';
+            var entryDisplay = escapeHtml(t.entry_module_id || '-');
+            var adminEmailDisplay = t.admin_email ? escapeHtml(t.admin_email) : '';
+            var domHtml = '';
+            domains.forEach(function(d) {
+                domHtml += '<span class="domain-pill"><code>' + escapeHtml(d) + '</code>'
+                    + '<button title="Remove" onclick="removeDomain(' + (t.id||0) + ',\'' + escapeHtml(d) + '\')">×</button>'
+                    + '</span>';
+            });
+
+            html += ''
+                + '<div class="tenant-card">'
+                + '  <div class="tenant-card-main">'
+                + '    <div class="tenant-title">'
+                + '      <div>'
+                + '        <div class="tenant-key">' + escapeHtml(t.tenant_key || '') + '</div>'
+                + '        <div class="tenant-id">tenant_id=' + escapeHtml(t.id) + '</div>'
+                + '      </div>'
+                + '      <span class="status-pill ' + pillCls + '">' + escapeHtml(status) + '</span>'
+                + '    </div>'
+                +      (adminEmailDisplay
+                            ? '    <div class="tenant-contact">Admin email: <code>' + adminEmailDisplay + '</code></div>'
+                            : '    <div class="tenant-contact">No admin email set yet.</div>')
+                + '    <div class="domain-heading">Domains</div>'
+                + '    <div class="domain-list">' + (domHtml || '<span class="meta">No domains</span>') + '</div>'
+                + '  </div>'
+                + '  <div class="tenant-card-side">'
+                + '    <div class="tenant-side-card">'
+                + '      <div class="tenant-stat">'
+                + '        <span class="tenant-stat-label">Entry module</span>'
+                + '        <span class="tenant-stat-value"><code>' + entryDisplay + '</code></span>'
+                + '      </div>'
+                + '      <div class="tenant-stat">'
+                + '        <span class="tenant-stat-label">Database</span>'
+                + '        <span class="tenant-stat-value">' + (t.db_configured ? 'Configured' : 'Missing') + '</span>'
+                + '      </div>'
+                + '      <div class="tenant-stat">'
+                + '        <span class="tenant-stat-label">Connection</span>'
+                + '        <span class="tenant-stat-value"><code>' + dbSummary + '</code></span>'
+                + '      </div>'
+                + '    </div>'
+                + '  </div>'
+                + '  <div class="tenant-actions">'
+                + '    <button class="btn btn-outline btn-sm" onclick="openAddDomain(' + (t.id||0) + ')">Add domain</button>'
+                + '    <button class="btn btn-primary btn-sm" onclick="openDbConn(' + (t.id||0) + ')">' + dbBtn + '</button>'
+                + '    <button class="btn btn-outline btn-sm" onclick="openEntryModule(' + (t.id||0) + ')">Edit entry</button>'
+                + '    <button class="btn btn-outline btn-sm" onclick="openAdminEmail(' + (t.id||0) + ')">Admin email</button>'
+                + '    <button class="btn btn-outline btn-sm" onclick="openAdminPassword(' + (t.id||0) + ')">Password</button>'
+                + (t.entry_module_id === 'bakeshop' && t.db_configured
+                    ? '    <button class="btn btn-outline btn-sm" onclick="runTenantSeed(' + (t.id||0) + ',\'bakeshop_julies_bread_pastry\',\'Julie\\\'s seed\')">Run Julie\'s seed</button>'
+                    : '')
+                + '    <button class="btn btn-sm ' + (statusBtnCls ? 'btn-primary' : 'btn-outline') + '" onclick="toggleTenantStatus(' + (t.id||0) + ',\'' + escapeHtml(status) + '\')">' + statusBtnLabel + '</button>'
+                + '    <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="deleteTenant(' + (t.id||0) + ',\'' + escapeHtml(t.tenant_key || '') + '\')">Delete</button>'
+                + '  </div>'
+                + '</div>';
+        });
+
+        grid.innerHTML = html;
     }
 
     function renderEntryModuleOptions(selectedId) {
@@ -306,12 +591,6 @@
     }
 
     function renderTenants(list) {
-        var grid = document.getElementById('tenants-grid');
-        var empty = document.getElementById('tenants-empty');
-        var loading = document.getElementById('tenants-loading');
-        if (!grid) return;
-        if (loading) loading.style.display = 'none';
-
         list = Array.isArray(list) ? list : [];
 
         window.__tenantsById = {};
@@ -319,69 +598,9 @@
             if (t && t.id != null) window.__tenantsById[String(t.id)] = t;
         });
 
-        if (list.length === 0) {
-            grid.innerHTML = '';
-            if (empty) empty.style.display = 'block';
-            return;
-        }
-        if (empty) empty.style.display = 'none';
-
-        var html = '';
-        list.forEach(function(t) {
-            var status = String(t.status || 'active');
-            var pillCls = (status === 'active') ? 'active' : 'suspended';
-            var domains = Array.isArray(t.domains) ? t.domains : [];
-            var db = (t && t.db) ? t.db : null;
-            var dbSummary = (db && (db.db_host || db.db_name || db.db_user))
-                ? ('host=' + escapeHtml(db.db_host || '-') + ', db=' + escapeHtml(db.db_name || '-') + ', user=' + escapeHtml(db.db_user || '-'))
-                : '-';
-            var dbBtn = t.db_configured ? 'Edit DB' : 'Add DB';
-            var domainBtn = 'Add domain';
-            var statusBtnLabel = (status === 'active') ? 'Disable' : 'Enable';
-            var statusBtnCls = (status === 'active') ? '' : 'primary';
-            var entryDisplay = escapeHtml(t.entry_module_id || '-');
-
-            var adminEmailDisplay = t.admin_email ? escapeHtml(t.admin_email) : '';
-            var domHtml = '';
-            domains.forEach(function(d) {
-                domHtml += '<span class="domain-pill"><code>' + escapeHtml(d) + '</code>'
-                    + '<button title="Remove" onclick="removeDomain(' + (t.id||0) + ',\'' + escapeHtml(d) + '\')">×</button>'
-                    + '</span>';
-            });
-
-            html += ''
-                + '<div class="tenant-card">'
-                + '  <div class="tenant-title">'
-                + '    <div>'
-                + '      <div class="tenant-key">' + escapeHtml(t.tenant_key || '') + '</div>'
-                + '      <div class="tenant-id">tenant_id=' + escapeHtml(t.id) + '</div>'
-                + '    </div>'
-                + '    <span class="status-pill ' + pillCls + '">' + escapeHtml(status) + '</span>'
-                + '  </div>'
-                + (adminEmailDisplay ? '  <div class="meta">Admin email: <code>' + adminEmailDisplay + '</code></div>' : '')
-                + '  <div class="entry-module-row">'
-                + '    <div class="meta entry-module-value">Entry module: <code>' + entryDisplay + '</code></div>'
-                + '    <button class="btn btn-outline btn-sm" onclick="openEntryModule(' + (t.id||0) + ')">Edit entry</button>'
-                + '  </div>'
-                + '  <div class="meta">DB configured: <strong>' + (t.db_configured ? 'Yes' : 'No') + '</strong></div>'
-                + '  <div class="meta">DB: <code>' + dbSummary + '</code></div>'
-                + '  <div class="meta" style="margin-top: 10px;">Domains (aliases)</div>'
-                + '  <div class="domain-list">' + (domHtml || '<span class="meta">No domains</span>') + '</div>'
-                + '  <div class="actions">'
-                + '    <button class="btn btn-outline btn-sm" onclick="openAddDomain(' + (t.id||0) + ')">' + domainBtn + '</button>'
-                + '    <button class="btn btn-primary btn-sm" onclick="openDbConn(' + (t.id||0) + ')">' + dbBtn + '</button>'
-                + '    <button class="btn btn-outline btn-sm" onclick="openAdminEmail(' + (t.id||0) + ')">Admin email</button>'
-                + '    <button class="btn btn-outline btn-sm" onclick="openAdminPassword(' + (t.id||0) + ')">Password</button>'
-                + (t.entry_module_id === 'bakeshop' && t.db_configured
-                    ? '    <button class="btn btn-outline btn-sm" onclick="runTenantSeed(' + (t.id||0) + ',\'bakeshop_julies_bread_pastry\',\'Julie\\\'s seed\')">Run Julie\'s seed</button>'
-                    : '')
-                + '    <button class="btn btn-sm ' + (statusBtnCls ? 'btn-primary' : 'btn-outline') + '" onclick="toggleTenantStatus(' + (t.id||0) + ',\'' + escapeHtml(status) + '\')">' + statusBtnLabel + '</button>'
-                + '    <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="deleteTenant(' + (t.id||0) + ',\'' + escapeHtml(t.tenant_key || '') + '\')">Delete</button>'
-                + '  </div>'
-                + '</div>';
-        });
-
-        grid.innerHTML = html;
+        TENANT_VIEW_STATE.list = list;
+        renderTenantModuleOptions(list);
+        applyTenantFilters();
     }
 
     function openAdminEmail(tenantId) {

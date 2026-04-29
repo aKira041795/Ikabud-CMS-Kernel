@@ -7,7 +7,7 @@
 .platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 28px; }
 .platform-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
 .platform-card h3 { margin: 0 0 14px 0; font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
-.platform-card h3 .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+.platform-card h3 .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius); }
 .badge-ok { background: var(--success-light); color: var(--success); }
 .badge-warn { background: var(--warning-light); color: var(--warning); }
 .badge-err { background: var(--danger-light); color: var(--danger); }
@@ -44,7 +44,7 @@
 .trace-timeline-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
 .trace-timeline-key { font-family: monospace; font-size: 12px; color: var(--primary); font-weight: 700; }
 .trace-timeline-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-.trace-status-pill { display:inline-flex; align-items:center; border-radius:999px; padding:3px 8px; font-size:11px; font-weight:700; }
+.trace-status-pill { display:inline-flex; align-items:center; border-radius:var(--radius); padding:3px 8px; font-size:11px; font-weight:700; }
 .trace-status-pill.success { background: var(--success-light); color: var(--success); }
 .trace-status-pill.failed { background: var(--danger-light); color: var(--danger); }
 .trace-status-pill.rate_limited { background: var(--warning-light); color: var(--warning); }

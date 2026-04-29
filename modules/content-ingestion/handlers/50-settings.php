@@ -326,8 +326,9 @@ function wpBridgeGenerateCompanionPlugin(string $ingestUrl, string $token, strin
 /**
  * Plugin Name: ApplicationOS Bridge Connector
  * Description: Pushes WordPress content changes to ApplicationOS via the Bridge API.
+ *              Install to wp-content/mu-plugins/ for zero-activation, always-on sync.
  *              Generated automatically — do not edit the APPLOS_* constants manually.
- *              Re-download from ApplicationOS Admin → Content Ingestion → Settings if token changes.
+ *              Re-download from ApplicationOS Admin → Content Ingestion → Settings after any token rotation.
  * Version: 1.1.0
  */
 

@@ -5,7 +5,7 @@
     .users-table th, .users-table td { padding: 10px 14px; }
     .users-table .mono { font-size: 12px; }
     .user-active { display: inline-flex; align-items: center; gap: 5px; }
-    .user-active .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .user-active .dot { width: 7px; height: 7px; border-radius: 2px; }
     .user-active .dot.on { background: var(--success); }
     .user-active .dot.off { background: var(--danger); }
 </style>

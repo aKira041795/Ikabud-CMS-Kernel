@@ -34,12 +34,24 @@ function wordpressImporterAdminPage(array $params = []): void
 {
     $user = cmsRequireCap('import_export.manage');
 
+    // Surface Content Ingestion bridge features when that module is active.
+    $bridgeAvailable   = function_exists('isModuleEnabled') && isModuleEnabled('content-ingestion');
+    $ciSettings        = ($bridgeAvailable && function_exists('getModuleSettings')) ? getModuleSettings('content-ingestion') : [];
+    $bridgeEnabled     = !empty($ciSettings['bridge_enabled']);
+    $baseUrl           = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $bridgeSettingsUrl  = $bridgeAvailable ? $baseUrl . '/cms/admin/bridge/settings' : '';
+    $bridgeCompanionUrl = $bridgeAvailable ? $baseUrl . '/api/v1/bridge/companion/download' : '';
+
     echo wordpressImporterRenderTemplate('templates/admin/wordpress-importer.disyl', array_merge(
         cmsAdminContext($user, 'wordpress_importer', [
             ['label' => 'WordPress Import', 'url' => ''],
         ]),
         [
-            'page_title' => 'WordPress Import',
+            'page_title'          => 'WordPress Import',
+            'bridge_available'    => $bridgeAvailable,
+            'bridge_enabled'      => $bridgeEnabled,
+            'bridge_settings_url' => $bridgeSettingsUrl,
+            'bridge_companion_url' => $bridgeCompanionUrl,
         ]
     ));
 }
@@ -434,55 +446,61 @@ function wordpressImporterEnsureUniqueSlug(string $slug, string $type, ?int $exc
     }
 }
 
-function wordpressImporterResolveAuthorId(int $preferredAuthorId): int
-{
-    $db = cmsDb();
-    if ($preferredAuthorId > 0) {
-        $stmt = $db->prepare("SELECT id FROM cms_users WHERE id = :id LIMIT 1");
-        $stmt->execute([':id' => $preferredAuthorId]);
-        $matched = $stmt->fetchColumn();
-        if ($matched) {
-            return (int)$matched;
+if (!function_exists('wordpressImporterResolveAuthorId')) {
+    function wordpressImporterResolveAuthorId(int $preferredAuthorId): int
+    {
+        $db = cmsDb();
+        if ($preferredAuthorId > 0) {
+            $stmt = $db->prepare("SELECT id FROM cms_users WHERE id = :id LIMIT 1");
+            $stmt->execute([':id' => $preferredAuthorId]);
+            $matched = $stmt->fetchColumn();
+            if ($matched) {
+                return (int)$matched;
+            }
         }
-    }
 
-    $fallback = $db->query("SELECT id FROM cms_users ORDER BY CASE WHEN role IN ('superadmin', 'administrator') THEN 0 ELSE 1 END, id ASC LIMIT 1")
-        ->fetchColumn();
-    if ($fallback) {
-        return (int)$fallback;
-    }
+        $fallback = $db->query("SELECT id FROM cms_users ORDER BY CASE WHEN role IN ('superadmin', 'administrator') THEN 0 ELSE 1 END, id ASC LIMIT 1")
+            ->fetchColumn();
+        if ($fallback) {
+            return (int)$fallback;
+        }
 
-    throw new InvalidArgumentException('Import failed because no CMS author account is available');
+        throw new InvalidArgumentException('Import failed because no CMS author account is available');
+    }
 }
 
-function wordpressImporterNormalizeStatus(string $status): string
-{
-    $status = strtolower(trim($status));
-    return match ($status) {
-        'publish', 'published' => 'published',
-        'future', 'scheduled' => 'scheduled',
-        'private' => 'private',
-        default => 'draft',
-    };
+if (!function_exists('wordpressImporterNormalizeStatus')) {
+    function wordpressImporterNormalizeStatus(string $status): string
+    {
+        $status = strtolower(trim($status));
+        return match ($status) {
+            'publish', 'published' => 'published',
+            'future', 'scheduled' => 'scheduled',
+            'private' => 'private',
+            default => 'draft',
+        };
+    }
 }
 
-function wordpressImporterNormalizeDate(mixed $value): ?string
-{
-    if (!is_string($value)) {
-        return null;
-    }
+if (!function_exists('wordpressImporterNormalizeDate')) {
+    function wordpressImporterNormalizeDate(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
 
-    $value = trim($value);
-    if ($value === '' || $value === '0000-00-00 00:00:00') {
-        return null;
-    }
+        $value = trim($value);
+        if ($value === '' || $value === '0000-00-00 00:00:00') {
+            return null;
+        }
 
-    $timestamp = strtotime($value);
-    if ($timestamp === false) {
-        return null;
-    }
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return null;
+        }
 
-    return date('Y-m-d H:i:s', $timestamp);
+        return date('Y-m-d H:i:s', $timestamp);
+    }
 }
 
 function wordpressImporterNormalizedBaseUrl(string $url): string

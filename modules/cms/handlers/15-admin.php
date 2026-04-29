@@ -40,9 +40,11 @@ function cmsAdminDashboard(array $params = []): void
     $recentContent = [];
     try {
         $stmt = $db->query(
-            "SELECT c.id, c.title, c.type, c.status, c.updated_at, u.display_name as author_name
+            "SELECT c.id, c.title, c.slug, c.type, c.status, c.updated_at, u.display_name as author_name,
+                    c.featured_image_id, m.file_path as featured_image
              FROM cms_content c
              LEFT JOIN cms_users u ON u.id = c.author_id
+             LEFT JOIN cms_media m ON m.id = c.featured_image_id
              WHERE c.deleted_at IS NULL
              ORDER BY c.updated_at DESC
              LIMIT 10"
@@ -66,18 +68,131 @@ function cmsAdminDashboard(array $params = []): void
 
     $postTotal = 0;
     $pageTotal = 0;
+    $customTypeTotal = 0;
+    $draftTotal = 0;
+    $publishedTotal = 0;
     foreach ($contentCounts as $type => $statuses) {
         $typeSum = array_sum($statuses);
         if ($type === 'post') $postTotal = $typeSum;
         elseif ($type === 'page') $pageTotal = $typeSum;
+        else $customTypeTotal += $typeSum;
+
+        $draftTotal += (int)($statuses['draft'] ?? 0);
+        $publishedTotal += (int)($statuses['published'] ?? 0);
+    }
+
+    $totalContent = $postTotal + $pageTotal + $customTypeTotal;
+
+    $contentOverview = [
+        [
+            'label' => 'Posts',
+            'count' => $postTotal,
+            'color' => '#2563eb',
+            'share' => $totalContent > 0 ? round(($postTotal / $totalContent) * 100, 1) : 0,
+        ],
+        [
+            'label' => 'Pages',
+            'count' => $pageTotal,
+            'color' => '#06b6d4',
+            'share' => $totalContent > 0 ? round(($pageTotal / $totalContent) * 100, 1) : 0,
+        ],
+        [
+            'label' => 'Custom Types',
+            'count' => $customTypeTotal,
+            'color' => '#f43f5e',
+            'share' => $totalContent > 0 ? round(($customTypeTotal / $totalContent) * 100, 1) : 0,
+        ],
+    ];
+
+    foreach ($recentContent as &$item) {
+        $item['featured_image_url'] = !empty($item['featured_image'])
+            ? cmsResolveUploadUrl((string)$item['featured_image'])
+            : '';
+    }
+    unset($item);
+
+    $quickActions = [
+        [
+            'label' => 'Create Post',
+            'description' => 'Write new editorial content',
+            'url' => '/cms/admin/content/create?type=post',
+            'accent' => 'sky',
+            'icon' => 'post',
+        ],
+        [
+            'label' => 'Create Page',
+            'description' => 'Build a new static page',
+            'url' => '/cms/admin/content/create?type=page',
+            'accent' => 'emerald',
+            'icon' => 'page',
+        ],
+        [
+            'label' => 'Media Library',
+            'description' => 'Upload and manage assets',
+            'url' => '/cms/admin/media',
+            'accent' => 'amber',
+            'icon' => 'media',
+        ],
+        [
+            'label' => 'Page Builder',
+            'description' => 'Design pages visually',
+            'url' => '/cms/admin/react-builder/create',
+            'accent' => 'violet',
+            'icon' => 'builder',
+        ],
+        [
+            'label' => 'Theme',
+            'description' => 'Adjust site presentation',
+            'url' => '/cms/admin/customize',
+            'accent' => 'rose',
+            'icon' => 'theme',
+        ],
+        [
+            'label' => 'Navigation',
+            'description' => 'Manage menus and links',
+            'url' => '/cms/admin/menus',
+            'accent' => 'indigo',
+            'icon' => 'navigation',
+        ],
+    ];
+
+    $activitySummary = [
+        [
+            'label' => 'Published',
+            'value' => $publishedTotal,
+            'tone' => 'emerald',
+        ],
+        [
+            'label' => 'Drafts',
+            'value' => $draftTotal,
+            'tone' => 'amber',
+        ],
+        [
+            'label' => 'Recent Events',
+            'value' => count($activityFeed),
+            'tone' => 'sky',
+        ],
+    ];
+
+    $welcomeHeadline = 'Welcome back';
+    if (!empty($user['display_name'])) {
+        $welcomeHeadline .= ', ' . trim((string)$user['display_name']);
     }
 
     $payload = [
         'page_title'     => 'CMS Dashboard',
         'post_total'     => $postTotal,
         'page_total'     => $pageTotal,
+        'custom_type_total' => $customTypeTotal,
+        'total_content'  => $totalContent,
+        'content_overview' => $contentOverview,
         'media_count'    => $mediaCnt,
         'user_count'     => $userCnt,
+        'published_total' => $publishedTotal,
+        'draft_total'    => $draftTotal,
+        'activity_summary' => $activitySummary,
+        'welcome_headline' => $welcomeHeadline,
+        'quick_actions'  => $quickActions,
         'recent_content' => $recentContent,
         'activity_feed'  => $activityFeed,
     ];
@@ -91,7 +206,10 @@ function cmsAdminContentList(array $params = []): void
     $user  = cmsRequireCap('content.list');
     $input = cmsInput();
 
-    $type   = trim((string)($input['type'] ?? 'post'));
+    $type   = trim((string)($input['type'] ?? 'all'));
+    if ($type === '') {
+        $type = 'all';
+    }
     $status = trim((string)($input['status'] ?? ''));
     $q      = trim((string)($input['q'] ?? ''));
     $page   = max(1, (int)($input['page'] ?? 1));
@@ -118,10 +236,10 @@ function cmsAdminContentList(array $params = []): void
         'source' => $user['source'] ?? null,
         'user_id' => $user['id'] ?? null,
     ]));
-    $currentPage = $type === 'page' ? 'pages' : 'posts';
+    $currentPage = $type === 'all' ? 'content' : ($type === 'page' ? 'pages' : ($type === 'post' ? 'posts' : 'content'));
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
     $breadcrumbs = [
-        ['label' => ucfirst($type) . 's', 'url' => $baseUrl . '/cms/admin/content?type=' . $type],
+        ['label' => $type === 'all' ? 'All Content' : ucfirst($type) . 's', 'url' => $baseUrl . '/cms/admin/content?type=' . $type],
     ];
     $cached = adminViewCacheGet($cacheKey, $user);
     if (is_array($cached)) {
@@ -143,7 +261,7 @@ function cmsAdminContentList(array $params = []): void
     $where = [$status === 'trash' ? 'c.deleted_at IS NOT NULL' : 'c.deleted_at IS NULL'];
     $bind  = [];
 
-    if ($type !== '' && $q === '') {
+    if ($type !== '' && $type !== 'all' && $q === '') {
         $where[] = 'c.type = :type';
         $bind[':type'] = $type;
     }
@@ -228,12 +346,15 @@ function cmsAdminContentList(array $params = []): void
     try {
         $stmt = $db->prepare(
             "SELECT c.id, c.title, c.slug, c.type, c.status,
+                    c.featured_image_id,
                     c.is_sticky, c.is_featured, c.post_format,
                     c.word_count, c.reading_time, c.comment_count,
                     c.published_at, c.updated_at,
-                    u.display_name as author_name, u.id as author_id
+                    u.display_name as author_name, u.id as author_id,
+                    m.file_path as featured_image
              FROM cms_content c
              LEFT JOIN cms_users u ON u.id = c.author_id
+             LEFT JOIN cms_media m ON m.id = c.featured_image_id
              {$joins}
              WHERE {$whereStr}
              GROUP BY c.id
@@ -246,7 +367,9 @@ function cmsAdminContentList(array $params = []): void
 
     foreach ($rows as $i => &$row) {
         $row['row_number'] = ($page - 1) * $perPage + $i + 1;
-        $row['url'] = cmsResolveUploadUrl((string)($row['file_path'] ?? ''));
+        $row['featured_image_url'] = !empty($row['featured_image'])
+            ? cmsResolveUploadUrl((string)$row['featured_image'])
+            : '';
     }
     unset($row);
 
@@ -255,14 +378,25 @@ function cmsAdminContentList(array $params = []): void
     $authorList = [];
     if (cmsRoleAtLeast($role, 'editor')) {
         try {
-            $aStmt = $db->prepare(
-                "SELECT DISTINCT u.id, u.display_name
-                 FROM cms_users u
-                 INNER JOIN cms_content c ON c.author_id = u.id
-                 WHERE c.type = :type AND c.deleted_at IS NULL
-                 ORDER BY u.display_name ASC"
-            );
-            $aStmt->execute([':type' => $type]);
+            if ($type === 'all') {
+                $aStmt = $db->prepare(
+                    "SELECT DISTINCT u.id, u.display_name
+                     FROM cms_users u
+                     INNER JOIN cms_content c ON c.author_id = u.id
+                     WHERE c.deleted_at IS NULL
+                     ORDER BY u.display_name ASC"
+                );
+                $aStmt->execute();
+            } else {
+                $aStmt = $db->prepare(
+                    "SELECT DISTINCT u.id, u.display_name
+                     FROM cms_users u
+                     INNER JOIN cms_content c ON c.author_id = u.id
+                     WHERE c.type = :type AND c.deleted_at IS NULL
+                     ORDER BY u.display_name ASC"
+                );
+                $aStmt->execute([':type' => $type]);
+            }
             $authorList = $aStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {}
     }
@@ -285,16 +419,19 @@ function cmsAdminContentList(array $params = []): void
     // Trash item count for the badge on the Trash tab
     $trashCount = 0;
     try {
-        $trashBind  = [':trash_type' => $type];
-        $trashStmt  = $db->prepare(
-            "SELECT COUNT(*) FROM cms_content WHERE deleted_at IS NOT NULL AND type = :trash_type"
-        );
-        $trashStmt->execute($trashBind);
+        if ($type === 'all') {
+            $trashStmt = $db->query("SELECT COUNT(*) FROM cms_content WHERE deleted_at IS NOT NULL");
+        } else {
+            $trashStmt  = $db->prepare(
+                "SELECT COUNT(*) FROM cms_content WHERE deleted_at IS NOT NULL AND type = :trash_type"
+            );
+            $trashStmt->execute([':trash_type' => $type]);
+        }
         $trashCount = (int)$trashStmt->fetchColumn();
     } catch (Throwable $e) {}
 
     $payload = [
-        'page_title'         => ucfirst($type) . 's',
+        'page_title'         => $type === 'all' ? 'All Content' : ucfirst($type) . 's',
         'content_type'       => $type,
         'rows'               => $rows,
         'total'              => $total,

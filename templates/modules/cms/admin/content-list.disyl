@@ -1,189 +1,287 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<div x-data="cmsBulkActions()">
-<div class="flex items-start justify-between mb-6">
-    <div>
-        <h1 class="text-xl font-bold text-gray-900">
-            {if content_type == 'post'}Posts{elseif content_type == 'page'}Pages{else}{content_type|ucfirst}s{/if}
-        </h1>
-        <p class="text-sm text-gray-400 mt-0.5">{total} item{if total != 1}s{/if}{if status_filter == 'trash'} in trash{/if}</p>
+<div x-data="cmsBulkActions()" class="space-y-6">
+<div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-[2rem] font-bold tracking-tight text-slate-900">
+                    {if content_type == 'all'}All Content{elseif content_type == 'post'}Posts{elseif content_type == 'page'}Pages{else}{content_type|ucfirst}s{/if}
+                </h1>
+                <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">{total} item{if total != 1}s{/if}</span>
+            </div>
+            <p class="mt-2 max-w-3xl text-sm text-slate-500">
+                {if content_type == 'all'}Manage and organize all your CMS content from one view. Use filters to narrow by type, status, author, or publishing window.
+                {else}Manage and organize your {content_type} library. Use filters to quickly find items and keep publishing workflows moving.
+                {/if}
+            </p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            {if status_filter == 'trash'}
+            <button @click="emptyTrash()" :disabled="bulkLoading" class="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-red-600/20 transition-colors hover:bg-red-700 disabled:opacity-50">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Empty Trash
+            </button>
+            {else}
+            <a href="{base_url}/cms/admin/content/create?type=post" class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/40 transition-colors hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/></svg>
+                New Content
+            </a>
+            {if content_type == 'page' || content_type == 'all'}
+            <a href="{base_url}/cms/admin/react-builder/create" class="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition-colors hover:bg-violet-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg>
+                Page Builder
+            </a>
+            {/if}
+            {/if}
+        </div>
     </div>
-    <div class="flex items-center gap-2">
-        {if status_filter == 'trash'}
-        <button @click="emptyTrash()" :disabled="bulkLoading" class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            Empty Trash
-        </button>
-        {else}
-        {if content_type == 'page'}
-        <a href="{base_url}/cms/admin/react-builder/create" class="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg>
-            New page builder
-        </a>
-        {/if}
-        <a href="{base_url}/cms/admin/content/create?type={content_type}" class="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition-colors shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-            New {content_type}
-        </a>
-        {/if}
-    </div>
-</div>
 
-<!-- Toolbar card -->
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-5 overflow-hidden">
-    <!-- Type + status tabs -->
-    <div class="flex items-center border-b border-gray-100 px-4 gap-1">
-        <a href="{base_url}/cms/admin/content?type=post" class="relative px-3 py-3 text-sm font-medium transition-colors {if content_type == 'post'}text-sky-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-sky-600{else}text-gray-500 hover:text-gray-800{/if}">Posts</a>
-        <a href="{base_url}/cms/admin/content?type=page" class="relative px-3 py-3 text-sm font-medium transition-colors {if content_type == 'page'}text-sky-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-sky-600{else}text-gray-500 hover:text-gray-800{/if}">Pages</a>
-        {foreach custom_types as ct}
-        <a href="{base_url}/cms/admin/content?type={ct.slug}" class="relative px-3 py-3 text-sm font-medium transition-colors {if content_type == ct.slug}text-sky-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-sky-600{else}text-gray-500 hover:text-gray-800{/if}">{ct.label}</a>
-        {/foreach}
-        <div class="flex-1"></div>
-        <a href="{base_url}/cms/admin/content?type={content_type}" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == ''}bg-gray-100 text-gray-800{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">All</a>
-        <a href="{base_url}/cms/admin/content?type={content_type}&status=published" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'published'}bg-emerald-50 text-emerald-700{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">Published</a>
-        <a href="{base_url}/cms/admin/content?type={content_type}&status=draft" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'draft'}bg-amber-50 text-amber-700{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">Draft</a>
-        <a href="{base_url}/cms/admin/content?type={content_type}&status=private" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'private'}bg-indigo-50 text-indigo-700{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">Private</a>
-        <a href="{base_url}/cms/admin/content?type={content_type}&status=trash" class="relative px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'trash'}bg-red-50 text-red-600{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">
-            Trash
-            {if trash_count > 0}<span class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[10px] font-bold rounded-full {if status_filter == 'trash'}bg-red-200 text-red-700{else}bg-gray-200 text-gray-600{/if}">{trash_count}</span>{/if}
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <a href="{base_url}/cms/admin/content/create?type=post" class="group rounded-[26px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-transform duration-150 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_24px_44px_rgba(37,99,235,0.10)] no-underline">
+            <div class="flex items-start gap-4">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-base font-semibold text-slate-900">Create Post</span>
+                    <span class="mt-1 block text-sm text-slate-500">Write and publish new editorial content.</span>
+                </span>
+            </div>
+        </a>
+        <a href="{base_url}/cms/admin/content/create?type=page" class="group rounded-[26px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-transform duration-150 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_24px_44px_rgba(16,185,129,0.10)] no-underline">
+            <div class="flex items-start gap-4">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-base font-semibold text-slate-900">Create Page</span>
+                    <span class="mt-1 block text-sm text-slate-500">Build a new static page or destination.</span>
+                </span>
+            </div>
+        </a>
+        <a href="{base_url}/cms/admin/react-builder/create" class="group rounded-[26px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-transform duration-150 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_24px_44px_rgba(139,92,246,0.10)] no-underline">
+            <div class="flex items-start gap-4">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 5h16M4 12h16M4 19h16"/></svg>
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-base font-semibold text-slate-900">Page Builder</span>
+                    <span class="mt-1 block text-sm text-slate-500">Design visually with the builder workflow.</span>
+                </span>
+            </div>
+        </a>
+        <a href="{base_url}/cms/admin/media" class="group rounded-[26px] border border-slate-200 bg-white/92 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-transform duration-150 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-[0_24px_44px_rgba(245,158,11,0.10)] no-underline">
+            <div class="flex items-start gap-4">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-500">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-base font-semibold text-slate-900">Media Library</span>
+                    <span class="mt-1 block text-sm text-slate-500">Upload, organize, and reuse media assets.</span>
+                </span>
+            </div>
         </a>
     </div>
-    <!-- Search + per-page -->
-    <form class="flex items-center gap-2 px-4 py-3" method="get" action="{base_url}/cms/admin/content" id="contentListForm">
-        <input type="hidden" name="type" value="{content_type}">
-        {if status_filter}<input type="hidden" name="status" value="{status_filter}">{/if}
-        <input type="hidden" name="per_page" value="{per_page}" id="perPageHidden">
-        <div class="flex items-center gap-1.5">
-            <label class="text-xs text-gray-400 whitespace-nowrap">Show</label>
-            <select class="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 cursor-pointer"
-                onchange="document.getElementById('perPageHidden').value=this.value;document.getElementById('contentListForm').submit()">
-                <option value="5" {if per_page == 5}selected{/if}>5 per page</option>
-                <option value="10" {if per_page == 10}selected{/if}>10 per page</option>
-                <option value="20" {if per_page == 20}selected{/if}>20 per page</option>
-                <option value="50" {if per_page == 50}selected{/if}>50 per page</option>
-                <option value="100" {if per_page == 100}selected{/if}>100 per page</option>
+
+    <form class="rounded-[30px] border border-slate-200 bg-white/92 p-5 shadow-[0_22px_44px_rgba(15,23,42,0.05)]" method="get" action="{base_url}/cms/admin/content" id="contentListForm">
+        <div class="grid gap-3 xl:grid-cols-[minmax(260px,1.8fr)_minmax(130px,.6fr)_minmax(140px,.6fr)_minmax(160px,.7fr)_minmax(130px,.5fr)_auto]">
+            <div class="relative xl:col-span-1">
+                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <input type="search" name="q" id="searchInput" placeholder="Search content by title, excerpt, or body..." value="{search}" oninput="liveSearch(this.value)" class="w-full rounded-2xl border border-slate-200 bg-slate-50/90 py-3 pl-10 pr-4 text-sm text-slate-700 transition-colors focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <select name="type" class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <option value="all" {if content_type == 'all'}selected{/if}>All types</option>
+                <option value="post" {if content_type == 'post'}selected{/if}>Post</option>
+                <option value="page" {if content_type == 'page'}selected{/if}>Page</option>
+                {foreach custom_types as ct}
+                <option value="{ct.slug}" {if content_type == ct.slug}selected{/if}>{ct.label}</option>
+                {/foreach}
+            </select>
+            <select name="status" class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <option value="" {if status_filter == ''}selected{/if}>All statuses</option>
+                <option value="published" {if status_filter == 'published'}selected{/if}>Published</option>
+                <option value="draft" {if status_filter == 'draft'}selected{/if}>Draft</option>
+                <option value="private" {if status_filter == 'private'}selected{/if}>Private</option>
+                <option value="trash" {if status_filter == 'trash'}selected{/if}>Trash</option>
+            </select>
+            <select name="author_id" class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <option value="">All authors</option>
+                {foreach author_list as author}
+                <option value="{author.id}" {if author_filter == author.id}selected{/if}>{author.display_name}</option>
+                {/foreach}
+            </select>
+            <select name="per_page" class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <option value="5" {if per_page == 5}selected{/if}>5 / page</option>
+                <option value="10" {if per_page == 10}selected{/if}>10 / page</option>
+                <option value="20" {if per_page == 20}selected{/if}>20 / page</option>
+                <option value="50" {if per_page == 50}selected{/if}>50 / page</option>
+                <option value="100" {if per_page == 100}selected{/if}>100 / page</option>
+            </select>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition-colors hover:bg-sky-700">Apply</button>
+                <a href="{base_url}/cms/admin/content?type=all" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700">Reset</a>
+            </div>
+        </div>
+        <div class="mt-4 grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-2 xl:grid-cols-[minmax(160px,.8fr)_minmax(180px,.9fr)_minmax(160px,.7fr)_minmax(160px,.7fr)_minmax(130px,.5fr)_minmax(130px,.5fr)]">
+            <select name="category_id" class="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <option value="">All categories</option>
+                {foreach category_list as category}
+                <option value="{category.id}" {if category_filter == category.id}selected{/if}>{category.name}</option>
+                {/foreach}
+            </select>
+            <input type="text" name="tag" value="{tag_filter}" placeholder="Tag or keyword" class="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            <input type="date" name="date_from" value="{date_from}" class="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            <input type="date" name="date_to" value="{date_to}" class="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            <select name="is_sticky" class="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <option value="">Sticky: Any</option>
+                <option value="1" {if is_sticky_filter == 1}selected{/if}>Sticky only</option>
+                <option value="0" {if is_sticky_filter == 0}selected{/if}>Not sticky</option>
+            </select>
+            <select name="is_featured" class="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <option value="">Featured: Any</option>
+                <option value="1" {if is_featured_filter == 1}selected{/if}>Featured only</option>
+                <option value="0" {if is_featured_filter == 0}selected{/if}>Not featured</option>
             </select>
         </div>
-        <div class="relative flex-1">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </div>
-            <input type="search" name="q" id="searchInput" placeholder="Search all content…" value="{search}" oninput="liveSearch(this.value)" class="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:bg-white transition-colors">
-        </div>
-        <button type="submit" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">Search</button>
     </form>
 </div>
 
 {if !rows}
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-    <div class="py-20 text-center">
-        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-4">
+<div class="rounded-[30px] border border-slate-200 bg-white/92 shadow-[0_22px_44px_rgba(15,23,42,0.05)]">
+    <div class="py-24 text-center">
+        <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
             <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         </div>
         {if search || status_filter}
-        <h3 class="text-sm font-semibold text-gray-700 mb-1">No results found</h3>
-        <p class="text-sm text-gray-400 mb-4">Try adjusting your search or filter.</p>
-        <a href="{base_url}/cms/admin/content?type={content_type}" class="text-sm font-medium text-sky-600 hover:underline">Clear filters</a>
+        <h3 class="mb-1 text-base font-semibold text-slate-800">No results found</h3>
+        <p class="mb-4 text-sm text-slate-500">Try adjusting your search or filter settings.</p>
+        <a href="{base_url}/cms/admin/content?type=all" class="text-sm font-medium text-sky-600 hover:underline">Clear filters</a>
         {else}
-        <h3 class="text-sm font-semibold text-gray-700 mb-1">No {content_type}s yet</h3>
-        <p class="text-sm text-gray-400 mb-5">Get started by creating your first {content_type}.</p>
-        <a href="{base_url}/cms/admin/content/create?type={content_type}" class="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition-colors shadow-sm">
+        <h3 class="mb-1 text-base font-semibold text-slate-800">No content items yet</h3>
+        <p class="mb-5 text-sm text-slate-500">Create your first post or page to get the CMS moving.</p>
+        <a href="{base_url}/cms/admin/content/create?type=post" class="inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-600/20 transition-colors hover:bg-sky-700">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-            Create first {content_type}
+            Create first item
         </a>
         {/if}
     </div>
 </div>
 {else}
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+<div class="overflow-hidden rounded-[30px] border border-slate-200 bg-white/92 shadow-[0_22px_44px_rgba(15,23,42,0.05)]">
     <!-- Bulk action bar -->
-    <div x-show="selected.length > 0" x-transition class="flex items-center gap-3 px-5 py-2.5 bg-sky-50 border-b border-sky-100">
+    <div x-show="selected.length > 0" x-transition class="flex items-center gap-3 border-b border-sky-100 bg-sky-50 px-5 py-3">
         <span class="text-xs font-semibold text-sky-700" x-text="selected.length + ' selected'"></span>
         <div class="flex items-center gap-1.5 ml-auto">
-            <button @click="bulkAction('publish')" class="px-2.5 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md hover:bg-emerald-200 transition-colors" :disabled="bulkLoading">Publish</button>
-            <button @click="bulkAction('draft')" class="px-2.5 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-md hover:bg-amber-200 transition-colors" :disabled="bulkLoading">Set Draft</button>
-            <button @click="bulkAction('trash')" class="px-2.5 py-1 text-xs font-medium bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors" :disabled="bulkLoading">Trash</button>
-            <button @click="selected = []" class="px-2.5 py-1 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">Clear</button>
+            <button @click="bulkAction('publish')" class="rounded-xl bg-emerald-100 px-2.5 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-200" :disabled="bulkLoading">Publish</button>
+            <button @click="bulkAction('draft')" class="rounded-xl bg-amber-100 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-200" :disabled="bulkLoading">Set Draft</button>
+            <button @click="bulkAction('trash')" class="rounded-xl bg-red-100 px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-200" :disabled="bulkLoading">Trash</button>
+            <button @click="selected = []" class="rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50">Clear</button>
         </div>
     </div>
-    <table class="w-full">
+    <div class="overflow-x-auto">
+    <table class="w-full min-w-[980px]">
         <thead>
-            <tr class="bg-gray-50/80 border-b border-gray-200">
-                <th class="w-10 px-3 py-3"><input type="checkbox" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20" @change="toggleAll($event)" :checked="selected.length === allIds.length && allIds.length > 0"></th>
-                <th class="w-10 px-2 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-300">#</th>
-                <th class="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Title</th>
-                <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden lg:table-cell">Author</th>
-                <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
-                <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden md:table-cell">Date</th>
-                <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 text-right">Actions</th>
+            <tr class="border-b border-slate-200 bg-slate-50/80">
+                <th class="w-10 px-4 py-3"><input type="checkbox" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20" @change="toggleAll($event)" :checked="selected.length === allIds.length && allIds.length > 0"></th>
+                <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Content</th>
+                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Type</th>
+                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Status</th>
+                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Author</th>
+                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Updated</th>
+                <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Actions</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-gray-100">
+        <tbody class="divide-y divide-slate-100 bg-white/80">
             {foreach rows as row}
-            <tr class="group hover:bg-sky-50/30 transition-colors" :class="selected.includes({row.id}) ? 'bg-sky-50/50' : ''" data-title="{row.title|lower}">
-                <td class="px-3 py-3.5"><input type="checkbox" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20" value="{row.id}" @change="toggleOne({row.id})" :checked="selected.includes({row.id})"></td>
-                <td class="px-2 py-3.5 text-[11px] text-gray-300 font-mono text-right pr-3">{row.row_number}</td>
-                <td class="px-5 py-3.5">
+            <tr class="group transition-colors hover:bg-sky-50/30" :class="selected.includes({row.id}) ? 'bg-sky-50/50' : ''" data-title="{row.title|lower}">
+                <td class="px-4 py-4 align-top"><input type="checkbox" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20" value="{row.id}" @change="toggleOne({row.id})" :checked="selected.includes({row.id})"></td>
+                <td class="px-5 py-4 align-top">
                     <div class="flex items-start gap-3">
-                        <div class="flex-shrink-0 mt-1.5">
-                            {if row.status == 'published'}<span class="block w-2 h-2 rounded-full bg-emerald-500" title="Published"></span>
-                            {else}{if row.status == 'draft'}<span class="block w-2 h-2 rounded-full bg-amber-400" title="Draft"></span>
-                            {else}{if row.status == 'private'}<span class="block w-2 h-2 rounded-full bg-indigo-400" title="Private"></span>
-                            {else}<span class="block w-2 h-2 rounded-full bg-red-400" title="{row.status}"></span>
-                            {/if}{/if}{/if}
+                        <div class="relative mt-1 h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm shadow-slate-200/60">
+                            {if row.featured_image_url}
+                            <img src="{row.featured_image_url}" alt="{row.title}" class="h-full w-full object-cover" loading="lazy">
+                            {else}
+                            <div class="flex h-full w-full items-center justify-center text-slate-400">
+                                {if row.type == 'post'}
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                {elseif row.type == 'page'}
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                {else}
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 7a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7zm4 0v10m8-10v10M4 12h16"/></svg>
+                                {/if}
+                            </div>
+                            {/if}
+                            <span class="absolute left-1.5 top-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-slate-950/70 px-1 text-[10px] font-semibold text-white backdrop-blur">{row.row_number}</span>
                         </div>
                         <div class="min-w-0">
-                            <a href="{base_url}/cms/admin/content/edit/{row.id}" class="text-sm font-semibold text-gray-900 hover:text-sky-600 transition-colors">{row.title}</a>
-                            <div class="text-[11px] text-gray-400 font-mono mt-0.5">{if search}<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 mr-1">{row.type}</span>{/if}{if row.type == 'post'}/blog/{elseif row.type == 'page'}/page/{else}/{row.type}/{/if}{row.slug}</div>
+                            <a href="{base_url}/cms/admin/content/edit/{row.id}" class="text-sm font-semibold text-slate-900 transition-colors hover:text-sky-600">{row.title}</a>
+                            <div class="mt-1 truncate font-mono text-[11px] text-slate-400">{if row.type == 'post'}/blog/{elseif row.type == 'page'}/page/{else}/{row.type}/{/if}{row.slug}</div>
+                            <div class="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+                                {if row.is_sticky}<span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">Sticky</span>{/if}
+                                {if row.is_featured}<span class="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 font-semibold text-violet-700">Featured</span>{/if}
+                                {if row.word_count}<span>{row.word_count} words</span>{/if}
+                            </div>
                         </div>
                     </div>
                 </td>
-                <td class="px-4 py-3.5 hidden lg:table-cell">
-                    <span class="text-xs text-gray-600">{row.author_name}</span>
+                <td class="px-4 py-4 align-top">
+                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{row.type}</span>
                 </td>
-                <td class="px-4 py-3.5">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold
-                        {if row.status == 'published'}bg-emerald-50 text-emerald-700
-                        {else}{if row.status == 'draft'}bg-amber-50 text-amber-700
-                        {else}{if row.status == 'private'}bg-indigo-50 text-indigo-700
-                        {else}bg-red-50 text-red-600{/if}{/if}{/if}">{row.status}</span>
+                <td class="px-4 py-4 align-top">
+                    <div class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                        {if row.status == 'published'}<span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                        {else}{if row.status == 'draft'}<span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+                        {else}{if row.status == 'private'}<span class="h-2.5 w-2.5 rounded-full bg-indigo-400"></span>
+                        {else}<span class="h-2.5 w-2.5 rounded-full bg-red-400"></span>
+                        {/if}{/if}{/if}
+                        <span>{row.status}</span>
+                    </div>
                 </td>
-                <td class="px-4 py-3.5 text-xs text-gray-400 hidden md:table-cell whitespace-nowrap">
-                    {if row.published_at}{row.published_at}{else}{row.updated_at}{/if}
-                </td>
-                <td class="px-4 py-3.5 text-right">
+                <td class="px-4 py-4 align-top text-sm text-slate-600">{row.author_name}</td>
+                <td class="px-4 py-4 align-top text-sm text-slate-500 whitespace-nowrap">{if row.updated_at}{row.updated_at}{else}{row.published_at}{/if}</td>
+                <td class="px-4 py-4 text-right align-top">
                     <div class="flex items-center justify-end gap-2">
                         {if status_filter == 'trash'}
-                        <button type="button" @click="bulkAction('restore', {row.id})" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md hover:bg-emerald-100 transition-colors">
+                        <button type="button" @click="bulkAction('restore', {row.id})" class="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-100">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             Restore
                         </button>
-                        <button type="button" @click="bulkAction('delete_permanent', {row.id})" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors">
+                        <button type="button" @click="bulkAction('delete_permanent', {row.id})" class="inline-flex items-center gap-1 rounded-xl bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             Delete
                         </button>
                         {else}
-                        {if content_type == 'page'}
-                        <a href="{base_url}/cms/admin/react-builder/{row.id}" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-md hover:bg-violet-100 transition-colors">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg>
-                            Builder
-                        </a>
-                        {/if}
-                        <button type="button" @click="openPreview({row.id})" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-md hover:bg-violet-100 transition-colors">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                            Preview
-                        </button>
-                        <a href="{base_url}/cms/admin/content/edit/{row.id}" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-sky-600 bg-sky-50 rounded-md hover:bg-sky-100 transition-colors">
+                        <a href="{base_url}/cms/admin/content/edit/{row.id}" class="inline-flex items-center gap-1 rounded-xl bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-100">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             Edit
                         </a>
-                        {if row.status == 'published'}
-                        <a href="{base_url}{if content_type == 'post'}/cms/blog/{elseif content_type == 'page'}/cms/page/{else}/cms/{content_type}/{/if}{row.slug}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                            View
-                        </a>
-                        {/if}
+                        <div x-data="{ actionMenuOpen: false }" class="relative">
+                            <button type="button" @click.stop="actionMenuOpen = !actionMenuOpen" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700" aria-label="More actions">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6h.01M12 12h.01M12 18h.01"/></svg>
+                            </button>
+                            <div x-show="actionMenuOpen" x-cloak @click.outside="actionMenuOpen = false" class="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-xl shadow-slate-900/10">
+                                <button type="button" @click="openPreview({row.id}); actionMenuOpen = false" class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    Preview
+                                </button>
+                                {if row.type == 'page'}
+                                <a href="{base_url}/cms/admin/react-builder/{row.id}" class="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg>
+                                    Builder
+                                </a>
+                                {/if}
+                                {if row.status == 'published'}
+                                <a href="{base_url}{if row.type == 'post'}/cms/blog/{elseif row.type == 'page'}/cms/page/{else}/cms/{row.type}/{/if}{row.slug}" target="_blank" class="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                    View live
+                                </a>
+                                {/if}
+                            </div>
+                        </div>
                         {/if}
                     </div>
                 </td>
@@ -191,19 +289,20 @@
             {/foreach}
         </tbody>
     </table>
+    </div>
 
     {if total_pages > 1}
-    <div class="flex items-center justify-between mt-4">
-        <p class="text-xs text-gray-400">Page {page_num} of {total_pages} &mdash; {total} item{if total != 1}s{/if}</p>
+    <div class="flex items-center justify-between border-t border-slate-100 px-5 py-4">
+        <p class="text-xs text-slate-400">Page {page_num} of {total_pages} &mdash; {total} item{if total != 1}s{/if}</p>
         <div class="flex items-center gap-1">
             {if page_num > 1}
-            <a href="{base_url}/cms/admin/content?type={content_type}&page=1&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">«</a>
-            <a href="{base_url}/cms/admin/content?type={content_type}&page={prev_page}&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">‹</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page=1&q={search}&status={status_filter}&author_id={author_filter}&category_id={category_filter}&tag={tag_filter}&date_from={date_from}&date_to={date_to}&is_sticky={is_sticky_filter}&is_featured={is_featured_filter}&per_page={per_page}" class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50">«</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={prev_page}&q={search}&status={status_filter}&author_id={author_filter}&category_id={category_filter}&tag={tag_filter}&date_from={date_from}&date_to={date_to}&is_sticky={is_sticky_filter}&is_featured={is_featured_filter}&per_page={per_page}" class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50">‹</a>
             {/if}
-            <span class="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-lg font-medium">{page_num}</span>
+            <span class="rounded-xl bg-sky-600 px-3 py-1.5 text-sm font-medium text-white">{page_num}</span>
             {if page_num < total_pages}
-            <a href="{base_url}/cms/admin/content?type={content_type}&page={next_page}&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">›</a>
-            <a href="{base_url}/cms/admin/content?type={content_type}&page={total_pages}&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">»</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={next_page}&q={search}&status={status_filter}&author_id={author_filter}&category_id={category_filter}&tag={tag_filter}&date_from={date_from}&date_to={date_to}&is_sticky={is_sticky_filter}&is_featured={is_featured_filter}&per_page={per_page}" class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50">›</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={total_pages}&q={search}&status={status_filter}&author_id={author_filter}&category_id={category_filter}&tag={tag_filter}&date_from={date_from}&date_to={date_to}&is_sticky={is_sticky_filter}&is_featured={is_featured_filter}&per_page={per_page}" class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50">»</a>
             {/if}
         </div>
     </div>
@@ -356,7 +455,7 @@ function cmsBulkActions() {
                 const res = await fetch(CMS_BASE + '/api/v1/cms/content/empty-trash', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
-                    body: JSON.stringify({ type: this.contentType }),
+                    body: JSON.stringify({ type: this.contentType === 'all' ? '' : this.contentType }),
                 });
                 const data = await res.json();
                 if (data.ok) {

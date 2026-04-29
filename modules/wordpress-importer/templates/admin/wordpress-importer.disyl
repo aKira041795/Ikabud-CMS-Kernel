@@ -7,6 +7,46 @@
         <p class="text-sm text-gray-500 mt-0.5">Import WordPress XML/WXR posts, pages, categories, and tags into this CMS.</p>
     </div>
 
+    {* ── Live Sync callout (shown when content-ingestion module is active) ── *}
+    {if bridge_available}
+    <div class="mb-6 rounded-xl border border-blue-200 bg-blue-50/70 overflow-hidden">
+        <div class="px-5 py-4 border-b border-blue-100 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-6 h-6 rounded bg-blue-600 text-white text-xs font-bold flex-shrink-0">CI</span>
+                <h2 class="text-sm font-semibold text-gray-900">Live Sync Available — Content Ingestion Bridge</h2>
+            </div>
+            {if bridge_enabled}
+            <span class="flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Active</span>
+            {else}
+            <span class="flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Not configured</span>
+            {/if}
+        </div>
+        <div class="px-5 py-4 space-y-3">
+            <p class="text-sm text-gray-700">
+                The <strong>Content Ingestion Bridge</strong> is installed. Instead of a one-shot XML export, you can set up
+                <strong>real-time live sync</strong> — posts and pages pushed automatically every time you publish in WordPress.
+            </p>
+            <div class="flex flex-wrap items-center gap-3">
+                {if bridge_enabled}
+                <a href="{bridge_companion_url}"
+                   class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Download Companion Plugin
+                </a>
+                {/if}
+                <a href="{bridge_settings_url}"
+                   class="inline-flex items-center gap-2 px-4 py-2 border border-blue-300 text-blue-700 text-sm font-semibold rounded-lg hover:bg-blue-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                    {if bridge_enabled}Bridge Settings &amp; Dashboard{else}Configure Live Sync{/if}
+                </a>
+            </div>
+            {if !bridge_enabled}
+            <p class="text-xs text-gray-500">Configure the bridge (add your WordPress URL + download the companion plugin) to enable live sync. The one-shot import below still works without configuration.</p>
+            {/if}
+        </div>
+    </div>
+    {/if}
+
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 bg-amber-50/70">
             <h2 class="text-sm font-semibold text-gray-900">Import XML</h2>

@@ -1,40 +1,40 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
-<div x-data="redirectManager()" x-init="init()">
+<div x-data="redirectManager()" x-init="init()" class="space-y-5">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-xl font-bold text-gray-900">Redirects</h1>
-            <p class="text-sm text-gray-500 mt-0.5">Manage URL redirects — automatic slug changes and custom redirects</p>
+            <h1 class="text-xl font-bold text-slate-900">Redirects</h1>
+            <p class="text-sm text-slate-500 mt-0.5">Manage URL redirects — automatic slug changes and custom redirects</p>
         </div>
-        <button @click="showAdd = !showAdd" class="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition-colors">
+        <button @click="showAdd = !showAdd" class="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-2xl hover:bg-sky-700 transition-colors shadow-sm shadow-sky-600/20">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             Add Redirect
         </button>
     </div>
 
     <!-- Add Redirect Form -->
-    <div x-show="showAdd" x-cloak class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6">
-        <h3 class="text-sm font-semibold text-gray-700 mb-4">New Custom Redirect</h3>
+    <div x-show="showAdd" x-cloak class="rounded-2xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-5">
+        <h3 class="text-sm font-semibold text-slate-700 mb-4">New Custom Redirect</h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1.5">From Slug <span class="text-red-400">*</span></label>
+                <label class="block text-xs font-medium text-slate-500 mb-1.5">From Slug <span class="text-red-400">*</span></label>
                 <div class="flex items-center">
-                    <span class="text-xs text-gray-400 mr-1">/cms/blog/</span>
-                    <input type="text" x-model="newRedirect.old_slug" placeholder="old-post-slug" class="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <span class="text-xs text-slate-400 mr-1">/cms/blog/</span>
+                    <input type="text" x-model="newRedirect.old_slug" placeholder="old-post-slug" class="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
                 </div>
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1.5">Redirect To <span class="text-red-400">*</span></label>
-                <input type="text" x-model="newRedirect.target_url" placeholder="/cms/blog/new-slug or https://..." class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
-                <p class="text-[11px] text-gray-400 mt-1">Full URL or relative path</p>
+                <label class="block text-xs font-medium text-slate-500 mb-1.5">Redirect To <span class="text-red-400">*</span></label>
+                <input type="text" x-model="newRedirect.target_url" placeholder="/cms/blog/new-slug or https://..." class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                <p class="text-[11px] text-slate-400 mt-1">Full URL or relative path</p>
             </div>
             <div class="flex items-end gap-2">
-                <button @click="createRedirect()" :disabled="saving" class="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">
+                <button @click="createRedirect()" :disabled="saving" class="px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-2xl hover:bg-sky-700 disabled:opacity-50 transition-colors">
                     <span x-text="saving ? 'Saving...' : 'Add'"></span>
                 </button>
-                <button @click="showAdd = false; resetForm()" class="px-4 py-2 bg-white text-gray-600 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">Cancel</button>
+                <button @click="showAdd = false; resetForm()" class="px-4 py-2 bg-white text-slate-600 text-sm font-medium rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors">Cancel</button>
             </div>
         </div>
         <p x-show="addError" x-text="addError" class="text-sm text-red-600 mt-2"></p>
@@ -43,37 +43,37 @@
     <!-- Filter -->
     <div class="flex items-center gap-3 mb-4">
         <div class="relative flex-1 max-w-xs">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            <input type="text" x-model="search" placeholder="Search redirects..." class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" x-model="search" placeholder="Search redirects..." class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
         </div>
-        <span class="text-xs text-gray-400" x-text="filteredRedirects().length + ' redirect(s)'"></span>
+        <span class="text-xs text-slate-400" x-text="filteredRedirects().length + ' redirect(s)'"></span>
     </div>
 
     <!-- Redirects Table -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] overflow-hidden">
         <table class="w-full text-sm">
             <thead>
-                <tr class="bg-gray-50 border-b border-gray-200">
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">From</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">To</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Created</th>
-                    <th class="px-4 py-3 w-16"></th>
+                <tr class="border-b border-slate-200 bg-slate-50/60">
+                    <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">From</th>
+                    <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">To</th>
+                    <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">Type</th>
+                    <th class="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.16em]">Created</th>
+                    <th class="px-5 py-3 w-16"></th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
+            <tbody class="divide-y divide-slate-100">
                 <template x-for="r in filteredRedirects()" :key="r.id">
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3">
-                            <code class="text-xs bg-gray-100 px-2 py-0.5 rounded font-mono text-gray-700" x-text="'/' + r.old_slug"></code>
+                    <tr class="hover:bg-slate-50/40 transition-colors">
+                        <td class="px-5 py-3.5">
+                            <code class="text-xs bg-slate-100 px-2 py-0.5 rounded-lg font-mono text-slate-700" x-text="'/' + r.old_slug"></code>
                         </td>
-                        <td class="px-4 py-3">
+                        <td class="px-5 py-3.5">
                             <template x-if="r.target_url">
                                 <span class="text-xs text-sky-600" x-text="r.target_url"></span>
                             </template>
                             <template x-if="!r.target_url && r.content_title">
                                 <span class="text-xs">
-                                    <span class="text-gray-500" x-text="r.content_title"></span>
+                                    <span class="text-slate-500" x-text="r.content_title"></span>
                                     <code class="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded ml-1" x-text="'/' + r.current_slug"></code>
                                 </span>
                             </template>
@@ -81,14 +81,14 @@
                                 <span class="text-xs text-red-400 italic">Content deleted</span>
                             </template>
                         </td>
-                        <td class="px-4 py-3">
+                        <td class="px-5 py-3.5">
                             <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                                 :class="r.target_url ? 'bg-violet-50 text-violet-700' : 'bg-sky-50 text-sky-700'"
                                 x-text="r.target_url ? 'Custom' : 'Auto'"></span>
                         </td>
-                        <td class="px-4 py-3 text-xs text-gray-400" x-text="r.created_at"></td>
-                        <td class="px-4 py-3 text-right">
-                            <button @click="deleteRedirect(r.id)" class="text-gray-400 hover:text-red-600 transition-colors" title="Delete redirect">
+                        <td class="px-5 py-3.5 text-xs text-slate-400" x-text="r.created_at"></td>
+                        <td class="px-5 py-3.5 text-right">
+                            <button @click="deleteRedirect(r.id)" class="text-slate-400 hover:text-red-600 transition-colors" title="Delete redirect">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
                         </td>
@@ -96,7 +96,7 @@
                 </template>
                 <template x-if="filteredRedirects().length === 0">
                     <tr>
-                        <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">
+                        <td colspan="5" class="px-4 py-8 text-center text-sm text-slate-400">
                             <template x-if="search">
                                 <span>No redirects matching your search.</span>
                             </template>
