@@ -9,7 +9,15 @@ function cmsAdminDashboard(array $params = []): void
     $cacheKey = 'cms.dashboard';
     $cached = adminViewCacheGet($cacheKey, $user);
     if (is_array($cached)) {
-        echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(cmsAdminContext($user, 'dashboard', []), $cached));
+        $greeting = 'Welcome back';
+        if (!empty($user['display_name'])) {
+            $greeting .= ', ' . trim((string)$user['display_name']);
+        }
+        echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(
+            cmsAdminContext($user, 'dashboard', []),
+            $cached,
+            ['welcome_headline' => $greeting]
+        ));
         return;
     }
 
@@ -198,7 +206,11 @@ function cmsAdminDashboard(array $params = []): void
     ];
 
     adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:dashboard'], $user);
-    echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(cmsAdminContext($user, 'dashboard', []), $payload));
+    echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(
+        cmsAdminContext($user, 'dashboard', []),
+        $payload,
+        ['welcome_headline' => $welcomeHeadline]
+    ));
 }
 
 function cmsAdminContentList(array $params = []): void
