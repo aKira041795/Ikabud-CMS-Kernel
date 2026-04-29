@@ -68,12 +68,13 @@ Schema is shipped as five migrations under [modules/bakeshop/database/migrations
 Source: [modules/bakeshop/routes.php](modules/bakeshop/routes.php)
 
 ### Pages
-- `GET /bakeshop/login`, `GET /bakeshop`, `GET /admin/bakeshop` (supervisor home)
+- `GET /bakeshop/login`, `GET /bakeshop/forgot-password`, `GET /bakeshop/reset-password`
+- `GET /bakeshop`, `GET /admin/bakeshop` (supervisor home)
 - `GET /admin/bakeshop/{branches,catalog,ingredients,deliveries,production,usage,history,users,account,settings}`
 - `GET /admin/bakeshop/print`, `GET /bakeshop/print` (print summary)
 
 ### API (JSON)
-- Auth: `POST /bakeshop/auth/login`, `POST /api/v1/bakeshop/auth/login`, `POST /bakeshop/logout`
+- Auth: `POST /bakeshop/auth/login`, `POST /api/v1/bakeshop/auth/login`, `POST /api/v1/bakeshop/auth/forgot-password`, `POST /api/v1/bakeshop/auth/reset-password`, `POST /bakeshop/logout`
 - Account: `POST /api/v1/bakeshop/account/password`
 - Users: `GET|POST /api/v1/bakeshop/users`, `POST /api/v1/bakeshop/users/{id}`, `POST /api/v1/bakeshop/users/{id}/delete`
 - Settings: `POST /api/v1/bakeshop/settings/permissions`, `POST /api/v1/bakeshop/settings/display`
@@ -98,6 +99,19 @@ All admin handlers go through `bakeshopResponseGuard()` for consistent 403/422/5
 `bakeshopAuthLogin()` issues a JWT into the `bakeshop_token` cookie (HttpOnly, `SameSite=Strict`, `Secure` when HTTPS) and rotates the CSRF token on success. Token version is embedded in the JWT and re-checked against `bakeshop_users.token_version` so a forced password change invalidates outstanding tokens.
 
 A module-local rate limiter (`bakeshopLoginRateLimitState()`) reuses the kernel `rate_limits` table with the `bakeshop:login` action key.
+
+### Self-service password reset
+
+`bakeshopForgotPasswordPage()`, `bakeshopResetPasswordPage()`, `bakeshopApiForgotPassword()`, and `bakeshopApiResetPassword()` live in [modules/bakeshop/handlers/05-auth.php](../../modules/bakeshop/handlers/05-auth.php). They follow the current auth-owned module contract:
+
+- public guest pages at `/bakeshop/forgot-password` and `/bakeshop/reset-password`
+- canonical browser APIs at `/api/v1/bakeshop/auth/forgot-password` and `/api/v1/bakeshop/auth/reset-password`
+- generic success messaging to avoid account enumeration
+- 30-minute reset-link expiry and rate limiting on both issue and reset attempts
+- latest-request-wins semantics: issuing a new reset invalidates every older unused token for that account
+- page-render token validation so expired links show an inline recovery path instead of a broken form
+
+Trusted admin recovery remains the kernel-level password-push endpoint documented below; self-service reset is for end users, while tenant admin recovery is still driven from the kernel admin surface.
 
 ### Authorization
 

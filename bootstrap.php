@@ -500,6 +500,31 @@ function external_base_url(?string $appUrl = null): string
     return rtrim(request_scheme() . '://' . $host . $basePath, '/');
 }
 
+function kernel_password_reset_policy(): array
+{
+    static $policy = null;
+    if (is_array($policy)) {
+        return $policy;
+    }
+
+    $policy = [
+        'token_bytes' => 32,
+        'token_ttl_minutes' => 30,
+        'forgot_rate_limit_window_seconds' => 900,
+        'forgot_rate_limit_ip_max' => 5,
+        'forgot_rate_limit_identity_max' => 3,
+        'reset_rate_limit_window_seconds' => 900,
+        'reset_rate_limit_ip_max' => 5,
+        'forgot_success_message' => 'If the account exists, a reset link has been sent.',
+        'forgot_rate_limit_message' => 'Too many password reset requests. Please wait before trying again.',
+        'reset_rate_limit_message' => 'Too many reset attempts. Please wait before trying again.',
+        'invalid_token_message' => 'Reset link is invalid or expired.',
+        'reset_success_message' => 'Password reset successful. You can now sign in.',
+    ];
+
+    return $policy;
+}
+
 function should_enforce_https(): bool
 {
     if (PHP_SAPI === 'cli') {

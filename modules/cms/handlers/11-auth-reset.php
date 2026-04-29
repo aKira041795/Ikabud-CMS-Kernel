@@ -67,17 +67,19 @@ function cmsForgotPasswordRateLimitSnapshot(string $scope, string $value): array
 
 function cmsForgotPasswordRateLimitExceeded(string $ip, string $identity): bool
 {
+    $policy = kernel_password_reset_policy();
     $ipState = cmsForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown');
-    if ((int)$ipState['count'] >= 5) {
+    if ((int)$ipState['count'] >= (int)$policy['forgot_rate_limit_ip_max']) {
         return true;
     }
 
     $identityState = cmsForgotPasswordRateLimitSnapshot('identity', $identity);
-    return (int)$identityState['count'] >= 3;
+    return (int)$identityState['count'] >= (int)$policy['forgot_rate_limit_identity_max'];
 }
 
 function cmsForgotPasswordRateLimitRecord(string $ip, string $identity): void
 {
+    $policy = kernel_password_reset_policy();
     $entries = [
         cmsForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown'),
         cmsForgotPasswordRateLimitSnapshot('identity', $identity),
@@ -88,14 +90,50 @@ function cmsForgotPasswordRateLimitRecord(string $ip, string $identity): void
             'security_rate_limits',
             (string)$entry['key'],
             ['count' => ((int)($entry['count'] ?? 0)) + 1],
-            900
+            (int)$policy['forgot_rate_limit_window_seconds']
         );
     }
+}
+
+function cmsResetPasswordRateLimitSnapshot(string $ip): array
+{
+    $key = 'cms_reset_password:ip:' . sha1($ip !== '' ? $ip : 'unknown');
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    if (!is_array($cached)) {
+        return ['key' => $key, 'count' => 0];
+    }
+
+    return [
+        'key' => $key,
+        'count' => max(0, (int)($cached['count'] ?? 0)),
+    ];
+}
+
+function cmsResetPasswordRateLimitExceeded(string $ip): bool
+{
+    $policy = kernel_password_reset_policy();
+    $state = cmsResetPasswordRateLimitSnapshot($ip);
+    return (int)$state['count'] >= (int)$policy['reset_rate_limit_ip_max'];
+}
+
+function cmsResetPasswordRateLimitRecord(string $ip): void
+{
+    $policy = kernel_password_reset_policy();
+    $state = cmsResetPasswordRateLimitSnapshot($ip);
+    app()->cache()->set(
+        'security_rate_limits',
+        (string)$state['key'],
+        ['count' => ((int)($state['count'] ?? 0)) + 1],
+        (int)$policy['reset_rate_limit_window_seconds']
+    );
 }
 
 function cmsApiForgotPassword(array $params = []): void
 {
     header('Content-Type: application/json');
+
+    $policy = kernel_password_reset_policy();
+    $ttlMinutes = max(1, (int)$policy['token_ttl_minutes']);
 
     $input = cmsInput();
     $identity = trim((string)($input['identity'] ?? ''));
@@ -110,7 +148,7 @@ function cmsApiForgotPassword(array $params = []): void
         http_response_code(429);
         echo json_encode([
             'ok' => false,
-            'error' => 'Too many password reset requests. Please wait before trying again.',
+            'error' => (string)$policy['forgot_rate_limit_message'],
         ]);
         exit;
     }
@@ -133,9 +171,17 @@ function cmsApiForgotPassword(array $params = []): void
             $tokenHash = hash('sha256', $rawToken);
             $ip = $requestIp;
 
+            $clear = $db->prepare(
+                'UPDATE cms_password_resets
+                 SET used_at = NOW()
+                 WHERE user_id = :uid
+                   AND used_at IS NULL'
+            );
+            $clear->execute([':uid' => (int)$user['id']]);
+
             $ins = $db->prepare(
                 'INSERT INTO cms_password_resets (user_id, token_hash, requester_ip, expires_at, created_at)
-                 VALUES (:uid, :hash, :ip, DATE_ADD(NOW(), INTERVAL 60 MINUTE), NOW())'
+                 VALUES (:uid, :hash, :ip, DATE_ADD(NOW(), INTERVAL ' . $ttlMinutes . ' MINUTE), NOW())'
             );
             $ins->execute([
                 ':uid' => (int)$user['id'],
@@ -151,7 +197,7 @@ function cmsApiForgotPassword(array $params = []): void
 
                 $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ',</p>'
                     . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your CMS password.</p>'
-                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in 60 minutes. If you did not request this, you can safely ignore this email.</p>';
+                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
 
                 $body = buildEmailTemplate('Reset Your CMS Password', $content, 'Reset Password', $resetUrl);
                 $sent = sendEmail($email, 'CMS Password Reset', $body);
@@ -164,7 +210,7 @@ function cmsApiForgotPassword(array $params = []): void
         // Always return generic success to avoid account enumeration.
         echo json_encode([
             'ok' => true,
-            'message' => 'If the account exists, a reset link has been sent.',
+            'message' => (string)$policy['forgot_success_message'],
         ]);
         exit;
     } catch (Throwable $e) {
@@ -179,6 +225,8 @@ function cmsApiResetPassword(array $params = []): void
 {
     header('Content-Type: application/json');
 
+    $policy = kernel_password_reset_policy();
+
     $input = cmsInput();
     $token = trim((string)($input['token'] ?? ''));
     $password = (string)($input['password'] ?? '');
@@ -186,7 +234,7 @@ function cmsApiResetPassword(array $params = []): void
 
     if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'Invalid reset token.']);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['invalid_token_message']]);
         exit;
     }
 
@@ -201,6 +249,15 @@ function cmsApiResetPassword(array $params = []): void
         echo json_encode(['ok' => false, 'error' => 'Passwords do not match.']);
         exit;
     }
+
+    $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if (cmsResetPasswordRateLimitExceeded($requestIp)) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['reset_rate_limit_message']]);
+        exit;
+    }
+
+    cmsResetPasswordRateLimitRecord($requestIp);
 
     try {
         $db = cmsDb();
@@ -221,7 +278,7 @@ function cmsApiResetPassword(array $params = []): void
 
         if (!is_array($row)) {
             http_response_code(422);
-            echo json_encode(['ok' => false, 'error' => 'Reset link is invalid or expired.']);
+            echo json_encode(['ok' => false, 'error' => (string)$policy['invalid_token_message']]);
             exit;
         }
 
@@ -233,12 +290,17 @@ function cmsApiResetPassword(array $params = []): void
             ':uid' => (int)$row['user_id'],
         ]);
 
-        $updReset = $db->prepare('UPDATE cms_password_resets SET used_at = NOW() WHERE id = :id');
-        $updReset->execute([':id' => (int)$row['reset_id']]);
+        $updReset = $db->prepare(
+            'UPDATE cms_password_resets
+             SET used_at = NOW()
+             WHERE user_id = :uid
+               AND used_at IS NULL'
+        );
+        $updReset->execute([':uid' => (int)$row['user_id']]);
 
         echo json_encode([
             'ok' => true,
-            'message' => 'Password reset successful. You can now sign in.',
+            'message' => (string)$policy['reset_success_message'],
             'redirect' => '/cms/login',
         ]);
         exit;

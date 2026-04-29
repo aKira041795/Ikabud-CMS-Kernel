@@ -443,15 +443,90 @@ function bakeshopPrintSummaryBranchGroups(array $input = []): array
     return $groups;
 }
 
+function bakeshopUsageFactualSummary(array $input = []): array
+{
+    $filters = bakeshopUsageNormalizeFilters($input);
+    $decimalPlaces = bakeshopUsageDecimalPlaces();
+    $summaryRows = bakeshopPrintSummaryRows($filters);
+
+    $deliveredQtyBase = 0.0;
+    $consumedQtyBase = 0.0;
+    $inventoryOnHandQtyBase = 0.0;
+    foreach ($summaryRows as $row) {
+        $deliveredQtyBase += (float)($row['total_delivery'] ?? 0);
+        $consumedQtyBase += (float)($row['total_usage'] ?? 0);
+        $inventoryOnHandQtyBase += (float)($row['remaining_balance'] ?? 0);
+    }
+
+    $deliveryWhere = [];
+    $deliveryBindings = [];
+    if ($filters['branch_id'] !== null) {
+        $deliveryWhere[] = 'd.branch_id = :branch_id';
+        $deliveryBindings[':branch_id'] = $filters['branch_id'];
+    }
+    if ($filters['from_date'] !== null) {
+        $deliveryWhere[] = 'DATE(d.delivered_at) >= :from_date';
+        $deliveryBindings[':from_date'] = $filters['from_date'];
+    }
+    if ($filters['to_date'] !== null) {
+        $deliveryWhere[] = 'DATE(d.delivered_at) <= :to_date';
+        $deliveryBindings[':to_date'] = $filters['to_date'];
+    }
+
+    $deliverySql = 'SELECT COUNT(*) AS aggregate_count
+        FROM bakeshop_delivery_items di
+        INNER JOIN bakeshop_deliveries d ON d.id = di.delivery_id';
+    if ($deliveryWhere !== []) {
+        $deliverySql .= ' WHERE ' . implode(' AND ', $deliveryWhere);
+    }
+    $deliveryCount = (int)((bakeshopCatalogFetchOne($deliverySql, $deliveryBindings)['aggregate_count'] ?? 0));
+
+    $productionWhere = [];
+    $productionBindings = [];
+    if ($filters['branch_id'] !== null) {
+        $productionWhere[] = 'branch_id = :branch_id';
+        $productionBindings[':branch_id'] = $filters['branch_id'];
+    }
+    if ($filters['from_date'] !== null) {
+        $productionWhere[] = 'DATE(produced_at) >= :from_date';
+        $productionBindings[':from_date'] = $filters['from_date'];
+    }
+    if ($filters['to_date'] !== null) {
+        $productionWhere[] = 'DATE(produced_at) <= :to_date';
+        $productionBindings[':to_date'] = $filters['to_date'];
+    }
+
+    $productionSql = 'SELECT COUNT(*) AS aggregate_count FROM bakeshop_production_runs WHERE voided_at IS NULL';
+    if ($productionWhere !== []) {
+        $productionSql .= ' AND ' . implode(' AND ', $productionWhere);
+    }
+    $productionRunCount = (int)((bakeshopCatalogFetchOne($productionSql, $productionBindings)['aggregate_count'] ?? 0));
+
+    return [
+        'ingredient_count' => count($summaryRows),
+        'delivery_item_count' => $deliveryCount,
+        'production_run_count' => $productionRunCount,
+        'delivered_qty_base' => round($deliveredQtyBase, $decimalPlaces),
+        'consumed_qty_base' => round($consumedQtyBase, $decimalPlaces),
+        'variance_qty_base' => round($deliveredQtyBase - $consumedQtyBase, $decimalPlaces),
+        'inventory_on_hand_qty_base' => round($inventoryOnHandQtyBase, $decimalPlaces),
+    ];
+}
+
 function bakeshopInventorySnapshotRows(array $input = []): array
 {
     $filters = bakeshopUsageNormalizeFilters($input);
     $where = [];
     $bindings = [];
+    $effectiveToDate = $filters['to_date'] ?? $filters['from_date'];
 
     if ($filters['branch_id'] !== null) {
         $where[] = 'branch_id = :branch_id';
         $bindings[':branch_id'] = $filters['branch_id'];
+    }
+    if ($effectiveToDate !== null) {
+        $where[] = 'period_date <= :to_date';
+        $bindings[':to_date'] = $effectiveToDate;
     }
 
     $sql = 'SELECT
@@ -519,6 +594,7 @@ function bakeshopApiUsageIndex(array $params = []): void
             'filters' => $filters,
             'branches' => bakeshopUsageBranchOptions(),
             'totals' => bakeshopUsageTotals($items),
+            'factual_summary' => bakeshopUsageFactualSummary($filters),
             'inventory' => [
                 'items' => $inventoryItems,
                 'totals' => bakeshopInventorySnapshotTotals($inventoryItems),

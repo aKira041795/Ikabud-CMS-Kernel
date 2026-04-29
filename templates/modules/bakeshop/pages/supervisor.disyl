@@ -271,6 +271,9 @@
     .bakeshop-delivery-sheet input[type="number"] { min-width: 110px; }
     .bakeshop-delivery-sheet tr.is-imported td { background: #effaf4; }
     .bakeshop-inline-note { font-size: 0.82rem; color: var(--text-muted); }
+    .bakeshop-detail-stack { display: grid; gap: 6px; }
+    .bakeshop-detail-list { display: grid; gap: 4px; margin-top: 2px; }
+    .bakeshop-detail-list span { display: block; color: var(--text-muted); font-size: 0.82rem; }
     .bakeshop-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .bakeshop-link-button {
         border: none;
@@ -488,6 +491,25 @@
                 <div>
                     <strong>To</strong>
                     <p>{if summary_report.display_to_date}{summary_report.display_to_date}{else}No activity yet{/if}</p>
+                </div>
+            </div>
+
+            <div class="bakeshop-stats">
+                <div class="bakeshop-stat">
+                    <strong>{summary_report.factual_summary.ingredient_count | default:'0'}</strong>
+                    <span>Tracked Ingredients</span>
+                </div>
+                <div class="bakeshop-stat">
+                    <strong>{summary_report.factual_summary.delivery_item_count | default:'0'}</strong>
+                    <span>Delivery Lines</span>
+                </div>
+                <div class="bakeshop-stat">
+                    <strong>{summary_report.factual_summary.production_run_count | default:'0'}</strong>
+                    <span>Production Runs</span>
+                </div>
+                <div class="bakeshop-stat">
+                    <strong>{summary_report.factual_summary.inventory_on_hand_qty_base | default:usage_zero_value}</strong>
+                    <span>On Hand At Scope End</span>
                 </div>
             </div>
 
@@ -855,7 +877,7 @@
                             </div>
                             <div>
                                 <div class="bakeshop-form-actions" style="margin-bottom: 10px;">
-                                    <span class="bakeshop-help">Every ingredient is listed below in its default unit. Enter received quantities directly, or import a CSV with `sku` or `ingredient`, `qty`, and optional `unit_cost` columns.</span>
+                                    <span class="bakeshop-help">Every ingredient is listed below in its default unit. Enter received quantities directly, or import a CSV with `sku` or `ingredient`, `qty`, optional `unit_cost`, and optional `cost_basis` columns.</span>
                                     <div class="bakeshop-actions">
                                         <button class="bakeshop-button secondary" type="button" id="delivery-csv-template">Download CSV Template</button>
                                         <button class="bakeshop-button secondary" type="button" id="delivery-sheet-clear">Clear Quantities</button>
@@ -870,6 +892,7 @@
                                                 <th>Default Unit</th>
                                                 <th>Qty Received</th>
                                                 <th>Unit Cost</th>
+                                                <th>Cost Basis</th>
                                             </tr>
                                         </thead>
                                         <tbody id="delivery-lines"></tbody>
@@ -884,7 +907,7 @@
 
                         <div class="bakeshop-field">
                             <label for="deliveries-filter">Find Delivery</label>
-                            <input id="deliveries-filter" type="search" placeholder="Search by branch, reference, or date">
+                            <input id="deliveries-filter" type="search" placeholder="Search by branch, source, reference, receiver, or date">
                         </div>
 
                         <div class="bakeshop-table-wrap">
@@ -894,8 +917,7 @@
                                         <th>Branch</th>
                                         <th>Delivered At</th>
                                         <th>Reference</th>
-                                        <th>Items</th>
-                                        <th>Total Qty</th>
+                                        <th>Delivery Detail</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -913,6 +935,7 @@
                     </div>
                     <div class="bakeshop-panel-body">
                         <form id="production-form" class="bakeshop-grid-2">
+                            <input name="id" type="hidden" value="">
                             <div class="bakeshop-field">
                                 <label for="production-branch">Branch</label>
                                 <select id="production-branch" name="branch_id"></select>
@@ -932,6 +955,7 @@
                             </div>
                             <div style="grid-column: 1 / -1; display: grid; gap: 10px;">
                                 <div class="bakeshop-form-actions">
+                                    <span class="bakeshop-help" id="production-focus-note" hidden></span>
                                     <span class="bakeshop-help" id="production-product-note">Click a product row below to select it for this production run.</span>
                                 </div>
                                 <div class="bakeshop-field">
@@ -954,7 +978,8 @@
                             </div>
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                 <span class="bakeshop-help">The handler scales recipe quantities using the product default yield quantity.</span>
-                                <button class="bakeshop-button" type="submit">Save Production Run</button>
+                                <button class="bakeshop-button" type="submit" id="production-submit">Save Production Run</button>
+                                <button class="bakeshop-button secondary" type="button" id="production-cancel" hidden>Cancel</button>
                             </div>
                         </form>
 
@@ -971,7 +996,7 @@
                                         <th>Product</th>
                                         <th>Produced At</th>
                                         <th>Qty</th>
-                                        <th>Snapshot Lines</th>
+                                        <th>Snapshot Detail</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -1022,6 +1047,21 @@
                             </div>
                         </div>
 
+                        <div class="bakeshop-stats">
+                            <div class="bakeshop-stat">
+                                <strong id="usage-factual-ingredients">0</strong>
+                                <span>Tracked Ingredients</span>
+                            </div>
+                            <div class="bakeshop-stat">
+                                <strong id="usage-factual-deliveries">0</strong>
+                                <span>Delivery Lines</span>
+                            </div>
+                            <div class="bakeshop-stat">
+                                <strong id="usage-factual-runs">0</strong>
+                                <span>Production Runs</span>
+                            </div>
+                        </div>
+
                         <div class="bakeshop-field">
                             <label for="usage-filter">Find Usage Row</label>
                             <input id="usage-filter" type="search" placeholder="Search by branch, ingredient, date, or dimension">
@@ -1046,14 +1086,14 @@
 
                         <section class="bakeshop-panel" style="box-shadow:none;">
                             <div class="bakeshop-panel-head">
-                                <h3>Current Ingredient Inventory</h3>
-                                <p>Shows current net stock from all recorded deliveries and production consumption. The branch filter applies here; the date range does not.</p>
+                                <h3>Ingredient Inventory As Of Scope End</h3>
+                                <p>Shows net stock up to the selected end date. The branch filter always applies, and if only a from date is set it is used as the as-of date.</p>
                             </div>
                             <div class="bakeshop-panel-body">
                                 <div class="bakeshop-grid-2">
                                     <div class="bakeshop-stat">
                                         <strong id="inventory-total-on-hand">{usage_zero_value | default:'0.00'}</strong>
-                                        <span>Current On-Hand Base Qty</span>
+                                        <span>On-Hand Base Qty At Scope End</span>
                                     </div>
                                     <div class="bakeshop-stat">
                                         <strong id="inventory-total-lines">0</strong>
@@ -1201,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         deliveries: bakeshopApiPath('/api/v1/bakeshop/deliveries'),
         deliveriesDelete: bakeshopApiPath('/api/v1/bakeshop/deliveries/delete'),
         production: bakeshopApiPath('/api/v1/bakeshop/production'),
-        productionDelete: bakeshopApiPath('/api/v1/bakeshop/production/delete'),
+        productionVoid: bakeshopApiPath('/api/v1/bakeshop/production/void'),
         permissionsSettings: bakeshopApiPath('/api/v1/bakeshop/settings/permissions'),
         usage: bakeshopApiPath('/api/v1/bakeshop/usage')
     };
@@ -1233,6 +1273,12 @@ document.addEventListener('DOMContentLoaded', () => {
             delivered_qty_base: '{usage_zero_value | default:"0.00"}',
             consumed_qty_base: '{usage_zero_value | default:"0.00"}',
             variance_qty_base: '{usage_zero_value | default:"0.00"}'
+        },
+        factualSummary: {
+            ingredient_count: 0,
+            delivery_item_count: 0,
+            production_run_count: 0,
+            inventory_on_hand_qty_base: '{usage_zero_value | default:"0.00"}'
         },
         inventoryTotals: {
             on_hand_qty_base: '{usage_zero_value | default:"0.00"}',
@@ -1343,7 +1389,24 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
 
-        return state.products.find((row) => Number(row.id) === productId && Number(row.is_active) !== 0) || null;
+        return state.products.find((row) => Number(row.id) === productId) || null;
+    }
+
+    function productionMetadataEditActive() {
+        if (!productionForm) {
+            return false;
+        }
+
+        return Number(productionForm.elements.namedItem('id').value || '0') > 0;
+    }
+
+    function productionDateTimeInputValue(value) {
+        const normalized = String(value || '').trim();
+        if (normalized === '') {
+            return nowLocalDateTime();
+        }
+
+        return normalized.replace(' ', 'T').slice(0, 16);
     }
 
     function syncProductionProductSelection() {
@@ -1362,6 +1425,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selected) {
             hiddenField.value = '';
             note.textContent = 'Click a product row below and enter the quantity directly in that row.';
+        } else if (productionMetadataEditActive()) {
+            note.textContent = 'Editing metadata only for ' + (selected.name || 'product') + '. Branch, product, quantity, and snapshot lines are locked.';
         } else {
             const selectedQty = getSelectedProductionQuantity();
             note.textContent = 'Selected ' + (selected.name || 'product') + ' · Yield ' + displayTwoDecimalQuantity(selected.default_yield_qty) + ' ' + (selected.default_yield_unit_code || 'unit') + ' · ' + String(selected.recipe_item_count || 0) + ' recipe line' + (Number(selected.recipe_item_count || 0) === 1 ? '' : 's') + (selectedQty ? ' · Qty ' + selectedQty + '.' : '.');
@@ -1376,6 +1441,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function selectProductionProduct(row, options = {}) {
         if (!productionForm) {
+            return;
+        }
+
+        if (productionMetadataEditActive()) {
+            showBanner('Production metadata edit mode locks product and quantity. Cancel the edit to record a new run.', false);
             return;
         }
 
@@ -1459,6 +1529,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return escapeHtml(number.toFixed(2));
+    }
+
+    function formatCurrencyDisplay(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            return '—';
+        }
+
+        return escapeHtml(number.toFixed(2));
+    }
+
+    function renderDetailList(items, formatter, emptyMessage) {
+        if (!Array.isArray(items) || !items.length) {
+            return '<div class="bakeshop-detail-list"><span>' + escapeHtml(emptyMessage) + '</span></div>';
+        }
+
+        const lines = items.slice(0, 3).map((item) => '<span>' + formatter(item) + '</span>');
+        if (items.length > 3) {
+            lines.push('<span>+' + escapeHtml(String(items.length - 3)) + ' more lines</span>');
+        }
+        return '<div class="bakeshop-detail-list">' + lines.join('') + '</div>';
+    }
+
+    function renderDeliveryDetail(row) {
+        const items = Array.isArray(row.items) ? row.items : [];
+        return '<div class="bakeshop-detail-stack">'
+            + '<strong>' + escapeHtml(row.source_label || 'Commissary') + '</strong>'
+            + '<span class="bakeshop-inline-note">' + escapeHtml(row.received_by || 'Receiver not recorded') + (row.cost_basis_summary ? ' · ' + escapeHtml(row.cost_basis_summary) : '') + '</span>'
+            + '<span class="bakeshop-inline-note">' + escapeHtml(String(row.item_count || items.length || 0)) + ' lines · ' + escapeHtml(String(row.total_quantity || '0')) + ' total qty · ' + formatCurrencyDisplay(row.total_amount) + ' total amount</span>'
+            + renderDetailList(items, (item) => escapeHtml(item.ingredient_name || 'Ingredient') + ': ' + escapeHtml(String(item.qty || '0')) + ' ' + escapeHtml(item.unit_code || '') + ((item.unit_cost !== null && item.unit_cost !== undefined && item.unit_cost !== '') ? (' @ ' + formatCurrencyDisplay(item.unit_cost)) : '') + ' · ' + escapeHtml(item.cost_basis_label || 'Delivery Source'), 'No delivery line detail loaded.')
+            + '</div>';
+    }
+
+    function renderProductionSnapshotDetail(row) {
+        const items = Array.isArray(row.items) ? row.items : [];
+        return '<div class="bakeshop-detail-stack">'
+            + '<strong>' + escapeHtml(String(row.consumed_item_count || items.length || 0)) + ' snapshot lines</strong>'
+            + '<span class="bakeshop-inline-note">' + escapeHtml(String(row.total_consumed_qty || '0')) + ' total consumed qty</span>'
+            + renderDetailList(items, (item) => escapeHtml(item.ingredient_name || 'Ingredient') + ': ' + escapeHtml(String(item.qty_used || '0')) + ' ' + escapeHtml(item.unit_code || ''), 'No production snapshot detail loaded.')
+            + '</div>';
     }
 
     function nowLocalDateTime() {
@@ -1611,6 +1721,10 @@ document.addEventListener('DOMContentLoaded', () => {
             editRecipe(row, 'history');
             return true;
         }
+        if (kind === 'production') {
+            editProduction(row, 'history');
+            return true;
+        }
         return false;
     }
 
@@ -1718,11 +1832,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredProductionProducts = activeProducts.filter((row) => rowMatchesSearch(tableSearchQuery('#production-products-filter'), [row.name, row.sku, row.category, row.default_yield_unit_code]));
         const selectedProduction = selectedProductionProductRecord();
         const selectedProductionQty = getSelectedProductionQuantity();
+        const productionMetadataEditing = productionMetadataEditActive();
         renderTable('#production-products-table', filteredProductionProducts, [
             (row) => '<strong>' + escapeHtml(row.name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.sku || 'No SKU') + '</div>',
             (row) => escapeHtml(row.category || '—'),
             (row) => displayTwoDecimalQuantity(row.default_yield_qty) + ' ' + escapeHtml(row.default_yield_unit_code || ''),
-            (row) => '<input class="bakeshop-table-input" type="number" min="0.0001" step="0.0001" data-production-qty-id="' + escapeHtml(row.id) + '" value="' + escapeHtml(selectedProduction && Number(selectedProduction.id) === Number(row.id) ? (selectedProductionQty || '1') : '') + '" placeholder="0.0000">'
+            (row) => productionMetadataEditing
+                ? '<span class="bakeshop-inline-note">Locked during metadata edit</span>'
+                : '<input class="bakeshop-table-input" type="number" min="0.0001" step="0.0001" data-production-qty-id="' + escapeHtml(row.id) + '" value="' + escapeHtml(selectedProduction && Number(selectedProduction.id) === Number(row.id) ? (selectedProductionQty || '1') : '') + '" placeholder="0.0000">'
         ], 'No active products available for production.', 'production-product');
         populateSelect('#recipe-ingredient', activeIngredients, (row) => ({ value: row.id, label: row.name }), 'Select ingredient');
         syncProductionProductSelection();
@@ -1730,15 +1847,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderOperationalTables() {
-        const filteredDeliveries = state.deliveries.filter((row) => rowMatchesSearch(tableSearchQuery('#deliveries-filter'), [row.branch_name, row.delivered_at, row.reference, row.item_count, row.total_quantity]));
-        const filteredProduction = state.production.filter((row) => rowMatchesSearch(tableSearchQuery('#production-filter'), [row.branch_name, row.product_name, row.produced_at, row.qty_produced, row.default_yield_unit_code]));
+        const filteredDeliveries = state.deliveries.filter((row) => rowMatchesSearch(tableSearchQuery('#deliveries-filter'), [row.branch_name, row.delivered_at, row.reference, row.received_by, row.source_label, row.cost_basis_summary, row.item_count, row.total_quantity, row.total_amount]));
+        const filteredProduction = state.production.filter((row) => rowMatchesSearch(tableSearchQuery('#production-filter'), [row.branch_name, row.product_name, row.produced_at, row.qty_produced, row.default_yield_unit_code, row.consumed_item_count, row.total_consumed_qty]));
 
         renderTable('#deliveries-table', filteredDeliveries, [
-            (row) => escapeHtml(row.branch_name),
+            (row) => '<strong>' + escapeHtml(row.branch_name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.source_label || 'Commissary') + '</div>',
             (row) => escapeHtml(row.delivered_at),
-            (row) => escapeHtml(row.reference || '—'),
-            (row) => escapeHtml(row.item_count),
-            (row) => escapeHtml(row.total_quantity),
+            (row) => '<div class="bakeshop-detail-stack"><strong>' + escapeHtml(row.reference || 'No reference') + '</strong><span class="bakeshop-inline-note">' + escapeHtml(row.received_by || 'Receiver not recorded') + '</span>' + ((row.notes || '').trim() !== '' ? '<span class="bakeshop-inline-note">' + escapeHtml(row.notes) + '</span>' : '') + '</div>',
+            (row) => renderDeliveryDetail(row),
             (row) => '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button warn" data-action="delete-delivery" data-id="' + escapeHtml(row.id) + '">Delete</button></div>'
         ], 'No deliveries yet.', 'delivery');
 
@@ -1747,8 +1863,8 @@ document.addEventListener('DOMContentLoaded', () => {
             (row) => escapeHtml(row.product_name),
             (row) => escapeHtml(row.produced_at),
             (row) => escapeHtml(row.qty_produced) + ' ' + escapeHtml(row.default_yield_unit_code || ''),
-            (row) => escapeHtml(row.consumed_item_count),
-            (row) => '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button warn" data-action="delete-production" data-id="' + escapeHtml(row.id) + '">Delete</button></div>'
+            (row) => renderProductionSnapshotDetail(row),
+            (row) => '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button" data-action="edit-production" data-id="' + escapeHtml(row.id) + '">Edit Metadata</button><button type="button" class="bakeshop-link-button warn" data-action="void-production" data-id="' + escapeHtml(row.id) + '">Void</button></div>'
         ], 'No production runs yet.', 'production');
         applyFocusedRow('#deliveries-table', 'delivery', filteredDeliveries, 'Delivery');
         applyFocusedRow('#production-table', 'production', filteredProduction, 'Production run');
@@ -1772,6 +1888,9 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#usage-total-delivered').textContent = state.usageTotals.delivered_qty_base || usageZeroValue;
         $('#usage-total-consumed').textContent = state.usageTotals.consumed_qty_base || usageZeroValue;
         $('#usage-total-variance').textContent = state.usageTotals.variance_qty_base || usageZeroValue;
+        $('#usage-factual-ingredients').textContent = String(state.factualSummary.ingredient_count || 0);
+        $('#usage-factual-deliveries').textContent = String(state.factualSummary.delivery_item_count || 0);
+        $('#usage-factual-runs').textContent = String(state.factualSummary.production_run_count || 0);
 
         renderTable('#inventory-table', filteredInventory, [
             (row) => escapeHtml(row.branch_name),
@@ -1806,7 +1925,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ingredient_id: row.getAttribute('data-ingredient-id') || '',
             unit_id: row.getAttribute('data-unit-id') || '',
             qty: row.querySelector('[data-field="qty"]').value,
-            unit_cost: row.querySelector('[data-field="unit_cost"]').value
+            unit_cost: row.querySelector('[data-field="unit_cost"]').value,
+            cost_basis: row.querySelector('[data-field="cost_basis"]').value
         })).filter((item) => {
             const parsedQty = Number(item.qty);
             return Number.isFinite(parsedQty) && parsedQty > 0;
@@ -1815,6 +1935,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function clearDeliverySheetValues() {
         deliveryLines.querySelectorAll('[data-field="qty"], [data-field="unit_cost"]').forEach((input) => {
+            input.value = '';
+        });
+        deliveryLines.querySelectorAll('[data-field="cost_basis"]').forEach((input) => {
             input.value = '';
         });
         deliveryLines.querySelectorAll('tr').forEach((row) => row.classList.remove('is-imported'));
@@ -1830,7 +1953,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!activeIngredients.length) {
-            deliveryLines.innerHTML = '<tr><td colspan="5" class="bakeshop-muted">Add active ingredients in Products + Recipes before recording daily deliveries.</td></tr>';
+            deliveryLines.innerHTML = '<tr><td colspan="6" class="bakeshop-muted">Add active ingredients in Products + Recipes before recording daily deliveries.</td></tr>';
             return;
         }
 
@@ -1843,6 +1966,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 + '<td>' + escapeHtml(unitLabel || '—') + '</td>'
                 + '<td><input data-field="qty" type="number" min="0" step="0.0001" placeholder="0.0000"></td>'
                 + '<td><input data-field="unit_cost" type="number" min="0" step="0.0001" placeholder="Optional"></td>'
+                + '<td><select data-field="cost_basis" class="bakeshop-table-input"><option value="">Delivery Source</option><option value="receipt">Receipt</option><option value="price_list">Price List</option><option value="manual">Manual</option></select></td>'
                 + '</tr>';
         }).join('');
     }
@@ -1917,6 +2041,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ingredientIndex = headers.findIndex((header) => ['ingredient', 'ingredient_name', 'name'].includes(header));
         const qtyIndex = headers.findIndex((header) => ['qty', 'quantity', 'delivered_qty'].includes(header));
         const unitCostIndex = headers.findIndex((header) => ['unit_cost', 'cost', 'unit_price'].includes(header));
+        const costBasisIndex = headers.findIndex((header) => ['cost_basis', 'basis', 'cost_source'].includes(header));
 
         if (qtyIndex === -1 || (skuIndex === -1 && ingredientIndex === -1)) {
             throw new Error('CSV import needs `sku` or `ingredient`, plus `qty` headers.');
@@ -1942,6 +2067,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const lookupValue = String((skuIndex !== -1 ? row[skuIndex] : row[ingredientIndex]) || '').trim().toLowerCase();
             const qtyValue = String(row[qtyIndex] || '').trim();
             const unitCostValue = unitCostIndex !== -1 ? String(row[unitCostIndex] || '').trim() : '';
+            const costBasisValue = costBasisIndex !== -1
+                ? String(row[costBasisIndex] || '').trim().toLowerCase().replace(/[^a-z]+/g, '_')
+                : '';
 
             if (lookupValue === '' || qtyValue === '') {
                 return;
@@ -1955,6 +2083,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             targetRow.querySelector('[data-field="qty"]').value = qtyValue;
             targetRow.querySelector('[data-field="unit_cost"]').value = unitCostValue;
+            targetRow.querySelector('[data-field="cost_basis"]').value = ['receipt', 'price_list', 'manual'].includes(costBasisValue) ? costBasisValue : '';
             targetRow.classList.add('is-imported');
             matched += 1;
         });
@@ -1975,11 +2104,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function downloadDeliveryCsvTemplate() {
         const activeIngredients = state.ingredients.filter((row) => Number(row.is_active) !== 0);
-        const lines = ['sku,ingredient,qty,unit_cost'];
+        const lines = ['sku,ingredient,qty,unit_cost,cost_basis'];
         activeIngredients.forEach((row) => {
             lines.push([
                 '"' + String(row.sku || '').replace(/"/g, '""') + '"',
                 '"' + String(row.name || '').replace(/"/g, '""') + '"',
+                '',
                 '',
                 ''
             ].join(','));
@@ -2055,6 +2185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         state.usage = data.items || [];
         state.usageTotals = data.totals || state.usageTotals;
+        state.factualSummary = data.factual_summary || state.factualSummary;
         state.inventorySnapshot = (data.inventory && data.inventory.items) || [];
         state.inventoryTotals = (data.inventory && data.inventory.totals) || state.inventoryTotals;
         renderUsage();
@@ -2093,6 +2224,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.confirm(message);
     }
 
+    function promptRequiredValue(message, defaultValue = '') {
+        const value = window.prompt(message, defaultValue);
+        if (value === null) {
+            return null;
+        }
+
+        const normalized = String(value).trim();
+        if (normalized === '') {
+            showBanner('A reason is required to void a production run.', false);
+            return null;
+        }
+
+        return normalized;
+    }
+
     function resetBranchForm() {
         branchForm.reset();
         branchForm.elements.namedItem('id').value = '';
@@ -2112,6 +2258,43 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#branch-submit').textContent = 'Update Branch';
         $('#branch-cancel').hidden = false;
         branchForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function resetProductionForm() {
+        productionForm.reset();
+        productionForm.elements.namedItem('id').value = '';
+        productionForm.elements.namedItem('product_id').value = '';
+        productionForm.elements.namedItem('branch_id').disabled = false;
+        $('#production-products-filter').disabled = false;
+        setFocusNote('#production-focus-note', '');
+        $('#production-submit').textContent = 'Save Production Run';
+        $('#production-cancel').hidden = true;
+        productionForm.elements.namedItem('produced_at').value = nowLocalDateTime();
+        document.querySelectorAll('#production-products-table tbody input[data-production-qty-id]').forEach((input) => {
+            input.disabled = false;
+            input.value = '';
+        });
+        syncProductionProductSelection();
+        renderCatalogTables();
+    }
+
+    function editProduction(row, source = 'table') {
+        productionForm.elements.namedItem('id').value = String(row.id || '');
+        productionForm.elements.namedItem('branch_id').value = String(row.branch_id || '');
+        productionForm.elements.namedItem('branch_id').disabled = true;
+        productionForm.elements.namedItem('product_id').value = String(row.product_id || '');
+        productionForm.elements.namedItem('produced_at').value = productionDateTimeInputValue(row.produced_at || '');
+        productionForm.elements.namedItem('produced_by').value = row.produced_by || '';
+        productionForm.elements.namedItem('notes').value = row.notes || '';
+        $('#production-products-filter').disabled = true;
+        setFocusNote('#production-focus-note', source === 'history'
+            ? 'Reviewing this production run from activity history. Only the timestamp, operator, and notes can be updated here.'
+            : 'Editing production metadata only. Branch, product, quantity, and snapshot lines remain unchanged.');
+        $('#production-submit').textContent = 'Update Production Metadata';
+        $('#production-cancel').hidden = false;
+        renderCatalogTables();
+        syncProductionProductSelection();
+        productionForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function resetProductForm() {
@@ -2265,14 +2448,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function deleteProductionRun(row) {
-        if (!confirmDelete('Delete this production run and its snapshot lines? This cannot be undone.')) {
+    async function voidProductionRun(row) {
+        if (!confirmDelete('Void this production run and exclude its snapshot lines from usage and inventory?')) {
             return;
         }
 
-        await submitJson(api.productionDelete, {
-            id: row.id
-        }, 'Production run deleted.', async () => {
+        const voidReason = promptRequiredValue('Why is this production run being voided?', 'Duplicate or incorrect run entry');
+        if (voidReason === null) {
+            return;
+        }
+
+        await submitJson(api.productionVoid, {
+            id: row.id,
+            void_reason: voidReason
+        }, 'Production run voided.', async () => {
             await loadProduction();
             await loadUsage();
         });
@@ -2606,6 +2795,26 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#production-form').addEventListener('submit', async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
+        const productionRunId = Number(form.elements.namedItem('id').value || '0');
+        if (productionRunId > 0) {
+            await submitJson(api.production, {
+                id: productionRunId,
+                produced_at: form.produced_at.value,
+                produced_by: form.produced_by.value,
+                notes: form.notes.value
+            }, 'Production run metadata updated.', async () => {
+                await loadProduction();
+                await loadUsage();
+                const updatedRow = state.production.find((row) => Number(row.id) === productionRunId);
+                if (updatedRow) {
+                    editProduction(updatedRow);
+                    return;
+                }
+                resetProductionForm();
+            });
+            return;
+        }
+
         const selectedProduct = selectedProductionProductRecord();
         if (!selectedProduct || !form.product_id.value) {
             showBanner('Select a product from the table before saving a production run.', false);
@@ -2627,12 +2836,7 @@ document.addEventListener('DOMContentLoaded', () => {
             produced_by: form.produced_by.value,
             notes: form.notes.value
         }, 'Production run saved.', async () => {
-            form.reset();
-            form.produced_at.value = nowLocalDateTime();
-            document.querySelectorAll('#production-products-table tbody input[data-production-qty-id]').forEach((input) => {
-                input.value = '';
-            });
-            syncProductionProductSelection();
+            resetProductionForm();
             await loadProduction();
             await loadUsage();
         });
@@ -2715,7 +2919,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $('#production-table').addEventListener('click', async (event) => {
-        const button = event.target.closest('[data-action="delete-production"]');
+        const editButton = event.target.closest('[data-action="edit-production"]');
+        if (editButton) {
+            const editRow = findStateRow('production', editButton.getAttribute('data-id'));
+            if (!editRow) {
+                showBanner('Selected production run could not be found.', false);
+                return;
+            }
+
+            editProduction(editRow);
+            return;
+        }
+
+        const button = event.target.closest('[data-action="void-production"]');
         if (!button) {
             return;
         }
@@ -2726,14 +2942,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        await deleteProductionRun(row);
+        await voidProductionRun(row);
     });
 
     $('#delivery-at').value = nowLocalDate();
     $('#delivery-source-type').value = 'commissary';
     syncDeliverySourceField();
     $('#delivery-source-type').addEventListener('change', syncDeliverySourceField);
-    $('#production-at').value = nowLocalDateTime();
+    $('#production-cancel').addEventListener('click', resetProductionForm);
+    resetProductionForm();
     resetBranchForm();
     resetProductForm();
     resetIngredientForm();

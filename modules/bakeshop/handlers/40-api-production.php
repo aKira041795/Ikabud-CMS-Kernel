@@ -2,24 +2,53 @@
 
 declare(strict_types=1);
 
-function bakeshopProductionList(): array
+function bakeshopProductionSelectColumns(): string
 {
-    return bakeshopCatalogFetchAll(
-        'SELECT
-            pr.id,
+    return 'pr.id,
             pr.branch_id,
             pr.product_id,
             pr.produced_at,
             pr.qty_produced,
             pr.produced_by,
             pr.notes,
+            pr.voided_at,
+            pr.voided_by,
+            pr.void_reason,
             pr.created_at,
             pr.updated_at,
             b.code AS branch_code,
             b.name AS branch_name,
             p.name AS product_name,
             p.default_yield_qty,
-            u.code AS default_yield_unit_code,
+            u.code AS default_yield_unit_code';
+}
+
+function bakeshopProductionGroupByColumns(): string
+{
+    return 'pr.id,
+            pr.branch_id,
+            pr.product_id,
+            pr.produced_at,
+            pr.qty_produced,
+            pr.produced_by,
+            pr.notes,
+            pr.voided_at,
+            pr.voided_by,
+            pr.void_reason,
+            pr.created_at,
+            pr.updated_at,
+            b.code,
+            b.name,
+            p.name,
+            p.default_yield_qty,
+            u.code';
+}
+
+function bakeshopProductionList(): array
+{
+    $runs = bakeshopCatalogFetchAll(
+        'SELECT
+            ' . bakeshopProductionSelectColumns() . ',
             COUNT(pi.id) AS consumed_item_count,
             COALESCE(SUM(pi.qty_used), 0) AS total_consumed_qty
          FROM bakeshop_production_runs pr
@@ -27,23 +56,58 @@ function bakeshopProductionList(): array
          INNER JOIN bakeshop_products p ON p.id = pr.product_id
          LEFT JOIN bakeshop_units u ON u.id = p.default_yield_unit_id
          LEFT JOIN bakeshop_production_items pi ON pi.run_id = pr.id
+         WHERE pr.voided_at IS NULL
          GROUP BY
-            pr.id,
-            pr.branch_id,
-            pr.product_id,
-            pr.produced_at,
-            pr.qty_produced,
-            pr.produced_by,
-            pr.notes,
-            pr.created_at,
-            pr.updated_at,
-            b.code,
-            b.name,
-            p.name,
-            p.default_yield_qty,
-            u.code
+                ' . bakeshopProductionGroupByColumns() . '
          ORDER BY pr.produced_at DESC, pr.id DESC'
     );
+
+    return bakeshopProductionHydrateCollection($runs);
+}
+
+function bakeshopProductionFetchItemsByRunIds(array $runIds): array
+{
+    if ($runIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($runIds), '?'));
+    $rows = bakeshopCatalogFetchAll(
+        'SELECT
+            pi.run_id,
+            pi.id,
+            pi.ingredient_id,
+            pi.qty_used,
+            pi.unit_id,
+            i.name AS ingredient_name,
+            u.code AS unit_code
+         FROM bakeshop_production_items pi
+         INNER JOIN bakeshop_ingredients i ON i.id = pi.ingredient_id
+         INNER JOIN bakeshop_units u ON u.id = pi.unit_id
+         WHERE pi.run_id IN (' . $placeholders . ')
+         ORDER BY pi.run_id ASC, pi.id ASC',
+        array_values(array_map('intval', $runIds))
+    );
+
+    $itemsByRunId = [];
+    foreach ($rows as $row) {
+        $itemsByRunId[(int)($row['run_id'] ?? 0)][] = $row;
+    }
+
+    return $itemsByRunId;
+}
+
+function bakeshopProductionHydrateCollection(array $runs): array
+{
+    $runIds = array_values(array_filter(array_map(static fn (array $run): int => (int)($run['id'] ?? 0), $runs)));
+    $itemsByRunId = bakeshopProductionFetchItemsByRunIds($runIds);
+
+    foreach ($runs as &$run) {
+        $run['items'] = $itemsByRunId[(int)($run['id'] ?? 0)] ?? [];
+    }
+    unset($run);
+
+    return $runs;
 }
 
 function bakeshopProductionCreate(array $input): array
@@ -129,20 +193,7 @@ function bakeshopProductionCreate(array $input): array
 
     $run = bakeshopCatalogFetchOne(
         'SELECT
-            pr.id,
-            pr.branch_id,
-            pr.product_id,
-            pr.produced_at,
-            pr.qty_produced,
-            pr.produced_by,
-            pr.notes,
-            pr.created_at,
-            pr.updated_at,
-            b.code AS branch_code,
-            b.name AS branch_name,
-            p.name AS product_name,
-            p.default_yield_qty,
-            u.code AS default_yield_unit_code
+            ' . bakeshopProductionSelectColumns() . '
          FROM bakeshop_production_runs pr
          INNER JOIN bakeshop_branches b ON b.id = pr.branch_id
          INNER JOIN bakeshop_products p ON p.id = pr.product_id
@@ -180,29 +231,69 @@ function bakeshopProductionCreate(array $input): array
     return $run;
 }
 
-function bakeshopProductionFindById(int $id): ?array
+function bakeshopProductionUpdate(array $input): array
 {
+    $id = bakeshopCatalogRequirePositiveInt($input['id'] ?? null, 'id');
+    $run = bakeshopProductionFindById($id, true);
+    if ($run === null) {
+        throw new InvalidArgumentException('Production run not found.');
+    }
+    if (trim((string)($run['voided_at'] ?? '')) !== '') {
+        throw new InvalidArgumentException('Voided production runs cannot be edited.');
+    }
+
+    $producedAtRaw = trim((string)($input['produced_at'] ?? ''));
+    if ($producedAtRaw === '') {
+        throw new InvalidArgumentException('produced_at is required.');
+    }
+
+    $producedAt = new DateTimeImmutable($producedAtRaw);
+    $producedBy = trim((string)($input['produced_by'] ?? ''));
+    $notes = trim((string)($input['notes'] ?? ''));
+
+    $stmt = bakeshopDb()->prepare(
+        'UPDATE bakeshop_production_runs
+         SET produced_at = :produced_at,
+             produced_by = :produced_by,
+             notes = :notes
+         WHERE id = :id'
+    );
+    $stmt->execute([
+        ':id' => $id,
+        ':produced_at' => $producedAt->format('Y-m-d H:i:s'),
+        ':produced_by' => $producedBy !== '' ? $producedBy : null,
+        ':notes' => $notes !== '' ? $notes : null,
+    ]);
+
+    $updatedRun = bakeshopProductionFindById($id, true) ?? $run;
+
+    bakeshopAudit(
+        'bakeshop.production.updated',
+        (int)($run['branch_id'] ?? 0) ?: null,
+        'bakeshop_production_runs',
+        (string)$id,
+        $run,
+        $updatedRun
+    );
+
+    return $updatedRun;
+}
+
+function bakeshopProductionFindById(int $id, bool $includeVoided = false): ?array
+{
+    $where = 'pr.id = :id';
+    if (!$includeVoided) {
+        $where .= ' AND pr.voided_at IS NULL';
+    }
+
     $run = bakeshopCatalogFetchOne(
         'SELECT
-            pr.id,
-            pr.branch_id,
-            pr.product_id,
-            pr.produced_at,
-            pr.qty_produced,
-            pr.produced_by,
-            pr.notes,
-            pr.created_at,
-            pr.updated_at,
-            b.code AS branch_code,
-            b.name AS branch_name,
-            p.name AS product_name,
-            p.default_yield_qty,
-            u.code AS default_yield_unit_code
+            ' . bakeshopProductionSelectColumns() . '
          FROM bakeshop_production_runs pr
          INNER JOIN bakeshop_branches b ON b.id = pr.branch_id
          INNER JOIN bakeshop_products p ON p.id = pr.product_id
          LEFT JOIN bakeshop_units u ON u.id = p.default_yield_unit_id
-         WHERE pr.id = :id LIMIT 1',
+         WHERE ' . $where . ' LIMIT 1',
         [':id' => $id]
     );
     if ($run === null) {
@@ -228,27 +319,51 @@ function bakeshopProductionFindById(int $id): ?array
     return $run;
 }
 
-function bakeshopProductionDelete(array $input): array
+function bakeshopProductionVoid(array $input, array $actor = []): array
 {
     $id = bakeshopCatalogRequirePositiveInt($input['id'] ?? null, 'id');
-    $run = bakeshopProductionFindById($id);
+    $reason = trim((string)($input['void_reason'] ?? ''));
+    if ($reason === '') {
+        throw new InvalidArgumentException('void_reason is required.');
+    }
+
+    $run = bakeshopProductionFindById($id, true);
     if ($run === null) {
         throw new InvalidArgumentException('Production run not found.');
     }
+    if (trim((string)($run['voided_at'] ?? '')) !== '') {
+        throw new InvalidArgumentException('Production run has already been voided.');
+    }
 
-    $stmt = bakeshopDb()->prepare('DELETE FROM bakeshop_production_runs WHERE id = :id');
-    $stmt->execute([':id' => $id]);
+    $voidedBy = trim((string)($actor['full_name'] ?? $actor['username'] ?? ''));
+    $voidedAt = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+
+    $stmt = bakeshopDb()->prepare(
+        'UPDATE bakeshop_production_runs
+         SET voided_at = :voided_at,
+             voided_by = :voided_by,
+             void_reason = :void_reason
+         WHERE id = :id'
+    );
+    $stmt->execute([
+        ':id' => $id,
+        ':voided_at' => $voidedAt,
+        ':voided_by' => $voidedBy !== '' ? $voidedBy : null,
+        ':void_reason' => $reason,
+    ]);
+
+    $updatedRun = bakeshopProductionFindById($id, true) ?? $run;
 
     bakeshopAudit(
-        'bakeshop.production.deleted',
+        'bakeshop.production.voided',
         (int)($run['branch_id'] ?? 0) ?: null,
         'bakeshop_production_runs',
         (string)$id,
         $run,
-        null
+        $updatedRun
     );
 
-    return $run;
+    return $updatedRun;
 }
 
 function bakeshopApiProductionIndex(array $params = []): void
@@ -264,17 +379,24 @@ function bakeshopApiProductionStore(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
-        $item = bakeshopProductionCreate(bakeshopInput());
-        bakeshopJsonOk(['item' => $item], 201);
+        $input = bakeshopInput();
+        $isUpdate = (($input['id'] ?? null) !== null && trim((string)$input['id']) !== '');
+        $item = $isUpdate ? bakeshopProductionUpdate($input) : bakeshopProductionCreate($input);
+        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
+    });
+}
+
+function bakeshopApiProductionVoid(array $params = []): void
+{
+    bakeshopResponseGuard(static function (): void {
+        bakeshopEnforceCsrf();
+        $user = bakeshopCurrentUser('bakeshop.manage');
+        $item = bakeshopProductionVoid(bakeshopInput(), $user);
+        bakeshopJsonOk(['item' => $item]);
     });
 }
 
 function bakeshopApiProductionDelete(array $params = []): void
 {
-    bakeshopResponseGuard(static function (): void {
-        bakeshopEnforceCsrf();
-        bakeshopCurrentUser('bakeshop.manage');
-        $item = bakeshopProductionDelete(bakeshopInput());
-        bakeshopJsonOk(['item' => $item]);
-    });
+    bakeshopApiProductionVoid($params);
 }
