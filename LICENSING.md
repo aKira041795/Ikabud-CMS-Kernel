@@ -95,6 +95,7 @@ The following components are licensed under the [Ikabud Commercial License](LICE
 | Module | Description |
 |--------|-------------|
 | `modules/ai/` | AI automation and suggestions |
+| `modules/bakeshop/` | Bakery operations workspace with module-owned auth and supervisor tooling |
 | `modules/cms/` | Full CMS with visual page builder |
 | `modules/content-ingestion/` | Event-driven content pipeline |
 | `modules/ecommerce/` | Products, cart, checkout, orders, POS, inventory |
@@ -117,6 +118,12 @@ The following components are licensed under the [Ikabud Commercial License](LICE
 ---
 
 ## What This Means
+
+### GitHub license display
+
+- GitHub currently shows `Unknown and 2 other licenses found` for this repository.
+- That is expected for the current open-core layout: the top-level `LICENSE` file is a repository-wide notice that points to both `LICENSE-MIT` and `LICENSE-COMMERCIAL`, so GitHub cannot classify the repo as a single standard license.
+- The authoritative component boundary is this file (`LICENSING.md`), not the single-license badge GitHub would normally infer for a uniformly licensed repository.
 
 ### For developers and contributors
 

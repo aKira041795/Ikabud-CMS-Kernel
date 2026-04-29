@@ -76,3 +76,5 @@ Ikabud uses an **open-core licensing model**:
 - **Enterprise Edition** (kernel orchestration, multi-tenant, advanced modules) — [Ikabud Commercial License](LICENSE-COMMERCIAL)
 
 See [LICENSING.md](LICENSING.md) for the complete component-to-license boundary.
+
+GitHub may show `Unknown and 2 other licenses found` in the repository sidebar because the repo intentionally uses a mixed open-core layout with a repository-level notice in [LICENSE](LICENSE) plus separate [LICENSE-MIT](LICENSE-MIT) and [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) texts.
