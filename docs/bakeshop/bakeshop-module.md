@@ -107,7 +107,8 @@ A module-local rate limiter (`bakeshopLoginRateLimitState()`) reuses the kernel 
 - public guest pages at `/bakeshop/forgot-password` and `/bakeshop/reset-password`
 - canonical browser APIs at `/api/v1/bakeshop/auth/forgot-password` and `/api/v1/bakeshop/auth/reset-password`
 - generic success messaging to avoid account enumeration
-- 60-minute reset-link expiry and rate limiting on both issue and reset attempts
+- 30-minute reset-link expiry and rate limiting on both issue and reset attempts
+- latest-request-wins semantics: issuing a new reset invalidates every older unused token for that account
 - page-render token validation so expired links show an inline recovery path instead of a broken form
 
 Trusted admin recovery remains the kernel-level password-push endpoint documented below; self-service reset is for end users, while tenant admin recovery is still driven from the kernel admin surface.

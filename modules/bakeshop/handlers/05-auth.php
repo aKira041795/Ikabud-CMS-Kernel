@@ -129,17 +129,19 @@ function bakeshopForgotPasswordRateLimitSnapshot(string $scope, string $value): 
 
 function bakeshopForgotPasswordRateLimitExceeded(string $ip, string $identity): bool
 {
+    $policy = kernel_password_reset_policy();
     $ipState = bakeshopForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown');
-    if ((int)$ipState['count'] >= 5) {
+    if ((int)$ipState['count'] >= (int)$policy['forgot_rate_limit_ip_max']) {
         return true;
     }
 
     $identityState = bakeshopForgotPasswordRateLimitSnapshot('identity', $identity);
-    return (int)$identityState['count'] >= 3;
+    return (int)$identityState['count'] >= (int)$policy['forgot_rate_limit_identity_max'];
 }
 
 function bakeshopForgotPasswordRateLimitRecord(string $ip, string $identity): void
 {
+    $policy = kernel_password_reset_policy();
     $entries = [
         bakeshopForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown'),
         bakeshopForgotPasswordRateLimitSnapshot('identity', $identity),
@@ -150,24 +152,26 @@ function bakeshopForgotPasswordRateLimitRecord(string $ip, string $identity): vo
             'security_rate_limits',
             (string)$entry['key'],
             ['count' => ((int)($entry['count'] ?? 0)) + 1],
-            900
+            (int)$policy['forgot_rate_limit_window_seconds']
         );
     }
 }
 
 function bakeshopResetPasswordRateLimitExceeded(string $ip): bool
 {
+    $policy = kernel_password_reset_policy();
     $key = 'bakeshop_reset_password:ip:' . sha1($ip !== '' ? $ip : 'unknown');
     $cached = app()->cache()->get('security_rate_limits', $key);
-    return is_array($cached) && (int)($cached['count'] ?? 0) >= 5;
+    return is_array($cached) && (int)($cached['count'] ?? 0) >= (int)$policy['reset_rate_limit_ip_max'];
 }
 
 function bakeshopResetPasswordRateLimitRecord(string $ip): void
 {
+    $policy = kernel_password_reset_policy();
     $key = 'bakeshop_reset_password:ip:' . sha1($ip !== '' ? $ip : 'unknown');
     $cached = app()->cache()->get('security_rate_limits', $key);
     $count = is_array($cached) ? max(0, (int)($cached['count'] ?? 0)) : 0;
-    app()->cache()->set('security_rate_limits', $key, ['count' => $count + 1], 900);
+    app()->cache()->set('security_rate_limits', $key, ['count' => $count + 1], (int)$policy['reset_rate_limit_window_seconds']);
 }
 
 function bakeshopResetTokenIsValid(string $token): bool
@@ -224,6 +228,8 @@ function bakeshopResetPasswordPage(array $params = []): void
 
 function bakeshopApiForgotPassword(array $params = []): void
 {
+    $policy = kernel_password_reset_policy();
+    $ttlMinutes = max(1, (int)$policy['token_ttl_minutes']);
     $input = bakeshopInput();
     $identity = trim((string)($input['identity'] ?? ''));
     if ($identity === '') {
@@ -233,7 +239,7 @@ function bakeshopApiForgotPassword(array $params = []): void
 
     $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     if (bakeshopForgotPasswordRateLimitExceeded($requestIp, $identity)) {
-        bakeshopJsonError('Too many password reset requests. Please wait before trying again.', 429);
+        bakeshopJsonError((string)$policy['forgot_rate_limit_message'], 429);
         return;
     }
 
@@ -267,7 +273,7 @@ function bakeshopApiForgotPassword(array $params = []): void
 
             $insert = bakeshopDb()->prepare(
                 'INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at)
-                 VALUES (:user_id, :token_hash, :requester_ip, DATE_ADD(NOW(), INTERVAL 60 MINUTE), NOW())'
+                 VALUES (:user_id, :token_hash, :requester_ip, DATE_ADD(NOW(), INTERVAL ' . $ttlMinutes . ' MINUTE), NOW())'
             );
             $insert->execute([
                 ':user_id' => (int)$user['id'],
@@ -283,7 +289,7 @@ function bakeshopApiForgotPassword(array $params = []): void
                 $resetUrl = bakeshopExternalBaseUrl() . '/bakeshop/reset-password?token=' . urlencode($rawToken);
                 $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ',</p>'
                     . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your ' . htmlspecialchars($storeName, ENT_QUOTES, 'UTF-8') . ' password.</p>'
-                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in 60 minutes. If you did not request this, you can safely ignore this email.</p>';
+                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
                 $body = buildEmailTemplate('Reset Your Bakeshop Password', $content, 'Reset Password', $resetUrl);
                 $sent = sendEmail($email, 'Bakeshop Password Reset', $body);
                 if (!$sent) {
@@ -294,7 +300,7 @@ function bakeshopApiForgotPassword(array $params = []): void
 
         bakeshopJson([
             'ok' => true,
-            'message' => 'If the account exists, a reset link has been sent.',
+            'message' => (string)$policy['forgot_success_message'],
         ]);
     } catch (Throwable $e) {
         write_log('bakeshop forgot-password failed: ' . $e->getMessage(), 'error');
@@ -304,13 +310,14 @@ function bakeshopApiForgotPassword(array $params = []): void
 
 function bakeshopApiResetPassword(array $params = []): void
 {
+    $policy = kernel_password_reset_policy();
     $input = bakeshopInput();
     $token = trim((string)($input['token'] ?? ''));
     $password = (string)($input['password'] ?? '');
     $confirmPassword = (string)($input['confirm_password'] ?? '');
 
     if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
-        bakeshopJsonError('Invalid reset token.');
+        bakeshopJsonError((string)$policy['invalid_token_message']);
         return;
     }
 
@@ -326,7 +333,7 @@ function bakeshopApiResetPassword(array $params = []): void
 
     $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     if (bakeshopResetPasswordRateLimitExceeded($requestIp)) {
-        bakeshopJsonError('Too many reset attempts. Please wait before trying again.', 429);
+        bakeshopJsonError((string)$policy['reset_rate_limit_message'], 429);
         return;
     }
 
@@ -348,7 +355,7 @@ function bakeshopApiResetPassword(array $params = []): void
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!is_array($row)) {
-            bakeshopJsonError('Reset link is invalid or expired.');
+            bakeshopJsonError((string)$policy['invalid_token_message']);
             return;
         }
 
@@ -375,7 +382,7 @@ function bakeshopApiResetPassword(array $params = []): void
 
         bakeshopJson([
             'ok' => true,
-            'message' => 'Password reset successful. You can now sign in.',
+            'message' => (string)$policy['reset_success_message'],
             'redirect' => '/bakeshop/login',
         ]);
     } catch (Throwable $e) {

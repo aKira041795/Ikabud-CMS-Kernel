@@ -9673,6 +9673,8 @@ function pageGuidanceResetPassword(): void {
 }
 
 function apiGuidanceForgotPassword(): void {
+    $policy = kernel_password_reset_policy();
+    $ttlMinutes = max(1, (int)$policy['token_ttl_minutes']);
     $email = trim((string)guidanceInput('email', guidanceInput('identity', '')));
     if ($email === '') {
         guidancePasswordResetError('Email is required.');
@@ -9680,12 +9682,12 @@ function apiGuidanceForgotPassword(): void {
     }
 
     $ip = clientIp();
-    if (!rateLimit('guidance_forgot:' . $ip, 3, 900)) {
-        guidancePasswordResetError('Too many password reset requests. Please wait before trying again.', 429);
+    if (!rateLimit('guidance_forgot:' . $ip, (int)$policy['forgot_rate_limit_ip_max'], (int)$policy['forgot_rate_limit_window_seconds'])) {
+        guidancePasswordResetError((string)$policy['forgot_rate_limit_message'], 429);
         return;
     }
 
-    $successMsg = 'If the account exists, a reset link has been sent.';
+    $successMsg = (string)$policy['forgot_success_message'];
 
     try {
         $stmt = guidanceDb()->prepare(
@@ -9700,14 +9702,14 @@ function apiGuidanceForgotPassword(): void {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (is_array($user)) {
-            $token = guidanceIssuePasswordResetToken((string)$user['email'], 3600);
+            $token = guidanceIssuePasswordResetToken((string)$user['email'], $ttlMinutes * 60);
             $resetUrl = guidanceExternalBaseUrl() . '/guidance/reset-password?token=' . urlencode($token);
 
             if (function_exists('sendEmail') && function_exists('buildEmailTemplate')) {
                 $name = trim((string)($user['first_name'] ?? 'there'));
                 $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8') . ',</p>'
                     . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your Guidance password.</p>'
-                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in 60 minutes. If you did not request this, you can safely ignore this email.</p>';
+                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
                 $body = buildEmailTemplate('Reset Your Guidance Password', $content, 'Reset Password', $resetUrl);
                 $sent = sendEmail((string)$user['email'], 'Guidance Password Reset', $body);
                 if (!$sent) {
@@ -9724,12 +9726,13 @@ function apiGuidanceForgotPassword(): void {
 }
 
 function apiGuidanceResetPassword(): void {
+    $policy = kernel_password_reset_policy();
     $token = trim((string)guidanceInput('token', ''));
     $password = (string)guidanceInput('password', '');
     $confirm = (string)guidanceInput('confirm_password', guidanceInput('password_confirm', ''));
 
     if ($token === '' || preg_match('/^[a-f0-9]{64}$/', $token) !== 1) {
-        guidancePasswordResetError('Invalid reset token.');
+        guidancePasswordResetError((string)$policy['invalid_token_message']);
         return;
     }
 
@@ -9744,15 +9747,15 @@ function apiGuidanceResetPassword(): void {
     }
 
     $ip = clientIp();
-    if (!rateLimit('guidance_reset:' . $ip, 5, 900)) {
-        guidancePasswordResetError('Too many reset attempts. Please wait before trying again.', 429);
+    if (!rateLimit('guidance_reset:' . $ip, (int)$policy['reset_rate_limit_ip_max'], (int)$policy['reset_rate_limit_window_seconds'])) {
+        guidancePasswordResetError((string)$policy['reset_rate_limit_message'], 429);
         return;
     }
 
     try {
         $resetData = guidanceFindActivePasswordReset($token);
         if (!is_array($resetData)) {
-            guidancePasswordResetError('Reset link is invalid or expired.');
+            guidancePasswordResetError((string)$policy['invalid_token_message']);
             return;
         }
 
@@ -9779,7 +9782,7 @@ function apiGuidanceResetPassword(): void {
         guidanceMarkPasswordResetUsed((int)$resetData['id']);
 
         guidancePasswordResetJson(guidancePasswordResetSuccessPayload(
-            'Password reset successful. You can now sign in.',
+            (string)$policy['reset_success_message'],
             ['redirect' => '/guidance/login']
         ));
     } catch (Throwable $e) {

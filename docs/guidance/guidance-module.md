@@ -12,7 +12,8 @@ Guidance now follows the same self-service password reset contract used by the n
 - canonical browser APIs: `POST /api/v1/guidance/auth/forgot-password` and `POST /api/v1/guidance/auth/reset-password`
 - legacy `/guidance/api/auth/*` aliases are retained for backward compatibility
 - forgot-password returns generic success to avoid account enumeration
-- reset links expire after 60 minutes and the reset page validates the token before rendering the form
+- reset links expire after 30 minutes and the reset page validates the token before rendering the form
+- only the latest reset request stays valid; older unused tokens are invalidated immediately
 - successful resets return `{ok: true, message: ..., redirect: '/guidance/login'}`
 
 Kernel admin password-push remains the trusted recovery path for tenant admins. Self-service forgot/reset is for module users, not a replacement for the kernel recovery surface.

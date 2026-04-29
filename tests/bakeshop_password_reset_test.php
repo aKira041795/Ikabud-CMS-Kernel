@@ -10,6 +10,9 @@ require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/bakeshop/helpers.php';
 require_once __DIR__ . '/../modules/bakeshop/handlers.php';
 
+$passwordResetPolicy = kernel_password_reset_policy();
+$passwordResetTtlMinutes = (int)$passwordResetPolicy['token_ttl_minutes'];
+
 $pass = 0;
 $fail = 0;
 $errors = [];
@@ -238,7 +241,7 @@ try {
     $db->prepare('DELETE FROM bakeshop_password_resets WHERE user_id = ?')->execute([$userId]);
     $rawToken = bin2hex(random_bytes(32));
     $db->prepare(
-        'INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 60 MINUTE), NOW())'
+        'INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ' . $passwordResetTtlMinutes . ' MINUTE), NOW())'
     )->execute([
         $userId,
         hash('sha256', $rawToken),
@@ -253,6 +256,7 @@ try {
     btReset('reset password page renders valid-token form', str_contains($resetPageHtml, 'Reset Password') && !str_contains($resetPageHtml, 'invalid or expired'));
     btReset('reset password page uses configured store name', str_contains($resetPageHtml, 'Sunrise Dough'));
 
+    $staleForgotToken = bin2hex(random_bytes(32));
     $forgotSetupCode = <<<'PHP'
 $lookup = bakeshopDb()->prepare('SELECT id FROM bakeshop_users WHERE username = ? LIMIT 1');
 $lookup->execute(['test-reset-api-user']);
@@ -263,17 +267,23 @@ if ($existingId > 0) {
 }
 $insert = bakeshopDb()->prepare('INSERT INTO bakeshop_users (username, email, phone, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 1, NOW(), NOW())');
 $insert->execute(['test-reset-api-user', 'not-an-email', password_hash('startpass123', PASSWORD_DEFAULT), 'Test Reset API User', 'supervisor']);
+$lookup->execute(['test-reset-api-user']);
+$probeUserId = (int)($lookup->fetchColumn() ?: 0);
+$staleInsert = bakeshopDb()->prepare('INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL __TTL_MINUTES__ MINUTE), NOW())');
+$staleInsert->execute([$probeUserId, hash('sha256', __STALE_TOKEN__), '127.0.0.1']);
 PHP;
+    $forgotSetupCode = str_replace('__TTL_MINUTES__', (string)$passwordResetTtlMinutes, $forgotSetupCode);
+    $forgotSetupCode = str_replace('__STALE_TOKEN__', var_export($staleForgotToken, true), $forgotSetupCode);
     $forgotProbeCode = <<<'PHP'
 $lookup = bakeshopDb()->prepare('SELECT id FROM bakeshop_users WHERE username = ? LIMIT 1');
 $lookup->execute(['test-reset-api-user']);
 $probeUserId = (int)($lookup->fetchColumn() ?: 0);
-$stmt = bakeshopDb()->prepare('SELECT token_hash, used_at FROM bakeshop_password_resets WHERE user_id = ? ORDER BY id DESC LIMIT 1');
+$stmt = bakeshopDb()->prepare('SELECT token_hash, used_at, expires_at, created_at FROM bakeshop_password_resets WHERE user_id = ? ORDER BY id DESC LIMIT 2');
 $stmt->execute([$probeUserId]);
-$row = $stmt->fetch(PDO::FETCH_ASSOC);
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 return [
     'user_id' => $probeUserId,
-    'reset_row' => is_array($row) ? $row : null,
+    'reset_rows' => $rows,
 ];
 PHP;
 
@@ -287,9 +297,29 @@ PHP;
     btReset('forgot password API exits cleanly', ($forgotResponse['exit_code'] ?? 1) === 0, json_encode($forgotResponse, JSON_UNESCAPED_SLASHES));
     btReset('forgot password API returns success', (int)($forgotResponse['status'] ?? 0) === 200 && (($forgotResponse['json']['ok'] ?? false) === true), json_encode($forgotResponse, JSON_UNESCAPED_SLASHES));
 
-    $forgotTokenRow = $forgotResponse['probe']['reset_row'] ?? null;
-    btReset('forgot password API creates a password reset row', is_array($forgotTokenRow) && strlen((string)($forgotTokenRow['token_hash'] ?? '')) === 64, json_encode($forgotTokenRow, JSON_UNESCAPED_SLASHES));
-    btReset('forgot password API leaves new token unused', is_array($forgotTokenRow) && (($forgotTokenRow['used_at'] ?? null) === null), json_encode($forgotTokenRow, JSON_UNESCAPED_SLASHES));
+    $forgotRows = $forgotResponse['probe']['reset_rows'] ?? [];
+    $forgotTokenRow = $forgotRows[0] ?? null;
+    $staleRow = $forgotRows[1] ?? null;
+    btReset('forgot password API creates a password reset row', is_array($forgotTokenRow) && strlen((string)($forgotTokenRow['token_hash'] ?? '')) === 64, json_encode($forgotRows, JSON_UNESCAPED_SLASHES));
+    btReset('forgot password API leaves new token unused', is_array($forgotTokenRow) && (($forgotTokenRow['used_at'] ?? null) === null), json_encode($forgotRows, JSON_UNESCAPED_SLASHES));
+    btReset('forgot password API invalidates prior unused tokens', is_array($staleRow) && !empty($staleRow['used_at']), json_encode($forgotRows, JSON_UNESCAPED_SLASHES));
+    $createdAt = strtotime((string)($forgotTokenRow['created_at'] ?? ''));
+    $expiresAt = strtotime((string)($forgotTokenRow['expires_at'] ?? ''));
+    $ttlSeconds = ($createdAt > 0 && $expiresAt > 0) ? ($expiresAt - $createdAt) : 0;
+    btReset('forgot password API uses the shared 30-minute TTL', $ttlSeconds >= 1700 && $ttlSeconds <= 1810, (string)$ttlSeconds);
+
+    $staleResetResponse = runBakeshopAuthJsonRequest(
+        'bakeshopApiResetPassword',
+        '/api/v1/bakeshop/auth/reset-password',
+        json_encode([
+            'token' => $staleForgotToken,
+            'password' => 'renewedpass456',
+            'confirm_password' => 'renewedpass456',
+        ], JSON_UNESCAPED_SLASHES),
+        '',
+        'return [];'
+    );
+    btReset('stale token is rejected after a newer request', (int)($staleResetResponse['status'] ?? 0) === 422 && (($staleResetResponse['json']['error'] ?? '') === $passwordResetPolicy['invalid_token_message']), json_encode($staleResetResponse, JSON_UNESCAPED_SLASHES));
 
     $resetRawToken = bin2hex(random_bytes(32));
     $resetRawTokenExport = var_export($resetRawToken, true);
@@ -355,7 +385,7 @@ if (\$existingId > 0) {
 \$insert = bakeshopDb()->prepare('INSERT INTO bakeshop_users (username, email, phone, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 1, NOW(), NOW())');
 \$insert->execute(['test-reset-api-user', 'not-an-email', password_hash('startpass123', PASSWORD_DEFAULT), 'Test Reset API User', 'supervisor']);
 \$userId = (int)bakeshopDb()->lastInsertId();
-\$resetInsert = bakeshopDb()->prepare('INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 60 MINUTE), NOW())');
+\$resetInsert = bakeshopDb()->prepare('INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL {$passwordResetTtlMinutes} MINUTE), NOW())');
 \$resetInsert->execute([\$userId, hash('sha256', {$resetRawTokenExport}), '127.0.0.1']);
 PHP;
     $resetProbeCode = <<<'PHP'
@@ -403,6 +433,19 @@ PHP;
 
     $auth = $resetResponse['probe']['auth'] ?? null;
     btReset('reset password API allows auth with new password', is_array($auth) && (($auth['source'] ?? '') === 'bakeshop'), json_encode($auth, JSON_UNESCAPED_SLASHES));
+
+    $reusedResponse = runBakeshopAuthJsonRequest(
+        'bakeshopApiResetPassword',
+        '/api/v1/bakeshop/auth/reset-password',
+        json_encode([
+            'token' => $resetRawToken,
+            'password' => 'renewedpass456',
+            'confirm_password' => 'renewedpass456',
+        ], JSON_UNESCAPED_SLASHES),
+        '',
+        'return [];'
+    );
+    btReset('reused token is rejected', (int)($reusedResponse['status'] ?? 0) === 422 && (($reusedResponse['json']['error'] ?? '') === $passwordResetPolicy['invalid_token_message']), json_encode($reusedResponse, JSON_UNESCAPED_SLASHES));
 } finally {
     app()->setUser(is_array($previousUser) ? $previousUser : []);
     saveModuleSettings('bakeshop', $originalSettings);

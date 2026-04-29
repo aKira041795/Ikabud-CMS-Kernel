@@ -61,6 +61,9 @@ $errorLogStart = is_file($errorLogPath) ? max(0, (int)@filesize($errorLogPath)) 
 
 echo "\n=== GUIDANCE PASSWORD RESET TEST ===\n\n";
 
+$policy = kernel_password_reset_policy();
+$ttlMinutes = (int)$policy['token_ttl_minutes'];
+
 $modules = discoverModules();
 $guidance = $modules['guidance'] ?? null;
 if (!is_array($guidance)) {
@@ -119,7 +122,7 @@ try {
 
     $validToken = bin2hex(random_bytes(32));
     $db->prepare(
-        'INSERT INTO gm_password_resets (email, token, expires_at, created_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 60 MINUTE), NOW())'
+        'INSERT INTO gm_password_resets (email, token, expires_at, created_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ' . $ttlMinutes . ' MINUTE), NOW())'
     )->execute([$uiEmail, hash('sha256', $validToken)]);
 
     $resetPageHtml = guidanceRunRequest(static function (): void {
@@ -134,21 +137,42 @@ try {
     gtReset('reset password page shows invalid token recovery state', str_contains($invalidResetHtml, 'invalid or expired'));
 
     echo "\n── API ──\n";
+    $staleToken = bin2hex(random_bytes(32));
+    $db->prepare(
+        'INSERT INTO gm_password_resets (email, token, expires_at, created_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ' . $ttlMinutes . ' MINUTE), NOW())'
+    )->execute([$apiEmail, hash('sha256', $staleToken)]);
+
     $forgotResponse = guidanceRunRequest(static function (): void {
         apiGuidanceForgotPassword();
     }, 'POST', '/api/v1/guidance/auth/forgot-password', [], ['email' => $apiEmail]);
     gtReset('forgot password API returns success', (int)($forgotResponse['status'] ?? 0) === 200 && (($forgotResponse['json']['ok'] ?? false) === true), json_encode($forgotResponse, JSON_UNESCAPED_SLASHES));
 
-    $tokenRowStmt = $db->prepare('SELECT token, used_at FROM gm_password_resets WHERE email = ? ORDER BY id DESC LIMIT 1');
+    $tokenRowStmt = $db->prepare('SELECT token, used_at, expires_at, created_at FROM gm_password_resets WHERE email = ? ORDER BY id DESC LIMIT 2');
     $tokenRowStmt->execute([$apiEmail]);
-    $forgotRow = $tokenRowStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $forgotRows = $tokenRowStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $forgotRow = $forgotRows[0] ?? [];
+    $oldRow = $forgotRows[1] ?? [];
     gtReset('forgot password API creates hashed token row', strlen((string)($forgotRow['token'] ?? '')) === 64, json_encode($forgotRow, JSON_UNESCAPED_SLASHES));
-    gtReset('forgot password API leaves token unused', ($forgotRow['used_at'] ?? null) === null, json_encode($forgotRow, JSON_UNESCAPED_SLASHES));
+    gtReset('forgot password API leaves newest token unused', ($forgotRow['used_at'] ?? null) === null, json_encode($forgotRow, JSON_UNESCAPED_SLASHES));
+    gtReset('forgot password API invalidates prior unused tokens', !empty($oldRow['used_at']), json_encode($forgotRows, JSON_UNESCAPED_SLASHES));
+    $createdAt = strtotime((string)($forgotRow['created_at'] ?? ''));
+    $expiresAt = strtotime((string)($forgotRow['expires_at'] ?? ''));
+    $ttlSeconds = ($createdAt > 0 && $expiresAt > 0) ? ($expiresAt - $createdAt) : 0;
+    gtReset('forgot password API uses the shared 30-minute TTL', $ttlSeconds >= 1700 && $ttlSeconds <= 1810, (string)$ttlSeconds);
+
+    $staleResponse = guidanceRunRequest(static function (): void {
+        apiGuidanceResetPassword();
+    }, 'POST', '/api/v1/guidance/auth/reset-password', [], [
+        'token' => $staleToken,
+        'password' => 'renewedpass456',
+        'confirm_password' => 'renewedpass456',
+    ]);
+    gtReset('stale token is rejected after a newer request', (int)($staleResponse['status'] ?? 0) === 422 && (($staleResponse['json']['error'] ?? '') === $policy['invalid_token_message']), json_encode($staleResponse, JSON_UNESCAPED_SLASHES));
 
     $resetToken = bin2hex(random_bytes(32));
     $db->prepare('DELETE FROM gm_password_resets WHERE email = ?')->execute([$apiEmail]);
     $db->prepare(
-        'INSERT INTO gm_password_resets (email, token, expires_at, created_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 60 MINUTE), NOW())'
+        'INSERT INTO gm_password_resets (email, token, expires_at, created_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ' . $ttlMinutes . ' MINUTE), NOW())'
     )->execute([$apiEmail, hash('sha256', $resetToken)]);
     $cleanupRateStmt->execute();
 
@@ -177,6 +201,28 @@ try {
         'password' => 'renewedpass456',
     ]);
     gtReset('reset password API allows auth with new password', is_array($auth) && (($auth['source'] ?? '') === 'guidance'), json_encode($auth, JSON_UNESCAPED_SLASHES));
+
+    $reusedResponse = guidanceRunRequest(static function (): void {
+        apiGuidanceResetPassword();
+    }, 'POST', '/api/v1/guidance/auth/reset-password', [], [
+        'token' => $resetToken,
+        'password' => 'renewedpass456',
+        'confirm_password' => 'renewedpass456',
+    ]);
+    gtReset('reused token is rejected', (int)($reusedResponse['status'] ?? 0) === 422 && (($reusedResponse['json']['error'] ?? '') === $policy['invalid_token_message']), json_encode($reusedResponse, JSON_UNESCAPED_SLASHES));
+
+    $expiredToken = bin2hex(random_bytes(32));
+    $db->prepare(
+        'INSERT INTO gm_password_resets (email, token, expires_at, created_at) VALUES (?, ?, DATE_SUB(NOW(), INTERVAL 5 MINUTE), DATE_SUB(NOW(), INTERVAL 35 MINUTE))'
+    )->execute([$apiEmail, hash('sha256', $expiredToken)]);
+    $expiredResponse = guidanceRunRequest(static function (): void {
+        apiGuidanceResetPassword();
+    }, 'POST', '/api/v1/guidance/auth/reset-password', [], [
+        'token' => $expiredToken,
+        'password' => 'renewedpass456',
+        'confirm_password' => 'renewedpass456',
+    ]);
+    gtReset('expired token is rejected', (int)($expiredResponse['status'] ?? 0) === 422 && (($expiredResponse['json']['error'] ?? '') === $policy['invalid_token_message']), json_encode($expiredResponse, JSON_UNESCAPED_SLASHES));
 } finally {
     $_GET = [];
     $_POST = [];

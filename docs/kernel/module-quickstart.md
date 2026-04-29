@@ -373,8 +373,9 @@ If your new module owns its own users table and includes a public login, wire pa
 Implementation rules:
 
 - Return generic success from forgot-password (`{ok: true, message: ...}`) to avoid account enumeration.
-- Hash reset tokens in storage, expire them after 60 minutes, and rate-limit both issuance and reset attempts.
-- Validate reset tokens before rendering the reset form so expired links show a recovery message instead of a dead submit button.
+- Hash reset tokens in storage, expire them after 30 minutes, and rate-limit both issuance and reset attempts.
+- Invalidate every older unused token when a new reset is requested so the latest link is the only live one.
+- Validate reset tokens before rendering the reset form so expired, reused, or stale links show a recovery message instead of a dead submit button.
 - Require `password` and `confirm_password`, enforce a minimum length of 8, and return a login redirect on success.
 - Keep kernel admin password-push as the trusted admin recovery flow for tenant admins.
 

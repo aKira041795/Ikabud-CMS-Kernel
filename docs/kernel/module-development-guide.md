@@ -291,22 +291,47 @@ No kernel changes are required.
 
 If an auth-owning module exposes end-user sign-in and supports self-service recovery, treat forgot/reset password as a standard contract, not a one-off feature:
 
-1. Guest pages: `GET /<module-id>/forgot-password` and `GET /<module-id>/reset-password`.
-2. Canonical browser APIs: `POST /api/v1/<module-id>/auth/forgot-password` and `POST /api/v1/<module-id>/auth/reset-password`.
-3. Forgot-password API behavior:
-    - accept the module's login identity field (`identity`, `email`, or equivalent)
-    - rate-limit requests
-    - return generic success (`{ok: true, message: ...}`) even when the account does not exist
-    - issue a 64-character token, hash it in storage, and email a 60-minute reset link
-4. Reset-password page behavior:
-    - validate the token server-side before rendering the form
-    - show an explicit invalid/expired state instead of submitting a dead token
-5. Reset-password API behavior:
-    - require a 64-character hex token
-    - require `password` + `confirm_password`
-    - enforce a minimum password length of 8
-    - return `{ok: true, message: ..., redirect: '/<module-id>/login'}` on success
-6. Keep the kernel admin password-push flow as the trusted admin recovery path; self-service reset does not replace tenant-admin recovery.
+The kernel-level source of truth is `kernel_password_reset_policy()` in [bootstrap.php](../../bootstrap.php).
+
+#### Flow
+
+1. Request reset.
+2. Issue a new token and email the reset link.
+3. Verify the token on the reset page before rendering the form.
+4. Accept the new password only through the reset API.
+5. Mark the token used and return success with a login redirect.
+
+#### Token rules
+
+- Token format: 32 random bytes encoded as 64 lowercase hex characters.
+- Expiry: 30 minutes.
+- One-time use: once a reset succeeds, the token must never work again.
+- Multiple requests: latest request wins. When a new reset is issued, every older unused token for that account is immediately invalidated.
+
+#### Security
+
+- Guest pages: `GET /<module-id>/forgot-password` and `GET /<module-id>/reset-password`.
+- Canonical browser APIs: `POST /api/v1/<module-id>/auth/forgot-password` and `POST /api/v1/<module-id>/auth/reset-password`.
+- Store only a hash of the reset token, never the raw token.
+- Forgot-password rate limit: 15-minute window, max 5 requests per IP, max 3 per identity.
+- Reset-password rate limit: 15-minute window, max 5 attempts per IP.
+- Forgot-password responses must not leak whether the account exists.
+
+#### UX
+
+- Shared request success message: `If the account exists, a reset link has been sent.`
+- Shared invalid-token message for expired, reused, or stale links: `Reset link is invalid or expired.`
+- Shared completion success message: `Password reset successful. You can now sign in.`
+- Successful resets should return `{ok: true, message: ..., redirect: '/<module-id>/login'}`.
+- Reset pages should render an explicit invalid/expired state instead of leaving a dead submit button on screen.
+
+#### Edge cases
+
+- Expired token: reject with the shared invalid-token message.
+- Reused token: reject with the shared invalid-token message.
+- Multiple reset requests: invalidate all previous unused tokens before creating the new one.
+
+Keep the kernel admin password-push flow as the trusted admin recovery path; self-service reset does not replace tenant-admin recovery.
 
 Legacy aliases may be kept for backward compatibility, but new templates and tests should target the canonical `/api/v1/<module-id>/auth/*` endpoints.
 
