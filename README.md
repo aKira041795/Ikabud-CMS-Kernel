@@ -1,6 +1,6 @@
 # Ikabud CMS Kernel
 
-Ikabud CMS Kernel is a multi-tenant application platform and modular business OS powered by the DiSyL rendering runtime, with a visual CMS, workflow automation, commerce, guidance, warehouse, and tenant-scoped operations modules running on one kernel.
+Ikabud CMS Kernel is a multi-tenant application platform and modular business OS powered by DiSyL, the kernel-native rendering runtime for its visual CMS, workflow automation, commerce, guidance, warehouse, and tenant-scoped operations modules.
 
 ## Key Features
 
