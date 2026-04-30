@@ -74,6 +74,7 @@ return [
         '/admin/guidance/api/cases/options' => 'guidance:apiGuidanceCaseOptions',
         '/admin/guidance/api/cases/{id}/history' => 'guidance:apiGuidanceCaseHistory',
         '/admin/guidance/api/cases/{id}/notes' => 'guidance:apiGuidanceCaseNotes',
+        '/admin/guidance/api/cases/{id}/appointments' => 'guidance:apiGuidanceCaseAppointments',
         '/admin/guidance/api/appointments' => 'guidance:apiGuidanceAppointments',
         '/admin/guidance/api/appointments/stats' => 'guidance:apiGuidanceAppointmentStats',
         '/admin/guidance/api/appointments/session-stats' => 'guidance:apiGuidanceSessionRecordStats',

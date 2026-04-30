@@ -3290,9 +3290,9 @@ function pageGuidanceCaseNew(): void
 
 function pageGuidanceCaseView(array $params = []): void
 {
-    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
-    $role = is_array($user) ? (string)($user['role'] ?? '') : '';
-    $userId = is_array($user) ? (int)($user['id'] ?? 0) : 0;
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
 
     $caseId = (int)($params['id'] ?? 0);
     if ($caseId < 1) {
@@ -3301,17 +3301,20 @@ function pageGuidanceCaseView(array $params = []): void
         return;
     }
 
-    $db = guidanceDb();
-    $where = 'id = :id AND deleted_at IS NULL';
-    $q = [':id' => $caseId];
+    $db    = guidanceDb();
+    $where = 'c.id = :id AND c.deleted_at IS NULL';
+    $q     = [':id' => $caseId];
     if ($role === 'counselor') {
-        $where .= ' AND counselor_id = :cid';
+        $where    .= ' AND c.counselor_id = :cid';
         $q[':cid'] = $userId;
     }
 
     $stmt = $db->prepare(
-        "SELECT id, case_number, student_name, student_id, student_mobile, status, severity, category, presenting_issue, COALESCE(resolution_summary, '') AS notes, updated_at\n"
-        . "FROM gm_cases\n"
+        "SELECT c.*, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name,\n"
+        . "       col.name AS college_name, col.code AS college_code\n"
+        . "FROM gm_cases c\n"
+        . "LEFT JOIN gm_users u ON c.counselor_id = u.id\n"
+        . "LEFT JOIN gm_colleges col ON c.college_id = col.id\n"
         . "WHERE {$where}\n"
         . "LIMIT 1"
     );
@@ -3324,12 +3327,133 @@ function pageGuidanceCaseView(array $params = []): void
         return;
     }
 
+    // Age from date_of_birth
+    $ageStr = '';
+    if (!empty($case['date_of_birth'])) {
+        try {
+            $age    = (int)(new DateTimeImmutable())->diff(new DateTimeImmutable($case['date_of_birth']))->y;
+            $ageStr = "({$age})";
+        } catch (\Exception $e) {
+            $ageStr = '';
+        }
+    }
+
+    // Recent appointments (last 5)
+    $apptStmt = $db->prepare(
+        "SELECT a.id, a.scheduled_date, a.scheduled_time, a.duration_minutes, a.status, a.purpose,\n"
+        . "       at.name AS type_name, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+        . "FROM gm_appointments a\n"
+        . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
+        . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
+        . "WHERE a.case_id = ?\n"
+        . "ORDER BY a.scheduled_date DESC, a.scheduled_time DESC\n"
+        . "LIMIT 5"
+    );
+    $apptStmt->execute([$caseId]);
+    $recentSessions = $apptStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($recentSessions as &$s) {
+        $d = $s['scheduled_date'] ?? date('Y-m-d');
+        $t = $s['scheduled_time'] ?? '00:00:00';
+        try {
+            $dt                  = new DateTimeImmutable($d . ' ' . $t);
+            $s['formatted_date'] = $dt->format('M d, Y');
+            $s['formatted_time'] = $dt->format('g:i A');
+            $dur                 = (int)($s['duration_minutes'] ?? 30);
+            $s['formatted_end']  = $dt->modify("+{$dur} minutes")->format('g:i A');
+        } catch (\Exception $e) {
+            $s['formatted_date'] = $d;
+            $s['formatted_time'] = $t;
+            $s['formatted_end']  = '';
+        }
+    }
+    unset($s);
+
+    $acStmt = $db->prepare("SELECT COUNT(*) FROM gm_appointments WHERE case_id = ?");
+    $acStmt->execute([$caseId]);
+    $apptCount = (int)$acStmt->fetchColumn();
+
+    // Next upcoming appointment
+    $nextStmt = $db->prepare(
+        "SELECT a.id, a.scheduled_date, a.scheduled_time, a.duration_minutes, a.status, a.purpose,\n"
+        . "       at.name AS type_name, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+        . "FROM gm_appointments a\n"
+        . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
+        . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
+        . "WHERE a.case_id = ? AND a.scheduled_date >= CURDATE()\n"
+        . "  AND a.status IN ('pending','requested','scheduled','confirmed','rescheduled')\n"
+        . "ORDER BY a.scheduled_date ASC, a.scheduled_time ASC\n"
+        . "LIMIT 1"
+    );
+    $nextStmt->execute([$caseId]);
+    $nextAppointment = $nextStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    if (is_array($nextAppointment)) {
+        $d = $nextAppointment['scheduled_date'] ?? date('Y-m-d');
+        $t = $nextAppointment['scheduled_time'] ?? '00:00:00';
+        try {
+            $dt                               = new DateTimeImmutable($d . ' ' . $t);
+            $nextAppointment['formatted_date'] = $dt->format('F j, Y');
+            $nextAppointment['formatted_dow']  = $dt->format('D');
+            $nextAppointment['formatted_time'] = $dt->format('g:i A');
+            $dur                               = (int)($nextAppointment['duration_minutes'] ?? 30);
+            $nextAppointment['formatted_end']  = $dt->modify("+{$dur} minutes")->format('g:i A');
+        } catch (\Exception $e) {
+            $nextAppointment['formatted_date'] = $d;
+            $nextAppointment['formatted_dow']  = '';
+            $nextAppointment['formatted_time'] = $t;
+            $nextAppointment['formatted_end']  = '';
+        }
+    }
+
+    // Recent notes (2 for overview)
+    $notesStmt = $db->prepare(
+        "SELECT n.id, n.note_content, n.session_date, n.created_at,\n"
+        . "       CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+        . "FROM gm_counselor_notes n\n"
+        . "LEFT JOIN gm_users u ON n.counselor_id = u.id\n"
+        . "WHERE n.case_id = ?\n"
+        . "ORDER BY n.created_at DESC\n"
+        . "LIMIT 2"
+    );
+    $notesStmt->execute([$caseId]);
+    $recentNotes = $notesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $ncStmt = $db->prepare("SELECT COUNT(*) FROM gm_counselor_notes WHERE case_id = ?");
+    $ncStmt->execute([$caseId]);
+    $notesCount = (int)$ncStmt->fetchColumn();
+
+    // Recent documents (3 for overview)
+    $docsStmt = $db->prepare(
+        "SELECT a.id, a.file_name, a.file_type, a.uploaded_at,\n"
+        . "       CONCAT(u.first_name, ' ', u.last_name) AS uploader_name\n"
+        . "FROM gm_attachments a\n"
+        . "LEFT JOIN gm_users u ON a.uploaded_by = u.id\n"
+        . "WHERE a.case_id = ? AND a.deleted_at IS NULL\n"
+        . "ORDER BY a.uploaded_at DESC\n"
+        . "LIMIT 3"
+    );
+    $docsStmt->execute([$caseId]);
+    $recentDocuments = $docsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $dcStmt = $db->prepare("SELECT COUNT(*) FROM gm_attachments WHERE case_id = ? AND deleted_at IS NULL");
+    $dcStmt->execute([$caseId]);
+    $docsCount = (int)$dcStmt->fetchColumn();
+
     echo guidanceRender('modules/guidance/pages/case-view.disyl', array_merge(
-        guidanceBasePageContext(is_array($user) ? $user : [], 'Case', 'cases'),
+        guidanceBasePageContext($user, 'Student Profile', 'cases'),
         [
-            'case' => $case,
-            'can_delete_case' => $role !== 'counselor',
-            'show_case_notes' => guidanceIsPro(),
+            'case'             => $case,
+            'age_str'          => $ageStr,
+            'recent_sessions'  => $recentSessions,
+            'appt_count'       => $apptCount,
+            'next_appointment' => $nextAppointment,
+            'recent_notes'     => $recentNotes,
+            'notes_count'      => $notesCount,
+            'recent_documents' => $recentDocuments,
+            'docs_count'       => $docsCount,
+            'can_delete_case'  => $role !== 'counselor',
+            'show_case_notes'  => guidanceIsPro(),
         ]
     ));
 }
@@ -3376,6 +3500,86 @@ function apiGuidanceGetCase(array $params = []): void
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => true, 'data' => $case], JSON_UNESCAPED_SLASHES);
+}
+
+function apiGuidanceCaseAppointments(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+
+    if ($caseId < 1) {
+        http_response_code(404);
+        echo '';
+        return;
+    }
+
+    $db     = guidanceDb();
+    $csStmt = $db->prepare("SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+    $csStmt->execute([$caseId]);
+    $caseRow = $csStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!is_array($caseRow)) {
+        http_response_code(404);
+        echo '<div class="p-8 text-center text-gray-400">Case not found.</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($caseRow['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-8 text-center text-red-400">Access denied.</div>';
+        return;
+    }
+
+    $page    = max(1, (int)(guidanceInput()['page'] ?? 1));
+    $perPage = 20;
+    $offset  = ($page - 1) * $perPage;
+
+    $ctStmt = $db->prepare("SELECT COUNT(*) FROM gm_appointments WHERE case_id = ?");
+    $ctStmt->execute([$caseId]);
+    $total      = (int)$ctStmt->fetchColumn();
+    $totalPages = (int)ceil($total / max(1, $perPage));
+
+    $aStmt = $db->prepare(
+        "SELECT a.id, a.scheduled_date, a.scheduled_time, a.duration_minutes, a.status, a.purpose,\n"
+        . "       at.name AS type_name, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+        . "FROM gm_appointments a\n"
+        . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
+        . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
+        . "WHERE a.case_id = ?\n"
+        . "ORDER BY a.scheduled_date DESC, a.scheduled_time DESC\n"
+        . "LIMIT {$perPage} OFFSET {$offset}"
+    );
+    $aStmt->execute([$caseId]);
+    $appointments = $aStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($appointments as &$s) {
+        $d = $s['scheduled_date'] ?? date('Y-m-d');
+        $t = $s['scheduled_time'] ?? '00:00:00';
+        try {
+            $dt                  = new DateTimeImmutable($d . ' ' . $t);
+            $s['formatted_date'] = $dt->format('M d, Y');
+            $s['formatted_time'] = $dt->format('g:i A');
+            $dur                 = (int)($s['duration_minutes'] ?? 30);
+            $s['formatted_end']  = $dt->modify("+{$dur} minutes")->format('g:i A');
+        } catch (\Exception $e) {
+            $s['formatted_date'] = $d;
+            $s['formatted_time'] = $t;
+            $s['formatted_end']  = '';
+        }
+    }
+    unset($s);
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/case-appointments-tab.disyl', [
+        'appointments'      => $appointments,
+        'appointments_json' => json_encode($appointments, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'total'             => $total,
+        'page'              => $page,
+        'total_pages'       => $totalPages,
+        'case_id'           => $caseId,
+        'base_url'          => '/admin/guidance',
+    ]);
 }
 
 function apiGuidanceCaseHistory(array $params = []): void
