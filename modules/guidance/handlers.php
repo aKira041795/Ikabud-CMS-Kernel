@@ -3572,13 +3572,12 @@ function apiGuidanceCaseAppointments(array $params = []): void
 
     header('Content-Type: text/html; charset=utf-8');
     echo guidanceRender('modules/guidance/partials/case-appointments-tab.disyl', [
-        'appointments'      => $appointments,
-        'appointments_json' => json_encode($appointments, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        'total'             => $total,
-        'page'              => $page,
-        'total_pages'       => $totalPages,
-        'case_id'           => $caseId,
-        'base_url'          => '/admin/guidance',
+        'appointments' => $appointments,
+        'total'        => $total,
+        'page'         => $page,
+        'total_pages'  => $totalPages,
+        'case_id'      => $caseId,
+        'base_url'     => '/admin/guidance',
     ]);
 }
 

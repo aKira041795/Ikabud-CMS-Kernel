@@ -2394,7 +2394,7 @@ class TemplateEngine
      */
     private function hasEscapeFilter(string $expr, array $parsedFilterNames = []): bool
     {
-        $escapeFilters = ['esc_html', 'esc_attr', 'esc_url', 'esc_js', 'json', 'url_encode', 'base64', 'nl2br'];
+        $escapeFilters = ['esc_html', 'esc_attr', 'esc_url', 'esc_js', 'json', 'json_attr', 'url_encode', 'base64', 'nl2br'];
         if ($parsedFilterNames !== []) {
             foreach ($parsedFilterNames as $name) {
                 if (in_array($name, $escapeFilters, true)) {
@@ -2811,6 +2811,14 @@ class TemplateEngine
                 : (string)$v,
             'nl2br' => fn($v) => nl2br((string) $v),
             'json' => fn($v) => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            // json_attr: JSON-encode then HTML-escape for safe embedding in double-quoted HTML attributes.
+            // Use {myArray | json_attr} in x-data="{raw: {myArray | json_attr}}" and similar Alpine/x-* attrs.
+            // Browsers decode &quot; → " before passing the attribute value to JS, so Alpine.js sees correct JSON.
+            'json_attr' => fn($v) => htmlspecialchars(
+                json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                ENT_QUOTES,
+                'UTF-8'
+            ),
             'date' => fn($v, $a) => $v ? date($a[0] ?? 'Y-m-d', is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
             'default' => fn($v, $a) => ($v !== null && $v !== '') ? $v : ($a[0] ?? ''),
             'count' => fn($v) => is_countable($v) ? count($v) : 0,

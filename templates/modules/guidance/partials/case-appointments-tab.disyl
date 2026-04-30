@@ -3,7 +3,7 @@
 
 <div x-data="{
     filter: 'all',
-    raw: {appointments_json | raw},
+    raw: {appointments | json_attr},
     get rows() {
         if (this.filter === 'all')       return this.raw;
         if (this.filter === 'upcoming')  return this.raw.filter(a => ['scheduled','confirmed','pending','requested'].includes(a.status));
