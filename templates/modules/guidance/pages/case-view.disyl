@@ -4,6 +4,7 @@
 <div x-data="{
     tab: 'overview',
     apptLoaded: false,
+    sessionsLoaded: false,
     notesLoaded: false,
     docsLoaded: false,
     logLoaded: false
@@ -188,7 +189,7 @@
                 class="flex items-center gap-2 px-4 py-3.5 text-sm border-b-2 transition-colors whitespace-nowrap flex-shrink-0">
             <i class="fas fa-calendar-check text-xs"></i> Appointments
         </button>
-        <button @click="tab = 'session_records'; if (!notesLoaded) { notesLoaded = true; $dispatch('load-case-notes'); }"
+        <button @click="tab = 'session_records'; if (!sessionsLoaded) { sessionsLoaded = true; $dispatch('load-case-sessions'); }"
                 :class="tab === 'session_records' ? 'border-teal-600 text-teal-700 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'"
                 class="flex items-center gap-2 px-4 py-3.5 text-sm border-b-2 transition-colors whitespace-nowrap flex-shrink-0">
             <i class="fas fa-clipboard-list text-xs"></i> Session Records
@@ -634,16 +635,32 @@
 </div>
 
 {!-- ============================= --}
-{!-- SESSION RECORDS + NOTES TABS  --}
+{!-- SESSION RECORDS TAB           --}
 {!-- ============================= --}
-<div x-show="tab === 'session_records' || tab === 'notes'" x-cloak>
+<div x-show="tab === 'session_records'" x-cloak>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div id="case-sessions-tab"
+             hx-get="/admin/guidance/api/cases/{case.id}/session-records"
+             hx-trigger="load-case-sessions from:body"
+             hx-swap="innerHTML">
+            <div class="p-10 text-center text-gray-400">
+                <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading session records...
+            </div>
+        </div>
+    </div>
+</div>
+
+{!-- ============================= --}
+{!-- NOTES TAB                     --}
+{!-- ============================= --}
+<div x-show="tab === 'notes'" x-cloak>
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-800" x-text="tab === 'notes' ? 'Counselor Notes' : 'Session Records'">Session Records</h3>
+            <h3 class="text-sm font-semibold text-gray-800">Counselor Notes</h3>
             {if show_case_notes}
             <button hx-get="/pages/cases/{case.id}/notes/new" hx-target="#modal-container"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white text-xs font-semibold rounded-lg hover:bg-teal-800 transition-colors shadow-sm">
-                <i class="fas fa-plus text-[10px]"></i> Add Record
+                <i class="fas fa-plus text-[10px]"></i> Add Note
             </button>
             {/if}
         </div>
@@ -652,7 +669,7 @@
              hx-trigger="load-case-notes from:body"
              hx-swap="innerHTML">
             <div class="p-10 text-center text-gray-400">
-                <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading records...
+                <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading notes...
             </div>
         </div>
     </div>

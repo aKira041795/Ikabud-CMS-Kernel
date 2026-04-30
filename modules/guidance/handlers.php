@@ -3581,6 +3581,210 @@ function apiGuidanceCaseAppointments(array $params = []): void
     ]);
 }
 
+function apiGuidanceCaseSessionRecords(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+
+    if ($caseId < 1) {
+        http_response_code(404);
+        echo '';
+        return;
+    }
+
+    $db      = guidanceDb();
+    $csStmt  = $db->prepare("SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+    $csStmt->execute([$caseId]);
+    $caseRow = $csStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!is_array($caseRow)) {
+        http_response_code(404);
+        echo '<div class="p-8 text-center text-gray-400">Case not found.</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($caseRow['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-8 text-center text-red-400">Access denied.</div>';
+        return;
+    }
+
+    $page    = max(1, (int)(guidanceInput()['page'] ?? 1));
+    $perPage = 20;
+    $offset  = ($page - 1) * $perPage;
+
+    // Total and per-status counts for stats row
+    $statsSql = "SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS cnt_completed,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS cnt_in_progress,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cnt_cancelled,
+        SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) AS cnt_no_show
+        FROM gm_appointments WHERE case_id = ?";
+    $stRow = $db->prepare($statsSql);
+    $stRow->execute([$caseId]);
+    $stats = $stRow->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    $total      = (int)($stats['total'] ?? 0);
+    $totalPages = (int)ceil($total / max(1, $perPage));
+
+    $aStmt = $db->prepare(
+        "SELECT a.id, a.scheduled_date, a.scheduled_time, a.duration_minutes, a.status, a.purpose, a.location,\n"
+        . "       at.name AS type_name, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+        . "FROM gm_appointments a\n"
+        . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
+        . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
+        . "WHERE a.case_id = ?\n"
+        . "ORDER BY a.scheduled_date DESC, a.scheduled_time DESC\n"
+        . "LIMIT {$perPage} OFFSET {$offset}"
+    );
+    $aStmt->execute([$caseId]);
+    $sessions = $aStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($sessions as &$s) {
+        $d = $s['scheduled_date'] ?? date('Y-m-d');
+        $t = $s['scheduled_time'] ?? '00:00:00';
+        try {
+            $dt                  = new DateTimeImmutable($d . ' ' . $t);
+            $s['formatted_date'] = $dt->format('M d, Y');
+            $s['formatted_time'] = $dt->format('g:i A');
+            $dur                 = (int)($s['duration_minutes'] ?? 30);
+            $s['formatted_end']  = $dt->modify("+{$dur} minutes")->format('g:i A');
+        } catch (\Exception $e) {
+            $s['formatted_date'] = $d;
+            $s['formatted_time'] = $t;
+            $s['formatted_end']  = '';
+        }
+    }
+    unset($s);
+
+    $from = $total > 0 ? $offset + 1 : 0;
+    $to   = min($offset + $perPage, $total);
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/case-session-records-tab.disyl', [
+        'sessions'        => $sessions,
+        'total'           => $total,
+        'page'            => $page,
+        'total_pages'     => $totalPages,
+        'from'            => $from,
+        'to'              => $to,
+        'cnt_completed'   => (int)($stats['cnt_completed'] ?? 0),
+        'cnt_in_progress' => (int)($stats['cnt_in_progress'] ?? 0),
+        'cnt_cancelled'   => (int)($stats['cnt_cancelled'] ?? 0),
+        'cnt_no_show'     => (int)($stats['cnt_no_show'] ?? 0),
+        'case_id'         => $caseId,
+        'base_url'        => '/admin/guidance',
+    ]);
+}
+
+function apiGuidanceCaseSessionDetail(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+    $apptId = (int)($params['apptId'] ?? 0);
+
+    if ($caseId < 1 || $apptId < 1) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Not found.</div>';
+        return;
+    }
+
+    $db      = guidanceDb();
+    $csStmt  = $db->prepare("SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+    $csStmt->execute([$caseId]);
+    $caseRow = $csStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!is_array($caseRow)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Case not found.</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($caseRow['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-6 text-sm text-red-400">Access denied.</div>';
+        return;
+    }
+
+    $aStmt = $db->prepare(
+        "SELECT a.id, a.scheduled_date, a.scheduled_time, a.duration_minutes, a.status, a.purpose, a.location,\n"
+        . "       at.name AS type_name, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+        . "FROM gm_appointments a\n"
+        . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
+        . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
+        . "WHERE a.id = ? AND a.case_id = ? LIMIT 1"
+    );
+    $aStmt->execute([$apptId, $caseId]);
+    $appt = $aStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!is_array($appt)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Session not found.</div>';
+        return;
+    }
+
+    // Format date/time
+    $d = $appt['scheduled_date'] ?? date('Y-m-d');
+    $t = $appt['scheduled_time'] ?? '00:00:00';
+    try {
+        $dt                       = new DateTimeImmutable($d . ' ' . $t);
+        $appt['formatted_date']   = $dt->format('M d, Y');
+        $appt['formatted_time']   = $dt->format('g:i A');
+        $dur                      = (int)($appt['duration_minutes'] ?? 30);
+        $appt['formatted_end']    = $dt->modify("+{$dur} minutes")->format('g:i A');
+        $appt['duration_label']   = $dur . ' minute' . ($dur !== 1 ? 's' : '');
+    } catch (\Exception $e) {
+        $appt['formatted_date']  = $d;
+        $appt['formatted_time']  = $t;
+        $appt['formatted_end']   = '';
+        $appt['duration_label']  = ($appt['duration_minutes'] ?? '') . ' mins';
+    }
+
+    // Linked counselor note (prefer appointment_id match, else most recent for the date)
+    $note = [];
+    try {
+        $nStmt = $db->prepare(
+            "SELECT n.id, n.note_content, n.observation_recommendation, n.risk_level, n.session_type\n"
+            . "FROM gm_counselor_notes n\n"
+            . "WHERE n.case_id = ? AND (n.appointment_id = ? OR n.session_date = ?)\n"
+            . "ORDER BY (n.appointment_id = ?) DESC, n.created_at DESC LIMIT 1"
+        );
+        $nStmt->execute([$caseId, $apptId, $d, $apptId]);
+        $note = $nStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (\Exception $e) {
+        // note is optional — ignore
+    }
+
+    // Attachments (linked to appointment or falling back to most recent case docs)
+    $attachments = [];
+    try {
+        $attStmt = $db->prepare(
+            "SELECT a.id, a.file_name, a.file_type, a.uploaded_at,\n"
+            . "       CONCAT(u.first_name, ' ', u.last_name) AS uploader_name\n"
+            . "FROM gm_attachments a\n"
+            . "LEFT JOIN gm_users u ON a.uploaded_by = u.id\n"
+            . "WHERE a.case_id = ? AND a.deleted_at IS NULL\n"
+            . "ORDER BY a.uploaded_at DESC LIMIT 3"
+        );
+        $attStmt->execute([$caseId]);
+        $attachments = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (\Exception $e) {
+        // attachments optional
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/case-session-detail.disyl', [
+        'appt'        => $appt,
+        'note'        => $note,
+        'attachments' => $attachments,
+        'case_id'     => $caseId,
+        'base_url'    => '/admin/guidance',
+    ]);
+}
+
 function apiGuidanceCaseHistory(array $params = []): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
