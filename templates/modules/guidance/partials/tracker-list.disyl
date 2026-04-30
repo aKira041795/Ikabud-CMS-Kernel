@@ -2,7 +2,7 @@
 <div class="grid gap-4">
     {foreach trackers as t}
     <a href="{base_url}/trackers/{t.id}" 
-       hx-get="/pages/trackers/{t.id}" hx-target="#main-content" hx-push-url="{base_url}/trackers/{t.id}"
+    hx-get="{base_url}/pages/trackers/{t.id}" hx-target="#main-content" hx-push-url="{base_url}/trackers/{t.id}"
        class="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-indigo-200 transition group">
         <div class="flex items-start justify-between">
             <div class="flex-1 min-w-0">

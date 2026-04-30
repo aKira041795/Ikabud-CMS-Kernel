@@ -5,13 +5,13 @@
 <div class="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4 flex-wrap">
     <div>
         <h2 class="text-base font-semibold text-gray-900">Session Records</h2>
-        <p class="text-xs text-gray-400 mt-0.5">View all counseling sessions this student has attended.</p>
+        <p class="text-xs text-gray-400 mt-0.5">View historical session outcomes and attendance for this student.</p>
     </div>
     <div class="flex items-center gap-2">
-        <button class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-            <i class="fas fa-filter text-xs text-gray-400"></i> Filter
-        </button>
-        <button hx-get="/pages/appointments/new" hx-target="#modal-container"
+        <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 bg-gray-50">
+            <i class="fas fa-history text-xs text-gray-400"></i> Historical statuses only
+        </span>
+        <button hx-get="/admin/guidance/pages/appointments/new?case_id={case_id}" hx-target="#modal-container" hx-swap="innerHTML"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-700 text-white text-sm font-semibold rounded-lg hover:bg-teal-800 transition-colors shadow-sm">
             <i class="fas fa-plus text-xs"></i> Add Session
         </button>
@@ -171,9 +171,12 @@
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-200 text-xs font-semibold text-teal-700 hover:bg-teal-50 transition-colors">
                                     <i class="fas fa-eye text-[10px]"></i> View Details
                                 </button>
-                                <button type="button" onclick="event.stopPropagation()"
-                                        class="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
-                                    <i class="fas fa-chevron-down text-[10px]"></i>
+                                <button type="button"
+                                        hx-get="{base_url}/pages/appointments/{session.id}/edit"
+                                        hx-target="#modal-container" hx-swap="innerHTML"
+                                        onclick="event.stopPropagation()"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                                    <i class="fas fa-edit text-[10px]"></i> Edit
                                 </button>
                             </div>
                         </td>

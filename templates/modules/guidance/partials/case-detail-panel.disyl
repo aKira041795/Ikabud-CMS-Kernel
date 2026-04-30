@@ -10,7 +10,7 @@
         <div class="px-5 pt-4 pb-2 border-b border-gray-50 flex items-center justify-between">
             <div class="flex items-center gap-2 text-sm text-gray-500">
                 <a href="{base_url}/cases"
-                   hx-get="/pages/cases" hx-target="#main-content" hx-push-url="{base_url}/cases"
+                   hx-get="{base_url}/pages/cases" hx-target="#main-content" hx-push-url="{base_url}/cases"
                    class="hover:text-teal-600 transition-colors">Students</a>
                 <i class="fas fa-chevron-right text-xs text-gray-300"></i>
                 <span class="text-gray-700 font-medium">{case.student_name | esc_html}</span>
@@ -83,7 +83,7 @@
         <div class="border-t border-gray-100">
             <div class="px-5 py-3 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-gray-800">Counseling Session History</h3>
-                <button hx-get="/pages/cases/{case.id}/notes/new"
+                <button hx-get="{base_url}/pages/cases/{case.id}/notes/new"
                         hx-target="#modal-container" hx-swap="innerHTML"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white text-xs font-semibold rounded-lg hover:bg-teal-800 transition shadow-sm">
                     <i class="fas fa-plus text-[10px]"></i> Add New Session
@@ -167,7 +167,7 @@
             </button>
         </div>
 
-        <form hx-post="/api/cases/{case.id}/notes"
+        <form hx-post="{base_url}/api/cases/{case.id}/notes"
               hx-swap="none"
               class="p-5 flex flex-col gap-4 flex-1"
               data-panel-case-id="{case.id}">

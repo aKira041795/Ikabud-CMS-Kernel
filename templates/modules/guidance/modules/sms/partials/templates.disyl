@@ -8,7 +8,7 @@
     <div class="space-y-4">
         {foreach templates as tpl}
         <div class="border rounded-lg p-4 bg-white">
-            <form hx-post="/api/modules/sms/templates" hx-swap="none">
+            <form hx-post="{base_url}/api/modules/sms/templates" hx-swap="none">
                 <input type="hidden" name="event_key" value="{tpl.event_key}">
                 
                 <div class="flex items-center justify-between mb-3">

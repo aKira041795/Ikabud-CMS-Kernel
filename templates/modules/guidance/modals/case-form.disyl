@@ -17,7 +17,7 @@
             </div>
             
             {!-- Form --}
-            <form {if case.id}hx-put="/api/cases/{case.id}"{else}hx-post="/api/cases"{/if}
+            <form {if case.id}hx-put="{base_url}/api/cases/{case.id}"{else}hx-post="{base_url}/api/cases"{/if}
                   hx-swap="none"
                   class="p-6 space-y-6">
                 {if source_appointment.id}

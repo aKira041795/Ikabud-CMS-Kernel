@@ -115,7 +115,7 @@
                 This add-on is inactive for this tenant. Settings saved here will apply when it is activated.
             </div>
             {/if}
-            <form hx-post="/api/modules/{mod.id}/settings" hx-swap="none" class="space-y-4">
+            <form hx-post="{base_url}/api/modules/{mod.id}/settings" hx-swap="none" class="space-y-4">
                 
                 {foreach mod.settings as field}
                 <div>

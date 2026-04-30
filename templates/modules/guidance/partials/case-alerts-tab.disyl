@@ -1,0 +1,73 @@
+{!-- Case Alerts Tab — rendered by apiGuidanceCaseAlerts --}
+
+{if alerts}
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+
+    {!-- Header --}
+    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                <i class="fas fa-bell text-red-500 text-sm"></i>
+            </span>
+            <h3 class="text-sm font-semibold text-gray-800">Active Alerts</h3>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">{alerts | count}</span>
+        </div>
+        <p class="text-xs text-gray-400">Sorted by severity</p>
+    </div>
+
+    {!-- Alert rows --}
+    <div class="divide-y divide-gray-50">
+        {foreach alerts as alert}
+        <div class="flex items-start gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors
+                    {if alert.type == 'urgent_appointment'} hx-get="{alert.link}" hx-target="#modal-container" style="cursor:pointer"{/if}">
+
+            {!-- Icon --}
+            <div class="flex-shrink-0 mt-0.5">
+                <span class="w-10 h-10 rounded-full flex items-center justify-center {alert.icon_bg}">
+                    <i class="fas {alert.icon} text-sm"></i>
+                </span>
+            </div>
+
+            {!-- Body --}
+            <div class="flex-1 min-w-0">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-900">{alert.title | esc_html}</p>
+                        {if alert.description}
+                        <p class="text-sm text-gray-500 mt-0.5 leading-snug">{alert.description | esc_html}</p>
+                        {/if}
+                        <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {alert.badge_class}">{alert.badge_label}</span>
+                            {if alert.actor_name}
+                            <span class="text-xs text-gray-400">&bull; {alert.actor_name | esc_html}</span>
+                            {/if}
+                            <span class="text-xs text-gray-400">&bull; {alert.time_ago}</span>
+                        </div>
+                    </div>
+                    {if alert.link}
+                    <span class="text-gray-300 flex-shrink-0 mt-1">
+                        <i class="fas fa-chevron-right text-xs"></i>
+                    </span>
+                    {/if}
+                </div>
+            </div>
+
+        </div>
+        {/foreach}
+    </div>
+
+</div>
+
+{else}
+
+{!-- Empty state --}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-14 flex flex-col items-center text-center">
+    <div class="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4">
+        <i class="fas fa-shield-check text-2xl text-green-400"></i>
+    </div>
+    <h3 class="text-base font-semibold text-gray-700 mb-1">No active alerts</h3>
+    <p class="text-sm text-gray-400 max-w-xs">No risk flags, urgent appointments, or open follow-ups found for this student.</p>
+</div>
+
+{/if}

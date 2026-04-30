@@ -12,6 +12,7 @@ namespace Ikabud\Kernel\DiSyL\Compiler;
 
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 use Ikabud\Kernel\DiSyL\v4\FilterRegistry;
+use Ikabud\Kernel\DiSyL\v4\FunctionRegistry;
 use Ikabud\Kernel\DiSyL\v4\AST\DocumentNode;
 use Ikabud\Kernel\DiSyL\CMS\CMSAdapterInterface;
 use Ikabud\Kernel\DiSyL\CMS\NullAdapter;
@@ -97,6 +98,17 @@ abstract class CompiledTemplate
     protected function filter(string $name, mixed $value, mixed ...$args): mixed
     {
         return $this->filters->apply($name, $value, $args);
+    }
+
+    /**
+     * Call a built-in template function via FunctionRegistry.
+     * Only whitelisted functions are executed; unknown names return null.
+     *
+     * @param mixed[] $args Pre-evaluated argument values.
+     */
+    protected function callFunction(string $name, array $args): mixed
+    {
+        return FunctionRegistry::call($name, $args);
     }
     
     /**

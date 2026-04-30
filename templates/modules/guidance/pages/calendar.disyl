@@ -11,7 +11,7 @@
             <h1 class="text-2xl font-bold text-gray-900">Calendar</h1>
             <p class="text-sm text-gray-500 mt-1">View appointments by month</p>
         </div>
-        <button hx-get="/pages/appointments/new"
+        <button hx-get="{base_url}/pages/appointments/new"
                 hx-target="#modal-container"
                 hx-swap="innerHTML"
                 class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition shadow-sm">

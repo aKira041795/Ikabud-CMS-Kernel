@@ -166,18 +166,21 @@
             <div>
                 <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Actions</div>
                 <div class="space-y-2">
-                    <button hx-get="/pages/appointments/{appt.id}/edit"
+                    <button hx-get="{base_url}/pages/appointments/{appt.id}/edit"
                             hx-target="#modal-container" hx-swap="innerHTML"
                             class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition">
                         <i class="fas fa-edit text-[11px]"></i> Edit Record
                     </button>
                     {if appt.case_id}
-                    <a href="/pages/cases/{appt.case_id}"
+                    <a href="{base_url}/cases/{appt.case_id}"
+                       hx-get="{base_url}/pages/cases/{appt.case_id}"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/cases/{appt.case_id}"
                        class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
                         <i class="fas fa-folder-open text-[11px]"></i> View Case
                     </a>
                     {/if}
-                    <button hx-get="/pages/cases/{appt.case_id}/notes/add"
+                    <button hx-get="{base_url}/pages/cases/{appt.case_id}/notes/new?session_type=follow-up&amp;session_date={appt.scheduled_date}&amp;appointment_id={appt.id}&amp;followup_required=1"
                             hx-target="#modal-container" hx-swap="innerHTML"
                             class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
                         <i class="fas fa-plus-circle text-[11px]"></i> Add Follow-up Note

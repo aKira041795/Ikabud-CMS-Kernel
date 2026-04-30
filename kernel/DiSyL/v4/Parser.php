@@ -19,6 +19,7 @@ use Ikabud\Kernel\DiSyL\v4\AST\DocumentNode;
 use Ikabud\Kernel\DiSyL\v4\AST\ExpressionNode;
 use Ikabud\Kernel\DiSyL\v4\AST\FilterChain;
 use Ikabud\Kernel\DiSyL\v4\AST\FilterNode;
+use Ikabud\Kernel\DiSyL\v4\AST\FunctionCallNode;
 use Ikabud\Kernel\DiSyL\v4\AST\IdentifierNode;
 use Ikabud\Kernel\DiSyL\v4\AST\IncludeNode;
 use Ikabud\Kernel\DiSyL\v4\AST\LiteralNode;
@@ -768,6 +769,27 @@ class Parser
             );
         }
 
+        // Function call: funcname(arg1, arg2, ...)
+        // Must come before dot-path check so "range(1, n)" is not treated as an identifier.
+        if (preg_match('/^([a-zA-Z_]\w*)\s*\(/', $expr, $fcm)) {
+            $nameLen    = strlen($fcm[1]);
+            $parenStart = strpos($expr, '(', $nameLen);
+            if ($parenStart !== false) {
+                $parenEnd = $this->findMatchingParen($expr, $parenStart);
+                if ($parenEnd === strlen($expr) - 1) {
+                    $funcName = $fcm[1];
+                    $argsStr  = trim(substr($expr, $parenStart + 1, $parenEnd - $parenStart - 1));
+                    $argNodes = [];
+                    if ($argsStr !== '') {
+                        foreach ($this->parseCallArgList($argsStr) as $argExpr) {
+                            $argNodes[] = $this->parseExprValue(trim($argExpr));
+                        }
+                    }
+                    return new FunctionCallNode([], $funcName, $argNodes);
+                }
+            }
+        }
+
         // Dot-path variable (e.g. "user.profile.name")
         if (preg_match('/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*$/', $expr)) {
             return $this->buildDotPath($expr);
@@ -843,6 +865,45 @@ class Parser
         }
 
         return new FilterNode($name, $normalized);
+    }
+
+    /**
+     * Split comma-separated function call arguments, respecting nested
+     * parentheses, brackets, and quoted strings.
+     *
+     * "1, 2, 3"           → ['1', '2', '3']
+     * "1, range(2, 3)"    → ['1', 'range(2, 3)']
+     */
+    private function parseCallArgList(string $str): array
+    {
+        $parts     = [];
+        $cur       = '';
+        $inSingle  = false;
+        $inDouble  = false;
+        $depth     = 0;
+
+        for ($i = 0, $len = strlen($str); $i < $len; $i++) {
+            $ch = $str[$i];
+            if ($ch === '\\' && ($inSingle || $inDouble) && $i + 1 < $len) {
+                $cur .= $ch . $str[++$i];
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $cur .= $ch; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $cur .= $ch; continue; }
+            if ($inSingle || $inDouble)    { $cur .= $ch; continue; }
+            if ($ch === '(' || $ch === '[') { $depth++; $cur .= $ch; continue; }
+            if ($ch === ')' || $ch === ']') { $depth--; $cur .= $ch; continue; }
+            if ($ch === ',' && $depth === 0) {
+                $parts[] = trim($cur);
+                $cur     = '';
+                continue;
+            }
+            $cur .= $ch;
+        }
+        if (($trimmed = trim($cur)) !== '') {
+            $parts[] = $trimmed;
+        }
+        return $parts;
     }
 
     /**

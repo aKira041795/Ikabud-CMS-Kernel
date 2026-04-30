@@ -18,7 +18,7 @@
                 <p class="mt-2 text-sm text-amber-900">Email template management is available on Guidance Pro. Upgrade the tenant entitlement to customize booking confirmation, pending, and rejection messages.</p>
                 <a href="{base_url}/settings"
                    class="mt-4 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
-                   hx-get="/pages/settings"
+                   hx-get="{base_url}/pages/settings"
                    hx-target="#main-content"
                    hx-push-url="{base_url}/settings">
                     <i class="fas fa-arrow-up-right-from-square mr-2"></i>Open Guidance Pro settings
@@ -27,7 +27,7 @@
         </div>
     </div>
     {else}
-    <form hx-put="/api/email-templates" hx-swap="none" class="space-y-6">
+    <form hx-put="{base_url}/api/email-templates" hx-swap="none" class="space-y-6">
         
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <p class="text-sm text-blue-800">

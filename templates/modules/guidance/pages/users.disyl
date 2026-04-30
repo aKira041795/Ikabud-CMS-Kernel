@@ -12,7 +12,7 @@
             <p class="text-sm text-gray-500 mt-1">{if is_admin}Manage counselors and staff accounts{else}Manage your account settings{/if}</p>
         </div>
         {if is_admin}
-        <button hx-get="/pages/users/new" hx-target="#modal-container" hx-swap="innerHTML"
+        <button hx-get="{base_url}/pages/users/new" hx-target="#modal-container" hx-swap="innerHTML"
                 class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
             <i class="fas fa-user-plus mr-2"></i> Add User
         </button>
@@ -28,14 +28,14 @@
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                 <input type="text" name="user_search" placeholder="Search by name or email..."
                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       hx-get="/api/users" hx-target="#users-list" hx-trigger="keyup changed delay:400ms"
+                       hx-get="{base_url}/api/users" hx-target="#users-list" hx-trigger="keyup changed delay:400ms"
                        hx-include="[name='user_role']" />
             </div>
             
             {!-- Role Filter --}
             <select name="user_role"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/api/users" hx-target="#users-list" hx-trigger="change"
+                    hx-get="{base_url}/api/users" hx-target="#users-list" hx-trigger="change"
                     hx-include="[name='user_search']">
                 <option value="">All Roles</option>
                 <option value="admin">Admin</option>
@@ -44,7 +44,7 @@
             </select>
             
             {!-- Clear --}
-            <button type="button" onclick="document.querySelectorAll('[name=user_search],[name=user_role]').forEach(e=>{e.value=''}); htmx.ajax('GET','/api/users',{target:'#users-list'})"
+            <button type="button" onclick="document.querySelectorAll('[name=user_search],[name=user_role]').forEach(e=>{e.value=''}); htmx.ajax('GET','{base_url}/api/users',{target:'#users-list'})"
                     class="text-xs text-gray-500 hover:text-red-600 flex-shrink-0 px-2 py-2" title="Clear filters">
                 <i class="fas fa-times-circle mr-1"></i>Clear
             </button>
@@ -53,7 +53,7 @@
     {/if}
     
     {!-- Users List --}
-    <div id="users-list" hx-get="/api/users" hx-trigger="load, refreshUsers from:body" hx-swap="innerHTML">
+    <div id="users-list" hx-get="{base_url}/api/users" hx-trigger="load, refreshUsers from:body" hx-swap="innerHTML">
         <div class="flex items-center justify-center py-16 text-gray-400">
             <i class="fas fa-spinner fa-spin text-lg mr-3"></i> Loading users...
         </div>

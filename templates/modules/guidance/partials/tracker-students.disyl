@@ -44,7 +44,7 @@
                     {foreach student.cells as cell}
                     <td class="px-3 py-3 text-center">
                         {if cell.status == 'submitted'}
-                        <button hx-post="/api/trackers/{tracker_id}/submissions" 
+                        <button hx-post="{base_url}/api/trackers/{tracker_id}/submissions" 
                                 hx-vals='{"tracker_student_id":"{cell.student_id | raw}","tracker_item_id":"{cell.item_id | raw}","status":"verified"}'
                                 hx-swap="none"
                                 class="w-7 h-7 rounded-full bg-blue-100 text-blue-600 hover:bg-green-100 hover:text-green-600 transition inline-flex items-center justify-center" title="Submitted - click to verify">
@@ -55,14 +55,14 @@
                             <i class="fas fa-check-double text-xs"></i>
                         </span>
                         {elseif cell.status == 'rejected'}
-                        <button hx-post="/api/trackers/{tracker_id}/submissions" 
+                        <button hx-post="{base_url}/api/trackers/{tracker_id}/submissions" 
                                 hx-vals='{"tracker_student_id":"{cell.student_id | raw}","tracker_item_id":"{cell.item_id | raw}","status":"submitted"}'
                                 hx-swap="none"
                                 class="w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-blue-100 hover:text-blue-600 transition inline-flex items-center justify-center" title="Rejected - click to resubmit">
                             <i class="fas fa-times text-xs"></i>
                         </button>
                         {else}
-                        <button hx-post="/api/trackers/{tracker_id}/submissions" 
+                        <button hx-post="{base_url}/api/trackers/{tracker_id}/submissions" 
                                 hx-vals='{"tracker_student_id":"{cell.student_id | raw}","tracker_item_id":"{cell.item_id | raw}","status":"submitted"}'
                                 hx-swap="none"
                                 class="w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 transition inline-flex items-center justify-center" title="Pending - click to mark submitted">
@@ -82,7 +82,7 @@
                     </td>
                     <td class="px-4 py-3 text-right">
                         {if user.role == 'admin' or user.role == 'supervisor'}
-                        <button hx-delete="/api/trackers/{tracker_id}/students/{student.id}" 
+                        <button hx-delete="{base_url}/api/trackers/{tracker_id}/students/{student.id}" 
                                 hx-swap="none" hx-confirm="Remove this student from the tracker?"
                                 class="text-red-400 hover:text-red-600 text-sm" title="Remove">
                             <i class="fas fa-trash-alt"></i>
@@ -101,11 +101,11 @@
         <span class="text-sm text-gray-500">Page {page} of {pages} ({total} students)</span>
         <div class="flex gap-1">
             {if page > 1}
-            <button hx-get="/api/trackers/{tracker_id}/students?page={page - 1}" hx-target="#students-table" 
+            <button hx-get="{base_url}/api/trackers/{tracker_id}/students?page={page - 1}" hx-target="#students-table" 
                     class="px-3 py-1 text-sm border rounded hover:bg-gray-100">Prev</button>
             {/if}
             {if page < pages}
-            <button hx-get="/api/trackers/{tracker_id}/students?page={page + 1}" hx-target="#students-table" 
+            <button hx-get="{base_url}/api/trackers/{tracker_id}/students?page={page + 1}" hx-target="#students-table" 
                     class="px-3 py-1 text-sm border rounded hover:bg-gray-100">Next</button>
             {/if}
         </div>

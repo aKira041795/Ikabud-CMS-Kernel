@@ -18,7 +18,7 @@
                 <p class="text-sm text-gray-500 mt-0.5">Schedule and manage student counseling appointments.</p>
             </div>
         </div>
-        <button hx-get="/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
+        <button hx-get="{base_url}/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
                 class="inline-flex items-center px-4 py-2 bg-teal-700 text-white text-sm font-medium rounded-lg hover:bg-teal-800 transition shadow-sm">
             <i class="fas fa-plus mr-2"></i> New Appointment
         </button>
@@ -26,7 +26,7 @@
 
     {!-- Appointment Stats --}
     <div id="appointment-stats"
-         hx-get="/api/appointments/stats"
+         hx-get="{base_url}/api/appointments/stats"
          hx-trigger="load, refreshAppointments from:body"
          hx-swap="innerHTML"
          class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -101,7 +101,7 @@
     </div>
 
         <div id="appointments-list"
-             hx-get="/api/appointments"
+             hx-get="{base_url}/api/appointments"
              hx-trigger="load, refreshAppointments from:body"
              hx-swap="innerHTML"
              hx-history="false">

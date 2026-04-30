@@ -1,0 +1,162 @@
+{!-- Document Upload Modal --}
+
+<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="guidance-modal-shell">
+        <div class="fixed inset-0 guidance-modal-backdrop" onclick="document.getElementById('modal-container').innerHTML=''"></div>
+
+        <div class="guidance-modal-panel" style="max-width: 520px;">
+            {!-- Header --}
+            <div class="guidance-modal-header">
+                <h2 class="text-xl font-semibold text-gray-800">
+                    <i class="fas fa-upload mr-2 text-teal-600"></i> Upload Document
+                </h2>
+                <button onclick="document.getElementById('modal-container').innerHTML=''"
+                        class="guidance-modal-close">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            {!-- Form --}
+            <form id="doc-upload-form"
+                  hx-post="/admin/guidance/api/cases/{case_id}/documents/upload"
+                  hx-encoding="multipart/form-data"
+                  hx-swap="none"
+                  class="p-6 space-y-5">
+
+                {!-- Drop zone --}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">File <span class="text-red-500">*</span></label>
+                    <div data-upload-zone
+                         class="border-gray-200 bg-gray-50 hover:bg-white relative border-2 border-dashed rounded-xl transition-colors flex flex-col items-center justify-center py-8 px-4 text-center cursor-pointer">
+                        <input type="file" name="document_file" class="sr-only" required
+                               accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.txt">
+                        <div data-upload-empty>
+                            <div class="w-12 h-12 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-cloud-upload-alt text-xl text-teal-500"></i>
+                            </div>
+                            <p class="text-sm font-medium text-gray-700">Click to browse or drag &amp; drop</p>
+                            <p class="text-xs text-gray-400 mt-1">PDF, Word, Excel, Image, CSV &bull; max 50 MB</p>
+                        </div>
+                        <div data-upload-filled class="items-center gap-3 w-full px-2" style="display:none">
+                            <div class="w-10 h-10 bg-teal-50 rounded-lg border border-teal-100 flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-file text-teal-500 text-base"></i>
+                            </div>
+                            <div class="text-left min-w-0 flex-1">
+                                <p class="text-sm font-medium text-gray-800 truncate" data-upload-filename></p>
+                                <p class="text-xs text-gray-400" data-upload-filesize></p>
+                            </div>
+                            <button type="button" data-upload-clear
+                                    class="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                                <i class="fas fa-times text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {!-- Category --}
+                <div>
+                    <label for="doc-category" class="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+                    <select id="doc-category" name="file_category"
+                            class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-gray-700">
+                        <option value="other">Auto-detect from filename</option>
+                        <option value="intake_assessment">Intake &amp; Assessment</option>
+                        <option value="session_notes">Session Notes</option>
+                        <option value="plans_goals">Plans &amp; Goals</option>
+                        <option value="reports">Reports</option>
+                        <option value="forms_consent">Forms &amp; Consent</option>
+                        <option value="correspondence">Correspondence</option>
+                    </select>
+                </div>
+
+                {!-- Description --}
+                <div>
+                    <label for="doc-description" class="block text-sm font-medium text-gray-700 mb-1.5">
+                        Description <span class="text-xs text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input type="text" id="doc-description" name="description"
+                           maxlength="255"
+                           placeholder="Brief description of this document…"
+                           class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-gray-400">
+                </div>
+
+                {!-- Footer --}
+                <div class="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+                    <button type="button" onclick="document.getElementById('modal-container').innerHTML=''"
+                            class="px-4 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" id="doc-upload-submit"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-700 text-white text-sm font-semibold rounded-lg hover:bg-teal-800 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-upload text-xs"></i> Upload Document
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var zone = document.querySelector('[data-upload-zone]');
+    if (!zone) return;
+
+    function setFile(f) {
+        if (!f) return;
+        zone.querySelector('[data-upload-empty]').style.display = 'none';
+        var filled = zone.querySelector('[data-upload-filled]');
+        filled.style.display = 'flex';
+        filled.querySelector('[data-upload-filename]').textContent = f.name;
+        filled.querySelector('[data-upload-filesize]').textContent = f.size > 1048576
+            ? (f.size / 1048576).toFixed(1) + ' MB'
+            : (f.size / 1024).toFixed(1) + ' KB';
+    }
+    function clearFile() {
+        zone.querySelector('input[type=file]').value = '';
+        zone.querySelector('[data-upload-empty]').style.display = '';
+        var filled = zone.querySelector('[data-upload-filled]');
+        filled.style.display = 'none';
+        filled.querySelector('[data-upload-filename]').textContent = '';
+        filled.querySelector('[data-upload-filesize]').textContent = '';
+    }
+
+    zone.addEventListener('click', function(e) {
+        if (!e.target.closest('[data-upload-clear]')) {
+            zone.querySelector('input[type=file]').click();
+        }
+    });
+    zone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        zone.classList.add('border-teal-400', 'bg-teal-50');
+        zone.classList.remove('border-gray-200', 'bg-gray-50');
+    });
+    zone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        zone.classList.remove('border-teal-400', 'bg-teal-50');
+        zone.classList.add('border-gray-200', 'bg-gray-50');
+    });
+    zone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        zone.classList.remove('border-teal-400', 'bg-teal-50');
+        zone.classList.add('border-gray-200', 'bg-gray-50');
+        var f = e.dataTransfer.files[0];
+        if (f) { zone.querySelector('input[type=file]').files = e.dataTransfer.files; setFile(f); }
+    });
+    zone.querySelector('input[type=file]').addEventListener('change', function(e) {
+        setFile(e.target.files[0]);
+    });
+    zone.querySelector('[data-upload-clear]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        clearFile();
+    });
+
+    var form = document.getElementById('doc-upload-form');
+    if (form) {
+        form.addEventListener('htmx:beforeRequest', function() {
+            document.getElementById('doc-upload-submit').disabled = true;
+        });
+        form.addEventListener('htmx:afterRequest', function() {
+            document.getElementById('doc-upload-submit').disabled = false;
+        });
+    }
+})();
+</script>

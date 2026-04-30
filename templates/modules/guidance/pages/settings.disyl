@@ -60,8 +60,8 @@
         
         {!-- Settings Form --}
         <div class="flex-1 min-w-0">
-            <div id="guidance-pro" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mb-5"
-                 hx-get="/pages/settings"
+              <div id="guidance-pro" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mb-5"
+                  hx-get="{base_url}/pages/settings"
                  hx-trigger="refreshGuidanceProAccess from:body"
                  hx-target="closest .settings-section"
                  hx-select="#guidance-pro"
@@ -134,7 +134,7 @@
                         <i class="fas fa-key text-gray-400"></i> Re-activate or update your license key
                     </summary>
                     <div class="px-5 py-4 border-t border-gray-200 bg-white">
-                        <form hx-post="/api/activate-license" hx-swap="none"
+                        <form hx-post="{base_url}/api/activate-license" hx-swap="none"
                               class="space-y-3">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">License Key (JWT)</label>
@@ -172,7 +172,7 @@
                 </div>
 
                 {!-- PRIMARY: Direct JWT activation --}
-                <form hx-post="/api/activate-license" hx-swap="none"
+                <form hx-post="{base_url}/api/activate-license" hx-swap="none"
                       class="space-y-4 mb-6">
                     <div>
                         <label class="block text-sm font-medium text-gray-900 mb-1">
@@ -216,7 +216,7 @@
                     </summary>
                     <div class="px-5 py-4 border-t border-gray-200 bg-white">
                         <p class="text-xs text-gray-500 mb-4">Use this if you don't have a license key yet. A superadmin must approve the request before Pro features are unlocked.</p>
-                        <form hx-post="/api/pro-access" hx-swap="none" class="space-y-4">
+                        <form hx-post="{base_url}/api/pro-access" hx-swap="none" class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">License Key (optional)</label>
                                 <input type="text" name="license_key"
@@ -255,14 +255,14 @@
                 <p class="text-sm text-gray-500 mb-5">Activate and configure Guidance add-ons that are installed on this system for the current tenant.</p>
 
                 <div id="guidance-settings-modules-list"
-                     hx-get="/pages/settings/modules"
+                     hx-get="{base_url}/pages/settings/modules"
                      hx-trigger="refreshGuidanceModules from:body"
                      hx-target="#guidance-settings-modules-list">
                     {include "modules/guidance/partials/modules-list.disyl" with {modules: guidance_modules}}
                 </div>
             </div>
 
-            <form hx-put="/api/settings" hx-swap="none" class="space-y-5">
+            <form hx-put="{base_url}/api/settings" hx-swap="none" class="space-y-5">
                 
                 {!-- General Settings --}
                 <div id="general" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
@@ -464,7 +464,7 @@
 
                 {if is_pro}
                 <div id="appointment-types-list"
-                     hx-get="/api/appointment-types?context=settings&include_inactive=1"
+                     hx-get="{base_url}/api/appointment-types?context=settings&include_inactive=1"
                      hx-trigger="load, refreshAppointmentTypes from:body"
                      hx-target="#appointment-types-list">
                     <div class="text-center py-8 text-gray-400">
@@ -491,7 +491,7 @@
                 <p class="text-sm text-gray-500 mb-5">Manage the statuses available in case records. Renaming a status updates existing cases automatically.</p>
 
                 <div id="student-statuses-list"
-                     hx-get="/api/student-statuses?context=settings"
+                     hx-get="{base_url}/api/student-statuses?context=settings"
                      hx-trigger="load, refreshStudentStatuses from:body"
                      hx-target="#student-statuses-list">
                     <div class="text-center py-8 text-gray-400">
@@ -800,7 +800,7 @@ if (sections.length && 'IntersectionObserver' in window) {
 
 // Save feedback toast
 document.body.addEventListener('htmx:afterRequest', function(e) {
-    if (e.detail.elt && e.detail.elt.closest && e.detail.elt.closest('form[hx-put="/api/settings"]')) {
+    if (e.detail.elt && e.detail.elt.closest && e.detail.elt.closest('form[hx-put="{base_url}/api/settings"]')) {
         var toast = document.createElement('div');
         toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 z-50 animate-fade-in';
         toast.innerHTML = '<i class="fas fa-check-circle"></i> Settings saved successfully';

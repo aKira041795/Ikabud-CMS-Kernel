@@ -56,7 +56,7 @@
         }
         // Execute <script> tags in HTMX-swapped content so Alpine components work
         document.addEventListener('htmx:afterSettle', function(evt) {
-            var scripts = evt.detail.elt.querySelectorAll('script:not([src])');
+            var scripts = evt.detail.target.querySelectorAll('script:not([src])');
             scripts.forEach(function(s) {
                 var ns = document.createElement('script');
                 ns.textContent = s.textContent;
@@ -108,7 +108,7 @@
             <nav class="mt-4 px-2 flex-1 overflow-y-auto">
                 <a href="{base_url}/" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'dashboard'}bg-teal-700{/if}"
-                   hx-get="/pages/dashboard" 
+                   hx-get="{base_url}/pages/dashboard" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/">
                     <i class="fas fa-th-large w-5 text-center flex-shrink-0"></i>
@@ -117,7 +117,7 @@
                 
                 <a href="{base_url}/cases" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'cases'}bg-teal-700{/if}"
-                   hx-get="/pages/cases" 
+                   hx-get="{base_url}/pages/cases" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/cases">
                     <i class="fas fa-user-graduate w-5 text-center flex-shrink-0"></i>
@@ -135,7 +135,7 @@
                     <div x-show="sessionsOpen" class="ml-4 space-y-0.5 mb-1">
                         <a href="{base_url}/appointments"
                            class="flex items-center pl-6 pr-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-teal-200 hover:text-white {if current_page == 'appointments'}bg-teal-700 text-white{/if}"
-                           hx-get="/pages/appointments"
+                           hx-get="{base_url}/pages/appointments"
                            hx-target="#main-content"
                            hx-push-url="{base_url}/appointments">
                             <span class="w-2 h-2 rounded-full bg-current mr-3 flex-shrink-0"></span>
@@ -143,7 +143,7 @@
                         </a>
                         <a href="{base_url}/session-records"
                            class="flex items-center pl-6 pr-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-teal-200 hover:text-white {if current_page == 'session-records'}bg-teal-700 text-white{/if}"
-                           hx-get="/pages/session-records"
+                           hx-get="{base_url}/pages/session-records"
                            hx-target="#main-content"
                            hx-push-url="{base_url}/session-records">
                             <span class="w-2 h-2 rounded-full bg-current mr-3 flex-shrink-0"></span>
@@ -155,7 +155,7 @@
                 <div x-show="!sidebarOpen" x-cloak>
                     <a href="{base_url}/appointments"
                        class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'appointments' || current_page == 'session-records'}bg-teal-700{/if}"
-                       hx-get="/pages/appointments"
+                       hx-get="{base_url}/pages/appointments"
                        hx-target="#main-content"
                        hx-push-url="{base_url}/appointments">
                         <i class="fas fa-calendar-check w-5 text-center flex-shrink-0"></i>
@@ -164,7 +164,7 @@
                 
                 <a href="{base_url}/reports" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'reports'}bg-teal-700{/if}"
-                   hx-get="/pages/reports" 
+                   hx-get="{base_url}/pages/reports" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/reports">
                     <i class="fas fa-chart-bar w-5 text-center flex-shrink-0"></i>
@@ -173,7 +173,7 @@
                 
                 <a href="{base_url}/calendar" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'calendar'}bg-teal-700{/if}"
-                   hx-get="/pages/calendar" 
+                   hx-get="{base_url}/pages/calendar" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/calendar">
                     <i class="fas fa-calendar w-5 text-center flex-shrink-0"></i>
@@ -192,7 +192,7 @@
                     {foreach module_nav_items as nav}
                     <a href="{base_url}/{nav.module_id}" 
                        class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 mt-1 transition-colors {if current_page == nav.module_id}bg-teal-700{/if}"
-                       hx-get="/pages/{nav.module_id}" 
+                       hx-get="{base_url}/pages/{nav.module_id}" 
                        hx-target="#main-content" 
                        hx-push-url="{base_url}/{nav.module_id}">
                         <i class="{nav.icon} w-6"></i>
@@ -205,7 +205,7 @@
                 <div class="mt-4 pt-4 border-t border-teal-700">
                     <a href="{base_url}/trackers"
                        class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'trackers'}bg-teal-700{/if}"
-                       hx-get="/pages/trackers"
+                       hx-get="{base_url}/pages/trackers"
                        hx-target="#main-content"
                        hx-push-url="{base_url}/trackers">
                         <i class="fas fa-file-alt w-5 text-center flex-shrink-0"></i>
@@ -215,7 +215,7 @@
                 {if user.role == 'admin'}
                     <a href="{base_url}/settings" 
                        class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'settings'}bg-teal-700{/if}"
-                       hx-get="/pages/settings" 
+                       hx-get="{base_url}/pages/settings" 
                        hx-target="#main-content" 
                        hx-push-url="{base_url}/settings">
                         <i class="fas fa-cog w-5 text-center flex-shrink-0"></i>
@@ -240,32 +240,32 @@
                 <div x-show="open" @click.away="open = false" x-cloak
                      class="mt-1 bg-teal-700 rounded-lg py-1 overflow-hidden">
                     <a href="{base_url}/profile"
-                       hx-get="/pages/profile" hx-target="#main-content" hx-push-url="{base_url}/profile"
+                       hx-get="{base_url}/pages/profile" hx-target="#main-content" hx-push-url="{base_url}/profile"
                        @click="open = false"
                        class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
                         <i class="fas fa-user mr-2 w-4"></i> Profile
                     </a>
                     {if user.role == 'admin'}
                     <a href="{base_url}/users"
-                       hx-get="/pages/users" hx-target="#main-content" hx-push-url="{base_url}/users"
+                       hx-get="{base_url}/pages/users" hx-target="#main-content" hx-push-url="{base_url}/users"
                        @click="open = false"
                        class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
                         <i class="fas fa-users mr-2 w-4"></i> Users
                     </a>
                     <a href="{base_url}/colleges"
-                       hx-get="/pages/colleges" hx-target="#main-content" hx-push-url="{base_url}/colleges"
+                       hx-get="{base_url}/pages/colleges" hx-target="#main-content" hx-push-url="{base_url}/colleges"
                        @click="open = false"
                        class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
                         <i class="fas fa-university mr-2 w-4"></i> Colleges
                     </a>
                     <a href="{base_url}/form-settings"
-                       hx-get="/pages/form-settings" hx-target="#main-content" hx-push-url="{base_url}/form-settings"
+                       hx-get="{base_url}/pages/form-settings" hx-target="#main-content" hx-push-url="{base_url}/form-settings"
                        @click="open = false"
                        class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
                         <i class="fas fa-sliders-h mr-2 w-4"></i> Form Settings
                     </a>
                     <a href="{base_url}/email-templates"
-                       hx-get="/pages/email-templates" hx-target="#main-content" hx-push-url="{base_url}/email-templates"
+                       hx-get="{base_url}/pages/email-templates" hx-target="#main-content" hx-push-url="{base_url}/email-templates"
                        @click="open = false"
                        class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
                         <i class="fas fa-envelope mr-2 w-4"></i> Email Templates
@@ -355,7 +355,7 @@
                         <div x-show="open" @click.away="open = false" x-cloak
                              class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
                             <a href="{base_url}/profile" 
-                               hx-get="/pages/profile" 
+                               hx-get="{base_url}/pages/profile" 
                                hx-target="#main-content" 
                                hx-push-url="{base_url}/profile"
                                @click="open = false"
@@ -619,6 +619,14 @@
                 htmx.trigger(notesList, 'load');
             }
         });
+
+        // Handle refreshDocuments trigger
+        document.body.addEventListener('refreshDocuments', function(evt) {
+            const docTab = document.getElementById('case-documents-tab');
+            if (docTab) {
+                htmx.trigger(docTab, 'load-case-docs');
+            }
+        });
         
         // Close modal function
         function closeModal() {
@@ -738,7 +746,8 @@
         
         // Re-initialize Alpine.js on HTMX content swaps
         document.body.addEventListener('htmx:afterSettle', function(evt) {
-            if (evt.detail.target.id === 'main-content' && window.Alpine) {
+            var targetId = evt.detail.target.id;
+            if ((targetId === 'main-content' || targetId === 'modal-container') && window.Alpine) {
                 // Defer to next tick so HTMX finishes all DOM operations first
                 setTimeout(function() { Alpine.initTree(evt.detail.target); }, 0);
             }

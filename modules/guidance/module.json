@@ -89,7 +89,9 @@
     "migrations": [
         "migrations/001_guidance_schema.sql",
         "migrations/002_guidance_seed.sql",
-        "migrations/003_guidance_booking_snapshot.sql"
+        "migrations/003_guidance_booking_snapshot.sql",
+        "migrations/004_guidance_attachments_meta.sql",
+        "migrations/005_guidance_note_appointment_link.sql"
     ],
     "seeds": [
         "seeds/001_guidance_baseline.sql"

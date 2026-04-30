@@ -12,14 +12,14 @@
                 </button>
             </div>
             
-            <form hx-post="/api/notes"
+            <form hx-post="{base_url}/api/notes"
                   hx-swap="none"
                   class="p-6 space-y-4">
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Case *</label>
                     <select name="case_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            hx-get="/api/cases/options" hx-trigger="load" hx-swap="innerHTML">
+                            hx-get="{base_url}/api/cases/options" hx-trigger="load" hx-swap="innerHTML">
                         <option value="">Loading cases...</option>
                     </select>
                     <p class="text-xs text-gray-500 mt-1">Choose the case this note belongs to</p>

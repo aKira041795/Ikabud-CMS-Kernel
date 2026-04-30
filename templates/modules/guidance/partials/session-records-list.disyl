@@ -109,7 +109,7 @@
                                             class="w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700 flex items-center gap-2">
                                         <i class="fas fa-eye text-teal-500 w-3"></i> View Details
                                     </button>
-                                    <button hx-get="/pages/appointments/{row.id}/edit"
+                                    <button hx-get="{base_url}/pages/appointments/{row.id}/edit"
                                             hx-target="#modal-container" hx-swap="innerHTML"
                                             class="w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700 flex items-center gap-2">
                                         <i class="fas fa-edit text-blue-500 w-3"></i> Edit Record
@@ -271,7 +271,7 @@
                     {!-- Action --}
                     <td class="px-4 py-3 align-middle text-right">
                         <div class="flex items-center justify-end gap-1">
-                            <button hx-get="/pages/appointments/{row.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
+                            <button hx-get="{base_url}/pages/appointments/{row.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
                                     class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition">
                                 <i class="fas fa-eye text-[10px]"></i> View Details
                             </button>

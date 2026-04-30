@@ -11,14 +11,14 @@
             {ikb_text color="muted"}Manage colleges and department assignments{/ikb_text}
         </div>
         
-        {ikb_button variant="primary" hx-get="/pages/colleges/new" hx-target="#modal-container"}
+        {ikb_button variant="primary" hx-get="{base_url}/pages/colleges/new" hx-target="#modal-container"}
             <i class="fas fa-plus mr-2"></i> Add College
         {/ikb_button}
     </div>
     
     {!-- Colleges Table --}
     {ikb_card variant="elevated" padding="none"}
-        <div id="colleges-list" hx-get="/api/colleges" hx-trigger="load, refreshColleges from:body" hx-swap="innerHTML">
+        <div id="colleges-list" hx-get="{base_url}/api/colleges" hx-trigger="load, refreshColleges from:body" hx-swap="innerHTML">
             <div class="p-12 text-center">
                 {ikb_spinner size="lg" /}
                 {ikb_text color="muted" class="mt-4"}Loading colleges...{/ikb_text}

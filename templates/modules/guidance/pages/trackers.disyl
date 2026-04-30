@@ -77,7 +77,7 @@
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
                 <input type="text" id="tf-search" placeholder="Search trackers..."
                        oninput="document.getElementById('tf-search-h').value=this.value"
-                       hx-get="/api/trackers" hx-trigger="keyup changed delay:300ms" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
+                       hx-get="{base_url}/api/trackers" hx-trigger="keyup changed delay:300ms" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
             </div>
 
@@ -86,7 +86,7 @@
                 <label class="text-xs text-gray-400 font-medium mb-1 leading-none">Status</label>
                 <select id="tf-status"
                         onchange="document.getElementById('tf-status-h').value=this.value; document.getElementById('tf-page-h').value='1'"
-                        hx-get="/api/trackers" hx-trigger="change" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/trackers" hx-trigger="change" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
                         class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[130px]">
                     <option value="">All Statuses</option>
                     <option value="active">Active</option>
@@ -99,7 +99,7 @@
                 <label class="text-xs text-gray-400 font-medium mb-1 leading-none">Academic Year</label>
                 <select id="tf-year"
                         onchange="document.getElementById('tf-year-h').value=this.value; document.getElementById('tf-page-h').value='1'"
-                        hx-get="/api/trackers" hx-trigger="change" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/trackers" hx-trigger="change" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
                         class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[130px]">
                     <option value="">All Years</option>
                     {foreach academic_years as yr}
@@ -113,7 +113,7 @@
                 <label class="text-xs text-gray-400 font-medium mb-1 leading-none">Sort by</label>
                 <select id="tf-sort"
                         onchange="document.getElementById('tf-sort-h').value=this.value; document.getElementById('tf-page-h').value='1'"
-                        hx-get="/api/trackers" hx-trigger="change" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/trackers" hx-trigger="change" hx-target="#tracker-list" hx-include="#tf" hx-swap="innerHTML"
                         class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[180px]">
                     <option value="newest">Last Updated (Newest)</option>
                     <option value="oldest">Last Updated (Oldest)</option>
@@ -159,7 +159,7 @@
 
         {!-- List --}
         <div id="tracker-list"
-             hx-get="/api/trackers"
+             hx-get="{base_url}/api/trackers"
              hx-trigger="load, refreshTrackers from:body"
              hx-include="#tf"
              hx-swap="innerHTML"
@@ -182,7 +182,7 @@
                     <h3 class="text-lg font-semibold">Create New Tracker</h3>
                     <button @click="showCreate = false" class="guidance-modal-close"><i class="fas fa-times"></i></button>
                 </div>
-                <form hx-post="/api/trackers" hx-swap="none" hx-on::after-request="if(event.detail.successful) { showCreate = false; this.reset(); }" class="p-5 space-y-4">
+                <form hx-post="{base_url}/api/trackers" hx-swap="none" hx-on::after-request="if(event.detail.successful) { showCreate = false; this.reset(); }" class="p-5 space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tracker Name *</label>
                         <input type="text" name="name" required placeholder="e.g., SY 2025-2026 Requirements"

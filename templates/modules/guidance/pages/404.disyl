@@ -15,7 +15,7 @@
             {ikb_text color="muted" class="mb-8"}{message | default:'The page you are looking for does not exist.'}{/ikb_text}
             
             <div class="flex items-center justify-center space-x-4">
-                {ikb_button variant="primary" hx-get="/pages/dashboard" hx-target="#main-content" hx-push-url="{base_url}/"}
+                {ikb_button variant="primary" hx-get="{base_url}/pages/dashboard" hx-target="#main-content" hx-push-url="{base_url}/"}
                     <i class="fas fa-home mr-2"></i> Go to Dashboard
                 {/ikb_button}
                 

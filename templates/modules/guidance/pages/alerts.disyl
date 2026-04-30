@@ -11,7 +11,7 @@
             <p class="text-sm text-gray-500 mt-1">Stay updated on activity across the guidance system</p>
         </div>
         <button id="btn-mark-all-read"
-                hx-post="/api/notifications/read"
+                hx-post="{base_url}/api/notifications/read"
                 hx-vals='{"id":0}'
                 hx-swap="none"
                 hx-on::after-request="window.guidanceMarkAllReadUi()"
@@ -86,42 +86,42 @@
 
                 <button type="button" data-alert-tab="all"
                         onclick="guidanceAlertSetTab('all')"
-                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                         class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-teal-600 text-teal-600 whitespace-nowrap transition-colors">
                     <i class="fas fa-th-list text-xs"></i> All
                 </button>
 
                 <button type="button" data-alert-tab="unread"
                         onclick="guidanceAlertSetTab('unread')"
-                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                         class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
                     <i class="fas fa-envelope text-xs"></i> Unread
                 </button>
 
                 <button type="button" data-alert-tab="appointments"
                         onclick="guidanceAlertSetTab('appointments')"
-                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                         class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
                     <i class="fas fa-calendar text-xs"></i> Appointments
                 </button>
 
                 <button type="button" data-alert-tab="system"
                         onclick="guidanceAlertSetTab('system')"
-                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                         class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
                     <i class="fas fa-cog text-xs"></i> System
                 </button>
 
                 <button type="button" data-alert-tab="students"
                         onclick="guidanceAlertSetTab('students')"
-                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                         class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
                     <i class="fas fa-user-graduate text-xs"></i> Students
                 </button>
 
                 <button type="button" data-alert-tab="sessions"
                         onclick="guidanceAlertSetTab('sessions')"
-                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                         class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
                     <i class="fas fa-clock text-xs"></i> Sessions
                 </button>
@@ -133,7 +133,7 @@
                 <i class="fas fa-filter text-gray-400 text-xs"></i>
                 <select id="af-sort-select"
                         onchange="document.getElementById('af-sort').value = this.value; document.getElementById('af-page').value = '1'"
-                        hx-get="/api/alerts" hx-trigger="change" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        hx-get="{base_url}/api/alerts" hx-trigger="change" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                         class="text-sm text-gray-700 border-0 focus:ring-0 bg-transparent font-medium cursor-pointer py-3.5">
                     <option value="newest">Newest First</option>
                     <option value="oldest">Oldest First</option>
@@ -144,7 +144,7 @@
 
         {!-- List loaded via HTMX --}
         <div id="alerts-list"
-             hx-get="/api/alerts"
+             hx-get="{base_url}/api/alerts"
              hx-trigger="load, alertsRefresh from:body"
              hx-include="#af"
              hx-swap="innerHTML"
@@ -172,7 +172,7 @@ function guidanceAlertSetTab(tab) {
 }
 
 function guidanceMarkOneRead(id) {
-    fetch('/api/notifications/read', {
+    fetch('{base_url}/api/notifications/read', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -209,7 +209,7 @@ window.guidanceMarkAllReadUi = function() {
 </script>
 
 {/block}
-                hx-post="/api/notifications/read"
+                hx-post="{base_url}/api/notifications/read"
                 hx-vals='{"id":0}'
                 hx-swap="none"
                 hx-on::after-request="window.guidanceMarkAllReadUi()"

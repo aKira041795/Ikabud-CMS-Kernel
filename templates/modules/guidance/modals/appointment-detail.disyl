@@ -231,7 +231,7 @@
                                 <i class="fas fa-folder-open mr-2 text-indigo-500"></i>Linked Case
                             </h3>
                             <a href="{base_url}/cases/{appointment.case_id}" 
-                               hx-get="/pages/cases/{appointment.case_id}"
+                               hx-get="{base_url}/pages/cases/{appointment.case_id}"
                                hx-target="#main-content"
                                hx-push-url="{base_url}/cases/{appointment.case_id}"
                                onclick="closeModal()"
@@ -248,7 +248,7 @@
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
                                 <i class="fas fa-folder-plus mr-2 text-indigo-500"></i>No Linked Case
                             </h3>
-                            <button hx-get="/pages/cases/new?appointment_id={appointment.id}"
+                            <button hx-get="{base_url}/pages/cases/new?appointment_id={appointment.id}"
                                     hx-target="#modal-container"
                                     hx-swap="innerHTML"
                                     class="w-full flex items-center justify-between p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition group">
@@ -296,11 +296,11 @@
                 
                 <div class="flex items-center space-x-2">
                     {if appointment.status == 'pending'}
-                        <button hx-post="/api/appointments/{appointment.id}/approve" hx-swap="none"
+                        <button hx-post="{base_url}/api/appointments/{appointment.id}/approve" hx-swap="none"
                                 class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
                             <i class="fas fa-check mr-2"></i>Approve
                         </button>
-                        <button hx-post="/api/appointments/{appointment.id}/reject" hx-swap="none"
+                        <button hx-post="{base_url}/api/appointments/{appointment.id}/reject" hx-swap="none"
                                 class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition">
                             <i class="fas fa-times mr-2"></i>Reject
                         </button>
@@ -308,16 +308,16 @@
                     
                     {if appointment.status == 'scheduled' or appointment.status == 'confirmed'}
                         {if appointment.status == 'confirmed' and !appointment.case_id}
-                        <button hx-get="/pages/cases/new?appointment_id={appointment.id}" hx-target="#modal-container" hx-swap="innerHTML"
+                        <button hx-get="{base_url}/pages/cases/new?appointment_id={appointment.id}" hx-target="#modal-container" hx-swap="innerHTML"
                                 class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition">
                             <i class="fas fa-folder-plus mr-2"></i>Create Case
                         </button>
                         {/if}
-                        <button hx-post="/api/appointments/{appointment.id}/complete" hx-swap="none"
+                        <button hx-post="{base_url}/api/appointments/{appointment.id}/complete" hx-swap="none"
                                 class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
                             <i class="fas fa-check-double mr-2"></i>Complete
                         </button>
-                        <button hx-post="/api/appointments/{appointment.id}/no-show" hx-swap="none"
+                        <button hx-post="{base_url}/api/appointments/{appointment.id}/no-show" hx-swap="none"
                                 class="px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-lg hover:bg-yellow-700 transition">
                             <i class="fas fa-user-slash mr-2"></i>No Show
                         </button>
@@ -332,7 +332,7 @@
             {!-- Hidden Cancel Form --}
             {if appointment.status == 'scheduled' or appointment.status == 'confirmed'}
             <div id="cancel-form-{appointment.id}" class="hidden px-8 py-4 border-t bg-red-50">
-                <form hx-post="/api/appointments/{appointment.id}/cancel" hx-swap="none" class="flex items-end space-x-3">
+                <form hx-post="{base_url}/api/appointments/{appointment.id}/cancel" hx-swap="none" class="flex items-end space-x-3">
                     <div class="flex-1">
                         <label class="block text-sm font-medium text-red-700 mb-1">Cancellation Reason</label>
                         <input type="text" name="cancellation_reason" required placeholder="Enter reason for cancellation..."

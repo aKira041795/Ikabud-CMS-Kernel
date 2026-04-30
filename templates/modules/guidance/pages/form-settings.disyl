@@ -21,7 +21,7 @@
                 <p class="mt-2 text-sm text-amber-900">Form field customization is part of Guidance Pro. Upgrade the tenant entitlement to enable custom booking, case, and appointment fields.</p>
                 <a href="{base_url}/settings"
                    class="mt-4 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
-                   hx-get="/pages/settings"
+                   hx-get="{base_url}/pages/settings"
                    hx-target="#main-content"
                    hx-push-url="{base_url}/settings">
                     <i class="fas fa-arrow-up-right-from-square mr-2"></i>Open Guidance Pro settings
@@ -50,7 +50,7 @@
 
     {!-- Fields List --}
     <div id="form-fields-list"
-         hx-get="/api/form-fields?form_type=case"
+         hx-get="{base_url}/api/form-fields?form_type=case"
          hx-trigger="load"
          hx-swap="innerHTML">
         <div class="text-center py-8 text-gray-400">

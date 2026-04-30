@@ -2428,7 +2428,45 @@ class TemplateEngine
         if ($lower === 'true') return true;
         if ($lower === 'false') return false;
         if ($lower === 'null') return null;
-        
+
+        // Numeric literals
+        if (is_numeric($path)) {
+            return str_contains($path, '.') ? (float)$path : (int)$path;
+        }
+
+        // Function call: funcname(args...)
+        if (preg_match('/^([a-zA-Z_]\w*)\s*\(/', $path, $fcm)) {
+            $parenStart = strpos($path, '(', strlen($fcm[1]));
+            if ($parenStart !== false) {
+                // Find the matching close paren
+                $depth = 0;
+                $close = -1;
+                for ($i = $parenStart, $plen = strlen($path); $i < $plen; $i++) {
+                    if ($path[$i] === '(') $depth++;
+                    elseif ($path[$i] === ')') {
+                        $depth--;
+                        if ($depth === 0) { $close = $i; break; }
+                    }
+                }
+                if ($close === strlen($path) - 1) {
+                    $funcName = $fcm[1];
+                    $argsStr  = trim(substr($path, $parenStart + 1, $close - $parenStart - 1));
+                    $argParts = $argsStr !== '' ? $this->splitCallArgs($argsStr) : [];
+                    $resolved = [];
+                    foreach ($argParts as $arg) {
+                        $arg = trim($arg);
+                        if (is_numeric($arg)) {
+                            $resolved[] = str_contains($arg, '.') ? (float)$arg : (int)$arg;
+                        } else {
+                            $arith = $this->evaluateArithmetic($arg, $context);
+                            $resolved[] = $arith !== null ? $arith : $this->resolveValue($arg, $context);
+                        }
+                    }
+                    return \Ikabud\Kernel\DiSyL\v4\FunctionRegistry::call($funcName, $resolved);
+                }
+            }
+        }
+
         $parts = explode('.', $path);
         $value = $context;
         
@@ -2443,6 +2481,37 @@ class TemplateEngine
         }
         
         return $value;
+    }
+
+    /**
+     * Split comma-separated function call arguments, respecting nested
+     * parentheses, brackets, and quoted strings.
+     */
+    private function splitCallArgs(string $str): array
+    {
+        $parts    = [];
+        $cur      = '';
+        $inSingle = false;
+        $inDouble = false;
+        $depth    = 0;
+        for ($i = 0, $len = strlen($str); $i < $len; $i++) {
+            $ch = $str[$i];
+            if ($ch === '\\' && ($inSingle || $inDouble) && $i + 1 < $len) {
+                $cur .= $ch . $str[++$i];
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $cur .= $ch; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $cur .= $ch; continue; }
+            if ($inSingle || $inDouble) { $cur .= $ch; continue; }
+            if ($ch === '(' || $ch === '[') { $depth++; $cur .= $ch; continue; }
+            if ($ch === ')' || $ch === ']') { $depth--; $cur .= $ch; continue; }
+            if ($ch === ',' && $depth === 0) { $parts[] = trim($cur); $cur = ''; continue; }
+            $cur .= $ch;
+        }
+        if (($t = trim($cur)) !== '') {
+            $parts[] = $t;
+        }
+        return $parts;
     }
     
     /** Maximum number of filters allowed in a single filter chain */

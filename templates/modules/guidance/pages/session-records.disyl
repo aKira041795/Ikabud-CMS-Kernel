@@ -21,7 +21,7 @@
 
     {!-- Summary Stats --}
     <div id="session-records-stats"
-         hx-get="/api/appointments/session-stats"
+         hx-get="{base_url}/api/appointments/session-stats"
          hx-trigger="load, refreshSessionRecords from:body"
          hx-swap="innerHTML"
          hx-history="false"
@@ -58,7 +58,7 @@
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                 <input type="text" name="sr_search" placeholder="Search by student name or code..."
                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                       hx-get="/api/appointments?session_records=1"
+                       hx-get="{base_url}/api/appointments?session_records=1"
                        hx-target="#session-records-list"
                        hx-trigger="keyup changed delay:400ms"
                        hx-include="#sr-filters" />
@@ -67,7 +67,7 @@
             {!-- Status Filter --}
             <select name="sr_status"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                    hx-get="/api/appointments?session_records=1"
+                    hx-get="{base_url}/api/appointments?session_records=1"
                     hx-target="#session-records-list"
                     hx-trigger="change"
                     hx-include="#sr-filters">
@@ -81,7 +81,7 @@
             {!-- Purpose Filter --}
             <select name="sr_purpose"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                    hx-get="/api/appointments?session_records=1"
+                    hx-get="{base_url}/api/appointments?session_records=1"
                     hx-target="#session-records-list"
                     hx-trigger="change"
                     hx-include="#sr-filters">
@@ -95,7 +95,7 @@
             {if user_role != 'counselor'}
             <select name="sr_counselor"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                    hx-get="/api/appointments?session_records=1"
+                    hx-get="{base_url}/api/appointments?session_records=1"
                     hx-target="#session-records-list"
                     hx-trigger="change"
                     hx-include="#sr-filters">
@@ -110,14 +110,14 @@
             <div class="flex items-center gap-2">
                 <input type="date" name="sr_from"
                        class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                       hx-get="/api/appointments?session_records=1"
+                       hx-get="{base_url}/api/appointments?session_records=1"
                        hx-target="#session-records-list"
                        hx-trigger="change"
                        hx-include="#sr-filters" />
                 <span class="text-gray-400 text-xs font-medium">–</span>
                 <input type="date" name="sr_to"
                        class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                       hx-get="/api/appointments?session_records=1"
+                       hx-get="{base_url}/api/appointments?session_records=1"
                        hx-target="#session-records-list"
                        hx-trigger="change"
                        hx-include="#sr-filters" />
@@ -125,7 +125,7 @@
 
             {!-- Clear Filters --}
             <button type="button" id="sr-clear-btn"
-                    onclick="document.querySelectorAll('#sr-filters input, #sr-filters select').forEach(function(e){ e.value = ''; }); htmx.ajax('GET', '/api/appointments?session_records=1', { target: '#session-records-list', swap: 'innerHTML' });"
+                    onclick="document.querySelectorAll('#sr-filters input, #sr-filters select').forEach(function(e){ e.value = ''; }); htmx.ajax('GET', '{base_url}/api/appointments?session_records=1', { target: '#session-records-list', swap: 'innerHTML' });"
                     class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition shadow-sm">
                 <i class="fas fa-times text-xs"></i> Clear
             </button>
@@ -134,7 +134,7 @@
 
     {!-- Session Records Table --}
     <div id="session-records-list"
-         hx-get="/api/appointments?session_records=1"
+         hx-get="{base_url}/api/appointments?session_records=1"
          hx-trigger="load, refreshSessionRecords from:body"
          hx-swap="innerHTML"
          hx-history="false">
@@ -207,7 +207,7 @@
         if (!panel) return;
         panel.style.display = 'block';
         panel.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-8 mt-3 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-xl mb-2"></i><p class="text-sm">Loading session details...</p></div>';
-        htmx.ajax('GET', '/api/appointments/' + id + '/session-detail', { target: '#session-detail-panel', swap: 'innerHTML' });
+        htmx.ajax('GET', '{base_url}/api/appointments/' + id + '/session-detail', { target: '#session-detail-panel', swap: 'innerHTML' });
         panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -216,7 +216,7 @@
         var filters = form ? Object.fromEntries(new FormData(form)) : {};
         filters['session_records'] = '1';
         filters['sr_page'] = page;
-        htmx.ajax('GET', '/api/appointments', { target: '#session-records-list', swap: 'innerHTML', values: filters });
+        htmx.ajax('GET', '{base_url}/api/appointments', { target: '#session-records-list', swap: 'innerHTML', values: filters });
         document.getElementById('session-detail-panel').innerHTML = '';
         document.getElementById('session-detail-panel').style.display = 'none';
     }

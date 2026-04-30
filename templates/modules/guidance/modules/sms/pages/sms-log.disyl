@@ -15,7 +15,7 @@
                 <i class="fas fa-flask mr-1"></i> Test Mode
             </span>
             {/if}
-            <button hx-get="/pages/sms/compose" 
+            <button hx-get="{base_url}/pages/sms/compose" 
                     hx-target="#modal-container" 
                     hx-swap="innerHTML"
                     class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
@@ -105,7 +105,7 @@
         </div>
         
         {!-- Log Table Container --}
-        <div id="sms-log-container" hx-get="/api/modules/sms/log" hx-trigger="load, refreshSmsLog from:body" hx-target="#sms-log-container">
+        <div id="sms-log-container" hx-get="{base_url}/api/modules/sms/log" hx-trigger="load, refreshSmsLog from:body" hx-target="#sms-log-container">
             <div class="p-8 text-center text-gray-400">
                 <i class="fas fa-spinner fa-spin text-2xl"></i>
                 <p class="mt-2">Loading SMS log...</p>

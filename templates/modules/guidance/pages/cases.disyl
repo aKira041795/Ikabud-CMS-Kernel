@@ -12,7 +12,7 @@
             <p class="text-sm text-gray-500 mt-1">Manage student guidance cases</p>
         </div>
         <a href="{base_url}/cases/new"
-           hx-get="/cases/new"
+           hx-get="{base_url}/cases/new"
            hx-target="#main-content"
            hx-push-url="{base_url}/cases/new"
            class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition shadow-sm">
@@ -26,7 +26,7 @@
         {!-- Quick Stats Sidebar --}
         <div class="w-60 flex-shrink-0">
             <div id="case-stats-panel"
-                 hx-get="/api/cases/stats"
+                 hx-get="{base_url}/api/cases/stats"
                  hx-trigger="load, refreshCases from:body"
                  hx-swap="innerHTML"
                  hx-history="false">
@@ -56,14 +56,14 @@
                         <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                         <input type="text" name="search" placeholder="Name, case number..."
                                class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                               hx-get="/api/cases" hx-target="#cases-list" hx-trigger="keyup changed delay:400ms"
+                               hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-trigger="keyup changed delay:400ms"
                                hx-include="#case-filters" />
                     </div>
 
                     {!-- Status --}
                     <select name="status"
                             class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-trigger="change"
                             hx-include="#case-filters">
                         <option value="">All Status</option>
                         <option value="open">Open</option>
@@ -75,7 +75,7 @@
                     {!-- Severity / Risk Level --}
                     <select name="severity"
                             class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-trigger="change"
                             hx-include="#case-filters">
                         <option value="">All Risk Levels</option>
                         <option value="low">Low</option>
@@ -87,7 +87,7 @@
                     {!-- Category --}
                     <select name="category"
                             class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-trigger="change"
                             hx-include="#case-filters">
                         <option value="">All Categories</option>
                         <option value="academic">Academic</option>
@@ -103,7 +103,7 @@
                     {if user_role != 'counselor'}
                     <select name="counselor_id"
                             class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-trigger="change"
                             hx-include="#case-filters">
                         <option value="">All Counselors</option>
                         {foreach counselors as c}
@@ -115,7 +115,7 @@
                     {!-- Records visibility --}
                     <select name="show_deleted"
                             class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-trigger="change"
                             hx-include="#case-filters">
                         <option value="">Active Only</option>
                         <option value="all">All Records</option>
@@ -124,7 +124,7 @@
 
                     {!-- Clear --}
                     <button type="button"
-                            hx-get="/api/cases"
+                            hx-get="{base_url}/api/cases"
                             hx-target="#cases-list"
                             hx-swap="innerHTML"
                             hx-include="#case-filters"
@@ -138,7 +138,7 @@
 
             {!-- Students / Cases Table --}
             <div id="cases-list"
-                 hx-get="/api/cases"
+                 hx-get="{base_url}/api/cases"
                  hx-trigger="load, refreshCases from:body"
                  hx-swap="innerHTML"
                  hx-history="false">

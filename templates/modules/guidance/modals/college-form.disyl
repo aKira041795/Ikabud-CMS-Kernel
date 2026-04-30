@@ -19,7 +19,7 @@
                 </button>
             </div>
             
-            <form {if college.id}hx-put="/api/colleges/{college.id}"{else}hx-post="/api/colleges"{/if}
+            <form {if college.id}hx-put="{base_url}/api/colleges/{college.id}"{else}hx-post="{base_url}/api/colleges"{/if}
                   hx-swap="none"
                   class="p-6 space-y-5">
                 

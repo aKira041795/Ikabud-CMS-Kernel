@@ -1,0 +1,91 @@
+{!-- Case Activity Log Tab — rendered by apiGuidanceCaseActivityLog --}
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+
+    {!-- Header --}
+    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                <i class="fas fa-timeline text-gray-500 text-sm"></i>
+            </span>
+            <h3 class="text-sm font-semibold text-gray-800">Activity Log</h3>
+            {if events}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">{events | count}</span>
+            {/if}
+        </div>
+        {if events}
+        <p class="text-xs text-gray-400">Newest first</p>
+        {/if}
+    </div>
+
+    {if events}
+    {!-- Timeline --}
+    <div class="px-6 py-4">
+        <ol class="relative border-l-2 border-gray-100 ml-4 space-y-0">
+
+            {foreach events as ev}
+            <li class="mb-6 ml-6 last:mb-0">
+
+                {!-- Timeline dot --}
+                <span class="absolute -left-5 flex h-8 w-8 items-center justify-center rounded-full {ev.icon_bg} border-2 border-white shadow-sm ring-1 ring-gray-100">
+                    <i class="fas {ev.icon} text-xs"></i>
+                </span>
+
+                {!-- Card --}
+                <div class="rounded-xl border border-gray-100 bg-gray-50/50 px-4 py-3 hover:bg-white hover:shadow-sm transition-all">
+                    <div class="flex items-start justify-between gap-3 flex-wrap">
+
+                        <div class="flex-1 min-w-0">
+                            {!-- Badge + title --}
+                            <div class="flex items-center gap-2 flex-wrap mb-0.5">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {ev.badge_class}">{ev.badge_label}</span>
+                                <p class="text-sm font-semibold text-gray-900">{ev.title | esc_html}</p>
+                            </div>
+
+                            {!-- Detail line --}
+                            {if ev.detail}
+                            <p class="text-sm text-gray-500 mt-0.5 leading-snug">{ev.detail | esc_html}</p>
+                            {/if}
+
+                            {!-- Meta line --}
+                            <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                                {if ev.actor_name}
+                                <span class="flex items-center gap-1 text-xs text-gray-500">
+                                    <i class="fas fa-user-circle text-gray-300"></i>
+                                    {ev.actor_name | esc_html}
+                                </span>
+                                <span class="text-gray-200">&bull;</span>
+                                {/if}
+                                <span class="text-xs text-gray-400" title="{ev.ts_formatted}">{ev.time_ago}</span>
+                            </div>
+                        </div>
+
+                        {!-- Link arrow --}
+                        {if ev.link}
+                        <a hx-get="{ev.link}" hx-target="#main-content" hx-push-url="true"
+                           class="flex-shrink-0 mt-1 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+                           title="View details">
+                            <i class="fas fa-arrow-right text-xs"></i>
+                        </a>
+                        {/if}
+                    </div>
+                </div>
+
+            </li>
+            {/foreach}
+
+        </ol>
+    </div>
+
+    {else}
+    {!-- Empty state --}
+    <div class="px-6 py-14 flex flex-col items-center text-center">
+        <div class="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
+            <i class="fas fa-clock-rotate-left text-2xl text-gray-300"></i>
+        </div>
+        <h3 class="text-base font-semibold text-gray-700 mb-1">No activity yet</h3>
+        <p class="text-sm text-gray-400 max-w-xs">Events like status changes, notes, appointments, and document uploads will appear here.</p>
+    </div>
+    {/if}
+
+</div>

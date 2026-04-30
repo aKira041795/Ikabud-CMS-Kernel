@@ -1,0 +1,234 @@
+{!-- Case Documents Tab Partial --}
+{!-- Rendered by apiGuidanceCaseDocuments --}
+
+<script>
+function docRowMenu() {
+    return { menuOpen: false };
+}
+</script>
+
+{!-- Header --}
+<div class="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4 flex-wrap">
+    <div>
+        <h2 class="text-base font-semibold text-gray-900">Documents</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Manage and organize all documents related to this student case.</p>
+    </div>
+    <div class="flex items-center gap-2">
+        <button class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+            <i class="fas fa-filter text-xs text-gray-400"></i> Filter
+        </button>
+        <button hx-get="/admin/guidance/pages/cases/{case_id}/documents/upload"
+                hx-target="#modal-container" hx-swap="innerHTML"
+                class="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-700 text-white text-sm font-semibold rounded-lg hover:bg-teal-800 transition-colors shadow-sm">
+            <i class="fas fa-upload text-xs"></i> Upload Document
+        </button>
+    </div>
+</div>
+
+{!-- Two-column body --}
+<div class="flex min-h-0">
+
+    {!-- Left sidebar: Folders + Storage --}
+    <div class="w-56 flex-shrink-0 border-r border-gray-100 flex flex-col">
+
+        {!-- Folders --}
+        <div class="px-4 pt-4 pb-2">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Folders</p>
+            {for folder in folders}
+            <button hx-get="/admin/guidance/api/cases/{case_id}/documents?folder={folder.key | url_encode}{if search}&amp;q={search | url_encode}{/if}"
+                    hx-target="#case-documents-tab" hx-swap="innerHTML"
+                    class="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors mb-0.5 {if filter_cat == folder.key}bg-teal-50 text-teal-700 font-semibold{else}text-gray-600 hover:bg-gray-50{/if}">
+                <span class="flex items-center gap-2 truncate">
+                    <i class="fas {folder.icon} text-xs {if filter_cat == folder.key}text-teal-500{else}text-gray-400{/if}"></i>
+                    <span class="truncate">{folder.label | esc_html}</span>
+                </span>
+                <span class="text-xs {if filter_cat == folder.key}text-teal-600 font-semibold{else}text-gray-400{/if} flex-shrink-0">{folder.count}</span>
+            </button>
+            {/for}
+        </div>
+
+        {!-- Storage Usage --}
+        <div class="mt-auto border-t border-gray-100 px-4 py-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Storage Usage</p>
+            <div class="flex items-center gap-1.5 mb-1.5">
+                <i class="fas fa-database text-gray-400 text-xs"></i>
+                <span class="text-xs text-gray-600 font-medium">{all_docs_count} files &bull; {storage_mb} MB used</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1.5">
+                <div class="bg-teal-500 h-1.5 rounded-full transition-all" style="width: {storage_pct}%"></div>
+            </div>
+            <p class="text-[11px] text-gray-400">{storage_mb} MB of 500 MB used ({storage_pct}%)</p>
+        </div>
+    </div>
+
+    {!-- Right main area --}
+    <div class="flex-1 min-w-0 flex flex-col">
+
+        {!-- Search bar --}
+        <div class="px-5 py-3 border-b border-gray-100">
+            <div class="relative">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" id="doc-search-input"
+                       value="{search | esc_attr}"
+                       oninput="debounceDocSearch(this.value)"
+                       placeholder="Search documents…"
+                       class="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-gray-400">
+            </div>
+        </div>
+
+        {!-- Table --}
+        {if docs | count > 0}
+        <div class="overflow-x-auto flex-1">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-100 bg-gray-50">
+                        <th class="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Document Name</th>
+                        <th class="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Uploaded By</th>
+                        <th class="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Date Uploaded</th>
+                        <th class="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Size</th>
+                        <th class="px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {for doc in docs}
+                    <tr class="hover:bg-gray-50 transition-colors group">
+                        <td class="px-5 py-3.5">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas {doc.file_icon} {doc.file_icon_color} text-base"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 truncate max-w-[200px]">{doc.file_name | esc_html}</div>
+                                    {if doc.description}
+                                    <div class="text-xs text-gray-400 truncate max-w-[200px]">{doc.description | esc_html}</div>
+                                    {else}
+                                    <div class="text-xs text-gray-400">{doc.file_type | upper} &bull; {doc.file_size_label}</div>
+                                    {/if}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3.5">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {doc.category_badge}">
+                                {doc.category_label | esc_html}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3.5 text-sm text-gray-600">
+                            {if doc.uploader_name}{doc.uploader_name | esc_html}{else}&mdash;{/if}
+                        </td>
+                        <td class="px-4 py-3.5">
+                            <div class="text-sm text-gray-700">{doc.uploaded_at_fmt}</div>
+                            <div class="text-xs text-gray-400">{doc.uploaded_at_time}</div>
+                        </td>
+                        <td class="px-4 py-3.5 text-sm text-gray-600">{doc.file_size_label}</td>
+                        <td class="px-4 py-3.5">
+                            <div class="flex items-center justify-end gap-1" x-data="docRowMenu()">
+                                <a href="/admin/guidance/api/cases/{case_id}/documents/{doc.id}/download"
+                                   title="Download"
+                                   class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors">
+                                    <i class="fas fa-download text-xs"></i>
+                                </a>
+                                <div class="relative">
+                                    <button @click.stop="menuOpen = !menuOpen"
+                                            class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                                        <i class="fas fa-ellipsis-h text-xs"></i>
+                                    </button>
+                                    <div x-show="menuOpen" @click.outside="menuOpen = false" x-cloak
+                                         class="absolute right-0 top-9 z-20 bg-white rounded-xl shadow-lg border border-gray-100 py-1 w-36 text-sm">
+                                        <a href="/admin/guidance/api/cases/{case_id}/documents/{doc.id}/download"
+                                           class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
+                                            <i class="fas fa-download text-xs text-gray-400"></i> Download
+                                        </a>
+                                        <button class="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 transition-colors">
+                                            <i class="fas fa-trash text-xs text-red-400"></i> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+
+        {!-- Footer row --}
+        <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50 text-xs text-gray-500">
+            <span>Showing {page_start} to {page_end} of {total_found} documents</span>
+            {if total_pages > 1}
+            <div class="flex items-center gap-1">
+                {if page > 1}
+                <button hx-get="/admin/guidance/api/cases/{case_id}/documents?page={page - 1}&amp;folder={filter_cat | url_encode}{if search}&amp;q={search | url_encode}{/if}"
+                        hx-target="#case-documents-tab" hx-swap="innerHTML"
+                        class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-white transition-colors">
+                    <i class="fas fa-chevron-left text-[10px]"></i>
+                </button>
+                {/if}
+                {for i in range(1, total_pages)}
+                <button hx-get="/admin/guidance/api/cases/{case_id}/documents?page={i}&amp;folder={filter_cat | url_encode}{if search}&amp;q={search | url_encode}{/if}"
+                        hx-target="#case-documents-tab" hx-swap="innerHTML"
+                        class="w-7 h-7 rounded-lg border text-xs font-medium transition-colors {if i == page}bg-teal-600 text-white border-teal-600{else}border-gray-200 text-gray-600 hover:bg-white{/if}">
+                    {i}
+                </button>
+                {/for}
+                {if page < total_pages}
+                <button hx-get="/admin/guidance/api/cases/{case_id}/documents?page={page + 1}&amp;folder={filter_cat | url_encode}{if search}&amp;q={search | url_encode}{/if}"
+                        hx-target="#case-documents-tab" hx-swap="innerHTML"
+                        class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-white transition-colors">
+                    <i class="fas fa-chevron-right text-[10px]"></i>
+                </button>
+                {/if}
+            </div>
+            {/if}
+        </div>
+
+        {else}
+        {!-- Empty state --}
+        <div class="flex-1 flex flex-col items-center justify-center py-16 text-center text-gray-400 px-6">
+            <div class="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                <i class="fas fa-folder-open text-2xl text-gray-300"></i>
+            </div>
+            {if search}
+            <p class="text-sm font-medium text-gray-500">No documents matching &ldquo;{search | esc_html}&rdquo;</p>
+            <p class="text-xs mt-1">Try a different search term or clear the filter.</p>
+            {elseif filter_cat != 'all'}
+            <p class="text-sm font-medium text-gray-500">No documents in this folder yet.</p>
+            <p class="text-xs mt-1">Upload a document and assign it to this category.</p>
+            {else}
+            <p class="text-sm font-medium text-gray-500">No documents uploaded yet.</p>
+            <p class="text-xs mt-1">Click <strong class="text-gray-600">Upload Document</strong> to add the first file.</p>
+            {/if}
+        </div>
+        {/if}
+
+    </div>{!-- /right main --}
+</div>{!-- /two-column --}
+
+{!-- Document Categories Legend --}
+<div class="border-t border-gray-100 px-6 py-5">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Document Categories</p>
+    <div class="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {for cat in all_categories}
+        <div class="flex items-start gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div class="w-2.5 h-2.5 rounded-full {cat.color} mt-0.5 flex-shrink-0"></div>
+            <div class="min-w-0">
+                <div class="text-xs font-semibold text-gray-700 leading-tight">{cat.label | esc_html}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5 leading-snug">{cat.desc | esc_html}</div>
+            </div>
+        </div>
+        {/for}
+    </div>
+</div>
+
+<script>
+var _docSearchTimer = null;
+function debounceDocSearch(val) {
+    clearTimeout(_docSearchTimer);
+    _docSearchTimer = setTimeout(function() {
+        htmx.ajax('GET', '/admin/guidance/api/cases/{case_id}/documents?q=' + encodeURIComponent(val) + '&folder={filter_cat | url_encode}', {
+            target: '#case-documents-tab',
+            swap: 'innerHTML'
+        });
+    }, 350);
+}
+</script>

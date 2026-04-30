@@ -26,6 +26,7 @@ use Ikabud\Kernel\DiSyL\v4\AST\UnaryOpNode;
 use Ikabud\Kernel\DiSyL\v4\AST\ArrayNode;
 use Ikabud\Kernel\DiSyL\v4\AST\AbstractNode;
 use Ikabud\Kernel\DiSyL\v4\AST\FilterChain;
+use Ikabud\Kernel\DiSyL\v4\AST\FunctionCallNode;
 
 /**
  * Compiles DiSyL templates to PHP classes
@@ -37,7 +38,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 5;
+    public const COMPILER_VERSION = 6;
 
     private int $indentLevel = 0;
     private string $indent = '    ';
@@ -163,13 +164,14 @@ PHP;
     private function compileExpressionValue(AbstractNode $node): string
     {
         return match (true) {
-            $node instanceof ExpressionNode => $this->compileExpressionRawValue($node),
-            $node instanceof IdentifierNode => $this->compileIdentifier($node),
-            $node instanceof LiteralNode => $this->compileLiteral($node),
+            $node instanceof ExpressionNode    => $this->compileExpressionRawValue($node),
+            $node instanceof IdentifierNode    => $this->compileIdentifier($node),
+            $node instanceof LiteralNode       => $this->compileLiteral($node),
             $node instanceof PropertyAccessNode => $this->compilePropertyAccess($node),
-            $node instanceof BinaryOpNode => $this->compileBinaryOp($node),
-            $node instanceof UnaryOpNode => $this->compileUnaryOp($node),
-            $node instanceof ArrayNode => $this->compileArray($node),
+            $node instanceof BinaryOpNode      => $this->compileBinaryOp($node),
+            $node instanceof UnaryOpNode       => $this->compileUnaryOp($node),
+            $node instanceof ArrayNode         => $this->compileArray($node),
+            $node instanceof FunctionCallNode  => $this->compileFunctionCall($node),
             default => 'null',
         };
     }
@@ -240,6 +242,19 @@ PHP;
             $node->getElements()
         );
         return '[' . implode(', ', $elements) . ']';
+    }
+
+    private function compileFunctionCall(FunctionCallNode $node): string
+    {
+        $name    = var_export($node->getName(), true);
+        $argParts = array_map(
+            fn($arg) => $this->compileExpressionValue($arg),
+            $node->getArguments()
+        );
+        $argsStr = implode(', ', $argParts);
+        // Delegates to CompiledTemplate::callFunction() which routes through
+        // FunctionRegistry — only whitelisted functions are executed.
+        return "\$this->callFunction({$name}, [{$argsStr}])";
     }
     
     /**

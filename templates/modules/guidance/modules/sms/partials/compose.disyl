@@ -20,7 +20,7 @@
         </div>
         
         {!-- Body --}
-        <form hx-post="/api/modules/sms/send" 
+        <form hx-post="{base_url}/api/modules/sms/send" 
               hx-target="#modal-container"
               hx-swap="innerHTML"
               class="p-6 space-y-4">

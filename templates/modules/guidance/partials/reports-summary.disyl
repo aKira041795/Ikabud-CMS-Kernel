@@ -247,7 +247,7 @@
         <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
             <span class="text-xs text-gray-400">Showing 1 to {top_students | count} of {students.total | default:'0'} students</span>
             <a href="{base_url}/cases"
-               hx-get="/pages/cases" hx-target="#main-content" hx-push-url="{base_url}/cases"
+               hx-get="{base_url}/pages/cases" hx-target="#main-content" hx-push-url="{base_url}/cases"
                class="px-4 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 transition">
                 View Full List
             </a>

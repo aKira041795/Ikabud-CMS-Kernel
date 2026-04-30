@@ -7,8 +7,8 @@
 
     {!-- Breadcrumb --}
     <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
-        <a href="{base_url}/cases"
-           hx-get="/pages/cases"
+          <a href="{base_url}/cases"
+              hx-get="{base_url}/pages/cases"
            hx-target="#main-content"
            hx-push-url="{base_url}/cases"
            class="hover:text-teal-600 transition">Students</a>
@@ -22,7 +22,7 @@
         {!-- Quick Stats Sidebar --}
         <div class="w-60 flex-shrink-0 sticky top-6">
             <div id="case-stats-panel"
-                 hx-get="/api/cases/stats"
+                 hx-get="{base_url}/api/cases/stats"
                  hx-trigger="load"
                  hx-swap="innerHTML"
                  hx-history="false">
@@ -42,7 +42,7 @@
         {!-- Form Area --}
         <div class="flex-1 min-w-0">
             <form id="student-form"
-                  hx-post="/api/cases"
+                  hx-post="{base_url}/api/cases"
                   hx-swap="none"
                   class="space-y-6">
 
@@ -371,7 +371,7 @@
                             <input type="date" id="inp-appt-date" name="appointment_date" required
                                    min="{today}"
                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                                   hx-get="/api/appointments/slots"
+                                hx-get="{base_url}/api/appointments/slots"
                                    hx-target="#new-slot-container"
                                    hx-include="#inp-appt-type"
                                    hx-trigger="change">
@@ -416,15 +416,22 @@
                                       class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none"></textarea>
                         </div>
 
-                        {!-- Attachments (placeholder — server-side upload not wired yet) --}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Attachments <span class="text-xs text-gray-400">(Optional)</span>
                             </label>
-                            <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-teal-400 transition-colors">
-                                <i class="fas fa-cloud-upload-alt text-gray-300 text-3xl mb-3"></i>
-                                <p class="text-sm text-gray-500">Drag &amp; drop files here, or <span class="text-teal-600 cursor-pointer hover:underline">browse</span></p>
-                                <p class="text-xs text-gray-400 mt-1">PDF, DOC, JPG, PNG up to 10 MB</p>
+                            <div class="rounded-xl border border-teal-100 bg-teal-50 px-4 py-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-white border border-teal-100 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-folder-open text-teal-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-teal-900">Documents are available after the student is saved</p>
+                                        <p class="text-sm text-teal-800 mt-1 leading-relaxed">
+                                            File uploads are stored against the created case record in the database. Save this student first, then open the student profile and use the <span class="font-semibold">Documents</span> tab to upload attachments.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -434,7 +441,7 @@
                 {!-- ── FOOTER ──────────────────────────────────────── --}
                 <div class="flex items-center justify-end gap-3 pt-2 pb-4">
                     <a href="{base_url}/cases"
-                       hx-get="/pages/cases"
+                              hx-get="{base_url}/pages/cases"
                        hx-target="#main-content"
                        hx-push-url="{base_url}/cases"
                        class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">

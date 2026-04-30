@@ -7,7 +7,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <div class="flex items-center gap-3">
-                <a href="{base_url}/trackers" class="text-gray-400 hover:text-gray-600" hx-get="/pages/trackers" hx-target="#main-content" hx-push-url="{base_url}/trackers">
+                <a href="{base_url}/trackers" class="text-gray-400 hover:text-gray-600" hx-get="{base_url}/pages/trackers" hx-target="#main-content" hx-push-url="{base_url}/trackers">
                     <i class="fas fa-arrow-left"></i>
                 </a>
                 <div>
@@ -24,7 +24,7 @@
             {if tracker.description}<p class="text-sm text-gray-500 mt-2 ml-8">{tracker.description}</p>{/if}
         </div>
         <div class="flex items-center gap-2">
-            <a href="/api/trackers/{tracker.id}/export" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 bg-white border rounded-lg hover:bg-gray-50 transition">
+            <a href="{base_url}/api/trackers/{tracker.id}/export" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 bg-white border rounded-lg hover:bg-gray-50 transition">
                 <i class="fas fa-download mr-2"></i> Export CSV
             </a>
             {if user.role == 'admin' or user.role == 'supervisor'}
@@ -36,7 +36,7 @@
     </div>
 
     {!-- Stats Bar --}
-    <div id="tracker-stats" hx-get="/api/trackers/{tracker.id}/students?stats_only=1" hx-trigger="load, refreshStudents from:body" hx-swap="innerHTML">
+    <div id="tracker-stats" hx-get="{base_url}/api/trackers/{tracker.id}/students?stats_only=1" hx-trigger="load, refreshStudents from:body" hx-swap="innerHTML">
     </div>
 
     {!-- Tabs --}
@@ -59,10 +59,10 @@
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
                 <input type="text" placeholder="Search students..." name="search"
                        class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       hx-get="/api/trackers/{tracker.id}/students" hx-trigger="keyup changed delay:300ms" hx-target="#students-table" hx-include="[name='college_filter']">
+                       hx-get="{base_url}/api/trackers/{tracker.id}/students" hx-trigger="keyup changed delay:300ms" hx-target="#students-table" hx-include="[name='college_filter']">
             </div>
             <select name="college_filter" class="px-3 py-2 text-sm border border-gray-200 rounded-lg"
-                    hx-get="/api/trackers/{tracker.id}/students" hx-trigger="change" hx-target="#students-table" hx-include="[name='search']">
+                    hx-get="{base_url}/api/trackers/{tracker.id}/students" hx-trigger="change" hx-target="#students-table" hx-include="[name='search']">
                 <option value="">All Colleges</option>
                 {foreach colleges as col}
                 <option value="{col.id}">{col.code} - {col.name}</option>
@@ -74,7 +74,7 @@
         </div>
 
         {!-- Students Table --}
-        <div id="students-table" hx-get="/api/trackers/{tracker.id}/students" hx-trigger="load, refreshStudents from:body" hx-swap="innerHTML">
+        <div id="students-table" hx-get="{base_url}/api/trackers/{tracker.id}/students" hx-trigger="load, refreshStudents from:body" hx-swap="innerHTML">
             <div class="flex items-center justify-center py-12">
                 <div class="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-indigo-600"></div>
             </div>
@@ -85,7 +85,7 @@
     <div x-show="tab === 'items'" x-cloak>
         <div class="mb-4">
             {if user.role == 'admin' or user.role == 'supervisor'}
-            <form hx-post="/api/trackers/{tracker.id}/items" hx-swap="none" class="flex gap-3" x-data="{ itemName: '' }">
+            <form hx-post="{base_url}/api/trackers/{tracker.id}/items" hx-swap="none" class="flex gap-3" x-data="{ itemName: '' }">
                 <input type="text" name="name" x-model="itemName" placeholder="Add required document (e.g., Form 137)" required
                        class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                 <input type="date" name="deadline" class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500">
@@ -95,7 +95,7 @@
             </form>
             {/if}
         </div>
-        <div id="items-list" hx-get="/api/trackers/{tracker.id}/items" hx-trigger="load, refreshItems from:body" hx-swap="innerHTML">
+        <div id="items-list" hx-get="{base_url}/api/trackers/{tracker.id}/items" hx-trigger="load, refreshItems from:body" hx-swap="innerHTML">
             <div class="flex items-center justify-center py-12">
                 <div class="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-indigo-600"></div>
             </div>
@@ -111,7 +111,7 @@
                     <h3 class="text-lg font-semibold">Add Student</h3>
                     <button @click="showAddStudent = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
                 </div>
-                <form hx-post="/api/trackers/{tracker.id}/students" hx-swap="none" @htmx:after-request="if(event.detail.successful) showAddStudent = false" class="p-5 space-y-4">
+                <form hx-post="{base_url}/api/trackers/{tracker.id}/students" hx-swap="none" @htmx:after-request="if(event.detail.successful) showAddStudent = false" class="p-5 space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div class="col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Student Name *</label>
@@ -206,10 +206,10 @@
                                 <strong>Tip:</strong> Your CSV should have a header row. Columns will be auto-matched to database fields. 
                                 Unrecognized columns can be mapped manually or created as new custom fields.
                                 <div class="mt-2">
-                                    <a href="/api/trackers/{tracker.id}/import/template" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium">
+                                    <a href="{base_url}/api/trackers/{tracker.id}/import/template" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium">
                                         <i class="fas fa-file-download mr-1"></i> Download CSV Template
                                     </a>
-                                    <span class="text-blue-500 ml-1">— pre-formatted with correct headers and sample data</span>
+                                    <span class="text-blue-500 ml-1">— pre-formatted with correct headers, import instructions, and your current college list</span>
                                 </div>
                             </div>
                         </div>

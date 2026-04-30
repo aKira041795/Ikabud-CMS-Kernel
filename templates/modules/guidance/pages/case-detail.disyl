@@ -20,7 +20,7 @@
     <div class="flex items-center justify-between mb-6">
         <div class="flex items-center space-x-4">
             {ikb_button variant="ghost" href="{base_url}/cases" 
-                       hx-get="/pages/cases" 
+                       hx-get="{base_url}/pages/cases" 
                        hx-target="#main-content" 
                        hx-push-url="{base_url}/cases"}
                 <i class="fas fa-arrow-left mr-2"></i> Back
@@ -39,14 +39,14 @@
         <div class="flex space-x-2">
             {if case.status != 'closed'}
             {ikb_button variant="outline" 
-                       hx-post="/api/cases/{case.id}/close" 
+                       hx-post="{base_url}/api/cases/{case.id}/close" 
                        hx-confirm="Are you sure you want to close this case?"
                        hx-target="#main-content"}
                 <i class="fas fa-check mr-2"></i> Close Case
             {/ikb_button}
             {else}
             {ikb_button variant="outline" 
-                       hx-post="/api/cases/{case.id}/reopen" 
+                       hx-post="{base_url}/api/cases/{case.id}/reopen" 
                        hx-target="#main-content"}
                 <i class="fas fa-redo mr-2"></i> Reopen
             {/ikb_button}
@@ -54,7 +54,7 @@
             
             {if case.status != 'closed'}
             {ikb_button variant="primary" 
-                       hx-get="/pages/cases/{case.id}/edit" 
+                       hx-get="{base_url}/pages/cases/{case.id}/edit" 
                        hx-target="#modal-container"}
                 <i class="fas fa-edit mr-2"></i> Edit
             {/ikb_button}
@@ -226,14 +226,14 @@
                         <i class="fas fa-sticky-note mr-2 text-indigo-500"></i> Counselor Notes
                     {/ikb_text}
                     {ikb_button variant="primary" size="small" 
-                               hx-get="/pages/cases/{case.id}/notes/new" 
+                               hx-get="{base_url}/pages/cases/{case.id}/notes/new" 
                                hx-target="#modal-container"}
                         <i class="fas fa-plus mr-1"></i> Add Note
                     {/ikb_button}
                 </div>
                 
-                <div id="case-notes" 
-                     hx-get="/api/cases/{case.id}/notes" 
+                 <div id="case-notes" 
+                     hx-get="{base_url}/api/cases/{case.id}/notes" 
                      hx-trigger="load, refreshNotes from:body" 
                      hx-swap="innerHTML">
                     <div class="p-8 text-center text-gray-500">
@@ -252,8 +252,8 @@
                     <i class="fas fa-history mr-2 text-indigo-500"></i> Status History
                 {/ikb_text}
                 
-                <div id="status-history" 
-                     hx-get="/api/cases/{case.id}/history" 
+                 <div id="status-history" 
+                     hx-get="{base_url}/api/cases/{case.id}/history" 
                      hx-trigger="load, refreshCases from:body" 
                      hx-swap="innerHTML">
                     {ikb_spinner /}
@@ -266,15 +266,15 @@
                     <i class="fas fa-calendar mr-2 text-indigo-500"></i> Appointments
                 {/ikb_text}
                 
-                <div id="case-appointments" 
-                     hx-get="/api/cases/{case.id}/appointments" 
+                 <div id="case-appointments" 
+                     hx-get="{base_url}/api/cases/{case.id}/appointments" 
                      hx-trigger="load, refreshAppointments from:body" 
                      hx-swap="innerHTML">
                     {ikb_spinner /}
                 </div>
                 
                 {ikb_button variant="outline" class="w-full mt-4" 
-                           hx-get="/pages/appointments/new?case_id={case.id}" 
+                           hx-get="{base_url}/pages/appointments/new?case_id={case.id}" 
                            hx-target="#modal-container"}
                     <i class="fas fa-calendar-plus mr-2"></i> Schedule
                 {/ikb_button}
@@ -287,7 +287,7 @@
                 <div class="space-y-2">
                     {if case.status == 'open'}
                     {ikb_button variant="outline" class="w-full justify-start"
-                               hx-post="/api/cases/{case.id}/status" 
+                               hx-post="{base_url}/api/cases/{case.id}/status" 
                                hx-vals='{"status": "in_progress"}'
                                hx-target="#main-content"}
                         <i class="fas fa-play mr-2"></i> Start Working
@@ -295,13 +295,13 @@
                     {/if}
                     
                     {ikb_button variant="ghost" class="w-full justify-start"
-                               hx-get="/pages/cases/{case.id}/reassign" 
+                               hx-get="{base_url}/pages/cases/{case.id}/reassign" 
                                hx-target="#modal-container"}
                         <i class="fas fa-user-edit mr-2"></i> Reassign
                     {/ikb_button}
                     
                     {ikb_button variant="ghost" class="w-full justify-start text-red-600"
-                               hx-delete="/api/cases/{case.id}" 
+                               hx-delete="{base_url}/api/cases/{case.id}" 
                                hx-confirm="Are you sure you want to delete this case? This action cannot be undone."
                                hx-target="#main-content"
                                hx-push-url="{base_url}/cases"}
@@ -318,20 +318,20 @@
                 <p class="text-sm text-gray-500 mb-4">Generate a professional counseling session summary report for this case.</p>
                 
                 <div class="space-y-2">
-                    <a href="/api/cases/{case.id}/report" target="_blank"
+                    <a href="{base_url}/api/cases/{case.id}/report" target="_blank"
                        class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
                         <i class="fas fa-file-alt mr-2"></i> View Report (HTML)
                     </a>
-                    <a href="/api/cases/{case.id}/report?format=docx"
+                    <a href="{base_url}/api/cases/{case.id}/report?format=docx"
                        class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
                         <i class="fas fa-file-word mr-2"></i> Download DOCX
                     </a>
                     {if ai_enabled}
-                    <a href="/api/cases/{case.id}/report?ai=1" target="_blank"
+                    <a href="{base_url}/api/cases/{case.id}/report?ai=1" target="_blank"
                        class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors">
                         <i class="fas fa-robot mr-2"></i> AI Summary (HTML)
                     </a>
-                    <a href="/api/cases/{case.id}/report?ai=1&format=docx"
+                    <a href="{base_url}/api/cases/{case.id}/report?ai=1&format=docx"
                        class="flex items-center w-full px-4 py-2.5 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">
                         <i class="fas fa-file-word mr-2"></i> AI Summary (DOCX)
                     </a>

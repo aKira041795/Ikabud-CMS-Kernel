@@ -61,7 +61,7 @@
             {!-- Prev --}
             <button type="button"
                     onclick="document.getElementById('af-page').value='{prev_page}'"
-                    hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                    hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                     {if !has_prev}disabled{/if}
                     class="w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition {if has_prev}border-gray-200 hover:bg-gray-100 text-gray-600{else}border-gray-100 text-gray-300 cursor-not-allowed{/if}">
                 <i class="fas fa-chevron-left text-xs"></i>
@@ -74,7 +74,7 @@
             {else}
             <button type="button"
                     onclick="document.getElementById('af-page').value='{pl.num}'"
-                    hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                    hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                     class="w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition {if pl.active}bg-teal-600 text-white border border-teal-600{else}border border-gray-200 hover:bg-gray-100 text-gray-600{/if}">
                 {pl.num}
             </button>
@@ -84,7 +84,7 @@
             {!-- Next --}
             <button type="button"
                     onclick="document.getElementById('af-page').value='{next_page}'"
-                    hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                    hx-get="{base_url}/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
                     {if !has_next}disabled{/if}
                     class="w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition {if has_next}border-gray-200 hover:bg-gray-100 text-gray-600{else}border-gray-100 text-gray-300 cursor-not-allowed{/if}">
                 <i class="fas fa-chevron-right text-xs"></i>

@@ -51,7 +51,7 @@
             <td class="px-4 py-3 text-gray-600 text-xs">{case.counselor_name | esc_html | default:'—'}</td>
             <td class="px-4 py-3" onclick="event.stopPropagation()">
                 <button class="px-3 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors"
-                        hx-get="/api/cases/{case.id}/panel"
+                        hx-get="{base_url}/api/cases/{case.id}/panel"
                         hx-target="#case-detail-panel"
                         hx-swap="innerHTML"
                         onclick="setTimeout(function(){var el=document.getElementById('case-detail-panel');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},150)">

@@ -1091,10 +1091,11 @@ function modalGuidanceAppointmentNew(): void
         }
     }
 
+    $prefilledCaseId = isset($_GET['case_id']) ? (string)(int)$_GET['case_id'] : '';
     echo guidanceRender('modules/guidance/modals/appointment-form.disyl', [
         'appointment' => [],
         'today' => date('Y-m-d'),
-        'case_id' => '',
+        'case_id' => $prefilledCaseId,
         'counselors' => $counselors,
         'user_role' => $role,
         'tinymce_assets' => $tinyMceAssets,
@@ -3570,12 +3571,17 @@ function apiGuidanceCaseAppointments(array $params = []): void
     }
     unset($s);
 
+    $from = $total > 0 ? $offset + 1 : 0;
+    $to   = min($offset + $perPage, $total);
+
     header('Content-Type: text/html; charset=utf-8');
     echo guidanceRender('modules/guidance/partials/case-appointments-tab.disyl', [
         'appointments' => $appointments,
         'total'        => $total,
         'page'         => $page,
         'total_pages'  => $totalPages,
+        'from'         => $from,
+        'to'           => $to,
         'case_id'      => $caseId,
         'base_url'     => '/admin/guidance',
     ]);
@@ -3621,7 +3627,8 @@ function apiGuidanceCaseSessionRecords(array $params = []): void
         SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS cnt_in_progress,
         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cnt_cancelled,
         SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) AS cnt_no_show
-        FROM gm_appointments WHERE case_id = ?";
+        FROM gm_appointments WHERE case_id = ?
+          AND status IN ('completed','no_show','cancelled','in_progress')";
     $stRow = $db->prepare($statsSql);
     $stRow->execute([$caseId]);
     $stats = $stRow->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -3636,6 +3643,7 @@ function apiGuidanceCaseSessionRecords(array $params = []): void
         . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
         . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
         . "WHERE a.case_id = ?\n"
+        . "  AND a.status IN ('completed','no_show','cancelled','in_progress')\n"
         . "ORDER BY a.scheduled_date DESC, a.scheduled_time DESC\n"
         . "LIMIT {$perPage} OFFSET {$offset}"
     );
@@ -3762,7 +3770,7 @@ function apiGuidanceCaseSessionDetail(array $params = []): void
     $attachments = [];
     try {
         $attStmt = $db->prepare(
-            "SELECT a.id, a.file_name, a.file_type, a.uploaded_at,\n"
+            "SELECT a.id, a.file_name, a.file_type, a.file_size, a.uploaded_at,\n"
             . "       CONCAT(u.first_name, ' ', u.last_name) AS uploader_name\n"
             . "FROM gm_attachments a\n"
             . "LEFT JOIN gm_users u ON a.uploaded_by = u.id\n"
@@ -3770,7 +3778,20 @@ function apiGuidanceCaseSessionDetail(array $params = []): void
             . "ORDER BY a.uploaded_at DESC LIMIT 3"
         );
         $attStmt->execute([$caseId]);
-        $attachments = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $attachments = array_map(static function (array $row): array {
+            $bytes = (int)($row['file_size'] ?? 0);
+            if ($bytes <= 0) {
+                $row['file_size_label'] = '';
+            } elseif ($bytes < 1024) {
+                $row['file_size_label'] = $bytes . ' B';
+            } elseif ($bytes < 1048576) {
+                $row['file_size_label'] = round($bytes / 1024) . ' KB';
+            } else {
+                $row['file_size_label'] = round($bytes / 1048576, 1) . ' MB';
+            }
+            return $row;
+        }, $rows);
     } catch (\Exception $e) {
         // attachments optional
     }
@@ -3890,10 +3911,628 @@ function modalGuidanceCaseNoteNew(array $params = []): void
         return;
     }
 
+    $sessionType = (string)guidanceInput('session_type', 'walk-in');
+    if (!in_array($sessionType, ['walk-in', 'follow-up', 'referred'], true)) {
+        $sessionType = 'walk-in';
+    }
+
+    $sessionDate = (string)guidanceInput('session_date', date('Y-m-d'));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sessionDate)) {
+        $sessionDate = date('Y-m-d');
+    }
+
+    $appointmentId = max(0, (int)guidanceInput('appointment_id', 0));
+    $followupRequired = !empty(guidanceInput('followup_required', 0));
+
     echo guidanceRender('modules/guidance/modals/note-form.disyl', [
         'case_id' => $caseId,
         'today' => date('Y-m-d'),
+        'session_type' => $sessionType,
+        'session_date' => $sessionDate,
+        'appointment_id' => $appointmentId,
+        'followup_required' => $followupRequired,
+        'base_url' => '/admin/guidance',
     ]);
+}
+
+function modalGuidanceCaseNoteEdit(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    guidanceRequirePro();
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+    $noteId = (int)($params['noteId'] ?? 0);
+
+    if ($caseId < 1 || $noteId < 1) {
+        http_response_code(404);
+        echo '<div class="p-4 text-red-600">Not found</div>';
+        return;
+    }
+
+    $db     = guidanceDb();
+    $csStmt = $db->prepare('SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $csStmt->execute([$caseId]);
+    $case   = $csStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($case)) {
+        http_response_code(404);
+        echo '<div class="p-4 text-red-600">Case not found</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($case['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-4 text-red-600">Access denied</div>';
+        return;
+    }
+
+    $nStmt = $db->prepare('SELECT * FROM gm_counselor_notes WHERE id = ? AND case_id = ? LIMIT 1');
+    $nStmt->execute([$noteId, $caseId]);
+    $note = $nStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($note)) {
+        http_response_code(404);
+        echo '<div class="p-4 text-red-600">Note not found</div>';
+        return;
+    }
+
+    echo guidanceRender('modules/guidance/modals/note-form-edit.disyl', [
+        'note'    => $note,
+        'case_id' => $caseId,
+        'note_id' => $noteId,
+        'today'   => date('Y-m-d'),
+    ]);
+}
+
+function apiGuidanceCaseNoteUpdate(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    guidanceRequirePro();
+    app()->csrfEnforce();
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+    $noteId = (int)($params['noteId'] ?? 0);
+
+    if ($caseId < 1 || $noteId < 1) {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Not found'], JSON_UNESCAPED_SLASHES);
+        return;
+    }
+
+    $db     = guidanceDb();
+    $csStmt = $db->prepare('SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $csStmt->execute([$caseId]);
+    $case   = $csStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($case)) {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Case not found'], JSON_UNESCAPED_SLASHES);
+        return;
+    }
+    if ($role === 'counselor' && (int)($case['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Access denied'], JSON_UNESCAPED_SLASHES);
+        return;
+    }
+
+    $nStmt = $db->prepare('SELECT id FROM gm_counselor_notes WHERE id = ? AND case_id = ? LIMIT 1');
+    $nStmt->execute([$noteId, $caseId]);
+    if (!$nStmt->fetch(PDO::FETCH_ASSOC)) {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Note not found'], JSON_UNESCAPED_SLASHES);
+        return;
+    }
+
+    $input = (array)(app()->input() ?? []);
+    $noteContent = trim((string)($input['note_content'] ?? ''));
+    if ($noteContent === '') {
+        http_response_code(422);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Note content is required'], JSON_UNESCAPED_SLASHES);
+        return;
+    }
+
+    $sessionType = in_array($input['session_type'] ?? '', ['walk-in', 'follow-up', 'referred'], true)
+        ? $input['session_type']
+        : 'walk-in';
+    $riskLevel = in_array($input['risk_level'] ?? '', ['none', 'low', 'moderate', 'high', 'critical'], true)
+        ? $input['risk_level']
+        : 'none';
+    $sessionDate = !empty($input['session_date']) ? $input['session_date'] : date('Y-m-d');
+
+    $upStmt = $db->prepare(
+        "UPDATE gm_counselor_notes SET\n"
+        . "  session_type = ?, session_date = ?, session_duration_minutes = ?,\n"
+        . "  note_content = ?, intervention_used = ?, student_response = ?,\n"
+        . "  risk_level = ?, mood_assessment = ?, action_taken = ?,\n"
+        . "  mse_appearance = ?, mse_behavior = ?, mse_speech = ?, mse_emotions = ?,\n"
+        . "  mse_thinking = ?, mse_cognition = ?, mse_judgment = ?, mse_reliability = ?,\n"
+        . "  case_predisposition = ?, case_precipitating = ?, case_perpetuating = ?, case_protective = ?,\n"
+        . "  observation_recommendation = ?,\n"
+        . "  followup_required = ?, followup_notes = ?, is_confidential = ?,\n"
+        . "  updated_at = NOW()\n"
+        . "WHERE id = ? AND case_id = ?"
+    );
+    $upStmt->execute([
+        $sessionType,
+        $sessionDate,
+        !empty($input['session_duration_minutes']) ? (int)$input['session_duration_minutes'] : null,
+        $noteContent,
+        ($input['intervention_used'] ?? '') !== '' ? (string)$input['intervention_used'] : null,
+        ($input['student_response'] ?? '') !== '' ? (string)$input['student_response'] : null,
+        $riskLevel,
+        ($input['mood_assessment'] ?? '') !== '' ? (string)$input['mood_assessment'] : null,
+        ($input['action_taken'] ?? '') !== '' ? (string)$input['action_taken'] : null,
+        ($input['mse_appearance'] ?? '') !== '' ? (string)$input['mse_appearance'] : null,
+        ($input['mse_behavior'] ?? '') !== '' ? (string)$input['mse_behavior'] : null,
+        ($input['mse_speech'] ?? '') !== '' ? (string)$input['mse_speech'] : null,
+        ($input['mse_emotions'] ?? '') !== '' ? (string)$input['mse_emotions'] : null,
+        ($input['mse_thinking'] ?? '') !== '' ? (string)$input['mse_thinking'] : null,
+        ($input['mse_cognition'] ?? '') !== '' ? (string)$input['mse_cognition'] : null,
+        ($input['mse_judgment'] ?? '') !== '' ? (string)$input['mse_judgment'] : null,
+        ($input['mse_reliability'] ?? '') !== '' ? (string)$input['mse_reliability'] : null,
+        ($input['case_predisposition'] ?? '') !== '' ? (string)$input['case_predisposition'] : null,
+        ($input['case_precipitating'] ?? '') !== '' ? (string)$input['case_precipitating'] : null,
+        ($input['case_perpetuating'] ?? '') !== '' ? (string)$input['case_perpetuating'] : null,
+        ($input['case_protective'] ?? '') !== '' ? (string)$input['case_protective'] : null,
+        ($input['observation_recommendation'] ?? '') !== '' ? (string)$input['observation_recommendation'] : null,
+        !empty($input['followup_required']) ? 1 : 0,
+        ($input['followup_notes'] ?? '') !== '' ? (string)$input['followup_notes'] : null,
+        !empty($input['is_confidential']) ? 1 : 0,
+        $noteId,
+        $caseId,
+    ]);
+
+    $db->prepare("UPDATE gm_cases SET updated_at = NOW() WHERE id = ?")->execute([$caseId]);
+
+    if (guidanceIsHtmx()) {
+        header('HX-Trigger: ' . json_encode([
+            'showToast'   => ['message' => 'Note updated successfully', 'type' => 'success'],
+            'closeModal'  => true,
+            'refreshNotes' => true,
+        ]));
+        http_response_code(200);
+        echo '';
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
+}
+
+// ---------------------------------------------------------------------------
+// Documents tab helpers
+// ---------------------------------------------------------------------------
+
+function guidanceCategoryFromFilename(string $filename): string
+{
+    $lower = strtolower($filename);
+    if (preg_match('/intake|assessment|initial/', $lower)) return 'intake_assessment';
+    if (preg_match('/session|note/', $lower))              return 'session_notes';
+    if (preg_match('/plan|goal/', $lower))                 return 'plans_goals';
+    if (preg_match('/report/', $lower))                    return 'reports';
+    if (preg_match('/consent|form/', $lower))              return 'forms_consent';
+    if (preg_match('/letter|correspondence/', $lower))     return 'correspondence';
+    return 'other';
+}
+
+function guidanceCategoryLabel(string $cat): string
+{
+    $map = [
+        'intake_assessment' => 'Intake & Assessment',
+        'session_notes'     => 'Session Notes',
+        'plans_goals'       => 'Plans & Goals',
+        'reports'           => 'Reports',
+        'forms_consent'     => 'Forms & Consent',
+        'correspondence'    => 'Correspondence',
+        'other'             => 'Other',
+    ];
+    return $map[$cat] ?? 'Other';
+}
+
+function guidanceCategoryBadgeClass(string $cat): string
+{
+    $map = [
+        'intake_assessment' => 'bg-blue-100 text-blue-700',
+        'session_notes'     => 'bg-teal-100 text-teal-700',
+        'plans_goals'       => 'bg-purple-100 text-purple-700',
+        'reports'           => 'bg-orange-100 text-orange-700',
+        'forms_consent'     => 'bg-green-100 text-green-700',
+        'correspondence'    => 'bg-indigo-100 text-indigo-700',
+        'other'             => 'bg-gray-100 text-gray-600',
+    ];
+    return $map[$cat] ?? 'bg-gray-100 text-gray-600';
+}
+
+function guidanceDocFileIcon(string $fileType): array
+{
+    $lower = strtolower(trim($fileType, '.'));
+    if ($lower === 'pdf') return ['icon' => 'fa-file-pdf', 'color' => 'text-red-500'];
+    if (in_array($lower, ['doc', 'docx'], true)) return ['icon' => 'fa-file-word', 'color' => 'text-blue-500'];
+    if (in_array($lower, ['xls', 'xlsx', 'csv'], true)) return ['icon' => 'fa-file-excel', 'color' => 'text-green-500'];
+    if (in_array($lower, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true)) return ['icon' => 'fa-file-image', 'color' => 'text-purple-500'];
+    return ['icon' => 'fa-file', 'color' => 'text-gray-400'];
+}
+
+function guidanceDocFileSizeLabel(int $bytes): string
+{
+    if ($bytes >= 1048576) return round($bytes / 1048576, 1) . ' MB';
+    if ($bytes >= 1024)    return round($bytes / 1024, 1) . ' KB';
+    return $bytes . ' B';
+}
+
+// ---------------------------------------------------------------------------
+// Documents tab — list
+// ---------------------------------------------------------------------------
+
+function apiGuidanceCaseDocuments(array $params = []): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+
+    if ($caseId < 1) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+
+    $db     = guidanceDb();
+    $csStmt = $db->prepare('SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $csStmt->execute([$caseId]);
+    $case   = $csStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($case)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($case['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-6 text-sm text-red-600">Access denied</div>';
+        return;
+    }
+
+    // Valid categories
+    $validCategories = ['intake_assessment', 'session_notes', 'plans_goals', 'reports', 'forms_consent', 'correspondence', 'other'];
+
+    $filterCat = isset($_GET['folder']) && in_array($_GET['folder'], $validCategories, true)
+        ? $_GET['folder']
+        : 'all';
+    $search    = trim((string)($_GET['q'] ?? ''));
+    $page      = max(1, (int)($_GET['page'] ?? 1));
+    $perPage   = 8;
+
+    // Fetch all docs (for sidebar counts + storage) — no pagination here
+    $allStmt = $db->prepare(
+        "SELECT a.id, a.file_name, a.file_type, a.file_size, a.file_category, a.description,\n"
+        . "       a.uploaded_at, a.file_path,\n"
+        . "       CONCAT(u.first_name, ' ', u.last_name) AS uploader_name\n"
+        . "FROM gm_attachments a\n"
+        . "LEFT JOIN gm_users u ON a.uploaded_by = u.id\n"
+        . "WHERE a.case_id = ? AND a.deleted_at IS NULL\n"
+        . "ORDER BY a.uploaded_at DESC"
+    );
+    $allStmt->execute([$caseId]);
+    $allDocs = $allStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Derive category for each row (fallback from filename if column is 'other' or empty)
+    foreach ($allDocs as &$doc) {
+        $cat = trim((string)($doc['file_category'] ?? ''));
+        if ($cat === '' || $cat === 'other') {
+            $inferred = guidanceCategoryFromFilename((string)$doc['file_name']);
+            if ($inferred !== 'other') {
+                $doc['file_category'] = $inferred;
+            } else {
+                $doc['file_category'] = 'other';
+            }
+        }
+        $doc['category_label'] = guidanceCategoryLabel($doc['file_category']);
+        $doc['category_badge'] = guidanceCategoryBadgeClass($doc['file_category']);
+        $fileInfo              = guidanceDocFileIcon((string)($doc['file_type'] ?? ''));
+        $doc['file_icon']      = $fileInfo['icon'];
+        $doc['file_icon_color'] = $fileInfo['color'];
+        $doc['file_size_label'] = guidanceDocFileSizeLabel((int)($doc['file_size'] ?? 0));
+        $doc['uploaded_at_fmt'] = !empty($doc['uploaded_at']) ? date('M j, Y', strtotime($doc['uploaded_at'])) : '—';
+        $doc['uploaded_at_time'] = !empty($doc['uploaded_at']) ? date('g:i A', strtotime($doc['uploaded_at'])) : '';
+    }
+    unset($doc);
+
+    // Category counts for sidebar
+    $catCounts = array_fill_keys($validCategories, 0);
+    $totalStorage = 0;
+    foreach ($allDocs as $d) {
+        $c = $d['file_category'];
+        if (isset($catCounts[$c])) $catCounts[$c]++;
+        $totalStorage += (int)($d['file_size'] ?? 0);
+    }
+    $totalDocs = count($allDocs);
+
+    // Apply folder + search filter for the paginated list
+    $filtered = array_filter($allDocs, function ($d) use ($filterCat, $search) {
+        if ($filterCat !== 'all' && $d['file_category'] !== $filterCat) return false;
+        if ($search !== '') {
+            $hay = strtolower((string)$d['file_name'] . ' ' . (string)$d['description'] . ' ' . (string)$d['uploader_name']);
+            if (strpos($hay, strtolower($search)) === false) return false;
+        }
+        return true;
+    });
+    $filtered    = array_values($filtered);
+    $totalFound  = count($filtered);
+    $totalPages  = max(1, (int)ceil($totalFound / $perPage));
+    $page        = min($page, $totalPages);
+    $offset      = ($page - 1) * $perPage;
+    $pageDocs    = array_slice($filtered, $offset, $perPage);
+
+    // Storage bar: 500 MB limit
+    $storageLimitBytes = 500 * 1048576;
+    $storagePct = $storageLimitBytes > 0 ? min(100, round(($totalStorage / $storageLimitBytes) * 100, 1)) : 0;
+    $storageMb  = round($totalStorage / 1048576, 1);
+
+    $allCategories = [
+        ['key' => 'intake_assessment', 'label' => 'Intake & Assessment', 'desc' => 'Initial assessments and intake paperwork', 'color' => 'bg-blue-500'],
+        ['key' => 'session_notes',     'label' => 'Session Notes',       'desc' => 'Notes from counseling sessions',           'color' => 'bg-teal-500'],
+        ['key' => 'plans_goals',       'label' => 'Plans & Goals',       'desc' => 'Treatment plans and goal tracking',         'color' => 'bg-purple-500'],
+        ['key' => 'reports',           'label' => 'Reports',             'desc' => 'Progress reports and evaluations',          'color' => 'bg-orange-500'],
+        ['key' => 'forms_consent',     'label' => 'Forms & Consent',     'desc' => 'Consent forms and legal documents',         'color' => 'bg-green-500'],
+        ['key' => 'other',             'label' => 'Other',               'desc' => 'Miscellaneous documents',                   'color' => 'bg-gray-400'],
+    ];
+
+    $folders = [['key' => 'all', 'label' => 'All Documents', 'count' => $totalDocs, 'icon' => 'fa-folder-open']];
+    foreach ($allCategories as $cat) {
+        $folders[] = [
+            'key'   => $cat['key'],
+            'label' => $cat['label'],
+            'count' => $catCounts[$cat['key']] ?? 0,
+            'icon'  => 'fa-folder',
+        ];
+    }
+
+    echo guidanceRender('modules/guidance/partials/case-documents-tab.disyl', [
+        'case_id'       => $caseId,
+        'docs'          => $pageDocs,
+        'all_docs_count' => $totalDocs,
+        'total_found'   => $totalFound,
+        'page'          => $page,
+        'per_page'      => $perPage,
+        'total_pages'   => $totalPages,
+        'filter_cat'    => $filterCat,
+        'search'        => $search,
+        'page_start'    => $totalFound > 0 ? ($page - 1) * $perPage + 1 : 0,
+        'page_end'      => min($page * $perPage, $totalFound),
+        'cat_counts'    => $catCounts,
+        'folders'       => $folders,
+        'total_storage_bytes' => $totalStorage,
+        'storage_mb'    => $storageMb,
+        'storage_pct'   => $storagePct,
+        'all_categories' => $allCategories,
+        'valid_categories' => $validCategories,
+    ]);
+}
+
+// ---------------------------------------------------------------------------
+// Documents tab — upload modal (GET)
+// ---------------------------------------------------------------------------
+
+function modalGuidanceCaseDocumentUpload(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $caseId = (int)($params['id'] ?? 0);
+    if ($caseId < 1) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+    $db     = guidanceDb();
+    $csStmt = $db->prepare('SELECT id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $csStmt->execute([$caseId]);
+    if (!$csStmt->fetch(PDO::FETCH_ASSOC)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+    echo guidanceRender('modules/guidance/modals/document-upload-form.disyl', [
+        'case_id'   => $caseId,
+        'csrf_token' => app()->csrfToken(),
+    ]);
+}
+
+// ---------------------------------------------------------------------------
+// Documents tab — upload handler (POST)
+// ---------------------------------------------------------------------------
+
+function apiGuidanceCaseDocumentUpload(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+
+    if ($caseId < 1) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+
+    $db     = guidanceDb();
+    $csStmt = $db->prepare('SELECT id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $csStmt->execute([$caseId]);
+    if (!$csStmt->fetch(PDO::FETCH_ASSOC)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+
+    if (empty($_FILES['document_file']) || (int)($_FILES['document_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        http_response_code(422);
+        echo '<div class="p-4 text-sm text-red-600">Please select a file to upload.</div>';
+        return;
+    }
+
+    $file    = $_FILES['document_file'];
+    $origName = basename((string)($file['name'] ?? ''));
+    $tmpName  = (string)($file['tmp_name'] ?? '');
+    $fileSize = (int)($file['size'] ?? 0);
+
+    // Validate size: 50 MB limit
+    if ($fileSize > 50 * 1048576) {
+        http_response_code(422);
+        echo '<div class="p-4 text-sm text-red-600">File exceeds the 50 MB upload limit.</div>';
+        return;
+    }
+
+    // Validate extension
+    $allowedExt = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'png', 'jpg', 'jpeg', 'gif', 'txt'];
+    $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowedExt, true)) {
+        http_response_code(422);
+        echo '<div class="p-4 text-sm text-red-600">File type .' . htmlspecialchars($ext) . ' is not allowed.</div>';
+        return;
+    }
+
+    // Validate MIME via finfo
+    $finfo    = new \finfo(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo->file($tmpName);
+    $allowedMime = [
+        'application/pdf', 'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/csv', 'text/plain',
+        'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+    ];
+    if (!in_array($mimeType, $allowedMime, true)) {
+        http_response_code(422);
+        echo '<div class="p-4 text-sm text-red-600">File type not permitted.</div>';
+        return;
+    }
+
+    // Sanitize filename
+    $safeName   = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $origName);
+    $safeName   = ltrim($safeName, '.');
+    $uniqueName = date('Ymd_His') . '_' . $safeName;
+
+    $uploadDir = STORAGE_PATH . '/guidance/uploads/cases/' . $caseId;
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0750, true)) {
+        http_response_code(500);
+        echo '<div class="p-4 text-sm text-red-600">Could not create upload directory.</div>';
+        return;
+    }
+
+    $destPath = $uploadDir . '/' . $uniqueName;
+    if (!move_uploaded_file($tmpName, $destPath)) {
+        http_response_code(500);
+        echo '<div class="p-4 text-sm text-red-600">Upload failed. Please try again.</div>';
+        return;
+    }
+
+    $validCategories = ['intake_assessment', 'session_notes', 'plans_goals', 'reports', 'forms_consent', 'correspondence', 'other'];
+    $category = in_array($_POST['file_category'] ?? '', $validCategories, true)
+        ? $_POST['file_category']
+        : guidanceCategoryFromFilename($origName);
+    $description = trim((string)($_POST['description'] ?? ''));
+    $description = $description !== '' ? substr($description, 0, 255) : null;
+
+    // Relative path stored (from STORAGE_PATH)
+    $relPath = 'guidance/uploads/cases/' . $caseId . '/' . $uniqueName;
+
+    $insStmt = $db->prepare(
+        "INSERT INTO gm_attachments\n"
+        . "  (case_id, file_name, file_path, file_type, file_size, file_category, description, uploaded_by, uploaded_at)\n"
+        . "VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+    );
+    $insStmt->execute([$caseId, $origName, $relPath, $ext, $fileSize, $category, $description, $userId]);
+
+    $db->prepare("UPDATE gm_cases SET updated_at = NOW() WHERE id = ?")->execute([$caseId]);
+
+    if (guidanceIsHtmx()) {
+        header('HX-Trigger: ' . json_encode([
+            'showToast'      => ['message' => 'Document uploaded successfully', 'type' => 'success'],
+            'closeModal'     => true,
+            'refreshDocuments' => true,
+        ]));
+        http_response_code(200);
+        echo '';
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
+}
+
+// ---------------------------------------------------------------------------
+// Documents tab — download handler (GET)
+// ---------------------------------------------------------------------------
+
+function apiGuidanceCaseDocumentDownload(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+    $docId  = (int)($params['docId'] ?? 0);
+
+    if ($caseId < 1 || $docId < 1) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    $db     = guidanceDb();
+    $csStmt = $db->prepare('SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $csStmt->execute([$caseId]);
+    $case   = $csStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($case)) {
+        http_response_code(404);
+        echo 'Case not found';
+        return;
+    }
+    if ($role === 'counselor' && (int)($case['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo 'Access denied';
+        return;
+    }
+
+    $dStmt = $db->prepare("SELECT file_name, file_path, file_type, file_size FROM gm_attachments WHERE id = ? AND case_id = ? AND deleted_at IS NULL LIMIT 1");
+    $dStmt->execute([$docId, $caseId]);
+    $doc   = $dStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($doc)) {
+        http_response_code(404);
+        echo 'Document not found';
+        return;
+    }
+
+    $filePath = STORAGE_PATH . '/' . ltrim((string)$doc['file_path'], '/');
+    if (!is_file($filePath)) {
+        http_response_code(404);
+        echo 'File not found on server';
+        return;
+    }
+
+    $fileName = basename((string)$doc['file_name']);
+    $mimeMap  = [
+        'pdf'  => 'application/pdf',
+        'doc'  => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls'  => 'application/vnd.ms-excel',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'csv'  => 'text/csv',
+        'png'  => 'image/png',
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif'  => 'image/gif',
+        'txt'  => 'text/plain',
+    ];
+    $ext      = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+    $mime     = $mimeMap[$ext] ?? 'application/octet-stream';
+
+    header('Content-Type: ' . $mime);
+    header('Content-Disposition: attachment; filename="' . rawurlencode($fileName) . '"');
+    header('Content-Length: ' . filesize($filePath));
+    header('Cache-Control: no-store');
+    readfile($filePath);
 }
 
 function apiGuidanceCaseNotes(array $params = []): void
@@ -3941,16 +4580,52 @@ function apiGuidanceCaseNotes(array $params = []): void
         return;
     }
 
+    $search  = trim((string)($_GET['q'] ?? ''));
+    $page    = max(1, (int)($_GET['page'] ?? 1));
+    $perPage = 20;
+    $offset  = ($page - 1) * $perPage;
+
+    $noteTypeLabels = [
+        'session'      => 'Progress Note',
+        'phone'        => 'Phone Note',
+        'observation'  => 'Observation',
+        'consultation' => 'Consultation',
+        'followup'     => 'Follow-up Note',
+        'referral'     => 'Referral Note',
+        'other'        => 'General Note',
+    ];
+
+    $whereClause = 'n.case_id = ?';
+    $bindings    = [$caseId];
+    if ($search !== '') {
+        $whereClause .= ' AND n.note_content LIKE ?';
+        $bindings[]   = '%' . $search . '%';
+    }
+
     try {
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM gm_counselor_notes n WHERE {$whereClause}");
+        $countStmt->execute($bindings);
+        $total = (int)$countStmt->fetchColumn();
+
         $stmt = $db->prepare(
-            "SELECT n.*, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+            "SELECT n.id, n.note_type, n.session_type, n.session_date, n.note_content,\n"
+            . "       n.risk_level, n.is_confidential, n.observation_recommendation, n.created_at,\n"
+            . "       CONCAT(u.first_name, ' ', u.last_name) AS counselor_name,\n"
+            . "       (SELECT a2.scheduled_time FROM gm_appointments a2\n"
+            . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+            . "        ORDER BY a2.id LIMIT 1) AS apt_time,\n"
+            . "       (SELECT at2.name FROM gm_appointments a2\n"
+            . "        LEFT JOIN gm_appointment_types at2 ON a2.appointment_type_id = at2.id\n"
+            . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+            . "        ORDER BY a2.id LIMIT 1) AS apt_type_name\n"
             . "FROM gm_counselor_notes n\n"
             . "LEFT JOIN gm_users u ON n.counselor_id = u.id\n"
-            . "WHERE n.case_id = ?\n"
-            . "ORDER BY n.session_date DESC, n.created_at DESC"
+            . "WHERE {$whereClause}\n"
+            . "ORDER BY n.session_date DESC, n.created_at DESC\n"
+            . "LIMIT {$perPage} OFFSET {$offset}"
         );
-        $stmt->execute([$caseId]);
-        $notes = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $stmt->execute($bindings);
+        $rawNotes = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {
         app()->log('Notes list error: ' . $e->getMessage(), 'error');
         http_response_code(500);
@@ -3963,14 +4638,194 @@ function apiGuidanceCaseNotes(array $params = []): void
         return;
     }
 
+    $notes = array_map(static function (array $n) use ($noteTypeLabels): array {
+        $raw = trim((string)($n['note_content'] ?? ''));
+        // First line as title, capped at 60 chars
+        $firstLine = explode("\n", $raw)[0];
+        $n['note_title'] = mb_strlen($firstLine) > 60
+            ? mb_substr($firstLine, 0, 57) . '...'
+            : $firstLine;
+        $n['note_preview'] = mb_strlen($raw) > 80
+            ? mb_substr($raw, 0, 77) . '...'
+            : $raw;
+        $n['note_type_label'] = $noteTypeLabels[$n['note_type'] ?? ''] ?? ucfirst((string)($n['note_type'] ?? ''));
+        try {
+            $dt                   = new DateTimeImmutable((string)($n['session_date'] ?? $n['created_at'] ?? 'now'));
+            $n['formatted_date']  = $dt->format('M d, Y');
+            $n['formatted_time']  = '';
+            if (!empty($n['apt_time'])) {
+                $at = new DateTimeImmutable($n['session_date'] . ' ' . $n['apt_time']);
+                $n['formatted_time'] = $at->format('g:i A');
+            }
+        } catch (\Exception $e) {
+            $n['formatted_date'] = (string)($n['session_date'] ?? '');
+            $n['formatted_time'] = '';
+        }
+        return $n;
+    }, $rawNotes);
+
+    $totalPages = $total > 0 ? (int)ceil($total / $perPage) : 1;
+    $from       = $total > 0 ? $offset + 1 : 0;
+    $to         = min($offset + $perPage, $total);
+
     if (guidanceIsHtmx()) {
         header('Content-Type: text/html; charset=utf-8');
-        echo guidanceRender('modules/guidance/partials/notes-list.disyl', ['notes' => $notes]);
+        echo guidanceRender('modules/guidance/partials/case-notes-tab.disyl', [
+            'notes'       => $notes,
+            'total'       => $total,
+            'page'        => $page,
+            'total_pages' => $totalPages,
+            'from'        => $from,
+            'to'          => $to,
+            'search'      => $search,
+            'case_id'     => $caseId,
+            'base_url'    => '/admin/guidance',
+        ]);
         return;
     }
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => true, 'data' => $notes], JSON_UNESCAPED_SLASHES);
+}
+
+function apiGuidanceCaseNoteDetail(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+    $noteId = (int)($params['noteId'] ?? 0);
+
+    if ($caseId < 1 || $noteId < 1) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Not found.</div>';
+        return;
+    }
+
+    $db     = guidanceDb();
+    $csStmt = $db->prepare("SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+    $csStmt->execute([$caseId]);
+    $caseRow = $csStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($caseRow)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Case not found.</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($caseRow['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-6 text-sm text-red-400">Access denied.</div>';
+        return;
+    }
+
+    $nStmt = $db->prepare(
+        "SELECT n.*,\n"
+        . "       CONCAT(u.first_name, ' ', u.last_name) AS counselor_name,\n"
+        . "       (SELECT a2.id FROM gm_appointments a2\n"
+        . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+        . "        ORDER BY a2.id LIMIT 1) AS apt_id,\n"
+        . "       (SELECT a2.scheduled_time FROM gm_appointments a2\n"
+        . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+        . "        ORDER BY a2.id LIMIT 1) AS apt_time,\n"
+        . "       (SELECT a2.duration_minutes FROM gm_appointments a2\n"
+        . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+        . "        ORDER BY a2.id LIMIT 1) AS apt_duration,\n"
+        . "       (SELECT a2.purpose FROM gm_appointments a2\n"
+        . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+        . "        ORDER BY a2.id LIMIT 1) AS apt_purpose,\n"
+        . "       (SELECT a2.location FROM gm_appointments a2\n"
+        . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+        . "        ORDER BY a2.id LIMIT 1) AS apt_location,\n"
+        . "       (SELECT at2.name FROM gm_appointments a2\n"
+        . "        LEFT JOIN gm_appointment_types at2 ON a2.appointment_type_id = at2.id\n"
+        . "        WHERE a2.case_id = n.case_id AND a2.scheduled_date = n.session_date\n"
+        . "        ORDER BY a2.id LIMIT 1) AS apt_type_name\n"
+        . "FROM gm_counselor_notes n\n"
+        . "LEFT JOIN gm_users u ON n.counselor_id = u.id\n"
+        . "WHERE n.id = ? AND n.case_id = ? LIMIT 1"
+    );
+    $nStmt->execute([$noteId, $caseId]);
+    $note = $nStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($note)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Note not found.</div>';
+        return;
+    }
+
+    $noteTypeLabels = [
+        'session'      => 'Progress Note',
+        'phone'        => 'Phone Note',
+        'observation'  => 'Observation',
+        'consultation' => 'Consultation',
+        'followup'     => 'Follow-up Note',
+        'referral'     => 'Referral Note',
+        'other'        => 'General Note',
+    ];
+    $note['note_type_label'] = $noteTypeLabels[$note['note_type'] ?? ''] ?? ucfirst((string)($note['note_type'] ?? ''));
+
+    $raw = trim((string)($note['note_content'] ?? ''));
+    $firstLine = explode("\n", $raw)[0];
+    $note['note_title'] = mb_strlen($firstLine) > 80 ? mb_substr($firstLine, 0, 77) . '...' : $firstLine;
+
+    try {
+        $dt                   = new DateTimeImmutable((string)($note['session_date'] ?? $note['created_at'] ?? 'now'));
+        $note['formatted_date']     = $dt->format('M d, Y');
+        $note['formatted_created']  = '';
+        try {
+            $ct = new DateTimeImmutable((string)($note['created_at'] ?? 'now'));
+            $note['formatted_created'] = $ct->format('M d, Y \a\t g:i A');
+        } catch (\Exception $e) {}
+        $note['formatted_apt_time'] = '';
+        $note['formatted_apt_end']  = '';
+        if (!empty($note['apt_time'])) {
+            $at = new DateTimeImmutable($note['session_date'] . ' ' . $note['apt_time']);
+            $note['formatted_apt_time'] = $at->format('g:i A');
+            $dur = (int)($note['apt_duration'] ?? 0);
+            if ($dur > 0) {
+                $note['formatted_apt_end'] = $at->modify("+{$dur} minutes")->format('g:i A');
+            }
+        }
+    } catch (\Exception $e) {
+        $note['formatted_date']     = (string)($note['session_date'] ?? '');
+        $note['formatted_created']  = '';
+        $note['formatted_apt_time'] = '';
+        $note['formatted_apt_end']  = '';
+    }
+
+    // Attachments for this case (most recent 5)
+    $attachments = [];
+    try {
+        $attStmt = $db->prepare(
+            "SELECT a.id, a.file_name, a.file_type, a.file_size, a.uploaded_at,\n"
+            . "       CONCAT(u2.first_name, ' ', u2.last_name) AS uploader_name\n"
+            . "FROM gm_attachments a\n"
+            . "LEFT JOIN gm_users u2 ON a.uploaded_by = u2.id\n"
+            . "WHERE a.case_id = ? AND a.deleted_at IS NULL\n"
+            . "ORDER BY a.uploaded_at DESC LIMIT 5"
+        );
+        $attStmt->execute([$caseId]);
+        $rows        = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $attachments = array_map(static function (array $row): array {
+            $bytes = (int)($row['file_size'] ?? 0);
+            if ($bytes <= 0) {
+                $row['file_size_label'] = '';
+            } elseif ($bytes < 1024) {
+                $row['file_size_label'] = $bytes . ' B';
+            } elseif ($bytes < 1048576) {
+                $row['file_size_label'] = round($bytes / 1024) . ' KB';
+            } else {
+                $row['file_size_label'] = round($bytes / 1048576, 1) . ' MB';
+            }
+            return $row;
+        }, $rows);
+    } catch (\Exception $e) {}
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/case-note-detail.disyl', [
+        'note'        => $note,
+        'attachments' => $attachments,
+        'case_id'     => $caseId,
+        'base_url'    => '/admin/guidance',
+    ]);
 }
 
 function apiGuidanceCreateCaseNote(array $params = []): void
@@ -4021,17 +4876,18 @@ function apiGuidanceCreateCaseNote(array $params = []): void
     try {
         $stmt = $db->prepare(
             "INSERT INTO gm_counselor_notes (\n"
-            . "    case_id, counselor_id, note_type, session_type, session_date, session_duration_minutes,\n"
+            . "    case_id, appointment_id, counselor_id, note_type, session_type, session_date, session_duration_minutes,\n"
             . "    note_content, intervention_used, student_response, risk_level, mood_assessment,\n"
             . "    action_taken, mse_appearance, mse_behavior, mse_speech, mse_emotions,\n"
             . "    mse_thinking, mse_cognition, mse_judgment, mse_reliability,\n"
             . "    case_predisposition, case_precipitating, case_perpetuating, case_protective,\n"
             . "    observation_recommendation, followup_required, followup_notes, is_confidential,\n"
             . "    sync_id, created_by, created_at, updated_at\n"
-            . ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
+            . ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
         );
         $stmt->execute([
             $caseId,
+            (($input['appointment_id'] ?? '') !== '' ? (int)$input['appointment_id'] : null),
             $userId,
             (string)($input['note_type'] ?? 'session'),
             (string)($input['session_type'] ?? 'walk-in'),
@@ -7002,18 +7858,6 @@ function apiGuidanceTrackerImportTemplate(array $params = []): void
 
     fwrite($output, "\xEF\xBB\xBF");
     fputcsv($output, ['Student ID', 'Student Name', 'College', 'Year Level', 'Section', 'Email', 'Phone']);
-
-    $sampleCollege = 'CAS - College of Arts and Sciences';
-    if (is_array($colleges) && $colleges !== [] && is_array($colleges[0])) {
-        $sampleCollege = trim((string)($colleges[0]['code'] ?? '')) . ' - ' . trim((string)($colleges[0]['name'] ?? ''));
-        $sampleCollege = trim($sampleCollege, ' -');
-        if ($sampleCollege === '') {
-            $sampleCollege = 'CAS - College of Arts and Sciences';
-        }
-    }
-
-    fputcsv($output, ['2024-0001', 'Juan Dela Cruz', $sampleCollege, '1st Year', 'A', 'juan@example.com', '09171234567']);
-    fputcsv($output, ['2024-0002', 'Maria Santos', $sampleCollege, '2nd Year', 'B', 'maria@example.com', '09181234567']);
     fputcsv($output, []);
     fputcsv($output, ['--- INSTRUCTIONS (delete these rows before importing) ---']);
     fputcsv($output, ['Student ID', 'School ID number (optional)']);
@@ -7025,11 +7869,19 @@ function apiGuidanceTrackerImportTemplate(array $params = []): void
     fputcsv($output, ['Phone', 'Mobile number (optional)']);
     fputcsv($output, []);
     fputcsv($output, ['--- AVAILABLE COLLEGES ---']);
+    if ($colleges === []) {
+        fputcsv($output, ['No active colleges configured. Add colleges before importing students.']);
+    }
     foreach ($colleges as $college) {
         if (!is_array($college)) {
             continue;
         }
-        fputcsv($output, [trim((string)($college['code'] ?? '')) . ' - ' . trim((string)($college['name'] ?? ''))]);
+        $collegeLabel = trim((string)($college['code'] ?? '')) . ' - ' . trim((string)($college['name'] ?? ''));
+        $collegeLabel = trim($collegeLabel, ' -');
+        if ($collegeLabel === '') {
+            continue;
+        }
+        fputcsv($output, [$collegeLabel]);
     }
 
     fclose($output);
@@ -11527,5 +12379,421 @@ function apiGuidanceCasePanel(array $params = []): void
         'notes'    => $notes,
         'today'    => date('Y-m-d'),
         'base_url' => '/admin/guidance',
+    ]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Case alerts tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+function guidanceCaseAlertMeta(array &$a): void
+{
+    $level = (string)($a['level'] ?? 'low');
+    switch ($level) {
+        case 'critical':
+            $a['icon'] = 'fa-skull-crossbones';
+            $a['icon_bg'] = 'bg-red-100 text-red-600';
+            $a['badge_class'] = 'bg-red-100 text-red-700 border border-red-200';
+            $a['badge_label'] = 'Critical';
+            break;
+        case 'high':
+            $a['icon'] = 'fa-exclamation-triangle';
+            $a['icon_bg'] = 'bg-red-50 text-red-500';
+            $a['badge_class'] = 'bg-red-50 text-red-700 border border-red-200';
+            $a['badge_label'] = 'High Risk';
+            break;
+        case 'moderate':
+            $a['icon'] = 'fa-exclamation-circle';
+            $a['icon_bg'] = 'bg-amber-50 text-amber-500';
+            $a['badge_class'] = 'bg-amber-50 text-amber-700 border border-amber-200';
+            $a['badge_label'] = 'Moderate';
+            break;
+        default:
+            $a['icon'] = 'fa-info-circle';
+            $a['icon_bg'] = 'bg-blue-50 text-blue-500';
+            $a['badge_class'] = 'bg-blue-50 text-blue-700 border border-blue-200';
+            $a['badge_label'] = 'Info';
+    }
+    if ($a['type'] === 'urgent_appointment') {
+        $a['icon']    = 'fa-calendar-exclamation';
+        $a['icon_bg'] = 'bg-red-50 text-red-500';
+    } elseif ($a['type'] === 'followup') {
+        $a['icon']        = 'fa-clock';
+        $a['icon_bg']     = 'bg-amber-50 text-amber-500';
+        $a['badge_class'] = 'bg-amber-50 text-amber-700 border border-amber-200';
+        $a['badge_label'] = 'Follow-up';
+    }
+    $ts   = strtotime((string)($a['created_at'] ?? ''));
+    $diff = $ts ? (time() - $ts) : 0;
+    if ($diff < 60)         $a['time_ago'] = 'just now';
+    elseif ($diff < 3600)   $a['time_ago'] = floor($diff / 60) . ' min ago';
+    elseif ($diff < 86400)  $a['time_ago'] = floor($diff / 3600) . ' hr ago';
+    elseif ($diff < 604800) $a['time_ago'] = date('M j \a\t g:i A', $ts);
+    else                    $a['time_ago'] = date('M j, Y', $ts);
+    $a['ts_formatted'] = $ts ? date('M j, Y', $ts) : '';
+}
+
+function apiGuidanceCaseAlerts(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+
+    if ($caseId < 1) {
+        http_response_code(404);
+        echo '<div class="p-4 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+
+    $db = guidanceDb();
+
+    $caseStmt = $db->prepare('SELECT counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $caseStmt->execute([$caseId]);
+    $case = $caseStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($case)) {
+        http_response_code(404);
+        echo '<div class="p-4 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($case['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-4 text-sm text-red-600">Access denied</div>';
+        return;
+    }
+
+    $alerts = [];
+    try {
+        // 1. Risk-level notes (moderate / high / critical)
+        $rStmt = $db->prepare(
+            "SELECT n.id, n.risk_level, n.note_type, n.note_content, n.session_date, n.created_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS counselor_name
+             FROM gm_counselor_notes n
+             LEFT JOIN gm_users u ON n.counselor_id = u.id
+             WHERE n.case_id = ? AND n.risk_level IN ('moderate','high','critical')
+             ORDER BY FIELD(n.risk_level,'critical','high','moderate'), n.created_at DESC
+             LIMIT 50"
+        );
+        $rStmt->execute([$caseId]);
+        foreach ($rStmt->fetchAll(PDO::FETCH_ASSOC) as $note) {
+            $levelMap = ['critical' => 'critical', 'high' => 'high', 'moderate' => 'moderate'];
+            $alerts[] = [
+                'type'        => 'risk_note',
+                'level'       => $levelMap[$note['risk_level']] ?? 'moderate',
+                'title'       => ucfirst($note['risk_level']) . ' Risk — ' . ucfirst(str_replace('_', ' ', $note['note_type'])) . ' Note',
+                'description' => $note['note_content'] ? mb_strimwidth($note['note_content'], 0, 180, '…') : '',
+                'actor_name'  => trim((string)($note['counselor_name'] ?? '')),
+                'created_at'  => $note['created_at'],
+                'link'        => null,
+            ];
+        }
+
+        // 2. Urgent appointments
+        $uStmt = $db->prepare(
+            "SELECT a.id, a.scheduled_date, a.scheduled_time, a.status, a.purpose, a.created_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS counselor_name
+             FROM gm_appointments a
+             LEFT JOIN gm_users u ON a.counselor_id = u.id
+             WHERE a.case_id = ? AND a.is_urgent = 1
+             ORDER BY a.scheduled_date DESC
+             LIMIT 20"
+        );
+        $uStmt->execute([$caseId]);
+        foreach ($uStmt->fetchAll(PDO::FETCH_ASSOC) as $appt) {
+            $alerts[] = [
+                'type'        => 'urgent_appointment',
+                'level'       => 'high',
+                'title'       => 'Urgent Appointment — ' . date('M j, Y', strtotime($appt['scheduled_date'])),
+                'description' => $appt['purpose'] ? mb_strimwidth($appt['purpose'], 0, 180, '…') : 'No purpose specified',
+                'actor_name'  => trim((string)($appt['counselor_name'] ?? '')),
+                'created_at'  => $appt['scheduled_date'] . ' ' . $appt['scheduled_time'],
+                'link'        => '/pages/appointments/' . $appt['id'],
+            ];
+        }
+
+        // 3. Follow-up required notes
+        $fStmt = $db->prepare(
+            "SELECT n.id, n.followup_notes, n.session_date, n.created_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS counselor_name
+             FROM gm_counselor_notes n
+             LEFT JOIN gm_users u ON n.counselor_id = u.id
+             WHERE n.case_id = ? AND n.followup_required = 1
+             ORDER BY n.created_at DESC
+             LIMIT 30"
+        );
+        $fStmt->execute([$caseId]);
+        foreach ($fStmt->fetchAll(PDO::FETCH_ASSOC) as $note) {
+            $sessLabel = $note['session_date'] ? ' (session ' . date('M j, Y', strtotime($note['session_date'])) . ')' : '';
+            $alerts[] = [
+                'type'        => 'followup',
+                'level'       => 'moderate',
+                'title'       => 'Follow-up Required' . $sessLabel,
+                'description' => $note['followup_notes'] ? mb_strimwidth($note['followup_notes'], 0, 180, '…') : 'Follow-up was flagged on this session.',
+                'actor_name'  => trim((string)($note['counselor_name'] ?? '')),
+                'created_at'  => $note['created_at'],
+                'link'        => null,
+            ];
+        }
+    } catch (Throwable $e) {
+        app()->log('Case alerts error: ' . $e->getMessage(), 'error');
+    }
+
+    // Sort: critical/high first, then by date desc
+    usort($alerts, function ($a, $b) {
+        $order = ['critical' => 0, 'high' => 1, 'moderate' => 2, 'low' => 3];
+        $la = $order[$a['level']] ?? 9;
+        $lb = $order[$b['level']] ?? 9;
+        if ($la !== $lb) return $la - $lb;
+        return strcmp($b['created_at'], $a['created_at']);
+    });
+
+    foreach ($alerts as &$alert) {
+        guidanceCaseAlertMeta($alert);
+    }
+    unset($alert);
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/case-alerts-tab.disyl', [
+        'alerts'  => $alerts,
+        'case_id' => $caseId,
+    ]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Case activity log tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+function guidanceActivityEventMeta(array &$e): void
+{
+    switch ($e['event_type']) {
+        case 'status_change':
+            $e['icon'] = 'fa-arrows-rotate';
+            $e['icon_bg'] = 'bg-indigo-50 text-indigo-500';
+            $e['badge_label'] = 'Status';
+            $e['badge_class'] = 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+            break;
+        case 'note_added':
+            $e['icon'] = 'fa-sticky-note';
+            $e['icon_bg'] = 'bg-teal-50 text-teal-600';
+            $e['badge_label'] = 'Note';
+            $e['badge_class'] = 'bg-teal-50 text-teal-700 border border-teal-200';
+            break;
+        case 'appointment':
+            $e['icon'] = 'fa-calendar-check';
+            $e['icon_bg'] = 'bg-blue-50 text-blue-500';
+            $e['badge_label'] = 'Appointment';
+            $e['badge_class'] = 'bg-blue-50 text-blue-700 border border-blue-200';
+            break;
+        case 'document':
+            $e['icon'] = 'fa-file-arrow-up';
+            $e['icon_bg'] = 'bg-purple-50 text-purple-500';
+            $e['badge_label'] = 'Document';
+            $e['badge_class'] = 'bg-purple-50 text-purple-700 border border-purple-200';
+            break;
+        case 'case_audit':
+            $e['icon'] = 'fa-shield-halved';
+            $e['icon_bg'] = 'bg-gray-100 text-gray-500';
+            $e['badge_label'] = 'Audit';
+            $e['badge_class'] = 'bg-gray-100 text-gray-600 border border-gray-200';
+            break;
+        default:
+            $e['icon'] = 'fa-circle-dot';
+            $e['icon_bg'] = 'bg-gray-100 text-gray-400';
+            $e['badge_label'] = 'Event';
+            $e['badge_class'] = 'bg-gray-100 text-gray-600 border border-gray-200';
+    }
+    $ts   = strtotime((string)($e['ts'] ?? ''));
+    $diff = $ts ? (time() - $ts) : 0;
+    if ($diff < 60)         $e['time_ago'] = 'just now';
+    elseif ($diff < 3600)   $e['time_ago'] = floor($diff / 60) . ' min ago';
+    elseif ($diff < 86400)  $e['time_ago'] = floor($diff / 3600) . ' hr ago';
+    elseif ($diff < 604800) $e['time_ago'] = date('M j \a\t g:i A', $ts);
+    else                    $e['time_ago'] = date('M j, Y', $ts);
+    $e['ts_formatted'] = $ts ? date('M j, Y \a\t g:i A', $ts) : '';
+    $e['ts_date']      = $ts ? date('Y-m-d', $ts) : '';
+}
+
+function apiGuidanceCaseActivityLog(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+
+    if ($caseId < 1) {
+        http_response_code(404);
+        echo '<div class="p-4 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+
+    $db = guidanceDb();
+
+    $caseStmt = $db->prepare('SELECT counselor_id, student_name FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $caseStmt->execute([$caseId]);
+    $case = $caseStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($case)) {
+        http_response_code(404);
+        echo '<div class="p-4 text-sm text-red-600">Case not found</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($case['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-4 text-sm text-red-600">Access denied</div>';
+        return;
+    }
+
+    $events = [];
+    try {
+        // 1. Status changes
+        $stmt = $db->prepare(
+            "SELECT h.id, h.new_status, h.previous_status, h.notes, h.created_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS actor_name
+             FROM gm_case_status_history h
+             LEFT JOIN gm_users u ON h.changed_by = u.id
+             WHERE h.case_id = ?
+             ORDER BY h.created_at DESC LIMIT 100"
+        );
+        $stmt->execute([$caseId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $prev = $row['previous_status'] ? ' (from ' . ucfirst($row['previous_status']) . ')' : '';
+            $events[] = [
+                'event_type' => 'status_change',
+                'title'      => 'Status changed to ' . ucfirst((string)($row['new_status'] ?? '')),
+                'detail'     => $row['notes'] ? mb_strimwidth($row['notes'], 0, 200, '…') : $prev,
+                'actor_name' => trim((string)($row['actor_name'] ?? 'System')),
+                'ts'         => $row['created_at'],
+                'link'       => null,
+            ];
+        }
+
+        // 2. Counselor notes
+        $stmt = $db->prepare(
+            "SELECT n.id, n.note_type, n.session_date, n.risk_level, n.note_content,
+                    n.session_duration_minutes, n.created_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS actor_name
+             FROM gm_counselor_notes n
+             LEFT JOIN gm_users u ON n.created_by = u.id
+             WHERE n.case_id = ?
+             ORDER BY n.created_at DESC LIMIT 100"
+        );
+        $stmt->execute([$caseId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $typeLabel = ucfirst(str_replace('_', ' ', (string)($row['note_type'] ?? 'session')));
+            $dur   = (int)($row['session_duration_minutes'] ?? 0);
+            $parts = [];
+            if ($row['session_date']) {
+                $parts[] = 'Session: ' . date('M j, Y', strtotime($row['session_date']));
+            }
+            if ($dur > 0) {
+                $parts[] = $dur . ' min';
+            }
+            if (!empty($row['risk_level']) && $row['risk_level'] !== 'none') {
+                $parts[] = ucfirst($row['risk_level']) . ' risk';
+            }
+            $events[] = [
+                'event_type' => 'note_added',
+                'title'      => $typeLabel . ' note added',
+                'detail'     => $parts ? implode(' · ', $parts) : mb_strimwidth((string)($row['note_content'] ?? ''), 0, 120, '…'),
+                'actor_name' => trim((string)($row['actor_name'] ?? '')),
+                'ts'         => $row['created_at'],
+                'link'       => '/pages/cases/' . $caseId . '/notes/' . $row['id'],
+            ];
+        }
+
+        // 3. Appointments
+        $stmt = $db->prepare(
+            "SELECT a.id, a.status, a.appointment_type, a.scheduled_date, a.scheduled_time,
+                    a.purpose, a.created_at, a.is_urgent,
+                    CONCAT(u.first_name, ' ', u.last_name) AS actor_name
+             FROM gm_appointments a
+             LEFT JOIN gm_users u ON a.created_by = u.id
+             WHERE a.case_id = ?
+             ORDER BY a.created_at DESC LIMIT 100"
+        );
+        $stmt->execute([$caseId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $apptType = ucfirst(str_replace('_', ' ', (string)($row['appointment_type'] ?? '')));
+            $scheduled = $row['scheduled_date']
+                ? date('M j, Y', strtotime($row['scheduled_date'])) . ' at ' . date('g:i A', strtotime($row['scheduled_time'] ?? '00:00'))
+                : '';
+            $parts = array_filter([$apptType, $scheduled, $row['is_urgent'] ? 'Urgent' : null]);
+            $events[] = [
+                'event_type' => 'appointment',
+                'title'      => 'Appointment ' . ucfirst((string)($row['status'] ?? '')),
+                'detail'     => implode(' · ', $parts),
+                'actor_name' => trim((string)($row['actor_name'] ?? '')),
+                'ts'         => $row['created_at'],
+                'link'       => '/pages/appointments/' . $row['id'],
+            ];
+        }
+
+        // 4. Document uploads
+        $stmt = $db->prepare(
+            "SELECT a.id, a.file_name, a.file_type, a.file_size, a.file_category,
+                    a.description, a.uploaded_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS actor_name
+             FROM gm_attachments a
+             LEFT JOIN gm_users u ON a.uploaded_by = u.id
+             WHERE a.case_id = ? AND a.deleted_at IS NULL
+             ORDER BY a.uploaded_at DESC LIMIT 100"
+        );
+        $stmt->execute([$caseId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $sizeStr = '';
+            $sz = (int)($row['file_size'] ?? 0);
+            if ($sz > 0) {
+                $sizeStr = $sz > 1048576
+                    ? number_format($sz / 1048576, 1) . ' MB'
+                    : number_format($sz / 1024, 1) . ' KB';
+            }
+            $catLabel = ucfirst(str_replace('_', ' ', (string)($row['file_category'] ?? 'other')));
+            $parts = array_filter([$catLabel !== 'Other' ? $catLabel : null, $sizeStr]);
+            $events[] = [
+                'event_type' => 'document',
+                'title'      => 'Document uploaded: ' . $row['file_name'],
+                'detail'     => $row['description'] ?: implode(' · ', $parts),
+                'actor_name' => trim((string)($row['actor_name'] ?? '')),
+                'ts'         => $row['uploaded_at'],
+                'link'       => null,
+            ];
+        }
+
+        // 5. Audit log (case-level actions)
+        $stmt = $db->prepare(
+            "SELECT al.id, al.action, al.new_data, al.created_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS actor_name
+             FROM gm_audit_logs al
+             LEFT JOIN gm_users u ON al.user_id = u.id
+             WHERE al.table_name = 'gm_cases' AND al.record_id = ?
+             ORDER BY al.created_at DESC LIMIT 100"
+        );
+        $stmt->execute([$caseId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $actionLabel = ucwords(str_replace(['.', '_'], [': ', ' '], (string)($row['action'] ?? '')));
+            $events[] = [
+                'event_type' => 'case_audit',
+                'title'      => $actionLabel,
+                'detail'     => '',
+                'actor_name' => trim((string)($row['actor_name'] ?? 'System')),
+                'ts'         => $row['created_at'],
+                'link'       => null,
+            ];
+        }
+    } catch (Throwable $e) {
+        app()->log('Case activity log error: ' . $e->getMessage(), 'error');
+    }
+
+    // Sort all events newest first
+    usort($events, fn ($a, $b) => strcmp($b['ts'], $a['ts']));
+
+    foreach ($events as &$event) {
+        guidanceActivityEventMeta($event);
+    }
+    unset($event);
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/case-activity-log-tab.disyl', [
+        'events'  => $events,
+        'case_id' => $caseId,
     ]);
 }
