@@ -180,13 +180,23 @@ function dlSettingsDefaults(): array
 
 function dlModuleSettings(): array
 {
-    return array_merge(dlSettingsDefaults(), getModuleSettings('daily-ledger'));
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $cache = array_merge(dlSettingsDefaults(), getModuleSettings('daily-ledger'));
+    return $cache;
 }
 
 function dl_rolePermissions(): array
 {
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+
     $defaults = dl_defaultRolePermissions();
-    $settings = getModuleSettings('daily-ledger');
+    $settings = dlModuleSettings();
     $raw = $settings['role_permissions'] ?? null;
 
     if (is_string($raw) && $raw !== '') {
@@ -197,7 +207,8 @@ function dl_rolePermissions(): array
     }
 
     if (!is_array($raw)) {
-        return $defaults;
+        $cache = $defaults;
+        return $cache;
     }
 
     $allowedActions = array_flip(dl_allPermissionActions());
@@ -217,7 +228,8 @@ function dl_rolePermissions(): array
         $result[$role] = array_keys($clean);
     }
 
-    return $result;
+    $cache = $result;
+    return $cache;
 }
 
 function dl_roleHasPermission(string $role, string $permission): bool
@@ -320,8 +332,14 @@ function dl_normalizePiecesPerBatch($value): ?int
 
 function dl_fetchActiveProductsForProduction($db): array
 {
+    $cacheKey = 'active_products_for_production';
+    $cached = app()->cache()->get('daily-ledger', $cacheKey);
+    if (is_array($cached) && isset($cached['rows'])) {
+        return $cached['rows'];
+    }
+
     try {
-        $stmt = $db->query('SELECT id, name, sku, current_price, output_pieces_per_batch, output_unit_label FROM dl_products WHERE is_active = 1 ORDER BY name');
+        $stmt = $db->query('SELECT id, name, sku, current_price, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, product_category FROM dl_products WHERE is_active = 1 ORDER BY product_category, name');
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
         $stmt = $db->query('SELECT id, name, sku, current_price FROM dl_products WHERE is_active = 1 ORDER BY name');
@@ -335,9 +353,23 @@ function dl_fetchActiveProductsForProduction($db): array
         if (!array_key_exists('output_unit_label', $row)) {
             $row['output_unit_label'] = 'pcs';
         }
+        if (!array_key_exists('batch_input_qty', $row)) {
+            $row['batch_input_qty'] = null;
+        }
+        if (!array_key_exists('batch_egg_qty', $row)) {
+            $row['batch_egg_qty'] = null;
+        }
     }
     unset($row);
 
+    foreach ($rows as &$row) {
+        if (!array_key_exists('product_category', $row)) {
+            $row['product_category'] = 'bread';
+        }
+    }
+    unset($row);
+
+    app()->cache()->setWithTags('daily-ledger', $cacheKey, ['rows' => $rows], ['dl_products'], 300);
     return $rows;
 }
 
@@ -392,14 +424,18 @@ function dl_isAllowedAutoCloseTime(string $time): bool
 
 function dl_closeOfDaySettings(): array
 {
-    $settings = getModuleSettings('daily-ledger');
-
-    return [
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $settings = dlModuleSettings();
+    $cache = [
         'auto_close_enabled' => dl_settingToBool($settings['auto_close_enabled'] ?? false),
         'close_of_day_time' => dl_normalizeCloseOfDayTime($settings['close_of_day_time'] ?? '00:00'),
         'operating_timezone' => dl_normalizeTimezone($settings['operating_timezone'] ?? config('app.timezone', 'Asia/Manila')),
         'operating_region' => dl_normalizeRegion($settings['operating_region'] ?? ''),
     ];
+    return $cache;
 }
 
 function dl_businessDate(?\DateTimeImmutable $now = null): string
@@ -607,6 +643,34 @@ function dl_accessibleBranchIds(array $user): array
 
     $branchId = dl_getUserBranchId();
     return $branchId ? [$branchId] : [];
+}
+
+function dl_resolveLedgerBranchId(array $user, array $input = []): int
+{
+    $role = (string)($user['role'] ?? '');
+    $branchId = (int)(dl_getUserBranchId() ?? 0);
+
+    if (!in_array($role, ['admin', 'supervisor'], true)) {
+        return $branchId > 0 ? $branchId : 0;
+    }
+
+    $requestedBranchId = 0;
+    if (!empty($_GET['branch_id'])) {
+        $requestedBranchId = (int)$_GET['branch_id'];
+    } elseif (!empty($input['branch_id'])) {
+        $requestedBranchId = (int)$input['branch_id'];
+    }
+
+    if ($requestedBranchId <= 0) {
+        return $branchId > 0 ? $branchId : 0;
+    }
+
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (in_array($requestedBranchId, $accessibleBranchIds, true)) {
+        return $requestedBranchId;
+    }
+
+    return $branchId > 0 ? $branchId : 0;
 }
 
 function dl_generateMovementUuid(): string
@@ -1249,10 +1313,10 @@ function handleCashierLedger(array $params = []): void
         $ctx->redirect('/');
     }
 
-    $branchId   = dl_getUserBranchId();
+    $input = $ctx->input();
+    $branchId   = dl_resolveLedgerBranchId($user, $input);
     $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
     $today      = dl_businessDate();
-    $input = $ctx->input();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
@@ -1306,9 +1370,9 @@ function handleCashierRows(array $params = []): void
     }
 
     $user = dlRequireAuth(['cashier', 'supervisor', 'admin']);
-    $role = (string)($user['role'] ?? '');
-    $branchId   = dl_getUserBranchId();
     $input = $ctx->input();
+    $role = (string)($user['role'] ?? '');
+    $branchId = dl_resolveLedgerBranchId($user, $input);
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
 
@@ -1361,15 +1425,7 @@ function apiGetLedgerRows(array $params = []): void
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
     $input = $ctx->input();
-    $role = (string)($user['role'] ?? '');
-    $branchId = dl_getUserBranchId();
-    if (in_array($role, ['admin', 'supervisor'], true)) {
-        if (!empty($_GET['branch_id'])) {
-            $branchId = (int)$_GET['branch_id'];
-        } elseif (!empty($input['branch_id'])) {
-            $branchId = (int)$input['branch_id'];
-        }
-    }
+    $branchId = dl_resolveLedgerBranchId($user, $input);
     $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
 
     if ($branchId) {
@@ -1414,15 +1470,7 @@ function apiGetLedgerDayStatus(array $params = []): void
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
     $input = $ctx->input();
-    $role = (string)($user['role'] ?? '');
-    $branchId = dl_getUserBranchId();
-    if (in_array($role, ['admin', 'supervisor'], true)) {
-        if (!empty($_GET['branch_id'])) {
-            $branchId = (int)$_GET['branch_id'];
-        } elseif (!empty($input['branch_id'])) {
-            $branchId = (int)$input['branch_id'];
-        }
-    }
+    $branchId = dl_resolveLedgerBranchId($user, $input);
     $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
 
     if ($branchId) {
@@ -1449,7 +1497,7 @@ function apiSaveLedgerField(array $params = []): void
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
     $input     = $ctx->input();
-    $branchId  = dl_getUserBranchId();
+    $branchId  = dl_resolveLedgerBranchId($user, $input);
     $productId = (int)($input['product_id'] ?? 0);
     $field     = (string)($input['field'] ?? '');
     $value     = (int)($input['value'] ?? 0);
@@ -1488,9 +1536,6 @@ function apiSaveLedgerField(array $params = []): void
     }
 
     $role = (string)($user['role'] ?? '');
-    if (in_array($role, ['admin', 'supervisor'], true) && !empty($input['branch_id'])) {
-        $branchId = (int)$input['branch_id'];
-    }
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, $userId);
@@ -1507,6 +1552,42 @@ function apiSaveLedgerField(array $params = []): void
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Value cannot be negative', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Value cannot be negative'], 422);
         return;
+    }
+
+    // Production-lock guard: cashier cannot overwrite addtl/withdraw set by a production movement
+    if ($role === 'cashier' && in_array($field, ['addtl', 'withdraw'], true)) {
+        $movementType = $field === 'addtl' ? 'output' : 'withdrawal';
+        $lockStmt = $ctx->db()->prepare(
+            'SELECT COUNT(*) FROM dl_production_movements pm
+             WHERE pm.destination_branch_id = :bid
+               AND pm.product_id = :pid
+               AND pm.ledger_date = :d
+               AND pm.movement_type = :mtype
+               AND NOT EXISTS (
+                   SELECT 1 FROM dl_production_movements r
+                   WHERE r.reference_movement_id = pm.id AND r.movement_type = :rev
+               )'
+        );
+        $lockStmt->execute([
+            ':bid'   => $branchId,
+            ':pid'   => $productId,
+            ':d'     => $date,
+            ':mtype' => $movementType,
+            ':rev'   => 'reverse',
+        ]);
+        if ((int)$lockStmt->fetchColumn() > 0) {
+            write_log('daily-ledger cashier override blocked', 'warning', [
+                'branch_id'       => $branchId,
+                'product_id'      => $productId,
+                'date'            => $date,
+                'field'           => $field,
+                'attempted_value' => $value,
+                'user_sub'        => (string)($user['sub'] ?? ''),
+            ]);
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Set by production — cannot override', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Set by production — cannot override'], 403);
+            return;
+        }
     }
 
     // Check day status — soft lock: cashier can't edit closed days
@@ -1654,14 +1735,7 @@ function apiSaveLedgerBatch(array $params = []): void
     }
 
     $role = (string)($user['role'] ?? '');
-    $branchId = dl_getUserBranchId();
-    if (in_array($role, ['admin', 'supervisor'], true)) {
-        if (!empty($_GET['branch_id'])) {
-            $branchId = (int)$_GET['branch_id'];
-        } elseif (!empty($input['branch_id'])) {
-            $branchId = (int)$input['branch_id'];
-        }
-    }
+    $branchId = dl_resolveLedgerBranchId($user, $input);
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, $userId);
@@ -1715,6 +1789,29 @@ function apiSaveLedgerBatch(array $params = []): void
 
     try {
         if (!$isReadOnly) {
+            // For cashier: identify production-locked columns per product before entering the transaction
+            $productionLocks = [];
+            if ($role === 'cashier') {
+                $lockStmt = $ctx->db()->prepare(
+                    'SELECT pm.product_id, pm.movement_type
+                     FROM dl_production_movements pm
+                     WHERE pm.destination_branch_id = :bid
+                       AND pm.ledger_date = :d
+                       AND pm.movement_type IN (\'output\', \'withdrawal\')
+                       AND NOT EXISTS (
+                           SELECT 1 FROM dl_production_movements r
+                           WHERE r.reference_movement_id = pm.id AND r.movement_type = \'reverse\'
+                       )
+                     GROUP BY pm.product_id, pm.movement_type'
+                );
+                $lockStmt->execute([':bid' => $branchId, ':d' => $date]);
+                foreach ($lockStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $lockRow) {
+                    $lpid = (int)$lockRow['product_id'];
+                    $col  = $lockRow['movement_type'] === 'output' ? 'addtl' : 'withdraw';
+                    $productionLocks[$lpid][$col] = true;
+                }
+            }
+
             $ctx->db()->beginTransaction();
 
         $priceStmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :pid');
@@ -1743,17 +1840,52 @@ function apiSaveLedgerBatch(array $params = []): void
             $priceStmt->execute([':pid' => $pid]);
             $currentPrice = (float)($priceStmt->fetchColumn() ?: 0);
 
+            // Preserve production-set values: cashier cannot override addtl/withdraw locked by a movement
+            $addtlVal    = (int)$r['addtl'];
+            $withdrawVal = (int)$r['withdraw'];
+            if ($role === 'cashier') {
+                $locks = $productionLocks[$pid] ?? [];
+                if (!empty($locks['addtl'])) {
+                    $preserved = (int)($old['addtl'] ?? 0);
+                    if ($addtlVal !== $preserved) {
+                        write_log('daily-ledger cashier batch addtl override blocked', 'warning', [
+                            'branch_id'       => $branchId,
+                            'product_id'      => $pid,
+                            'date'            => $date,
+                            'attempted_value' => $addtlVal,
+                            'preserved_value' => $preserved,
+                            'user_sub'        => (string)($user['sub'] ?? ''),
+                        ]);
+                    }
+                    $addtlVal = $preserved;
+                }
+                if (!empty($locks['withdraw'])) {
+                    $preserved = (int)($old['withdraw'] ?? 0);
+                    if ($withdrawVal !== $preserved) {
+                        write_log('daily-ledger cashier batch withdraw override blocked', 'warning', [
+                            'branch_id'       => $branchId,
+                            'product_id'      => $pid,
+                            'date'            => $date,
+                            'attempted_value' => $withdrawVal,
+                            'preserved_value' => $preserved,
+                            'user_sub'        => (string)($user['sub'] ?? ''),
+                        ]);
+                    }
+                    $withdrawVal = $preserved;
+                }
+            }
+
             $upsert->execute([
-                ':bid' => $branchId,
-                ':pid' => $pid,
-                ':d' => $date,
-                ':price' => $currentPrice,
-                ':beg' => (int)$r['beg_bal'],
-                ':addtl' => (int)$r['addtl'],
-                ':withdraw' => (int)$r['withdraw'],
-                ':end' => (int)$r['bal_end'],
-                ':uid' => $userId,
-                ':uid2' => $userId,
+                ':bid'      => $branchId,
+                ':pid'      => $pid,
+                ':d'        => $date,
+                ':price'    => $currentPrice,
+                ':beg'      => (int)$r['beg_bal'],
+                ':addtl'    => $addtlVal,
+                ':withdraw' => $withdrawVal,
+                ':end'      => (int)$r['bal_end'],
+                ':uid'      => $userId,
+                ':uid2'     => $userId,
             ]);
 
             // Beg-bal changes trigger variance check
@@ -1772,10 +1904,10 @@ function apiSaveLedgerBatch(array $params = []): void
                 "{$branchId}-{$pid}-{$date}",
                 $old,
                 [
-                    'beg_bal' => (int)$r['beg_bal'],
-                    'addtl' => (int)$r['addtl'],
-                    'withdraw' => (int)$r['withdraw'],
-                    'bal_end' => (int)$r['bal_end'],
+                    'beg_bal'  => (int)$r['beg_bal'],
+                    'addtl'    => $addtlVal,
+                    'withdraw' => $withdrawVal,
+                    'bal_end'  => (int)$r['bal_end'],
                 ]
             );
         }
@@ -1865,7 +1997,7 @@ function apiProductionProducts(array $params = []): void
     $input = $ctx->input();
     $category = trim((string)($input['category'] ?? ''));
 
-    $sql = 'SELECT id, sku, name, current_price, product_category, output_pieces_per_batch, output_unit_label
+    $sql = 'SELECT id, sku, name, current_price, product_category, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label
             FROM dl_products
             WHERE is_active = 1';
     $bind = [];
@@ -2099,8 +2231,8 @@ function apiCloseDay(array $params = []): void
 
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
-    $branchId = dl_getUserBranchId();
     $input = $ctx->input();
+    $branchId = dl_resolveLedgerBranchId($user, $input);
     $date     = (string)($input['date'] ?? dl_businessDate());
     $userId = 0;
     if (isset($user['id']) && is_numeric($user['id'])) {
@@ -2342,7 +2474,31 @@ function handleAdminSales(array $params = []): void
     $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : $today;
     $dateTo   = !empty($input['date_to']) ? (string)$input['date_to'] : $today;
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
+    $actionFilter = trim((string)($input['action_filter'] ?? ''));
     $search   = trim((string)($input['q'] ?? ''));
+
+    $actionFilterMap = [
+        'output' => ['production_output'],
+        'withdrawal' => ['production_withdrawal'],
+        'product' => ['create_product', 'update_product'],
+        'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
+        'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
+        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day'],
+        'variance' => ['variance_status'],
+    ];
+    if ($actionFilter !== '' && !isset($actionFilterMap[$actionFilter])) {
+        $actionFilter = '';
+    }
+    $actionFilterOptions = [
+        ['value' => '', 'label' => 'All Activities'],
+        ['value' => 'output', 'label' => 'Output'],
+        ['value' => 'withdrawal', 'label' => 'Withdrawal'],
+        ['value' => 'ledger', 'label' => 'Ledger'],
+        ['value' => 'commissary', 'label' => 'Commissary'],
+        ['value' => 'product', 'label' => 'Product'],
+        ['value' => 'user', 'label' => 'User'],
+        ['value' => 'variance', 'label' => 'Variance'],
+    ];
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -2427,6 +2583,8 @@ function handleAdminProduction(array $params = []): void
     dl_maybeAutoCloseBranches($allowedBranchIds, dl_getActorUserId($user));
     $branches = [];
     $products = [];
+    $productRowsBread = [];
+    $productRowsCake  = [];
     $movementRows = [];
 
     if (count($allowedBranchIds) > 0) {
@@ -2442,6 +2600,14 @@ function handleAdminProduction(array $params = []): void
         $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $products = dl_fetchActiveProductsForProduction($ctx->db());
+
+        foreach ($products as $p) {
+            if (($p['product_category'] ?? '') === 'cake') {
+                $productRowsCake[] = $p;
+            } else {
+                $productRowsBread[] = $p;
+            }
+        }
 
         $moveSql =
             "SELECT pm.id, pm.destination_branch_id, pm.product_id,
@@ -2475,15 +2641,6 @@ function handleAdminProduction(array $params = []): void
         $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    $areas = [];
-    foreach ($branches as $b) {
-        $a = trim((string)($b['area'] ?? ''));
-        if ($a !== '' && !in_array($a, $areas, true)) {
-            $areas[] = $a;
-        }
-    }
-    sort($areas);
-
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canProductionOverride = dl_roleHasPermission($role, 'production.override');
@@ -2501,6 +2658,8 @@ function handleAdminProduction(array $params = []): void
         'date_to' => $dateTo,
         'branches' => $branches,
         'products' => $products,
+        'product_rows_bread' => $productRowsBread,
+        'product_rows_cake'  => $productRowsCake,
         'movement_rows' => $movementRows,
         'can_production_override' => $canProductionOverride,
         'can_production_output' => $featureSettings['production_output_enabled'],
@@ -2509,7 +2668,6 @@ function handleAdminProduction(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
-        'areas' => $areas,
     ]);
 }
 
@@ -2534,6 +2692,8 @@ function handleAdminProductionOutput(array $params = []): void
     dl_maybeAutoCloseBranches($allowedBranchIds, dl_getActorUserId($user));
     $branches = [];
     $products = [];
+    $productRowsBread = [];
+    $productRowsCake  = [];
     $movementRows = [];
 
     if (count($allowedBranchIds) > 0) {
@@ -2550,6 +2710,14 @@ function handleAdminProductionOutput(array $params = []): void
 
         $products = dl_fetchActiveProductsForProduction($ctx->db());
 
+
+        foreach ($products as $p) {
+            if (($p['product_category'] ?? '') === 'cake') {
+                $productRowsCake[] = $p;
+            } else {
+                $productRowsBread[] = $p;
+            }
+        }
         $moveSql =
             "SELECT pm.id, pm.destination_branch_id, pm.product_id,
                     pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
@@ -2582,15 +2750,6 @@ function handleAdminProductionOutput(array $params = []): void
         $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    $areas = [];
-    foreach ($branches as $b) {
-        $a = trim((string)($b['area'] ?? ''));
-        if ($a !== '' && !in_array($a, $areas, true)) {
-            $areas[] = $a;
-        }
-    }
-    sort($areas);
-
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $featureSettings = dl_featureSettings();
@@ -2607,6 +2766,8 @@ function handleAdminProductionOutput(array $params = []): void
         'date_to' => $dateTo,
         'branches' => $branches,
         'products' => $products,
+        'product_rows_bread' => $productRowsBread,
+        'product_rows_cake'  => $productRowsCake,
         'movement_rows' => $movementRows,
         'can_production_output' => $featureSettings['production_output_enabled'],
         'business_date_label' => $clockLabel['business_date'],
@@ -2614,7 +2775,6 @@ function handleAdminProductionOutput(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
-        'areas' => $areas,
     ]);
 }
 
@@ -2834,14 +2994,59 @@ function handleAdminActivity(array $params = []): void
     $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : $today;
     $dateTo   = !empty($input['date_to']) ? (string)$input['date_to'] : $today;
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
+    $actionFilter = trim((string)($input['action_filter'] ?? ''));
     $search   = trim((string)($input['q'] ?? ''));
+
+    $actionFilterMap = [
+        'output' => ['production_output'],
+        'withdrawal' => ['production_withdrawal'],
+        'product' => ['create_product', 'update_product'],
+        'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
+        'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
+        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day'],
+        'variance' => ['variance_status'],
+    ];
+    if ($actionFilter !== '' && !isset($actionFilterMap[$actionFilter])) {
+        $actionFilter = '';
+    }
+    $actionFilterOptions = [
+        ['value' => '', 'label' => 'All Activities'],
+        ['value' => 'output', 'label' => 'Output'],
+        ['value' => 'withdrawal', 'label' => 'Withdrawal'],
+        ['value' => 'ledger', 'label' => 'Ledger'],
+        ['value' => 'commissary', 'label' => 'Commissary'],
+        ['value' => 'product', 'label' => 'Product'],
+        ['value' => 'user', 'label' => 'User'],
+        ['value' => 'variance', 'label' => 'Variance'],
+    ];
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    $productLookup = [];
+    foreach ($ctx->db()->query('SELECT id, name FROM dl_products')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $productRow) {
+        $productLookup[(int)$productRow['id']] = (string)$productRow['name'];
+    }
+
+    $materialLookup = [];
+    foreach ($ctx->db()->query('SELECT id, name FROM dl_raw_materials')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $materialRow) {
+        $materialLookup[(int)$materialRow['id']] = (string)$materialRow['name'];
+    }
+
+    $branchLookup = [];
+    foreach ($branches as $branchRow) {
+        $branchLookup[(int)$branchRow['id']] = (string)$branchRow['name'];
+    }
+
     $sql = 'SELECT a.action, a.created_at, a.old_data, a.new_data,
-                   b.name AS branch_name
+                   a.entity_type, a.entity_id, a.actor_source,
+                   a.actor_user_id, a.actor_module_user_id,
+                   b.name AS branch_name,
+                   ku.full_name AS kernel_actor_name,
+                   du.full_name AS module_actor_name
             FROM audit_logs a
             LEFT JOIN dl_branches b ON b.id = a.branch_id
+            LEFT JOIN users ku ON ku.id = a.actor_user_id
+            LEFT JOIN dl_users du ON du.id = a.actor_module_user_id
             WHERE a.module = \'daily-ledger\'
               AND DATE(a.created_at) BETWEEN :df AND :dt';
     $bind = [':df' => $dateFrom, ':dt' => $dateTo];
@@ -2850,16 +3055,466 @@ function handleAdminActivity(array $params = []): void
         $sql .= ' AND a.branch_id = :bid';
         $bind[':bid'] = $branchId;
     }
+    $filterActions = [];
+    if ($actionFilter !== '') {
+        $filterActions = array_values(array_filter($actionFilterMap[$actionFilter] ?? [], static function ($value): bool {
+            return is_string($value) && trim($value) !== '';
+        }));
+    }
+    if ($filterActions !== []) {
+        $placeholders = [];
+        foreach ($filterActions as $index => $filterAction) {
+            $placeholder = ':af' . $index;
+            $placeholders[] = $placeholder;
+            $bind[$placeholder] = $filterAction;
+        }
+        $sql .= ' AND a.action IN (' . implode(', ', $placeholders) . ')';
+    }
     if ($search !== '') {
-        $sql .= ' AND (u.full_name LIKE :q OR a.action LIKE :q2 OR b.name LIKE :q3)';
-        $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%"; $bind[':q3'] = "%{$search}%";
+        $sql .= ' AND (a.action LIKE :q OR b.name LIKE :q2)';
+        $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
     }
 
     $sql .= ' ORDER BY a.created_at DESC LIMIT 500';
 
     $stmt = $ctx->db()->prepare($sql);
     $stmt->execute($bind);
-    $activities = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $activityRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $fieldLabels = [
+        'full_name' => 'Full Name',
+        'username' => 'Username',
+        'product_id' => 'Product',
+        'material_id' => 'Material',
+        'raw_material_id' => 'Material',
+        'destination_branch_id' => 'Destination Branch',
+        'branch_id' => 'Branch',
+        'ledger_date' => 'Ledger Date',
+        'flow_mode' => 'Flow',
+        'yield_qty' => 'Yield',
+        'kilo_qty' => 'Kilo',
+        'egg_qty' => 'Egg',
+        'primary_input_qty' => 'Primary Input',
+        'primary_input_type' => 'Primary Input Type',
+        'resulting_addtl' => 'Resulting Stock',
+        'is_active' => 'Active',
+        'sort_order' => 'Sort Order',
+        'output_pieces_per_batch' => 'Pieces Per Batch',
+        'output_unit_label' => 'Output Unit',
+        'batch_input_qty' => 'Batch Kilo Qty',
+        'batch_egg_qty' => 'Batch Egg Qty',
+    ];
+    $skipKeys = ['movement_uuid', 'reference_movement_id', 'client_op_id', 'source_payload'];
+    $priorityKeys = ['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id', 'ledger_date', 'quantity', 'yield_qty', 'kilo_qty', 'egg_qty', 'flow_mode', 'status', 'role', 'reason', 'resulting_addtl'];
+
+    $formatFieldLabel = static function (string $key) use ($fieldLabels): string {
+        return $fieldLabels[$key] ?? ucwords(str_replace('_', ' ', $key));
+    };
+
+    $formatValue = static function (string $key, $value) use ($productLookup, $materialLookup, $branchLookup): string {
+        if (is_array($value)) {
+            return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]';
+        }
+        if ($value === null) {
+            return 'None';
+        }
+
+        if (in_array($key, ['product_id'], true)) {
+            $id = (int)$value;
+            $name = $productLookup[$id] ?? '';
+            return $name !== '' ? $name . ' (#' . $id . ')' : ('#' . $id);
+        }
+        if (in_array($key, ['material_id', 'raw_material_id'], true)) {
+            $id = (int)$value;
+            $name = $materialLookup[$id] ?? '';
+            return $name !== '' ? $name . ' (#' . $id . ')' : ('#' . $id);
+        }
+        if (in_array($key, ['destination_branch_id', 'branch_id'], true)) {
+            $id = (int)$value;
+            $name = $branchLookup[$id] ?? '';
+            return $name !== '' ? $name . ' (#' . $id . ')' : ($id > 0 ? ('#' . $id) : 'Commissary');
+        }
+        if ($key === 'is_active') {
+            return (int)$value === 1 ? 'Yes' : 'No';
+        }
+        if (in_array($key, ['role', 'flow_mode', 'status', 'primary_input_type'], true)) {
+            $text = trim((string)$value);
+            return $text === '' ? 'None' : ucwords(str_replace('_', ' ', $text));
+        }
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+        if (is_numeric($value)) {
+            $number = (float)$value;
+            if ((float)(int)$number === $number) {
+                return (string)(int)$number;
+            }
+            return rtrim(rtrim(number_format($number, 3, '.', ''), '0'), '.');
+        }
+
+        $text = trim((string)$value);
+        return $text === '' ? 'None' : $text;
+    };
+
+    $decodeJson = static function ($payload): array {
+        if (!is_string($payload) || trim($payload) === '') {
+            return [];
+        }
+        $decoded = json_decode($payload, true);
+        return is_array($decoded) ? $decoded : [];
+    };
+
+    $formatRelativeTime = static function (string $createdAt): string {
+        try {
+            $timezone = new \DateTimeZone((string)config('app.timezone', 'UTC'));
+            $now = new \DateTimeImmutable('now', $timezone);
+            $then = new \DateTimeImmutable($createdAt, $timezone);
+            $delta = $now->getTimestamp() - $then->getTimestamp();
+            if ($delta < 5) {
+                return 'just now';
+            }
+            if ($delta < 60) {
+                return $delta . ' seconds ago';
+            }
+            $minutes = (int) floor($delta / 60);
+            if ($minutes < 60) {
+                return $minutes . ' minute' . ($minutes === 1 ? '' : 's') . ' ago';
+            }
+            $hours = (int) floor($delta / 3600);
+            if ($hours < 24) {
+                return $hours . ' hour' . ($hours === 1 ? '' : 's') . ' ago';
+            }
+            $days = (int) floor($delta / 86400);
+            if ($days < 30) {
+                return $days . ' day' . ($days === 1 ? '' : 's') . ' ago';
+            }
+        } catch (\Throwable $e) {
+            return '';
+        }
+
+        return '';
+    };
+
+    $buildDetailItems = static function (array $payload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue): array {
+        $items = [];
+        $seen = [];
+
+        foreach ($priorityKeys as $key) {
+            if (!array_key_exists($key, $payload) || in_array($key, $skipKeys, true)) {
+                continue;
+            }
+            $formatted = $formatValue($key, $payload[$key]);
+            if ($formatted === 'None') {
+                continue;
+            }
+            $items[] = ['label' => $formatFieldLabel($key), 'value' => $formatted];
+            $seen[$key] = true;
+        }
+
+        foreach ($payload as $key => $value) {
+            if (isset($seen[$key]) || in_array($key, $skipKeys, true)) {
+                continue;
+            }
+            $formatted = $formatValue((string)$key, $value);
+            if ($formatted === 'None') {
+                continue;
+            }
+            $items[] = ['label' => $formatFieldLabel((string)$key), 'value' => $formatted];
+        }
+
+        return array_slice($items, 0, 8);
+    };
+
+    $buildChangeItems = static function (array $oldPayload, array $newPayload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue): array {
+        if ($oldPayload === []) {
+            return [];
+        }
+
+        $keys = array_values(array_unique(array_merge(array_keys($oldPayload), array_keys($newPayload))));
+        usort($keys, static function (string $left, string $right) use ($priorityKeys): int {
+            $leftPos = array_search($left, $priorityKeys, true);
+            $rightPos = array_search($right, $priorityKeys, true);
+            $leftRank = $leftPos === false ? 999 : $leftPos;
+            $rightRank = $rightPos === false ? 999 : $rightPos;
+            if ($leftRank === $rightRank) {
+                return strcmp($left, $right);
+            }
+            return $leftRank <=> $rightRank;
+        });
+
+        $items = [];
+        foreach ($keys as $key) {
+            if (in_array($key, $skipKeys, true)) {
+                continue;
+            }
+            $oldEncoded = json_encode($oldPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $newEncoded = json_encode($newPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($oldEncoded === $newEncoded) {
+                continue;
+            }
+            $items[] = [
+                'label' => $formatFieldLabel($key),
+                'from' => array_key_exists($key, $oldPayload) ? $formatValue($key, $oldPayload[$key]) : 'None',
+                'to' => array_key_exists($key, $newPayload) ? $formatValue($key, $newPayload[$key]) : 'None',
+            ];
+        }
+
+        return array_slice($items, 0, 8);
+    };
+
+    $entityLabels = [
+        'product' => 'product',
+        'user' => 'user',
+        'branch' => 'branch',
+        'dl_production_movements' => 'production movement',
+        'dl_production_runs' => 'production run',
+        'dl_commissary_ledger' => 'commissary material',
+        'dl_ledger_day_status' => 'day status',
+        'module_settings' => 'settings',
+    ];
+
+    $actionMeta = static function (string $action, ?string $entityType) use ($entityLabels): array {
+        $entityLabel = $entityLabels[$entityType ?? ''] ?? str_replace('_', ' ', (string)$entityType);
+        $summary = ucwords(str_replace('_', ' ', $action));
+        $badgeLabel = 'Activity';
+        $badgeClasses = 'bg-slate-100 text-slate-800 ring-slate-300';
+
+        switch ($action) {
+            case 'production_output':
+                $summary = 'Recorded production output';
+                $badgeLabel = 'Output';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+                break;
+            case 'production_withdrawal':
+                $summary = 'Recorded production withdrawal';
+                $badgeLabel = 'Withdrawal';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'field_update':
+                $summary = 'Updated ledger field';
+                $badgeLabel = 'Field';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+                break;
+            case 'row_update':
+                $summary = 'Updated ledger row';
+                $badgeLabel = 'Row';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+                break;
+            case 'close_day':
+                $summary = 'Closed the day';
+                $badgeLabel = 'Close';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'reopen_day':
+                $summary = 'Reopened the day';
+                $badgeLabel = 'Reopen';
+                $badgeClasses = 'bg-amber-50 text-amber-800 ring-amber-200';
+                break;
+            case 'create_commissary_run':
+                $summary = 'Created commissary run';
+                $badgeLabel = 'Commissary';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'update_commissary_run':
+                $summary = 'Updated commissary run';
+                $badgeLabel = 'Commissary';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+                break;
+            case 'delete_commissary_run':
+                $summary = 'Deleted commissary run';
+                $badgeLabel = 'Commissary';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'save_commissary_material':
+                $summary = 'Saved commissary material count';
+                $badgeLabel = 'Material';
+                $badgeClasses = 'bg-sky-50 text-sky-800 ring-sky-200';
+                break;
+            case 'variance_status':
+                $summary = 'Updated variance status';
+                $badgeLabel = 'Variance';
+                $badgeClasses = 'bg-amber-50 text-amber-800 ring-amber-200';
+                break;
+            default:
+                if (str_starts_with($action, 'create_')) {
+                    $summary = 'Created ' . ($entityLabel !== '' ? $entityLabel : 'record');
+                    $badgeLabel = 'Create';
+                    $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                } elseif (str_starts_with($action, 'update_')) {
+                    $summary = 'Updated ' . ($entityLabel !== '' ? $entityLabel : 'record');
+                    $badgeLabel = 'Update';
+                    $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+                } elseif (str_starts_with($action, 'delete_')) {
+                    $summary = 'Deleted ' . ($entityLabel !== '' ? $entityLabel : 'record');
+                    $badgeLabel = 'Delete';
+                    $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                } elseif (str_starts_with($action, 'restore_')) {
+                    $summary = 'Restored ' . ($entityLabel !== '' ? $entityLabel : 'record');
+                    $badgeLabel = 'Restore';
+                    $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                }
+                break;
+        }
+
+        return ['summary' => $summary, 'badge_label' => $badgeLabel, 'badge_classes' => $badgeClasses];
+    };
+
+    $pickTarget = static function (array $newPayload, array $oldPayload) use ($formatValue): string {
+        $source = $newPayload !== [] ? $newPayload : $oldPayload;
+        foreach (['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id'] as $key) {
+            if (!array_key_exists($key, $source)) {
+                continue;
+            }
+            $formatted = $formatValue($key, $source[$key]);
+            if ($formatted !== 'None') {
+                return $formatted;
+            }
+        }
+        return '';
+    };
+
+    $buildActivityEntry = static function (array $row, array $oldPayload, array $newPayload, array $overrides = []) use ($actionMeta, $pickTarget, $buildDetailItems, $buildChangeItems, $formatRelativeTime): array {
+        $meta = $actionMeta((string)$row['action'], $row['entity_type'] ?? null);
+        $target = $pickTarget($newPayload, $oldPayload);
+        $summary = $meta['summary'];
+        if ($target !== '') {
+            $summary .= ' - ' . $target;
+        }
+
+        $actorName = trim((string)($row['module_actor_name'] ?? ''));
+        if ($actorName === '') {
+            $actorName = trim((string)($row['kernel_actor_name'] ?? ''));
+        }
+        if ($actorName === '') {
+            $source = strtolower(trim((string)($row['actor_source'] ?? '')));
+            if ($source === 'daily-ledger') {
+                $actorName = 'Daily Ledger';
+            } elseif ($source === 'kernel') {
+                $actorName = 'Kernel User';
+            } else {
+                $actorName = 'System';
+            }
+        }
+
+        $detailSource = $newPayload !== [] ? $newPayload : $oldPayload;
+        $entry = [
+            'action' => (string)$row['action'],
+            'actor_name' => $actorName,
+            'actor_source_label' => ucwords(str_replace('-', ' ', (string)($row['actor_source'] ?? 'system'))),
+            'created_at' => (string)$row['created_at'],
+            'relative_time' => $formatRelativeTime((string)$row['created_at']),
+            'branch_name' => (string)($row['branch_name'] ?? ''),
+            'entity_type' => (string)($row['entity_type'] ?? ''),
+            'entity_id' => (string)($row['entity_id'] ?? ''),
+            'summary' => $summary,
+            'badge_label' => $meta['badge_label'],
+            'badge_classes' => $meta['badge_classes'],
+            'detail_items' => $buildDetailItems($detailSource),
+            'change_items' => $buildChangeItems($oldPayload, $newPayload),
+            'grouped_items' => [],
+            'is_grouped' => false,
+        ];
+
+        foreach ($overrides as $key => $value) {
+            $entry[$key] = $value;
+        }
+
+        return $entry;
+    };
+
+    $activities = [];
+    $productionGroup = null;
+    $flushProductionGroup = static function (?array $group) use (&$activities, $buildActivityEntry, $buildDetailItems): void {
+        if ($group === null) {
+            return;
+        }
+
+        if (count($group['rows']) <= 1) {
+            $single = $group['rows'][0] ?? null;
+            if ($single !== null) {
+                $activities[] = $buildActivityEntry($single['row'], $single['old_payload'], $single['new_payload']);
+            }
+            return;
+        }
+
+        $first = $group['rows'][0];
+        $summaryPayload = $group['summary_payload'];
+        $summaryPayload['products'] = count($group['rows']);
+        $activities[] = $buildActivityEntry($first['row'], [], $summaryPayload, [
+            'summary' => $group['summary_text'],
+            'entity_id' => '',
+            'is_grouped' => true,
+            'detail_items' => $buildDetailItems($summaryPayload),
+            'change_items' => [],
+            'grouped_items' => $group['grouped_items'],
+        ]);
+    };
+
+    foreach ($activityRows as $row) {
+        $oldPayload = $decodeJson($row['old_data'] ?? null);
+        $newPayload = $decodeJson($row['new_data'] ?? null);
+        $isGroupedProductionAction = in_array((string)$row['action'], ['production_output', 'production_withdrawal'], true)
+            && $newPayload !== []
+            && isset($newPayload['product_id']);
+
+        if ($isGroupedProductionAction) {
+            $groupKey = implode('|', [
+                (string)$row['action'],
+                (string)($row['branch_name'] ?? ''),
+                (string)$row['created_at'],
+                (string)($newPayload['ledger_date'] ?? ''),
+            ]);
+
+            if ($productionGroup !== null && $productionGroup['key'] !== $groupKey) {
+                $flushProductionGroup($productionGroup);
+                $productionGroup = null;
+            }
+
+            if ($productionGroup === null) {
+                $summaryPayload = [
+                    'ledger_date' => $newPayload['ledger_date'] ?? null,
+                    'destination_branch_id' => $newPayload['destination_branch_id'] ?? null,
+                    'flow_mode' => $newPayload['flow_mode'] ?? null,
+                    'quantity' => 0,
+                    'products' => 0,
+                ];
+                if (isset($newPayload['reason']) && trim((string)$newPayload['reason']) !== '') {
+                    $summaryPayload['reason'] = $newPayload['reason'];
+                }
+                $productionGroup = [
+                    'key' => $groupKey,
+                    'rows' => [],
+                    'summary_payload' => $summaryPayload,
+                    'summary_text' => '',
+                    'grouped_items' => [],
+                ];
+            }
+
+            $productionGroup['rows'][] = [
+                'row' => $row,
+                'old_payload' => $oldPayload,
+                'new_payload' => $newPayload,
+            ];
+            $productionGroup['summary_payload']['quantity'] += (float)($newPayload['quantity'] ?? 0);
+            $productionGroup['summary_payload']['products'] += 1;
+            $productionGroup['grouped_items'][] = [
+                'product' => $formatValue('product_id', $newPayload['product_id']),
+                'quantity' => $formatValue('quantity', $newPayload['quantity'] ?? 0),
+            ];
+            $productionGroup['summary_text'] = ((string)$row['action'] === 'production_withdrawal'
+                ? 'Recorded production withdrawal'
+                : 'Recorded production output') . ' - ' . count($productionGroup['rows']) . ' products';
+            continue;
+        }
+
+        if ($productionGroup !== null) {
+            $flushProductionGroup($productionGroup);
+            $productionGroup = null;
+        }
+
+        $activities[] = $buildActivityEntry($row, $oldPayload, $newPayload);
+    }
+    $flushProductionGroup($productionGroup);
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -2874,6 +3529,8 @@ function handleAdminActivity(array $params = []): void
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
         'branch_id' => $branchId,
+        'action_filter' => $actionFilter,
+        'action_filter_options' => $actionFilterOptions,
         'branches' => $branches,
         'search' => $search,
     ]);
@@ -3033,6 +3690,12 @@ function apiCreateProduct(array $params = []): void
     $sort  = (int)($input['sort_order'] ?? 0);
     $outputPiecesPerBatch = dl_normalizePiecesPerBatch($input['output_pieces_per_batch'] ?? null);
     $outputUnitLabel = dl_normalizeOutputUnitLabel($input['output_unit_label'] ?? 'pcs');
+    $batchInputQty = isset($input['batch_input_qty']) && $input['batch_input_qty'] !== '' && $input['batch_input_qty'] !== null
+        ? round((float)$input['batch_input_qty'], 3) : null;
+    if ($batchInputQty !== null && $batchInputQty <= 0) $batchInputQty = null;
+    $batchEggQty = isset($input['batch_egg_qty']) && $input['batch_egg_qty'] !== '' && $input['batch_egg_qty'] !== null
+        ? round((float)$input['batch_egg_qty'], 3) : null;
+    if ($batchEggQty !== null && $batchEggQty <= 0) $batchEggQty = null;
 
     if ($name === '' || $price <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Name and price are required', 'type' => 'error']]));
@@ -3066,8 +3729,8 @@ function apiCreateProduct(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, output_unit_label) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :unit)'
-        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':unit' => $outputUnitLabel]);
+            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit)'
+        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel]);
 
         $productId = (int)$ctx->db()->lastInsertId();
 
@@ -3091,6 +3754,8 @@ function apiCreateProduct(array $params = []): void
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
         ]);
+
+        app()->cache()->clearByTags('daily-ledger', ['dl_products']);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Product created', 'type' => 'success']]));
         $ctx->json([
@@ -3127,6 +3792,12 @@ function apiUpdateProduct(array $params = []): void
     $isActive  = (int)($input['is_active'] ?? 1);
     $outputPiecesPerBatch = dl_normalizePiecesPerBatch($input['output_pieces_per_batch'] ?? null);
     $outputUnitLabel = dl_normalizeOutputUnitLabel($input['output_unit_label'] ?? 'pcs');
+    $batchInputQty = isset($input['batch_input_qty']) && $input['batch_input_qty'] !== '' && $input['batch_input_qty'] !== null
+        ? round((float)$input['batch_input_qty'], 3) : null;
+    if ($batchInputQty !== null && $batchInputQty <= 0) $batchInputQty = null;
+    $batchEggQty = isset($input['batch_egg_qty']) && $input['batch_egg_qty'] !== '' && $input['batch_egg_qty'] !== null
+        ? round((float)$input['batch_egg_qty'], 3) : null;
+    if ($batchEggQty !== null && $batchEggQty <= 0) $batchEggQty = null;
     $userId = 0;
     if (isset($user['id']) && is_numeric($user['id'])) {
         $userId = (int)$user['id'];
@@ -3158,7 +3829,7 @@ function apiUpdateProduct(array $params = []): void
 
     try {
         // Get old data
-        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, output_pieces_per_batch, output_unit_label FROM dl_products WHERE id = :id');
+        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label FROM dl_products WHERE id = :id');
         $oldStmt->execute([':id' => $productId]);
         $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -3176,8 +3847,8 @@ function apiUpdateProduct(array $params = []): void
         }
 
         $ctx->db()->prepare(
-            'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, output_unit_label = :unit WHERE id = :id'
-        )->execute([':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':unit' => $outputUnitLabel, ':id' => $productId]);
+            'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, batch_input_qty = :biq, batch_egg_qty = :beq, output_unit_label = :unit WHERE id = :id'
+        )->execute([':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':id' => $productId]);
 
         dl_auditLog('update_product', null, 'product', (string)$productId, $old, [
             'name' => $name,
@@ -3187,6 +3858,8 @@ function apiUpdateProduct(array $params = []): void
             'output_pieces_per_batch' => $outputPiecesPerBatch,
             'output_unit_label' => $outputUnitLabel,
         ]);
+
+        app()->cache()->clearByTags('daily-ledger', ['dl_products']);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Product updated', 'type' => 'success']]));
         $ctx->json(['ok' => true]);
@@ -3747,18 +4420,31 @@ function handleProductsCsvExport(): void
     );
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $headers = ['SKU', 'Name', 'Category', 'Price', 'Sort Order', 'Active', 'Output Pieces', 'Output Unit'];
+    $headers = [
+        'SKU',
+        'Name',
+        'Category',
+        'Price',
+        'Sort Order',
+        'Active',
+        'Output Pieces Per Batch',
+        'Output Unit Label',
+        'Batch Kilo Qty',
+        'Batch Egg Qty',
+    ];
     $rows = [];
     foreach ($items as $item) {
         $rows[] = [
-            'SKU'           => (string)($item['sku'] ?? ''),
-            'Name'          => (string)($item['name'] ?? ''),
-            'Category'      => ucfirst((string)($item['product_category'] ?? 'bread')),
-            'Price'         => (string)($item['current_price'] ?? '0.00'),
-            'Sort Order'    => (string)($item['sort_order'] ?? '0'),
-            'Active'        => ((int)($item['is_active'] ?? 1) === 1) ? '1' : '0',
-            'Output Pieces' => (string)($item['output_pieces_per_batch'] ?? '0'),
-            'Output Unit'   => (string)($item['output_unit_label'] ?? 'pcs'),
+            'SKU'                    => (string)($item['sku'] ?? ''),
+            'Name'                   => (string)($item['name'] ?? ''),
+            'Category'               => ucfirst((string)($item['product_category'] ?? 'bread')),
+            'Price'                  => (string)($item['current_price'] ?? '0.00'),
+            'Sort Order'             => (string)($item['sort_order'] ?? '0'),
+            'Active'                 => ((int)($item['is_active'] ?? 1) === 1) ? '1' : '0',
+            'Output Pieces Per Batch'=> (string)($item['output_pieces_per_batch'] ?? '0'),
+            'Output Unit Label'      => (string)($item['output_unit_label'] ?? 'pcs'),
+            'Batch Kilo Qty'         => isset($item['batch_input_qty']) && (float)$item['batch_input_qty'] > 0 ? (string)$item['batch_input_qty'] : '',
+            'Batch Egg Qty'          => isset($item['batch_egg_qty']) && (float)$item['batch_egg_qty'] > 0 ? (string)$item['batch_egg_qty'] : '',
         ];
     }
 
@@ -3836,30 +4522,68 @@ function apiProductsImportCsv(): void
             $sku = trim((string)($normalizedRow['sku'] ?? ''));
             $sortOrder = dlCsvNullableInt($normalizedRow['sort_order'] ?? null) ?? 0;
             $isActive = isset($normalizedRow['active']) && in_array(strtolower(trim((string)$normalizedRow['active'])), ['0', 'false', 'no']) ? 0 : 1;
-            $oppb = dl_normalizePiecesPerBatch(dlCsvNullableInt($normalizedRow['output_pieces'] ?? null) ?? 0);
-            $oul = dl_normalizeOutputUnitLabel($normalizedRow['output_unit'] ?? 'pcs');
+            $category = 'bread';
+            if (isset($normalizedRow['category'])) {
+                $val = strtolower(trim((string)$normalizedRow['category']));
+                if (in_array($val, ['bread', 'cake', 'other'], true)) {
+                    $category = $val;
+                }
+            }
+
+            $oppbSource = $normalizedRow['output_pieces_per_batch'] ?? ($normalizedRow['output_pieces'] ?? null);
+            $oulSource = $normalizedRow['output_unit_label'] ?? ($normalizedRow['output_unit'] ?? 'pcs');
+            $batchKiloSource = $normalizedRow['batch_kilo_qty'] ?? ($normalizedRow['batch_input_qty'] ?? ($normalizedRow['kilo_per_batch'] ?? null));
+            $batchEggSource = $normalizedRow['batch_egg_qty'] ?? ($normalizedRow['eggs_per_batch'] ?? ($normalizedRow['egg_per_batch'] ?? null));
+
+            $oppb = dl_normalizePiecesPerBatch(dlCsvNullableInt($oppbSource) ?? 0);
+            $oul = dl_normalizeOutputUnitLabel($oulSource ?? 'pcs');
+            $batchInputQty = dlCsvNullableFloat($batchKiloSource);
+            if ($batchInputQty !== null) {
+                $batchInputQty = round($batchInputQty, 3);
+                if ($batchInputQty <= 0) {
+                    $batchInputQty = null;
+                }
+            }
+            $batchEggQty = dlCsvNullableFloat($batchEggSource);
+            if ($batchEggQty !== null) {
+                $batchEggQty = round($batchEggQty, 3);
+                if ($batchEggQty <= 0) {
+                    $batchEggQty = null;
+                }
+            }
             
             if ($sku !== '') {
                 $stmt = $ctx->db()->prepare('SELECT id, current_price FROM dl_products WHERE sku = :sku');
                 $stmt->execute([':sku' => $sku]);
                 $existing = $stmt->fetch(PDO::FETCH_ASSOC);
                 
-                $category = 'bread';
-                if (isset($normalizedRow['category'])) {
-                    $val = strtolower(trim((string)$normalizedRow['category']));
-                    if (in_array($val, ['bread', 'cake', 'other'])) {
-                        $category = $val;
-                    }
-                }
-                
                 if ($existing) {
                     $pid = (int)$existing['id'];
                     $oldPrice = (float)$existing['current_price'];
                     
                     $ctx->db()->prepare(
-                        'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :act, output_pieces_per_batch = :oppb, output_unit_label = :oul WHERE id = :id'
+                        'UPDATE dl_products
+                         SET name = :name,
+                             product_category = :cat,
+                             current_price = :price,
+                             sort_order = :sort,
+                             is_active = :act,
+                             output_pieces_per_batch = :oppb,
+                             batch_input_qty = :biq,
+                             batch_egg_qty = :beq,
+                             output_unit_label = :oul
+                         WHERE id = :id'
                     )->execute([
-                        ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sortOrder, ':act' => $isActive, ':oppb' => $oppb, ':oul' => $oul, ':id' => $pid
+                        ':name' => $name,
+                        ':cat' => $category,
+                        ':price' => $price,
+                        ':sort' => $sortOrder,
+                        ':act' => $isActive,
+                        ':oppb' => $oppb,
+                        ':biq' => $batchInputQty,
+                        ':beq' => $batchEggQty,
+                        ':oul' => $oul,
+                        ':id' => $pid,
                     ]);
                     
                     if (abs($oldPrice - $price) > 0.001) {
@@ -3878,7 +4602,15 @@ function apiProductsImportCsv(): void
                     
                     dl_auditLog('update_product', null, 'product', (string)$pid, null, [
                         'csv_import' => true,
-                        'sku' => $sku, 'name' => $name, 'price' => $price, 'is_active' => $isActive
+                        'sku' => $sku,
+                        'name' => $name,
+                        'category' => $category,
+                        'price' => $price,
+                        'is_active' => $isActive,
+                        'output_pieces_per_batch' => $oppb,
+                        'output_unit_label' => $oul,
+                        'batch_input_qty' => $batchInputQty,
+                        'batch_egg_qty' => $batchEggQty,
                     ]);
                     $updated++;
                     continue;
@@ -3889,9 +4621,21 @@ function apiProductsImportCsv(): void
             if ($sku === '') $sku = dl_generateSku();
             
             $ctx->db()->prepare(
-                'INSERT INTO dl_products (sku, name, current_price, sort_order, is_active, output_pieces_per_batch, output_unit_label) VALUES (:sku, :name, :price, :sort, :act, :oppb, :oul)'
+                'INSERT INTO dl_products
+                    (sku, name, product_category, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label)
+                 VALUES
+                    (:sku, :name, :cat, :price, :sort, :act, :oppb, :biq, :beq, :oul)'
             )->execute([
-                ':sku' => $sku, ':name' => $name, ':price' => $price, ':sort' => $sortOrder, ':act' => $isActive, ':oppb' => $oppb, ':oul' => $oul
+                ':sku' => $sku,
+                ':name' => $name,
+                ':cat' => $category,
+                ':price' => $price,
+                ':sort' => $sortOrder,
+                ':act' => $isActive,
+                ':oppb' => $oppb,
+                ':biq' => $batchInputQty,
+                ':beq' => $batchEggQty,
+                ':oul' => $oul,
             ]);
             $pid = (int)$ctx->db()->lastInsertId();
             
@@ -3908,12 +4652,21 @@ function apiProductsImportCsv(): void
             
             dl_auditLog('create_product', null, 'product', (string)$pid, null, [
                 'csv_import' => true,
-                'sku' => $sku, 'name' => $name, 'price' => $price, 'is_active' => $isActive
+                'sku' => $sku,
+                'name' => $name,
+                'category' => $category,
+                'price' => $price,
+                'is_active' => $isActive,
+                'output_pieces_per_batch' => $oppb,
+                'output_unit_label' => $oul,
+                'batch_input_qty' => $batchInputQty,
+                'batch_egg_qty' => $batchEggQty,
             ]);
             $created++;
         }
         
         $msg = "Imported: $created created, $updated updated, $skipped skipped.";
+        app()->cache()->clearByTags('daily-ledger', ['dl_products']);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $msg, 'type' => 'success'], 'reloadProducts' => true]));
         $ctx->json(['ok' => true, 'message' => $msg]);
     } catch (\Throwable $e) {
@@ -3935,7 +4688,7 @@ function handleAdminCommissary(): void
         return;
     }
 
-    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $user = dlCurrentUser(['admin', 'supervisor']);
     $db = $ctx->db();
 
     $input = $ctx->input();
@@ -3944,8 +4697,10 @@ function handleAdminCommissary(): void
         $rawDate = date('Y-m-d');
     }
 
+    $requestedBranchId = (int)($input['branch_id'] ?? 0);
+
     // Load available products for the dropdown
-    $productsStmt = $db->query("SELECT id, name, product_category, is_active FROM dl_products ORDER BY product_category ASC, sort_order ASC, name ASC");
+    $productsStmt = $db->query("SELECT id, name, product_category, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label FROM dl_products ORDER BY product_category ASC, sort_order ASC, name ASC");
     $products = $productsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Load raw materials
@@ -3962,17 +4717,53 @@ function handleAdminCommissary(): void
         $ledgerMap[(int)$r['raw_material_id']] = $r;
     }
 
-    // Load production runs for the date
-    $runsStmt = $db->prepare(
-        "SELECT pr.*, p.name as product_name
-         FROM dl_production_runs pr
-         JOIN dl_products p ON pr.product_id = p.id
-         WHERE pr.ledger_date = :date"
-    );
-    $runsStmt->execute([':date' => $rawDate]);
+    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $availableBranchIds = array_map('intval', array_column($branches, 'id'));
+
+    $selectedBranchId = $requestedBranchId;
+    if ($selectedBranchId > 0 && !in_array($selectedBranchId, $availableBranchIds, true)) {
+        $selectedBranchId = 0;
+    }
+
+    if ($selectedBranchId <= 0) {
+        $defaultBranchStmt = $db->prepare(
+            "SELECT destination_branch_id
+             FROM dl_production_runs
+             WHERE ledger_date = :date AND destination_branch_id IS NOT NULL
+             ORDER BY id ASC
+             LIMIT 1"
+        );
+        $defaultBranchStmt->execute([':date' => $rawDate]);
+        $defaultBranchId = (int)($defaultBranchStmt->fetchColumn() ?: 0);
+        if ($defaultBranchId > 0 && in_array($defaultBranchId, $availableBranchIds, true)) {
+            $selectedBranchId = $defaultBranchId;
+        } elseif ($availableBranchIds !== []) {
+            $selectedBranchId = $availableBranchIds[0];
+        }
+    }
+
+    // Load production runs for the selected branch and date.
+    if ($selectedBranchId > 0) {
+        $runsStmt = $db->prepare(
+            "SELECT pr.*, p.name as product_name
+             FROM dl_production_runs pr
+             JOIN dl_products p ON pr.product_id = p.id
+             WHERE pr.ledger_date = :date AND pr.destination_branch_id = :branch"
+        );
+        $runsStmt->execute([':date' => $rawDate, ':branch' => $selectedBranchId]);
+    } else {
+        $runsStmt = $db->prepare(
+            "SELECT pr.*, p.name as product_name
+             FROM dl_production_runs pr
+             JOIN dl_products p ON pr.product_id = p.id
+             WHERE pr.ledger_date = :date AND pr.destination_branch_id IS NULL"
+        );
+        $runsStmt->execute([':date' => $rawDate]);
+    }
     $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // Map runs by product_id so we can associate them 1:1 on the spreadsheet
+    // Map selected-branch runs by product_id so we can associate them 1:1 on the spreadsheet
     $runMap = [];
     foreach ($runs as $r) {
         $runMap[(int)$r['product_id']] = $r;
@@ -3990,15 +4781,21 @@ function handleAdminCommissary(): void
         if ($iqty !== '') {
             $iqty = rtrim(rtrim(sprintf('%.3f', $iqty), '0'), '.');
         }
+        $kilo_qty = ($r && ($r['primary_input_type'] ?? '') === 'kilo') ? $iqty : '';
+        $egg_qty  = ($r && ($r['primary_input_type'] ?? '') === 'egg')  ? $iqty : '';
 
         $rowData = [
-            'product_id' => $pid,
-            'name'       => $p['name'],
-            'baker_name' => $r ? (string)$r['baker_name'] : '',
-            'input_qty'  => $iqty,
-            'input_type' => $r ? (string)$r['primary_input_type'] : 'kilo',
-            'yield_qty'  => $r && $r['yield_qty'] > 0 ? (int)$r['yield_qty'] : '',
-            'category'   => $p['product_category']
+            'product_id'             => $pid,
+            'name'                   => $p['name'],
+            'baker_name'             => $r ? (string)$r['baker_name'] : '',
+            'kilo_qty'               => $kilo_qty,
+            'egg_qty'                => $egg_qty,
+            'yield_qty'              => $r && $r['yield_qty'] > 0 ? (int)$r['yield_qty'] : '',
+            'category'               => $p['product_category'],
+            'output_pieces_per_batch'=> (int)($p['output_pieces_per_batch'] ?? 0),
+            'batch_input_qty'        => isset($p['batch_input_qty']) && $p['batch_input_qty'] > 0 ? (float)$p['batch_input_qty'] : 0,
+            'batch_egg_qty'          => isset($p['batch_egg_qty']) && $p['batch_egg_qty'] > 0 ? (float)$p['batch_egg_qty'] : 0,
+            'output_unit_label'      => (string)($p['output_unit_label'] ?? 'pcs'),
         ];
         
         if ($p['product_category'] === 'cake') {
@@ -4025,43 +4822,52 @@ function handleAdminCommissary(): void
             'calc_variance'    => (float)($l['calc_variance'] ?? 0),
         ];
     }
-
-    
-    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
-    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
     $globalBaker = '';
-    $globalBranch = 0;
+    $globalBranch = $selectedBranchId;
     foreach ($runs as $r) {
-        if ($r['baker_name'] !== '' || (int)$r['destination_branch_id'] > 0) {
+        if ($r['baker_name'] !== '') {
             $globalBaker = (string)$r['baker_name'];
-            $globalBranch = (int)$r['destination_branch_id'];
             break;
         }
     }
 
-    
-    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
-    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    $globalBaker = '';
-    $globalBranch = 0;
-    foreach ($runs as $r) {
-        if ($r['baker_name'] !== '' || (int)$r['destination_branch_id'] > 0) {
-            $globalBaker = (string)$r['baker_name'];
-            $globalBranch = (int)$r['destination_branch_id'];
-            break;
+    // Load net production output movements for the date (scoped to accessible branches).
+    // Used on the commissary page to auto-populate yield fields when a branch is selected.
+    // "Net" = output movements that have not been reversed.
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    $outputByBranch = [];
+    if (count($accessibleBranchIds) > 0) {
+        $bPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+        $outStmt = $db->prepare(
+            "SELECT pm.destination_branch_id, pm.product_id, SUM(pm.quantity) AS net_qty
+             FROM dl_production_movements pm
+             WHERE pm.ledger_date = ?
+               AND pm.movement_type = 'output'
+               AND pm.destination_branch_id IN ({$bPlaceholders})
+               AND NOT EXISTS (
+                   SELECT 1 FROM dl_production_movements r
+                   WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
+               )
+             GROUP BY pm.destination_branch_id, pm.product_id
+             HAVING net_qty > 0"
+        );
+        $outStmt->execute(array_merge([$rawDate], $accessibleBranchIds));
+        foreach ($outStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $bid = (int)$row['destination_branch_id'];
+            $pid = (int)$row['product_id'];
+            if (!isset($outputByBranch[$bid])) $outputByBranch[$bid] = [];
+            $outputByBranch[$bid][$pid] = (int)$row['net_qty'];
         }
     }
 
     echo dlRender('modules/daily-ledger/admin/commissary.disyl', [
-        'global_baker_name' => $globalBaker,
-        'global_branch_id'  => $globalBranch,
-        'branches'          => $branches,
+        'page_title'        => 'Commissary',
         'global_baker_name' => $globalBaker,
         'global_branch_id'  => $globalBranch,
         'branches'          => $branches,
         'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'csrf_token' => app()->csrfToken(),
         'current_page'=> 'commissary',
         'user'        => $user,
         'user_name'   => $user['full_name'] ?? $user['username'] ?? 'User',
@@ -4071,6 +4877,7 @@ function handleAdminCommissary(): void
         'product_rows_bread'=> $productRowsBread,
         'product_rows_cake' => $productRowsCake,
         'materials'   => $commissaryRows,
+        'output_by_branch' => $outputByBranch,
     ]);}
 
 function apiSaveProductionRun(): void
@@ -4089,24 +4896,46 @@ function apiSaveProductionRun(): void
     $productId     = (int)($input['product_id'] ?? 0);
     $bakerName     = trim((string)($input['baker_name'] ?? ''));
     $type          = 'regular'; // default
-    $inputQty      = (float)($input['input_qty'] ?? 0);
-    $inputType     = (string)($input['input_type'] ?? 'kilo');
+    $kiloQty   = (float)($input['kilo_qty'] ?? 0);
+    $eggQty    = (float)($input['egg_qty'] ?? 0);
+    // Egg takes precedence when kilo is absent; kilo is the default
+    if ($eggQty > 0 && $kiloQty <= 0) {
+        $inputQty  = $eggQty;
+        $inputType = 'egg';
+    } else {
+        $inputQty  = $kiloQty;
+        $inputType = 'kilo';
+    }
     $yieldQty      = (int)($input['yield_qty'] ?? 0);
     $destBranchId  = (int)($input['destination_branch_id'] ?? 0);
-    $destBranchId  = (int)($input['destination_branch_id'] ?? 0);
 
-    if ($date === '' || $productId <= 0) {
-        $ctx->json(['ok' => false, 'error' => 'Missing date or product'], 400);
+    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $productId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing or invalid date or product'], 400);
         return;
     }
 
-    $actorId = (int)($user['id'] ?? 0);
+    $actorId = dl_getActorUserId($user);
 
     try {
         $db->beginTransaction();
 
-        $stmt = $db->prepare("SELECT id FROM dl_production_runs WHERE ledger_date = :d AND product_id = :p");
-        $stmt->execute([':d' => $date, ':p' => $productId]);
+        if ($destBranchId > 0) {
+            $stmt = $db->prepare(
+                "SELECT id, commissary_movement_id
+                 FROM dl_production_runs
+                 WHERE ledger_date = :d AND product_id = :p AND destination_branch_id = :dest
+                 LIMIT 1"
+            );
+            $stmt->execute([':d' => $date, ':p' => $productId, ':dest' => $destBranchId]);
+        } else {
+            $stmt = $db->prepare(
+                "SELECT id, commissary_movement_id
+                 FROM dl_production_runs
+                 WHERE ledger_date = :d AND product_id = :p AND destination_branch_id IS NULL
+                 LIMIT 1"
+            );
+            $stmt->execute([':d' => $date, ':p' => $productId]);
+        }
         $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($bakerName === '' && $yieldQty <= 0 && $inputQty <= 0) {
@@ -4115,8 +4944,8 @@ function apiSaveProductionRun(): void
             }
         } elseif ($existing) {
             $stmt = $db->prepare(
-                "UPDATE dl_production_runs 
-                 SET baker_name = :baker, primary_input_qty = :iqty, primary_input_type = :itype, yield_qty = :yqty, destination_branch_id = :dest, recorded_by = :actor 
+                "UPDATE dl_production_runs
+                 SET baker_name = :baker, primary_input_qty = :iqty, primary_input_type = :itype, yield_qty = :yqty, destination_branch_id = :dest, recorded_by = :actor
                  WHERE id = :id"
             );
             $stmt->execute([
@@ -4125,9 +4954,8 @@ function apiSaveProductionRun(): void
                 ':itype' => $inputType,
                 ':yqty'  => $yieldQty,
                 ':dest'  => $destBranchId > 0 ? $destBranchId : null,
-                ':dest'  => $destBranchId > 0 ? $destBranchId : null,
                 ':actor' => $actorId > 0 ? $actorId : null,
-                ':id'    => $existing['id']
+                ':id'    => $existing['id'],
             ]);
         } else {
             $stmt = $db->prepare(
@@ -4143,12 +4971,141 @@ function apiSaveProductionRun(): void
                 ':itype' => $inputType,
                 ':yqty'  => $yieldQty,
                 ':dest'  => $destBranchId > 0 ? $destBranchId : null,
-                ':dest'  => $destBranchId > 0 ? $destBranchId : null,
                 ':actor' => $actorId > 0 ? $actorId : null,
             ]);
         }
 
+        // Determine the saved run id (needed to update commissary_movement_id)
+        $runId = $existing ? (int)$existing['id'] : (int)$db->lastInsertId();
+
+        // ─── Commissary → production-movement bridge ───────────────────────────
+        // When a destination branch and a yield qty are set, auto-create/update a
+        // dl_production_movements 'output' record so the branch ledger (addtl) is
+        // kept in sync without the production_in_charge having to encode it twice.
+        //
+        // Logic:
+        //  - priorBridgeId: the movement this run created on the LAST save (if any)
+        //  - If that movement was manually reversed (by supervisor/admin) we leave it
+        //    alone and re-bridge from scratch for the new values.
+        //  - If it was NOT reversed but values changed: reverse it and re-apply.
+        //  - If values are identical to last save: no-op.
+        //  - Deletion of the run: reverse any outstanding bridge movement.
+
+        $priorBridgeId = $existing ? ((int)($existing['commissary_movement_id'] ?? 0) ?: null) : null;
+        $isRunDeleted  = ($bakerName === '' && $yieldQty <= 0 && $inputQty <= 0);
+        $newBridgeId   = null;
+        $role          = (string)($user['role'] ?? '');
+
+        if ($priorBridgeId !== null) {
+            // Was the prior bridge movement already manually reversed?
+            $revChk = $db->prepare(
+                "SELECT id FROM dl_production_movements WHERE reference_movement_id = :rid AND movement_type = 'reverse' LIMIT 1"
+            );
+            $revChk->execute([':rid' => $priorBridgeId]);
+            $alreadyReversed = (bool)$revChk->fetchColumn();
+
+            if (!$alreadyReversed) {
+                $priorMoveStmt = $db->prepare(
+                    'SELECT destination_branch_id, quantity, ledger_date FROM dl_production_movements WHERE id = :id LIMIT 1'
+                );
+                $priorMoveStmt->execute([':id' => $priorBridgeId]);
+                $priorMove = $priorMoveStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($priorMove) {
+                    $priorBranch = (int)$priorMove['destination_branch_id'];
+                    $priorQty    = (int)$priorMove['quantity'];
+                    $priorDate   = (string)$priorMove['ledger_date'];
+
+                    $sameValues = !$isRunDeleted
+                        && $priorBranch === $destBranchId
+                        && $priorQty    === $yieldQty
+                        && $priorDate   === $date
+                        && $destBranchId > 0
+                        && $yieldQty    > 0;
+
+                    if (!$sameValues) {
+                        // Undo the prior ledger delta
+                        dl_applyLedgerDelta($priorBranch, $productId, $priorDate, -$priorQty, $actorId, 'addtl');
+
+                        // Insert a reverse movement record for the audit trail
+                        $revUuid = dl_generateMovementUuid();
+                        $db->prepare(
+                            "INSERT INTO dl_production_movements
+                                (movement_uuid, movement_type, flow_mode,
+                                 destination_branch_id, product_id, ledger_date, quantity,
+                                 override_reason, reference_movement_id, source_payload,
+                                 created_by_id, created_by_role)
+                             VALUES
+                                (:uuid, 'reverse', 'commissary',
+                                 :bid, :pid, :ldate, :qty,
+                                 'commissary-bridge-update', :refid, :payload,
+                                 :uid, :role)"
+                        )->execute([
+                            ':uuid'    => $revUuid,
+                            ':bid'     => $priorBranch,
+                            ':pid'     => $productId,
+                            ':ldate'   => $priorDate,
+                            ':qty'     => $priorQty,
+                            ':refid'   => $priorBridgeId,
+                            ':payload' => json_encode(['commissary_bridge' => true, 'auto_reverse' => true]),
+                            ':uid'     => $actorId > 0 ? $actorId : null,
+                            ':role'    => $role !== '' ? $role : 'unknown',
+                        ]);
+                    } else {
+                        // Identical values — keep the existing bridge movement
+                        $newBridgeId = $priorBridgeId;
+                    }
+                }
+            }
+            // If already manually reversed: fall through and re-bridge below if applicable
+        }
+
+        // Create a new bridge movement when the run has a destination + yield
+        if ($newBridgeId === null && !$isRunDeleted && $destBranchId > 0 && $yieldQty > 0) {
+            dl_applyLedgerDelta($destBranchId, $productId, $date, $yieldQty, $actorId, 'addtl');
+
+            $newMoveUuid = dl_generateMovementUuid();
+            $db->prepare(
+                "INSERT INTO dl_production_movements
+                    (movement_uuid, movement_type, flow_mode,
+                     destination_branch_id, product_id, ledger_date, quantity,
+                     source_payload, created_by_id, created_by_role)
+                 VALUES
+                    (:uuid, 'output', 'commissary',
+                     :bid, :pid, :ldate, :qty,
+                     :payload, :uid, :role)"
+            )->execute([
+                ':uuid'    => $newMoveUuid,
+                ':bid'     => $destBranchId,
+                ':pid'     => $productId,
+                ':ldate'   => $date,
+                ':qty'     => $yieldQty,
+                ':payload' => json_encode(['commissary_bridge' => true]),
+                ':uid'     => $actorId > 0 ? $actorId : null,
+                ':role'    => $role !== '' ? $role : 'unknown',
+            ]);
+            $newBridgeId = (int)$db->lastInsertId();
+        }
+
+        // Persist the bridge movement id back onto the run (NULL when run deleted / keep-in-commissary)
+        if ($runId > 0 && !$isRunDeleted) {
+            $db->prepare("UPDATE dl_production_runs SET commissary_movement_id = :mid WHERE id = :id")
+               ->execute([':mid' => $newBridgeId, ':id' => $runId]);
+        }
+
         $db->commit();
+
+        $auditAction = $isRunDeleted ? 'delete_commissary_run' : ($existing ? 'update_commissary_run' : 'create_commissary_run');
+        dl_auditLog($auditAction, $destBranchId > 0 ? $destBranchId : null, 'dl_production_runs', "{$date}-{$productId}-" . ($destBranchId > 0 ? $destBranchId : 'commissary'), null, [
+            'date'        => $date,
+            'product_id'  => $productId,
+            'baker_name'  => $bakerName,
+            'input_qty'   => $inputQty,
+            'input_type'  => $inputType,
+            'yield_qty'   => $yieldQty,
+            'dest_branch' => $destBranchId,
+        ]);
+
         $ctx->json(['ok' => true]);
 
     } catch (Throwable $e) {
@@ -4174,12 +5131,12 @@ function apiSaveCommissaryMaterial(): void
     $field      = (string)($input['field'] ?? '');
     $val        = (float)($input['value'] ?? 0);
 
-    if ($date === '' || $materialId <= 0 || !in_array($field, ['beg_bal', 'delivery_qty', 'used_qty', 'actual_end_bal'], true)) {
+    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $materialId <= 0 || !in_array($field, ['beg_bal', 'delivery_qty', 'used_qty', 'actual_end_bal'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid data'], 400);
         return;
     }
-    
-    $actorId = (int)($user['id'] ?? 0);
+
+    $actorId = dl_getActorUserId($user);
 
     try {
         $stmt = $db->prepare(
@@ -4193,11 +5150,18 @@ function apiSaveCommissaryMaterial(): void
             ':val'  => $val,
             ':actor'=> $actorId > 0 ? $actorId : null,
         ]);
-        
+
+        dl_auditLog('save_commissary_material', null, 'dl_commissary_ledger', "{$date}-{$materialId}", null, [
+            'date'        => $date,
+            'material_id' => $materialId,
+            'field'       => $field,
+            'value'       => $val,
+        ]);
+
         $ctx->json(['ok' => true]);
     } catch (Throwable $e) {
         write_log("apiSaveCommissaryMaterial error: " . $e->getMessage(), 'error');
-        $ctx->json(['ok' => false, 'error' => 'Saved failed'], 500);
+        $ctx->json(['ok' => false, 'error' => 'Save failed'], 500);
     }
 }
 

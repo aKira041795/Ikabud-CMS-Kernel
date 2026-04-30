@@ -61,6 +61,7 @@ function dlNormalizeCashierLedgerRenderContext(array $context, string $template,
         'day_status' => '',
         'branches' => [],
         'is_cashier' => false,
+        'reference_only' => false,
         'can_ledger_override' => false,
         'business_date_label' => '',
         'close_of_day_time' => '',
@@ -77,6 +78,7 @@ function dlNormalizeCashierRowsRenderContext(array $context, string $template, a
         'branch_id' => 0,
         'ledger_date' => '',
         'day_status' => '',
+        'reference_only' => false,
     ], ['rows', 'branch_id', 'ledger_date', 'day_status'], $missingKeys, $typeMismatches);
 }
 

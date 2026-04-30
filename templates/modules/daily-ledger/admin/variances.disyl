@@ -11,7 +11,7 @@
     </div>
 </div>
 
-<form class="card mb-6" hx-get="{base_url}/admin/variances" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+<form class="card mb-6" action="{base_url}/admin/variances" method="GET">
     <div class="card-body">
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
     <div class="form-group">

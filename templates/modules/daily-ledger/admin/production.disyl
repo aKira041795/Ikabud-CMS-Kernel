@@ -42,10 +42,11 @@
     <button type="button" class="btn btn-outline print-hide" onclick="printProductionLedger()">Print</button>
 </div>
 
+{if can_production_output}
 <div class="card mb-6">
     <div class="card-header">
-        <span>Withdrawal Batch</span>
-        <span class="text-sm text-muted">{branches | count} branch rows</span>
+        <span>Withdrawal Entry</span>
+        <span class="text-sm text-muted">Select branch, then enter qty per product</span>
     </div>
     <div class="card-body">
         {if branches | count == 0}
@@ -55,79 +56,89 @@
         {/if}
 
         {if branches | count > 0}
-        {if areas | count > 0}
-        <div class="mb-4 flex flex-wrap items-center gap-3">
-            <label class="form-label mb-0 whitespace-nowrap font-medium">Filter by Area</label>
-            <select id="area-filter" class="form-input w-auto min-w-[160px]" onchange="filterBranchRows()">
-                <option value="">All Areas</option>
-                {foreach areas as a}
-                <option value="{a}">{a}</option>
-                {/foreach}
-            </select>
-            <span id="area-branch-count" class="text-sm text-muted"></span>
-        </div>
-        {/if}
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
             <div class="form-group mb-0">
-                <label class="form-label">Ledger Date</label>
-                <input type="date" id="ledger-date" class="form-input" value="{ledger_date}">
-            </div>
-            <div class="form-group mb-0">
-                <label class="form-label">Product</label>
-                <input
-                    type="text"
-                    id="product-search"
-                    class="form-input mb-2"
-                    placeholder="Search product name or SKU..."
-                    oninput="filterProductOptions()"
-                >
-                <select id="product-id" class="form-input">
-                    {foreach products as p}
-                    <option value="{p.id}" data-pieces-per-batch="{p.output_pieces_per_batch}" data-unit-label="{p.output_unit_label}">{p.name} ({p.sku})</option>
+                <label class="form-label">Branch</label>
+                <select id="wd-branch-id" class="form-input font-semibold">
+                    <option value="">-- Select Branch --</option>
+                    {foreach branches as br}
+                    <option value="{br.id}">{br.name} ({br.code}){if br.area} · {br.area}{/if}</option>
                     {/foreach}
                 </select>
             </div>
             <div class="form-group mb-0">
+                <label class="form-label">Ledger Date</label>
+                <input type="date" id="wd-ledger-date" class="form-input" value="{ledger_date}">
+            </div>
+            <div class="form-group mb-0">
                 <label class="form-label">Flow Mode</label>
-                <select id="flow-mode" class="form-input">
+                <select id="wd-flow-mode" class="form-input">
                     <option value="production" selected>Production</option>
                     <option value="legacy">Legacy</option>
                 </select>
             </div>
             <div class="form-group mb-0">
                 <label class="form-label">Reason</label>
-                <input type="text" id="reason" class="form-input" placeholder="Optional override reason">
+                <input type="text" id="wd-reason" class="form-input" placeholder="Optional withdrawal note">
             </div>
+        </div>
+
+        <div class="border-b border-gray-200 mb-0">
+            <nav class="flex gap-0 -mb-px">
+                <button type="button" id="wd-tab-bread" onclick="switchWithdrawalTab('bread')"
+                    class="px-4 py-2 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">Bread</button>
+                <button type="button" id="wd-tab-cake" onclick="switchWithdrawalTab('cake')"
+                    class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Cakes</button>
+            </nav>
         </div>
 
         <div class="table-wrap mb-4">
             <table>
                 <thead>
                     <tr>
-                        <th>Branch Code</th>
-                        <th>Branch Name</th>
-                        <th>Area</th>
-                        <th class="text-right">Withdrawal Qty</th>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th class="text-center">Yield Profile</th>
+                        <th class="px-2 text-left">Qty (pcs)</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {foreach branches as br}
-                    <tr data-area="{br.area}">
-                        <td class="font-mono text-sm">{br.code}</td>
-                        <td>{br.name}</td>
-                        <td class="text-sm text-muted">{br.area}</td>
-                        <td class="text-right" style="min-width: 180px;">
-                            <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                class="form-input qty-input text-right"
-                                data-branch-id="{br.id}"
-                                value="0"
-                            >
+                <tbody id="wd-tbody-bread" class="divide-y divide-gray-100">
+                    {foreach product_rows_bread as p}
+                    <tr data-pid="{p.id}" data-oppb="{p.output_pieces_per_batch | default:0}">
+                        <td class="font-medium">{p.name}</td>
+                        <td class="font-mono text-sm text-muted">{p.sku}</td>
+                        <td class="text-center text-sm text-muted">
+                            {if p.output_pieces_per_batch > 0}1 batch = {p.output_pieces_per_batch} {p.output_unit_label | default:'pcs'}{/if}
+                            {if p.output_pieces_per_batch <= 0}<span class="text-xs text-amber-500">No profile</span>{/if}
+                        </td>
+                        <td class="px-2 py-1 text-right">
+                            <input type="number" min="0" step="1" class="form-input text-right wd-qty-input w-28"
+                                id="wd-qty-{p.id}" value="" placeholder="0">
                         </td>
                     </tr>
                     {/foreach}
+                    {if product_rows_bread | count == 0}
+                    <tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">No bread products configured.</td></tr>
+                    {/if}
+                </tbody>
+                <tbody id="wd-tbody-cake" class="divide-y divide-gray-100 hidden">
+                    {foreach product_rows_cake as p}
+                    <tr data-pid="{p.id}" data-oppb="{p.output_pieces_per_batch | default:0}">
+                        <td class="font-medium">{p.name}</td>
+                        <td class="font-mono text-sm text-muted">{p.sku}</td>
+                        <td class="text-center text-sm text-muted">
+                            {if p.output_pieces_per_batch > 0}1 batch = {p.output_pieces_per_batch} {p.output_unit_label | default:'pcs'}{/if}
+                            {if p.output_pieces_per_batch <= 0}<span class="text-xs text-amber-500">No profile</span>{/if}
+                        </td>
+                        <td class="px-2 py-1 text-right">
+                            <input type="number" min="0" step="1" class="form-input text-right wd-qty-input w-28"
+                                id="wd-qty-{p.id}" value="" placeholder="0">
+                        </td>
+                    </tr>
+                    {/foreach}
+                    {if product_rows_cake | count == 0}
+                    <tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">No cake products configured.</td></tr>
+                    {/if}
                 </tbody>
             </table>
         </div>
@@ -139,8 +150,19 @@
         {/if}
     </div>
 </div>
+{/if}
 
-<form class="card mb-6" hx-get="{base_url}/admin/production" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+{if !can_production_output}
+<div class="card mb-6">
+    <div class="card-body">
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Production Withdrawal (batch-count mode) is disabled. Ask the Settings Admin (superadmin) to activate it from Feature Settings.
+        </div>
+    </div>
+</div>
+{/if}
+
+<form class="card mb-6" action="{base_url}/admin/production" method="GET">
     <div class="card-body">
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 items-end">
             <div class="form-group mb-0">
@@ -257,92 +279,67 @@
 
 {block scripts}
 <script>
-    function filterBranchRows() {
-        var sel = document.getElementById('area-filter');
-        var area = sel ? sel.value : '';
-        var rows = document.querySelectorAll('tr[data-area]');
-        var visible = 0;
-        rows.forEach(function(row) {
-            var match = area === '' || row.getAttribute('data-area') === area;
-            row.style.display = match ? '' : 'none';
-            if (match) visible++;
-        });
-        var counter = document.getElementById('area-branch-count');
-        if (counter) {
-            counter.textContent = area !== '' ? visible + ' branch' + (visible !== 1 ? 'es' : '') : '';
-        }
-    }
-
-    function filterProductOptions() {
-        var input = document.getElementById('product-search');
-        var select = document.getElementById('product-id');
-        if (!input || !select) return;
-
-        var query = (input.value || '').toLowerCase().trim();
-        var firstVisibleValue = '';
-
-        Array.from(select.options || []).forEach(function(opt) {
-            var text = (opt.text || '').toLowerCase();
-            var visible = query === '' || text.indexOf(query) !== -1;
-            opt.hidden = !visible;
-            if (visible && firstVisibleValue === '') {
-                firstVisibleValue = opt.value;
-            }
-        });
-
-        var selected = select.options[select.selectedIndex];
-        if (selected && selected.hidden && firstVisibleValue !== '') {
-            select.value = firstVisibleValue;
+    function switchWithdrawalTab(tab) {
+        var breadBody = document.getElementById('wd-tbody-bread');
+        var cakeBody  = document.getElementById('wd-tbody-cake');
+        var tabBread  = document.getElementById('wd-tab-bread');
+        var tabCake   = document.getElementById('wd-tab-cake');
+        if (tab === 'bread') {
+            if (breadBody) breadBody.classList.remove('hidden');
+            if (cakeBody)  cakeBody.classList.add('hidden');
+            if (tabBread) { tabBread.classList.add('border-indigo-500', 'text-indigo-600'); tabBread.classList.remove('border-transparent', 'text-gray-500'); }
+            if (tabCake)  { tabCake.classList.remove('border-indigo-500', 'text-indigo-600'); tabCake.classList.add('border-transparent', 'text-gray-500'); }
+        } else {
+            if (cakeBody)  cakeBody.classList.remove('hidden');
+            if (breadBody) breadBody.classList.add('hidden');
+            if (tabCake)  { tabCake.classList.add('border-indigo-500', 'text-indigo-600'); tabCake.classList.remove('border-transparent', 'text-gray-500'); }
+            if (tabBread) { tabBread.classList.remove('border-indigo-500', 'text-indigo-600'); tabBread.classList.add('border-transparent', 'text-gray-500'); }
         }
     }
 
     function resetWithdrawals() {
-        document.querySelectorAll('.qty-input').forEach(function(el) {
-            el.value = '0';
+        document.querySelectorAll('.wd-qty-input').forEach(function(el) {
+            el.value = '';
         });
     }
 
     function submitWithdrawalsByRow() {
         var btn = document.getElementById('submit-withdrawals');
-        var ledgerDate = document.getElementById('ledger-date').value;
-        var productId = parseInt(document.getElementById('product-id').value, 10) || 0;
-        var flowMode = document.getElementById('flow-mode').value || 'production';
-        var reason = (document.getElementById('reason').value || '').trim();
+        if (!btn) return;
+        var branchId   = parseInt((document.getElementById('wd-branch-id')   || {}).value || '0', 10) || 0;
+        var ledgerDate = (document.getElementById('wd-ledger-date') || {}).value || '';
+        var flowMode   = (document.getElementById('wd-flow-mode')   || {}).value || 'production';
+        var reason     = ((document.getElementById('wd-reason')     || {}).value || '').trim();
 
-        if (!ledgerDate) {
-            showToast('Ledger date is required', 'error');
-            return;
-        }
-        if (!productId) {
-            showToast('Product is required', 'error');
-            return;
-        }
+        if (!branchId)   { showToast('Select a branch first', 'error'); return; }
+        if (!ledgerDate) { showToast('Ledger date is required', 'error'); return; }
 
         var operations = [];
         var now = Date.now();
-        document.querySelectorAll('.qty-input').forEach(function(el, idx) {
-            var qty = parseInt(el.value, 10) || 0;
-            if (qty <= 0) {
-                return;
+        var idx = 0;
+        document.querySelectorAll('tr[data-pid]').forEach(function(row) {
+            var pid  = parseInt(row.getAttribute('data-pid'), 10) || 0;
+            if (!pid) return;
+            var qtyEl   = document.getElementById('wd-qty-'   + pid);
+            var qty = 0;
+            if (qtyEl && qtyEl.value !== '' && parseFloat(qtyEl.value) > 0) {
+                qty = Math.round(parseFloat(qtyEl.value));
             }
-            var branchId = parseInt(el.getAttribute('data-branch-id'), 10) || 0;
-            if (!branchId) {
-                return;
-            }
+            if (qty <= 0) return;
             operations.push({
                 type: 'withdrawal',
                 destination_branch_id: branchId,
-                product_id: productId,
+                product_id: pid,
                 ledger_date: ledgerDate,
                 quantity: qty,
                 flow_mode: flowMode,
                 override_reason: reason,
-                client_op_id: 'wd-' + now + '-' + branchId + '-' + idx
+                client_op_id: 'wd-' + now + '-' + pid + '-' + (idx++)
             });
         });
 
         if (operations.length === 0) {
-            showToast('Enter at least one row quantity greater than 0', 'error');
+            showToast('Enter at least one product quantity greater than 0', 'error');
             return;
         }
 
@@ -365,12 +362,9 @@
                 showToast(res.error || 'Failed to submit withdrawals', 'error');
                 return;
             }
-
             var summary = res.summary || { succeeded: 0, failed: 0 };
             var msg = 'Withdrawals synced: ' + summary.succeeded + ' success';
-            if (summary.failed > 0) {
-                msg += ', ' + summary.failed + ' failed';
-            }
+            if (summary.failed > 0) msg += ', ' + summary.failed + ' failed';
             showToast(msg, summary.failed > 0 ? 'error' : 'success');
             setTimeout(function() { window.location.reload(); }, 700);
         })
@@ -408,14 +402,14 @@
         var reportHtml = '<!doctype html><html><head><meta charset="utf-8">' +
             '<title>Production Withdrawal Report</title>' +
             '<style>' +
-            'body{font-family:Arial,sans-serif;color:#111827;margin:24px;}' +
+{literal}            'body{font-family:Arial,sans-serif;color:#111827;margin:24px;}' +
             'h1{font-size:20px;margin:0 0 8px;}' +
             '.meta{font-size:13px;color:#374151;margin:2px 0;}' +
             'table{width:100%;border-collapse:collapse;margin-top:16px;}' +
             'th,td{border:1px solid #d1d5db;padding:8px;font-size:12px;vertical-align:top;}' +
             'th{background:#f3f4f6;text-align:left;}' +
             '.right{text-align:right;}' +
-            '</style></head><body>' +
+{/literal}            '</style></head><body>' +
             '<h1>Production Withdrawal Report</h1>' +
             '<div class="meta">Ledger Date: {ledger_date}</div>' +
             '<div class="meta">History Range: {date_from} to {date_to}</div>' +
