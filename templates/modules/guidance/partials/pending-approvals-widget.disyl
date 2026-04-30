@@ -17,7 +17,7 @@
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-900 truncate">{appt.student_name}</p>
                     <p class="text-xs text-gray-500">
-                        {appt.scheduled_date | date:'M d'} at {appt.scheduled_time | time:'g:i A'}
+                        {appt.scheduled_date | date:'M d'} at {appt.scheduled_time | date:'g:i A'}
                     </p>
                     {if appt.type_name}
                     <span class="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">

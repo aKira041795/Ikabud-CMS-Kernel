@@ -1,0 +1,237 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{!-- Session Records Page - Guidance Counseling System --}
+{!-- Shows all historical counseling sessions with status, duration, details --}
+
+{ikb_section padding="none"}
+
+    {!-- Page Header --}
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <i class="fas fa-clipboard-list text-blue-600 text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Session Records</h1>
+                <p class="text-sm text-gray-500 mt-0.5">View and manage all counseling sessions that have been completed.</p>
+            </div>
+        </div>
+    </div>
+
+    {!-- Summary Stats --}
+    <div id="session-records-stats"
+         hx-get="/api/appointments/session-stats"
+         hx-trigger="load, refreshSessionRecords from:body"
+         hx-swap="innerHTML"
+         hx-history="false"
+         class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        {!-- Loading skeleton --}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+            <div class="h-8 bg-gray-100 rounded w-16 mb-2"></div>
+            <div class="h-4 bg-gray-100 rounded w-24"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+            <div class="h-8 bg-gray-100 rounded w-16 mb-2"></div>
+            <div class="h-4 bg-gray-100 rounded w-24"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+            <div class="h-8 bg-gray-100 rounded w-16 mb-2"></div>
+            <div class="h-4 bg-gray-100 rounded w-24"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+            <div class="h-8 bg-gray-100 rounded w-16 mb-2"></div>
+            <div class="h-4 bg-gray-100 rounded w-24"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+            <div class="h-8 bg-gray-100 rounded w-16 mb-2"></div>
+            <div class="h-4 bg-gray-100 rounded w-24"></div>
+        </div>
+    </div>
+
+    {!-- Filters Bar --}
+    <form id="sr-filters" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-5"
+          onsubmit="return false;">
+        <div class="flex flex-col lg:flex-row lg:items-center gap-3 flex-wrap">
+            {!-- Search --}
+            <div class="relative flex-1 min-w-[200px] max-w-xs">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" name="sr_search" placeholder="Search by student name or code..."
+                       class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                       hx-get="/api/appointments?session_records=1"
+                       hx-target="#session-records-list"
+                       hx-trigger="keyup changed delay:400ms"
+                       hx-include="#sr-filters" />
+            </div>
+
+            {!-- Status Filter --}
+            <select name="sr_status"
+                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    hx-get="/api/appointments?session_records=1"
+                    hx-target="#session-records-list"
+                    hx-trigger="change"
+                    hx-include="#sr-filters">
+                <option value="">All Status</option>
+                <option value="completed">Went to Session</option>
+                <option value="no_show">Did Not Show Up</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="in_progress">In Progress</option>
+            </select>
+
+            {!-- Purpose Filter --}
+            <select name="sr_purpose"
+                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    hx-get="/api/appointments?session_records=1"
+                    hx-target="#session-records-list"
+                    hx-trigger="change"
+                    hx-include="#sr-filters">
+                <option value="">All Purposes</option>
+                {foreach appointment_types as t}
+                <option value="{t.id}">{t.name | esc_html}</option>
+                {/foreach}
+            </select>
+
+            {!-- Counselor Filter (admin/supervisor only) --}
+            {if user_role != 'counselor'}
+            <select name="sr_counselor"
+                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    hx-get="/api/appointments?session_records=1"
+                    hx-target="#session-records-list"
+                    hx-trigger="change"
+                    hx-include="#sr-filters">
+                <option value="">All Counselors</option>
+                {foreach counselors as c}
+                <option value="{c.id}">{c.first_name | esc_html} {c.last_name | esc_html}</option>
+                {/foreach}
+            </select>
+            {/if}
+
+            {!-- Date Range --}
+            <div class="flex items-center gap-2">
+                <input type="date" name="sr_from"
+                       class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                       hx-get="/api/appointments?session_records=1"
+                       hx-target="#session-records-list"
+                       hx-trigger="change"
+                       hx-include="#sr-filters" />
+                <span class="text-gray-400 text-xs font-medium">–</span>
+                <input type="date" name="sr_to"
+                       class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                       hx-get="/api/appointments?session_records=1"
+                       hx-target="#session-records-list"
+                       hx-trigger="change"
+                       hx-include="#sr-filters" />
+            </div>
+
+            {!-- Clear Filters --}
+            <button type="button" id="sr-clear-btn"
+                    onclick="document.querySelectorAll('#sr-filters input, #sr-filters select').forEach(function(e){ e.value = ''; }); htmx.ajax('GET', '/api/appointments?session_records=1', { target: '#session-records-list', swap: 'innerHTML' });"
+                    class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition shadow-sm">
+                <i class="fas fa-times text-xs"></i> Clear
+            </button>
+        </div>
+    </form>
+
+    {!-- Session Records Table --}
+    <div id="session-records-list"
+         hx-get="/api/appointments?session_records=1"
+         hx-trigger="load, refreshSessionRecords from:body"
+         hx-swap="innerHTML"
+         hx-history="false">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
+            <i class="fas fa-spinner fa-spin text-2xl mb-3"></i>
+            <p class="text-sm">Loading session records...</p>
+        </div>
+    </div>
+
+    {!-- Inline Session Detail Panel --}
+    <div id="session-detail-panel" style="display:none;"></div>
+
+    {!-- Status Legend --}
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">
+                <i class="fas fa-info-circle text-gray-400 mr-1"></i> Status Legend
+            </h3>
+            <div class="space-y-2 text-sm text-gray-600">
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                        <i class="fas fa-check-circle text-[10px]"></i> Went to Session
+                    </span>
+                    <span>Student attended the appointment</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
+                        <i class="fas fa-clock text-[10px]"></i> Did Not Show Up
+                    </span>
+                    <span>Student did not attend the appointment</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
+                        <i class="fas fa-times-circle text-[10px]"></i> Cancelled
+                    </span>
+                    <span>Appointment was cancelled</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                        <i class="fas fa-circle text-[10px]"></i> In Progress
+                    </span>
+                    <span>Session is currently ongoing</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">
+                <i class="fas fa-sticky-note text-gray-400 mr-1"></i> Appointment Notes
+            </h3>
+            <ul class="space-y-2 text-sm text-gray-600">
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-dot-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
+                    You can update the status of an appointment by clicking the action menu.
+                </li>
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-dot-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
+                    For "Did Not Show Up" appointments, you may reschedule or mark as completed if the session was done through another time.
+                </li>
+            </ul>
+        </div>
+    </div>
+
+{/ikb_section}
+
+{block scripts}
+<script>
+    function loadSessionDetail(id) {
+        var panel = document.getElementById('session-detail-panel');
+        if (!panel) return;
+        panel.style.display = 'block';
+        panel.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-8 mt-3 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-xl mb-2"></i><p class="text-sm">Loading session details...</p></div>';
+        htmx.ajax('GET', '/api/appointments/' + id + '/session-detail', { target: '#session-detail-panel', swap: 'innerHTML' });
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function loadSessionPage(page) {
+        var form = document.getElementById('sr-filters');
+        var filters = form ? Object.fromEntries(new FormData(form)) : {};
+        filters['session_records'] = '1';
+        filters['sr_page'] = page;
+        htmx.ajax('GET', '/api/appointments', { target: '#session-records-list', swap: 'innerHTML', values: filters });
+        document.getElementById('session-detail-panel').innerHTML = '';
+        document.getElementById('session-detail-panel').style.display = 'none';
+    }
+
+    document.addEventListener('htmx:afterSettle', function(evt) {
+        var target = evt.detail.elt;
+        if (target && target.id === 'session-records-list') {
+            var detailPanel = document.getElementById('session-detail-panel');
+            if (detailPanel) {
+                detailPanel.innerHTML = '';
+                detailPanel.style.display = 'none';
+            }
+        }
+    });
+</script>
+{/block}
+
+{/block}

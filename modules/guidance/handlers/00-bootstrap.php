@@ -1,1 +1,2 @@
-<?php\n// Free Tier Handlers loaded here
+<?php
+// Free Tier Handlers loaded here

@@ -1,0 +1,79 @@
+{!-- Student Reports Tab --}
+<div class="space-y-4">
+
+    {if has_date_filter}
+    <div class="flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 w-fit">
+        <i class="fas fa-filter"></i>
+        Showing results for <strong>{start_date}</strong> – <strong>{end_date}</strong>
+    </div>
+    {/if}
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-user-graduate text-teal-600"></i>
+                Student Case List
+            </h3>
+            <span class="text-xs text-gray-500">{students | count} records</span>
+        </div>
+
+        {if students}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                        <th class="px-4 py-3 text-left font-medium">Student Name</th>
+                        <th class="px-4 py-3 text-left font-medium">Case No.</th>
+                        <th class="px-4 py-3 text-left font-medium">Course</th>
+                        <th class="px-4 py-3 text-left font-medium">Year</th>
+                        <th class="px-4 py-3 text-left font-medium">Status</th>
+                        <th class="px-4 py-3 text-left font-medium">Severity</th>
+                        <th class="px-4 py-3 text-left font-medium">Counselor</th>
+                        <th class="px-4 py-3 text-center font-medium">Sessions</th>
+                        <th class="px-4 py-3 text-left font-medium">Last Session</th>
+                        <th class="px-4 py-3 text-left font-medium">Date Added</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {foreach students as s}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 font-medium text-gray-900">{s.student_name | esc_html}</td>
+                        <td class="px-4 py-3 text-gray-500 font-mono text-xs">{s.case_number | esc_html}</td>
+                        <td class="px-4 py-3 text-gray-600">{s.college_code | esc_html}</td>
+                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{s.student_grade | default:'—' | esc_html}</td>
+                        <td class="px-4 py-3">
+                            {if s.student_status == 'probationary'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Probationary</span>
+                            {else}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{s.student_status | default:'Regular' | title | esc_html}</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3">
+                            {if s.severity == 'high'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">High</span>
+                            {elseif s.severity == 'critical'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Critical</span>
+                            {elseif s.severity == 'low'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Low</span>
+                            {else}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{s.severity | default:'—' | title | esc_html}</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">{s.counselor_name | default:'Unassigned' | esc_html}</td>
+                        <td class="px-4 py-3 text-center font-semibold text-teal-700">{s.session_count | default:'0'}</td>
+                        <td class="px-4 py-3 text-gray-500 text-xs">{s.last_session | default:'—' | esc_html}</td>
+                        <td class="px-4 py-3 text-gray-500 text-xs">{s.created_at | date:'M j, Y' | esc_html}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+            <i class="fas fa-user-graduate text-3xl mb-3"></i>
+            <p class="text-sm">No students found for the selected filters.</p>
+        </div>
+        {/if}
+    </div>
+
+</div>

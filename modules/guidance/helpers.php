@@ -112,6 +112,28 @@ function guidanceFireEvent(string $event, array $payload = []): void
     }
 }
 
+// ---------------------------------------------------------------------------
+// Cache helpers — call these from mutation handlers to invalidate stale data
+// ---------------------------------------------------------------------------
+
+/** Invalidate appointment stats + dashboard stats caches. */
+function guidanceClearAppointmentStatsCache(): void
+{
+    app()->cache()->clearByTags('guidance', ['guidance:appointment-stats', 'guidance:stats']);
+}
+
+/** Invalidate case stats + dashboard stats caches. */
+function guidanceClearCaseStatsCache(): void
+{
+    app()->cache()->clearByTags('guidance', ['guidance:case-stats', 'guidance:stats']);
+}
+
+/** Invalidate tracker list cache. */
+function guidanceClearTrackerCache(): void
+{
+    app()->cache()->clearByTag('guidance', 'guidance:trackers');
+}
+
 function guidanceGetSetting(string $key, ?string $default = null): ?string
 {
     try {

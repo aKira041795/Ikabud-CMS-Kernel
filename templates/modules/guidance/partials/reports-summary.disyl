@@ -1,248 +1,452 @@
-{!-- Reports Summary Partial — Dynamic Data --}
+{!-- Reports Overview Summary Partial --}
 
-{!-- Date filter indicator --}
 {if has_date_filter}
-<div class="mb-4 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
-    <i class="fas fa-filter mr-1"></i> Showing data from <strong>{start_date}</strong> to <strong>{end_date}</strong>
+<div class="mb-5 px-4 py-2 bg-teal-50 border border-teal-200 rounded-lg text-sm text-teal-700 flex items-center gap-2">
+    <i class="fas fa-filter text-xs"></i>
+    Showing data from <strong class="mx-1">{start_date}</strong> to <strong class="mx-1">{end_date}</strong>
 </div>
 {/if}
 
-{!-- KPI Summary Cards --}
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Cases</span>
-            <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><i class="fas fa-folder text-indigo-600 text-sm"></i></div>
+{!-- Stats Row: 5 cards --}
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+
+    {!-- Total Students Monitored --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-3">
+        <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-users text-blue-600 text-lg"></i>
         </div>
-        <p class="text-3xl font-bold text-gray-900">{summary.total_cases | default:'0'}</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Active</span>
-            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><i class="fas fa-folder-open text-blue-600 text-sm"></i></div>
+        <div>
+            <p class="text-2xl font-bold text-gray-900">{students.total | default:'0'}</p>
+            <p class="text-xs text-gray-500 leading-tight mt-0.5">Total Students Monitored</p>
+            {if students.delta_last_week > 0}
+            <p class="text-xs text-green-600 mt-1 flex items-center gap-0.5">
+                <i class="fas fa-arrow-up text-[9px]"></i> {students.delta_last_week} from last week
+            </p>
+            {/if}
         </div>
-        <p class="text-3xl font-bold text-blue-600">{summary.active_cases | default:'0'}</p>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Resolved</span>
-            <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center"><i class="fas fa-check-circle text-green-600 text-sm"></i></div>
+
+    {!-- Low Risk --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-3">
+        <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-shield-alt text-green-600 text-lg"></i>
         </div>
-        <p class="text-3xl font-bold text-green-600">{summary.closed_cases | default:'0'}</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold text-red-400 uppercase tracking-wide">Critical</span>
-            <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center"><i class="fas fa-exclamation-triangle text-red-600 text-sm"></i></div>
+        <div>
+            <p class="text-2xl font-bold text-gray-900">{students.low_risk | default:'0'}</p>
+            <p class="text-xs text-gray-500 leading-tight mt-0.5">Low Risk</p>
+            <p class="text-xs text-gray-400 mt-1">{students.low_risk_pct | default:'0'}% of total</p>
         </div>
-        <p class="text-3xl font-bold text-red-600">{summary.critical_cases | default:'0'}</p>
     </div>
+
+    {!-- Moderate Risk --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-3">
+        <div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-exclamation-circle text-orange-500 text-lg"></i>
+        </div>
+        <div>
+            <p class="text-2xl font-bold text-gray-900">{students.moderate_risk | default:'0'}</p>
+            <p class="text-xs text-gray-500 leading-tight mt-0.5">Moderate Risk</p>
+            <p class="text-xs text-gray-400 mt-1">{students.moderate_risk_pct | default:'0'}% of total</p>
+        </div>
+    </div>
+
+    {!-- High Risk --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-3">
+        <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-exclamation-triangle text-red-500 text-lg"></i>
+        </div>
+        <div>
+            <p class="text-2xl font-bold text-gray-900">{students.high_risk | default:'0'}</p>
+            <p class="text-xs text-gray-500 leading-tight mt-0.5">High Risk</p>
+            <p class="text-xs text-gray-400 mt-1">{students.high_risk_pct | default:'0'}% of total</p>
+        </div>
+    </div>
+
+    {!-- Probationary --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-3">
+        <div class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-user-clock text-purple-600 text-lg"></i>
+        </div>
+        <div>
+            <p class="text-2xl font-bold text-gray-900">{students.probationary | default:'0'}</p>
+            <p class="text-xs text-gray-500 leading-tight mt-0.5">Probationary</p>
+            <p class="text-xs text-gray-400 mt-1">{students.probationary_pct | default:'0'}% of total</p>
+        </div>
+    </div>
+
 </div>
 
-{!-- Session & Notes Stats --}
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-gradient-to-br from-indigo-50 to-white rounded-xl border border-indigo-100 p-4 text-center">
-        <p class="text-2xl font-bold text-indigo-700">{summary.total_notes | default:'0'}</p>
-        <p class="text-xs text-gray-500 mt-1">Session Notes</p>
-    </div>
-    <div class="bg-gradient-to-br from-purple-50 to-white rounded-xl border border-purple-100 p-4 text-center">
-        <p class="text-2xl font-bold text-purple-700">{summary.total_session_hours | default:'0'}</p>
-        <p class="text-xs text-gray-500 mt-1">Session Hours</p>
-    </div>
-    <div class="bg-gradient-to-br from-cyan-50 to-white rounded-xl border border-cyan-100 p-4 text-center">
-        <p class="text-2xl font-bold text-cyan-700">{appointments.upcoming | default:'0'}</p>
-        <p class="text-xs text-gray-500 mt-1">Upcoming Appts</p>
-    </div>
-    <div class="bg-gradient-to-br from-orange-50 to-white rounded-xl border border-orange-100 p-4 text-center">
-        <p class="text-2xl font-bold text-orange-700">{summary.high_priority_cases | default:'0'}</p>
-        <p class="text-xs text-gray-500 mt-1">High Priority</p>
-    </div>
-</div>
+{!-- Charts Row: 3 columns --}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    {!-- Cases by Status --}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-chart-pie text-indigo-500 mr-2"></i>Cases by Status</h3>
-        <div class="space-y-3">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span><span class="text-sm text-gray-600">Open</span></div>
-                <span class="px-3 py-0.5 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">{by_status.open | default:'0'}</span>
-            </div>
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span><span class="text-sm text-gray-600">In Progress</span></div>
-                <span class="px-3 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">{by_status.in_progress | default:'0'}</span>
-            </div>
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-gray-400 mr-2"></span><span class="text-sm text-gray-600">On Hold</span></div>
-                <span class="px-3 py-0.5 bg-gray-100 text-gray-800 rounded-full text-sm font-semibold">{by_status.on_hold | default:'0'}</span>
-            </div>
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span><span class="text-sm text-gray-600">Closed</span></div>
-                <span class="px-3 py-0.5 bg-green-100 text-green-800 rounded-full text-sm font-semibold">{by_status.closed | default:'0'}</span>
-            </div>
-        </div>
-    </div>
-    
-    {!-- Cases by Severity --}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-shield-alt text-red-500 mr-2"></i>Cases by Severity</h3>
-        <div class="space-y-3">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-600 mr-2"></span><span class="text-sm text-gray-600">Critical</span></div>
-                <span class="px-3 py-0.5 bg-red-100 text-red-800 rounded-full text-sm font-semibold">{by_severity.critical | default:'0'}</span>
-            </div>
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-orange-500 mr-2"></span><span class="text-sm text-gray-600">High</span></div>
-                <span class="px-3 py-0.5 bg-orange-100 text-orange-800 rounded-full text-sm font-semibold">{by_severity.high | default:'0'}</span>
-            </div>
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span><span class="text-sm text-gray-600">Medium</span></div>
-                <span class="px-3 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">{by_severity.medium | default:'0'}</span>
-            </div>
-            <div class="flex justify-between items-center">
-                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span><span class="text-sm text-gray-600">Low</span></div>
-                <span class="px-3 py-0.5 bg-green-100 text-green-800 rounded-full text-sm font-semibold">{by_severity.low | default:'0'}</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    {!-- Cases by Category (dynamic) --}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-tags text-violet-500 mr-2"></i>Cases by Category</h3>
-        {if category_items}
-        <div class="space-y-3">
-            {each category_items as item}
-            <div class="flex items-center justify-between">
-                <span class="text-sm text-gray-700 w-28 truncate">{item.name}</span>
-                <div class="flex items-center flex-1 ml-3">
-                    <div class="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-indigo-500 rounded-full" style="width: {item.pct}%"></div>
-                    </div>
-                    <span class="ml-3 text-xs font-semibold text-gray-500 w-16 text-right">{item.count} ({item.pct}%)</span>
+    {!-- Risk Level Distribution donut --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="text-sm font-semibold text-gray-800 mb-4">Risk Level Distribution</h3>
+        <div class="flex items-center gap-5">
+            <div class="relative flex-shrink-0 w-28 h-28">
+                <canvas id="guidance-risk-chart" width="112" height="112"></canvas>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span class="text-xl font-bold text-gray-900">{students.total | default:'0'}</span>
+                    <span class="text-[11px] text-gray-400">Total</span>
                 </div>
             </div>
-            {/each}
+            <div class="flex-1 space-y-2 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">Low Risk</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{students.low_risk | default:'0'} <span class="text-gray-400">({students.low_risk_pct | default:'0'}%)</span></span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-orange-400 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">Moderate Risk</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{students.moderate_risk | default:'0'} <span class="text-gray-400">({students.moderate_risk_pct | default:'0'}%)</span></span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">High Risk</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{students.high_risk | default:'0'} <span class="text-gray-400">({students.high_risk_pct | default:'0'}%)</span></span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">Probationary</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{students.probationary | default:'0'} <span class="text-gray-400">({students.probationary_pct | default:'0'}%)</span></span>
+                </div>
+            </div>
         </div>
-        {else}
-        <p class="text-sm text-gray-400 italic">No cases recorded</p>
-        {/if}
     </div>
-    
-    {!-- Appointments Summary --}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-calendar-check text-teal-500 mr-2"></i>Appointments</h3>
-        <div class="space-y-2">
-            <div class="flex items-center justify-between p-2.5 bg-green-50 rounded-lg">
-                <span class="text-sm text-green-800"><i class="fas fa-check mr-2"></i>Completed</span>
-                <span class="text-lg font-bold text-green-600">{appointments.completed | default:'0'}</span>
+
+    {!-- Sessions by Status donut --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="text-sm font-semibold text-gray-800 mb-4">Sessions by Status</h3>
+        <div class="flex items-center gap-5">
+            <div class="relative flex-shrink-0 w-28 h-28">
+                <canvas id="guidance-sessions-chart" width="112" height="112"></canvas>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span class="text-xl font-bold text-gray-900">{sessions_by_status.total | default:'0'}</span>
+                    <span class="text-[11px] text-gray-400">Total</span>
+                </div>
             </div>
-            <div class="flex items-center justify-between p-2.5 bg-blue-50 rounded-lg">
-                <span class="text-sm text-blue-800"><i class="fas fa-calendar mr-2"></i>Scheduled</span>
-                <span class="text-lg font-bold text-blue-600">{appointments.scheduled | default:'0'}</span>
-            </div>
-            <div class="flex items-center justify-between p-2.5 bg-amber-50 rounded-lg">
-                <span class="text-sm text-amber-800"><i class="fas fa-clock mr-2"></i>Pending</span>
-                <span class="text-lg font-bold text-amber-600">{appointments.pending | default:'0'}</span>
-            </div>
-            <div class="flex items-center justify-between p-2.5 bg-red-50 rounded-lg">
-                <span class="text-sm text-red-800"><i class="fas fa-user-slash mr-2"></i>No-shows</span>
-                <span class="text-lg font-bold text-red-600">{appointments.no_show | default:'0'}</span>
-            </div>
-            <div class="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                <span class="text-sm text-gray-600"><i class="fas fa-ban mr-2"></i>Cancelled</span>
-                <span class="text-lg font-bold text-gray-500">{appointments.cancelled | default:'0'}</span>
+            <div class="flex-1 space-y-2 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">Went to Session</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{sessions_by_status.completed | default:'0'}</span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-orange-400 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">Did Not Show Up</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{sessions_by_status.no_show | default:'0'}</span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">Cancelled</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{sessions_by_status.cancelled | default:'0'}</span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                        <span class="text-gray-600 truncate">In Progress</span>
+                    </div>
+                    <span class="text-gray-500 flex-shrink-0">{sessions_by_status.in_progress | default:'0'}</span>
+                </div>
             </div>
         </div>
     </div>
+
+    {!-- Sessions Over Time line chart --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="text-sm font-semibold text-gray-800 mb-3">Sessions Over Time</h3>
+        <canvas id="guidance-trend-chart"></canvas>
+        <div class="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
+            <span class="inline-block w-6 h-0.5 bg-teal-500 rounded"></span> Total Sessions
+        </div>
+    </div>
+
 </div>
 
-{!-- Monthly Trend --}
-{if monthly_trend}
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-    <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-chart-bar text-indigo-500 mr-2"></i>Monthly Trend (Last 6 Months)</h3>
-    <div class="flex items-end gap-3 h-40">
-        {each monthly_trend as m}
-        <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex flex-col items-center gap-0.5" style="height:120px;justify-content:flex-end;">
-                <div class="w-full max-w-[28px] bg-indigo-500 rounded-t" style="height: calc({m.opened} * 20px); min-height:4px;" title="Opened: {m.opened}"></div>
-                <div class="w-full max-w-[28px] bg-green-400 rounded-t" style="height: calc({m.closed} * 20px); min-height:2px;" title="Closed: {m.closed}"></div>
-            </div>
-            <span class="text-[10px] text-gray-400 mt-1">{m.label}</span>
-        </div>
-        {/each}
-    </div>
-    <div class="flex items-center gap-4 mt-3 text-xs text-gray-500">
-        <span><span class="inline-block w-3 h-3 bg-indigo-500 rounded mr-1"></span>Opened</span>
-        <span><span class="inline-block w-3 h-3 bg-green-400 rounded mr-1"></span>Closed</span>
-    </div>
-</div>
-{/if}
+{!-- Bottom Row: Top Students (2/3) + Reports to Generate (1/3) --}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    {!-- Referral Sources --}
-    {if by_referral}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-directions text-cyan-500 mr-2"></i>Referral Sources</h3>
-        <div class="space-y-2">
-            {each by_referral as src => count}
-            <div class="flex justify-between items-center">
-                <span class="text-sm text-gray-600 capitalize">{src}</span>
-                <span class="px-3 py-0.5 bg-cyan-50 text-cyan-700 rounded-full text-sm font-semibold">{count}</span>
-            </div>
-            {/each}
+    {!-- Top Students by Number of Sessions --}
+    <div class="md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-800">Top Students by Number of Sessions</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100">
+                        <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide w-8">#</th>
+                        <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Student</th>
+                        <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Course / Year Level</th>
+                        <th class="px-4 py-2.5 text-center font-semibold text-gray-500 uppercase tracking-wide">Total Sessions</th>
+                        <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Risk Level</th>
+                        <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Last Session</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if top_students | count > 0}
+                    {foreach top_students as student}
+                    <tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 text-gray-500 font-medium">{student.rank}</td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-user text-gray-400 text-xs"></i>
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-gray-800">{student.student_name | esc_html}</div>
+                                    <div class="text-gray-400 text-[11px]">{student.case_number | esc_html}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">
+                            {student.college_code | esc_html | default:'—'}{if student.student_grade} • {student.student_grade | esc_html}{/if}
+                        </td>
+                        <td class="px-4 py-3 text-center font-bold text-gray-800">{student.session_count | default:'0'}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide
+                                {if student.severity == 'high' || student.severity == 'critical'}bg-red-100 text-red-700
+                                {elseif student.severity == 'medium'}bg-orange-100 text-orange-700
+                                {elseif student.severity == 'low'}bg-green-100 text-green-700
+                                {else}bg-gray-100 text-gray-500{/if}">
+                                {if student.severity == 'high' || student.severity == 'critical'}HIGH RISK
+                                {elseif student.severity == 'medium'}MODERATE RISK
+                                {elseif student.severity == 'low'}LOW RISK
+                                {else}—{/if}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">{student.last_session | date:'M j, Y' | default:'—'}</td>
+                    </tr>
+                    {/foreach}
+                    {else}
+                    <tr>
+                        <td colspan="6" class="px-4 py-10 text-center text-gray-400">
+                            <i class="fas fa-users text-2xl mb-2 text-gray-300 block"></i>
+                            No student data available.
+                        </td>
+                    </tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-400">Showing 1 to {top_students | count} of {students.total | default:'0'} students</span>
+            <a href="{base_url}/cases"
+               hx-get="/pages/cases" hx-target="#main-content" hx-push-url="{base_url}/cases"
+               class="px-4 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 transition">
+                View Full List
+            </a>
         </div>
     </div>
-    {/if}
-    
-    {!-- Risk Distribution --}
-    {if risk_distribution}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-heartbeat text-rose-500 mr-2"></i>Risk Distribution (Sessions)</h3>
-        <div class="space-y-2">
-            {each risk_distribution as level => count}
-            <div class="flex justify-between items-center">
-                <span class="text-sm text-gray-600 capitalize">{level}</span>
-                <span class="px-3 py-0.5 bg-rose-50 text-rose-700 rounded-full text-sm font-semibold">{count}</span>
-            </div>
-            {/each}
+
+    {!-- Reports to Generate --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-800">Reports You Can Generate</h3>
+        </div>
+        <div class="divide-y divide-gray-50">
+            <a href="{base_url}/api/reports/export?type=student_summary&format=csv" target="_blank"
+               class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                <div class="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-user-graduate text-teal-600 text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 group-hover:text-teal-700 transition-colors">Student Summary Report</p>
+                    <p class="text-xs text-gray-400">Overview of a student's profile, sessions, and status.</p>
+                </div>
+                <i class="fas fa-chevron-right text-xs text-gray-300 group-hover:text-teal-400 flex-shrink-0 transition-colors"></i>
+            </a>
+            <a href="{base_url}/api/reports/export?format=csv" target="_blank"
+               class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                <div class="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-clipboard-list text-orange-500 text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 group-hover:text-teal-700 transition-colors">Session Summary Report</p>
+                    <p class="text-xs text-gray-400">Summary of all counseling sessions.</p>
+                </div>
+                <i class="fas fa-chevron-right text-xs text-gray-300 group-hover:text-teal-400 flex-shrink-0 transition-colors"></i>
+            </a>
+            <a href="{base_url}/api/reports/export?format=csv" target="_blank"
+               class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-calendar-check text-blue-500 text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 group-hover:text-teal-700 transition-colors">Appointment Report</p>
+                    <p class="text-xs text-gray-400">Detailed list of appointments and attendance status.</p>
+                </div>
+                <i class="fas fa-chevron-right text-xs text-gray-300 group-hover:text-teal-400 flex-shrink-0 transition-colors"></i>
+            </a>
+            <a href="{base_url}/api/reports/export?format=csv" target="_blank"
+               class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                <div class="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 group-hover:text-teal-700 transition-colors">Risk Level Report</p>
+                    <p class="text-xs text-gray-400">Breakdown of students by risk level.</p>
+                </div>
+                <i class="fas fa-chevron-right text-xs text-gray-300 group-hover:text-teal-400 flex-shrink-0 transition-colors"></i>
+            </a>
+            <a href="{base_url}/api/reports/export?format=csv" target="_blank"
+               class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-user-clock text-purple-500 text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 group-hover:text-teal-700 transition-colors">Probationary Report</p>
+                    <p class="text-xs text-gray-400">List of students with probationary status.</p>
+                </div>
+                <i class="fas fa-chevron-right text-xs text-gray-300 group-hover:text-teal-400 flex-shrink-0 transition-colors"></i>
+            </a>
+            <a href="{base_url}/api/reports/export?format=csv" target="_blank"
+               class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-sliders-h text-gray-500 text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 group-hover:text-teal-700 transition-colors">Custom Report</p>
+                    <p class="text-xs text-gray-400">Create a custom report based on your filters.</p>
+                </div>
+                <i class="fas fa-arrow-right text-xs text-gray-400 group-hover:text-teal-500 flex-shrink-0 transition-colors"></i>
+            </a>
         </div>
     </div>
-    {/if}
+
 </div>
 
-{!-- Counselor Caseload (admin/supervisor only) --}
-{if counselor_stats}
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-    <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4"><i class="fas fa-users text-indigo-500 mr-2"></i>Counselor Caseload</h3>
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="border-b border-gray-200">
-                    <th class="text-left py-2 px-3 text-gray-500 font-semibold">Counselor</th>
-                    <th class="text-center py-2 px-3 text-gray-500 font-semibold">Active</th>
-                    <th class="text-center py-2 px-3 text-gray-500 font-semibold">Closed</th>
-                    <th class="text-center py-2 px-3 text-gray-500 font-semibold">Total</th>
-                    <th class="text-left py-2 px-3 text-gray-500 font-semibold w-40">Load</th>
-                </tr>
-            </thead>
-            <tbody>
-                {each counselor_stats as cs}
-                <tr class="border-b border-gray-50 hover:bg-gray-50">
-                    <td class="py-2.5 px-3 font-medium text-gray-800">{cs.name}</td>
-                    <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">{cs.active}</span></td>
-                    <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">{cs.closed}</span></td>
-                    <td class="py-2.5 px-3 text-center text-gray-600">{cs.total}</td>
-                    <td class="py-2.5 px-3">
-                        <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div class="h-full bg-indigo-500 rounded-full" style="width: min(100%, calc({cs.active} * 10%))"></div>
-                        </div>
-                    </td>
-                </tr>
-                {/each}
-            </tbody>
-        </table>
-    </div>
-</div>
-{/if}
+<script>
+(function initReportsCharts() {
+    if (typeof Chart === 'undefined') {
+        // Chart.js not yet ready — retry after a short delay
+        setTimeout(initReportsCharts, 100);
+        return;
+    }
+    requestAnimationFrame(function() {
+
+    // Destroy any existing chart instances to prevent canvas reuse errors
+    ['guidance-risk-chart','guidance-sessions-chart','guidance-trend-chart'].forEach(function(id) {
+        var existing = Chart.getChart(id);
+        if (existing) existing.destroy();
+    });
+
+    var COLORS = {
+        green:  '#10b981',
+        orange: '#f59e0b',
+        red:    '#ef4444',
+        purple: '#8b5cf6',
+        teal:   '#0d9488',
+        empty:  '#e5e7eb',
+    };
+
+    // ── Risk Level Distribution ──
+    var riskEl = document.getElementById('guidance-risk-chart');
+    if (riskEl) {
+        var rLow  = {students.low_risk | default:'0'};
+        var rMod  = {students.moderate_risk | default:'0'};
+        var rHigh = {students.high_risk | default:'0'};
+        var rProb = {students.probationary | default:'0'};
+        var rSum  = rLow + rMod + rHigh + rProb;
+        new Chart(riskEl, {
+            type: 'doughnut',
+            data: {
+                labels: ['Low Risk','Moderate Risk','High Risk','Probationary'],
+                datasets: [{
+                    data: rSum > 0 ? [rLow, rMod, rHigh, rProb] : [1],
+                    backgroundColor: rSum > 0
+                        ? [COLORS.green, COLORS.orange, COLORS.red, COLORS.purple]
+                        : [COLORS.empty],
+                    borderWidth: 0,
+                    hoverOffset: 4,
+                }]
+            },
+            options: {
+                cutout: '72%',
+                plugins: { legend: { display: false }, tooltip: { enabled: rSum > 0 } },
+                animation: { duration: 500 },
+            }
+        });
+    }
+
+    // ── Sessions by Status ──
+    var sessEl = document.getElementById('guidance-sessions-chart');
+    if (sessEl) {
+        var sComp = {sessions_by_status.completed | default:'0'};
+        var sNoSh = {sessions_by_status.no_show | default:'0'};
+        var sCan  = {sessions_by_status.cancelled | default:'0'};
+        var sInPr = {sessions_by_status.in_progress | default:'0'};
+        var sSum  = sComp + sNoSh + sCan + sInPr;
+        new Chart(sessEl, {
+            type: 'doughnut',
+            data: {
+                labels: ['Went to Session','Did Not Show Up','Cancelled','In Progress'],
+                datasets: [{
+                    data: sSum > 0 ? [sComp, sNoSh, sCan, sInPr] : [1],
+                    backgroundColor: sSum > 0
+                        ? [COLORS.green, COLORS.orange, COLORS.red, COLORS.purple]
+                        : [COLORS.empty],
+                    borderWidth: 0,
+                    hoverOffset: 4,
+                }]
+            },
+            options: {
+                cutout: '72%',
+                plugins: { legend: { display: false }, tooltip: { enabled: sSum > 0 } },
+                animation: { duration: 500 },
+            }
+        });
+    }
+
+    // ── Sessions Over Time ──
+    var trendEl = document.getElementById('guidance-trend-chart');
+    if (trendEl) {
+        var tLabels = {trend_labels_json | raw};
+        var tCounts = {trend_counts_json | raw};
+        new Chart(trendEl, {
+            type: 'line',
+            data: {
+                labels: tLabels,
+                datasets: [{
+                    label: 'Total Sessions',
+                    data: tCounts,
+                    borderColor: COLORS.teal,
+                    backgroundColor: 'rgba(13,148,136,0.07)',
+                    borderWidth: 2,
+                    pointBackgroundColor: COLORS.teal,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    tension: 0.3,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, precision: 0 } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                },
+                animation: { duration: 500 },
+            }
+        });
+    }
+    }); // end requestAnimationFrame
+})(); // end initReportsCharts
+</script>

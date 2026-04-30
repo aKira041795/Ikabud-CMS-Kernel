@@ -1,114 +1,155 @@
 {extends "modules/guidance/layouts/app.disyl"}
 
 {block content}
-{!-- Cases List Page --}
+{!-- Students Page --}
 
 {ikb_section padding="none"}
-    
+
     {!-- Page Header --}
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Cases</h1>
-            <p class="text-sm text-gray-500 mt-1">Manage guidance counseling cases</p>
+            <h1 class="text-2xl font-bold text-gray-900">Students</h1>
+            <p class="text-sm text-gray-500 mt-1">Manage student guidance cases</p>
         </div>
-        <button hx-get="/pages/cases/new" hx-target="#modal-container" hx-swap="innerHTML"
-                class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
-            <i class="fas fa-plus mr-2"></i> New Case
-        </button>
+        <a href="{base_url}/cases/new"
+           hx-get="/cases/new"
+           hx-target="#main-content"
+           hx-push-url="{base_url}/cases/new"
+           class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition shadow-sm">
+            <i class="fas fa-plus mr-2"></i> Add New Student
+        </a>
     </div>
-    
-    {!-- Filters Bar --}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-5">
-        <div class="flex flex-col lg:flex-row lg:items-center gap-3">
-            {!-- Search --}
-            <div class="relative flex-1 max-w-xs">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                <input type="text" name="search" placeholder="Student name, case number..."
-                       class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       hx-get="/api/cases" hx-target="#cases-list" hx-trigger="keyup changed delay:400ms"
-                       hx-include="[name='status'],[name='severity'],[name='category'],[name='show_deleted'],[name='counselor_id']" />
+
+    {!-- 2-column layout: Quick Stats sidebar + main content --}
+    <div class="flex gap-6 items-start">
+
+        {!-- Quick Stats Sidebar --}
+        <div class="w-60 flex-shrink-0">
+            <div id="case-stats-panel"
+                 hx-get="/api/cases/stats"
+                 hx-trigger="load, refreshCases from:body"
+                 hx-swap="innerHTML"
+                 hx-history="false">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-3 animate-pulse">
+                    <div class="h-3 bg-gray-200 rounded w-24"></div>
+                    <div class="h-6 bg-gray-200 rounded w-16"></div>
+                    <div class="border-t pt-3 space-y-3">
+                        <div class="h-4 bg-gray-200 rounded w-full"></div>
+                        <div class="h-4 bg-gray-200 rounded w-full"></div>
+                        <div class="h-4 bg-gray-200 rounded w-full"></div>
+                        <div class="h-4 bg-gray-200 rounded w-full"></div>
+                    </div>
+                </div>
             </div>
-            
-            {!-- Status --}
-            <select name="status"
-                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
-                    hx-include="[name='search'],[name='severity'],[name='category'],[name='show_deleted'],[name='counselor_id']">
-                <option value="">All Status</option>
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="on_hold">On Hold</option>
-                <option value="closed">Closed</option>
-            </select>
-            
-            {!-- Severity --}
-            <select name="severity"
-                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
-                    hx-include="[name='search'],[name='status'],[name='category'],[name='show_deleted'],[name='counselor_id']">
-                <option value="">All Severity</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-            </select>
-            
-            {!-- Category --}
-            <select name="category"
-                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
-                    hx-include="[name='search'],[name='status'],[name='severity'],[name='show_deleted'],[name='counselor_id']">
-                <option value="">All Categories</option>
-                <option value="academic">Academic</option>
-                <option value="behavioral">Behavioral</option>
-                <option value="emotional">Emotional</option>
-                <option value="family">Family</option>
-                <option value="peer">Peer Relations</option>
-                <option value="career">Career</option>
-                <option value="crisis">Crisis</option>
-            </select>
-            
-            {!-- Counselor Filter (admin/supervisor only) --}
-            {if user_role != 'counselor'}
-            <select name="counselor_id"
-                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
-                    hx-include="[name='search'],[name='status'],[name='severity'],[name='category'],[name='show_deleted']">
-                <option value="">All Counselors</option>
-                {foreach counselors as c}
-                <option value="{c.id}">{c.first_name} {c.last_name}</option>
-                {/foreach}
-            </select>
-            {/if}
-            
-            {!-- Records --}
-            <select name="show_deleted"
-                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
-                    hx-include="[name='search'],[name='status'],[name='severity'],[name='category'],[name='counselor_id']">
-                <option value="">Active Only</option>
-                <option value="all">All Records</option>
-                <option value="only">Deleted Only</option>
-            </select>
-            
-            {!-- Clear --}
-            <button type="button" onclick="document.querySelectorAll('[name=search],[name=status],[name=severity],[name=category],[name=show_deleted],[name=counselor_id]').forEach(e=>{e.value=''}); htmx.ajax('GET','/api/cases',{target:'#cases-list'})"
-                    class="text-xs text-gray-500 hover:text-red-600 flex-shrink-0 px-2 py-2" title="Clear filters">
-                <i class="fas fa-times-circle mr-1"></i>Clear
-            </button>
         </div>
-    </div>
-    
-    {!-- Cases Table --}
-    <div id="cases-list" 
-         hx-get="/api/cases" 
-         hx-trigger="load, refreshCases from:body"
-         hx-swap="innerHTML">
-        <div class="flex items-center justify-center py-16 text-gray-400">
-            <i class="fas fa-spinner fa-spin text-lg mr-3"></i> Loading cases...
-        </div>
-    </div>
-    
+
+        {!-- Main Content --}
+        <div class="flex-1 min-w-0">
+
+            {!-- Filters Bar --}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-5">
+                <form id="case-filters">
+                <div class="flex flex-col lg:flex-row lg:items-center gap-3">
+
+                    {!-- Search --}
+                    <div class="relative flex-1 max-w-xs">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input type="text" name="search" placeholder="Name, case number..."
+                               class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                               hx-get="/api/cases" hx-target="#cases-list" hx-trigger="keyup changed delay:400ms"
+                               hx-include="#case-filters" />
+                    </div>
+
+                    {!-- Status --}
+                    <select name="status"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-include="#case-filters">
+                        <option value="">All Status</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="on_hold">On Hold</option>
+                        <option value="closed">Closed</option>
+                    </select>
+
+                    {!-- Severity / Risk Level --}
+                    <select name="severity"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-include="#case-filters">
+                        <option value="">All Risk Levels</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Moderate</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+
+                    {!-- Category --}
+                    <select name="category"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-include="#case-filters">
+                        <option value="">All Categories</option>
+                        <option value="academic">Academic</option>
+                        <option value="behavioral">Behavioral</option>
+                        <option value="emotional">Emotional</option>
+                        <option value="family">Family</option>
+                        <option value="peer">Peer Relations</option>
+                        <option value="career">Career</option>
+                        <option value="crisis">Crisis</option>
+                    </select>
+
+                    {!-- Counselor Filter (admin/supervisor only) --}
+                    {if user_role != 'counselor'}
+                    <select name="counselor_id"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-include="#case-filters">
+                        <option value="">All Counselors</option>
+                        {foreach counselors as c}
+                        <option value="{c.id}">{c.first_name} {c.last_name}</option>
+                        {/foreach}
+                    </select>
+                    {/if}
+
+                    {!-- Records visibility --}
+                    <select name="show_deleted"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                            hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
+                            hx-include="#case-filters">
+                        <option value="">Active Only</option>
+                        <option value="all">All Records</option>
+                        <option value="only">Deleted Only</option>
+                    </select>
+
+                    {!-- Clear --}
+                    <button type="button"
+                            hx-get="/api/cases"
+                            hx-target="#cases-list"
+                            hx-swap="innerHTML"
+                            hx-include="#case-filters"
+                            onclick="document.querySelectorAll('#case-filters input, #case-filters select').forEach(function(e){ e.value=''; });"
+                            class="text-xs bg-red-100 text-red-600 hover:bg-red-200 rounded-full px-3 py-1.5 flex-shrink-0 transition">
+                        <i class="fas fa-times mr-1"></i>Clear
+                    </button>
+                </div>
+                </form>
+            </div>
+
+            {!-- Students / Cases Table --}
+            <div id="cases-list"
+                 hx-get="/api/cases"
+                 hx-trigger="load, refreshCases from:body"
+                 hx-swap="innerHTML"
+                 hx-history="false">
+                <div class="flex items-center justify-center py-16 text-gray-400">
+                    <i class="fas fa-spinner fa-spin text-lg mr-3"></i> Loading students...
+                </div>
+            </div>
+
+        </div>{!-- /main content --}
+    </div>{!-- /2-column layout --}
+
 {/ikb_section}
 
 {/block}

@@ -97,20 +97,26 @@
             <span class="px-2.5 py-1 text-xs font-semibold rounded-full inline-flex items-center gap-1
                 {if row.status_key == 'pending'}bg-amber-100 text-amber-800
                 {elseif row.status_key == 'scheduled'}bg-blue-100 text-blue-800
-                {elseif row.status_key == 'confirmed'}bg-indigo-100 text-indigo-800
+                {elseif row.status_key == 'confirmed'}bg-teal-100 text-teal-800
                 {elseif row.status_key == 'completed'}bg-green-100 text-green-800
                 {elseif row.status_key == 'cancelled'}bg-red-100 text-red-800
                 {elseif row.status_key == 'rejected'}bg-gray-200 text-gray-600
-                {elseif row.status_key == 'no_show'}bg-yellow-100 text-yellow-800
+                {elseif row.status_key == 'no_show'}bg-orange-100 text-orange-800
                 {else}bg-gray-100 text-gray-600{/if}">
                 {if row.status_key == 'pending'}<i class="fas fa-clock text-[10px]"></i>{/if}
                 {if row.status_key == 'scheduled'}<i class="fas fa-calendar-check text-[10px]"></i>{/if}
-                {if row.status_key == 'confirmed'}<i class="fas fa-thumbs-up text-[10px]"></i>{/if}
+                {if row.status_key == 'confirmed'}<i class="fas fa-calendar-check text-[10px]"></i>{/if}
                 {if row.status_key == 'completed'}<i class="fas fa-check-circle text-[10px]"></i>{/if}
-                {if row.status_key == 'cancelled'}<i class="fas fa-ban text-[10px]"></i>{/if}
+                {if row.status_key == 'cancelled'}<i class="fas fa-times-circle text-[10px]"></i>{/if}
                 {if row.status_key == 'no_show'}<i class="fas fa-user-slash text-[10px]"></i>{/if}
                 {if row.status_key == 'rejected'}<i class="fas fa-times-circle text-[10px]"></i>{/if}
-                {row.status_key | title}
+                {if row.status_key == 'completed'}Went to Session
+                {elseif row.status_key == 'no_show'}Did Not Show Up
+                {elseif row.status_key == 'scheduled' || row.status_key == 'confirmed'}Upcoming
+                {elseif row.status_key == 'cancelled'}Cancelled
+                {elseif row.status_key == 'pending'}Pending
+                {elseif row.status_key == 'rejected'}Rejected
+                {else}{row.status_key | title}{/if}
             </span>
         </div>
 
@@ -132,12 +138,12 @@
 
             {elseif row.status_key == 'scheduled' or row.status_key == 'confirmed'}
             <button hx-get="/pages/appointments/{row.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
-                    class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition" title="View/Edit">
+                    class="p-1.5 bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-100 transition" title="View/Edit">
                 <i class="fas fa-pen text-xs"></i>
             </button>
             {if row.status_key == 'confirmed' and !row.case_id}
             <button hx-get="/pages/cases/new?appointment_id={row.id}" hx-target="#modal-container" hx-swap="innerHTML"
-                    class="p-1.5 bg-violet-50 text-violet-600 rounded-lg hover:bg-violet-100 transition" title="Create Case">
+                    class="p-1.5 bg-violet-50 text-violet-600 rounded-lg hover:bg-violet-100 transition" title="Create Student Record">
                 <i class="fas fa-folder-plus text-xs"></i>
             </button>
             {/if}
@@ -181,7 +187,7 @@
     <h3 class="text-lg font-medium text-gray-900 mb-2">No appointments found</h3>
     <p class="text-gray-500 mb-4">Try adjusting your filters or schedule a new appointment.</p>
     <button hx-get="/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
-            class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
+            class="inline-flex items-center px-4 py-2 bg-teal-700 text-white text-sm font-medium rounded-lg hover:bg-teal-800 transition">
         <i class="fas fa-calendar-plus mr-2"></i> New Appointment
     </button>
 </div>

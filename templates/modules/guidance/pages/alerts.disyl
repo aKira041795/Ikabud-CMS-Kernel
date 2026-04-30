@@ -1,0 +1,348 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+
+{ikb_section padding="none"}
+
+    {!-- Page Header --}
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Alerts &amp; Notifications</h1>
+            <p class="text-sm text-gray-500 mt-1">Stay updated on activity across the guidance system</p>
+        </div>
+        <button id="btn-mark-all-read"
+                hx-post="/api/notifications/read"
+                hx-vals='{"id":0}'
+                hx-swap="none"
+                hx-on::after-request="window.guidanceMarkAllReadUi()"
+                class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition shadow-sm">
+            <i class="fas fa-check-double mr-2"></i> Mark all as read
+        </button>
+    </div>
+
+    {!-- Stats Cards --}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+        <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4 shadow-sm">
+            <div class="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-bell text-blue-500 text-lg"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-0.5">All Alerts</p>
+                <div class="text-2xl font-bold text-gray-900">{stats.total}</div>
+                <div class="text-xs text-gray-400">Total alerts</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4 shadow-sm">
+            <div class="w-11 h-11 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-envelope-open text-orange-500 text-lg"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-0.5">Unread</p>
+                <div class="text-2xl font-bold text-gray-900">{stats.unread}</div>
+                <div class="text-xs text-gray-400">Requires attention</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4 shadow-sm">
+            <div class="w-11 h-11 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-calendar-day text-green-500 text-lg"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-0.5">Today</p>
+                <div class="text-2xl font-bold text-gray-900">{stats.today}</div>
+                <div class="text-xs text-gray-400">New today</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4 shadow-sm">
+            <div class="w-11 h-11 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-chart-bar text-purple-500 text-lg"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-0.5">This Week</p>
+                <div class="text-2xl font-bold text-gray-900">{stats.this_week}</div>
+                <div class="text-xs text-gray-400">New this week</div>
+            </div>
+        </div>
+
+    </div>
+
+    {!-- Hidden filter state (read by hx-include="#af") --}
+    <form id="af" class="hidden" aria-hidden="true">
+        <input type="hidden" name="tab"  id="af-tab"  value="all">
+        <input type="hidden" name="sort" id="af-sort" value="newest">
+        <input type="hidden" name="page" id="af-page" value="1">
+    </form>
+
+    {!-- Main card --}
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+        {!-- Tab bar + sort --}
+        <div class="flex items-center justify-between border-b border-gray-100 px-2">
+
+            <div class="flex overflow-x-auto" id="alert-tab-bar">
+
+                <button type="button" data-alert-tab="all"
+                        onclick="guidanceAlertSetTab('all')"
+                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-teal-600 text-teal-600 whitespace-nowrap transition-colors">
+                    <i class="fas fa-th-list text-xs"></i> All
+                </button>
+
+                <button type="button" data-alert-tab="unread"
+                        onclick="guidanceAlertSetTab('unread')"
+                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
+                    <i class="fas fa-envelope text-xs"></i> Unread
+                </button>
+
+                <button type="button" data-alert-tab="appointments"
+                        onclick="guidanceAlertSetTab('appointments')"
+                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
+                    <i class="fas fa-calendar text-xs"></i> Appointments
+                </button>
+
+                <button type="button" data-alert-tab="system"
+                        onclick="guidanceAlertSetTab('system')"
+                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
+                    <i class="fas fa-cog text-xs"></i> System
+                </button>
+
+                <button type="button" data-alert-tab="students"
+                        onclick="guidanceAlertSetTab('students')"
+                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
+                    <i class="fas fa-user-graduate text-xs"></i> Students
+                </button>
+
+                <button type="button" data-alert-tab="sessions"
+                        onclick="guidanceAlertSetTab('sessions')"
+                        hx-get="/api/alerts" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        class="flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap transition-colors">
+                    <i class="fas fa-clock text-xs"></i> Sessions
+                </button>
+
+            </div>
+
+            {!-- Sort --}
+            <div class="flex items-center gap-2 px-4 flex-shrink-0 border-l border-gray-100">
+                <i class="fas fa-filter text-gray-400 text-xs"></i>
+                <select id="af-sort-select"
+                        onchange="document.getElementById('af-sort').value = this.value; document.getElementById('af-page').value = '1'"
+                        hx-get="/api/alerts" hx-trigger="change" hx-target="#alerts-list" hx-include="#af" hx-swap="innerHTML"
+                        class="text-sm text-gray-700 border-0 focus:ring-0 bg-transparent font-medium cursor-pointer py-3.5">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                </select>
+            </div>
+
+        </div>
+
+        {!-- List loaded via HTMX --}
+        <div id="alerts-list"
+             hx-get="/api/alerts"
+             hx-trigger="load, alertsRefresh from:body"
+             hx-include="#af"
+             hx-swap="innerHTML"
+             hx-history="false">
+            <div class="flex items-center justify-center py-16 text-gray-400">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Loading...
+            </div>
+        </div>
+
+    </div>
+
+{/ikb_section}
+
+<script>
+function guidanceAlertSetTab(tab) {
+    document.getElementById('af-tab').value = tab;
+    document.getElementById('af-page').value = '1';
+    document.querySelectorAll('[data-alert-tab]').forEach(function(el) {
+        var active = el.dataset.alertTab === tab;
+        el.classList.toggle('border-teal-600', active);
+        el.classList.toggle('text-teal-600', active);
+        el.classList.toggle('border-transparent', !active);
+        el.classList.toggle('text-gray-500', !active);
+    });
+}
+
+function guidanceMarkOneRead(id) {
+    fetch('/api/notifications/read', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': typeof APP_CSRF !== 'undefined' ? APP_CSRF : ''
+        },
+        body: JSON.stringify({ id: id })
+    }).then(function() {
+        var row = document.getElementById('alert-row-' + id);
+        if (row) {
+            row.classList.remove('bg-teal-50');
+            var dot = row.querySelector('.alert-unread-dot');
+            var badge = row.querySelector('.alert-new-badge');
+            if (dot) dot.remove();
+            if (badge) {
+                badge.textContent = 'Read';
+                badge.className = 'alert-new-badge text-xs text-gray-400 font-medium';
+            }
+        }
+    });
+}
+
+window.guidanceMarkAllReadUi = function() {
+    document.querySelectorAll('.alert-unread-dot').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('.alert-new-badge').forEach(function(el) {
+        el.textContent = 'Read';
+        el.className = 'alert-new-badge text-xs text-gray-400 font-medium';
+    });
+    document.querySelectorAll('.alert-row').forEach(function(el) {
+        el.classList.remove('bg-teal-50');
+    });
+    var btn = document.getElementById('btn-mark-all-read');
+    if (btn) btn.disabled = true;
+};
+</script>
+
+{/block}
+                hx-post="/api/notifications/read"
+                hx-vals='{"id":0}'
+                hx-swap="none"
+                hx-on::after-request="window.guidanceMarkAllReadUi()"
+                class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition shadow-sm">
+            <i class="fas fa-check-double mr-2"></i> Mark all as read
+        </button>
+        {/if}
+    </div>
+
+    {!-- Notifications list --}
+    <div id="notifications-list" class="space-y-3">
+
+        {if notifications}
+            {foreach notifications as n}
+            <div id="notif-{n.id}"
+                 class="flex gap-4 p-4 rounded-xl border transition {if n.is_read}bg-white border-gray-100{else}bg-teal-50 border-teal-200{/if}">
+
+                {!-- Icon --}
+                <div class="flex-shrink-0 mt-0.5">
+                    <span class="w-9 h-9 rounded-full flex items-center justify-center
+                        {if n.type == 'appointment_request'}bg-blue-100 text-blue-600
+                        {elseif n.type == 'appointment_approved'}bg-green-100 text-green-600
+                        {elseif n.type == 'appointment_cancelled'}bg-red-100 text-red-500
+                        {elseif n.type == 'urgent'}bg-red-100 text-red-600
+                        {elseif n.type == 'case_assigned'}bg-purple-100 text-purple-600
+                        {elseif n.type == 'followup_due'}bg-amber-100 text-amber-600
+                        {else}bg-gray-100 text-gray-500
+                        {/if}">
+                        <i class="fas
+                            {if n.type == 'appointment_request'}fa-calendar-plus
+                            {elseif n.type == 'appointment_approved'}fa-calendar-check
+                            {elseif n.type == 'appointment_cancelled'}fa-calendar-times
+                            {elseif n.type == 'urgent'}fa-exclamation-circle
+                            {elseif n.type == 'case_assigned'}fa-user-tag
+                            {elseif n.type == 'followup_due'}fa-clock
+                            {else}fa-bell
+                            {/if} text-sm"></i>
+                    </span>
+                </div>
+
+                {!-- Body --}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between gap-2">
+                        <p class="text-sm font-semibold text-gray-800 {if n.is_read}font-medium{/if}">
+                            {n.title | esc_html}
+                        </p>
+                        {if !n.is_read}
+                        <span class="flex-shrink-0 w-2 h-2 rounded-full bg-teal-500 mt-1.5"></span>
+                        {/if}
+                    </div>
+                    <p class="text-sm text-gray-600 mt-0.5">{n.message | esc_html}</p>
+                    <div class="flex items-center gap-4 mt-2">
+                        <span class="text-xs text-gray-400">{n.created_at}</span>
+                        {if n.link}
+                        <a hx-get="{n.link}"
+                           hx-target="#main-content"
+                           hx-swap="innerHTML"
+                           hx-push-url="{base_url}{n.link}"
+                           class="text-xs text-teal-600 hover:text-teal-700 font-medium cursor-pointer">
+                            View &rarr;
+                        </a>
+                        {/if}
+                        {if !n.is_read}
+                        <button onclick="guidanceMarkOneRead({n.id})"
+                                class="text-xs text-gray-400 hover:text-gray-600">
+                            Mark read
+                        </button>
+                        {/if}
+                    </div>
+                </div>
+
+            </div>
+            {/foreach}
+        {else}
+            {!-- Empty state --}
+            <div class="flex flex-col items-center justify-center py-20 text-center">
+                <div class="w-16 h-16 rounded-full bg-teal-50 flex items-center justify-center mb-4">
+                    <i class="fas fa-bell-slash text-2xl text-teal-300"></i>
+                </div>
+                <h3 class="text-base font-semibold text-gray-700 mb-1">No notifications yet</h3>
+                <p class="text-sm text-gray-400">When something needs your attention it will appear here.</p>
+            </div>
+        {/if}
+
+    </div>
+
+{/ikb_section}
+
+<script>
+function guidanceMarkOneRead(id) {
+    fetch('/api/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': typeof APP_CSRF !== 'undefined' ? APP_CSRF : '' },
+        body: JSON.stringify({ id: id })
+    }).then(function() {
+        var el = document.getElementById('notif-' + id);
+        if (el) {
+            el.classList.remove('bg-teal-50', 'border-teal-200');
+            el.classList.add('bg-white', 'border-gray-100');
+            var dot = el.querySelector('.rounded-full.bg-teal-500');
+            if (dot) dot.remove();
+            var btn = el.querySelector('button[onclick]');
+            if (btn) btn.remove();
+        }
+        guidanceUpdateUnreadBadge(-1);
+    });
+}
+
+window.guidanceMarkAllReadUi = function() {
+    document.querySelectorAll('#notifications-list > div').forEach(function(el) {
+        el.classList.remove('bg-teal-50', 'border-teal-200');
+        el.classList.add('bg-white', 'border-gray-100');
+        var dot = el.querySelector('.rounded-full.bg-teal-500');
+        if (dot) dot.remove();
+        var btn = el.querySelector('button[onclick]');
+        if (btn) btn.remove();
+    });
+    var markAllBtn = document.getElementById('btn-mark-all-read');
+    if (markAllBtn) markAllBtn.remove();
+    var subheading = document.querySelector('h1 + p');
+    if (subheading) subheading.textContent = 'All caught up \u2014 no unread notifications';
+    guidanceUpdateUnreadBadge(0, true);
+};
+
+function guidanceUpdateUnreadBadge(delta, reset) {
+    // Update sidebar badge if present
+    var badge = document.querySelector('[data-alerts-badge]');
+    if (!badge) return;
+    var cur = parseInt(badge.textContent) || 0;
+    var next = reset ? 0 : Math.max(0, cur + delta);
+    if (next === 0) { badge.style.display = 'none'; }
+    else { badge.textContent = next; badge.style.display = ''; }
+}
+</script>
+
+{/block}

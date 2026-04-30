@@ -921,3 +921,144 @@ function apiGuidanceRejectAppointment(int $id): void {
         app()->json(['error' => 'Failed to reject appointment'], 500);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Session Records page
+// ---------------------------------------------------------------------------
+
+function pageGuidanceSessionRecords(): void {
+    guidanceRequireStaff();
+    $db = guidanceDb();
+    $counselors = [];
+    try {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM gm_users WHERE role IN ('counselor','admin','supervisor') AND deleted_at IS NULL ORDER BY last_name, first_name");
+        $counselors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        // non-fatal; filter will just show no counselors
+    }
+    $appointmentTypes = [];
+    try {
+        $stmt = $db->query("SELECT code, name FROM gm_appointment_types WHERE deleted_at IS NULL ORDER BY name");
+        $appointmentTypes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        // non-fatal
+    }
+    guidanceRender('pages/session-records.disyl', [
+        'title'            => 'Session Records',
+        'current_page'     => 'session-records',
+        'counselors'       => $counselors,
+        'appointment_types'=> $appointmentTypes,
+    ]);
+}
+
+// ---------------------------------------------------------------------------
+// Appointment summary stats card (upcoming/completed/pending counts)
+// ---------------------------------------------------------------------------
+
+function apiGuidanceAppointmentStats(): void {
+    guidanceRequireStaff();
+    try {
+        $db = guidanceDb();
+        $stmt = $db->query("
+            SELECT
+                SUM(CASE WHEN status IN ('scheduled','confirmed') AND cancelled_at IS NULL THEN 1 ELSE 0 END) AS upcoming,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)                                         AS completed,
+                SUM(CASE WHEN status = 'pending' AND cancelled_at IS NULL THEN 1 ELSE 0 END)                   AS pending,
+                SUM(CASE WHEN status IN ('no_show','cancelled') OR cancelled_at IS NOT NULL THEN 1 ELSE 0 END) AS cancelled_no_show
+            FROM gm_appointments
+        ");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Render stat cards HTML for HTMX target
+        $upcoming       = (int)($row['upcoming'] ?? 0);
+        $completed      = (int)($row['completed'] ?? 0);
+        $pending        = (int)($row['pending'] ?? 0);
+        $cancelledNoShow= (int)($row['cancelled_no_show'] ?? 0);
+
+        echo '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">';
+        $cards = [
+            ['label' => 'Upcoming',              'count' => $upcoming,        'icon' => 'fa-calendar-check', 'bg' => 'bg-teal-100',   'text' => 'text-teal-700',   'num' => 'text-teal-800'],
+            ['label' => 'Completed',             'count' => $completed,       'icon' => 'fa-check-circle',  'bg' => 'bg-green-100',  'text' => 'text-green-700',  'num' => 'text-green-800'],
+            ['label' => 'Pending',               'count' => $pending,         'icon' => 'fa-hourglass-half','bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'num' => 'text-orange-800'],
+            ['label' => 'Cancelled / No Show',   'count' => $cancelledNoShow, 'icon' => 'fa-times-circle',  'bg' => 'bg-red-100',    'text' => 'text-red-700',    'num' => 'text-red-800'],
+        ];
+        foreach ($cards as $c) {
+            $label = htmlspecialchars($c['label']);
+            $count = $c['count'];
+            echo <<<HTML
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full {$c['bg']} flex items-center justify-center flex-shrink-0">
+                    <i class="fas {$c['icon']} {$c['text']} text-xl"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold {$c['num']}">{$count}</div>
+                    <div class="text-xs text-gray-500 mt-0.5">{$label}</div>
+                </div>
+            </div>
+HTML;
+        }
+        echo '</div>';
+
+    } catch (Throwable $e) {
+        echo '<div class="text-red-500 text-sm p-4">Failed to load appointment stats.</div>';
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Session Records summary stats (completed/no-show/cancelled/in-progress)
+// ---------------------------------------------------------------------------
+
+function apiGuidanceSessionRecordStats(): void {
+    guidanceRequireStaff();
+    try {
+        $db = guidanceDb();
+        $stmt = $db->query("
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)   AS completed,
+                SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END)     AS no_show,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END)   AS cancelled,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress
+            FROM gm_appointments
+            WHERE status IN ('completed','no_show','cancelled','in_progress')
+        ");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $total      = (int)($row['total'] ?? 0);
+        $completed  = (int)($row['completed'] ?? 0);
+        $noShow     = (int)($row['no_show'] ?? 0);
+        $cancelled  = (int)($row['cancelled'] ?? 0);
+        $inProgress = (int)($row['in_progress'] ?? 0);
+        $pct        = fn(int $n) => $total > 0 ? round($n / $total * 100, 1) : 0;
+
+        $cards = [
+            ['label' => 'Total Sessions',    'count' => $total,      'pct' => null,           'icon' => 'fa-clipboard-list', 'bg' => 'bg-blue-100',   'text' => 'text-blue-700',   'num' => 'text-blue-800'],
+            ['label' => 'Went to Session',   'count' => $completed,  'pct' => $pct($completed),'icon' => 'fa-check-circle',  'bg' => 'bg-green-100',  'text' => 'text-green-700',  'num' => 'text-green-800'],
+            ['label' => 'Did Not Show Up',   'count' => $noShow,     'pct' => $pct($noShow),   'icon' => 'fa-user-times',    'bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'num' => 'text-orange-800'],
+            ['label' => 'Cancelled',         'count' => $cancelled,  'pct' => $pct($cancelled),'icon' => 'fa-times-circle',  'bg' => 'bg-red-100',    'text' => 'text-red-700',    'num' => 'text-red-800'],
+            ['label' => 'In Progress',       'count' => $inProgress, 'pct' => $pct($inProgress),'icon' => 'fa-circle',       'bg' => 'bg-purple-100', 'text' => 'text-purple-700', 'num' => 'text-purple-800'],
+        ];
+        echo '<div class="grid grid-cols-2 md:grid-cols-5 gap-4">';
+        foreach ($cards as $c) {
+            $label = htmlspecialchars($c['label']);
+            $count = $c['count'];
+            $pctStr = $c['pct'] !== null ? '<div class="text-xs ' . $c['text'] . ' mt-0.5">' . $c['pct'] . '% of total</div>' : '';
+            echo <<<HTML
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full {$c['bg']} flex items-center justify-center flex-shrink-0">
+                    <i class="fas {$c['icon']} {$c['text']} text-base"></i>
+                </div>
+                <div>
+                    <div class="text-xl font-bold {$c['num']}">{$count}</div>
+                    <div class="text-xs text-gray-500 leading-tight">{$label}</div>
+                    {$pctStr}
+                </div>
+            </div>
+HTML;
+        }
+        echo '</div>';
+
+    } catch (Throwable $e) {
+        echo '<div class="text-red-500 text-sm p-4">Failed to load session stats.</div>';
+    }
+}

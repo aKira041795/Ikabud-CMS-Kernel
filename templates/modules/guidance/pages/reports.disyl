@@ -1,57 +1,163 @@
 {extends "modules/guidance/layouts/app.disyl"}
 
 {block content}
-{!-- Reports Page --}
+{!-- Reports Page - Guidance Counseling System --}
 
 {ikb_section padding="none"}
-    
-    <div class="mb-6 flex items-center justify-between">
-        <div>
-            {ikb_text tag="h1" size="2xl" weight="bold"}Reports{/ikb_text}
-            {ikb_text color="muted"}Analytics and insights for guidance operations{/ikb_text}
+
+    <div x-data="{
+        activeTab: 'overview',
+        tabUrls: {
+            overview: '/api/reports/summary',
+            students: '/api/reports/students',
+            sessions: '/api/reports/sessions',
+            appointments: '/api/reports/appointments',
+            risk: '/api/reports/risk',
+            exported: '/api/reports/exported'
+        },
+        loadTab(name) {
+            this.activeTab = name;
+            htmx.ajax('GET', this.tabUrls[name], {
+                target: '#reports-content',
+                swap: 'innerHTML',
+                values: Object.fromEntries(new FormData(document.getElementById('reports-filter')))
+            });
+        }
+    }">
+
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
+        <p class="text-sm text-gray-500 mt-1">Generate and view counseling reports and analytics.</p>
+    </div>
+
+    {!-- Tab Bar --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+        <div class="flex items-center border-b border-gray-100 px-4 overflow-x-auto">
+            <button @click="activeTab = 'overview'"
+                    :class="activeTab === 'overview' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-3 text-sm whitespace-nowrap mr-1 transition-colors flex items-center gap-1.5"
+                    @click="loadTab('overview')"
+                    hx-get="/api/reports/summary" hx-target="#reports-content" hx-swap="innerHTML" hx-include="#reports-filter">
+                <i class="fas fa-th-large text-xs"></i> Overview
+            </button>
+            <button @click="activeTab = 'students'"
+                    :class="activeTab === 'students' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-3 text-sm whitespace-nowrap mr-1 transition-colors flex items-center gap-1.5"
+                    @click="loadTab('students')"
+                    hx-get="/api/reports/students" hx-target="#reports-content" hx-swap="innerHTML" hx-include="#reports-filter">
+                <i class="fas fa-user-graduate text-xs"></i> Student Reports
+            </button>
+            <button @click="activeTab = 'sessions'"
+                    :class="activeTab === 'sessions' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-3 text-sm whitespace-nowrap mr-1 transition-colors flex items-center gap-1.5"
+                    @click="loadTab('sessions')"
+                    hx-get="/api/reports/sessions" hx-target="#reports-content" hx-swap="innerHTML" hx-include="#reports-filter">
+                <i class="fas fa-calendar-check text-xs"></i> Session Reports
+            </button>
+            <button @click="activeTab = 'appointments'"
+                    :class="activeTab === 'appointments' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-3 text-sm whitespace-nowrap mr-1 transition-colors flex items-center gap-1.5"
+                    @click="loadTab('appointments')"
+                    hx-get="/api/reports/appointments" hx-target="#reports-content" hx-swap="innerHTML" hx-include="#reports-filter">
+                <i class="fas fa-calendar-alt text-xs"></i> Appointment Reports
+            </button>
+            <button @click="activeTab = 'risk'"
+                    :class="activeTab === 'risk' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-3 text-sm whitespace-nowrap mr-1 transition-colors flex items-center gap-1.5"
+                    @click="loadTab('risk')"
+                    hx-get="/api/reports/risk" hx-target="#reports-content" hx-swap="innerHTML" hx-include="#reports-filter">
+                <i class="fas fa-exclamation-triangle text-xs"></i> Risk &amp; Status Reports
+            </button>
+            <button @click="activeTab = 'exported'"
+                    :class="activeTab === 'exported' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-3 text-sm whitespace-nowrap transition-colors flex items-center gap-1.5"
+                    @click="loadTab('exported')"
+                    hx-get="/api/reports/exported" hx-target="#reports-content" hx-swap="innerHTML" hx-include="#reports-filter">
+                <i class="fas fa-download text-xs"></i> Exported Reports
+            </button>
         </div>
     </div>
-    
-    {!-- Date Range Filter --}
+
+    {!-- Date Range Filter + Generate --}
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <form id="reports-filter" class="flex flex-wrap items-end gap-4" hx-get="/api/reports/summary" hx-target="#reports-content" hx-trigger="submit">
+        <form id="reports-filter" class="flex flex-wrap items-end gap-3">
             <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">From</label>
-                <input type="date" name="start_date" value="{start_date}" class="block w-full rounded-lg border-gray-300 shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                <label class="block text-xs font-medium text-gray-500 mb-1">Date Range</label>
+                <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm">
+                    <i class="fas fa-calendar-alt text-gray-400 text-xs mr-1"></i>
+                    <input type="date" name="start_date" value="{start_date}" class="text-sm border-0 outline-none p-0 focus:ring-0 w-28" />
+                    <span class="text-gray-300 mx-1">–</span>
+                    <input type="date" name="end_date" value="{end_date}" class="text-sm border-0 outline-none p-0 focus:ring-0 w-28" />
+                </div>
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">To</label>
-                <input type="date" name="end_date" value="{end_date}" class="block w-full rounded-lg border-gray-300 shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" />
+                <label class="block text-xs font-medium text-gray-500 mb-1">Counselor</label>
+                <select name="counselor_id" class="block rounded-lg border border-gray-200 text-sm px-3 py-2 focus:ring-teal-500 focus:border-teal-500">
+                    <option value="">All Counselors</option>
+                    {foreach counselors as c}
+                    <option value="{c.id}">{c.first_name} {c.last_name}</option>
+                    {/foreach}
+                </select>
             </div>
-            <button type="submit" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
-                <i class="fas fa-filter mr-2"></i> Apply
-            </button>
-            <button type="button" onclick="document.querySelectorAll('#reports-filter input[type=date]').forEach(i=>i.value='');htmx.trigger('#reports-filter','submit')" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition">
-                <i class="fas fa-times mr-1"></i> Clear
-            </button>
-            <div class="ml-auto flex gap-2">
-                <a id="export-csv-link" href="{base_url}/api/reports/export?format=csv" target="_blank" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 text-sm">
-                    <i class="fas fa-file-csv mr-2 text-green-600"></i> CSV
-                </a>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Course</label>
+                <select name="college_id" class="block rounded-lg border border-gray-200 text-sm px-3 py-2 focus:ring-teal-500 focus:border-teal-500">
+                    <option value="">All Courses</option>
+                    {foreach colleges as col}
+                    <option value="{col.id}">{col.code}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Year Level</label>
+                <select name="year_level" class="block rounded-lg border border-gray-200 text-sm px-3 py-2 focus:ring-teal-500 focus:border-teal-500">
+                    <option value="">All Year Levels</option>
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select name="student_status" class="block rounded-lg border border-gray-200 text-sm px-3 py-2 focus:ring-teal-500 focus:border-teal-500">
+                    <option value="">All Statuses</option>
+                    <option value="regular">Regular</option>
+                    <option value="probationary">Probationary</option>
+                </select>
+            </div>
+            <div class="flex items-end gap-2 ml-auto">
+                <button type="button"
+                        @click="document.querySelectorAll('#reports-filter select').forEach(s=>s.value=''); document.querySelectorAll('#reports-filter input[type=date]').forEach(i=>i.value=''); loadTab(activeTab);"
+                        class="inline-flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                    <i class="fas fa-redo text-xs mr-1.5"></i> Reset Filters
+                </button>
+                <button type="button"
+                        @click="loadTab(activeTab)"
+                        class="inline-flex items-center px-5 py-2 bg-teal-700 text-white text-sm font-semibold rounded-lg hover:bg-teal-800 transition shadow-sm">
+                    <i class="fas fa-chart-bar mr-2"></i> Generate Report
+                </button>
             </div>
         </form>
     </div>
-    
-    {!-- Reports Content (loaded dynamically via HTMX) --}
+
+    {!-- Reports Content --}
     <div id="reports-content" hx-get="/api/reports/summary" hx-trigger="load" hx-swap="innerHTML">
         <div class="flex items-center justify-center py-20 text-gray-400">
             <i class="fas fa-spinner fa-spin text-2xl mr-3"></i> Loading reports...
         </div>
     </div>
-    
+
+    </div>
+
 {/ikb_section}
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Update export link with current date filters
     var form = document.getElementById('reports-filter');
     if (form) {
         form.addEventListener('submit', function() {
+            // update CSV export link with current filters
             var sd = form.querySelector('[name=start_date]').value;
             var ed = form.querySelector('[name=end_date]').value;
             var link = document.getElementById('export-csv-link');

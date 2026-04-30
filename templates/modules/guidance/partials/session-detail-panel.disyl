@@ -1,0 +1,189 @@
+{!-- Session Detail Panel Partial --}
+{!-- Rendered by apiGuidanceSessionDetail when viewing a single appointment --}
+
+<div class="bg-white rounded-xl shadow-sm border border-teal-100 overflow-hidden mt-3" id="session-detail-panel-inner">
+    {!-- Panel header --}
+    <div class="flex items-center justify-between px-5 py-3 bg-teal-50 border-b border-teal-100">
+        <div class="flex items-center gap-2 text-sm font-semibold text-teal-800">
+            <i class="fas fa-clipboard-list text-teal-500"></i>
+            Session Details
+        </div>
+        <button type="button"
+                onclick="document.getElementById('session-detail-panel').innerHTML = ''; document.getElementById('session-detail-panel').style.display = 'none';"
+                class="w-7 h-7 flex items-center justify-center rounded-lg text-teal-500 hover:bg-teal-100 transition text-xs">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+
+        {!-- Left: Appointment Info --}
+        <div class="p-5 space-y-3">
+            <div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Appointment Info</div>
+                <dl class="space-y-2 text-sm">
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Student</dt>
+                        <dd class="text-xs text-gray-800 font-semibold">{appt.student_display | default:appt.student_name | esc_html}</dd>
+                    </div>
+                    {if appt.case_number}
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Case No.</dt>
+                        <dd class="text-xs text-gray-700">{appt.case_number | esc_html}</dd>
+                    </div>
+                    {/if}
+                    {if appt.college_code}
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Course / Year</dt>
+                        <dd class="text-xs text-gray-700">{appt.college_code | esc_html}{if appt.student_grade} · {appt.student_grade | esc_html}{/if}</dd>
+                    </div>
+                    {/if}
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Date &amp; Time</dt>
+                        <dd class="text-xs text-gray-700">{appt.scheduled_date | date_format:'M j, Y'} {appt.scheduled_time | time_format}</dd>
+                    </div>
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Purpose / Type</dt>
+                        <dd class="text-xs text-gray-700">
+                            {appt.type_name | default:'—' | esc_html}
+                            {if appt.purpose}
+                            <span class="block text-gray-400">{appt.purpose | esc_html}</span>
+                            {/if}
+                        </dd>
+                    </div>
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Counselor</dt>
+                        <dd class="text-xs text-gray-700">{appt.counselor_name | default:'—' | esc_html}</dd>
+                    </div>
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Duration</dt>
+                        <dd class="text-xs text-gray-700">
+                            {if appt.duration_minutes}{appt.duration_minutes} mins{else}—{/if}
+                        </dd>
+                    </div>
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Location</dt>
+                        <dd class="text-xs text-gray-700">{appt.location | default:'—' | esc_html}</dd>
+                    </div>
+                    <div class="flex gap-2">
+                        <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Status</dt>
+                        <dd>
+                            {if appt.status_key == 'completed'}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                                <i class="fas fa-check-circle text-[10px]"></i> Went to Session
+                            </span>
+                            {elseif appt.status_key == 'no_show'}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
+                                <i class="fas fa-user-times text-[10px]"></i> Did Not Show Up
+                            </span>
+                            {elseif appt.status_key == 'cancelled'}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
+                                <i class="fas fa-times-circle text-[10px]"></i> Cancelled
+                            </span>
+                            {elseif appt.status_key == 'in_progress'}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
+                                <i class="fas fa-circle text-[10px]"></i> In Progress
+                            </span>
+                            {else}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+                                {appt.status | esc_html}
+                            </span>
+                            {/if}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        {!-- Middle: Session Summary & Notes --}
+        <div class="p-5 space-y-4">
+            <div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Session Summary</div>
+                {if note.note_content}
+                <p class="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{note.note_content | esc_html}</p>
+                {else}
+                <p class="text-xs text-gray-400 italic">No session summary recorded for this session.</p>
+                {/if}
+            </div>
+            {if note.observation_recommendation}
+            <div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Notes &amp; Recommendations</div>
+                <p class="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{note.observation_recommendation | esc_html}</p>
+            </div>
+            {/if}
+            {if note.risk_level}
+            <div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Risk Level</div>
+                {if note.risk_level == 'high'}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
+                    <i class="fas fa-exclamation-circle text-[10px]"></i> High
+                </span>
+                {elseif note.risk_level == 'moderate'}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
+                    <i class="fas fa-exclamation-triangle text-[10px]"></i> Moderate
+                </span>
+                {elseif note.risk_level == 'low'}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                    <i class="fas fa-check-circle text-[10px]"></i> Low
+                </span>
+                {else}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+                    {note.risk_level | esc_html}
+                </span>
+                {/if}
+            </div>
+            {/if}
+            {if note.session_type}
+            <div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Session Type</div>
+                <div class="text-xs text-gray-700">{note.session_type | esc_html}</div>
+            </div>
+            {/if}
+        </div>
+
+        {!-- Right: Next Appointment & Actions --}
+        <div class="p-5 space-y-4">
+            <div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Next Appointment</div>
+                {if next_appt.scheduled_date}
+                <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-calendar-check text-blue-600 text-xs"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-blue-800">{next_appt.scheduled_date | date_format:'M j, Y'}</div>
+                        <div class="text-xs text-blue-600 mt-0.5">{next_appt.scheduled_time | time_format}</div>
+                        {if next_appt.type_name}
+                        <div class="text-xs text-blue-500 mt-0.5">{next_appt.type_name | esc_html}</div>
+                        {/if}
+                    </div>
+                </div>
+                {else}
+                <div class="text-xs text-gray-400 italic">No upcoming appointment scheduled.</div>
+                {/if}
+            </div>
+
+            <div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Actions</div>
+                <div class="space-y-2">
+                    <button hx-get="/pages/appointments/{appt.id}/edit"
+                            hx-target="#modal-container" hx-swap="innerHTML"
+                            class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition">
+                        <i class="fas fa-edit text-[11px]"></i> Edit Record
+                    </button>
+                    {if appt.case_id}
+                    <a href="/pages/cases/{appt.case_id}"
+                       class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
+                        <i class="fas fa-folder-open text-[11px]"></i> View Case
+                    </a>
+                    {/if}
+                    <button hx-get="/pages/cases/{appt.case_id}/notes/add"
+                            hx-target="#modal-container" hx-swap="innerHTML"
+                            class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
+                        <i class="fas fa-plus-circle text-[11px]"></i> Add Follow-up Note
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

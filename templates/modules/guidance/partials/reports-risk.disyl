@@ -1,0 +1,154 @@
+{!-- Risk & Status Reports Tab --}
+<div class="space-y-4">
+
+    {if has_date_filter}
+    <div class="flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 w-fit">
+        <i class="fas fa-filter"></i>
+        Showing results for <strong>{start_date}</strong> – <strong>{end_date}</strong>
+    </div>
+    {/if}
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {!-- By Student Status --}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-id-card text-teal-600"></i>
+                    Students by Status
+                </h3>
+            </div>
+            <div class="divide-y divide-gray-50">
+                {if by_status}
+                {foreach by_status as row}
+                <div class="flex items-center justify-between px-5 py-3">
+                    <span class="text-sm text-gray-700 capitalize">{row.student_status | default:'Unknown' | title | esc_html}</span>
+                    <span class="text-sm font-semibold text-gray-900">{row.cnt}</span>
+                </div>
+                {/foreach}
+                {else}
+                <div class="px-5 py-8 text-center text-gray-400 text-sm">No data</div>
+                {/if}
+            </div>
+        </div>
+
+        {!-- By Severity --}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-layer-group text-orange-500"></i>
+                    Cases by Severity
+                </h3>
+            </div>
+            <div class="divide-y divide-gray-50">
+                {if by_severity}
+                {foreach by_severity as row}
+                <div class="flex items-center justify-between px-5 py-3">
+                    <div class="flex items-center gap-2">
+                        {if row.severity == 'critical'}
+                        <span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                        {elseif row.severity == 'high'}
+                        <span class="w-2 h-2 rounded-full bg-orange-500 inline-block"></span>
+                        {elseif row.severity == 'moderate'}
+                        <span class="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>
+                        {else}
+                        <span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                        {/if}
+                        <span class="text-sm text-gray-700 capitalize">{row.severity | default:'Unknown' | title | esc_html}</span>
+                    </div>
+                    <span class="text-sm font-semibold text-gray-900">{row.cnt}</span>
+                </div>
+                {/foreach}
+                {else}
+                <div class="px-5 py-8 text-center text-gray-400 text-sm">No data</div>
+                {/if}
+            </div>
+        </div>
+
+        {!-- By Risk Level (from notes) --}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-exclamation-triangle text-red-500"></i>
+                    Sessions by Risk Level
+                </h3>
+            </div>
+            <div class="divide-y divide-gray-50">
+                {if by_risk}
+                {foreach by_risk as row}
+                <div class="flex items-center justify-between px-5 py-3">
+                    <div class="flex items-center gap-2">
+                        {if row.risk_level == 'critical'}
+                        <span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                        {elseif row.risk_level == 'high'}
+                        <span class="w-2 h-2 rounded-full bg-orange-500 inline-block"></span>
+                        {elseif row.risk_level == 'moderate'}
+                        <span class="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>
+                        {else}
+                        <span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                        {/if}
+                        <span class="text-sm text-gray-700 capitalize">{row.risk_level | default:'Unknown' | title | esc_html}</span>
+                    </div>
+                    <span class="text-sm font-semibold text-gray-900">{row.cnt}</span>
+                </div>
+                {/foreach}
+                {else}
+                <div class="px-5 py-8 text-center text-gray-400 text-sm">No data</div>
+                {/if}
+            </div>
+        </div>
+
+    </div>
+
+    {!-- High-Risk Students Table --}
+    {if high_risk_students}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <i class="fas fa-exclamation-circle text-red-500"></i>
+            <h3 class="text-sm font-semibold text-gray-800">High &amp; Critical Risk Students (Active Cases)</h3>
+            <span class="ml-auto text-xs text-gray-500">{high_risk_students | count} students</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                        <th class="px-4 py-3 text-left font-medium">Student Name</th>
+                        <th class="px-4 py-3 text-left font-medium">Case No.</th>
+                        <th class="px-4 py-3 text-left font-medium">Course</th>
+                        <th class="px-4 py-3 text-left font-medium">Year</th>
+                        <th class="px-4 py-3 text-left font-medium">Severity</th>
+                        <th class="px-4 py-3 text-left font-medium">Status</th>
+                        <th class="px-4 py-3 text-left font-medium">Counselor</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {foreach high_risk_students as s}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 font-medium text-gray-900">{s.student_name | esc_html}</td>
+                        <td class="px-4 py-3 text-gray-500 font-mono text-xs">{s.case_number | esc_html}</td>
+                        <td class="px-4 py-3 text-gray-600">{s.college_code | esc_html}</td>
+                        <td class="px-4 py-3 text-gray-600 text-xs">{s.student_grade | default:'—' | esc_html}</td>
+                        <td class="px-4 py-3">
+                            {if s.severity == 'critical'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Critical</span>
+                            {else}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">High</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3">
+                            {if s.student_status == 'probationary'}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Probationary</span>
+                            {else}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{s.student_status | default:'Regular' | title | esc_html}</span>
+                            {/if}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">{s.counselor_name | default:'Unassigned' | esc_html}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {/if}
+
+</div>

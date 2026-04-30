@@ -1,0 +1,91 @@
+{!-- Exported Reports Tab --}
+<div class="space-y-4" x-data="{
+    fromDate: '',
+    toDate: '',
+    init() {
+        var f = document.querySelector('#reports-filter [name=start_date]');
+        var t = document.querySelector('#reports-filter [name=end_date]');
+        if (f) this.fromDate = f.value;
+        if (t) this.toDate   = t.value;
+    },
+    csvUrl() {
+        var u = '{base_url}/api/reports/export?format=csv';
+        if (this.fromDate && this.toDate) u += '&start_date=' + this.fromDate + '&end_date=' + this.toDate;
+        return u;
+    },
+    docxUrl() {
+        return '{base_url}/reports/appointments/docx?from=' + this.fromDate + '&to=' + this.toDate;
+    },
+    docxReady() {
+        return this.fromDate !== '' && this.toDate !== '';
+    }
+}">
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-download text-teal-600"></i>
+                Export Reports
+            </h3>
+            <p class="text-xs text-gray-500 mt-1">Use the date range filter above, or pick dates below before downloading.</p>
+        </div>
+
+        {!-- Date inputs for export --}
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-100 flex flex-wrap items-end gap-4">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">From</label>
+                <input type="date" x-model="fromDate"
+                       class="rounded-lg border border-gray-200 text-sm px-3 py-2 focus:ring-teal-500 focus:border-teal-500" />
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">To</label>
+                <input type="date" x-model="toDate"
+                       class="rounded-lg border border-gray-200 text-sm px-3 py-2 focus:ring-teal-500 focus:border-teal-500" />
+            </div>
+            <p class="text-xs text-gray-400 self-end pb-2">Date range is required for DOCX exports. CSV export is optional.</p>
+        </div>
+
+        <div class="divide-y divide-gray-50">
+
+            <div class="flex items-center justify-between px-6 py-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">Full Summary Report</p>
+                    <p class="text-xs text-gray-500 mt-0.5">Cases, sessions, appointments, risk breakdown, monthly trends</p>
+                </div>
+                <a :href="csvUrl()"
+                   class="inline-flex items-center px-4 py-2 bg-teal-700 text-white text-xs font-semibold rounded-lg hover:bg-teal-800 transition shadow-sm gap-1.5">
+                    <i class="fas fa-file-csv"></i> Download CSV
+                </a>
+            </div>
+
+            <div class="flex items-center justify-between px-6 py-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">Case Summary (DOCX)</p>
+                    <p class="text-xs text-gray-500 mt-0.5">Individual student case summary document</p>
+                </div>
+                <span class="text-xs text-gray-400 italic">Select a student from the Student Reports tab</span>
+            </div>
+
+            <div class="flex items-center justify-between px-6 py-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">Appointments Report (DOCX)</p>
+                    <p class="text-xs text-gray-500 mt-0.5">All appointment records in Word format. Requires a date range (max 3 months).</p>
+                </div>
+                <template x-if="docxReady()">
+                    <a :href="docxUrl()"
+                       class="inline-flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition shadow-sm gap-1.5">
+                        <i class="fas fa-file-word text-blue-600"></i> Download DOCX
+                    </a>
+                </template>
+                <template x-if="!docxReady()">
+                    <span class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-400 text-xs font-semibold rounded-lg cursor-not-allowed gap-1.5">
+                        <i class="fas fa-file-word"></i> Select dates first
+                    </span>
+                </template>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+

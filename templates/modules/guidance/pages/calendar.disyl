@@ -1,0 +1,240 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{!-- Calendar Page --}
+
+{ikb_section padding="none"}
+
+    {!-- Page Header --}
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Calendar</h1>
+            <p class="text-sm text-gray-500 mt-1">View appointments by month</p>
+        </div>
+        <button hx-get="/pages/appointments/new"
+                hx-target="#modal-container"
+                hx-swap="innerHTML"
+                class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition shadow-sm">
+            <i class="fas fa-plus mr-2"></i> New Appointment
+        </button>
+    </div>
+
+    <div x-data="guidanceCalendarPage('{current_month}')" x-init="init()">
+
+        {!-- Controls bar --}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-5">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+
+                {!-- Month navigation --}
+                <div class="flex items-center gap-2">
+                    <button @click="prevMonth()"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 transition">
+                        <i class="fas fa-chevron-left text-xs"></i>
+                    </button>
+                    <span class="text-base font-semibold text-gray-800 w-36 text-center" x-text="monthLabel"></span>
+                    <button @click="nextMonth()"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 transition">
+                        <i class="fas fa-chevron-right text-xs"></i>
+                    </button>
+                    <button @click="goToday()"
+                            class="ml-2 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition">
+                        Today
+                    </button>
+                </div>
+
+                {!-- Counselor filter (admin/supervisor only) --}
+                {if user_role != 'counselor'}
+                <div class="ml-auto">
+                    <select x-model="filterCounselor" @change="loadCalendar()"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                        <option value="">All Counselors</option>
+                        {foreach counselors as c}
+                        <option value="{c.id}">{c.first_name} {c.last_name}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                {/if}
+
+                {!-- Legend --}
+                <div class="flex items-center gap-3 text-xs {if user_role != 'counselor'}{else}ml-auto{/if}">
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block"></span>Scheduled</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>Completed</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span>Cancelled / No-show</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>Pending</span>
+                </div>
+
+            </div>
+        </div>
+
+        {!-- Loading indicator --}
+        <div x-show="loading" class="flex items-center justify-center py-16 text-gray-400">
+            <i class="fas fa-spinner fa-spin text-lg mr-3"></i> Loading calendar...
+        </div>
+
+        {!-- Calendar grid --}
+        <div x-show="!loading" x-cloak class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+
+            {!-- Day headers --}
+            <div class="grid grid-cols-7 border-b border-gray-200">
+                <template x-for="day in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']">
+                    <div class="py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" x-text="day"></div>
+                </template>
+            </div>
+
+            {!-- Calendar cells --}
+            <div class="grid grid-cols-7" style="min-height:520px">
+                <template x-for="(cell, idx) in calendarCells" :key="idx">
+                    <div :class="[
+                            'border-b border-r border-gray-100 p-1.5 min-h-[100px] relative',
+                            cell.currentMonth ? 'bg-white' : 'bg-gray-50',
+                            cell.isToday ? 'ring-2 ring-inset ring-teal-400' : ''
+                         ]">
+                        {!-- Day number --}
+                        <div :class="[
+                                'text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full',
+                                cell.isToday ? 'bg-teal-600 text-white' : (cell.currentMonth ? 'text-gray-700' : 'text-gray-300')
+                             ]" x-text="cell.day"></div>
+
+                        {!-- Appointment dots --}
+                        <div class="space-y-0.5">
+                            <template x-for="appt in cell.appointments.slice(0,3)" :key="appt.id">
+                                <div @click="openAppt(appt)"
+                                     :class="[
+                                        'text-white text-[10px] leading-tight px-1.5 py-0.5 rounded cursor-pointer truncate',
+                                        apptColor(appt.status)
+                                     ]"
+                                     :title="appt.student_name + ' — ' + appt.scheduled_time">
+                                    <span x-text="appt.scheduled_time ? appt.scheduled_time.slice(0,5) : ''"></span>
+                                    <span class="ml-0.5" x-text="appt.student_name"></span>
+                                </div>
+                            </template>
+                            <div x-show="cell.appointments.length > 3"
+                                 class="text-[10px] text-gray-400 pl-1 cursor-pointer"
+                                 x-text="'+' + (cell.appointments.length - 3) + ' more'"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+    </div>
+
+{/ikb_section}
+
+<script>
+function guidanceCalendarPage(initMonth) {
+    return {
+        month: initMonth || '',
+        monthLabel: '',
+        loading: true,
+        filterCounselor: '',
+        appointments: [],
+        calendarCells: [],
+
+        init() {
+            if (!this.month) this.month = new Date().toISOString().slice(0, 7);
+            this.updateMonthLabel();
+            this.loadCalendar();
+        },
+
+        updateMonthLabel() {
+            var parts = this.month.split('-');
+            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+            this.monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+        },
+
+        prevMonth() {
+            var parts = this.month.split('-');
+            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 2, 1);
+            this.month = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+            this.updateMonthLabel();
+            this.loadCalendar();
+        },
+
+        nextMonth() {
+            var parts = this.month.split('-');
+            var d = new Date(parseInt(parts[0]), parseInt(parts[1]), 1);
+            this.month = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+            this.updateMonthLabel();
+            this.loadCalendar();
+        },
+
+        goToday() {
+            this.month = new Date().toISOString().slice(0, 7);
+            this.updateMonthLabel();
+            this.loadCalendar();
+        },
+
+        loadCalendar() {
+            this.loading = true;
+            var params = 'month=' + encodeURIComponent(this.month);
+            if (this.filterCounselor) params += '&counselor_id=' + encodeURIComponent(this.filterCounselor);
+            var self = this;
+            fetch('/api/appointments/calendar?' + params)
+                .then(function(r){ return r.json(); })
+                .then(function(data) {
+                    self.appointments = data.appointments || [];
+                    self.buildCells();
+                    self.loading = false;
+                })
+                .catch(function(){ self.loading = false; });
+        },
+
+        buildCells() {
+            var parts = this.month.split('-');
+            var year = parseInt(parts[0]);
+            var mon  = parseInt(parts[1]) - 1;
+            var today = new Date();
+            var todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
+            var first = new Date(year, mon, 1);
+            var last  = new Date(year, mon + 1, 0);
+            var cells = [];
+
+            // leading blanks from previous month
+            for (var i = 0; i < first.getDay(); i++) {
+                var d = new Date(year, mon, -first.getDay() + i + 1);
+                cells.push({ day: d.getDate(), currentMonth: false, isToday: false, appointments: [] });
+            }
+
+            // days of current month
+            for (var d2 = 1; d2 <= last.getDate(); d2++) {
+                var dateStr = year + '-' + String(mon+1).padStart(2,'0') + '-' + String(d2).padStart(2,'0');
+                var appts = this.appointments.filter(function(a){ return a.scheduled_date === dateStr; });
+                cells.push({ day: d2, date: dateStr, currentMonth: true, isToday: dateStr === todayStr, appointments: appts });
+            }
+
+            // trailing blanks to fill 6 rows (42 cells)
+            var trailing = 42 - cells.length;
+            for (var j = 1; j <= trailing; j++) {
+                cells.push({ day: j, currentMonth: false, isToday: false, appointments: [] });
+            }
+
+            this.calendarCells = cells;
+        },
+
+        apptColor(status) {
+            var map = {
+                'completed':   'bg-green-500',
+                'scheduled':   'bg-teal-500',
+                'confirmed':   'bg-teal-600',
+                'in_progress': 'bg-blue-500',
+                'pending':     'bg-amber-400',
+                'no_show':     'bg-red-400',
+                'cancelled':   'bg-red-400',
+                'rejected':    'bg-red-400',
+            };
+            return map[status] || 'bg-gray-400';
+        },
+
+        openAppt(appt) {
+            htmx.ajax('GET', guidanceAppPath('/pages/appointments/' + appt.id), {
+                target: '#modal-container',
+                swap: 'innerHTML'
+            });
+        }
+    };
+}
+</script>
+
+{/block}

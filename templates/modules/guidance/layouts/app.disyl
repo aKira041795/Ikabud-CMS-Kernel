@@ -18,6 +18,9 @@
     
     {!-- Alpine.js for client-side interactivity --}
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    {!-- Chart.js for reports charts --}
+    <script src="https://unpkg.com/chart.js@4/dist/chart.umd.min.js"></script>
     
     {!-- Application Stylesheet --}
     <link rel="stylesheet" href="/assets/guidance/css/app.css">
@@ -76,75 +79,119 @@
     
     {block head}{/block}
 </head>
-<body class="bg-gray-50 min-h-screen" x-data="{ sidebarOpen: true, userMenuOpen: false }">
+<body class="bg-gray-50 min-h-screen" x-data="{ sidebarOpen: true, userMenuOpen: false, sessionsOpen: {if current_page == 'appointments' || current_page == 'session-records'}true{else}false{/if} }">
+
+{if is_htmx}
+{block content}{/block}
+{else}
     
     {if user}
     {!-- Authenticated Layout --}
     <div class="flex h-screen overflow-hidden">
         
         {!-- Sidebar --}
-        <aside class="bg-indigo-800 text-white transition-all duration-300"
+        <aside class="bg-teal-800 text-white transition-all duration-300 flex flex-col"
                :class="sidebarOpen ? 'w-64' : 'w-20'">
             
             {!-- Logo --}
-            <div class="flex items-center h-16 px-4 border-b border-indigo-700">
-                <i class="fas fa-heart-pulse text-2xl"></i>
-                <span class="ml-3 font-bold text-lg" x-show="sidebarOpen" x-cloak>Guidance</span>
+            <div class="flex items-center h-16 px-4 border-b border-teal-700 flex-shrink-0">
+                <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-heart-pulse text-sm"></i>
+                </div>
+                <div class="ml-3 overflow-hidden" x-show="sidebarOpen" x-cloak>
+                    <span class="font-bold text-sm leading-tight block">Guidance Counseling</span>
+                    <span class="text-xs text-teal-300 block">System</span>
+                </div>
             </div>
             
             {!-- Navigation --}
-            <nav class="mt-4 px-2">
+            <nav class="mt-4 px-2 flex-1 overflow-y-auto">
                 <a href="{base_url}/" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'dashboard'}bg-indigo-700{/if}"
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'dashboard'}bg-teal-700{/if}"
                    hx-get="/pages/dashboard" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/">
-                    <i class="fas fa-chart-line w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Dashboard</span>
+                    <i class="fas fa-th-large w-5 text-center flex-shrink-0"></i>
+                    <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Dashboard</span>
                 </a>
                 
                 <a href="{base_url}/cases" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'cases'}bg-indigo-700{/if}"
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'cases'}bg-teal-700{/if}"
                    hx-get="/pages/cases" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/cases">
-                    <i class="fas fa-folder-open w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Cases</span>
+                    <i class="fas fa-user-graduate w-5 text-center flex-shrink-0"></i>
+                    <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Students</span>
                 </a>
                 
-                <a href="{base_url}/appointments" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'appointments'}bg-indigo-700{/if}"
-                   hx-get="/pages/appointments" 
-                   hx-target="#main-content" 
-                   hx-push-url="{base_url}/appointments">
-                    <i class="fas fa-calendar-alt w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Appointments</span>
-                </a>
+                {!-- Sessions (expandable) --}
+                <div x-show="sidebarOpen" x-cloak>
+                    <button @click="sessionsOpen = !sessionsOpen"
+                            class="w-full flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'appointments' || current_page == 'session-records'}bg-teal-700{/if}">
+                        <i class="fas fa-calendar-check w-5 text-center flex-shrink-0"></i>
+                        <span class="ml-3 text-sm flex-1 text-left">Sessions</span>
+                        <i class="fas text-xs transition-transform" :class="sessionsOpen ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                    </button>
+                    <div x-show="sessionsOpen" class="ml-4 space-y-0.5 mb-1">
+                        <a href="{base_url}/appointments"
+                           class="flex items-center pl-6 pr-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-teal-200 hover:text-white {if current_page == 'appointments'}bg-teal-700 text-white{/if}"
+                           hx-get="/pages/appointments"
+                           hx-target="#main-content"
+                           hx-push-url="{base_url}/appointments">
+                            <span class="w-2 h-2 rounded-full bg-current mr-3 flex-shrink-0"></span>
+                            <span class="text-sm">Appointments</span>
+                        </a>
+                        <a href="{base_url}/session-records"
+                           class="flex items-center pl-6 pr-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-teal-200 hover:text-white {if current_page == 'session-records'}bg-teal-700 text-white{/if}"
+                           hx-get="/pages/session-records"
+                           hx-target="#main-content"
+                           hx-push-url="{base_url}/session-records">
+                            <span class="w-2 h-2 rounded-full bg-current mr-3 flex-shrink-0"></span>
+                            <span class="text-sm">Session Records</span>
+                        </a>
+                    </div>
+                </div>
+                {!-- Sessions icon-only collapsed --}
+                <div x-show="!sidebarOpen" x-cloak>
+                    <a href="{base_url}/appointments"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'appointments' || current_page == 'session-records'}bg-teal-700{/if}"
+                       hx-get="/pages/appointments"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/appointments">
+                        <i class="fas fa-calendar-check w-5 text-center flex-shrink-0"></i>
+                    </a>
+                </div>
                 
                 <a href="{base_url}/reports" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'reports'}bg-indigo-700{/if}"
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'reports'}bg-teal-700{/if}"
                    hx-get="/pages/reports" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/reports">
-                    <i class="fas fa-chart-bar w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Reports</span>
+                    <i class="fas fa-chart-bar w-5 text-center flex-shrink-0"></i>
+                    <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Reports</span>
                 </a>
                 
-                <a href="{base_url}/trackers" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'trackers'}bg-indigo-700{/if}"
-                   hx-get="/pages/trackers" 
+                <a href="{base_url}/calendar" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'calendar'}bg-teal-700{/if}"
+                   hx-get="/pages/calendar" 
                    hx-target="#main-content" 
-                   hx-push-url="{base_url}/trackers">
-                    <i class="fas fa-clipboard-list w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Student Tracker</span>
+                   hx-push-url="{base_url}/calendar">
+                    <i class="fas fa-calendar w-5 text-center flex-shrink-0"></i>
+                    <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Calendar</span>
                 </a>
                 
+                <a href="{base_url}/alerts"
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'alerts'}bg-teal-700{/if}">
+                    <i class="fas fa-bell w-5 text-center flex-shrink-0"></i>
+                    <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Alerts</span>
+                </a>
+
                 {if module_nav_items}
-                <div class="mt-6 pt-4 border-t border-indigo-700">
-                    <span class="px-4 text-xs uppercase text-indigo-400" x-show="sidebarOpen" x-cloak>Modules</span>
+                <div class="mt-4 pt-4 border-t border-teal-700">
+                    <span class="px-4 text-xs uppercase text-teal-400" x-show="sidebarOpen" x-cloak>Modules</span>
                     {foreach module_nav_items as nav}
                     <a href="{base_url}/{nav.module_id}" 
-                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 mt-1 {if current_page == nav.module_id}bg-indigo-700{/if}"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 mt-1 transition-colors {if current_page == nav.module_id}bg-teal-700{/if}"
                        hx-get="/pages/{nav.module_id}" 
                        hx-target="#main-content" 
                        hx-push-url="{base_url}/{nav.module_id}">
@@ -155,57 +202,81 @@
                 </div>
                 {/if}
                 
-                <div class="mt-6 pt-4 border-t border-indigo-700">
-                    <span class="px-4 text-xs uppercase text-indigo-400" x-show="sidebarOpen" x-cloak>{if user.role == 'admin'}Admin{else}Account{/if}</span>
-                    
-                          <a href="{if user.role == 'admin'}{base_url}/users{else}{base_url}/profile{/if}" 
-                              class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 mt-2 {if current_page == 'users' || current_page == 'profile'}bg-indigo-700{/if}"
-                              hx-get="{if user.role == 'admin'}/pages/users{else}/pages/profile{/if}" 
-                              hx-target="#main-content" 
-                              hx-push-url="{if user.role == 'admin'}{base_url}/users{else}{base_url}/profile{/if}">
-                        <i class="fas {if user.role == 'admin'}fa-users{else}fa-user-cog{/if} w-6"></i>
-                        <span class="ml-3" x-show="sidebarOpen" x-cloak>{if user.role == 'admin'}Users{else}My Account{/if}</span>
+                <div class="mt-4 pt-4 border-t border-teal-700">
+                    <a href="{base_url}/trackers"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'trackers'}bg-teal-700{/if}"
+                       hx-get="/pages/trackers"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/trackers">
+                        <i class="fas fa-file-alt w-5 text-center flex-shrink-0"></i>
+                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Resources</span>
                     </a>
-                    
+
                 {if user.role == 'admin'}
-                    <a href="{base_url}/colleges" 
-                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'colleges'}bg-indigo-700{/if}"
-                       hx-get="/pages/colleges" 
-                       hx-target="#main-content" 
-                       hx-push-url="{base_url}/colleges">
-                        <i class="fas fa-university w-6"></i>
-                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Colleges</span>
-                    </a>
-                    
                     <a href="{base_url}/settings" 
-                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'settings'}bg-indigo-700{/if}"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'settings'}bg-teal-700{/if}"
                        hx-get="/pages/settings" 
                        hx-target="#main-content" 
                        hx-push-url="{base_url}/settings">
-                        <i class="fas fa-cog w-6"></i>
-                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Settings</span>
-                    </a>
-
-                    <a href="{base_url}/form-settings" 
-                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'form-settings'}bg-indigo-700{/if}"
-                       hx-get="/pages/form-settings" 
-                       hx-target="#main-content" 
-                       hx-push-url="{base_url}/form-settings">
-                        <i class="fas fa-sliders-h w-6"></i>
-                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Form Settings</span>
-                    </a>
-
-                    <a href="{base_url}/email-templates" 
-                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'email-templates'}bg-indigo-700{/if}"
-                       hx-get="/pages/email-templates" 
-                       hx-target="#main-content" 
-                       hx-push-url="{base_url}/email-templates">
-                        <i class="fas fa-envelope w-6"></i>
-                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Email Templates</span>
+                        <i class="fas fa-cog w-5 text-center flex-shrink-0"></i>
+                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Settings</span>
                     </a>
                 {/if}
                 </div>
             </nav>
+
+            {!-- Bottom user profile --}
+            <div class="flex-shrink-0 border-t border-teal-700 p-3" x-data="{ open: false }">
+                <button @click="open = !open" class="w-full flex items-center gap-3 rounded-lg hover:bg-teal-700 px-2 py-2 transition-colors">
+                    <div class="w-9 h-9 bg-teal-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold">
+                        {user.first_name | first | upper}
+                    </div>
+                    <div class="flex-1 text-left overflow-hidden" x-show="sidebarOpen" x-cloak>
+                        <p class="text-sm font-medium truncate">{user.first_name} {user.last_name}</p>
+                        <p class="text-xs text-teal-300 capitalize">{user.role}</p>
+                    </div>
+                    <i class="fas fa-chevron-up text-xs text-teal-400" x-show="sidebarOpen" x-cloak :class="open ? '' : 'rotate-180'" style="transition:transform 0.2s"></i>
+                </button>
+                <div x-show="open" @click.away="open = false" x-cloak
+                     class="mt-1 bg-teal-700 rounded-lg py-1 overflow-hidden">
+                    <a href="{base_url}/profile"
+                       hx-get="/pages/profile" hx-target="#main-content" hx-push-url="{base_url}/profile"
+                       @click="open = false"
+                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
+                        <i class="fas fa-user mr-2 w-4"></i> Profile
+                    </a>
+                    {if user.role == 'admin'}
+                    <a href="{base_url}/users"
+                       hx-get="/pages/users" hx-target="#main-content" hx-push-url="{base_url}/users"
+                       @click="open = false"
+                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
+                        <i class="fas fa-users mr-2 w-4"></i> Users
+                    </a>
+                    <a href="{base_url}/colleges"
+                       hx-get="/pages/colleges" hx-target="#main-content" hx-push-url="{base_url}/colleges"
+                       @click="open = false"
+                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
+                        <i class="fas fa-university mr-2 w-4"></i> Colleges
+                    </a>
+                    <a href="{base_url}/form-settings"
+                       hx-get="/pages/form-settings" hx-target="#main-content" hx-push-url="{base_url}/form-settings"
+                       @click="open = false"
+                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
+                        <i class="fas fa-sliders-h mr-2 w-4"></i> Form Settings
+                    </a>
+                    <a href="{base_url}/email-templates"
+                       hx-get="/pages/email-templates" hx-target="#main-content" hx-push-url="{base_url}/email-templates"
+                       @click="open = false"
+                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
+                        <i class="fas fa-envelope mr-2 w-4"></i> Email Templates
+                    </a>
+                    {/if}
+                    <hr class="my-1 border-teal-600">
+                    <a href="{base_url}/logout" class="flex items-center px-4 py-2 text-sm text-red-300 hover:bg-teal-600 hover:text-red-200 transition-colors">
+                        <i class="fas fa-sign-out-alt mr-2 w-4"></i> Logout
+                    </a>
+                </div>
+            </div>
         </aside>
         
         {!-- Main Content Area --}
@@ -213,17 +284,16 @@
             
             {!-- Top Header --}
             <header class="bg-white shadow-sm h-16 flex items-center justify-between px-6">
-                <div class="flex items-center">
-                    <button @click="sidebarOpen = !sidebarOpen" class="text-gray-500 hover:text-gray-700 mr-4">
+                <div class="flex items-center gap-4">
+                    <button @click="sidebarOpen = !sidebarOpen" class="text-gray-500 hover:text-gray-700">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
-                    <h1 class="text-xl font-semibold text-gray-800" id="page-title">{page_title | default:'Dashboard'}</h1>
                 </div>
                 
                 <div class="flex items-center space-x-4">
                     {!-- HTMX Loading Indicator --}
                     <div class="htmx-indicator">
-                        <div class="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-indigo-600"></div>
+                        <div class="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-teal-600"></div>
                     </div>
                     
                     {!-- Notifications --}
@@ -237,7 +307,7 @@
                              class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                             <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
                                 <span class="font-semibold text-sm text-gray-700">Notifications</span>
-                                <button x-show="unread > 0" @click="markAllRead($data)" class="text-xs text-indigo-600 hover:underline">Mark all read</button>
+                                <button x-show="unread > 0" @click="markAllRead($data)" class="text-xs text-teal-600 hover:underline">Mark all read</button>
                             </div>
                             <div class="max-h-80 overflow-y-auto divide-y divide-gray-100">
                                 <template x-if="notifications.length === 0">
@@ -250,12 +320,12 @@
                                     <a :href="n.link ? (APP_BASE + n.link) : '#'" 
                                        @click="markRead($data, n)"
                                        class="block px-4 py-3 hover:bg-gray-50 transition"
-                                       :class="n.is_read == 0 ? 'bg-indigo-50/50' : ''">
+                                       :class="n.is_read == 0 ? 'bg-teal-50/50' : ''">
                                         <div class="flex items-start space-x-3">
                                             <div class="flex-shrink-0 mt-0.5">
                                                 <i class="fas text-sm" :class="{
                                                     'fa-calendar-check text-green-500': n.type === 'appointment_approved',
-                                                    'fa-calendar-plus text-indigo-500': n.type === 'appointment_request',
+                                                    'fa-calendar-plus text-teal-500': n.type === 'appointment_request',
                                                     'fa-calendar-times text-red-500': n.type === 'appointment_rejected',
                                                     'fa-folder-plus text-blue-500': n.type === 'case_assigned',
                                                     'fa-info-circle text-gray-400': !['appointment_approved','appointment_request','appointment_rejected','case_assigned'].includes(n.type)
@@ -267,7 +337,7 @@
                                                 <p class="text-xs text-gray-400 mt-1" x-text="timeAgo(n.created_at)"></p>
                                             </div>
                                             <div x-show="n.is_read == 0" class="flex-shrink-0">
-                                                <span class="inline-block w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                                <span class="inline-block w-2 h-2 bg-teal-500 rounded-full"></span>
                                             </div>
                                         </div>
                                     </a>
@@ -276,14 +346,10 @@
                         </div>
                     </div>
                     
-                    {!-- User Menu --}
+                    {!-- User avatar (top-right) --}
                     <div class="relative" x-data="{ open: false }">
-                        <button @click="open = !open" class="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
-                            <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-medium">
-                                {user.first_name | first | upper}
-                            </div>
-                            <span class="hidden md:block">{user.first_name}</span>
-                            <i class="fas fa-chevron-down text-xs"></i>
+                        <button @click="open = !open" class="w-9 h-9 bg-gray-800 rounded-full flex items-center justify-center text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+                            {user.first_name | first | upper}
                         </button>
                         
                         <div x-show="open" @click.away="open = false" x-cloak
@@ -314,10 +380,11 @@
     
     {else}
     {!-- Guest Layout (Login Page) --}
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 py-12 px-4">
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-600 to-teal-800 py-12 px-4">
         {block content}{/block}
     </div>
     {/if}
+
     
     {!-- Toast Notifications Container --}
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
@@ -359,18 +426,19 @@
             path = normalizeGuidanceNavPath(path);
 
             document.querySelectorAll('aside nav a').forEach(link => {
-                link.classList.remove('bg-indigo-700');
+                link.classList.remove('bg-teal-700');
             });
 
             let matchPath = path;
             if (matchPath.startsWith('/cases/')) matchPath = '/cases';
             if (matchPath.startsWith('/appointments/')) matchPath = '/appointments';
             if (matchPath.startsWith('/trackers/')) matchPath = '/trackers';
+            if (matchPath.startsWith('/session-records/')) matchPath = '/session-records';
 
             document.querySelectorAll('aside nav a[href]').forEach(link => {
                 const linkPath = normalizeGuidanceNavPath(link.getAttribute('href') || '');
                 if (linkPath === matchPath) {
-                    link.classList.add('bg-indigo-700');
+                    link.classList.add('bg-teal-700');
                 }
             });
         }
@@ -568,10 +636,25 @@
                 view: 'list',
                 currentDate: new Date(),
                 appointments: [],
-                
+                activeTab: 'all',
+                filterStatus: '',
+                filterFrom: '',
+                filterTo: '',
+
                 init() {
                     this.fetchAppointments();
                     document.body.addEventListener('refreshAppointments', () => this.fetchAppointments());
+                },
+
+                loadList() {
+                    var values = { status: this.filterStatus };
+                    if (this.filterFrom) values.from = this.filterFrom;
+                    if (this.filterTo)   values.to   = this.filterTo;
+                    htmx.ajax('GET', APP_BASE + '/api/appointments', {
+                        target: '#appointments-list',
+                        swap: 'innerHTML',
+                        values: values
+                    });
                 },
                 
                 get monthLabel() {
@@ -663,5 +746,6 @@
     </script>
     
     {block scripts}{/block}
+{/if}
 </body>
 </html>

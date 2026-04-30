@@ -740,11 +740,13 @@ function apiGuidanceCreateCase(): void
                 ]));
 
                 if (guidanceIsHtmx()) {
+                    guidanceClearCaseStatsCache();
                     header('HX-Redirect: /admin/guidance/cases/' . $caseId);
                     echo '';
                     return;
                 }
 
+                guidanceClearCaseStatsCache();
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode([
                     'success' => true,
@@ -892,12 +894,14 @@ function apiGuidanceUpdateCase(array $params = []): void
     }
 
     if (guidanceIsHtmx()) {
+        guidanceClearCaseStatsCache();
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Case updated successfully', 'type' => 'success'], 'closeModal' => true, 'refreshCases' => true]));
         header('HX-Refresh: true');
         echo '';
         return;
     }
 
+    guidanceClearCaseStatsCache();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
 }
@@ -937,12 +941,14 @@ function apiGuidanceDeleteCase(array $params = []): void
     }
 
     if (guidanceIsHtmx()) {
+        guidanceClearCaseStatsCache();
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Case deleted successfully', 'type' => 'success'], 'refreshCases' => true]));
         header('HX-Redirect: /admin/guidance/cases');
         echo '';
         return;
     }
 
+    guidanceClearCaseStatsCache();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
 }
@@ -1004,12 +1010,14 @@ function apiGuidanceCloseCase(array $params = []): void
     }
 
     if (guidanceIsHtmx()) {
+        guidanceClearCaseStatsCache();
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Case closed successfully', 'type' => 'success'], 'refreshCases' => true]));
         header('HX-Refresh: true');
         echo '';
         return;
     }
 
+    guidanceClearCaseStatsCache();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
 }
@@ -1563,6 +1571,7 @@ function guidanceSetAppointmentStatus(\Ikabud\Kernel\Contracts\DatabaseContract 
 function apiGuidanceCompleteAppointment(array $params = []): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
     $role = (string)($user['role'] ?? '');
     $isCounselor = $role === 'counselor';
     $userId = (int)($user['id'] ?? 0);
@@ -1587,6 +1596,7 @@ function apiGuidanceCompleteAppointment(array $params = []): void
         echo '';
         return;
     }
+    guidanceClearAppointmentStatsCache();
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Appointment completed', 'type' => 'success'], 'refreshAppointments' => true, 'refreshAppointmentsCalendar' => true]));
     echo '';
 }
@@ -1594,6 +1604,7 @@ function apiGuidanceCompleteAppointment(array $params = []): void
 function apiGuidanceNoShowAppointment(array $params = []): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
     $role = (string)($user['role'] ?? '');
     $isCounselor = $role === 'counselor';
     $userId = (int)($user['id'] ?? 0);
@@ -1618,6 +1629,7 @@ function apiGuidanceNoShowAppointment(array $params = []): void
         echo '';
         return;
     }
+    guidanceClearAppointmentStatsCache();
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Marked as no show', 'type' => 'success'], 'refreshAppointments' => true, 'refreshAppointmentsCalendar' => true]));
     echo '';
 }
@@ -1625,6 +1637,7 @@ function apiGuidanceNoShowAppointment(array $params = []): void
 function apiGuidanceCancelAppointment(array $params = []): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
     $role = (string)($user['role'] ?? '');
     $isCounselor = $role === 'counselor';
     $userId = (int)($user['id'] ?? 0);
@@ -1649,6 +1662,7 @@ function apiGuidanceCancelAppointment(array $params = []): void
         echo '';
         return;
     }
+    guidanceClearAppointmentStatsCache();
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Appointment cancelled', 'type' => 'success'], 'refreshAppointments' => true, 'refreshAppointmentsCalendar' => true]));
     echo '';
 }
@@ -2920,6 +2934,11 @@ function guidanceSendStudentBookingConfirmation(\Ikabud\Kernel\Contracts\Databas
 
 function guidancePublicBookingSuccessPayload(array $payload, int $appointmentId): array
 {
+    $rawDate = (string)($payload['scheduled_date'] ?? '');
+    $rawTime = (string)($payload['scheduled_time'] ?? '');
+    $scheduledDateFmt = $rawDate !== '' ? date('F j, Y', strtotime($rawDate)) : '';
+    $scheduledTimeFmt = $rawTime !== '' ? date('g:i A', strtotime($rawTime)) : '';
+
     return [
         'ok' => true,
         'success' => true,
@@ -2928,8 +2947,8 @@ function guidancePublicBookingSuccessPayload(array $payload, int $appointmentId)
         'html' => guidanceRender('modules/guidance/partials/booking-success.disyl', [
             'appointment_id' => $appointmentId,
             'student_name' => (string)($payload['student_name'] ?? ''),
-            'scheduled_date' => (string)($payload['scheduled_date'] ?? ''),
-            'scheduled_time' => (string)($payload['scheduled_time'] ?? ''),
+            'scheduled_date' => $scheduledDateFmt,
+            'scheduled_time' => $scheduledTimeFmt,
             'student_email' => (string)($payload['student_email'] ?? ''),
             'base_url' => '/guidance',
         ]),
@@ -2951,6 +2970,7 @@ function guidancePublicBookingErrorStatus(string $message): int
 function apiGuidancePublicBooking(): void
 {
     header('Content-Type: application/json; charset=utf-8');
+    app()->csrfEnforce();
     $input = guidanceInput();
     if (!is_array($input)) {
         $input = [];
@@ -2987,6 +3007,7 @@ function apiGuidancePublicBooking(): void
         }
 
         $appointmentId = guidanceCreatePublicBookingRecord($payload);
+        guidanceClearAppointmentStatsCache();
         http_response_code(201);
         echo json_encode(guidancePublicBookingSuccessPayload($payload, $appointmentId));
     } catch (RuntimeException $e) {
@@ -3001,6 +3022,7 @@ function apiGuidancePublicBooking(): void
 function apiGuidanceVerifyBookingOtp(): void
 {
     header('Content-Type: application/json; charset=utf-8');
+    app()->csrfEnforce();
 
     $ticket = trim((string)guidanceInput('ticket', ''));
     $code = trim((string)guidanceInput('code', ''));
@@ -3034,6 +3056,7 @@ function apiGuidanceVerifyBookingOtp(): void
         );
         $appointmentId = guidanceCreatePublicBookingRecord($bookingPayload);
         guidanceConsumeOtpCode((int)($ticketPayload['otp_id'] ?? 0));
+        guidanceClearAppointmentStatsCache();
         http_response_code(201);
         echo json_encode(guidancePublicBookingSuccessPayload($bookingPayload, $appointmentId));
     } catch (RuntimeException $e) {
@@ -3051,6 +3074,7 @@ function apiGuidanceVerifyBookingOtp(): void
 function apiGuidanceResendBookingOtp(): void
 {
     header('Content-Type: application/json; charset=utf-8');
+    app()->csrfEnforce();
 
     $ticket = trim((string)guidanceInput('ticket', ''));
     if ($ticket === '') {
@@ -3185,6 +3209,7 @@ function guidanceBasePageContext(array $user, string $pageTitle, string $current
         'notifications_count' => $notificationsCount,
         'today_date' => date('M d, Y'),
         'hour' => (int)date('G'),
+        'is_htmx' => guidanceIsHtmx(),
     ];
 }
 
@@ -3208,6 +3233,58 @@ function pageGuidanceCases(): void
     echo guidanceRender('modules/guidance/pages/cases.disyl', array_merge(
         guidanceBasePageContext($ctxUser, 'Cases', 'cases'),
         ['counselors' => $counselors]
+    ));
+}
+
+function pageGuidanceCaseNew(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $db     = guidanceDb();
+
+    $counselors       = [];
+    $colleges         = [];
+    $appointmentTypes = [];
+
+    if ($role !== 'counselor') {
+        try {
+            $stmt = $db->prepare(
+                "SELECT id, first_name, last_name, CONCAT(first_name, ' ', last_name) AS name
+                 FROM gm_users WHERE role = 'counselor' AND deleted_at IS NULL AND is_active = 1
+                 ORDER BY first_name, last_name"
+            );
+            $stmt->execute();
+            $counselors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            $counselors = [];
+        }
+    }
+
+    try {
+        $stmt = $db->query("SELECT id, code, name FROM gm_colleges WHERE is_active = 1 ORDER BY sort_order, name");
+        $colleges = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    } catch (Throwable $e) {
+        $colleges = [];
+    }
+
+    try {
+        $stmt = $db->query("SELECT id, name, duration_minutes FROM gm_appointment_types WHERE is_active = 1 ORDER BY sort_order, name");
+        $appointmentTypes = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    } catch (Throwable $e) {
+        $appointmentTypes = [];
+    }
+
+    echo guidanceRender('modules/guidance/pages/case-new.disyl', array_merge(
+        guidanceBasePageContext($user, 'Students', 'cases'),
+        [
+            'counselors'       => $counselors,
+            'colleges'         => $colleges,
+            'appointment_types' => $appointmentTypes,
+            'user_role'        => $role,
+            'is_admin'         => $role !== 'counselor',
+            'today'            => date('Y-m-d'),
+        ]
     ));
 }
 
@@ -3720,6 +3797,186 @@ function modalGuidanceCaseEdit(array $params = []): void
     ]);
 }
 
+function pageGuidanceCalendar(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role = (string)($user['role'] ?? '');
+    $counselors = [];
+    if ($role !== 'counselor') {
+        try {
+            $stmt = guidanceDb()->prepare("SELECT id, first_name, last_name FROM gm_users WHERE role = 'counselor' AND deleted_at IS NULL ORDER BY first_name, last_name");
+            $stmt->execute();
+            $counselors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            $counselors = [];
+        }
+    }
+
+    echo guidanceRender('modules/guidance/pages/calendar.disyl', array_merge(
+        guidanceBasePageContext($user, 'Calendar', 'calendar'),
+        [
+            'counselors'   => $counselors,
+            'current_month' => date('Y-m'),
+        ]
+    ));
+}
+
+function pageGuidanceAlerts(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $userId = (int)($user['id'] ?? 0);
+
+    $stats = ['total' => 0, 'unread' => 0, 'today' => 0, 'this_week' => 0];
+    try {
+        $db = guidanceDb();
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) AS total,
+             SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) AS unread,
+             SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS today,
+             SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS this_week
+             FROM gm_notifications WHERE user_id = ?'
+        );
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $stats = [
+            'total'     => (int)($row['total']     ?? 0),
+            'unread'    => (int)($row['unread']    ?? 0),
+            'today'     => (int)($row['today']     ?? 0),
+            'this_week' => (int)($row['this_week'] ?? 0),
+        ];
+    } catch (Throwable $e) {
+        app()->log('Alerts stats error: ' . $e->getMessage(), 'error');
+    }
+
+    echo guidanceRender('pages/alerts.disyl', guidanceBasePageContext($user, 'Alerts', 'alerts') + [
+        'stats' => $stats,
+    ]);
+}
+
+function guidanceNotificationMeta(array &$n): void
+{
+    $type = (string)($n['type'] ?? '');
+    if (str_starts_with($type, 'appointment')) {
+        $n['type_label']   = 'Appointment';
+        $n['type_badge']   = 'bg-blue-50 text-blue-700';
+        $n['type_icon']    = 'fa-calendar-alt';
+        $n['type_icon_bg'] = 'bg-blue-50 text-blue-500';
+    } elseif (str_starts_with($type, 'case') || str_starts_with($type, 'student') || $type === 'urgent') {
+        $n['type_label']   = 'Student';
+        $n['type_badge']   = 'bg-purple-50 text-purple-700';
+        $n['type_icon']    = 'fa-user-graduate';
+        $n['type_icon_bg'] = 'bg-purple-50 text-purple-500';
+    } elseif (str_starts_with($type, 'session') || str_starts_with($type, 'followup')) {
+        $n['type_label']   = 'Session';
+        $n['type_badge']   = 'bg-amber-50 text-amber-700';
+        $n['type_icon']    = 'fa-clock';
+        $n['type_icon_bg'] = 'bg-amber-50 text-amber-600';
+    } elseif (str_starts_with($type, 'system')) {
+        $n['type_label']   = 'System';
+        $n['type_badge']   = 'bg-gray-100 text-gray-600';
+        $n['type_icon']    = 'fa-cog';
+        $n['type_icon_bg'] = 'bg-gray-100 text-gray-500';
+    } else {
+        $n['type_label']   = ucfirst(str_replace('_', ' ', $type)) ?: 'Notice';
+        $n['type_badge']   = 'bg-gray-100 text-gray-600';
+        $n['type_icon']    = 'fa-bell';
+        $n['type_icon_bg'] = 'bg-gray-100 text-gray-500';
+    }
+
+    $ts   = strtotime((string)($n['created_at'] ?? ''));
+    $diff = $ts ? (time() - $ts) : 0;
+    if ($diff < 60)          $n['time_ago'] = 'just now';
+    elseif ($diff < 3600)    $n['time_ago'] = floor($diff / 60) . ' min ago';
+    elseif ($diff < 86400)   $n['time_ago'] = floor($diff / 3600) . ' hours ago';
+    elseif ($diff < 172800)  $n['time_ago'] = date('M j \a\t g:i A', $ts);
+    else                     $n['time_ago'] = date('M j, Y', $ts);
+}
+
+function apiGuidanceAlertsList(): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $userId = (int)($user['id'] ?? 0);
+    $input  = guidanceInput();
+
+    $tab    = (string)($input['tab']  ?? 'all');
+    $sort   = (string)($input['sort'] ?? 'newest');
+    $page   = max(1, (int)($input['page'] ?? 1));
+    $perPage = 10;
+    $offset  = ($page - 1) * $perPage;
+
+    $where  = ['user_id = ?'];
+    $params = [$userId];
+
+    // All appended strings are static — no user input reaches $where directly
+    switch ($tab) {
+        case 'unread':        $where[] = 'is_read = 0';                                                   break;
+        case 'appointments':  $where[] = "type LIKE 'appointment%'";                                      break;
+        case 'system':        $where[] = "type LIKE 'system%'";                                           break;
+        case 'students':      $where[] = "(type LIKE 'case%' OR type LIKE 'student%' OR type = 'urgent')"; break;
+        case 'sessions':      $where[] = "(type LIKE 'session%' OR type LIKE 'followup%')";               break;
+    }
+
+    $orderBy  = $sort === 'oldest' ? 'created_at ASC' : 'created_at DESC';
+    $whereSql = implode(' AND ', $where);
+
+    $notifications = [];
+    $total = 0;
+    try {
+        $db = guidanceDb();
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM gm_notifications WHERE {$whereSql}");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $stmt = $db->prepare(
+            "SELECT id, type, title, message, link, is_read, created_at
+             FROM gm_notifications
+             WHERE {$whereSql}
+             ORDER BY {$orderBy}
+             LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+        $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        app()->log('Alerts list error: ' . $e->getMessage(), 'error');
+    }
+
+    foreach ($notifications as &$n) {
+        guidanceNotificationMeta($n);
+    }
+    unset($n);
+
+    $totalPages = max(1, (int)ceil($total / $perPage));
+    $from = $total > 0 ? $offset + 1 : 0;
+    $to   = min($total, $offset + $perPage);
+
+    // Build page-link window: first, last, ±1 around current, ellipsis gaps
+    $pageLinks = [];
+    for ($i = 1; $i <= $totalPages; $i++) {
+        if ($i === 1 || $i === $totalPages || abs($i - $page) <= 1) {
+            $pageLinks[] = ['num' => $i, 'active' => $i === $page, 'ellipsis' => false];
+        } elseif (count($pageLinks) > 0 && !$pageLinks[count($pageLinks) - 1]['ellipsis']) {
+            $pageLinks[] = ['num' => null, 'active' => false, 'ellipsis' => true];
+        }
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('partials/alerts-list.disyl', [
+        'notifications' => $notifications,
+        'total'         => $total,
+        'total_pages'   => $totalPages,
+        'current_page'  => $page,
+        'prev_page'     => max(1, $page - 1),
+        'next_page'     => min($totalPages, $page + 1),
+        'has_prev'      => $page > 1,
+        'has_next'      => $page < $totalPages,
+        'from'          => $from,
+        'to'            => $to,
+        'page_links'    => $pageLinks,
+        'base_url'      => '/admin/guidance',
+    ]);
+}
+
 function pageGuidanceAppointments(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
@@ -3752,11 +4009,33 @@ function apiGuidanceAppointments(): void
     $userId = (int)($ctxUser['id'] ?? 0);
     $input = guidanceInput();
 
+    // Session Records mode: use sr_* params and restrict to historical statuses
+    $isSessionRecords = !empty($input['session_records']);
+    if ($isSessionRecords) {
+        // Remap sr_* filter params (sr_counselor → counselor_id is a name mismatch — handle explicitly)
+        foreach (['search','status','purpose','from','to'] as $k) {
+            if (!isset($input[$k]) && isset($input['sr_' . $k])) {
+                $input[$k] = $input['sr_' . $k];
+            }
+        }
+        if (!isset($input['counselor_id']) && !empty($input['sr_counselor'])) {
+            $input['counselor_id'] = $input['sr_counselor'];
+        }
+    }
+
     $db = guidanceDb();
 
     try {
         $where = ['1=1'];
         $params = [];
+
+        // In session records mode, restrict to historical/completed statuses by default
+        if ($isSessionRecords && empty($input['status'])) {
+            $where[] = "a.status IN ('completed','no_show','cancelled','in_progress')";
+        } elseif ($isSessionRecords && !empty($input['status'])) {
+            $where[] = 'a.status = ?';
+            $params[] = (string)$input['status'];
+        }
 
         if ($isCounselor) {
             $where[] = 'a.counselor_id = ?';
@@ -3774,9 +4053,14 @@ function apiGuidanceAppointments(): void
             $where[] = 'a.scheduled_date <= ?';
             $params[] = (string)$input['to'];
         }
-        if (!empty($input['status'])) {
+        // Status filter — only add if not already handled above by session_records mode
+        if (!$isSessionRecords && !empty($input['status'])) {
             $where[] = 'a.status = ?';
             $params[] = (string)$input['status'];
+        }
+        if ($isSessionRecords && !empty($input['purpose'])) {
+            $where[] = 'a.appointment_type_id = ?';
+            $params[] = (int)$input['purpose'];
         }
         if (!empty($input['search'])) {
             $where[] = '(COALESCE(a.student_name, c.student_name) LIKE ? OR c.case_number LIKE ?)';
@@ -3787,17 +4071,33 @@ function apiGuidanceAppointments(): void
 
         $whereClause = implode(' AND ', $where);
 
+        // Session records pagination
+        $srPage    = $isSessionRecords ? max(1, (int)($input['sr_page'] ?? 1)) : 1;
+        $srPerPage = 10;
+        $srOffset  = ($srPage - 1) * $srPerPage;
+        $srTotal   = 0;
+        if ($isSessionRecords) {
+            $countStmt = $db->prepare("SELECT COUNT(*) FROM gm_appointments a LEFT JOIN gm_cases c ON a.case_id = c.id LEFT JOIN gm_users u ON a.counselor_id = u.id LEFT JOIN gm_appointment_types t ON a.appointment_type_id = t.id WHERE {$whereClause}");
+            $countStmt->execute($params);
+            $srTotal = (int)$countStmt->fetchColumn();
+        }
+
+        $limitClause = $isSessionRecords ? " LIMIT {$srPerPage} OFFSET {$srOffset}" : '';
+
         $stmt = $db->prepare(
             "SELECT a.*, LOWER(TRIM(a.status)) AS status_key,\n"
             . "       c.case_number, COALESCE(a.student_name, c.student_name) AS student_name,\n"
+            . "       c.student_grade, c.student_status AS case_student_status,\n"
             . "       u.first_name AS counselor_first, u.last_name AS counselor_last,\n"
-            . "       COALESCE(t.name, a.appointment_type) AS type_name\n"
+            . "       COALESCE(t.name, a.appointment_type) AS type_name,\n"
+            . "       col.code AS college_code\n"
             . "FROM gm_appointments a\n"
             . "LEFT JOIN gm_cases c ON a.case_id = c.id\n"
+            . "LEFT JOIN gm_colleges col ON c.college_id = col.id\n"
             . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
             . "LEFT JOIN gm_appointment_types t ON a.appointment_type_id = t.id\n"
             . "WHERE {$whereClause}\n"
-            . "ORDER BY a.scheduled_date ASC, a.scheduled_time ASC"
+            . "ORDER BY a.scheduled_date DESC, a.scheduled_time DESC{$limitClause}"
         );
         $stmt->execute($params);
         $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -3872,11 +4172,29 @@ function apiGuidanceAppointments(): void
 
         if (guidanceIsHtmx()) {
             header('Content-Type: text/html; charset=utf-8');
-            echo guidanceRender('modules/guidance/partials/appointments-list.disyl', [
+            $template = $isSessionRecords
+                ? 'modules/guidance/partials/session-records-list.disyl'
+                : 'modules/guidance/partials/appointments-list.disyl';
+            echo guidanceRender($template, [
                 'appointments' => $appointments,
                 'rows' => $rows,
                 'stats' => $stats,
-                'total' => count($appointments),
+                'total' => $isSessionRecords ? $srTotal : count($appointments),
+                'sr_page' => $srPage,
+                'sr_per_page' => $srPerPage,
+                'sr_total' => $srTotal,
+                'sr_from' => $srTotal > 0 ? ($srPage - 1) * $srPerPage + 1 : 0,
+                'sr_to' => min($srPage * $srPerPage, $srTotal),
+                'sr_page_count' => $srTotal > 0 ? (int)ceil($srTotal / $srPerPage) : 1,
+                'sr_pages' => (function(int $cur, int $last): array {
+                    if ($last <= 7) { return range(1, $last); }
+                    $pages = [1];
+                    if ($cur > 3) { $pages[] = '...'; }
+                    for ($i = max(2, $cur - 1); $i <= min($last - 1, $cur + 1); $i++) { $pages[] = $i; }
+                    if ($cur < $last - 2) { $pages[] = '...'; }
+                    $pages[] = $last;
+                    return $pages;
+                })($srPage, $srTotal > 0 ? (int)ceil($srTotal / $srPerPage) : 1),
                 'base_url' => '/admin/guidance',
             ]);
             return;
@@ -4062,9 +4380,18 @@ function pageGuidanceReports(): void
         }
     }
 
+    $colleges = [];
+    try {
+        $cStmt = guidanceDb()->prepare("SELECT id, code, name FROM gm_colleges ORDER BY name ASC");
+        $cStmt->execute();
+        $colleges = $cStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        $colleges = [];
+    }
+
     echo guidanceRender('modules/guidance/pages/reports.disyl', array_merge(
         guidanceBasePageContext($user, 'Reports', 'reports'),
-        ['counselors' => $counselors]
+        ['counselors' => $counselors, 'colleges' => $colleges]
     ));
 }
 
@@ -4078,12 +4405,16 @@ function guidanceReportsNormalizedDate(mixed $value): string
     return $value;
 }
 
-function guidanceReportsSummaryData(array $user, string $startDate = '', string $endDate = ''): array
+function guidanceReportsSummaryData(array $user, string $startDate = '', string $endDate = '', int $collegeId = 0, string $yearLevel = '', string $studentStatus = '', int $counselorId = 0): array
 {
     $db = guidanceDb();
     $userId = (int)($user['id'] ?? 0);
     $role = (string)($user['role'] ?? '');
     $isCounselor = $role === 'counselor' && $userId > 0;
+    // If logged in as counselor, always scope to self regardless of filter
+    if ($isCounselor) {
+        $counselorId = $userId;
+    }
 
     $startDate = guidanceReportsNormalizedDate($startDate);
     $endDate = guidanceReportsNormalizedDate($endDate);
@@ -4094,14 +4425,26 @@ function guidanceReportsSummaryData(array $user, string $startDate = '', string 
 
     $caseFilterSql = '';
     $caseParams = [];
-    if ($isCounselor) {
+    if ($counselorId > 0) {
         $caseFilterSql .= ' AND c.counselor_id = ?';
-        $caseParams[] = $userId;
+        $caseParams[] = $counselorId;
     }
     if ($hasDateFilter) {
         $caseFilterSql .= ' AND c.created_at BETWEEN ? AND ?';
         $caseParams[] = $startDate . ' 00:00:00';
         $caseParams[] = $endDate . ' 23:59:59';
+    }
+    if ($collegeId > 0) {
+        $caseFilterSql .= ' AND c.college_id = ?';
+        $caseParams[] = $collegeId;
+    }
+    if ($yearLevel !== '') {
+        $caseFilterSql .= ' AND c.student_grade = ?';
+        $caseParams[] = $yearLevel;
+    }
+    if ($studentStatus !== '') {
+        $caseFilterSql .= ' AND c.student_status = ?';
+        $caseParams[] = $studentStatus;
     }
 
     $statusStmt = $db->prepare(
@@ -4140,9 +4483,9 @@ function guidanceReportsSummaryData(array $user, string $startDate = '', string 
 
     $apptFilterSql = '';
     $apptParams = [];
-    if ($isCounselor) {
+    if ($counselorId > 0) {
         $apptFilterSql .= ' AND a.counselor_id = ?';
-        $apptParams[] = $userId;
+        $apptParams[] = $counselorId;
     }
     if ($hasDateFilter) {
         $apptFilterSql .= ' AND a.scheduled_date BETWEEN ? AND ?';
@@ -4160,16 +4503,16 @@ function guidanceReportsSummaryData(array $user, string $startDate = '', string 
     $upcomingStmt = $db->prepare(
         "SELECT COUNT(*) FROM gm_appointments a WHERE a.status IN ('scheduled', 'confirmed') "
         . 'AND a.scheduled_date >= CURDATE() AND a.scheduled_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)'
-        . ($isCounselor ? ' AND a.counselor_id = ?' : '')
+        . ($counselorId > 0 ? ' AND a.counselor_id = ?' : '')
     );
-    $upcomingStmt->execute($isCounselor ? [$userId] : []);
+    $upcomingStmt->execute($counselorId > 0 ? [$counselorId] : []);
     $upcomingAppointments = (int)($upcomingStmt->fetchColumn() ?: 0);
 
     $notesFilterSql = '';
     $notesParams = [];
-    if ($isCounselor) {
+    if ($counselorId > 0) {
         $notesFilterSql .= ' AND n.counselor_id = ?';
-        $notesParams[] = $userId;
+        $notesParams[] = $counselorId;
     }
     if ($hasDateFilter) {
         $notesFilterSql .= ' AND n.session_date BETWEEN ? AND ?';
@@ -4195,9 +4538,9 @@ function guidanceReportsSummaryData(array $user, string $startDate = '', string 
 
     $trendParams = [];
     $trendFilterSql = '';
-    if ($isCounselor) {
+    if ($counselorId > 0) {
         $trendFilterSql .= ' AND c.counselor_id = ?';
-        $trendParams[] = $userId;
+        $trendParams[] = $counselorId;
     }
     $trendStmt = $db->prepare(
         "SELECT DATE_FORMAT(c.created_at, '%Y-%m') AS month_label, COUNT(*) AS opened, "
@@ -4246,6 +4589,86 @@ function guidanceReportsSummaryData(array $user, string $startDate = '', string 
 
     $activeCases = (int)($byStatus['open'] ?? 0) + (int)($byStatus['in_progress'] ?? 0) + (int)($byStatus['on_hold'] ?? 0);
 
+    // ── New overview data ────────────────────────────────────────────────
+
+    // Probationary student count
+    $probStmt = $db->prepare(
+        "SELECT COUNT(*) FROM gm_cases c WHERE c.deleted_at IS NULL AND c.student_status = 'probationary'" . $caseFilterSql
+    );
+    $probStmt->execute($caseParams);
+    $probationaryCount = (int)($probStmt->fetchColumn() ?: 0);
+
+    // New cases in last 7 days (delta indicator)
+    $deltaQ = "SELECT COUNT(*) FROM gm_cases c WHERE c.deleted_at IS NULL AND c.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
+        . ($counselorId > 0 ? ' AND c.counselor_id = ?' : '');
+    $deltaStmt = $db->prepare($deltaQ);
+    $deltaStmt->execute($counselorId > 0 ? [$counselorId] : []);
+    $deltaLastWeek = (int)($deltaStmt->fetchColumn() ?: 0);
+
+    // Sessions by appointment status (for Sessions by Status donut)
+    $sessStatusStmt = $db->prepare(
+        "SELECT
+            SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END)                     AS completed,
+            SUM(CASE WHEN a.status = 'no_show'   THEN 1 ELSE 0 END)                     AS no_show,
+            SUM(CASE WHEN a.status IN ('cancelled','rejected') THEN 1 ELSE 0 END)       AS cancelled,
+            SUM(CASE WHEN a.status IN ('scheduled','confirmed','in_progress') THEN 1 ELSE 0 END) AS in_progress,
+            COUNT(*) AS total
+         FROM gm_appointments a WHERE 1=1" . $apptFilterSql
+    );
+    $sessStatusStmt->execute($apptParams);
+    $sessStatusRow = $sessStatusStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $sessTotal = (int)($sessStatusRow['total'] ?? 0);
+
+    // Weekly session trend (last 5 weeks, for Sessions Over Time line chart)
+    $weeklyParams = $counselorId > 0 ? [$counselorId] : [];
+    $weeklyStmt   = $db->prepare(
+        "SELECT YEARWEEK(a.scheduled_date, 1) AS wk,
+                MIN(a.scheduled_date) AS week_start,
+                COUNT(*) AS cnt
+         FROM gm_appointments a
+         WHERE a.scheduled_date >= DATE_SUB(CURDATE(), INTERVAL 5 WEEK)"
+        . ($counselorId > 0 ? ' AND a.counselor_id = ?' : '') .
+        " GROUP BY wk ORDER BY wk ASC"
+    );
+    $weeklyStmt->execute($weeklyParams);
+    $weeklyRows  = $weeklyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $weeklyTrend = [];
+    foreach ($weeklyRows as $wr) {
+        $ws            = (string)($wr['week_start'] ?? '');
+        $weeklyTrend[] = [
+            'label' => $ws !== '' ? date('M j', strtotime($ws)) . '–' . date('M j', strtotime($ws . ' +6 days')) : '',
+            'count' => (int)($wr['cnt'] ?? 0),
+        ];
+    }
+
+    // Top 5 students by session count (respects all active filters)
+    $topStudentsParams = $counselorId > 0 ? [$counselorId] : [];
+    $topStmt           = $db->prepare(
+        "SELECT c.id, c.student_name, c.case_number, c.student_grade, c.severity, c.student_status,
+                COALESCE(col.code,'') AS college_code,
+                COUNT(n.id) AS session_count,
+                MAX(n.session_date) AS last_session
+         FROM gm_cases c
+         LEFT JOIN gm_counselor_notes n ON n.case_id = c.id
+         LEFT JOIN gm_colleges col ON c.college_id = col.id
+         WHERE c.deleted_at IS NULL"
+        . ($counselorId > 0 ? ' AND c.counselor_id = ?' : '') .
+        " GROUP BY c.id, c.student_name, c.case_number, c.student_grade, c.severity, c.student_status, col.code
+          ORDER BY session_count DESC LIMIT 5"
+    );
+    $topStmt->execute($topStudentsParams);
+    $topStudentsRaw = $topStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $topStudents    = [];
+    foreach ($topStudentsRaw as $rank => $ts) {
+        $ts['rank']    = $rank + 1;
+        $topStudents[] = $ts;
+    }
+
+    // Low/moderate/high risk percentages
+    $lowRisk      = (int)($bySeverity['low'] ?? 0);
+    $moderateRisk = (int)($bySeverity['medium'] ?? 0);
+    $highRisk     = (int)($bySeverity['high'] ?? 0) + (int)($bySeverity['critical'] ?? 0);
+
     return [
         'summary' => [
             'total_cases' => $totalCases,
@@ -4257,6 +4680,29 @@ function guidanceReportsSummaryData(array $user, string $startDate = '', string 
             'total_notes' => $totalNotes,
             'total_session_hours' => round($totalSessionMinutes / 60, 1),
         ],
+        'students' => [
+            'total'             => $totalCases,
+            'low_risk'          => $lowRisk,
+            'low_risk_pct'      => $totalCases > 0 ? round(($lowRisk / $totalCases) * 100, 1) : 0,
+            'moderate_risk'     => $moderateRisk,
+            'moderate_risk_pct' => $totalCases > 0 ? round(($moderateRisk / $totalCases) * 100, 1) : 0,
+            'high_risk'         => $highRisk,
+            'high_risk_pct'     => $totalCases > 0 ? round(($highRisk / $totalCases) * 100, 1) : 0,
+            'probationary'      => $probationaryCount,
+            'probationary_pct'  => $totalCases > 0 ? round(($probationaryCount / $totalCases) * 100, 1) : 0,
+            'delta_last_week'   => $deltaLastWeek,
+        ],
+        'sessions_by_status' => [
+            'completed'  => (int)($sessStatusRow['completed']  ?? 0),
+            'no_show'    => (int)($sessStatusRow['no_show']    ?? 0),
+            'cancelled'  => (int)($sessStatusRow['cancelled']  ?? 0),
+            'in_progress'=> (int)($sessStatusRow['in_progress']?? 0),
+            'total'      => $sessTotal,
+        ],
+        'weekly_trend'      => $weeklyTrend,
+        'trend_labels_json' => json_encode(array_column($weeklyTrend, 'label'), JSON_UNESCAPED_UNICODE),
+        'trend_counts_json' => json_encode(array_column($weeklyTrend, 'count')),
+        'top_students'      => $topStudents,
         'by_status' => $byStatus,
         'by_severity' => $bySeverity,
         'by_category' => $byCategory,
@@ -4287,7 +4733,11 @@ function apiGuidanceReportsSummary(): void
         $data = guidanceReportsSummaryData(
             $user,
             (string)guidanceInput('start_date', ''),
-            (string)guidanceInput('end_date', '')
+            (string)guidanceInput('end_date', ''),
+            (int)guidanceInput('college_id', 0),
+            trim((string)guidanceInput('year_level', '')),
+            trim((string)guidanceInput('student_status', '')),
+            (int)guidanceInput('counselor_id', 0)
         );
 
         if (guidanceIsHtmx()) {
@@ -4324,7 +4774,11 @@ function apiGuidanceReportsExport(): void
         $data = guidanceReportsSummaryData(
             $user,
             (string)guidanceInput('start_date', ''),
-            (string)guidanceInput('end_date', '')
+            (string)guidanceInput('end_date', ''),
+            (int)guidanceInput('college_id', 0),
+            trim((string)guidanceInput('year_level', '')),
+            trim((string)guidanceInput('student_status', '')),
+            (int)guidanceInput('counselor_id', 0)
         );
 
         $filename = 'guidance-reports';
@@ -4442,6 +4896,271 @@ function apiGuidanceReportsExport(): void
         echo 'Failed to export reports';
         return;
     }
+}
+
+// ── Reports Tab: Student Reports ──────────────────────────────────────────────
+function apiGuidanceReportStudents(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $db   = guidanceDb();
+
+    $startDate    = trim((string)guidanceInput('start_date', ''));
+    $endDate      = trim((string)guidanceInput('end_date', ''));
+    $collegeId    = (int)guidanceInput('college_id', 0);
+    $yearLevel    = trim((string)guidanceInput('year_level', ''));
+    $studentStatus = trim((string)guidanceInput('student_status', ''));
+    $counselorId  = (int)guidanceInput('counselor_id', 0);
+    $role         = (string)($user['role'] ?? '');
+    $userId       = (int)($user['id'] ?? 0);
+    if ($role === 'counselor' && $userId > 0) {
+        $counselorId = $userId;
+    }
+
+    $where  = ['c.deleted_at IS NULL'];
+    $params = [];
+    if ($counselorId > 0)   { $where[] = 'c.counselor_id = ?';    $params[] = $counselorId; }
+    if ($startDate !== '' && $endDate !== '') {
+        $where[] = 'c.created_at BETWEEN ? AND ?';
+        $params[] = $startDate . ' 00:00:00';
+        $params[] = $endDate . ' 23:59:59';
+    }
+    if ($collegeId > 0)     { $where[] = 'c.college_id = ?';      $params[] = $collegeId; }
+    if ($yearLevel !== '')  { $where[] = 'c.student_grade = ?';    $params[] = $yearLevel; }
+    if ($studentStatus !== '') { $where[] = 'c.student_status = ?'; $params[] = $studentStatus; }
+
+    $sql = "SELECT c.id, c.case_number, c.student_name, c.student_grade, c.student_status,
+                   c.severity, c.status,
+                   COALESCE(col.code,'—') AS college_code,
+                   CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,'')) AS counselor_name,
+                   COUNT(n.id) AS session_count,
+                   MAX(n.session_date) AS last_session,
+                   c.created_at
+            FROM gm_cases c
+            LEFT JOIN gm_colleges col ON c.college_id = col.id
+            LEFT JOIN gm_users u ON c.counselor_id = u.id
+            LEFT JOIN gm_counselor_notes n ON n.case_id = c.id
+            WHERE " . implode(' AND ', $where) . "
+            GROUP BY c.id, c.case_number, c.student_name, c.student_grade, c.student_status,
+                     c.severity, c.status, col.code, u.first_name, u.last_name, c.created_at
+            ORDER BY c.created_at DESC LIMIT 200";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $students = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/reports-students.disyl', [
+        'students'       => $students,
+        'has_date_filter' => $startDate !== '' && $endDate !== '',
+        'start_date'     => $startDate,
+        'end_date'       => $endDate,
+    ]);
+}
+
+// ── Reports Tab: Session Reports ──────────────────────────────────────────────
+function apiGuidanceReportSessions(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $db   = guidanceDb();
+
+    $startDate   = trim((string)guidanceInput('start_date', ''));
+    $endDate     = trim((string)guidanceInput('end_date', ''));
+    $collegeId   = (int)guidanceInput('college_id', 0);
+    $yearLevel   = trim((string)guidanceInput('year_level', ''));
+    $counselorId = (int)guidanceInput('counselor_id', 0);
+    $role        = (string)($user['role'] ?? '');
+    $userId      = (int)($user['id'] ?? 0);
+    if ($role === 'counselor' && $userId > 0) {
+        $counselorId = $userId;
+    }
+
+    $where  = ['1=1'];
+    $params = [];
+    if ($counselorId > 0) { $where[] = 'n.counselor_id = ?'; $params[] = $counselorId; }
+    if ($startDate !== '' && $endDate !== '') {
+        $where[] = 'n.session_date BETWEEN ? AND ?';
+        $params[] = $startDate;
+        $params[] = $endDate;
+    }
+    if ($collegeId > 0)    { $where[] = 'c.college_id = ?';  $params[] = $collegeId; }
+    if ($yearLevel !== '') { $where[] = 'c.student_grade = ?'; $params[] = $yearLevel; }
+
+    $sql = "SELECT n.id, n.session_date, n.session_type, n.note_type,
+                   n.session_duration_minutes, n.risk_level,
+                   c.student_name, c.case_number, c.student_grade, c.student_status,
+                   COALESCE(col.code,'—') AS college_code,
+                   CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,'')) AS counselor_name
+            FROM gm_counselor_notes n
+            LEFT JOIN gm_cases c ON n.case_id = c.id
+            LEFT JOIN gm_colleges col ON c.college_id = col.id
+            LEFT JOIN gm_users u ON n.counselor_id = u.id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY n.session_date DESC LIMIT 200";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/reports-sessions.disyl', [
+        'sessions'       => $sessions,
+        'has_date_filter' => $startDate !== '' && $endDate !== '',
+        'start_date'     => $startDate,
+        'end_date'       => $endDate,
+    ]);
+}
+
+// ── Reports Tab: Appointment Reports ─────────────────────────────────────────
+function apiGuidanceReportAppointments(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $db   = guidanceDb();
+
+    $startDate   = trim((string)guidanceInput('start_date', ''));
+    $endDate     = trim((string)guidanceInput('end_date', ''));
+    $collegeId   = (int)guidanceInput('college_id', 0);
+    $counselorId = (int)guidanceInput('counselor_id', 0);
+    $role        = (string)($user['role'] ?? '');
+    $userId      = (int)($user['id'] ?? 0);
+    if ($role === 'counselor' && $userId > 0) {
+        $counselorId = $userId;
+    }
+
+    $where  = ['1=1'];
+    $params = [];
+    if ($counselorId > 0) { $where[] = 'a.counselor_id = ?'; $params[] = $counselorId; }
+    if ($startDate !== '' && $endDate !== '') {
+        $where[] = 'a.scheduled_date BETWEEN ? AND ?';
+        $params[] = $startDate;
+        $params[] = $endDate;
+    }
+    if ($collegeId > 0) { $where[] = 'c.college_id = ?'; $params[] = $collegeId; }
+
+    $sql = "SELECT a.id, a.scheduled_date, a.scheduled_time, a.status,
+                   COALESCE(a.student_name, c.student_name, '—') AS student_name,
+                   c.case_number, c.student_grade,
+                   COALESCE(col.code,'—') AS college_code,
+                   CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,'')) AS counselor_name
+            FROM gm_appointments a
+            LEFT JOIN gm_cases c ON a.case_id = c.id
+            LEFT JOIN gm_colleges col ON c.college_id = col.id
+            LEFT JOIN gm_users u ON a.counselor_id = u.id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY a.scheduled_date DESC, a.scheduled_time DESC LIMIT 200";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Status summary counts
+    $counts = ['completed' => 0, 'scheduled' => 0, 'confirmed' => 0,
+               'no_show' => 0, 'cancelled' => 0];
+    foreach ($appointments as $a) {
+        $s = (string)($a['status'] ?? '');
+        if (isset($counts[$s])) {
+            $counts[$s]++;
+        }
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/reports-appointments.disyl', [
+        'appointments'   => $appointments,
+        'counts'         => $counts,
+        'has_date_filter' => $startDate !== '' && $endDate !== '',
+        'start_date'     => $startDate,
+        'end_date'       => $endDate,
+    ]);
+}
+
+// ── Reports Tab: Risk & Status Reports ───────────────────────────────────────
+function apiGuidanceReportRisk(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $db   = guidanceDb();
+
+    $startDate    = trim((string)guidanceInput('start_date', ''));
+    $endDate      = trim((string)guidanceInput('end_date', ''));
+    $collegeId    = (int)guidanceInput('college_id', 0);
+    $counselorId  = (int)guidanceInput('counselor_id', 0);
+    $role         = (string)($user['role'] ?? '');
+    $userId       = (int)($user['id'] ?? 0);
+    if ($role === 'counselor' && $userId > 0) {
+        $counselorId = $userId;
+    }
+
+    $caseWhere = ['c.deleted_at IS NULL'];
+    $caseParams = [];
+    if ($counselorId > 0) { $caseWhere[] = 'c.counselor_id = ?'; $caseParams[] = $counselorId; }
+    if ($startDate !== '' && $endDate !== '') {
+        $caseWhere[] = 'c.created_at BETWEEN ? AND ?';
+        $caseParams[] = $startDate . ' 00:00:00';
+        $caseParams[] = $endDate . ' 23:59:59';
+    }
+    if ($collegeId > 0) { $caseWhere[] = 'c.college_id = ?'; $caseParams[] = $collegeId; }
+
+    // Status breakdown
+    $stmt = $db->prepare("SELECT c.student_status, COUNT(*) AS cnt FROM gm_cases c WHERE "
+        . implode(' AND ', $caseWhere) . " GROUP BY c.student_status ORDER BY cnt DESC");
+    $stmt->execute($caseParams);
+    $byStatus = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Severity breakdown
+    $stmt = $db->prepare("SELECT c.severity, COUNT(*) AS cnt FROM gm_cases c WHERE "
+        . implode(' AND ', $caseWhere) . " GROUP BY c.severity ORDER BY cnt DESC");
+    $stmt->execute($caseParams);
+    $bySeverity = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Risk level from notes
+    $noteWhere = ["n.risk_level IS NOT NULL AND n.risk_level != '' AND n.risk_level != 'none'"];
+    $noteParams = [];
+    if ($counselorId > 0) { $noteWhere[] = 'n.counselor_id = ?'; $noteParams[] = $counselorId; }
+    if ($startDate !== '' && $endDate !== '') {
+        $noteWhere[] = 'n.session_date BETWEEN ? AND ?';
+        $noteParams[] = $startDate;
+        $noteParams[] = $endDate;
+    }
+    $stmt = $db->prepare("SELECT n.risk_level, COUNT(*) AS cnt FROM gm_counselor_notes n WHERE "
+        . implode(' AND ', $noteWhere) . " GROUP BY n.risk_level ORDER BY cnt DESC");
+    $stmt->execute($noteParams);
+    $byRisk = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // High-risk students (severity high/critical + active)
+    $highWhere = array_merge($caseWhere, ["c.severity IN ('high','critical')", "c.status NOT IN ('closed','archived')"]);
+    $stmt = $db->prepare(
+        "SELECT c.id, c.case_number, c.student_name, c.student_grade, c.severity, c.student_status,
+                COALESCE(col.code,'—') AS college_code,
+                CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,'')) AS counselor_name
+         FROM gm_cases c
+         LEFT JOIN gm_colleges col ON c.college_id = col.id
+         LEFT JOIN gm_users u ON c.counselor_id = u.id
+         WHERE " . implode(' AND ', $highWhere) . " ORDER BY c.severity DESC, c.created_at DESC LIMIT 50"
+    );
+    $stmt->execute($caseParams);
+    $highRiskStudents = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/reports-risk.disyl', [
+        'by_status'         => $byStatus,
+        'by_severity'       => $bySeverity,
+        'by_risk'           => $byRisk,
+        'high_risk_students' => $highRiskStudents,
+        'has_date_filter'   => $startDate !== '' && $endDate !== '',
+        'start_date'        => $startDate,
+        'end_date'          => $endDate,
+    ]);
+}
+
+// ── Reports Tab: Exported Reports ─────────────────────────────────────────────
+function apiGuidanceReportExported(): void
+{
+    $user    = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $ctx     = guidanceBasePageContext($user, 'Reports', 'reports');
+    $baseUrl = $ctx['base_url'] ?? '';
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/reports-exported.disyl', [
+        'base_url' => $baseUrl,
+    ]);
 }
 
 function guidanceSendDocx(string $downloadName, string $tmpPath): void
@@ -4732,31 +5451,206 @@ function downloadGuidanceAppointmentsDocx(): void
 function pageGuidanceTrackers(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
-    echo guidanceRender('modules/guidance/pages/trackers.disyl', guidanceBasePageContext($user, 'Student Tracker', 'trackers'));
+    $db   = guidanceDb();
+
+    $colleges = [];
+    try {
+        $stmt = $db->query("SELECT id, code, name FROM gm_colleges WHERE is_active = 1 ORDER BY sort_order, name");
+        $colleges = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    } catch (Throwable $e) {
+        $colleges = [];
+    }
+
+    $stats         = ['total' => 0, 'active' => 0, 'students' => 0, 'pending' => 0];
+    $academicYears = [];
+    try {
+        $r = $db->query("SELECT COUNT(*) AS total, SUM(is_active) AS active FROM gm_trackers");
+        if ($r) {
+            $agg = $r->fetch(PDO::FETCH_ASSOC);
+            $stats['total']  = (int)($agg['total'] ?? 0);
+            $stats['active'] = (int)($agg['active'] ?? 0);
+        }
+        $r2 = $db->query("SELECT COUNT(*) FROM gm_tracker_students");
+        $stats['students'] = (int)($r2 ? $r2->fetchColumn() : 0);
+        $r3 = $db->query("SELECT COUNT(*) FROM gm_tracker_submissions WHERE status = 'pending'");
+        $stats['pending'] = (int)($r3 ? $r3->fetchColumn() : 0);
+        $r4 = $db->query("SELECT DISTINCT academic_year FROM gm_trackers WHERE academic_year IS NOT NULL ORDER BY academic_year DESC");
+        $academicYears = $r4 ? $r4->fetchAll(PDO::FETCH_COLUMN) : [];
+    } catch (Throwable $e) {
+        // leave defaults
+    }
+
+    echo guidanceRender('modules/guidance/pages/trackers.disyl', guidanceBasePageContext($user, 'Student Tracker', 'trackers') + [
+        'colleges'       => $colleges,
+        'stats'          => $stats,
+        'academic_years' => $academicYears,
+    ]);
 }
 
 function apiGuidanceTrackers(): void
 {
-    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
     $db = guidanceDb();
-    try {
-        $stmt = $db->query(
-            "SELECT t.*, c.name AS college_name,\n"
-            . "(SELECT COUNT(*) FROM gm_tracker_students s WHERE s.tracker_id = t.id) AS student_count\n"
-            . "FROM gm_trackers t\n"
-            . "LEFT JOIN gm_colleges c ON t.college_id = c.id\n"
-            . "ORDER BY t.is_active DESC, t.updated_at DESC"
-        );
-        $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
-    } catch (Throwable $e) {
-        $rows = [];
+
+    $search  = trim((string)($_GET['search'] ?? ''));
+    $status  = trim((string)($_GET['status'] ?? ''));
+    $acYear  = trim((string)($_GET['academic_year'] ?? ''));
+    $sort    = trim((string)($_GET['sort'] ?? 'newest'));
+    $page    = max(1, (int)($_GET['page'] ?? 1));
+    $perPage = 10;
+
+    $cacheKey = 'guidance_trackers_' . md5($search . '|' . $status . '|' . $acYear . '|' . $sort . '|' . $page);
+    $cache    = app()->cache();
+    $cached   = $cache->get('guidance', $cacheKey);
+    if ($cached !== null) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo $cached['html'];
+        return;
     }
 
-    header('Content-Type: text/html; charset=utf-8');
-    echo guidanceRender('modules/guidance/partials/trackers-table.disyl', [
-        'trackers' => $rows,
-        'base_url' => '/admin/guidance',
+    $where  = [];
+    $params = [];
+    if ($search !== '') {
+        $where[]  = "(t.name LIKE ? OR t.description LIKE ?)";
+        $params[] = '%' . $search . '%';
+        $params[] = '%' . $search . '%';
+    }
+    if ($status === 'active') {
+        $where[] = "t.is_active = 1";
+    } elseif ($status === 'inactive') {
+        $where[] = "t.is_active = 0";
+    }
+    if ($acYear !== '') {
+        $where[]  = "t.academic_year = ?";
+        $params[] = $acYear;
+    }
+    $whereClause = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+    $orderMap = [
+        'newest'    => 't.updated_at DESC',
+        'oldest'    => 't.updated_at ASC',
+        'name_asc'  => 't.name ASC',
+        'name_desc' => 't.name DESC',
+    ];
+    $orderBy = $orderMap[$sort] ?? 't.updated_at DESC';
+
+    $rows       = [];
+    $total      = 0;
+    $totalPages = 1;
+    try {
+        $cStmt = $db->prepare("SELECT COUNT(*) FROM gm_trackers t $whereClause");
+        $cStmt->execute($params);
+        $total      = (int)$cStmt->fetchColumn();
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $page       = min($page, $totalPages);
+        $offset     = ($page - 1) * $perPage;
+
+        $sql = "SELECT t.*, c.name AS college_name,
+            COALESCE((SELECT COUNT(*) FROM gm_tracker_students s WHERE s.tracker_id = t.id), 0) AS student_count,
+            COALESCE((SELECT COUNT(*) FROM gm_tracker_items i WHERE i.tracker_id = t.id), 0) AS item_count,
+            COALESCE((SELECT COUNT(*) FROM gm_tracker_submissions sub
+                      JOIN gm_tracker_students ts ON sub.tracker_student_id = ts.id
+                      WHERE ts.tracker_id = t.id AND sub.status = 'verified'), 0) AS submitted_count,
+            COALESCE((SELECT COUNT(*) FROM gm_tracker_submissions sub
+                      JOIN gm_tracker_students ts ON sub.tracker_student_id = ts.id
+                      WHERE ts.tracker_id = t.id AND sub.status = 'pending'), 0) AS pending_count,
+            COALESCE((SELECT COUNT(*) FROM gm_tracker_submissions sub
+                      JOIN gm_tracker_students ts ON sub.tracker_student_id = ts.id
+                      WHERE ts.tracker_id = t.id AND sub.status = 'submitted'), 0) AS in_review_count
+            FROM gm_trackers t
+            LEFT JOIN gm_colleges c ON t.college_id = c.id
+            $whereClause
+            ORDER BY $orderBy
+            LIMIT $perPage OFFSET $offset";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        // leave defaults
+    }
+
+    // Compute display fields per row
+    $iconBgs     = ['bg-teal-500','bg-purple-500','bg-orange-500','bg-blue-500','bg-indigo-500','bg-rose-500'];
+    $iconClasses = ['fa-file-alt','fa-user-graduate','fa-graduation-cap','fa-shield-alt','fa-exchange-alt','fa-clipboard-list'];
+    foreach ($rows as &$row) {
+        $sc  = (int)$row['student_count'];
+        $ic  = (int)$row['item_count'];
+        $sub = (int)$row['submitted_count'];   // verified
+        $rev = (int)$row['in_review_count'];   // submitted (awaiting review)
+        $pen = (int)$row['pending_count'];
+        $totalSlots = max(1, $sc * max(1, $ic));
+        $done = $sub + $rev;
+        $row['progress_pct']  = $ic > 0 ? (int)round($done * 100 / $totalSlots) : 0;
+        $row['progress_done'] = $done;
+        $row['progress_total']= $sc;
+        $idx = (int)$row['id'] % 6;
+        $row['icon_bg']    = $iconBgs[$idx];
+        $row['icon_class'] = $iconClasses[$idx];
+        $row['updated_at_fmt'] = !empty($row['updated_at'])
+            ? date('M j, Y g:i A', strtotime((string)$row['updated_at'])) : '—';
+    }
+    unset($row);
+
+    // Pagination
+    $offset    = ($page - 1) * $perPage;
+    $from      = $total > 0 ? $offset + 1 : 0;
+    $to        = min($offset + $perPage, $total);
+    $prevPage  = $page > 1 ? $page - 1 : null;
+    $nextPage  = $page < $totalPages ? $page + 1 : null;
+    $wStart    = max(1, $page - 2);
+    $wEnd      = min($totalPages, $page + 2);
+    $pageLinks = [];
+    if ($wStart > 1) {
+        $pageLinks[] = ['num' => 1,    'active' => false, 'ellipsis' => false];
+        if ($wStart > 2) {
+            $pageLinks[] = ['num' => null, 'active' => false, 'ellipsis' => true];
+        }
+    }
+    for ($i = $wStart; $i <= $wEnd; $i++) {
+        $pageLinks[] = ['num' => $i, 'active' => ($i === $page), 'ellipsis' => false];
+    }
+    if ($wEnd < $totalPages) {
+        if ($wEnd < $totalPages - 1) {
+            $pageLinks[] = ['num' => null, 'active' => false, 'ellipsis' => true];
+        }
+        $pageLinks[] = ['num' => $totalPages, 'active' => false, 'ellipsis' => false];
+    }
+
+    $html = guidanceRender('modules/guidance/partials/trackers-table.disyl', [
+        'trackers'     => $rows,
+        'total'        => $total,
+        'total_pages'  => $totalPages,
+        'current_page' => $page,
+        'prev_page'    => $prevPage,
+        'next_page'    => $nextPage,
+        'has_prev'     => $prevPage !== null,
+        'has_next'     => $nextPage !== null,
+        'from'         => $from,
+        'to'           => $to,
+        'page_links'   => $pageLinks,
+        'base_url'     => '/admin/guidance',
     ]);
+    $cache->setWithTags('guidance', $cacheKey, ['html' => $html], ['guidance:trackers'], 180);
+    header('Content-Type: text/html; charset=utf-8');
+    echo $html;
+}
+
+function apiGuidanceToggleTracker(array $params = []): void
+{
+    guidanceRequireStaff(['admin', 'supervisor']);
+    $id = (int)($params['id'] ?? 0);
+    if ($id < 1) {
+        http_response_code(404);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Tracker not found', 'type' => 'error']]));
+        echo '';
+        return;
+    }
+    $db   = guidanceDb();
+    $stmt = $db->prepare("UPDATE gm_trackers SET is_active = 1 - is_active, updated_at = NOW() WHERE id = ?");
+    $stmt->execute([$id]);
+    guidanceClearTrackerCache();
+    header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Tracker updated', 'type' => 'success'], 'refreshTrackers' => true]));
+    echo '';
 }
 
 function modalGuidanceTrackerNew(): void
@@ -4830,8 +5724,26 @@ function apiGuidanceCreateTracker(): void
         $isActive,
         $userId,
     ]);
+    $trackerId = (int)$db->lastInsertId();
+
+    // Insert initial document items if provided
+    $items = is_array($input['items'] ?? null) ? $input['items'] : [];
+    if ($trackerId > 0 && !empty($items)) {
+        $itemStmt = $db->prepare(
+            'INSERT INTO gm_tracker_items (tracker_id, name, is_required, sort_order, created_at) VALUES (?, ?, 1, ?, NOW())'
+        );
+        $sortOrder = 0;
+        foreach ($items as $itemName) {
+            $itemName = trim((string)$itemName);
+            if ($itemName === '') {
+                continue;
+            }
+            $itemStmt->execute([$trackerId, $itemName, $sortOrder++]);
+        }
+    }
 
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Tracker created', 'type' => 'success'], 'refreshTrackers' => true]));
+    guidanceClearTrackerCache();
     echo '';
 }
 
@@ -4871,6 +5783,7 @@ function apiGuidanceUpdateTracker(array $params = []): void
     ]);
 
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Tracker updated', 'type' => 'success'], 'refreshTrackers' => true]));
+    guidanceClearTrackerCache();
     echo '';
 }
 
@@ -4886,6 +5799,7 @@ function apiGuidanceDeleteTracker(array $params = []): void
     }
     $db = guidanceDb();
     $db->prepare("DELETE FROM gm_trackers WHERE id = ?")->execute([$id]);
+    guidanceClearTrackerCache();
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Tracker deleted', 'type' => 'success'], 'refreshTrackers' => true]));
     echo '';
 }
@@ -9040,6 +9954,15 @@ function apiGuidanceDashboardStats(): void
     $isCounselor = $role === 'counselor';
     $counselorId = $isCounselor && is_array($user) ? (int)($user['id'] ?? 0) : null;
 
+    $cacheKey = $isCounselor ? 'guidance_dashboard_stats_c' . (int)$counselorId : 'guidance_dashboard_stats_all';
+    $cache    = app()->cache();
+    $cached   = $cache->get('guidance', $cacheKey);
+    if ($cached !== null) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo $cached['html'];
+        return;
+    }
+
     $db = guidanceDb();
     $today = date('Y-m-d');
     $monthStart = date('Y-m-01');
@@ -9100,11 +10023,13 @@ function apiGuidanceDashboardStats(): void
     $stmt->execute(array_merge([$today], $caseParams));
     $stats['overdue_followups'] = (int)$stmt->fetchColumn();
 
-    header('Content-Type: text/html; charset=utf-8');
-    echo guidanceRender('modules/guidance/partials/stats-cards.disyl', [
+    $html = guidanceRender('modules/guidance/partials/stats-cards.disyl', [
         'stats' => $stats,
         'base_url' => '/admin/guidance',
     ]);
+    $cache->setWithTags('guidance', $cacheKey, ['html' => $html], ['guidance:stats'], 300);
+    header('Content-Type: text/html; charset=utf-8');
+    echo $html;
 }
 
 function apiGuidanceRecentCases(): void
@@ -9116,18 +10041,25 @@ function apiGuidanceRecentCases(): void
     $counselorId = $isCounselor && is_array($user) ? (int)($user['id'] ?? 0) : null;
 
     $db = guidanceDb();
-    $filter = "deleted_at IS NULL";
+    $filter = "c.deleted_at IS NULL";
     $params = [];
     if ($isCounselor && $counselorId) {
-        $filter .= " AND counselor_id = ?";
+        $filter .= " AND c.counselor_id = ?";
         $params[] = $counselorId;
     }
 
     $stmt = $db->prepare(
-        "SELECT id, case_number, student_name, student_id, status, severity, category, presenting_issue, updated_at\n"
-        . "FROM gm_cases\n"
+        "SELECT c.id, c.case_number, c.student_name, c.student_id, c.status, c.severity, c.category,\n"
+        . "       c.presenting_issue, c.updated_at, c.student_grade, c.student_status,\n"
+        . "       SUBSTRING_INDEX(c.student_name, ' ', -1) AS last_name,\n"
+        . "       TRIM(SUBSTRING_INDEX(c.student_name, ' ', 1)) AS first_name,\n"
+        . "       col.code AS college_code,\n"
+        . "       CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
+        . "FROM gm_cases c\n"
+        . "LEFT JOIN gm_users u ON c.counselor_id = u.id\n"
+        . "LEFT JOIN gm_colleges col ON c.college_id = col.id\n"
         . "WHERE {$filter}\n"
-        . "ORDER BY updated_at DESC\n"
+        . "ORDER BY c.updated_at DESC\n"
         . "LIMIT 5"
     );
     $stmt->execute($params);
@@ -9344,6 +10276,57 @@ function apiGuidanceCases(): void
     }
 }
 
+function apiGuidanceCaseStats(): void
+{
+    $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role    = (string)($user['role'] ?? '');
+    $userId  = (int)($user['id'] ?? 0);
+    $isCounselor = $role === 'counselor';
+
+    $cacheKey = $isCounselor ? 'guidance_case_stats_c' . $userId : 'guidance_case_stats_all';
+    $cache    = app()->cache();
+    $cached   = $cache->get('guidance', $cacheKey);
+    if ($cached !== null) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo $cached['html'];
+        return;
+    }
+
+    $db = guidanceDb();
+
+    try {
+        $roleWhere  = 'c.deleted_at IS NULL';
+        $roleParams = [];
+        if ($isCounselor) {
+            $roleWhere   .= ' AND c.counselor_id = ?';
+            $roleParams[] = $userId;
+        }
+
+        $stmt = $db->prepare(
+            "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN c.severity = 'low'                     THEN 1 ELSE 0 END) AS low_risk,
+                SUM(CASE WHEN c.severity = 'medium'                  THEN 1 ELSE 0 END) AS moderate_risk,
+                SUM(CASE WHEN c.severity IN ('high','critical')       THEN 1 ELSE 0 END) AS high_risk,
+                SUM(CASE WHEN c.student_status = 'probationary'      THEN 1 ELSE 0 END) AS probationary
+            FROM gm_cases c WHERE {$roleWhere}"
+        );
+        $stmt->execute($roleParams);
+        $row   = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $stats = array_map('intval', $row);
+
+        $html = guidanceRender('modules/guidance/partials/case-stats-sidebar.disyl', [
+            'stats' => $stats,
+        ]);
+        $cache->setWithTags('guidance', $cacheKey, ['html' => $html], ['guidance:case-stats', 'guidance:stats'], 300);
+        header('Content-Type: text/html; charset=utf-8');
+        echo $html;
+    } catch (Throwable $e) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<div class="p-4 text-sm text-red-500">Failed to load stats</div>';
+    }
+}
+
 function apiGuidancePendingAppointments(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
@@ -9382,6 +10365,7 @@ function apiGuidancePendingAppointments(): void
 function apiGuidanceApproveAppointment(array $params): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
     $role = is_array($user) ? (string)($user['role'] ?? '') : '';
     $userId = is_array($user) ? (int)($user['id'] ?? 0) : 0;
 
@@ -9478,6 +10462,8 @@ function apiGuidanceApproveAppointment(array $params): void
     }
 
     if (guidanceIsHtmx()) {
+        guidanceClearAppointmentStatsCache();
+        guidanceClearCaseStatsCache();
         guidanceHtmxResponse([
             'trigger' => json_encode([
                 'approvalChanged' => ['id' => $apptId, 'action' => 'approved', 'case_id' => $caseId],
@@ -9490,6 +10476,8 @@ function apiGuidanceApproveAppointment(array $params): void
         return;
     }
 
+    guidanceClearAppointmentStatsCache();
+    guidanceClearCaseStatsCache();
     header('Content-Type: application/json');
     echo json_encode(['ok' => true, 'case_id' => $caseId]);
 }
@@ -9497,6 +10485,7 @@ function apiGuidanceApproveAppointment(array $params): void
 function apiGuidanceRejectAppointment(array $params): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
     $role = is_array($user) ? (string)($user['role'] ?? '') : '';
     $userId = is_array($user) ? (int)($user['id'] ?? 0) : 0;
 
@@ -9564,6 +10553,7 @@ function apiGuidanceRejectAppointment(array $params): void
     }
 
     if (guidanceIsHtmx()) {
+        guidanceClearAppointmentStatsCache();
         guidanceHtmxResponse([
             'trigger' => json_encode(['approvalChanged' => ['id' => $apptId, 'action' => 'rejected']]),
         ]);
@@ -9572,6 +10562,7 @@ function apiGuidanceRejectAppointment(array $params): void
         return;
     }
 
+    guidanceClearAppointmentStatsCache();
     header('Content-Type: application/json');
     echo json_encode(['ok' => true]);
 }
@@ -9789,4 +10780,345 @@ function apiGuidanceResetPassword(): void {
         write_log('guidance reset-password failed: ' . $e->getMessage(), 'error');
         guidancePasswordResetError('Unable to reset password right now.', 500);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Session Records page handler
+// ---------------------------------------------------------------------------
+
+function pageGuidanceSessionRecords(): void
+{
+    guidanceRequireStaff();
+    $ctxUser = guidanceUser();
+    $db = guidanceDb();
+    $counselors = [];
+    try {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM gm_users WHERE role IN ('counselor','admin','supervisor') AND deleted_at IS NULL ORDER BY last_name, first_name");
+        $counselors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        // non-fatal
+    }
+    $appointmentTypes = [];
+    try {
+        $stmt = $db->query("SELECT id, code, name FROM gm_appointment_types WHERE is_active = 1 ORDER BY sort_order, name");
+        $appointmentTypes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        // non-fatal
+    }
+    echo guidanceRender('modules/guidance/pages/session-records.disyl', array_merge(
+        guidanceBasePageContext($ctxUser, 'Session Records', 'session-records'),
+        [
+            'counselors'        => $counselors,
+            'appointment_types' => $appointmentTypes,
+        ]
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// Appointment summary stats (upcoming/completed/pending/cancelled+no-show)
+// ---------------------------------------------------------------------------
+
+function apiGuidanceAppointmentStats(): void
+{
+    guidanceRequireStaff();
+
+    $cache    = app()->cache();
+    $cacheKey = 'guidance_appt_stats';
+    $cached   = $cache->get('guidance', $cacheKey);
+    if ($cached !== null) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo $cached['html'];
+        return;
+    }
+
+    try {
+        $db = guidanceDb();
+        $stmt = $db->query("
+            SELECT
+                SUM(CASE WHEN status IN ('scheduled','confirmed') AND cancelled_at IS NULL THEN 1 ELSE 0 END) AS upcoming,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)                                         AS completed,
+                SUM(CASE WHEN status = 'pending' AND cancelled_at IS NULL THEN 1 ELSE 0 END)                   AS pending,
+                SUM(CASE WHEN status IN ('no_show','cancelled') OR cancelled_at IS NOT NULL THEN 1 ELSE 0 END) AS cancelled_no_show
+            FROM gm_appointments
+        ");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $upcoming        = (int)($row['upcoming'] ?? 0);
+        $completed       = (int)($row['completed'] ?? 0);
+        $pending         = (int)($row['pending'] ?? 0);
+        $cancelledNoShow = (int)($row['cancelled_no_show'] ?? 0);
+
+        $cards = [
+            ['label' => 'Upcoming',            'count' => $upcoming,        'icon' => 'fa-calendar-check', 'bg' => 'bg-teal-100',   'text' => 'text-teal-700',   'num' => 'text-teal-800'],
+            ['label' => 'Completed',           'count' => $completed,       'icon' => 'fa-check-circle',   'bg' => 'bg-green-100',  'text' => 'text-green-700',  'num' => 'text-green-800'],
+            ['label' => 'Pending',             'count' => $pending,         'icon' => 'fa-hourglass-half', 'bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'num' => 'text-orange-800'],
+            ['label' => 'Cancelled / No Show', 'count' => $cancelledNoShow, 'icon' => 'fa-times-circle',   'bg' => 'bg-red-100',    'text' => 'text-red-700',    'num' => 'text-red-800'],
+        ];
+
+        $subLabels = ['Upcoming' => 'appointments', 'Completed' => 'this month', 'Pending' => 'reschedules', 'Cancelled / No Show' => 'cancelled or no-show'];
+        ob_start();
+        foreach ($cards as $c) {
+            $label    = htmlspecialchars($c['label']);
+            $subLabel = htmlspecialchars($subLabels[$c['label']] ?? '');
+            $count    = (int)$c['count'];
+            echo <<<HTML
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 min-w-0">
+                <div class="w-12 h-12 rounded-full {$c['bg']} flex items-center justify-center flex-shrink-0">
+                    <i class="fas {$c['icon']} {$c['text']} text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-2xl font-bold {$c['num']} leading-none">{$count}</div>
+                    <div class="text-xs font-medium text-gray-700 mt-0.5 truncate">{$label}</div>
+                    <div class="text-xs text-gray-400 truncate">{$subLabel}</div>
+                </div>
+            </div>
+HTML;
+        }
+        $html = ob_get_clean() ?: '';
+        $cache->setWithTags('guidance', $cacheKey, ['html' => $html], ['guidance:appointment-stats', 'guidance:stats'], 180);
+        header('Content-Type: text/html; charset=utf-8');
+        echo $html;
+
+    } catch (Throwable $e) {
+        if (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<div class="text-red-500 text-sm p-4">Failed to load appointment stats.</div>';
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Session Records summary stats (total/completed/no-show/cancelled/in-progress)
+// ---------------------------------------------------------------------------
+
+function apiGuidanceSessionRecordStats(): void
+{
+    guidanceRequireStaff();
+
+    $cache    = app()->cache();
+    $cacheKey = 'guidance_session_record_stats';
+    $cached   = $cache->get('guidance', $cacheKey);
+    if ($cached !== null) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo $cached['html'];
+        return;
+    }
+
+    try {
+        $db = guidanceDb();
+        $stmt = $db->query("
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)   AS completed,
+                SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END)     AS no_show,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END)   AS cancelled,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress
+            FROM gm_appointments
+            WHERE status IN ('completed','no_show','cancelled','in_progress')
+        ");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $total      = (int)($row['total'] ?? 0);
+        $completed  = (int)($row['completed'] ?? 0);
+        $noShow     = (int)($row['no_show'] ?? 0);
+        $cancelled  = (int)($row['cancelled'] ?? 0);
+        $inProgress = (int)($row['in_progress'] ?? 0);
+        $pct        = static fn(int $n, int $t): float => $t > 0 ? round($n / $t * 100, 1) : 0.0;
+
+        $cards = [
+            ['label' => 'Total Sessions',  'count' => $total,      'pct' => null,                       'icon' => 'fa-clipboard-list', 'bg' => 'bg-blue-100',   'text' => 'text-blue-700',   'num' => 'text-blue-800'],
+            ['label' => 'Went to Session', 'count' => $completed,  'pct' => $pct($completed, $total),   'icon' => 'fa-check-circle',   'bg' => 'bg-green-100',  'text' => 'text-green-700',  'num' => 'text-green-800'],
+            ['label' => 'Did Not Show Up', 'count' => $noShow,     'pct' => $pct($noShow, $total),      'icon' => 'fa-user-times',     'bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'num' => 'text-orange-800'],
+            ['label' => 'Cancelled',       'count' => $cancelled,  'pct' => $pct($cancelled, $total),   'icon' => 'fa-times-circle',   'bg' => 'bg-red-100',    'text' => 'text-red-700',    'num' => 'text-red-800'],
+            ['label' => 'In Progress',     'count' => $inProgress, 'pct' => $pct($inProgress, $total),  'icon' => 'fa-circle',         'bg' => 'bg-purple-100', 'text' => 'text-purple-700', 'num' => 'text-purple-800'],
+        ];
+
+        ob_start();
+        foreach ($cards as $c) {
+            $label  = htmlspecialchars($c['label']);
+            $count  = (int)$c['count'];
+            $subText = $c['pct'] !== null
+                ? '<div class="text-xs ' . $c['text'] . ' mt-0.5">' . $c['pct'] . '%</div>'
+                : '<div class="text-xs text-gray-400 mt-0.5">All time</div>';
+            echo <<<HTML
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-full {$c['bg']} flex items-center justify-center flex-shrink-0">
+                    <i class="fas {$c['icon']} {$c['text']} text-base"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-xl font-bold {$c['num']} leading-none">{$count}</div>
+                    <div class="text-xs text-gray-500 leading-tight mt-0.5 truncate">{$label}</div>
+                    {$subText}
+                </div>
+            </div>
+HTML;
+        }
+        $html = ob_get_clean() ?: '';
+        $cache->setWithTags('guidance', $cacheKey, ['html' => $html], ['guidance:appointment-stats'], 300);
+        header('Content-Type: text/html; charset=utf-8');
+        echo $html;
+
+    } catch (Throwable $e) {
+        if (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<div class="text-red-500 text-sm p-4">Failed to load session stats.</div>';
+    }
+}
+
+function apiGuidanceSessionDetail(array $params = []): void
+{
+    $ctxUser = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role    = (string)($ctxUser['role'] ?? '');
+    $userId  = (int)($ctxUser['id'] ?? 0);
+    $apptId  = (int)($params['id'] ?? 0);
+
+    if ($apptId < 1) {
+        http_response_code(404);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<div class="p-4 text-sm text-gray-500">Session not found.</div>';
+        return;
+    }
+
+    $db = guidanceDb();
+
+    try {
+        $whereExtra = '';
+        $q = [$apptId];
+        if ($role === 'counselor') {
+            $whereExtra = ' AND a.counselor_id = ?';
+            $q[] = $userId;
+        }
+
+        $stmt = $db->prepare(
+            "SELECT a.*,
+                    COALESCE(a.student_name, c.student_name) AS student_display,
+                    c.case_number, c.student_grade, c.student_status,
+                    col.code AS college_code, col.name AS college_name,
+                    CONCAT(u.first_name,' ',u.last_name) AS counselor_name,
+                    COALESCE(t.name, a.appointment_type) AS type_name
+             FROM gm_appointments a
+             LEFT JOIN gm_cases c ON a.case_id = c.id
+             LEFT JOIN gm_colleges col ON c.college_id = col.id
+             LEFT JOIN gm_users u ON a.counselor_id = u.id
+             LEFT JOIN gm_appointment_types t ON a.appointment_type_id = t.id
+             WHERE a.id = ?{$whereExtra}
+             LIMIT 1"
+        );
+        $stmt->execute($q);
+        $appt = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!is_array($appt)) {
+            http_response_code(404);
+            header('Content-Type: text/html; charset=utf-8');
+            echo '<div class="p-4 text-sm text-gray-500">Session not found.</div>';
+            return;
+        }
+
+        // Fetch latest counselor note for this case/appointment date
+        $note = null;
+        if (!empty($appt['case_id'])) {
+            $noteStmt = $db->prepare(
+                "SELECT note_content, observation_recommendation, session_type, risk_level, session_duration_minutes
+                 FROM gm_counselor_notes
+                 WHERE case_id = ? AND session_date = ?
+                 ORDER BY created_at DESC
+                 LIMIT 1"
+            );
+            $noteStmt->execute([(int)$appt['case_id'], (string)($appt['scheduled_date'] ?? '')]);
+            $note = $noteStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
+        // Fetch next appointment for same case
+        $nextAppt = null;
+        if (!empty($appt['case_id'])) {
+            $nextStmt = $db->prepare(
+                "SELECT scheduled_date, scheduled_time, COALESCE(t2.name, a2.appointment_type) AS type_name
+                 FROM gm_appointments a2
+                 LEFT JOIN gm_appointment_types t2 ON a2.appointment_type_id = t2.id
+                 WHERE a2.case_id = ? AND a2.id != ?
+                   AND a2.scheduled_date >= CURDATE()
+                   AND a2.status NOT IN ('cancelled','rejected')
+                 ORDER BY a2.scheduled_date ASC, a2.scheduled_time ASC
+                 LIMIT 1"
+            );
+            $nextStmt->execute([(int)$appt['case_id'], $apptId]);
+            $nextAppt = $nextStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
+        header('Content-Type: text/html; charset=utf-8');
+        echo guidanceRender('modules/guidance/partials/session-detail-panel.disyl', [
+            'appt'     => $appt,
+            'note'     => $note,
+            'next_appt' => $nextAppt,
+            'base_url' => '/admin/guidance',
+        ]);
+
+    } catch (Throwable $e) {
+        app()->log('Session detail error: ' . $e->getMessage(), 'error');
+        http_response_code(500);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<div class="p-4 text-sm text-red-500">Failed to load session details.</div>';
+    }
+}
+
+function apiGuidanceCasePanel(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+    if ($caseId < 1) { http_response_code(404); echo ''; return; }
+
+    $db = guidanceDb();
+
+    $whereExtra = '';
+    $q          = [$caseId];
+    if ($role === 'counselor') {
+        $whereExtra = ' AND c.counselor_id = ?';
+        $q[]        = $userId;
+    }
+
+    $stmt = $db->prepare(
+        "SELECT c.*, col.code AS college_code, col.name AS college_name,
+                CONCAT(u.first_name,' ',u.last_name) AS counselor_name
+         FROM gm_cases c
+         LEFT JOIN gm_colleges col ON c.college_id = col.id
+         LEFT JOIN gm_users u ON c.counselor_id = u.id
+         WHERE c.id = ? AND c.deleted_at IS NULL{$whereExtra}
+         LIMIT 1"
+    );
+    $stmt->execute($q);
+    $case = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!is_array($case)) {
+        http_response_code(404);
+        echo '<div class="p-4 text-sm text-gray-500">Student not found.</div>';
+        return;
+    }
+
+    $notes = [];
+    try {
+        $nStmt = $db->prepare(
+            "SELECT n.*, CONCAT(u.first_name,' ',u.last_name) AS counselor_name
+             FROM gm_counselor_notes n
+             LEFT JOIN gm_users u ON n.counselor_id = u.id
+             WHERE n.case_id = ?
+             ORDER BY n.session_date DESC, n.created_at DESC"
+        );
+        $nStmt->execute([$caseId]);
+        $notes = $nStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        // non-fatal — show panel without history
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo guidanceRender('modules/guidance/partials/case-detail-panel.disyl', [
+        'case'     => $case,
+        'notes'    => $notes,
+        'today'    => date('Y-m-d'),
+        'base_url' => '/admin/guidance',
+    ]);
 }
