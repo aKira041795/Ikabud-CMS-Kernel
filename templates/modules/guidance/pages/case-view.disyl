@@ -1,7 +1,9 @@
 {extends "modules/guidance/layouts/app.disyl"}
 
 {block content}
-<div x-data="{
+<div id="case-view-root"
+     data-case-view-id="{case.id}"
+     x-data="{
     tab: 'overview',
     apptLoaded: false,
     sessionsLoaded: false,
@@ -9,7 +11,36 @@
     docsLoaded: false,
     alertsLoaded: false,
     logLoaded: false
-}">
+}"
+     x-bind:data-active-tab="tab"
+     x-init="
+        const storageKey = 'guidance-case-tab-{case.id}';
+        const savedTab = sessionStorage.getItem(storageKey);
+        const validTabs = ['overview', 'appointments', 'session_records', 'notes', 'documents', 'alerts', 'log'];
+        if (savedTab && validTabs.includes(savedTab)) {
+            tab = savedTab;
+        }
+        $watch('tab', value => sessionStorage.setItem(storageKey, value));
+        if (tab === 'appointments' && !apptLoaded) {
+            apptLoaded = true;
+            $nextTick(() => $dispatch('load-case-appts'));
+        } else if (tab === 'session_records' && !sessionsLoaded) {
+            sessionsLoaded = true;
+            $nextTick(() => $dispatch('load-case-sessions'));
+        } else if (tab === 'notes' && !notesLoaded) {
+            notesLoaded = true;
+            $nextTick(() => $dispatch('load-case-notes'));
+        } else if (tab === 'documents' && !docsLoaded) {
+            docsLoaded = true;
+            $nextTick(() => $dispatch('load-case-docs'));
+        } else if (tab === 'alerts' && !alertsLoaded) {
+            alertsLoaded = true;
+            $nextTick(() => $dispatch('load-case-alerts'));
+        } else if (tab === 'log' && !logLoaded) {
+            logLoaded = true;
+            $nextTick(() => $dispatch('load-case-log'));
+        }
+     ">
 
 {!-- === BREADCRUMB + ACTIONS === --}
 <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
@@ -619,7 +650,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div id="case-appt-tab"
              hx-get="/admin/guidance/api/cases/{case.id}/appointments"
-             hx-trigger="load-case-appts from:body"
+               hx-trigger="load-case-appts from:body, refreshAppointments from:body"
              hx-swap="innerHTML">
             <div class="p-10 text-center text-gray-400">
                 <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading appointments...
@@ -635,7 +666,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div id="case-sessions-tab"
              hx-get="/admin/guidance/api/cases/{case.id}/session-records"
-             hx-trigger="load-case-sessions from:body"
+               hx-trigger="load-case-sessions from:body, refreshAppointments from:body, refreshNotes from:body"
              hx-swap="innerHTML">
             <div class="p-10 text-center text-gray-400">
                 <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading session records...
@@ -651,7 +682,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div id="case-notes-tab"
              hx-get="/admin/guidance/api/cases/{case.id}/notes"
-             hx-trigger="load-case-notes from:body"
+             hx-trigger="load-case-notes from:body, refreshNotes from:body"
              hx-swap="innerHTML">
             <div class="p-10 text-center text-gray-400">
                 <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading notes...
@@ -667,7 +698,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div id="case-documents-tab"
              hx-get="/admin/guidance/api/cases/{case.id}/documents"
-             hx-trigger="load-case-docs from:body"
+             hx-trigger="load-case-docs from:body, refreshDocuments from:body"
              hx-swap="innerHTML">
             <div class="p-10 text-center text-gray-400">
                 <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading documents...
@@ -700,7 +731,7 @@
         </div>
         <div id="case-log-tab"
              hx-get="/admin/guidance/api/cases/{case.id}/activity"
-             hx-trigger="load-case-log from:body"
+             hx-trigger="load, load-case-log from:body"
              hx-swap="innerHTML">
             <div class="p-10 text-center text-gray-400">
                 <i class="fas fa-spinner fa-spin text-xl mr-2"></i> Loading activity log...

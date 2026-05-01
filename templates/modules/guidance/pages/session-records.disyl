@@ -13,8 +13,8 @@
                 <i class="fas fa-clipboard-list text-blue-600 text-xl"></i>
             </div>
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Session Records</h1>
-                <p class="text-sm text-gray-500 mt-0.5">Review completed sessions and attendance outcomes.</p>
+                <h1 class="text-2xl font-bold text-gray-900">Clinical Session Records</h1>
+                <p class="text-sm text-gray-500 mt-0.5">Documentation workspace for closed counseling encounters, recorded outcomes, and session notes. Future bookings stay in Appointments.</p>
             </div>
         </div>
     </div>
@@ -25,12 +25,8 @@
          hx-trigger="load, refreshSessionRecords from:body"
          hx-swap="innerHTML"
          hx-history="false"
-         class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+         class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {!-- Loading skeleton --}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
-            <div class="h-8 bg-gray-100 rounded w-16 mb-2"></div>
-            <div class="h-4 bg-gray-100 rounded w-24"></div>
-        </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
             <div class="h-8 bg-gray-100 rounded w-16 mb-2"></div>
             <div class="h-4 bg-gray-100 rounded w-24"></div>
@@ -75,7 +71,6 @@
                 <option value="completed">Went to Session</option>
                 <option value="no_show">Did Not Show Up</option>
                 <option value="cancelled">Cancelled</option>
-                <option value="in_progress">In Progress</option>
             </select>
 
             {!-- Purpose Filter --}
@@ -135,12 +130,12 @@
     {!-- Session Records Table --}
     <div id="session-records-list"
          hx-get="{base_url}/api/appointments?session_records=1"
-         hx-trigger="load, refreshSessionRecords from:body"
+                hx-trigger="load, refreshSessionRecords from:body, refreshAppointments from:body, refreshNotes from:body"
          hx-swap="innerHTML"
          hx-history="false">
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
             <i class="fas fa-spinner fa-spin text-2xl mb-3"></i>
-            <p class="text-sm">Loading session records...</p>
+            <p class="text-sm">Loading recorded session outcomes...</p>
         </div>
     </div>
 
@@ -172,12 +167,6 @@
                     </span>
                     <span>Scheduled session was cancelled</span>
                 </div>
-                <div class="flex items-center gap-3">
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                        <i class="fas fa-circle text-[10px]"></i> In Progress
-                    </span>
-                    <span>Session is currently ongoing</span>
-                </div>
             </div>
         </div>
 
@@ -188,11 +177,11 @@
             <ul class="space-y-2 text-sm text-gray-600">
                 <li class="flex items-start gap-2">
                     <i class="fas fa-dot-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
-                    You can update the status of a session entry by clicking the action menu.
+                    Session Records is a historical view. Use Appointments to manage upcoming bookings.
                 </li>
                 <li class="flex items-start gap-2">
                     <i class="fas fa-dot-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
-                    For "Did Not Show Up" entries, you may reschedule or mark the session as completed if it happened at another time.
+                    Use the detail panel to review the linked appointment and add or edit the session record.
                 </li>
             </ul>
         </div>
@@ -202,9 +191,24 @@
 
 {block scripts}
 <script>
-    function loadSessionDetail(id) {
+    function clearSessionDetailSelection() {
         var panel = document.getElementById('session-detail-panel');
+        var list = document.getElementById('session-records-list');
+        if (list) {
+            delete list.dataset.selectedSessionId;
+        }
         if (!panel) return;
+        panel.innerHTML = '';
+        panel.style.display = 'none';
+    }
+
+    function loadSessionDetail(id, options) {
+        var panel = document.getElementById('session-detail-panel');
+        var list = document.getElementById('session-records-list');
+        if (!panel) return;
+        if (list && !(options && options.skipStore)) {
+            list.dataset.selectedSessionId = String(id);
+        }
         panel.style.display = 'block';
         panel.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-8 mt-3 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-xl mb-2"></i><p class="text-sm">Loading session details...</p></div>';
         htmx.ajax('GET', '{base_url}/api/appointments/' + id + '/session-detail', { target: '#session-detail-panel', swap: 'innerHTML' });
@@ -216,19 +220,28 @@
         var filters = form ? Object.fromEntries(new FormData(form)) : {};
         filters['session_records'] = '1';
         filters['sr_page'] = page;
+        clearSessionDetailSelection();
         htmx.ajax('GET', '{base_url}/api/appointments', { target: '#session-records-list', swap: 'innerHTML', values: filters });
-        document.getElementById('session-detail-panel').innerHTML = '';
-        document.getElementById('session-detail-panel').style.display = 'none';
     }
+
+    document.addEventListener('submit', function(evt) {
+        if (evt.target && evt.target.id === 'sr-filters') {
+            clearSessionDetailSelection();
+        }
+    });
 
     document.addEventListener('htmx:afterSettle', function(evt) {
         var target = evt.detail.elt;
         if (target && target.id === 'session-records-list') {
-            var detailPanel = document.getElementById('session-detail-panel');
-            if (detailPanel) {
-                detailPanel.innerHTML = '';
-                detailPanel.style.display = 'none';
+            var selectedSessionId = target.dataset.selectedSessionId;
+            if (selectedSessionId) {
+                requestAnimationFrame(function() {
+                    loadSessionDetail(selectedSessionId, { skipStore: true });
+                });
+                return;
             }
+
+            clearSessionDetailSelection();
         }
     });
 </script>

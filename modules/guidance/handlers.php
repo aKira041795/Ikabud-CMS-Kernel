@@ -1196,11 +1196,39 @@ function modalGuidanceAppointmentDetail(array $params = []): void
         $appt['student_name'] = $appt['case_student_name'];
     }
 
+    $canMarkOutcome = guidanceAppointmentScheduledAtReached(
+        (string)($appt['scheduled_date'] ?? ''),
+        (string)($appt['scheduled_time'] ?? '')
+    );
+
     echo guidanceRender('modules/guidance/modals/appointment-detail.disyl', [
         'appointment' => $appt,
         'case_notes' => [],
-        'base_url' => '/admin/guidance/pages',
+        'can_mark_outcome' => $canMarkOutcome,
+        'outcome_locked_reason' => 'Complete and No Show become available once the scheduled date and time is reached.',
+        'base_url' => '/admin/guidance',
     ]);
+}
+
+function guidanceAppointmentScheduledAtReached(string $date, string $time): bool
+{
+    $date = trim($date);
+    $time = trim($time);
+    if ($date === '') {
+        return false;
+    }
+    if ($time === '') {
+        $time = '00:00:00';
+    }
+
+    try {
+        $scheduledAt = new DateTimeImmutable($date . ' ' . $time);
+        $now = new DateTimeImmutable('now');
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return $scheduledAt <= $now;
 }
 
 function guidanceAppointmentConflict(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $counselorId, string $date, string $time, int $durationMinutes, int $excludeId = 0): bool
@@ -3532,29 +3560,55 @@ function apiGuidanceCaseAppointments(array $params = []): void
         return;
     }
 
-    $page    = max(1, (int)(guidanceInput()['page'] ?? 1));
+    $input = guidanceInput();
+    $page = max(1, (int)($input['page'] ?? 1));
+    $filter = strtolower(trim((string)($input['filter'] ?? 'all')));
+    $allowedFilters = [
+        'all' => 'All',
+        'upcoming' => 'Upcoming',
+        'completed' => 'Completed (Attended)',
+        'no_show' => 'Did Not Show Up',
+        'cancelled' => 'Cancelled',
+    ];
+    if (!isset($allowedFilters[$filter])) {
+        $filter = 'all';
+    }
+
     $perPage = 20;
     $offset  = ($page - 1) * $perPage;
 
-    $ctStmt = $db->prepare("SELECT COUNT(*) FROM gm_appointments WHERE case_id = ?");
-    $ctStmt->execute([$caseId]);
+    $whereSql = 'a.case_id = ?';
+    $whereParams = [$caseId];
+    if ($filter === 'upcoming') {
+        $whereSql .= " AND LOWER(TRIM(a.status)) IN ('scheduled', 'confirmed', 'pending', 'requested', 'rescheduled') AND a.scheduled_date >= CURDATE()";
+    } elseif ($filter === 'completed') {
+        $whereSql .= " AND LOWER(TRIM(a.status)) = 'completed'";
+    } elseif ($filter === 'no_show') {
+        $whereSql .= " AND LOWER(TRIM(a.status)) = 'no_show'";
+    } elseif ($filter === 'cancelled') {
+        $whereSql .= " AND LOWER(TRIM(a.status)) = 'cancelled'";
+    }
+
+    $ctStmt = $db->prepare("SELECT COUNT(*) FROM gm_appointments a WHERE {$whereSql}");
+    $ctStmt->execute($whereParams);
     $total      = (int)$ctStmt->fetchColumn();
     $totalPages = (int)ceil($total / max(1, $perPage));
 
     $aStmt = $db->prepare(
-        "SELECT a.id, a.scheduled_date, a.scheduled_time, a.duration_minutes, a.status, a.purpose,\n"
+        "SELECT a.id, a.scheduled_date, a.scheduled_time, a.duration_minutes, a.status, LOWER(TRIM(a.status)) AS status_key, a.purpose,\n"
         . "       at.name AS type_name, CONCAT(u.first_name, ' ', u.last_name) AS counselor_name\n"
         . "FROM gm_appointments a\n"
         . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
         . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
-        . "WHERE a.case_id = ?\n"
+        . "WHERE {$whereSql}\n"
         . "ORDER BY a.scheduled_date DESC, a.scheduled_time DESC\n"
         . "LIMIT {$perPage} OFFSET {$offset}"
     );
-    $aStmt->execute([$caseId]);
+    $aStmt->execute($whereParams);
     $appointments = $aStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     foreach ($appointments as &$s) {
+        $s['status_key'] = strtolower(trim((string)($s['status_key'] ?? ($s['status'] ?? ''))));
         $d = $s['scheduled_date'] ?? date('Y-m-d');
         $t = $s['scheduled_time'] ?? '00:00:00';
         try {
@@ -3584,6 +3638,8 @@ function apiGuidanceCaseAppointments(array $params = []): void
         'to'           => $to,
         'case_id'      => $caseId,
         'base_url'     => '/admin/guidance',
+        'current_filter' => $filter,
+        'current_filter_label' => $allowedFilters[$filter],
     ]);
 }
 
@@ -3621,14 +3677,13 @@ function apiGuidanceCaseSessionRecords(array $params = []): void
     $offset  = ($page - 1) * $perPage;
 
     // Total and per-status counts for stats row
-    $statsSql = "SELECT
-        COUNT(*) AS total,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS cnt_completed,
-        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS cnt_in_progress,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cnt_cancelled,
-        SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) AS cnt_no_show
-        FROM gm_appointments WHERE case_id = ?
-          AND status IN ('completed','no_show','cancelled','in_progress')";
+        $statsSql = "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS cnt_completed,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cnt_cancelled,
+                SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) AS cnt_no_show
+                FROM gm_appointments WHERE case_id = ?
+                    AND status IN ('completed','no_show','cancelled')";
     $stRow = $db->prepare($statsSql);
     $stRow->execute([$caseId]);
     $stats = $stRow->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -3643,7 +3698,7 @@ function apiGuidanceCaseSessionRecords(array $params = []): void
         . "LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id\n"
         . "LEFT JOIN gm_users u ON a.counselor_id = u.id\n"
         . "WHERE a.case_id = ?\n"
-        . "  AND a.status IN ('completed','no_show','cancelled','in_progress')\n"
+        . "  AND a.status IN ('completed','no_show','cancelled')\n"
         . "ORDER BY a.scheduled_date DESC, a.scheduled_time DESC\n"
         . "LIMIT {$perPage} OFFSET {$offset}"
     );
@@ -3679,7 +3734,6 @@ function apiGuidanceCaseSessionRecords(array $params = []): void
         'from'            => $from,
         'to'              => $to,
         'cnt_completed'   => (int)($stats['cnt_completed'] ?? 0),
-        'cnt_in_progress' => (int)($stats['cnt_in_progress'] ?? 0),
         'cnt_cancelled'   => (int)($stats['cnt_cancelled'] ?? 0),
         'cnt_no_show'     => (int)($stats['cnt_no_show'] ?? 0),
         'case_id'         => $caseId,
@@ -5323,9 +5377,9 @@ function apiGuidanceAppointments(): void
         $where = ['1=1'];
         $params = [];
 
-        // In session records mode, restrict to historical/completed statuses by default
+        // In session records mode, restrict to documented historical outcomes only.
         if ($isSessionRecords && empty($input['status'])) {
-            $where[] = "a.status IN ('completed','no_show','cancelled','in_progress')";
+            $where[] = "a.status IN ('completed','no_show','cancelled')";
         } elseif ($isSessionRecords && !empty($input['status'])) {
             $where[] = 'a.status = ?';
             $params[] = (string)$input['status'];
@@ -5403,6 +5457,11 @@ function apiGuidanceAppointments(): void
         foreach ($appointments as &$appt) {
             $appt['status_key'] = strtolower(trim((string)($appt['status_key'] ?? ($appt['status'] ?? ''))));
             $appt['counselor_name'] = trim((string)($appt['counselor_first'] ?? '') . ' ' . (string)($appt['counselor_last'] ?? ''));
+            $appt['can_mark_outcome'] = guidanceAppointmentScheduledAtReached(
+                (string)($appt['scheduled_date'] ?? ''),
+                (string)($appt['scheduled_time'] ?? '')
+            );
+            $appt['outcome_locked_reason'] = 'Available once the scheduled date and time has been reached.';
 
             if (($appt['scheduled_date'] ?? '') === $today) {
                 $appt['date_label'] = 'Today';
@@ -6188,7 +6247,6 @@ function apiGuidanceReportsExport(): void
         http_response_code(500);
         header('Content-Type: text/plain; charset=utf-8');
         echo 'Failed to export reports';
-        return;
     }
 }
 
@@ -12179,7 +12237,7 @@ HTML;
 }
 
 // ---------------------------------------------------------------------------
-// Session Records summary stats (total/completed/no-show/cancelled/in-progress)
+// Session Records summary stats (documented outcomes only)
 // ---------------------------------------------------------------------------
 
 function apiGuidanceSessionRecordStats(): void
@@ -12202,10 +12260,9 @@ function apiGuidanceSessionRecordStats(): void
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)   AS completed,
                 SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END)     AS no_show,
-                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END)   AS cancelled,
-                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END)   AS cancelled
             FROM gm_appointments
-            WHERE status IN ('completed','no_show','cancelled','in_progress')
+            WHERE status IN ('completed','no_show','cancelled')
         ");
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -12213,15 +12270,13 @@ function apiGuidanceSessionRecordStats(): void
         $completed  = (int)($row['completed'] ?? 0);
         $noShow     = (int)($row['no_show'] ?? 0);
         $cancelled  = (int)($row['cancelled'] ?? 0);
-        $inProgress = (int)($row['in_progress'] ?? 0);
         $pct        = static fn(int $n, int $t): float => $t > 0 ? round($n / $t * 100, 1) : 0.0;
 
         $cards = [
-            ['label' => 'Total Sessions',  'count' => $total,      'pct' => null,                       'icon' => 'fa-clipboard-list', 'bg' => 'bg-blue-100',   'text' => 'text-blue-700',   'num' => 'text-blue-800'],
-            ['label' => 'Went to Session', 'count' => $completed,  'pct' => $pct($completed, $total),   'icon' => 'fa-check-circle',   'bg' => 'bg-green-100',  'text' => 'text-green-700',  'num' => 'text-green-800'],
-            ['label' => 'Did Not Show Up', 'count' => $noShow,     'pct' => $pct($noShow, $total),      'icon' => 'fa-user-times',     'bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'num' => 'text-orange-800'],
-            ['label' => 'Cancelled',       'count' => $cancelled,  'pct' => $pct($cancelled, $total),   'icon' => 'fa-times-circle',   'bg' => 'bg-red-100',    'text' => 'text-red-700',    'num' => 'text-red-800'],
-            ['label' => 'In Progress',     'count' => $inProgress, 'pct' => $pct($inProgress, $total),  'icon' => 'fa-circle',         'bg' => 'bg-purple-100', 'text' => 'text-purple-700', 'num' => 'text-purple-800'],
+            ['label' => 'Recorded Outcomes', 'count' => $total,     'pct' => null,                      'icon' => 'fa-clipboard-list', 'bg' => 'bg-blue-100',   'text' => 'text-blue-700',   'num' => 'text-blue-800'],
+            ['label' => 'Went to Session',   'count' => $completed, 'pct' => $pct($completed, $total),  'icon' => 'fa-check-circle',   'bg' => 'bg-green-100',  'text' => 'text-green-700',  'num' => 'text-green-800'],
+            ['label' => 'Did Not Show Up',   'count' => $noShow,    'pct' => $pct($noShow, $total),     'icon' => 'fa-user-times',     'bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'num' => 'text-orange-800'],
+            ['label' => 'Cancelled',         'count' => $cancelled, 'pct' => $pct($cancelled, $total),  'icon' => 'fa-times-circle',   'bg' => 'bg-red-100',    'text' => 'text-red-700',    'num' => 'text-red-800'],
         ];
 
         ob_start();

@@ -1,18 +1,7 @@
 {!-- Case Appointments Tab Partial --}
 {!-- Rendered by apiGuidanceCaseAppointments --}
 
-<div x-data="{
-    filter: 'all',
-    raw: {appointments | json_attr},
-    get rows() {
-        if (this.filter === 'all')       return this.raw;
-        if (this.filter === 'upcoming')  return this.raw.filter(a => ['scheduled','confirmed','pending','requested','rescheduled'].includes(a.status));
-        if (this.filter === 'completed') return this.raw.filter(a => a.status === 'completed');
-        if (this.filter === 'no_show')   return this.raw.filter(a => a.status === 'no_show');
-        if (this.filter === 'cancelled') return this.raw.filter(a => a.status === 'cancelled');
-        return this.raw;
-    }
-}" class="overflow-hidden">
+<div class="overflow-hidden">
 
     {!-- Header --}
     <div class="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4 flex-wrap">
@@ -33,29 +22,35 @@
 
     {!-- Sub-tabs --}
     <div class="px-6 pt-4 pb-0 flex items-center gap-1 flex-wrap border-b border-gray-100">
-        <button @click="filter = 'all'"
-                :class="filter === 'all' ? 'bg-white border border-gray-200 text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700 border border-transparent'"
-                class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3">
+        <button type="button"
+            hx-get="/admin/guidance/api/cases/{case_id}/appointments?filter=all"
+            hx-target="#case-appt-tab" hx-swap="innerHTML"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3 {if current_filter == 'all'}bg-white border border-gray-200 text-gray-800 shadow-sm{else}text-gray-500 hover:text-gray-700 border border-transparent{/if}"
+            >
             All
         </button>
-        <button @click="filter = 'upcoming'"
-                :class="filter === 'upcoming' ? 'bg-white border border-gray-200 text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700 border border-transparent'"
-                class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3">
+        <button type="button"
+            hx-get="/admin/guidance/api/cases/{case_id}/appointments?filter=upcoming"
+            hx-target="#case-appt-tab" hx-swap="innerHTML"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3 {if current_filter == 'upcoming'}bg-white border border-gray-200 text-gray-800 shadow-sm{else}text-gray-500 hover:text-gray-700 border border-transparent{/if}">
             Upcoming
         </button>
-        <button @click="filter = 'completed'"
-                :class="filter === 'completed' ? 'bg-white border border-gray-200 text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700 border border-transparent'"
-                class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3">
+        <button type="button"
+            hx-get="/admin/guidance/api/cases/{case_id}/appointments?filter=completed"
+            hx-target="#case-appt-tab" hx-swap="innerHTML"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3 {if current_filter == 'completed'}bg-white border border-gray-200 text-gray-800 shadow-sm{else}text-gray-500 hover:text-gray-700 border border-transparent{/if}">
             Completed (Attended)
         </button>
-        <button @click="filter = 'no_show'"
-                :class="filter === 'no_show' ? 'bg-white border border-gray-200 text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700 border border-transparent'"
-                class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3">
+        <button type="button"
+            hx-get="/admin/guidance/api/cases/{case_id}/appointments?filter=no_show"
+            hx-target="#case-appt-tab" hx-swap="innerHTML"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3 {if current_filter == 'no_show'}bg-white border border-gray-200 text-gray-800 shadow-sm{else}text-gray-500 hover:text-gray-700 border border-transparent{/if}">
             Did Not Show Up
         </button>
-        <button @click="filter = 'cancelled'"
-                :class="filter === 'cancelled' ? 'bg-white border border-gray-200 text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700 border border-transparent'"
-                class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3">
+        <button type="button"
+            hx-get="/admin/guidance/api/cases/{case_id}/appointments?filter=cancelled"
+            hx-target="#case-appt-tab" hx-swap="innerHTML"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all mb-3 {if current_filter == 'cancelled'}bg-white border border-gray-200 text-gray-800 shadow-sm{else}text-gray-500 hover:text-gray-700 border border-transparent{/if}">
             Cancelled
         </button>
     </div>
@@ -75,98 +70,95 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
-
-                <template x-if="rows.length === 0">
-                    <tr>
-                        <td colspan="7" class="px-6 py-14 text-center text-gray-400">
-                            <i class="fas fa-calendar-times text-4xl text-gray-200 block mb-3"></i>
-                            <p class="text-sm">No appointments found.</p>
-                        </td>
-                    </tr>
-                </template>
-
-                <template x-for="appt in rows" :key="appt.id">
+                {if appointments | count > 0}
+                                {for appt in appointments}
                     <tr class="hover:bg-gray-50/50 transition-colors">
 
                         {!-- Date & Time --}
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-semibold text-gray-800" x-text="appt.formatted_date"></div>
+                                                        <div class="text-sm font-semibold text-gray-800">{appt.formatted_date | esc_html}</div>
                             <div class="text-xs text-gray-400 mt-0.5"
-                                 x-text="appt.formatted_time + (appt.formatted_end ? ' \u2013 ' + appt.formatted_end : '')"></div>
+                                                                 >{appt.formatted_time | esc_html}{if appt.formatted_end} &ndash; {appt.formatted_end | esc_html}{/if}</div>
                         </td>
 
                         {!-- Purpose --}
                         <td class="px-4 py-4">
-                            <div class="text-sm font-semibold text-gray-900" x-text="appt.type_name || 'Session'"></div>
-                            <div class="text-xs text-gray-400 mt-0.5 max-w-xs truncate" x-show="appt.purpose" x-text="appt.purpose"></div>
+                                                        <div class="text-sm font-semibold text-gray-900">{appt.type_name | default:'Session' | esc_html}</div>
+                                                        {if appt.purpose}
+                                                        <div class="text-xs text-gray-400 mt-0.5 max-w-xs truncate">{appt.purpose | esc_html}</div>
+                                                        {/if}
                         </td>
 
                         {!-- Counselor --}
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="appt.counselor_name || '\u2014'"></td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">{appt.counselor_name | default:'—' | esc_html}</td>
 
                         {!-- Status badge --}
                         <td class="px-4 py-4 whitespace-nowrap">
-                            <span x-show="appt.status === 'scheduled'"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-blue-100 text-blue-700">SCHEDULED</span>
-                            <span x-show="appt.status === 'confirmed'"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-teal-100 text-teal-700">CONFIRMED</span>
-                            <span x-show="appt.status === 'completed'"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-green-100 text-green-700">COMPLETED</span>
-                            <span x-show="appt.status === 'no_show'"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700">DID NOT SHOW UP</span>
-                            <span x-show="appt.status === 'cancelled'"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-red-100 text-red-600">CANCELLED</span>
-                            <span x-show="['pending','requested'].includes(appt.status)"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-indigo-100 text-indigo-700">PENDING</span>
-                            <span x-show="appt.status === 'rejected'"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-red-50 text-red-500">REJECTED</span>
-                                <span x-show="appt.status === 'rescheduled'"
-                                    class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-cyan-100 text-cyan-700">RESCHEDULED</span>
-                            <span x-show="!['scheduled','confirmed','completed','no_show','cancelled','pending','requested','rejected'].includes(appt.status)"
-                                  class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500"
-                                  x-text="(appt.status || '\u2014').toUpperCase()"></span>
+                                                        {if appt.status_key == 'scheduled'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-blue-100 text-blue-700">SCHEDULED</span>
+                                                        {elseif appt.status_key == 'confirmed'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-teal-100 text-teal-700">CONFIRMED</span>
+                                                        {elseif appt.status_key == 'completed'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-green-100 text-green-700">COMPLETED</span>
+                                                        {elseif appt.status_key == 'no_show'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700">DID NOT SHOW UP</span>
+                                                        {elseif appt.status_key == 'cancelled'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-red-100 text-red-600">CANCELLED</span>
+                                                        {elseif appt.status_key == 'pending' || appt.status_key == 'requested'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-indigo-100 text-indigo-700">PENDING</span>
+                                                        {elseif appt.status_key == 'rejected'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-red-50 text-red-500">REJECTED</span>
+                                                        {elseif appt.status_key == 'rescheduled'}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-cyan-100 text-cyan-700">RESCHEDULED</span>
+                                                        {else}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500">{appt.status_key | default:(appt.status | default:'—') | upper | esc_html}</span>
+                                                        {/if}
                         </td>
 
                         {!-- Attendance badge --}
                         <td class="px-4 py-4 whitespace-nowrap">
-                            <span x-show="appt.status === 'completed'"
-                                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                                                        {if appt.status_key == 'completed'}
+                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
                                 <i class="fas fa-check-circle text-[10px]"></i> Went to Session
                             </span>
-                            <span x-show="appt.status === 'no_show'"
-                                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                                                        {elseif appt.status_key == 'no_show'}
+                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
                                 <i class="fas fa-clock text-[10px]"></i> Did Not Show Up
                             </span>
-                            <span x-show="appt.status === 'cancelled'"
-                                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-200">
+                                                        {elseif appt.status_key == 'cancelled'}
+                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-200">
                                 <i class="fas fa-times-circle text-[10px]"></i> Cancelled
                             </span>
-                            <span x-show="['scheduled','confirmed'].includes(appt.status)"
-                                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                                        {elseif appt.status_key == 'scheduled' || appt.status_key == 'confirmed'}
+                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                                 <i class="fas fa-calendar-check text-[10px]"></i> Scheduled
                             </span>
-                                <span x-show="appt.status === 'rescheduled'"
-                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
-                                  <i class="fas fa-rotate text-[10px]"></i> Rescheduled
-                                </span>
-                            <span x-show="!['scheduled','confirmed','completed','no_show','cancelled'].includes(appt.status)"
-                                  class="text-gray-300 text-sm">&mdash;</span>
+                                                        {elseif appt.status_key == 'rescheduled'}
+                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                                                                <i class="fas fa-rotate text-[10px]"></i> Rescheduled
+                                                        </span>
+                                                        {else}
+                                                        <span class="text-gray-300 text-sm">&mdash;</span>
+                                                        {/if}
                         </td>
 
                         {!-- Duration --}
                         <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span x-show="appt.duration_minutes && appt.status !== 'cancelled'" x-text="appt.duration_minutes + ' mins'"></span>
-                            <span x-show="!appt.duration_minutes || appt.status === 'cancelled'" class="text-gray-300">&mdash;</span>
+                                                        {if appt.duration_minutes && appt.status_key != 'cancelled'}
+                                                        <span>{appt.duration_minutes | esc_html} mins</span>
+                                                        {else}
+                                                        <span class="text-gray-300">&mdash;</span>
+                                                        {/if}
                         </td>
 
                         {!-- Actions --}
                         <td class="px-4 py-4 whitespace-nowrap">
                             <div class="flex items-center gap-1">
-                                <button @click="htmx.ajax('GET', '{base_url}/pages/appointments/' + appt.id, {target: '#modal-container', swap: 'innerHTML'})"
+                                <button hx-get="{base_url}/pages/appointments/{appt.id}" hx-target="#modal-container" hx-swap="innerHTML"
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-200 text-xs font-semibold text-teal-700 hover:bg-teal-50 transition-colors">
                                     <i class="fas fa-eye text-[10px]"></i> View
                                 </button>
-                                <button @click="htmx.ajax('GET', '{base_url}/pages/appointments/' + appt.id + '/edit', {target: '#modal-container', swap: 'innerHTML'})"
+                                <button hx-get="{base_url}/pages/appointments/{appt.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
                                     <i class="fas fa-edit text-[10px]"></i> Edit
                                 </button>
@@ -174,7 +166,16 @@
                         </td>
 
                     </tr>
-                </template>
+                {/for}
+                {else}
+                    <tr>
+                        <td colspan="7" class="px-6 py-14 text-center text-gray-400">
+                            <i class="fas fa-calendar-times text-4xl text-gray-200 block mb-3"></i>
+                            <p class="text-sm font-medium text-gray-500">No appointment data for {current_filter_label | esc_html}.</p>
+                            <p class="text-xs text-gray-400 mt-1">Try another appointment subtab or schedule a new session.</p>
+                        </td>
+                    </tr>
+                {/if}
 
             </tbody>
         </table>
@@ -182,18 +183,12 @@
 
     {!-- Footer count --}
     <div class="px-6 py-3 border-t border-gray-100 text-xs text-gray-400 flex items-center justify-between">
-        <span>
-            {if total > 0}
-            Showing {from} to {to} of {total} appointment{if total != 1}s{/if}
-            {else}
-            No appointments found
-            {/if}
-        </span>
+        <span>{if total > 0}Showing {from} to {to} of {total} appointment{if total != 1}s{/if}{else}No appointment data for {current_filter_label | esc_html}.{/if}</span>
         {if total_pages > 1}
         <div class="flex items-center gap-1">
             {if page > 1}
             <button type="button"
-                    hx-get="/admin/guidance/api/cases/{case_id}/appointments?page={page - 1}"
+                    hx-get="/admin/guidance/api/cases/{case_id}/appointments?page={page - 1}&amp;filter={current_filter | url_encode}"
                     hx-target="#case-appt-tab" hx-swap="innerHTML"
                     class="w-7 h-7 flex items-center justify-center rounded border border-gray-200 text-gray-500 hover:bg-gray-50">
                 <i class="fas fa-chevron-left text-[10px]"></i>
@@ -202,7 +197,7 @@
             <span class="px-3 py-1 rounded bg-teal-600 text-white text-xs font-semibold">{page}</span>
             {if page < total_pages}
             <button type="button"
-                    hx-get="/admin/guidance/api/cases/{case_id}/appointments?page={page + 1}"
+                    hx-get="/admin/guidance/api/cases/{case_id}/appointments?page={page + 1}&amp;filter={current_filter | url_encode}"
                     hx-target="#case-appt-tab" hx-swap="innerHTML"
                     class="w-7 h-7 flex items-center justify-center rounded border border-gray-200 text-gray-500 hover:bg-gray-50">
                 <i class="fas fa-chevron-right text-[10px]"></i>
