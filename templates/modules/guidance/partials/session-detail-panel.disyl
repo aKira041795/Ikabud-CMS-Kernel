@@ -9,7 +9,7 @@
             Session Details
         </div>
         <button type="button"
-                onclick="document.getElementById('session-detail-panel').innerHTML = ''; document.getElementById('session-detail-panel').style.display = 'none';"
+                onclick="if (typeof clearSessionDetailSelection === 'function') { clearSessionDetailSelection(); } else { document.getElementById('session-detail-panel').innerHTML = ''; document.getElementById('session-detail-panel').style.display = 'none'; }"
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-teal-500 hover:bg-teal-100 transition text-xs">
             <i class="fas fa-times"></i>
         </button>
@@ -20,7 +20,7 @@
         {!-- Left: Appointment Info --}
         <div class="p-5 space-y-3">
             <div>
-                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Appointment Info</div>
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Linked Appointment</div>
                 <dl class="space-y-2 text-sm">
                     <div class="flex gap-2">
                         <dt class="w-28 flex-shrink-0 text-xs text-gray-500 font-medium">Student</dt>
@@ -82,7 +82,7 @@
                             </span>
                             {elseif appt.status_key == 'in_progress'}
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
-                                <i class="fas fa-circle text-[10px]"></i> In Progress
+                                <i class="fas fa-circle text-[10px]"></i> Open Appointment
                             </span>
                             {else}
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
@@ -169,8 +169,21 @@
                     <button hx-get="{base_url}/pages/appointments/{appt.id}/edit"
                             hx-target="#modal-container" hx-swap="innerHTML"
                             class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition">
-                        <i class="fas fa-edit text-[11px]"></i> Edit Record
+                        <i class="fas fa-calendar-alt text-[11px]"></i> Edit Appointment
                     </button>
+                    {if note.id}
+                    <button hx-get="{base_url}/pages/cases/{appt.case_id}/notes/{note.id}/edit"
+                            hx-target="#modal-container" hx-swap="innerHTML"
+                            class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
+                        <i class="fas fa-sticky-note text-[11px]"></i> Edit Session Record
+                    </button>
+                    {elseif appt.case_id}
+                    <button hx-get="{base_url}/pages/cases/{appt.case_id}/notes/new?appointment_id={appt.id}&amp;session_date={appt.scheduled_date}"
+                            hx-target="#modal-container" hx-swap="innerHTML"
+                            class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
+                        <i class="fas fa-sticky-note text-[11px]"></i> Add Session Record
+                    </button>
+                    {/if}
                     {if appt.case_id}
                     <a href="{base_url}/cases/{appt.case_id}"
                        hx-get="{base_url}/pages/cases/{appt.case_id}"
@@ -183,7 +196,7 @@
                     <button hx-get="{base_url}/pages/cases/{appt.case_id}/notes/new?session_type=follow-up&amp;session_date={appt.scheduled_date}&amp;appointment_id={appt.id}&amp;followup_required=1"
                             hx-target="#modal-container" hx-swap="innerHTML"
                             class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
-                        <i class="fas fa-plus-circle text-[11px]"></i> Add Follow-up Note
+                        <i class="fas fa-plus-circle text-[11px]"></i> Add Follow-up Session Record
                     </button>
                 </div>
             </div>

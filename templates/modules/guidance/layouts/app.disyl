@@ -75,6 +75,62 @@
                 evt.detail.headers['X-CSRF-Token'] = APP_CSRF;
             }
         });
+
+        // Optional debug instrumentation: append ?debug=htmx to URL to see all htmx events in console
+        if (window.location.search.indexOf('debug=htmx') !== -1) {
+            document.addEventListener('DOMContentLoaded', function () {
+                if (window.htmx && typeof window.htmx.logAll === 'function') {
+                    window.htmx.logAll();
+                    console.log('[guidance] htmx.logAll() enabled');
+                }
+            });
+            ['refreshAppointments', 'refreshNotes', 'refreshDocuments', 'refreshCasePanel', 'refreshCases', 'closeModal'].forEach(function (name) {
+                document.body.addEventListener(name, function (evt) {
+                    console.log('[guidance:event]', name, 'target=', evt.target, 'activeTab=',
+                        (document.getElementById('case-view-root') || {}).getAttribute && document.getElementById('case-view-root').getAttribute('data-active-tab'));
+                });
+            });
+        }
+
+        // ============================================================
+        // CASE-VIEW TAB AUTO-REFRESH SAFETY NET
+        // ------------------------------------------------------------
+        // Independent of HX-Trigger event names. Any successful state-
+        // changing request to /admin/guidance/api/* while a case-view
+        // is open re-fetches the currently active tab. This is the
+        // single source of truth for tab refresh after CRUD.
+        // ============================================================
+        document.addEventListener('htmx:afterRequest', function (evt) {
+            try {
+                var xhr = evt.detail && evt.detail.xhr;
+                if (!xhr || xhr.status < 200 || xhr.status >= 300) return;
+
+                var verb = ((evt.detail.requestConfig && evt.detail.requestConfig.verb) || '').toUpperCase();
+                if (verb !== 'POST' && verb !== 'PUT' && verb !== 'PATCH' && verb !== 'DELETE') return;
+
+                var path = (evt.detail.requestConfig && evt.detail.requestConfig.path) || '';
+                if (path.indexOf('/admin/guidance/api/') === -1) return;
+
+                // Skip read-only or unrelated paths if any sneak in.
+                var caseViewRoot = document.getElementById('case-view-root');
+                if (!caseViewRoot) return;
+
+                var activeTab = caseViewRoot.getAttribute('data-active-tab') || 'overview';
+
+                if (window.location.search.indexOf('debug=htmx') !== -1) {
+                    console.log('[guidance:autorefresh] ' + verb + ' ' + path + ' -> activeTab=' + activeTab);
+                }
+
+                // Slight delay so any HX-Trigger driven listeners (closeModal, toast) run first.
+                setTimeout(function () {
+                    if (typeof window.guidanceRefreshActiveCaseTab === 'function') {
+                        window.guidanceRefreshActiveCaseTab(activeTab);
+                    }
+                }, 50);
+            } catch (e) {
+                if (window.console && console.warn) console.warn('[guidance:autorefresh] failed', e);
+            }
+        });
     </script>
     
     {block head}{/block}
@@ -129,7 +185,7 @@
                     <button @click="sessionsOpen = !sessionsOpen"
                             class="w-full flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'appointments' || current_page == 'session-records'}bg-teal-700{/if}">
                         <i class="fas fa-calendar-check w-5 text-center flex-shrink-0"></i>
-                        <span class="ml-3 text-sm flex-1 text-left">Sessions</span>
+                        <span class="ml-3 text-sm flex-1 text-left">Scheduling &amp; Records</span>
                         <i class="fas text-xs transition-transform" :class="sessionsOpen ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
                     </button>
                     <div x-show="sessionsOpen" class="ml-4 space-y-0.5 mb-1">
@@ -139,7 +195,7 @@
                            hx-target="#main-content"
                            hx-push-url="{base_url}/appointments">
                             <span class="w-2 h-2 rounded-full bg-current mr-3 flex-shrink-0"></span>
-                            <span class="text-sm">Appointments</span>
+                            <span class="text-sm">Appointments &amp; Scheduling</span>
                         </a>
                         <a href="{base_url}/session-records"
                            class="flex items-center pl-6 pr-4 py-2 rounded-lg hover:bg-teal-700 transition-colors text-teal-200 hover:text-white {if current_page == 'session-records'}bg-teal-700 text-white{/if}"
@@ -147,7 +203,7 @@
                            hx-target="#main-content"
                            hx-push-url="{base_url}/session-records">
                             <span class="w-2 h-2 rounded-full bg-current mr-3 flex-shrink-0"></span>
-                            <span class="text-sm">Session Records</span>
+                            <span class="text-sm">Clinical Session Records</span>
                         </a>
                     </div>
                 </div>
@@ -571,6 +627,23 @@
 
             showToast(message, 'error');
         });
+
+        // Treat toast-only HX responses as handled validations, not hard HTMX errors.
+        document.body.addEventListener('htmx:beforeSwap', function(evt) {
+            const xhr = evt.detail && evt.detail.xhr ? evt.detail.xhr : null;
+            if (!xhr) {
+                return;
+            }
+
+            const triggerHeader = xhr.getResponseHeader('HX-Trigger');
+            const responseText = (xhr.responseText || '').trim();
+            if (!triggerHeader || responseText !== '') {
+                return;
+            }
+
+            evt.detail.shouldSwap = false;
+            evt.detail.isError = false;
+        });
         
         // Handle custom showToast trigger from server
         document.body.addEventListener('showToast', function(evt) {
@@ -618,30 +691,127 @@
                 htmx.trigger(collegesList, 'load');
             }
         });
+
+        function reloadCurrentCaseView() {
+            const caseViewRoot = document.getElementById('case-view-root');
+            if (!caseViewRoot) {
+                return false;
+            }
+
+            const caseId = caseViewRoot.getAttribute('data-case-view-id');
+            if (!caseId) {
+                return false;
+            }
+
+            const activeTab = caseViewRoot.getAttribute('data-active-tab') || 'overview';
+            const mainContent = document.getElementById('main-content');
+            const tabEventMap = {
+                appointments: 'load-case-appts',
+                session_records: 'load-case-sessions',
+                notes: 'load-case-notes',
+                documents: 'load-case-docs',
+                alerts: 'load-case-alerts',
+                log: 'load-case-log'
+            };
+
+            if (mainContent) {
+                const afterSwap = function(evt) {
+                    if (evt.target !== mainContent) {
+                        return;
+                    }
+
+                    mainContent.removeEventListener('htmx:afterSwap', afterSwap);
+
+                    const tabEvent = tabEventMap[activeTab];
+                    if (!tabEvent) {
+                        return;
+                    }
+
+                    requestAnimationFrame(function() {
+                        document.body.dispatchEvent(new CustomEvent(tabEvent, { bubbles: true }));
+                    });
+                };
+
+                mainContent.addEventListener('htmx:afterSwap', afterSwap);
+            }
+
+            htmx.ajax('GET', APP_BASE + '/pages/cases/' + caseId, {
+                target: '#main-content',
+                swap: 'innerHTML'
+            });
+            return true;
+        }
+
+        function reloadCaseViewTab(tabName) {
+            const tabMap = {
+                appointments: 'case-appt-tab',
+                session_records: 'case-sessions-tab',
+                notes: 'case-notes-tab',
+                documents: 'case-documents-tab',
+                alerts: 'case-alerts-tab',
+                log: 'case-log-tab'
+            };
+
+            const targetId = tabMap[tabName || ''];
+            if (!targetId) {
+                return false;
+            }
+
+            const targetEl = document.getElementById(targetId);
+            if (!targetEl) {
+                return false;
+            }
+
+            const url = targetEl.getAttribute('hx-get');
+            if (!url) {
+                return false;
+            }
+
+            // Cache-bust to defeat any intermediate browser/proxy caching of GETs.
+            var bustChar = url.indexOf('?') === -1 ? '?' : '&';
+            var bustedUrl = url + bustChar + '_ts=' + Date.now();
+
+            htmx.ajax('GET', guidanceAppPath(bustedUrl), {
+                target: '#' + targetId,
+                swap: 'innerHTML'
+            });
+
+            return true;
+        }
+
+        // Expose a single, idempotent refresh entry point used by the
+        // htmx:afterRequest safety net AND by HX-Trigger listeners below.
+        window.guidanceRefreshActiveCaseTab = function (preferredTab) {
+            const caseViewRoot = document.getElementById('case-view-root');
+            if (!caseViewRoot) return false;
+            const activeTab = preferredTab || caseViewRoot.getAttribute('data-active-tab') || 'overview';
+            if (activeTab === 'overview') {
+                return reloadCurrentCaseView();
+            }
+            return reloadCaseViewTab(activeTab);
+        };
         
         // Handle refreshAppointments trigger
         document.body.addEventListener('refreshAppointments', function(evt) {
             closeModal();
-            const appointmentsList = document.getElementById('appointments-list');
-            if (appointmentsList) {
-                htmx.trigger(appointmentsList, 'load');
+            if (window.guidanceRefreshActiveCaseTab) {
+                window.guidanceRefreshActiveCaseTab();
             }
         });
         
         // Handle refreshNotes trigger
         document.body.addEventListener('refreshNotes', function(evt) {
             closeModal();
-            const notesList = document.getElementById('notes-list');
-            if (notesList) {
-                htmx.trigger(notesList, 'load');
+            if (window.guidanceRefreshActiveCaseTab) {
+                window.guidanceRefreshActiveCaseTab();
             }
         });
 
         // Handle refreshDocuments trigger
         document.body.addEventListener('refreshDocuments', function(evt) {
-            const docTab = document.getElementById('case-documents-tab');
-            if (docTab) {
-                htmx.trigger(docTab, 'load-case-docs');
+            closeModal();
+            if (window.guidanceRefreshActiveCaseTab) {
+                window.guidanceRefreshActiveCaseTab();
             }
         });
 
@@ -898,12 +1068,19 @@
             };
         }
         
-        // Re-initialize Alpine.js on HTMX content swaps
+        // Re-initialize Alpine.js on HTMX content swaps, including lazy-loaded case tabs.
         document.body.addEventListener('htmx:afterSettle', function(evt) {
-            var targetId = evt.detail.target.id;
-            if ((targetId === 'main-content' || targetId === 'modal-container') && window.Alpine) {
-                // Defer to next tick so HTMX finishes all DOM operations first
-                setTimeout(function() { Alpine.initTree(evt.detail.target); }, 0);
+            var target = evt.detail && evt.detail.target ? evt.detail.target : null;
+            if (!target || !window.Alpine) {
+                return;
+            }
+
+            if (
+                target.hasAttribute('x-data') ||
+                target.querySelector('[x-data], [x-init], [x-show], [x-text], template[x-for], template[x-if]')
+            ) {
+                // Defer to next tick so HTMX finishes all DOM operations first.
+                setTimeout(function() { Alpine.initTree(target); }, 0);
             }
         });
     </script>

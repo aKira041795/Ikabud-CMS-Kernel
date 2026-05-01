@@ -38,6 +38,7 @@ return [
         '/admin/guidance/pages/cases/{id}/notes/new' => 'guidance:modalGuidanceCaseNoteNew',
         '/admin/guidance/pages/cases/{id}/notes/{noteId}/edit' => 'guidance:modalGuidanceCaseNoteEdit',
         '/admin/guidance/pages/calendar' => 'guidance:pageGuidanceCalendar',
+        '/admin/guidance/pages/alerts' => 'guidance:pageGuidanceAlerts',
         '/admin/guidance/pages/appointments' => 'guidance:pageGuidanceAppointments',
         '/admin/guidance/pages/session-records' => 'guidance:pageGuidanceSessionRecords',
         '/admin/guidance/pages/appointments/new' => 'guidance:modalGuidanceAppointmentNew',

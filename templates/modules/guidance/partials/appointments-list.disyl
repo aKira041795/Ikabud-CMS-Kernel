@@ -147,16 +147,20 @@
                 <i class="fas fa-folder-plus text-xs"></i>
             </button>
             {/if}
-            <button hx-post="{base_url}/api/appointments/{row.id}/complete"
+                <button {if row.can_mark_outcome}hx-post="{base_url}/api/appointments/{row.id}/complete"
                     hx-confirm="Mark as completed?"
-                    hx-target="#appointments-list" hx-swap="innerHTML"
-                    class="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition" title="Complete">
+                    hx-target="#appointments-list" hx-swap="innerHTML"{/if}
+                    {if !row.can_mark_outcome}disabled{/if}
+                    class="p-1.5 bg-green-50 text-green-600 rounded-lg transition {if row.can_mark_outcome}hover:bg-green-100{else}opacity-50 cursor-not-allowed{/if}"
+                    title="{if row.can_mark_outcome}Complete{else}{row.outcome_locked_reason | esc_attr}{/if}">
                 <i class="fas fa-check text-xs"></i>
             </button>
-            <button hx-post="{base_url}/api/appointments/{row.id}/no-show"
+                <button {if row.can_mark_outcome}hx-post="{base_url}/api/appointments/{row.id}/no-show"
                     hx-confirm="Mark as no-show?"
-                    hx-target="#appointments-list" hx-swap="innerHTML"
-                    class="p-1.5 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition" title="No Show">
+                    hx-target="#appointments-list" hx-swap="innerHTML"{/if}
+                    {if !row.can_mark_outcome}disabled{/if}
+                    class="p-1.5 bg-yellow-50 text-yellow-600 rounded-lg transition {if row.can_mark_outcome}hover:bg-yellow-100{else}opacity-50 cursor-not-allowed{/if}"
+                    title="{if row.can_mark_outcome}No Show{else}{row.outcome_locked_reason | esc_attr}{/if}">
                 <i class="fas fa-user-slash text-xs"></i>
             </button>
             <button hx-post="{base_url}/api/appointments/{row.id}/cancel"

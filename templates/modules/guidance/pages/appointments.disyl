@@ -15,12 +15,12 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Appointments</h1>
-                <p class="text-sm text-gray-500 mt-0.5">Schedule and manage student counseling appointments.</p>
+                <p class="text-sm text-gray-500 mt-0.5">Operational scheduling workspace for booking, confirming, rescheduling, and updating attendance outcomes.</p>
             </div>
         </div>
         <button hx-get="{base_url}/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
                 class="inline-flex items-center px-4 py-2 bg-teal-700 text-white text-sm font-medium rounded-lg hover:bg-teal-800 transition shadow-sm">
-            <i class="fas fa-plus mr-2"></i> New Appointment
+            <i class="fas fa-plus mr-2"></i> Schedule Appointment
         </button>
     </div>
 

@@ -36,9 +36,14 @@ function kernelEventAvailableVars(string $eventKey): array
         return [];
     }
     try {
-        $stmt = app()->db()->prepare('SELECT available_vars FROM kernel_events WHERE event_key = ? LIMIT 1');
-        $stmt->execute([$eventKey]);
-        $raw = $stmt->fetchColumn();
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $stmt = app()->db()->prepare('SELECT available_vars FROM kernel_events WHERE event_key = ? LIMIT 1');
+            $stmt->execute([$eventKey]);
+            $raw = $stmt->fetchColumn();
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
         if ($raw === false || $raw === null || trim((string)$raw) === '') {
             // Fallback: check deferred registrations not yet flushed to DB
             $pending = app()->triggers()->getPendingRegistrations();
@@ -336,26 +341,31 @@ function kernelCorrelationId(): string
 function kernelTriggerRecordExecution(array $execution): void
 {
     try {
-        app()->db()->prepare(
-            'INSERT INTO kernel_trigger_executions '
-            . '(trigger_id, module, event_key, capability_id, provider, status, request_id, correlation_id, external_reference, duration_ms, error_message, event_payload, capability_payload, result_payload, created_at) '
-            . 'VALUES (:trigger_id, :module, :event_key, :capability_id, :provider, :status, :request_id, :correlation_id, :external_reference, :duration_ms, :error_message, :event_payload, :capability_payload, :result_payload, NOW())'
-        )->execute([
-            ':trigger_id' => isset($execution['trigger_id']) ? (int)$execution['trigger_id'] : null,
-            ':module' => trim((string)($execution['module'] ?? '')),
-            ':event_key' => trim((string)($execution['event_key'] ?? '')),
-            ':capability_id' => trim((string)($execution['capability_id'] ?? '')),
-            ':provider' => ($execution['provider'] ?? null) !== null ? trim((string)$execution['provider']) : null,
-            ':status' => trim((string)($execution['status'] ?? 'unknown')) ?: 'unknown',
-            ':request_id' => ($execution['request_id'] ?? null) !== null ? trim((string)$execution['request_id']) : null,
-            ':correlation_id' => ($execution['correlation_id'] ?? null) !== null ? trim((string)$execution['correlation_id']) : null,
-            ':external_reference' => ($execution['external_reference'] ?? null) !== null ? trim((string)$execution['external_reference']) : null,
-            ':duration_ms' => isset($execution['duration_ms']) ? (int)$execution['duration_ms'] : null,
-            ':error_message' => ($execution['error_message'] ?? null) !== null ? (string)$execution['error_message'] : null,
-            ':event_payload' => json_encode($execution['event_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            ':capability_payload' => json_encode($execution['capability_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            ':result_payload' => json_encode($execution['result_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        ]);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            app()->db()->prepare(
+                'INSERT INTO kernel_trigger_executions '
+                . '(trigger_id, module, event_key, capability_id, provider, status, request_id, correlation_id, external_reference, duration_ms, error_message, event_payload, capability_payload, result_payload, created_at) '
+                . 'VALUES (:trigger_id, :module, :event_key, :capability_id, :provider, :status, :request_id, :correlation_id, :external_reference, :duration_ms, :error_message, :event_payload, :capability_payload, :result_payload, NOW())'
+            )->execute([
+                ':trigger_id' => isset($execution['trigger_id']) ? (int)$execution['trigger_id'] : null,
+                ':module' => trim((string)($execution['module'] ?? '')),
+                ':event_key' => trim((string)($execution['event_key'] ?? '')),
+                ':capability_id' => trim((string)($execution['capability_id'] ?? '')),
+                ':provider' => ($execution['provider'] ?? null) !== null ? trim((string)$execution['provider']) : null,
+                ':status' => trim((string)($execution['status'] ?? 'unknown')) ?: 'unknown',
+                ':request_id' => ($execution['request_id'] ?? null) !== null ? trim((string)$execution['request_id']) : null,
+                ':correlation_id' => ($execution['correlation_id'] ?? null) !== null ? trim((string)$execution['correlation_id']) : null,
+                ':external_reference' => ($execution['external_reference'] ?? null) !== null ? trim((string)$execution['external_reference']) : null,
+                ':duration_ms' => isset($execution['duration_ms']) ? (int)$execution['duration_ms'] : null,
+                ':error_message' => ($execution['error_message'] ?? null) !== null ? (string)$execution['error_message'] : null,
+                ':event_payload' => json_encode($execution['event_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':capability_payload' => json_encode($execution['capability_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':result_payload' => json_encode($execution['result_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ]);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
     } catch (Throwable $e) {
         // Ignore persistence failures: execution logging is additive only.
     }
@@ -535,47 +545,52 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
         if ($maxPerMin > 0) {
             try {
                 $rlId = 'trigger:' . $triggerId;
-                $rlStmt = app()->db()->prepare(
-                    'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
-                );
-                $rlStmt->execute([':id' => $rlId, ':action' => 'trigger_dispatch']);
-                $rlRow = $rlStmt->fetch(PDO::FETCH_ASSOC);
-                $rlCutoff = date('Y-m-d H:i:s', time() - 60);
+                \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+                try {
+                    $rlStmt = app()->db()->prepare(
+                        'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
+                    );
+                    $rlStmt->execute([':id' => $rlId, ':action' => 'trigger_dispatch']);
+                    $rlRow = $rlStmt->fetch(PDO::FETCH_ASSOC);
+                    $rlCutoff = date('Y-m-d H:i:s', time() - 60);
 
-                if (is_array($rlRow) && ($rlRow['window_start'] ?? '') >= $rlCutoff && (int)($rlRow['attempts'] ?? 0) >= $maxPerMin) {
-                    kernelTriggerRecordExecution([
-                        'trigger_id' => $triggerId,
-                        'module' => $module !== '' ? $module : '_kernel',
-                        'event_key' => $eventKey,
-                        'capability_id' => $capId,
-                        'provider' => $trigger['provider'] ?? null,
-                        'status' => 'rate_limited',
-                        'request_id' => $requestId,
-                        'correlation_id' => $correlationId,
-                        'external_reference' => kernelTriggerExtractExternalReference($payload),
-                        'duration_ms' => 0,
-                        'error_message' => 'Trigger skipped because max_per_minute limit was reached.',
-                        'event_payload' => $payload,
-                        'capability_payload' => null,
-                        'result_payload' => ['max_per_minute' => $maxPerMin],
-                    ]);
-                    write_log('trigger.rate_limited', 'warning', [
-                        'correlation_id' => $correlationId,
-                        'trigger_id' => $triggerId,
-                        'event' => $eventKey,
-                        'capability' => $capId,
-                        'max_per_minute' => $maxPerMin,
-                    ]);
-                    continue;
+                    if (is_array($rlRow) && ($rlRow['window_start'] ?? '') >= $rlCutoff && (int)($rlRow['attempts'] ?? 0) >= $maxPerMin) {
+                        kernelTriggerRecordExecution([
+                            'trigger_id' => $triggerId,
+                            'module' => $module !== '' ? $module : '_kernel',
+                            'event_key' => $eventKey,
+                            'capability_id' => $capId,
+                            'provider' => $trigger['provider'] ?? null,
+                            'status' => 'rate_limited',
+                            'request_id' => $requestId,
+                            'correlation_id' => $correlationId,
+                            'external_reference' => kernelTriggerExtractExternalReference($payload),
+                            'duration_ms' => 0,
+                            'error_message' => 'Trigger skipped because max_per_minute limit was reached.',
+                            'event_payload' => $payload,
+                            'capability_payload' => null,
+                            'result_payload' => ['max_per_minute' => $maxPerMin],
+                        ]);
+                        write_log('trigger.rate_limited', 'warning', [
+                            'correlation_id' => $correlationId,
+                            'trigger_id' => $triggerId,
+                            'event' => $eventKey,
+                            'capability' => $capId,
+                            'max_per_minute' => $maxPerMin,
+                        ]);
+                        continue;
+                    }
+
+                    app()->db()->prepare(
+                        'INSERT INTO rate_limits (identifier, action, attempts, window_start) '
+                        . 'VALUES (:id, :action, 1, CURRENT_TIMESTAMP) '
+                        . 'ON DUPLICATE KEY UPDATE '
+                        . 'attempts = IF(window_start >= :cutoff, attempts + 1, 1), '
+                        . 'window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
+                    )->execute([':id' => $rlId, ':action' => 'trigger_dispatch', ':cutoff' => $rlCutoff, ':cutoff2' => $rlCutoff]);
+                } finally {
+                    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
                 }
-
-                app()->db()->prepare(
-                    'INSERT INTO rate_limits (identifier, action, attempts, window_start) '
-                    . 'VALUES (:id, :action, 1, CURRENT_TIMESTAMP) '
-                    . 'ON DUPLICATE KEY UPDATE '
-                    . 'attempts = IF(window_start >= :cutoff, attempts + 1, 1), '
-                    . 'window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
-                )->execute([':id' => $rlId, ':action' => 'trigger_dispatch', ':cutoff' => $rlCutoff, ':cutoff2' => $rlCutoff]);
             } catch (Throwable $e) {
                 // Non-fatal: allow trigger if rate_limits table doesn't exist
             }
