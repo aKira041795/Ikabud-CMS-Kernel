@@ -9,6 +9,7 @@ function pageGuidanceLogin(): void {
         'hide_sidebar' => true,
         'page_title' => 'Guidance Sign In',
         'base_url' => '/guidance',
+        'forgot_password_endpoint' => '/api/v1/guidance/auth/forgot-password',
     ]);
 }
 

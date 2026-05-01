@@ -4,14 +4,13 @@
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="document.getElementById('modal-container').innerHTML=''"></div>
 
-        <div class="guidance-modal-panel guidance-modal-panel--xl">
+        <div class="guidance-modal-panel guidance-modal-panel--lg">
             <div class="guidance-modal-header">
                 <div>
                     <p class="guidance-modal-kicker">Counseling Session</p>
                     <h2 class="text-xl font-semibold text-gray-800 mt-1">
                         <i class="fas fa-sticky-note mr-2 text-indigo-500"></i> Add Counselor Note
                     </h2>
-                    <p class="guidance-modal-lead">Capture the session in clear sections so the note reads well in both the dashboard workspace and the full case record.</p>
                 </div>
                 <button onclick="document.getElementById('modal-container').innerHTML=''" class="guidance-modal-close">
                     <i class="fas fa-times text-xl"></i>
@@ -32,132 +31,21 @@
                             <i class="fas fa-info-circle text-indigo-400"></i>
                             <span>Session Info</span>
                         </div>
-                        <p class="guidance-modal-section-copy">Start with the operational details so this entry can be sorted, reviewed, and matched to follow-up work quickly.</p>
                         <div class="guidance-modal-stack">
-                            <div class="guidance-modal-grid guidance-modal-grid--2">
+                            <div class="guidance-modal-grid guidance-modal-grid--3">
                                 <div>
                                     <label>Session Type</label>
                                     {ikb_select name="session_type"}
-                                        <option value="walk-in" {if session_type == 'walk-in'}selected{/if}>Walk-in</option>
-                                        <option value="follow-up" {if session_type == 'follow-up'}selected{/if}>Follow-up</option>
-                                        <option value="referred" {if session_type == 'referred'}selected{/if}>Referred</option>
+                                        <option value="scheduled">Scheduled</option>
+                                        <option value="walk-in">Walk-in</option>
+                                        <option value="follow-up">Follow-up</option>
+                                        <option value="referral">Referral</option>
                                     {/ikb_select}
                                 </div>
                                 <div>
                                     <label>Session Date</label>
                                     {ikb_input type="date" name="session_date" value="{session_date | default:today}" /}
                                 </div>
-                            </div>
-                            <div class="guidance-modal-grid guidance-modal-grid--2">
-                                <div>
-                                    <label>Intervention Used</label>
-                                    {ikb_input type="text" name="intervention_used" placeholder="e.g., CBT, Active Listening" /}
-                                </div>
-                                <div>
-                                    <label>Session Duration (min)</label>
-                                    {ikb_input type="number" name="session_duration_minutes" placeholder="30" /}
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="guidance-modal-section">
-                        <div class="guidance-modal-section-title">
-                            <i class="fas fa-file-alt text-indigo-400"></i>
-                            <span>Transcription (Presenting Problem)</span>
-                        </div>
-                        <p class="guidance-modal-section-copy">Document the core concern and session narrative in language another counselor can scan quickly.</p>
-                        <div class="guidance-modal-stack">
-                            {ikb_textarea name="note_content" rows="5" required placeholder="Document the presenting problem and session transcription..."}{/ikb_textarea}
-                        </div>
-                    </section>
-
-                    <section class="guidance-modal-section">
-                        <div class="guidance-modal-section-title">
-                            <i class="fas fa-brain text-purple-400"></i>
-                            <span>Mental Status Examination</span>
-                        </div>
-                        <p class="guidance-modal-section-copy">Capture verbal and nonverbal observations in a compact two-column layout instead of one long field list.</p>
-                        <div class="guidance-modal-stack">
-                            <div class="guidance-modal-grid guidance-modal-grid--2">
-                                <div>
-                                    <label>Appearance</label>
-                                    {ikb_input type="text" name="mse_appearance" placeholder="e.g., Well-groomed, Disheveled" /}
-                                </div>
-                                <div>
-                                    <label>General Behavior</label>
-                                    {ikb_input type="text" name="mse_behavior" placeholder="e.g., Cooperative, Agitated" /}
-                                </div>
-                                <div>
-                                    <label>Speech</label>
-                                    {ikb_input type="text" name="mse_speech" placeholder="e.g., Normal rate, Pressured" /}
-                                </div>
-                                <div>
-                                    <label>Emotions</label>
-                                    {ikb_input type="text" name="mse_emotions" placeholder="e.g., Anxious, Flat affect" /}
-                                </div>
-                                <div>
-                                    <label>Thinking Process</label>
-                                    {ikb_input type="text" name="mse_thinking" placeholder="e.g., Logical, Tangential" /}
-                                </div>
-                                <div>
-                                    <label>Cognition</label>
-                                    {ikb_input type="text" name="mse_cognition" placeholder="e.g., Alert, Oriented x3" /}
-                                </div>
-                                <div>
-                                    <label>Judgment</label>
-                                    {ikb_input type="text" name="mse_judgment" placeholder="e.g., Good, Fair, Poor" /}
-                                </div>
-                                <div>
-                                    <label>Reliability</label>
-                                    {ikb_input type="text" name="mse_reliability" placeholder="e.g., Reliable, Questionable" /}
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="guidance-modal-section">
-                        <div class="guidance-modal-section-title">
-                            <i class="fas fa-puzzle-piece text-amber-400"></i>
-                            <span>Case Conceptualization</span>
-                        </div>
-                        <p class="guidance-modal-section-copy">Use the 4 Ps to keep formulation structured and easier to compare across counseling sessions.</p>
-                        <div class="guidance-modal-stack">
-                            <div>
-                                <label>1. Predisposition Factors</label>
-                                <p class="text-xs text-gray-400 mb-1">Risk of developing a problem, such as genetics, life events, or temperament.</p>
-                                {ikb_textarea name="case_predisposition" rows="2" placeholder="Describe predisposition factors..."}{/ikb_textarea}
-                            </div>
-                            <div>
-                                <label>2. Precipitating Factors</label>
-                                <p class="text-xs text-gray-400 mb-1">Specific events or triggers contributing to the onset of the current problem.</p>
-                                {ikb_textarea name="case_precipitating" rows="2" placeholder="Describe precipitating factors..."}{/ikb_textarea}
-                            </div>
-                            <div>
-                                <label>3. Perpetuating Factors</label>
-                                <p class="text-xs text-gray-400 mb-1">Factors keeping the problem active or chronic.</p>
-                                {ikb_textarea name="case_perpetuating" rows="2" placeholder="Describe perpetuating factors..."}{/ikb_textarea}
-                            </div>
-                            <div>
-                                <label>4. Protective Factors</label>
-                                <p class="text-xs text-gray-400 mb-1">Strengths and supports that promote healthy functioning.</p>
-                                {ikb_textarea name="case_protective" rows="2" placeholder="Describe protective factors..."}{/ikb_textarea}
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="guidance-modal-section">
-                        <div class="guidance-modal-section-title">
-                            <i class="fas fa-clipboard-check text-green-400"></i>
-                            <span>Assessment &amp; Response</span>
-                        </div>
-                        <p class="guidance-modal-section-copy">Separate the student response, clinical assessment, and action taken so the next follow-up is easier to plan.</p>
-                        <div class="guidance-modal-stack">
-                            <div>
-                                <label>Student Response</label>
-                                {ikb_textarea name="student_response" rows="2" placeholder="How did the student respond?"}{/ikb_textarea}
-                            </div>
-                            <div class="guidance-modal-grid guidance-modal-grid--2">
                                 <div>
                                     <label>Risk Level</label>
                                     {ikb_select name="risk_level"}
@@ -168,26 +56,27 @@
                                         <option value="critical">Critical</option>
                                     {/ikb_select}
                                 </div>
-                                <div>
-                                    <label>Mood Assessment</label>
-                                    {ikb_input type="text" name="mood_assessment" placeholder="e.g., Anxious, Calm" /}
-                                </div>
-                            </div>
-                            <div>
-                                <label>Action Taken</label>
-                                {ikb_textarea name="action_taken" rows="2" placeholder="What actions were taken?"}{/ikb_textarea}
                             </div>
                         </div>
                     </section>
 
                     <section class="guidance-modal-section">
                         <div class="guidance-modal-section-title">
-                            <i class="fas fa-lightbulb text-yellow-400"></i>
-                            <span>Observation &amp; Recommendation</span>
+                            <i class="fas fa-file-alt text-indigo-400"></i>
+                            <span>Counselor's Notes and Observations</span>
                         </div>
-                        <p class="guidance-modal-section-copy">Close the note with the clinical interpretation and recommended next step.</p>
                         <div class="guidance-modal-stack">
-                            {ikb_textarea name="observation_recommendation" rows="4" placeholder="Counselor's observations and recommendations..."}{/ikb_textarea}
+                            {ikb_textarea name="note_content" rows="6" required placeholder="Document session notes, observations, and key points..."}{/ikb_textarea}
+                        </div>
+                    </section>
+
+                    <section class="guidance-modal-section">
+                        <div class="guidance-modal-section-title">
+                            <i class="fas fa-lightbulb text-yellow-400"></i>
+                            <span>Recommendation / Action Taken</span>
+                        </div>
+                        <div class="guidance-modal-stack">
+                            {ikb_textarea name="observation_recommendation" rows="4" placeholder="Counselor's recommendations and actions taken..."}{/ikb_textarea}
                         </div>
                     </section>
 
@@ -195,10 +84,6 @@
                         <label>
                             <input type="checkbox" name="followup_required" value="1" {if followup_required}checked{/if} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                             <span>Follow-up Required</span>
-                        </label>
-                        <label>
-                            <input type="checkbox" name="is_confidential" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            <span>Confidential</span>
                         </label>
                     </div>
 

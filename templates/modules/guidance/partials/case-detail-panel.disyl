@@ -194,7 +194,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Risk Level</label>
                     <select name="risk_level"
@@ -205,11 +205,6 @@
                         <option value="high" {if create_default_risk_level == 'high'}selected{/if}>High</option>
                         <option value="critical" {if create_default_risk_level == 'critical'}selected{/if}>Critical</option>
                     </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Duration (min)</label>
-                    <input type="number" name="session_duration_minutes" min="0" step="5" placeholder="30"
-                           class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
                 </div>
             </div>
 

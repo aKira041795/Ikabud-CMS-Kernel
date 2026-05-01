@@ -83,7 +83,8 @@ function guidanceAllowedCaseSeverityLevels(): array
 function guidanceNormalizeCaseReferralSource(?string $value): string
 {
     $value = strtolower(trim((string)$value));
-    return in_array($value, ['walk-in', 'follow-up', 'referred'], true) ? $value : 'walk-in';
+    $allowed = ['walk-in', 'follow-up', 'referred', 'self', 'teacher', 'staff', 'parent', 'others'];
+    return in_array($value, $allowed, true) ? $value : 'self';
 }
 
 function guidanceCounselorExists(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $counselorId): bool
@@ -104,9 +105,39 @@ function guidanceBuildCaseRecordPayload(array $input, int $counselorId, int $use
         throw new RuntimeException('Please enter a valid email address.');
     }
 
+    // Compose student_name from separate first/last name fields when present
+    $firstName = trim((string)($input['student_first_name'] ?? ''));
+    $lastName  = trim((string)($input['student_last_name'] ?? ''));
+    if ($firstName !== '' || $lastName !== '') {
+        $studentName = trim($lastName . ($lastName !== '' && $firstName !== '' ? ', ' : '') . $firstName);
+    } else {
+        $studentName = trim((string)($input['student_name'] ?? ''));
+    }
+
     $category = strtolower(trim((string)($input['category'] ?? 'general')));
     if (!in_array($category, guidanceAllowedCaseCategories(), true)) {
         $category = 'general';
+    }
+
+    // Multi-select categories — stored as JSON array; primary category derived from first item
+    $rawCategories = $input['categories'] ?? null;
+    if (is_array($rawCategories) && $rawCategories !== []) {
+        $cleanCategories = array_values(array_unique(array_filter(array_map(
+            static fn ($v) => strtolower(trim((string)$v)), $rawCategories
+        ))));
+        $categoriesJson = json_encode($cleanCategories, JSON_UNESCAPED_UNICODE);
+        $firstCategory = $cleanCategories[0] ?? 'general';
+        $category = in_array($firstCategory, guidanceAllowedCaseCategories(), true) ? $firstCategory : 'general';
+    } elseif (is_string($rawCategories) && trim($rawCategories) !== '') {
+        // Comma-separated fallback
+        $cleanCategories = array_values(array_unique(array_filter(array_map(
+            static fn ($v) => strtolower(trim($v)), explode(',', $rawCategories)
+        ))));
+        $categoriesJson = json_encode($cleanCategories, JSON_UNESCAPED_UNICODE);
+        $firstCategory = $cleanCategories[0] ?? 'general';
+        $category = in_array($firstCategory, guidanceAllowedCaseCategories(), true) ? $firstCategory : 'general';
+    } else {
+        $categoriesJson = null;
     }
 
     $severity = strtolower(trim((string)($input['severity'] ?? 'medium')));
@@ -114,9 +145,13 @@ function guidanceBuildCaseRecordPayload(array $input, int $counselorId, int $use
         $severity = 'medium';
     }
 
+    $sessionDate = trim((string)($input['session_date'] ?? '')) ?: null;
+
     $payload = [
         'student_id' => trim((string)($input['student_id'] ?? '')),
-        'student_name' => trim((string)($input['student_name'] ?? '')),
+        'student_first_name' => $firstName ?: null,
+        'student_last_name' => $lastName ?: null,
+        'student_name' => $studentName,
         'student_grade' => trim((string)($input['student_grade'] ?? '')) ?: null,
         'student_section' => trim((string)($input['student_section'] ?? '')) ?: null,
         'date_of_birth' => trim((string)($input['date_of_birth'] ?? '')) ?: null,
@@ -129,15 +164,30 @@ function guidanceBuildCaseRecordPayload(array $input, int $counselorId, int $use
         'college_id' => !empty($input['college_id']) ? (int)$input['college_id'] : null,
         'counselor_id' => $counselorId,
         'category' => $category,
+        'categories' => $categoriesJson,
         'severity' => $severity,
         'presenting_issue' => trim((string)($input['presenting_issue'] ?? '')),
         'background_info' => trim((string)($input['background_info'] ?? '')) ?: null,
+        'case_predisposition' => trim((string)($input['case_predisposition'] ?? '')) ?: null,
+        'case_precipitating' => trim((string)($input['case_precipitating'] ?? '')) ?: null,
+        'case_perpetuating' => trim((string)($input['case_perpetuating'] ?? '')) ?: null,
+        'case_protective' => trim((string)($input['case_protective'] ?? '')) ?: null,
+        'session_date' => $sessionDate,
+        'mse_appearance' => trim((string)($input['mse_appearance'] ?? '')) ?: null,
+        'mse_mood' => trim((string)($input['mse_mood'] ?? '')) ?: null,
+        'mse_affect' => trim((string)($input['mse_affect'] ?? '')) ?: null,
+        'mse_behavior' => trim((string)($input['mse_behavior'] ?? '')) ?: null,
+        'mse_speech' => trim((string)($input['mse_speech'] ?? '')) ?: null,
+        'mse_thought_process' => trim((string)($input['mse_thought_process'] ?? '')) ?: null,
+        'mse_insight' => trim((string)($input['mse_insight'] ?? '')) ?: null,
+        'mse_judgment' => trim((string)($input['mse_judgment'] ?? '')) ?: null,
+        'mse_notes' => trim((string)($input['mse_notes'] ?? '')) ?: null,
         'is_urgent' => !empty($input['is_urgent']) ? 1 : 0,
         'is_confidential' => !empty($input['is_confidential']) ? 1 : 0,
         'parent_guardian_name' => trim((string)($input['parent_guardian_name'] ?? '')) ?: null,
         'parent_guardian_contact' => trim((string)($input['parent_guardian_contact'] ?? '')) ?: null,
         'emergency_contact_address' => trim((string)($input['emergency_contact_address'] ?? '')) ?: null,
-        'referral_source' => guidanceNormalizeCaseReferralSource((string)($input['referral_source'] ?? 'walk-in')),
+        'referral_source' => guidanceNormalizeCaseReferralSource((string)($input['referral_source'] ?? 'self')),
         'referred_by' => trim((string)($input['referred_by'] ?? '')) ?: null,
         'sync_id' => trim((string)($input['sync_id'] ?? '')) ?: uniqid('sync_', true),
         'created_by' => $userId,
@@ -485,43 +535,11 @@ function guidanceBuildAutoCaseInputFromAppointment(array $appointment): array
 
 function guidanceCaseInsertColumns(bool $hasStudentStatus): array
 {
-    if ($hasStudentStatus) {
-        return [
-            'case_number',
-            'student_id',
-            'student_name',
-            'student_grade',
-            'student_status',
-            'student_section',
-            'date_of_birth',
-            'gender',
-            'nationality',
-            'civil_status',
-            'address',
-            'student_mobile',
-            'student_email',
-            'college_id',
-            'counselor_id',
-            'category',
-            'severity',
-            'presenting_issue',
-            'background_info',
-            'is_urgent',
-            'is_confidential',
-            'parent_guardian_name',
-            'parent_guardian_contact',
-            'emergency_contact_address',
-            'referral_source',
-            'referred_by',
-            'sync_id',
-            'created_by',
-            'last_modified_by',
-        ];
-    }
-
-    return [
+    $base = [
         'case_number',
         'student_id',
+        'student_first_name',
+        'student_last_name',
         'student_name',
         'student_grade',
         'student_section',
@@ -535,9 +553,24 @@ function guidanceCaseInsertColumns(bool $hasStudentStatus): array
         'college_id',
         'counselor_id',
         'category',
+        'categories',
         'severity',
         'presenting_issue',
         'background_info',
+        'case_predisposition',
+        'case_precipitating',
+        'case_perpetuating',
+        'case_protective',
+        'session_date',
+        'mse_appearance',
+        'mse_mood',
+        'mse_affect',
+        'mse_behavior',
+        'mse_speech',
+        'mse_thought_process',
+        'mse_insight',
+        'mse_judgment',
+        'mse_notes',
         'is_urgent',
         'is_confidential',
         'parent_guardian_name',
@@ -549,6 +582,12 @@ function guidanceCaseInsertColumns(bool $hasStudentStatus): array
         'created_by',
         'last_modified_by',
     ];
+
+    if ($hasStudentStatus) {
+        array_splice($base, 5, 0, ['student_status']);
+    }
+
+    return $base;
 }
 
 function guidanceAutoCreateCaseFromAppointment(
@@ -671,13 +710,6 @@ function apiGuidanceCreateCase(): void
     }
 
     $validationErrors = guidanceValidateFormInput('case', $input);
-    if ($sourceAppointment === null) {
-        foreach (['appointment_type_id', 'appointment_date', 'appointment_time'] as $fieldName) {
-            if (!array_key_exists($fieldName, $input) || trim((string)$input[$fieldName]) === '') {
-                $validationErrors[] = ucfirst(str_replace('_', ' ', $fieldName)) . ' is required';
-            }
-        }
-    }
     if ($validationErrors !== []) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $validationErrors[0], 'type' => 'error']]));
@@ -719,12 +751,12 @@ function apiGuidanceCreateCase(): void
 
                 $caseId = (int)$db->lastInsertId();
                 guidanceInsertCaseStatusHistory($db, $caseId, null, 'open', $userId, 'Case created');
+                $appointmentId = null;
                 if (is_array($sourceAppointment)) {
                     $appointmentId = guidanceLinkAppointmentToCase($db, $caseId, $caseData, $sourceAppointment, $userId);
                     $successMessage = 'Case created successfully and linked to the confirmed appointment';
                 } else {
-                    $appointmentId = guidanceCreateCaseInitialAppointment($db, $caseId, $caseData, $input, $userId);
-                    $successMessage = 'Case created successfully with the initial appointment scheduled';
+                    $successMessage = 'Case created successfully';
                 }
                 guidanceLogAudit($db, 'case.created', 'gm_cases', $caseId, null, array_merge($input, [
                     'case_number' => $caseNumber,
@@ -842,7 +874,7 @@ function apiGuidanceUpdateCase(array $params = []): void
 
     try {
         $caseData = guidanceBuildCaseRecordPayload($input, $counselorId, $userId, $hasStudentStatus);
-        $allowedColumns = ['student_id', 'student_name', 'student_grade', 'student_section', 'date_of_birth', 'gender', 'nationality', 'civil_status', 'address', 'student_mobile', 'student_email', 'college_id', 'counselor_id', 'category', 'severity', 'presenting_issue', 'background_info', 'is_urgent', 'is_confidential', 'parent_guardian_name', 'parent_guardian_contact', 'emergency_contact_address', 'referral_source', 'referred_by'];
+        $allowedColumns = ['student_id', 'student_first_name', 'student_last_name', 'student_name', 'student_grade', 'student_section', 'date_of_birth', 'gender', 'nationality', 'civil_status', 'address', 'student_mobile', 'student_email', 'college_id', 'counselor_id', 'category', 'categories', 'severity', 'presenting_issue', 'background_info', 'case_predisposition', 'case_precipitating', 'case_perpetuating', 'case_protective', 'session_date', 'mse_appearance', 'mse_mood', 'mse_affect', 'mse_behavior', 'mse_speech', 'mse_thought_process', 'mse_insight', 'mse_judgment', 'mse_notes', 'is_urgent', 'is_confidential', 'parent_guardian_name', 'parent_guardian_contact', 'emergency_contact_address', 'referral_source', 'referred_by'];
         if ($hasStudentStatus) {
             $allowedColumns[] = 'student_status';
         }
@@ -1787,6 +1819,8 @@ function pageGuidanceLogin(): void
     echo guidanceRender('modules/guidance/pages/login.disyl', [
         'page_title' => 'Guidance Sign In',
         'base_url' => '/guidance',
+        'forgot_password_endpoint' => '/api/v1/guidance/auth/forgot-password',
+        'app_name' => guidanceGetSetting('app_name', 'Guidance Monitoring System') ?: 'Guidance Monitoring System',
     ]);
 }
 
@@ -3232,6 +3266,7 @@ function guidanceBasePageContext(array $user, string $pageTitle, string $current
         'base_url' => '/admin/guidance',
         'current_page' => $currentPage,
         'is_pro' => guidanceIsPro(),
+        'app_name' => guidanceGetSetting('app_name', 'Guidance Monitoring System') ?: 'Guidance Monitoring System',
         'user_name' => $name,
         'user_role' => $role,
         'user_initials' => $initials,
@@ -4089,7 +4124,7 @@ function apiGuidanceCaseNoteUpdate(array $params = []): void
         return;
     }
 
-    $sessionType = in_array($input['session_type'] ?? '', ['walk-in', 'follow-up', 'referred'], true)
+    $sessionType = in_array($input['session_type'] ?? '', ['walk-in', 'follow-up', 'referred', 'scheduled', 'referral'], true)
         ? $input['session_type']
         : 'walk-in';
     $riskLevel = in_array($input['risk_level'] ?? '', ['none', 'low', 'moderate', 'high', 'critical'], true)
@@ -5076,6 +5111,8 @@ function modalGuidanceCaseNew(): void
         'user_role' => $role,
         'user_id' => $userId,
         'counselors' => $counselors,
+        'colleges' => $colleges,
+        'case_categories_json' => '[]',
         'dynamic_fields_html' => guidanceRenderFormFields('case', $casePrefill, ['colleges' => $colleges]),
         'source_appointment' => $sourceAppointment ?? [],
         'tinymce_assets' => $tinyMceAssets,
@@ -5139,6 +5176,17 @@ function modalGuidanceCaseEdit(array $params = []): void
         'user_role' => $role,
         'user_id' => $userId,
         'counselors' => $counselors,
+        'colleges' => $colleges,
+        'case_categories_json' => (function() use ($case): string {
+            $raw = $case['categories'] ?? null;
+            if (is_string($raw) && trim($raw) !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    return json_encode($decoded, JSON_UNESCAPED_UNICODE);
+                }
+            }
+            return '[]';
+        })(),
         'dynamic_fields_html' => guidanceRenderFormFields('case', $case, ['colleges' => $colleges]),
         'tinymce_assets' => $tinyMceAssets,
         'tinymce_config' => $tinyMceConfig,
@@ -12008,6 +12056,7 @@ function pageGuidanceResetPassword(): void {
         'login_page_url' => '/guidance/login',
         'reset_token' => $token,
         'token_valid' => guidanceResetTokenIsValid($token),
+        'app_name' => guidanceGetSetting('app_name', 'Guidance Monitoring System') ?: 'Guidance Monitoring System',
     ]);
 }
 

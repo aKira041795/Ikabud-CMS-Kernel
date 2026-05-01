@@ -129,7 +129,7 @@ class SecurityHeaders
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://fonts.googleapis.com",
             "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
             "img-src 'self' data: blob: https:",
-            "connect-src 'self'",
+            "connect-src 'self' https://unpkg.com",
             "frame-ancestors 'self'",
             "base-uri 'self'",
             "form-action 'self'",
