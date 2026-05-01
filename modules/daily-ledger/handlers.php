@@ -1177,8 +1177,14 @@ function pageDailyLedgerLogin(): void
         }
         dlRedirect($redir);
     }
+    $loginSettings = dlModuleSettings();
+    $appName = trim((string)($loginSettings['app_name'] ?? 'Daily Ledger'));
+    if ($appName === '') {
+        $appName = 'Daily Ledger';
+    }
     echo dlRender('modules/daily-ledger/pages/login.disyl', [
-        'page_title' => 'Daily Ledger Sign In',
+        'page_title' => $appName . ' Sign In',
+        'app_name' => $appName,
     ]);
 }
 
@@ -2814,6 +2820,7 @@ function handleAdminSettings(array $params = []): void
         'operating_region_choices' => dl_operatingRegionChoices($closeOfDaySettings['operating_region']),
         'is_kernel_admin' => $isKernelAdmin,
         'production_output_enabled' => $featureSettings['production_output_enabled'],
+        'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
     ]);
 }
 
@@ -2883,7 +2890,11 @@ function apiSaveRolePermissions(array $params = []): void
         return;
     }
 
+    $appNameInput = trim((string)($input['app_name'] ?? ''));
+    $appName = $appNameInput !== '' ? mb_substr($appNameInput, 0, 80) : 'Daily Ledger';
+
     saveModuleSettings('daily-ledger', [
+        'app_name' => $appName,
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled ? '1' : '0',
         'close_of_day_time' => $closeOfDayTime,

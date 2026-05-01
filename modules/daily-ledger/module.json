@@ -95,6 +95,13 @@
     },
     "settings_fields": [
         {
+            "key": "app_name",
+            "type": "text",
+            "label": "App Name",
+            "default": "Daily Ledger",
+            "description": "Display name shown on the login page and throughout the app."
+        },
+        {
             "key": "production_output_enabled",
             "type": "checkbox",
             "label": "Enable Production Output",
