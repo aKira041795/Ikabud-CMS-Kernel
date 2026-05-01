@@ -20,7 +20,7 @@
             </button>
             <button hx-get="{base_url}/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
                     class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition border border-gray-300 shadow-sm">
-                <i class="fas fa-calendar-plus mr-2"></i> New Session
+                <i class="fas fa-calendar-plus mr-2"></i> New Appointment
             </button>
         </div>
     </div>
@@ -35,17 +35,17 @@
         </div>
     </div>
     
-    {!-- Recent Counseling Sessions (full width) --}
+    {!-- Recently Updated Students (full width) --}
     <div class="mt-6">
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="p-4 border-b border-gray-100 flex items-center justify-between">
                 <h2 class="text-base font-semibold text-gray-900">
-                    Recent Counseling Sessions
+                    Recently Updated Students
                 </h2>
                 <a href="{base_url}/cases"
                    hx-get="{base_url}/pages/cases" hx-target="#main-content" hx-push-url="{base_url}/cases"
                    class="text-sm text-teal-600 hover:text-teal-800 font-medium">
-                    View all sessions <i class="fas fa-arrow-right ml-1"></i>
+                    View all students <i class="fas fa-arrow-right ml-1"></i>
                 </a>
             </div>
 

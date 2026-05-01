@@ -154,11 +154,18 @@
                 {!-- Sessions icon-only collapsed --}
                 <div x-show="!sidebarOpen" x-cloak>
                     <a href="{base_url}/appointments"
-                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'appointments' || current_page == 'session-records'}bg-teal-700{/if}"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'appointments'}bg-teal-700{/if}"
                        hx-get="{base_url}/pages/appointments"
                        hx-target="#main-content"
                        hx-push-url="{base_url}/appointments">
                         <i class="fas fa-calendar-check w-5 text-center flex-shrink-0"></i>
+                    </a>
+                    <a href="{base_url}/session-records"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'session-records'}bg-teal-700{/if}"
+                       hx-get="{base_url}/pages/session-records"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/session-records">
+                        <i class="fas fa-clipboard-list w-5 text-center flex-shrink-0"></i>
                     </a>
                 </div>
                 
@@ -181,7 +188,10 @@
                 </a>
                 
                 <a href="{base_url}/alerts"
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'alerts'}bg-teal-700{/if}">
+                         class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'alerts'}bg-teal-700{/if}"
+                         hx-get="{base_url}/pages/alerts"
+                         hx-target="#main-content"
+                         hx-push-url="{base_url}/alerts">
                     <i class="fas fa-bell w-5 text-center flex-shrink-0"></i>
                     <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Alerts</span>
                 </a>
@@ -209,10 +219,43 @@
                        hx-target="#main-content"
                        hx-push-url="{base_url}/trackers">
                         <i class="fas fa-file-alt w-5 text-center flex-shrink-0"></i>
-                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Resources</span>
+                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Trackers</span>
                     </a>
 
                 {if user.role == 'admin'}
+                    <span class="px-4 pt-2 pb-1 text-xs uppercase text-teal-400 block" x-show="sidebarOpen" x-cloak>Administration</span>
+                    <a href="{base_url}/users"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'users'}bg-teal-700{/if}"
+                       hx-get="{base_url}/pages/users"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/users">
+                        <i class="fas fa-users w-5 text-center flex-shrink-0"></i>
+                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Users</span>
+                    </a>
+                    <a href="{base_url}/colleges"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'colleges'}bg-teal-700{/if}"
+                       hx-get="{base_url}/pages/colleges"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/colleges">
+                        <i class="fas fa-university w-5 text-center flex-shrink-0"></i>
+                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Colleges</span>
+                    </a>
+                    <a href="{base_url}/form-settings"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'form-settings'}bg-teal-700{/if}"
+                       hx-get="{base_url}/pages/form-settings"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/form-settings">
+                        <i class="fas fa-sliders-h w-5 text-center flex-shrink-0"></i>
+                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Form Settings</span>
+                    </a>
+                    <a href="{base_url}/email-templates"
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'email-templates'}bg-teal-700{/if}"
+                       hx-get="{base_url}/pages/email-templates"
+                       hx-target="#main-content"
+                       hx-push-url="{base_url}/email-templates">
+                        <i class="fas fa-envelope w-5 text-center flex-shrink-0"></i>
+                        <span class="ml-3 text-sm" x-show="sidebarOpen" x-cloak>Email Templates</span>
+                    </a>
                     <a href="{base_url}/settings" 
                        class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-teal-700 transition-colors {if current_page == 'settings'}bg-teal-700{/if}"
                        hx-get="{base_url}/pages/settings" 
@@ -245,32 +288,6 @@
                        class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
                         <i class="fas fa-user mr-2 w-4"></i> Profile
                     </a>
-                    {if user.role == 'admin'}
-                    <a href="{base_url}/users"
-                       hx-get="{base_url}/pages/users" hx-target="#main-content" hx-push-url="{base_url}/users"
-                       @click="open = false"
-                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
-                        <i class="fas fa-users mr-2 w-4"></i> Users
-                    </a>
-                    <a href="{base_url}/colleges"
-                       hx-get="{base_url}/pages/colleges" hx-target="#main-content" hx-push-url="{base_url}/colleges"
-                       @click="open = false"
-                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
-                        <i class="fas fa-university mr-2 w-4"></i> Colleges
-                    </a>
-                    <a href="{base_url}/form-settings"
-                       hx-get="{base_url}/pages/form-settings" hx-target="#main-content" hx-push-url="{base_url}/form-settings"
-                       @click="open = false"
-                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
-                        <i class="fas fa-sliders-h mr-2 w-4"></i> Form Settings
-                    </a>
-                    <a href="{base_url}/email-templates"
-                       hx-get="{base_url}/pages/email-templates" hx-target="#main-content" hx-push-url="{base_url}/email-templates"
-                       @click="open = false"
-                       class="flex items-center px-4 py-2 text-sm hover:bg-teal-600 transition-colors">
-                        <i class="fas fa-envelope mr-2 w-4"></i> Email Templates
-                    </a>
-                    {/if}
                     <hr class="my-1 border-teal-600">
                     <a href="{base_url}/logout" class="flex items-center px-4 py-2 text-sm text-red-300 hover:bg-teal-600 hover:text-red-200 transition-colors">
                         <i class="fas fa-sign-out-alt mr-2 w-4"></i> Logout

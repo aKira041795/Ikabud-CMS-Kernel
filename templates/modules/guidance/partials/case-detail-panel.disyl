@@ -77,13 +77,13 @@
         <div class="border-t border-gray-100">
             <div class="px-5 py-3 flex items-center justify-between gap-3">
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-800">Counseling Session History</h3>
-                    <p class="text-xs text-gray-400 mt-0.5">Select a session to review it in the workspace on the right.</p>
+                    <h3 class="text-sm font-semibold text-gray-800">Session Record History</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Select a session record to review it in the workspace on the right.</p>
                 </div>
                 <button hx-get="{panel_create_href}"
                         hx-target="{panel_target}" hx-swap="innerHTML"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white text-xs font-semibold rounded-lg hover:bg-teal-800 transition shadow-sm whitespace-nowrap">
-                    <i class="fas fa-plus text-[10px]"></i> Add New Session
+                    <i class="fas fa-plus text-[10px]"></i> Add Session Record
                 </button>
             </div>
 
@@ -301,7 +301,7 @@
             {else}
             <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center">
                 <i class="fas fa-notes-medical text-2xl text-gray-300"></i>
-                <h3 class="text-sm font-semibold text-gray-700 mt-3">No sessions recorded yet</h3>
+                <h3 class="text-sm font-semibold text-gray-700 mt-3">No session records yet</h3>
                 <p class="text-xs text-gray-500 mt-1">Start the first counseling session record for this student from the workspace.</p>
             </div>
             {/if}
@@ -315,7 +315,7 @@
                 <button hx-get="{panel_create_href}"
                         hx-target="{panel_target}" hx-swap="innerHTML"
                         class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-teal-700 text-white text-sm font-semibold hover:bg-teal-800 transition shadow-sm">
-                    <i class="fas fa-plus text-[10px]"></i> Add New Session
+                    <i class="fas fa-plus text-[10px]"></i> Add Session Record
                 </button>
             </div>
         </div>

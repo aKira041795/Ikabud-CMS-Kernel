@@ -14,7 +14,7 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Session Records</h1>
-                <p class="text-sm text-gray-500 mt-0.5">View and manage all counseling sessions that have been completed.</p>
+                <p class="text-sm text-gray-500 mt-0.5">Review completed sessions and attendance outcomes.</p>
             </div>
         </div>
     </div>
@@ -158,19 +158,19 @@
                     <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
                         <i class="fas fa-check-circle text-[10px]"></i> Went to Session
                     </span>
-                    <span>Student attended the appointment</span>
+                    <span>Student attended the scheduled session</span>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
                         <i class="fas fa-clock text-[10px]"></i> Did Not Show Up
                     </span>
-                    <span>Student did not attend the appointment</span>
+                    <span>Student did not attend the scheduled session</span>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
                         <i class="fas fa-times-circle text-[10px]"></i> Cancelled
                     </span>
-                    <span>Appointment was cancelled</span>
+                    <span>Scheduled session was cancelled</span>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
@@ -183,16 +183,16 @@
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
             <h3 class="text-sm font-semibold text-gray-700 mb-3">
-                <i class="fas fa-sticky-note text-gray-400 mr-1"></i> Appointment Notes
+                <i class="fas fa-sticky-note text-gray-400 mr-1"></i> Session Record Notes
             </h3>
             <ul class="space-y-2 text-sm text-gray-600">
                 <li class="flex items-start gap-2">
                     <i class="fas fa-dot-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
-                    You can update the status of an appointment by clicking the action menu.
+                    You can update the status of a session entry by clicking the action menu.
                 </li>
                 <li class="flex items-start gap-2">
                     <i class="fas fa-dot-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
-                    For "Did Not Show Up" appointments, you may reschedule or mark as completed if the session was done through another time.
+                    For "Did Not Show Up" entries, you may reschedule or mark the session as completed if it happened at another time.
                 </li>
             </ul>
         </div>

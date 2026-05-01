@@ -69,7 +69,7 @@
             <button @click="activeTab = 'completed'; filterStatus = 'completed'; loadList()"
                     :class="activeTab === 'completed' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
                     class="px-4 py-3 text-sm whitespace-nowrap mr-1 transition-colors">
-                Completed
+                Completed Sessions
             </button>
             <button @click="activeTab = 'cancelled'; filterStatus = 'cancelled'; loadList()"
                     :class="activeTab === 'cancelled' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
@@ -79,7 +79,7 @@
             <button @click="activeTab = 'noshow'; filterStatus = 'no_show'; loadList()"
                     :class="activeTab === 'noshow' ? 'border-b-2 border-teal-600 text-teal-700 font-semibold' : 'text-gray-500 hover:text-gray-700'"
                     class="px-4 py-3 text-sm whitespace-nowrap mr-1 transition-colors">
-                No Show
+                No-Show
             </button>
 
             {!-- Date Range (right side) --}
@@ -177,19 +177,19 @@
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold w-36 flex-shrink-0">
                         <i class="fas fa-check-circle text-[10px]"></i> Went to Session
                     </span>
-                    <span class="text-xs">Student attended the appointment</span>
+                    <span class="text-xs">Student attended the scheduled session</span>
                 </div>
                 <div class="flex items-center gap-3 text-sm text-gray-600">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold w-36 flex-shrink-0">
                         <i class="fas fa-clock text-[10px]"></i> Did Not Show Up
                     </span>
-                    <span class="text-xs">Student did not attend the appointment</span>
+                    <span class="text-xs">Student did not attend the scheduled session</span>
                 </div>
                 <div class="flex items-center gap-3 text-sm text-gray-600">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold w-36 flex-shrink-0">
                         <i class="fas fa-times-circle text-[10px]"></i> Cancelled
                     </span>
-                    <span class="text-xs">Appointment was cancelled</span>
+                    <span class="text-xs">Scheduled appointment was cancelled</span>
                 </div>
                 <div class="flex items-center gap-3 text-sm text-gray-600">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold w-36 flex-shrink-0">
@@ -209,7 +209,7 @@
                 </li>
                 <li class="flex items-start gap-2">
                     <i class="fas fa-dot-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
-                    For "Did Not Show Up" appointments, you may reschedule or mark as completed if the session was done through another time.
+                    For "Did Not Show Up" appointments, you may reschedule or mark the session as completed if it happened at another time.
                 </li>
             </ul>
         </div>
