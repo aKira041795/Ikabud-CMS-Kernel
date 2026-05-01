@@ -4,14 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Guidance Monitoring System</title>
+    <title>Login - {app_name}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="icon" type="image/svg+xml" href="/assets/guidance/favicon.svg">
     <link rel="stylesheet" href="/assets/guidance/css/app.css">
     <script>
         var APP_BASE = '{base_url}';
         var APP_COOKIE = '{cookie_name}';
+        var FORGOT_PASSWORD_ENDPOINT = '{forgot_password_endpoint}';
         document.addEventListener('htmx:configRequest', function(evt) {
             var path = evt.detail.path;
             if (path && path.charAt(0) === '/' && path.indexOf(APP_BASE) !== 0) {
@@ -19,32 +21,37 @@
             }
         });
     </script>
+    <style>
+        .gms-card   { border-radius: 3px !important; }
+        .gms-input  { border-radius: 3px !important; }
+        .gms-btn    { border-radius: 3px !important; }
+        .gms-alert  { border-radius: 3px !important; }
+        .gms-avatar { border-radius: 40px !important; }
+    </style>
 </head>
-<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 py-12 px-4">
+<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-600 to-emerald-700 py-12 px-4">
     
     <div class="max-w-md w-full">
         {!-- Logo & Title --}
         <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-20 h-20 bg-white rounded-full shadow-lg mb-4">
-                <i class="fas fa-heart-pulse text-indigo-600 text-3xl"></i>
+            <div class="gms-avatar inline-flex items-center justify-center w-20 h-20 bg-white shadow-lg mb-4">
+                <i class="fas fa-heart-pulse text-teal-600 text-3xl"></i>
             </div>
-            <h1 class="text-3xl font-bold text-white">Guidance</h1>
-            <p class="text-indigo-200 mt-2">Monitoring System</p>
+            <h1 class="text-3xl font-bold text-white">{app_name}</h1>
         </div>
         
         {!-- Login Card --}
-        <div class="bg-white rounded-2xl shadow-xl p-8">
+        <div class="gms-card bg-white shadow-xl p-8">
             <h2 class="text-2xl font-bold text-gray-800 text-center mb-6" id="card-title">Welcome Back</h2>
-            
-            {!-- Error Message --}
-            <div id="login-error" class="hidden mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded">
-                <i class="fas fa-exclamation-circle mr-2"></i>
-                <span id="error-message">Invalid credentials</span>
+
+            {!-- Message Banner --}
+            <div id="login-message" class="gms-alert hidden mb-4 p-4 border-l-4 text-sm">
+                <i class="fas fa-exclamation-circle mr-2" id="message-icon"></i>
+                <span id="message-text"></span>
             </div>
-            
-            {!-- Login Form --}
+
+            {!-- ① Login Form --}
             <form id="login-form" class="space-y-5">
-                
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                     <div class="relative">
@@ -52,11 +59,11 @@
                             <i class="fas fa-envelope"></i>
                         </span>
                         <input type="email" name="email" required
-                               class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               class="gms-input w-full pl-10 pr-4 py-3 border border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                placeholder="you@school.edu">
                     </div>
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
                     <div class="relative">
@@ -64,69 +71,125 @@
                             <i class="fas fa-lock"></i>
                         </span>
                         <input type="password" name="password" required id="login-password"
-                               class="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               class="gms-input w-full pl-10 pr-10 py-3 border border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                placeholder="••••••••">
                         <button type="button" id="toggle-pw" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
                 </div>
-                
+
                 <div class="flex items-center justify-between">
                     <label class="flex items-center">
-                        <input type="checkbox" name="remember" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <input type="checkbox" name="remember" class="gms-input rounded border-gray-300 text-teal-600 focus:ring-teal-500">
                         <span class="ml-2 text-sm text-gray-600">Remember me</span>
                     </label>
-                    <a href="{base_url}/forgot-password" class="text-sm text-indigo-600 hover:underline">Forgot password?</a>
+                    <button type="button" id="show-forgot" class="text-sm text-teal-700 hover:underline font-medium">Forgot password?</button>
                 </div>
-                
-                <button type="submit" 
-                        class="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition flex items-center justify-center">
+
+                <button type="submit" id="login-submit"
+                        class="gms-btn w-full py-3 bg-teal-600 text-white font-semibold hover:bg-teal-700 transition flex items-center justify-center">
                     Sign In
                 </button>
             </form>
 
-            {!-- OTP Verification Form --}
+            {!-- ② OTP Verification Panel --}
             <div id="otp-panel" class="hidden space-y-5">
-                <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-800">
+                <div class="gms-alert border border-teal-200 bg-teal-50 p-4 text-sm text-teal-800">
                     <p class="font-medium">Verification required</p>
                     <p class="mt-1">Enter the 6-digit code sent to <span id="otp-email" class="font-semibold"></span> to finish signing in.</p>
                 </div>
 
                 <form id="otp-form" class="space-y-5">
                     <input type="hidden" name="ticket" id="otp-ticket">
-
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Verification Code</label>
                         <input type="text" name="code" id="otp-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required
-                               class="w-full px-4 py-3 text-center tracking-[0.4em] text-lg font-semibold border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               class="gms-input w-full px-4 py-3 text-center tracking-[0.4em] text-lg font-semibold border border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                placeholder="000000">
                     </div>
-
                     <button type="submit" id="otp-submit"
-                            class="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition flex items-center justify-center">
+                            class="gms-btn w-full py-3 bg-teal-600 text-white font-semibold hover:bg-teal-700 transition flex items-center justify-center">
                         Verify &amp; Continue
                     </button>
                 </form>
 
                 <div class="flex items-center justify-between text-sm">
                     <button type="button" id="otp-back" class="text-gray-600 hover:text-gray-900">Use different credentials</button>
-                    <button type="button" id="otp-resend" class="text-indigo-600 hover:underline">Resend code</button>
+                    <button type="button" id="otp-resend" class="text-teal-700 hover:underline">Resend code</button>
+                </div>
+            </div>
+
+            {!-- ③ Forgot Password Panel --}
+            <div id="forgot-panel" class="hidden space-y-5">
+                <p class="text-sm text-gray-500 text-center">Enter your email and we'll send you a reset link.</p>
+
+                <form id="forgot-form" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                <i class="fas fa-envelope"></i>
+                            </span>
+                            <input type="email" name="email" required
+                                   class="gms-input w-full pl-10 pr-4 py-3 border border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                   placeholder="you@school.edu">
+                        </div>
+                    </div>
+                    <button type="submit" id="forgot-submit"
+                            class="gms-btn w-full py-3 bg-teal-600 text-white font-semibold hover:bg-teal-700 transition flex items-center justify-center">
+                        <i class="fas fa-paper-plane mr-2"></i> Send Reset Link
+                    </button>
+                </form>
+
+                <div class="text-center">
+                    <button type="button" id="back-to-login" class="text-sm text-teal-700 hover:underline">
+                        <i class="fas fa-arrow-left mr-1"></i> Back to Login
+                    </button>
                 </div>
             </div>
         </div>
-        
+
         {!-- Footer --}
-        <p class="text-center text-indigo-200 text-sm mt-6">
+        <p class="text-center text-teal-100 text-sm mt-6">
             Powered by <strong>DiSyL</strong> + <strong>Ikabud CMS</strong>
         </p>
     </div>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            var toggleBtn = document.getElementById('toggle-pw');
-            var pwInput = document.getElementById('login-password');
-            toggleBtn.addEventListener('click', function() {
+
+            // --- Elements ---
+            const cardTitle   = document.getElementById('card-title');
+            const msgBanner   = document.getElementById('login-message');
+            const msgIcon     = document.getElementById('message-icon');
+            const msgText     = document.getElementById('message-text');
+
+            const loginForm   = document.getElementById('login-form');
+            const loginSubmit = document.getElementById('login-submit');
+            const togglePw    = document.getElementById('toggle-pw');
+            const pwInput     = document.getElementById('login-password');
+            const showForgot  = document.getElementById('show-forgot');
+
+            const otpPanel    = document.getElementById('otp-panel');
+            const otpForm     = document.getElementById('otp-form');
+            const otpEmail    = document.getElementById('otp-email');
+            const otpTicket   = document.getElementById('otp-ticket');
+            const otpCode     = document.getElementById('otp-code');
+            const otpBack     = document.getElementById('otp-back');
+            const otpResend   = document.getElementById('otp-resend');
+            const otpSubmit   = document.getElementById('otp-submit');
+
+            const forgotPanel  = document.getElementById('forgot-panel');
+            const forgotForm   = document.getElementById('forgot-form');
+            const forgotSubmit = document.getElementById('forgot-submit');
+            const backToLogin  = document.getElementById('back-to-login');
+
+            let activeOtpTicket = '';
+            let activeRedirect  = '/admin/guidance';
+
+            // --- Password toggle ---
+            togglePw.addEventListener('click', function() {
                 var icon = this.querySelector('i');
                 if (pwInput.type === 'password') {
                     pwInput.type = 'text';
@@ -137,162 +200,142 @@
                 }
             });
 
-            const cardTitle = document.getElementById('card-title');
-            const form = document.getElementById('login-form');
-            const otpPanel = document.getElementById('otp-panel');
-            const otpForm = document.getElementById('otp-form');
-            const otpEmail = document.getElementById('otp-email');
-            const otpTicket = document.getElementById('otp-ticket');
-            const otpCode = document.getElementById('otp-code');
-            const otpBack = document.getElementById('otp-back');
-            const otpResend = document.getElementById('otp-resend');
-            const otpSubmit = document.getElementById('otp-submit');
-            const loginSubmit = form.querySelector('button[type="submit"]');
-            const errorDiv = document.getElementById('login-error');
-            const errorMsg = document.getElementById('error-message');
-            const errorIcon = errorDiv.querySelector('i');
-
-            let activeOtpTicket = '';
-            let activeRedirect = '/admin/guidance';
-            
-            function showMessage(msg, type = 'error') {
-                errorDiv.classList.remove('hidden', 'bg-red-50', 'border-red-500', 'text-red-700', 'bg-indigo-50', 'border-indigo-500', 'text-indigo-700');
-                if (type === 'info') {
-                    errorDiv.classList.add('bg-indigo-50', 'border-indigo-500', 'text-indigo-700');
-                    errorIcon.className = 'fas fa-info-circle mr-2';
+            // --- Message helpers ---
+            function showMessage(msg, type) {
+                var t = type || 'error';
+                msgBanner.className = 'gms-alert mb-4 p-4 border-l-4 text-sm';
+                if (t === 'info' || t === 'success') {
+                    msgBanner.classList.add('bg-teal-50', 'border-teal-500', 'text-teal-800');
+                    msgIcon.className = 'fas fa-info-circle mr-2';
                 } else {
-                    errorDiv.classList.add('bg-red-50', 'border-red-500', 'text-red-700');
-                    errorIcon.className = 'fas fa-exclamation-circle mr-2';
+                    msgBanner.classList.add('bg-red-50', 'border-red-500', 'text-red-700');
+                    msgIcon.className = 'fas fa-exclamation-circle mr-2';
                 }
-                errorDiv.classList.remove('hidden');
-                errorMsg.textContent = msg;
+                msgText.textContent = msg;
             }
             function hideMessage() {
-                errorDiv.classList.add('hidden');
+                msgBanner.classList.add('hidden');
             }
 
-            function setLoginSubmitState(isBusy) {
-                loginSubmit.disabled = isBusy;
-                loginSubmit.innerHTML = isBusy
-                    ? '<i class="fas fa-spinner fa-spin mr-2"></i> Signing in...'
-                    : 'Sign In';
-            }
-
-            function setOtpSubmitState(isBusy) {
-                otpSubmit.disabled = isBusy;
-                otpSubmit.innerHTML = isBusy
-                    ? '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...'
-                    : 'Verify &amp; Continue';
-                otpResend.disabled = isBusy;
-            }
-
-            function showLoginStep() {
-                activeOtpTicket = '';
-                otpTicket.value = '';
-                otpCode.value = '';
+            // --- Panel switching ---
+            function showPanel(name) {
+                loginForm.classList.add('hidden');
                 otpPanel.classList.add('hidden');
-                form.classList.remove('hidden');
-                cardTitle.textContent = 'Welcome Back';
-                setLoginSubmitState(false);
-                setOtpSubmitState(false);
+                forgotPanel.classList.add('hidden');
                 hideMessage();
+                if (name === 'login')  { loginForm.classList.remove('hidden');  cardTitle.textContent = 'Welcome Back'; }
+                if (name === 'otp')    { otpPanel.classList.remove('hidden');   cardTitle.textContent = 'Verify Your Sign In'; }
+                if (name === 'forgot') { forgotPanel.classList.remove('hidden'); cardTitle.textContent = 'Reset Password'; }
             }
 
-            function showOtpStep(data) {
-                activeOtpTicket = data.ticket || '';
-                activeRedirect = data.redirect || '/admin/guidance';
-                otpTicket.value = activeOtpTicket;
-                otpEmail.textContent = data.masked_email || 'your email address';
-                form.classList.add('hidden');
-                otpPanel.classList.remove('hidden');
-                cardTitle.textContent = 'Verify Your Sign In';
-                otpCode.value = '';
-                setLoginSubmitState(false);
-                setOtpSubmitState(false);
-                hideMessage();
-                otpCode.focus();
+            // --- Submit state helpers ---
+            function setBusy(btn, busy, idleHtml) {
+                btn.disabled = busy;
+                btn.innerHTML = busy ? '<i class="fas fa-spinner fa-spin mr-2"></i> Please wait...' : idleHtml;
             }
-            
+
             function completeLogin(data) {
-                var redirect = data && data.redirect ? data.redirect : '/admin/guidance';
-                window.location.href = redirect;
+                window.location.href = (data && data.redirect) ? data.redirect : '/admin/guidance';
             }
-            
-            form.addEventListener('submit', async function(e) {
+
+            // --- Login form ---
+            loginForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                setLoginSubmitState(true);
+                setBusy(loginSubmit, true, 'Sign In');
                 hideMessage();
-                
                 try {
-                    var resp = await fetch(APP_BASE + '/api/auth/login', { method: 'POST', body: new FormData(form) });
+                    var resp = await fetch(APP_BASE + '/api/auth/login', { method: 'POST', body: new FormData(loginForm) });
                     var data = await resp.json();
-                    
                     if (data && data.requires_otp) {
-                        showOtpStep(data);
+                        activeOtpTicket = data.ticket || '';
+                        activeRedirect  = data.redirect || '/admin/guidance';
+                        otpTicket.value = activeOtpTicket;
+                        otpEmail.textContent = data.masked_email || 'your email address';
+                        otpCode.value = '';
+                        showPanel('otp');
+                        otpCode.focus();
                     } else if (data && (data.ok || data.success)) {
                         completeLogin(data);
                     } else {
                         showMessage((data && data.error) || 'Invalid credentials');
-                        setLoginSubmitState(false);
+                        setBusy(loginSubmit, false, 'Sign In');
                     }
                 } catch (err) {
                     showMessage('Connection error. Please try again.');
-                    setLoginSubmitState(false);
+                    setBusy(loginSubmit, false, 'Sign In');
                 }
             });
 
+            // --- OTP form ---
             otpForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                setOtpSubmitState(true);
+                setBusy(otpSubmit, true, 'Verify &amp; Continue');
                 hideMessage();
-
                 try {
                     var resp = await fetch(APP_BASE + '/api/auth/verify-otp', { method: 'POST', body: new FormData(otpForm) });
                     var data = await resp.json();
-
                     if (data && (data.ok || data.success)) {
                         completeLogin({ redirect: data.redirect || activeRedirect });
                     } else {
                         showMessage((data && data.error) || 'Unable to verify the code.');
-                        setOtpSubmitState(false);
+                        setBusy(otpSubmit, false, 'Verify &amp; Continue');
                     }
                 } catch (err) {
                     showMessage('Connection error. Please try again.');
-                    setOtpSubmitState(false);
+                    setBusy(otpSubmit, false, 'Verify &amp; Continue');
                 }
             });
 
-            otpBack.addEventListener('click', function() {
-                showLoginStep();
-            });
+            otpBack.addEventListener('click', function() { showPanel('login'); });
 
             otpResend.addEventListener('click', async function() {
-                if (!activeOtpTicket) {
-                    showLoginStep();
-                    return;
-                }
-
-                setOtpSubmitState(true);
+                if (!activeOtpTicket) { showPanel('login'); return; }
+                setBusy(otpSubmit, true, 'Verify &amp; Continue');
                 hideMessage();
-
                 try {
-                    var formData = new FormData();
-                    formData.append('ticket', activeOtpTicket);
-
-                    var resp = await fetch(APP_BASE + '/api/auth/resend-otp', { method: 'POST', body: formData });
+                    var fd = new FormData();
+                    fd.append('ticket', activeOtpTicket);
+                    var resp = await fetch(APP_BASE + '/api/auth/resend-otp', { method: 'POST', body: fd });
                     var data = await resp.json();
-
                     if (data && data.requires_otp) {
-                        showOtpStep(data);
-                        showMessage(data.message || 'A new verification code was sent.', 'info');
+                        activeOtpTicket = data.ticket || activeOtpTicket;
+                        otpTicket.value = activeOtpTicket;
+                        showMessage(data.message || 'A new code was sent.', 'info');
+                        setBusy(otpSubmit, false, 'Verify &amp; Continue');
                     } else {
-                        showMessage((data && data.error) || 'Unable to resend the verification code.');
-                        setOtpSubmitState(false);
+                        showMessage((data && data.error) || 'Unable to resend.');
+                        setBusy(otpSubmit, false, 'Verify &amp; Continue');
                     }
                 } catch (err) {
                     showMessage('Connection error. Please try again.');
-                    setOtpSubmitState(false);
+                    setBusy(otpSubmit, false, 'Verify &amp; Continue');
                 }
+            });
+
+            // --- Forgot password ---
+            showForgot.addEventListener('click', function() { showPanel('forgot'); });
+            backToLogin.addEventListener('click', function() { showPanel('login'); });
+
+            forgotForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                setBusy(forgotSubmit, true, '<i class="fas fa-paper-plane mr-2"></i> Send Reset Link');
+                hideMessage();
+                try {
+                    var endpoint = (typeof FORGOT_PASSWORD_ENDPOINT !== 'undefined' && FORGOT_PASSWORD_ENDPOINT)
+                        ? FORGOT_PASSWORD_ENDPOINT
+                        : APP_BASE + '/api/v1/guidance/auth/forgot-password';
+                    var resp = await fetch(endpoint, { method: 'POST', body: new FormData(forgotForm) });
+                    var data = await resp.json();
+                    if (data.ok || data.success) {
+                        showMessage(data.message || 'If that email exists, a reset link has been sent.', 'success');
+                        forgotForm.reset();
+                    } else {
+                        showMessage(data.error || 'Something went wrong. Please try again.');
+                    }
+                } catch (err) {
+                    showMessage('Connection error. Please try again.');
+                }
+                setBusy(forgotSubmit, false, '<i class="fas fa-paper-plane mr-2"></i> Send Reset Link');
             });
         });
     </script>

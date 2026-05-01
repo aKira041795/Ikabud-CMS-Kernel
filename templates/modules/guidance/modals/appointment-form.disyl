@@ -58,17 +58,6 @@
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
-                    <select name="duration_minutes" id="appointment-duration-select" data-selected-duration="{appointment.duration_minutes | default:'60'}"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                        <option value="30">30 minutes</option>
-                        <option value="45">45 minutes</option>
-                        <option value="60">1 hour</option>
-                        <option value="90">1.5 hours</option>
-                    </select>
-                </div>
-                
-                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
                     <input type="text" name="purpose" value="{appointment.purpose | default:''}" placeholder="Brief purpose of the appointment"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
@@ -97,17 +86,9 @@
 <script>
 (function() {
     var typeSelect = document.getElementById('appointment-type-select');
-    var durationSelect = document.getElementById('appointment-duration-select');
-    if (!typeSelect || !durationSelect) return;
+    if (!typeSelect) return;
 
     var selectedTypeId = typeSelect.getAttribute('data-selected-type') || '';
-    var selectedDuration = durationSelect.getAttribute('data-selected-duration') || '60';
-
-    function syncDurationFromType() {
-        var selected = typeSelect.selectedOptions[0];
-        if (!selected || !selected.dataset.duration) return;
-        durationSelect.value = selected.dataset.duration;
-    }
 
     fetch(APP_BASE + '/api/appointment-types')
         .then(function(response) { return response.json(); })
@@ -120,23 +101,15 @@
             data.data.forEach(function(type) {
                 var option = document.createElement('option');
                 option.value = type.id;
-                option.textContent = type.name + ' (' + type.duration_minutes + ' min)';
-                option.dataset.duration = type.duration_minutes;
+                option.textContent = type.name;
                 if (String(type.id) === selectedTypeId) {
                     option.selected = true;
                 }
                 typeSelect.appendChild(option);
             });
-
-            durationSelect.value = selectedDuration;
-            if (selectedTypeId) {
-                syncDurationFromType();
-            }
         })
         .catch(function() {
             typeSelect.innerHTML = '<option value="">Failed to load session types</option>';
         });
-
-    typeSelect.addEventListener('change', syncDurationFromType);
 })();
 </script>

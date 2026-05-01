@@ -3,23 +3,24 @@
 <div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="document.getElementById('modal-container').innerHTML=''"></div>
-        
+
         <div class="guidance-modal-panel guidance-modal-panel--lg">
             {!-- Header --}
             <div class="guidance-modal-header">
                 <h2 class="text-xl font-semibold text-gray-800">
                     {if case.id}Edit Case{else}New Case{/if}
                 </h2>
-                <button onclick="document.getElementById('modal-container').innerHTML=''" 
+                <button onclick="document.getElementById('modal-container').innerHTML=''"
                         class="guidance-modal-close">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-            
+
             {!-- Form --}
             <form {if case.id}hx-put="{base_url}/api/cases/{case.id}"{else}hx-post="{base_url}/api/cases"{/if}
                   hx-swap="none"
                   class="p-6 space-y-6">
+
                 {if source_appointment.id}
                 <input type="hidden" name="appointment_id" value="{source_appointment.id}">
                 {/if}
@@ -34,7 +35,7 @@
                     </div>
                 </div>
                 {/if}
-                
+
                 {!-- Counselor Assignment (admin only) --}
                 {if is_admin}
                 <div>
@@ -50,59 +51,348 @@
                             <option value="{c.id}" {if case.counselor_id == c.id}selected{/if}>{c.name}</option>
                             {/foreach}
                         </select>
-                        <p class="text-xs text-gray-400 mt-1">College options will filter based on the selected counselor's assignments.</p>
                     </div>
                 </div>
                 {/if}
-                
-                {!-- Dynamic Form Fields (from Form Settings) --}
-                {dynamic_fields_html | raw}
-                
-                {!-- Initial Appointment (Required for new cases) --}
-                {if !case.id and !source_appointment.id}
-                <div id="appointment-section">
+
+                {!-- Student Information --}
+                <div>
                     <h3 class="text-lg font-medium text-gray-800 mb-4">
-                        <i class="fas fa-calendar-alt mr-2 text-indigo-500"></i> Schedule Initial Appointment *
+                        <i class="fas fa-user-graduate mr-2 text-indigo-500"></i> Student Information
                     </h3>
-                    
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
-                        <i class="fas fa-info-circle mr-2"></i>
-                        An initial appointment is required when creating a new case.
-                    </div>
-                    
-                    {ikb_grid columns="2" gap="medium"}
+
+                    {!-- Hidden combined student_name (auto-filled by JS) --}
+                    <input type="hidden" name="student_name" id="case-student-name-hidden"
+                           value="{case.student_name | esc_attr | default:''}">
+
+                    <div class="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Appointment Type *</label>
-                            <select name="appointment_type_id" id="case-appt-type" required
-                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                                <option value="">Loading types...</option>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                            <input type="text" name="student_last_name" required
+                                   value="{case.student_last_name | esc_attr | default:''}"
+                                   placeholder="Last name"
+                                   oninput="guidanceCombineStudentName(this)"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                            <input type="text" name="student_first_name" required
+                                   value="{case.student_first_name | esc_attr | default:''}"
+                                   placeholder="First name"
+                                   oninput="guidanceCombineStudentName(this)"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Program</label>
+                            <select name="college_id"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <option value="">Select program...</option>
+                                {foreach colleges as col}
+                                <option value="{col.id}" {if case.college_id == col.id}selected{/if}>{col.name}</option>
+                                {/foreach}
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-                            <input type="date" name="appointment_date" id="case-appt-date" required
-                                   min="{today}"
-                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                            <input type="text" name="student_grade"
+                                   value="{case.student_grade | esc_attr | default:''}"
+                                   placeholder="e.g., 3rd Year"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                         </div>
-                    {/ikb_grid}
-                    
-                    <div class="mt-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Available Time Slots *</label>
-                        <div id="case-slots-container" class="grid grid-cols-4 gap-2">
-                            <div class="col-span-4 text-center py-4 text-gray-500 text-sm">
-                                <i class="fas fa-calendar mr-2"></i> Select a date to view available slots
-                            </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                            <select name="gender"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <option value="">Select gender...</option>
+                                <option value="Male" {if case.gender == 'Male'}selected{/if}>Male</option>
+                                <option value="Female" {if case.gender == 'Female'}selected{/if}>Female</option>
+                                <option value="Prefer not to say" {if case.gender == 'Prefer not to say'}selected{/if}>Prefer not to say</option>
+                            </select>
                         </div>
-                        <input type="hidden" name="appointment_time" id="case-appt-time" required>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                            <input type="date" name="date_of_birth"
+                                   value="{case.date_of_birth | esc_attr | default:''}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contact No.</label>
+                            <input type="tel" name="student_mobile"
+                                   value="{case.student_mobile | esc_attr | default:''}"
+                                   placeholder="09XX-XXX-XXXX"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" name="student_email"
+                                   value="{case.student_email | esc_attr | default:''}"
+                                   placeholder="student@email.com"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
                     </div>
-                    
-                    <div class="mt-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Purpose/Notes</label>
-                        {ikb_textarea name="appointment_purpose" rows="2" placeholder="Brief description of appointment purpose..."}{/ikb_textarea}
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                        <textarea name="address" rows="2" placeholder="Complete address"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{case.address | esc_html | default:''}</textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Parent/Guardian Name</label>
+                            <input type="text" name="parent_guardian_name"
+                                   value="{case.parent_guardian_name | esc_attr | default:''}"
+                                   placeholder="Parent/Guardian name"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contact No. of Parent/Guardian</label>
+                            <input type="tel" name="parent_guardian_contact"
+                                   value="{case.parent_guardian_contact | esc_attr | default:''}"
+                                   placeholder="09XX-XXX-XXXX"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
                     </div>
                 </div>
-                {/if}
-                
+
+                {!-- Case Details --}
+                <div>
+                    <h3 class="text-lg font-medium text-gray-800 mb-4">
+                        <i class="fas fa-clipboard-list mr-2 text-indigo-500"></i> Case Details
+                    </h3>
+
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Session Date *</label>
+                            <input type="date" name="session_date" required
+                                   value="{case.session_date | esc_attr | default:today}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Student Status</label>
+                            <select name="student_status"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <option value="">Select status...</option>
+                                <option value="Probationary" {if case.student_status == 'Probationary'}selected{/if}>Probationary</option>
+                                <option value="For Follow-up" {if case.student_status == 'For Follow-up'}selected{/if}>For Follow-up</option>
+                                <option value="Terminated" {if case.student_status == 'Terminated'}selected{/if}>Terminated</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Categories</label>
+                        <div class="grid grid-cols-3 gap-2" id="case-categories-group">
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="academic" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Academic</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="behavioral" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Behavioral</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="emotional" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Emotional</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="family" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Family</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="peer" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Peer</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="career" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Career</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="crisis" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Crisis</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="special_needs" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Special Needs</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="substance" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Substance</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" name="categories[]" value="other" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>Other</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Presenting Issue *</label>
+                        <textarea name="presenting_issue" rows="3" required
+                                  placeholder="Describe the main concern or issue..."
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{case.presenting_issue | esc_html | default:''}</textarea>
+                    </div>
+
+                    {!-- Mental Status Examination (new/edit case only — not in Add Notes) --}
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-brain mr-1 text-indigo-400"></i> Mental Status Examination
+                        </label>
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Appearance</label>
+                                <select name="mse_appearance"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Well-groomed" {if case.mse_appearance == 'Well-groomed'}selected{/if}>Well-groomed</option>
+                                    <option value="Disheveled" {if case.mse_appearance == 'Disheveled'}selected{/if}>Disheveled</option>
+                                    <option value="Unkempt" {if case.mse_appearance == 'Unkempt'}selected{/if}>Unkempt</option>
+                                    <option value="Other" {if case.mse_appearance == 'Other'}selected{/if}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Mood</label>
+                                <select name="mse_mood"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Euthymic" {if case.mse_mood == 'Euthymic'}selected{/if}>Euthymic / Neutral</option>
+                                    <option value="Depressed" {if case.mse_mood == 'Depressed'}selected{/if}>Depressed / Sad</option>
+                                    <option value="Anxious" {if case.mse_mood == 'Anxious'}selected{/if}>Anxious / Worried</option>
+                                    <option value="Irritable" {if case.mse_mood == 'Irritable'}selected{/if}>Irritable / Angry</option>
+                                    <option value="Elevated" {if case.mse_mood == 'Elevated'}selected{/if}>Elevated</option>
+                                    <option value="Other" {if case.mse_mood == 'Other'}selected{/if}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Affect</label>
+                                <select name="mse_affect"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Appropriate" {if case.mse_affect == 'Appropriate'}selected{/if}>Appropriate</option>
+                                    <option value="Flat" {if case.mse_affect == 'Flat'}selected{/if}>Flat</option>
+                                    <option value="Blunted" {if case.mse_affect == 'Blunted'}selected{/if}>Blunted</option>
+                                    <option value="Labile" {if case.mse_affect == 'Labile'}selected{/if}>Labile</option>
+                                    <option value="Restricted" {if case.mse_affect == 'Restricted'}selected{/if}>Restricted</option>
+                                    <option value="Other" {if case.mse_affect == 'Other'}selected{/if}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Behavior</label>
+                                <select name="mse_behavior"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Calm" {if case.mse_behavior == 'Calm'}selected{/if}>Calm</option>
+                                    <option value="Cooperative" {if case.mse_behavior == 'Cooperative'}selected{/if}>Cooperative</option>
+                                    <option value="Agitated" {if case.mse_behavior == 'Agitated'}selected{/if}>Agitated</option>
+                                    <option value="Withdrawn" {if case.mse_behavior == 'Withdrawn'}selected{/if}>Withdrawn</option>
+                                    <option value="Other" {if case.mse_behavior == 'Other'}selected{/if}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Speech</label>
+                                <select name="mse_speech"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Normal" {if case.mse_speech == 'Normal'}selected{/if}>Normal</option>
+                                    <option value="Pressured" {if case.mse_speech == 'Pressured'}selected{/if}>Pressured</option>
+                                    <option value="Slow" {if case.mse_speech == 'Slow'}selected{/if}>Slow</option>
+                                    <option value="Incoherent" {if case.mse_speech == 'Incoherent'}selected{/if}>Incoherent</option>
+                                    <option value="Mute" {if case.mse_speech == 'Mute'}selected{/if}>Mute</option>
+                                    <option value="Other" {if case.mse_speech == 'Other'}selected{/if}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Thought Process</label>
+                                <select name="mse_thought_process"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Logical" {if case.mse_thought_process == 'Logical'}selected{/if}>Logical / Organized</option>
+                                    <option value="Tangential" {if case.mse_thought_process == 'Tangential'}selected{/if}>Tangential</option>
+                                    <option value="Circumstantial" {if case.mse_thought_process == 'Circumstantial'}selected{/if}>Circumstantial</option>
+                                    <option value="Disorganized" {if case.mse_thought_process == 'Disorganized'}selected{/if}>Disorganized</option>
+                                    <option value="Other" {if case.mse_thought_process == 'Other'}selected{/if}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Insight</label>
+                                <select name="mse_insight"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Good" {if case.mse_insight == 'Good'}selected{/if}>Good</option>
+                                    <option value="Fair" {if case.mse_insight == 'Fair'}selected{/if}>Fair</option>
+                                    <option value="Poor" {if case.mse_insight == 'Poor'}selected{/if}>Poor</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Judgment</label>
+                                <select name="mse_judgment"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+                                    <option value="">Select...</option>
+                                    <option value="Good" {if case.mse_judgment == 'Good'}selected{/if}>Good</option>
+                                    <option value="Fair" {if case.mse_judgment == 'Fair'}selected{/if}>Fair</option>
+                                    <option value="Poor" {if case.mse_judgment == 'Poor'}selected{/if}>Poor</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Additional Observations</label>
+                            <textarea name="mse_notes" rows="2"
+                                      placeholder="Other observations not covered above..."
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">{case.mse_notes | esc_html | default:''}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Case Conceptualization (4Ps)</label>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">1. Predisposition Factors</label>
+                                <textarea name="case_predisposition" rows="2"
+                                          placeholder="Describe predisposition factors..."
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{case.case_predisposition | esc_html | default:''}</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">2. Precipitating Factors</label>
+                                <textarea name="case_precipitating" rows="2"
+                                          placeholder="Describe precipitating factors..."
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{case.case_precipitating | esc_html | default:''}</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">3. Perpetuating Factors</label>
+                                <textarea name="case_perpetuating" rows="2"
+                                          placeholder="Describe perpetuating factors..."
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{case.case_perpetuating | esc_html | default:''}</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">4. Protective Factors</label>
+                                <textarea name="case_protective" rows="2"
+                                          placeholder="Describe protective factors..."
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{case.case_protective | esc_html | default:''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Referral Source</label>
+                        <select name="referral_source"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                            <option value="self" {if case.referral_source == 'self' or !case.referral_source}selected{/if}>Self</option>
+                            <option value="teacher" {if case.referral_source == 'teacher'}selected{/if}>Teacher</option>
+                            <option value="staff" {if case.referral_source == 'staff'}selected{/if}>Staff</option>
+                            <option value="parent" {if case.referral_source == 'parent'}selected{/if}>Parent</option>
+                            <option value="others" {if case.referral_source == 'others'}selected{/if}>Others</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" name="is_urgent" value="1" {if case.is_urgent}checked{/if}
+                                   class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            <span class="font-medium text-red-700"><i class="fas fa-exclamation-triangle mr-1"></i> Mark as Urgent</span>
+                        </label>
+                    </div>
+                </div>
+
                 {!-- Actions --}
                 <div class="guidance-modal-actions">
                     <button type="button" onclick="document.getElementById('modal-container').innerHTML=''"
@@ -117,6 +407,35 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    function guidanceCombineStudentName(trigger) {
+        var form = trigger
+            ? trigger.closest('form')
+            : (document.querySelector('#case-student-name-hidden') || {closest: function() { return null; }}).closest('form');
+        if (!form) return;
+        var last  = (form.querySelector('[name="student_last_name"]')  || {value: ''}).value.trim();
+        var first = (form.querySelector('[name="student_first_name"]') || {value: ''}).value.trim();
+        var combined = [last, first].filter(Boolean).join(', ');
+        var hidden = form.querySelector('[name="student_name"]');
+        if (hidden) hidden.value = combined;
+    }
+    window.guidanceCombineStudentName = guidanceCombineStudentName;
+
+    // Pre-check categories from saved JSON
+    var savedCategories = {case_categories_json | raw};
+    if (Array.isArray(savedCategories) && savedCategories.length > 0) {
+        savedCategories.forEach(function (cat) {
+            var cb = document.querySelector('#case-categories-group input[value="' + cat + '"]');
+            if (cb) cb.checked = true;
+        });
+    }
+
+    // Initialise combined student_name from stored first/last values on load
+    guidanceCombineStudentName(null);
+}());
+</script>
 
 {if is_admin}
 <script>

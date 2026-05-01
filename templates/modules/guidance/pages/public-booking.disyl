@@ -81,7 +81,7 @@
                                     class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                                 <option value="">Select Type</option>
                                 {foreach appointment_types as type}
-                                    <option value="{type.id}" data-duration="{type.duration_minutes}">{type.name} ({type.duration_minutes} min)</option>
+                                    <option value="{type.id}">{type.name}</option>
                                 {/foreach}
                             </select>
                         </div>

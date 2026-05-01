@@ -43,6 +43,13 @@
 }
 
 /* ============================================
+   Modal – ensure forms always carry left/right padding
+   ============================================ */
+.guidance-modal-panel>form {
+    padding: 1.5rem;
+}
+
+/* ============================================
    Calendar Grid
    ============================================ */
 .calendar-grid {

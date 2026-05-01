@@ -109,8 +109,7 @@
                 <i class="fas fa-spinner fa-spin text-lg mr-3"></i> Loading appointments...
             </div>
         </div>
-    </div>
-    
+
     {!-- Calendar View --}
     <div x-show="view === 'calendar'" x-cloak>
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
