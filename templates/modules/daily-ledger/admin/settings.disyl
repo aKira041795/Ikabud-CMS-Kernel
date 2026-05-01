@@ -10,6 +10,19 @@
 
 <div class="card mb-6">
     <div class="card-header">
+        <span>Branding</span>
+        <span class="text-sm text-muted">Appearance</span>
+    </div>
+    <div class="card-body">
+        <div class="form-group mb-0" style="max-width:360px">
+            <label class="form-label" for="app-name">App Name</label>
+            <input type="text" id="app-name" class="form-input" value="{app_name}" maxlength="80" placeholder="Daily Ledger">
+            <p class="mt-2 text-sm text-gray-500">Display name shown on the login page and throughout the app.</p>
+        </div>
+    </div>
+</div>
+<div class="card mb-6">
+    <div class="card-header">
         <span>Close of Day</span>
         <span class="text-sm text-muted">Cashier and Production</span>
     </div>
@@ -196,6 +209,11 @@
         var featureOutputToggle = document.getElementById('feature-production-output');
         if (featureOutputToggle) {
             payload.production_output_enabled = featureOutputToggle.checked;
+        }
+
+        var appNameInput = document.getElementById('app-name');
+        if (appNameInput) {
+            payload.app_name = appNameInput.value.trim() || 'Daily Ledger';
         }
 
         fetch('{base_url}/api/v1/admin/settings/permissions', {

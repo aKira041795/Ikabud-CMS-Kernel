@@ -33,8 +33,18 @@ function dlInput(): array
     return is_array($input) ? $input : [];
 }
 
+function dlAppName(): string
+{
+    $settings = dlModuleSettings();
+    $name = trim((string)($settings['app_name'] ?? ''));
+    return $name !== '' ? $name : 'Daily Ledger';
+}
+
 function dlRender(string $template, array $context = []): string
 {
+    if (!array_key_exists('app_name', $context)) {
+        $context['app_name'] = dlAppName();
+    }
     return dlCtx()->render($template, kernelPrepareRenderContext($template, $context));
 }
 
@@ -42,7 +52,8 @@ function dlNormalizeLoginRenderContext(array $context, string $template, array &
 {
     return kernelApplyRenderContextShape($context, [
         'page_title' => 'Daily Ledger Sign In',
-    ], ['page_title'], $missingKeys, $typeMismatches);
+        'app_name' => 'Daily Ledger',
+    ], ['page_title', 'app_name'], $missingKeys, $typeMismatches);
 }
 
 function dlNormalizeCashierLedgerRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
