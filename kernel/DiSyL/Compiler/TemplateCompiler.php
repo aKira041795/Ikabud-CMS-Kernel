@@ -38,7 +38,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 6;
+    public const COMPILER_VERSION = 7;
 
     private int $indentLevel = 0;
     private string $indent = '    ';

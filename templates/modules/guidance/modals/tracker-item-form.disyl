@@ -1,6 +1,6 @@
 {!-- Tracker Item Form Modal --}
 
-<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+<div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
 

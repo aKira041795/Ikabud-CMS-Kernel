@@ -27,23 +27,24 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    min-height: 100vh;
+    min-height: 100dvh;
     padding: 2rem 1rem;
 }
 
 .guidance-modal-backdrop {
     background: rgba(15, 23, 42, 0.56);
-    backdrop-filter: blur(4px);
 }
 
 .guidance-modal-panel {
     position: relative;
     width: 100%;
-    max-height: calc(100vh - 4rem);
-    overflow-y: auto;
-    border-radius: 0.875rem;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 4rem);
+    overflow: hidden;
+    border-radius: 3px;
     background: #ffffff;
-    box-shadow: 0 28px 72px rgba(15, 23, 42, 0.24);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
 }
 
 .guidance-modal-panel--sm {
@@ -72,7 +73,7 @@
     gap: 1rem;
     padding: 1.25rem 1.5rem;
     border-bottom: 1px solid #e5e7eb;
-    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    background: #ffffff;
 }
 
 .guidance-modal-close {
@@ -81,7 +82,7 @@
     justify-content: center;
     width: 2.5rem;
     height: 2.5rem;
-    border-radius: 0.625rem;
+    border-radius: 3px;
     color: #9ca3af;
     transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -89,6 +90,168 @@
 .guidance-modal-close:hover {
     background: #f3f4f6;
     color: #4b5563;
+}
+
+.guidance-modal-panel button:not(.guidance-modal-close),
+.guidance-modal-panel a[role='button'],
+.guidance-modal-panel input[type='submit'],
+.guidance-modal-panel input[type='button'] {
+    border-radius: 3px;
+}
+
+.guidance-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 1.5rem;
+    overflow-y: auto;
+    scroll-behavior: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.guidance-modal-panel>form {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scroll-behavior: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.guidance-modal-panel>form::-webkit-scrollbar,
+.guidance-modal-body::-webkit-scrollbar {
+    width: 0.75rem;
+}
+
+.guidance-modal-panel>form::-webkit-scrollbar-track,
+.guidance-modal-body::-webkit-scrollbar-track {
+    background: #f8fafc;
+}
+
+.guidance-modal-panel>form::-webkit-scrollbar-thumb,
+.guidance-modal-body::-webkit-scrollbar-thumb {
+    border: 3px solid #f8fafc;
+    border-radius: 999px;
+    background: #cbd5e1;
+}
+
+.guidance-modal-panel>form::-webkit-scrollbar-thumb:hover,
+.guidance-modal-body::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.guidance-modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.guidance-modal-kicker {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #4f46e5;
+}
+
+.guidance-modal-lead {
+    margin-top: 0.35rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: #64748b;
+}
+
+.guidance-modal-section {
+    border: 1px solid #e2e8f0;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    padding: 1rem;
+}
+
+.guidance-modal-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.guidance-modal-section-copy {
+    margin-top: 0.4rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #64748b;
+}
+
+.guidance-modal-stack {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.guidance-modal-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.guidance-modal-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.guidance-modal-checkbox-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 3px;
+    background: #f8fafc;
+}
+
+.guidance-modal-checkbox-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    margin-bottom: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.guidance-modal-actions {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin: 0 -1.5rem -1.5rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.guidance-modal-secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.65rem 1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    background: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.guidance-modal-secondary-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
 }
 
 .guidance-modal-panel form label {
@@ -105,7 +268,7 @@
 .guidance-modal-panel textarea {
     width: 100%;
     border: 1px solid #cbd5e1;
-    border-radius: 0.875rem;
+    border-radius: 3px;
     background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
     color: #0f172a;
     box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -162,7 +325,7 @@
 
 .guidance-modal-panel .tox-tinymce,
 .guidance-modal-panel .tox .tox-editor-container {
-    border-radius: 0.875rem !important;
+    border-radius: 3px !important;
     border-color: #cbd5e1 !important;
     box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
 }
@@ -174,6 +337,35 @@
 
 .guidance-modal-panel .text-xs {
     line-height: 1.45;
+}
+
+@media (max-width: 768px) {
+    .guidance-modal-shell {
+        padding: 0.75rem;
+    }
+
+    .guidance-modal-panel {
+        max-height: calc(100dvh - 1.5rem);
+    }
+
+    .guidance-modal-body {
+        padding: 1rem;
+    }
+
+    .guidance-modal-grid--2 {
+        grid-template-columns: 1fr;
+    }
+
+    .guidance-modal-actions {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        margin: 0 -1rem -1rem;
+        padding: 1rem;
+    }
+
+    .guidance-modal-secondary-btn {
+        width: 100%;
+    }
 }
 
 /* ============================================

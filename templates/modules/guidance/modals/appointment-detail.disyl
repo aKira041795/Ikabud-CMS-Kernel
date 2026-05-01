@@ -1,6 +1,6 @@
 {!-- Appointment Detail Modal - Professional Wide Layout --}
 
-<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+<div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop transition-opacity" onclick="closeModal()"></div>
         
@@ -57,7 +57,7 @@
             </div>
             
             {!-- Body --}
-            <div class="px-8 py-6">
+            <div class="guidance-modal-body px-8 py-6">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     
                     {!-- Left Column: Appointment Info --}

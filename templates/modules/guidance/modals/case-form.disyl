@@ -1,6 +1,6 @@
 {!-- Case Form Modal --}
 
-<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+<div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="document.getElementById('modal-container').innerHTML=''"></div>
         
@@ -104,9 +104,9 @@
                 {/if}
                 
                 {!-- Actions --}
-                <div class="flex items-center justify-end space-x-3 pt-4 border-t">
+                <div class="guidance-modal-actions">
                     <button type="button" onclick="document.getElementById('modal-container').innerHTML=''"
-                            class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                            class="guidance-modal-secondary-btn">
                         Cancel
                     </button>
                     {ikb_button type="submit" variant="primary"}
@@ -125,12 +125,48 @@
     var collegeSelect = document.getElementById('college-select');
     if (!collegeSelect) return; // No college field rendered (e.g., no form fields configured yet)
     var allColleges = [];
+    var initialSelectedOption = collegeSelect.selectedOptions[0] || null;
     // Store all initial college options
     collegeSelect.querySelectorAll('option').forEach(function(opt) {
         if (opt.value) allColleges.push({ id: opt.value, text: opt.textContent, selected: opt.selected });
     });
     
     var currentCollegeId = collegeSelect.value;
+    var currentCollegeText = initialSelectedOption && initialSelectedOption.value ? initialSelectedOption.textContent : '';
+
+    collegeSelect.addEventListener('change', function() {
+        currentCollegeId = this.value;
+        var selectedOption = this.selectedOptions[0] || null;
+        currentCollegeText = selectedOption && selectedOption.value ? selectedOption.textContent : '';
+    });
+
+    function withPersistedSelection(opts, selectedId) {
+        if (!selectedId) {
+            return opts;
+        }
+
+        var hasSelected = opts.some(function(opt) {
+            return String(opt.id) === String(selectedId);
+        });
+
+        if (hasSelected) {
+            return opts;
+        }
+
+        var fallback = allColleges.find(function(opt) {
+            return String(opt.id) === String(selectedId);
+        });
+
+        if (!fallback && currentCollegeText) {
+            fallback = { id: String(selectedId), text: currentCollegeText };
+        }
+
+        if (fallback) {
+            return opts.concat([{ id: String(fallback.id), text: fallback.text + ' (current)', selected: true }]);
+        }
+
+        return opts;
+    }
     
     counselorSelect.addEventListener('change', function() {
         var counselorId = this.value;
@@ -150,18 +186,18 @@
                 var opts = data.data.map(function(c) {
                     return { id: String(c.id), text: c.code + ' - ' + c.name, selected: String(c.id) === currentCollegeId };
                 });
-                rebuildColleges(opts, currentCollegeId);
+                rebuildColleges(withPersistedSelection(opts, currentCollegeId), currentCollegeId);
             } else {
-                collegeSelect.innerHTML = '<option value="">No colleges assigned to this counselor</option>';
+                rebuildColleges(withPersistedSelection([], currentCollegeId), currentCollegeId, 'No colleges assigned to this counselor');
             }
         })
         .catch(function() {
-            collegeSelect.innerHTML = '<option value="">Failed to load colleges</option>';
+            rebuildColleges(withPersistedSelection([], currentCollegeId), currentCollegeId, 'Failed to load colleges');
         });
     });
     
-    function rebuildColleges(opts, selectedId) {
-        collegeSelect.innerHTML = '<option value="">Select college...</option>';
+    function rebuildColleges(opts, selectedId, emptyLabel) {
+        collegeSelect.innerHTML = '<option value="">' + (emptyLabel || 'Select college...') + '</option>';
         opts.forEach(function(o) {
             var opt = document.createElement('option');
             opt.value = o.id;
@@ -171,8 +207,9 @@
         });
     }
     
-    // If editing and counselor is already selected, trigger filter
-    if (counselorSelect.value) {
+    // For new cases with a preselected counselor, pre-filter colleges.
+    // In edit mode, preserve the server-rendered saved college until the user changes counselor.
+    if (!{if case.id}true{else}false{/if} && counselorSelect.value) {
         counselorSelect.dispatchEvent(new Event('change'));
     }
 })();

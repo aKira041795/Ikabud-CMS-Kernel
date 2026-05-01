@@ -3979,6 +3979,7 @@ function modalGuidanceCaseNoteEdit(array $params = []): void
         'case_id' => $caseId,
         'note_id' => $noteId,
         'today'   => date('Y-m-d'),
+        'base_url' => '/admin/guidance',
     ]);
 }
 
@@ -4092,6 +4093,11 @@ function apiGuidanceCaseNoteUpdate(array $params = []): void
             'showToast'   => ['message' => 'Note updated successfully', 'type' => 'success'],
             'closeModal'  => true,
             'refreshNotes' => true,
+            'refreshCasePanel' => [
+                'caseId' => $caseId,
+                'pane' => 'view',
+                'noteId' => $noteId,
+            ],
         ]));
         http_response_code(200);
         echo '';
@@ -4688,35 +4694,8 @@ function apiGuidanceCaseNotes(array $params = []): void
     echo json_encode(['success' => true, 'data' => $notes], JSON_UNESCAPED_SLASHES);
 }
 
-function apiGuidanceCaseNoteDetail(array $params = []): void
+function guidanceBuildCaseNoteDetailContext($db, int $caseId, int $noteId): ?array
 {
-    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
-    $role   = (string)($user['role'] ?? '');
-    $userId = (int)($user['id'] ?? 0);
-    $caseId = (int)($params['id'] ?? 0);
-    $noteId = (int)($params['noteId'] ?? 0);
-
-    if ($caseId < 1 || $noteId < 1) {
-        http_response_code(404);
-        echo '<div class="p-6 text-sm text-gray-400">Not found.</div>';
-        return;
-    }
-
-    $db     = guidanceDb();
-    $csStmt = $db->prepare("SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-    $csStmt->execute([$caseId]);
-    $caseRow = $csStmt->fetch(PDO::FETCH_ASSOC);
-    if (!is_array($caseRow)) {
-        http_response_code(404);
-        echo '<div class="p-6 text-sm text-gray-400">Case not found.</div>';
-        return;
-    }
-    if ($role === 'counselor' && (int)($caseRow['counselor_id'] ?? 0) !== $userId) {
-        http_response_code(403);
-        echo '<div class="p-6 text-sm text-red-400">Access denied.</div>';
-        return;
-    }
-
     $nStmt = $db->prepare(
         "SELECT n.*,\n"
         . "       CONCAT(u.first_name, ' ', u.last_name) AS counselor_name,\n"
@@ -4746,19 +4725,17 @@ function apiGuidanceCaseNoteDetail(array $params = []): void
     $nStmt->execute([$noteId, $caseId]);
     $note = $nStmt->fetch(PDO::FETCH_ASSOC);
     if (!is_array($note)) {
-        http_response_code(404);
-        echo '<div class="p-6 text-sm text-gray-400">Note not found.</div>';
-        return;
+        return null;
     }
 
     $noteTypeLabels = [
-        'session'      => 'Progress Note',
-        'phone'        => 'Phone Note',
-        'observation'  => 'Observation',
+        'session' => 'Progress Note',
+        'phone' => 'Phone Note',
+        'observation' => 'Observation',
         'consultation' => 'Consultation',
-        'followup'     => 'Follow-up Note',
-        'referral'     => 'Referral Note',
-        'other'        => 'General Note',
+        'followup' => 'Follow-up Note',
+        'referral' => 'Referral Note',
+        'other' => 'General Note',
     ];
     $note['note_type_label'] = $noteTypeLabels[$note['note_type'] ?? ''] ?? ucfirst((string)($note['note_type'] ?? ''));
 
@@ -4767,15 +4744,17 @@ function apiGuidanceCaseNoteDetail(array $params = []): void
     $note['note_title'] = mb_strlen($firstLine) > 80 ? mb_substr($firstLine, 0, 77) . '...' : $firstLine;
 
     try {
-        $dt                   = new DateTimeImmutable((string)($note['session_date'] ?? $note['created_at'] ?? 'now'));
-        $note['formatted_date']     = $dt->format('M d, Y');
-        $note['formatted_created']  = '';
+        $dt = new DateTimeImmutable((string)($note['session_date'] ?? $note['created_at'] ?? 'now'));
+        $note['formatted_date'] = $dt->format('M d, Y');
+        $note['formatted_created'] = '';
         try {
             $ct = new DateTimeImmutable((string)($note['created_at'] ?? 'now'));
             $note['formatted_created'] = $ct->format('M d, Y \a\t g:i A');
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+            $note['formatted_created'] = '';
+        }
         $note['formatted_apt_time'] = '';
-        $note['formatted_apt_end']  = '';
+        $note['formatted_apt_end'] = '';
         if (!empty($note['apt_time'])) {
             $at = new DateTimeImmutable($note['session_date'] . ' ' . $note['apt_time']);
             $note['formatted_apt_time'] = $at->format('g:i A');
@@ -4785,13 +4764,12 @@ function apiGuidanceCaseNoteDetail(array $params = []): void
             }
         }
     } catch (\Exception $e) {
-        $note['formatted_date']     = (string)($note['session_date'] ?? '');
-        $note['formatted_created']  = '';
+        $note['formatted_date'] = (string)($note['session_date'] ?? '');
+        $note['formatted_created'] = '';
         $note['formatted_apt_time'] = '';
-        $note['formatted_apt_end']  = '';
+        $note['formatted_apt_end'] = '';
     }
 
-    // Attachments for this case (most recent 5)
     $attachments = [];
     try {
         $attStmt = $db->prepare(
@@ -4803,7 +4781,7 @@ function apiGuidanceCaseNoteDetail(array $params = []): void
             . "ORDER BY a.uploaded_at DESC LIMIT 5"
         );
         $attStmt->execute([$caseId]);
-        $rows        = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $attachments = array_map(static function (array $row): array {
             $bytes = (int)($row['file_size'] ?? 0);
             if ($bytes <= 0) {
@@ -4817,14 +4795,60 @@ function apiGuidanceCaseNoteDetail(array $params = []): void
             }
             return $row;
         }, $rows);
-    } catch (\Exception $e) {}
+    } catch (\Exception $e) {
+        $attachments = [];
+    }
+
+    return [
+        'note' => $note,
+        'attachments' => $attachments,
+    ];
+}
+
+function apiGuidanceCaseNoteDetail(array $params = []): void
+{
+    $user   = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    $role   = (string)($user['role'] ?? '');
+    $userId = (int)($user['id'] ?? 0);
+    $caseId = (int)($params['id'] ?? 0);
+    $noteId = (int)($params['noteId'] ?? 0);
+
+    if ($caseId < 1 || $noteId < 1) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Not found.</div>';
+        return;
+    }
+
+    $db = guidanceDb();
+    $csStmt = $db->prepare("SELECT id, counselor_id FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+    $csStmt->execute([$caseId]);
+    $caseRow = $csStmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($caseRow)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Case not found.</div>';
+        return;
+    }
+    if ($role === 'counselor' && (int)($caseRow['counselor_id'] ?? 0) !== $userId) {
+        http_response_code(403);
+        echo '<div class="p-6 text-sm text-red-400">Access denied.</div>';
+        return;
+    }
+
+    $noteContext = guidanceBuildCaseNoteDetailContext($db, $caseId, $noteId);
+    if (!is_array($noteContext)) {
+        http_response_code(404);
+        echo '<div class="p-6 text-sm text-gray-400">Note not found.</div>';
+        return;
+    }
 
     header('Content-Type: text/html; charset=utf-8');
     echo guidanceRender('modules/guidance/partials/case-note-detail.disyl', [
-        'note'        => $note,
-        'attachments' => $attachments,
-        'case_id'     => $caseId,
-        'base_url'    => '/admin/guidance',
+        'note' => $noteContext['note'],
+        'attachments' => $noteContext['attachments'],
+        'case_id' => $caseId,
+        'base_url' => '/admin/guidance',
+        'panel_back_href' => guidanceInput('panel') ? '/admin/guidance/api/cases/' . $caseId . '/panel?pane=overview' : null,
+        'add_note_href' => guidanceInput('panel') ? '/admin/guidance/api/cases/' . $caseId . '/panel?pane=create' : null,
     ]);
 }
 
@@ -4919,6 +4943,8 @@ function apiGuidanceCreateCaseNote(array $params = []): void
             $userId,
         ]);
 
+        $newNoteId = (int)$db->lastInsertId();
+
         $db->prepare('UPDATE gm_cases SET updated_at = NOW() WHERE id = ?')->execute([$caseId]);
     } catch (Throwable $e) {
         app()->log('Notes create error: ' . $e->getMessage(), 'error');
@@ -4934,6 +4960,11 @@ function apiGuidanceCreateCaseNote(array $params = []): void
             'showToast' => ['message' => 'Note added successfully', 'type' => 'success'],
             'closeModal' => true,
             'refreshNotes' => true,
+            'refreshCasePanel' => [
+                'caseId' => $caseId,
+                'pane' => 'view',
+                'noteId' => $newNoteId ?? 0,
+            ],
         ]));
         echo '';
         return;
@@ -12373,12 +12404,64 @@ function apiGuidanceCasePanel(array $params = []): void
         // non-fatal — show panel without history
     }
 
+    $pane = strtolower(trim((string)guidanceInput('pane', 'overview')));
+    if (!in_array($pane, ['overview', 'create', 'view'], true)) {
+        $pane = 'overview';
+    }
+
+    $selectedNoteId = max(0, (int)(guidanceInput('note_id', guidanceInput('noteId', 0))));
+    $selectedNote = null;
+    $selectedAttachments = [];
+    if ($pane === 'view' && $selectedNoteId > 0) {
+        $noteContext = guidanceBuildCaseNoteDetailContext($db, $caseId, $selectedNoteId);
+        if (is_array($noteContext)) {
+            $selectedNote = $noteContext['note'] ?? null;
+            $selectedAttachments = $noteContext['attachments'] ?? [];
+        }
+        if (!is_array($selectedNote)) {
+            $pane = 'overview';
+            $selectedNoteId = 0;
+        }
+    }
+
+    $latestNote = $notes[0] ?? null;
+    if (is_array($latestNote)) {
+        $latestRaw = trim((string)($latestNote['note_content'] ?? ''));
+        $latestFirstLine = trim(explode("\n", $latestRaw)[0] ?? '');
+        $latestNote['note_title'] = $latestFirstLine !== ''
+            ? (mb_strlen($latestFirstLine) > 60 ? mb_substr($latestFirstLine, 0, 57) . '...' : $latestFirstLine)
+            : 'Session note';
+        $latestNote['note_preview'] = $latestRaw !== ''
+            ? (mb_strlen($latestRaw) > 120 ? mb_substr($latestRaw, 0, 117) . '...' : $latestRaw)
+            : '';
+    }
+
+    $createDefaultRiskLevel = match ((string)($case['severity'] ?? 'low')) {
+        'critical' => 'critical',
+        'high' => 'high',
+        'medium' => 'moderate',
+        'moderate' => 'moderate',
+        default => 'low',
+    };
+
+    $panelBaseHref = '/admin/guidance/api/cases/' . $caseId . '/panel';
+
     header('Content-Type: text/html; charset=utf-8');
     echo guidanceRender('modules/guidance/partials/case-detail-panel.disyl', [
-        'case'     => $case,
-        'notes'    => $notes,
-        'today'    => date('Y-m-d'),
+        'case' => $case,
+        'notes' => $notes,
+        'today' => date('Y-m-d'),
         'base_url' => '/admin/guidance',
+        'panel_mode' => $pane,
+        'selected_note' => $selectedNote,
+        'selected_note_id' => $selectedNoteId,
+        'selected_attachments' => $selectedAttachments,
+        'latest_note' => $latestNote,
+        'session_count' => count($notes),
+        'create_default_risk_level' => $createDefaultRiskLevel,
+        'panel_overview_href' => $panelBaseHref . '?pane=overview',
+        'panel_create_href' => $panelBaseHref . '?pane=create',
+        'panel_target' => '#case-detail-panel',
     ]);
 }
 

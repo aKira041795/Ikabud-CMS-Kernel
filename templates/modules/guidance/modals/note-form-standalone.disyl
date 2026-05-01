@@ -1,6 +1,6 @@
 {!-- Standalone Note Form Modal --}
 
-<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+<div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
         
@@ -11,10 +11,11 @@
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-            
-            <form hx-post="{base_url}/api/notes"
-                  hx-swap="none"
-                  class="p-6 space-y-4">
+
+            <div class="guidance-modal-body">
+                <form hx-post="{base_url}/api/notes"
+                      hx-swap="none"
+                      class="guidance-modal-form">
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Case *</label>
@@ -54,16 +55,16 @@
                     <label for="is_confidential" class="ml-2 text-sm text-gray-700">Mark as confidential</label>
                 </div>
                 
-                <div class="flex justify-end space-x-3 pt-4 border-t">
-                    <button type="button" onclick="closeModal()" 
-                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                <div class="guidance-modal-actions">
+                    <button type="button" onclick="closeModal()" class="guidance-modal-secondary-btn">
                         Cancel
                     </button>
                     <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                         <i class="fas fa-save mr-2"></i> Save Note
                     </button>
                 </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 </div>

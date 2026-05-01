@@ -2223,9 +2223,13 @@ class TemplateEngine
         $resolveCache = [];
 
         $content = preg_replace_callback(
-            '/(?<!\$)\{((?:[a-zA-Z_(]|\d)[^}]*)\}/',
+            '/(?<!\$)\{((?:[a-zA-Z_(]|\d)[^{}]*)\}/',
             function($match) use ($context, &$resolveCache) {
                 $expr = trim($match[1]);
+
+                if (!$this->isProcessableTemplateExpression($expr)) {
+                    return $match[0];
+                }
 
                 // 1. Ternary: {condition ? trueVal : falseVal}
                 //    Only if ? appears before any | (avoid matching filter args containing ?)
@@ -2315,6 +2319,31 @@ class TemplateEngine
         );
 
         return $content;
+    }
+
+    private function isProcessableTemplateExpression(string $expr): bool
+    {
+        if ($expr === '') {
+            return false;
+        }
+
+        if (str_contains($expr, '?') && str_contains($expr, ':')) {
+            return true;
+        }
+
+        if (!str_contains($expr, '|') && strpbrk($expr, '+-*/%()') !== false) {
+            return true;
+        }
+
+        $filters = $this->splitByPipe($expr);
+        $varPath = trim((string) array_shift($filters));
+
+        return $this->isValidTemplateVariablePath($varPath);
+    }
+
+    private function isValidTemplateVariablePath(string $varPath): bool
+    {
+        return preg_match('/^[a-zA-Z_][\w.]*$/', $varPath) === 1;
     }
     
     /**

@@ -627,7 +627,7 @@
                 htmx.trigger(docTab, 'load-case-docs');
             }
         });
-        
+
         // Close modal function
         function closeModal() {
             document.getElementById('modal-container').innerHTML = '';

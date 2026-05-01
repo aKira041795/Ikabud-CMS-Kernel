@@ -617,13 +617,6 @@
 {!-- ============================= --}
 <div x-show="tab === 'appointments'" x-cloak>
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-800">All Appointments</h3>
-            <button hx-get="{base_url}/pages/appointments/new" hx-target="#modal-container"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white text-xs font-semibold rounded-lg hover:bg-teal-800 transition-colors shadow-sm">
-                <i class="fas fa-plus text-[10px]"></i> Schedule Appointment
-            </button>
-        </div>
         <div id="case-appt-tab"
              hx-get="/admin/guidance/api/cases/{case.id}/appointments"
              hx-trigger="load-case-appts from:body"

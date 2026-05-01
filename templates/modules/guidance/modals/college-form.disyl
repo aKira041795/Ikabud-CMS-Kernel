@@ -1,6 +1,6 @@
 {!-- College Form Modal --}
 
-<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+<div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
         
@@ -18,10 +18,11 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            
-            <form {if college.id}hx-put="{base_url}/api/colleges/{college.id}"{else}hx-post="{base_url}/api/colleges"{/if}
-                  hx-swap="none"
-                  class="p-6 space-y-5">
+
+            <div class="guidance-modal-body">
+                <form {if college.id}hx-put="{base_url}/api/colleges/{college.id}"{else}hx-post="{base_url}/api/colleges"{/if}
+                      hx-swap="none"
+                      class="guidance-modal-form">
                 
                 <div class="grid grid-cols-3 gap-4">
                     <div>
@@ -92,16 +93,16 @@
                 {/if}
                 {/if}
                 
-                <div class="flex justify-end space-x-3 pt-4 border-t">
-                    <button type="button" onclick="closeModal()" 
-                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                <div class="guidance-modal-actions">
+                    <button type="button" onclick="closeModal()" class="guidance-modal-secondary-btn">
                         Cancel
                     </button>
                     <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                         <i class="fas fa-save mr-2"></i> {if college.id}Update{else}Create{/if} College
                     </button>
                 </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 </div>

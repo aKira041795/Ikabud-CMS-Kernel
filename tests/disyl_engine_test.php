@@ -21,6 +21,18 @@
  */
 
 require_once __DIR__ . '/../kernel/DiSyL/TemplateEngine.php';
+foreach (glob(__DIR__ . '/../kernel/DiSyL/v4/AST/*.php') as $file) {
+    require_once $file;
+}
+foreach (glob(__DIR__ . '/../kernel/DiSyL/v4/*.php') as $file) {
+    require_once $file;
+}
+foreach (glob(__DIR__ . '/../kernel/DiSyL/CMS/*.php') as $file) {
+    require_once $file;
+}
+foreach (glob(__DIR__ . '/../kernel/DiSyL/Compiler/*.php') as $file) {
+    require_once $file;
+}
 
 use Ikabud\Kernel\DiSyL\TemplateEngine;
 
@@ -2083,6 +2095,60 @@ check(
     'variable stage fast-gate preserves brace-free content',
     '<div>No variables here</div>',
     $processVariablesMethod->invoke($engine, '<div>No variables here</div>', [])
+);
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+section('43. Hardening — attribute curly brace support');
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+check(
+    'Alpine object literals survive in quoted attributes',
+    '<div x-data="{openNote: null}"></div>',
+    $engine->renderString('<div x-data="{openNote: null}"></div>', [])
+);
+
+check(
+    'DiSyL variables still resolve inside Alpine object literal attributes',
+    '<div x-data="{openNote: null, noteId: 10}" data-url="/cases/10"></div>',
+    $engine->renderString('<div x-data="{openNote: null, noteId: {id}}" data-url="/cases/{id}"></div>', ['id' => 10])
+);
+
+check(
+    'event handler blocks keep JS braces while resolving inner variables',
+    '<button @click="if (openNote) { selected = 10; }"></button>',
+    $engine->renderString('<button @click="if (openNote) { selected = {id}; }"></button>', ['id' => 10])
+);
+
+check(
+    'control structures still resolve inside quoted attributes',
+    '<div data-state="open"></div>',
+    $engine->renderString('<div data-state="{if ready}open{else}closed{/if}"></div>', ['ready' => true])
+);
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+section('44. Hardening — compiled attribute curly brace support');
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$compiledCache = new \Ikabud\Kernel\DiSyL\Compiler\TemplateCache('/tmp/disyl_compiled_test_' . getmypid(), true);
+
+check(
+    'compiled mode preserves Alpine object literal attributes',
+    '<div x-data="{openNote: null}"></div>',
+    $compiledCache->compileSource('<div x-data="{openNote: null}"></div>', 'compiled_x_data')->execute([])
+);
+
+check(
+    'compiled mode resolves inner DiSyL variables inside object literal attributes',
+    '<div x-data="{openNote: null, noteId: 10}"></div>',
+    $compiledCache->compileSource('<div x-data="{openNote: null, noteId: {id}}"></div>', 'compiled_x_data_with_id')->execute(['id' => 10])
+);
+
+check(
+    'compiled mode preserves JS handler braces while resolving inner variables',
+    '<button @click="openNote = (openNote === 8 ? null : 8)"></button>',
+    $compiledCache->compileSource('<button @click="openNote = (openNote === {id} ? null : {id})"></button>', 'compiled_click_handler')->execute(['id' => 8])
 );
 
 

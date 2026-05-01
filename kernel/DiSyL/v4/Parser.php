@@ -220,13 +220,58 @@ class Parser
         // Expression / variable
         $content = $this->readTagContent();
         if ($content !== null && trim($content) !== '') {
-            return $this->buildExpressionNode(trim($content));
+            $trimmed = trim($content);
+            if ($this->isProcessableTemplateExpression($trimmed)) {
+                return $this->buildExpressionNode($trimmed);
+            }
+
+            // Unsupported brace blocks such as Alpine object literals should
+            // fall back to raw text so nested inner DiSyL tags can still parse.
+            $this->pos = $savedPos + 1;
+            return new TextNode([], '{');
         }
 
         // Can't parse — backtrack
         $this->pos = $savedPos;
         $this->pos++; // consume the `{` as text
         return new TextNode([], '{');
+    }
+
+    private function isProcessableTemplateExpression(string $expr): bool
+    {
+        if ($expr === '') {
+            return false;
+        }
+
+        $qPos = $this->findUnquotedChar($expr, '?');
+        if ($qPos !== false) {
+            $colonPos = $this->findUnquotedChar($expr, ':', $qPos + 1);
+            $pipePos = $this->findUnquotedChar($expr, '|');
+            if ($colonPos !== false && ($pipePos === false || $qPos < $pipePos)) {
+                return true;
+            }
+        }
+
+        if ($this->containsArithmeticOperator($expr)) {
+            return true;
+        }
+
+        $parts = $this->splitByPipe($expr);
+        $baseExpr = trim($parts[0] ?? '');
+
+        return preg_match('/^[a-zA-Z_][\w.]*$/', $baseExpr) === 1;
+    }
+
+    private function containsArithmeticOperator(string $expr): bool
+    {
+        if (!strpbrk($expr, '+-*/%()')) {
+            return false;
+        }
+
+        return $this->findLastBinaryOp($expr, ['+', '-'], true) !== false
+            || $this->findLastBinaryOp($expr, ['*', '/', '%']) !== false
+            || ($expr[0] ?? '') === '('
+            || (($expr[0] ?? '') === '-' && strlen($expr) > 1);
     }
 
     // ── Specific tag parsers ────────────────────────────────────

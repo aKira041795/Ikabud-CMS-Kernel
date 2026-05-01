@@ -69,36 +69,56 @@
 
 {block scripts}
 <script>
+    function reloadCaseDetailPanel(caseId, options) {
+        if (!caseId) return;
+
+        var target = document.getElementById('case-detail-panel');
+        if (!target) return;
+
+        var url = guidanceAppPath('/api/cases/' + caseId + '/panel');
+        var params = new URLSearchParams();
+        if (options && options.pane) params.set('pane', options.pane);
+        if (options && options.noteId) params.set('note_id', options.noteId);
+        var qs = params.toString();
+        if (qs) url += '?' + qs;
+
+        htmx.ajax('GET', url, {
+            target: '#case-detail-panel',
+            swap: 'innerHTML'
+        });
+
+        if (!options || options.scroll !== false) {
+            target.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }
+    }
+
     // Load case detail panel inline below the table
     document.body.addEventListener('click', function(e) {
         var caseRow = e.target.closest('[data-case-id]');
         if (caseRow) {
             var caseId = caseRow.dataset.caseId;
             if (caseId) {
-                htmx.ajax('GET', guidanceAppPath('/api/cases/' + caseId + '/panel'), {
-                    target: '#case-detail-panel',
-                    swap: 'innerHTML'
-                });
-                document.getElementById('case-detail-panel').scrollIntoView({behavior: 'smooth', block: 'start'});
+                reloadCaseDetailPanel(caseId, {pane: 'overview'});
             }
         }
     });
 
-    // After a note is saved, reload the full panel (so new note appears in history) + refresh stats
-    document.body.addEventListener('htmx:afterRequest', function(e) {
-        var path = (e.detail.pathInfo && e.detail.pathInfo.requestPath) || '';
-        if (/\/api\/cases\/\d+\/notes$/.test(path) && e.detail.successful) {
-            var inner = document.querySelector('#case-detail-panel [data-panel-case-id]');
-            var caseId = inner ? inner.dataset.panelCaseId : null;
-            if (caseId) {
-                htmx.ajax('GET', guidanceAppPath('/api/cases/' + caseId + '/panel'), {
-                    target: '#case-detail-panel',
-                    swap: 'innerHTML'
-                });
-            }
-            var statsEl = document.getElementById('stats-container');
-            if (statsEl) htmx.trigger(statsEl, 'load');
+    document.body.addEventListener('refreshCasePanel', function(e) {
+        var currentPanel = document.querySelector('#case-detail-panel [data-panel-case-id]');
+        var currentCaseId = currentPanel ? currentPanel.dataset.panelCaseId : null;
+        var detail = e.detail || {};
+        if (!currentCaseId || String(currentCaseId) !== String(detail.caseId || '')) {
+            return;
         }
+
+        reloadCaseDetailPanel(detail.caseId, {
+            pane: detail.pane || 'overview',
+            noteId: detail.noteId || '',
+            scroll: false,
+        });
+
+        var statsEl = document.getElementById('stats-container');
+        if (statsEl) htmx.trigger(statsEl, 'load');
     });
 </script>
 {/block}

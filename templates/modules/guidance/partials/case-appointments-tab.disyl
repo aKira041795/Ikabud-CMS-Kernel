@@ -17,16 +17,16 @@
     {!-- Header --}
     <div class="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4 flex-wrap">
         <div>
-            <h2 class="text-base font-semibold text-gray-900">Appointments</h2>
-            <p class="text-xs text-gray-400 mt-0.5">View and manage all appointments for this student.</p>
+            <h2 class="text-base font-semibold text-gray-900">All Appointments</h2>
+            <p class="text-xs text-gray-400 mt-0.5">Review the student's appointment history, then schedule the next session from here.</p>
         </div>
         <div class="flex items-center gap-2">
             <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 bg-gray-50">
                 <i class="fas fa-sliders-h text-xs text-gray-400"></i> Quick filters below
             </span>
-            <button hx-get="{base_url}/pages/appointments/new" hx-target="#modal-container"
+            <button hx-get="{base_url}/pages/appointments/new?case_id={case_id}" hx-target="#modal-container"
                     class="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-700 text-white text-sm font-semibold rounded-lg hover:bg-teal-800 transition-colors shadow-sm">
-                <i class="fas fa-plus text-xs"></i> New Appointment
+                <i class="fas fa-calendar-plus text-xs"></i> Schedule Appointment
             </button>
         </div>
     </div>
