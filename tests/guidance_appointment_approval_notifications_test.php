@@ -233,9 +233,9 @@ try {
     $_SERVER['REQUEST_URI'] = '/admin/guidance/api/appointments/' . $appointmentId . '/approve';
     $_SERVER['REQUEST_METHOD'] = 'POST';
     $_SERVER['HTTP_ACCEPT'] = 'application/json';
-    $_POST = [];
+    $_POST = ['_token' => app()->csrfToken()];
     $_GET = [];
-    $_REQUEST = [];
+    $_REQUEST = $_POST;
     http_response_code(200);
 
     ob_start();

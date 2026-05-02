@@ -230,6 +230,7 @@ try {
     $firstOutput = (string)ob_get_clean();
     $firstStatus = http_response_code();
     $firstDecoded = json_decode($firstOutput, true);
+    $firstCaseId = (int)($firstDecoded['data']['id'] ?? 0);
 
     $caseCountStmt = $db->prepare('SELECT COUNT(*) FROM gm_cases WHERE LOWER(TRIM(student_email)) = LOWER(TRIM(?)) AND deleted_at IS NULL');
     $caseCountStmt->execute([$studentEmail]);
@@ -326,14 +327,14 @@ try {
     $caseCountStmt->execute([$studentEmail]);
     $afterApproveCaseCount = (int)($caseCountStmt->fetchColumn() ?: 0);
 
-    t('duplicate appointment approval returns HTTP 409', $approveStatus === 409, 'status=' . (string)$approveStatus . ' body=' . $approveOutput);
-    t('duplicate appointment approval returns a duplicate email error payload', is_array($approveDecoded)
-        && (string)($approveDecoded['error'] ?? '') !== ''
-        && str_contains((string)($approveDecoded['error'] ?? ''), 'Email already used by'), $approveOutput);
+    t('duplicate appointment approval returns HTTP 200', $approveStatus === 200, 'status=' . (string)$approveStatus . ' body=' . $approveOutput);
+    t('duplicate appointment approval returns success payload', is_array($approveDecoded)
+        && !empty($approveDecoded['ok'])
+        && (int)($approveDecoded['case_id'] ?? 0) === $firstCaseId, $approveOutput);
     t('duplicate appointment approval does not create another case', $afterApproveCaseCount === $beforeApproveCaseCount, json_encode(['before' => $beforeApproveCaseCount, 'after' => $afterApproveCaseCount], JSON_UNESCAPED_SLASHES));
-    t('duplicate appointment approval leaves the appointment unconfirmed', (string)($appointmentState['status'] ?? '') === 'pending'
-        && (int)($appointmentState['case_id'] ?? 0) === 0
-        && (int)($appointmentState['approved_by'] ?? 0) === 0, json_encode($appointmentState, JSON_UNESCAPED_SLASHES));
+    t('duplicate appointment approval reuses the existing case and confirms the appointment', (string)($appointmentState['status'] ?? '') === 'confirmed'
+        && (int)($appointmentState['case_id'] ?? 0) === $firstCaseId
+        && (int)($appointmentState['approved_by'] ?? 0) === $counselorId, json_encode($appointmentState, JSON_UNESCAPED_SLASHES));
 
     $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
     $errorLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';

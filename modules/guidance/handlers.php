@@ -614,6 +614,43 @@ function guidanceFindActiveCaseByStudentEmail($db, string $email, ?int $excludeC
     return is_array($existing) ? $existing : null;
 }
 
+function guidanceFindReusableCaseByStudentEmail($db, string $email): ?array
+{
+    $normalizedEmail = strtolower(trim($email));
+    if ($normalizedEmail === '') {
+        return null;
+    }
+
+    $approvedStmt = $db->prepare(
+        'SELECT c.id, c.case_number, c.student_name, c.student_email, c.student_mobile, c.college_id, c.student_grade, c.counselor_id '
+        . 'FROM gm_appointments a '
+        . 'JOIN gm_cases c ON c.id = a.case_id AND c.deleted_at IS NULL '
+        . 'WHERE LOWER(TRIM(a.student_email)) = ? '
+        . "AND (a.approved_at IS NOT NULL OR a.status IN ('confirmed', 'scheduled', 'completed', 'no_show', 'rescheduled')) "
+        . 'ORDER BY COALESCE(a.approved_at, a.updated_at, a.created_at) DESC, a.id DESC '
+        . 'LIMIT 1'
+    );
+    $approvedStmt->execute([$normalizedEmail]);
+    $approvedCase = $approvedStmt->fetch(PDO::FETCH_ASSOC);
+    if (is_array($approvedCase)) {
+        return $approvedCase;
+    }
+
+    $activeCase = guidanceFindActiveCaseByStudentEmail($db, $normalizedEmail);
+    if (!is_array($activeCase)) {
+        return null;
+    }
+
+    $caseStmt = $db->prepare(
+        'SELECT id, case_number, student_name, student_email, student_mobile, college_id, student_grade, counselor_id '
+        . 'FROM gm_cases WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+    );
+    $caseStmt->execute([(int)($activeCase['id'] ?? 0)]);
+    $caseRow = $caseStmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($caseRow) ? $caseRow : null;
+}
+
 function guidanceDuplicateStudentEmailMessage(array $existingCase): string
 {
     $studentName = trim((string)($existingCase['student_name'] ?? '')) ?: 'another student';
@@ -5239,6 +5276,35 @@ function modalGuidanceCaseEdit(array $params = []): void
         return;
     }
 
+    if (empty($case['student_first_name']) && empty($case['student_last_name'])) {
+        $studentName = trim((string)($case['student_name'] ?? ''));
+        if ($studentName !== '') {
+            if (str_contains($studentName, ',')) {
+                [$lastName, $firstName] = array_map('trim', explode(',', $studentName, 2));
+            } else {
+                $parts = preg_split('/\s+/', $studentName) ?: [];
+                if (count($parts) > 1) {
+                    $lastName = (string)array_pop($parts);
+                    $firstName = trim(implode(' ', $parts));
+                } else {
+                    $firstName = $studentName;
+                    $lastName = '';
+                }
+            }
+
+            $case['student_first_name'] = $firstName ?? '';
+            $case['student_last_name'] = $lastName ?? '';
+        }
+    }
+
+    $gender = strtolower(trim((string)($case['gender'] ?? '')));
+    $case['gender'] = match ($gender) {
+        'male' => 'Male',
+        'female' => 'Female',
+        'other', 'prefer not to say' => 'Prefer not to say',
+        default => (string)($case['gender'] ?? ''),
+    };
+
     $tinyMceAssets = guidanceTinyMceAssets('guidance.session', 'default');
     $tinyMceConfig = guidanceTinyMceConfig('guidance.session', 'default', false);
     $counselors = [];
@@ -5274,6 +5340,10 @@ function modalGuidanceCaseEdit(array $params = []): void
                 if (is_array($decoded)) {
                     return json_encode($decoded, JSON_UNESCAPED_UNICODE);
                 }
+            }
+            $legacyCategory = trim((string)($case['category'] ?? ''));
+            if ($legacyCategory !== '') {
+                return json_encode([$legacyCategory], JSON_UNESCAPED_UNICODE);
             }
             return '[]';
         })(),
@@ -11901,8 +11971,21 @@ function apiGuidanceApproveAppointment(array $params): void
         }
 
         if ($caseId < 1) {
-            $createdCase = guidanceAutoCreateCaseFromAppointment($db, $row, $userId);
-            $caseId = (int)($createdCase['id'] ?? 0);
+            $reusableCase = guidanceFindReusableCaseByStudentEmail($db, (string)($row['student_email'] ?? ''));
+            if (is_array($reusableCase)) {
+                guidanceLinkAppointmentToCase($db, (int)($reusableCase['id'] ?? 0), [
+                    'counselor_id' => (int)($reusableCase['counselor_id'] ?? ($row['counselor_id'] ?? 0)),
+                    'student_name' => (string)($row['student_name'] ?? ($reusableCase['student_name'] ?? '')),
+                    'student_email' => (string)($row['student_email'] ?? ($reusableCase['student_email'] ?? '')),
+                    'student_mobile' => (string)($row['student_mobile'] ?? ($reusableCase['student_mobile'] ?? '')),
+                    'college_id' => $row['college_id'] ?? ($reusableCase['college_id'] ?? null),
+                    'student_grade' => (string)($row['student_grade'] ?? ($reusableCase['student_grade'] ?? '')),
+                ], $row, $userId);
+                $caseId = (int)($reusableCase['id'] ?? 0);
+            } else {
+                $createdCase = guidanceAutoCreateCaseFromAppointment($db, $row, $userId);
+                $caseId = (int)($createdCase['id'] ?? 0);
+            }
         }
 
         $upd = $db->prepare(
