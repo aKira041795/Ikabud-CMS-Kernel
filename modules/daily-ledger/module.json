@@ -38,7 +38,8 @@
         "dl_raw_materials",
         "dl_commissary_ledger",
         "dl_production_runs",
-        "audit_logs"
+        "audit_logs",
+        "dl_cashier_withdrawals"
     ],
     "reads_tables": [
         "rate_limits",
@@ -63,7 +64,9 @@
         "database/migrations/016_add_batch_input_qty.sql",
         "database/migrations/017_add_batch_egg_qty.sql",
         "database/migrations/018_add_commissary_flow_mode.sql",
-        "database/migrations/019_audit_logs_actor_columns.sql"
+        "database/migrations/019_audit_logs_actor_columns.sql",
+        "database/migrations/020_cashier_withdrawals.sql",
+        "database/migrations/021_cashier_withdrawal_receive.sql"
     ],
     "capabilities": {
         "exposes": [

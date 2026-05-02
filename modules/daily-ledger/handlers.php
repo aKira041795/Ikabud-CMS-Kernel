@@ -1341,6 +1341,23 @@ function handleCashierLedger(array $params = []): void
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Pending incoming deliveries (count of distinct DR groups for this branch)
+    $incomingCount = 0;
+    if ($branchId) {
+        $incStmt = $ctx->db()->prepare(
+            "SELECT COUNT(DISTINCT COALESCE(dr_number, CONCAT('o:', branch_id, ':', ledger_date)))
+             FROM dl_cashier_withdrawals
+             WHERE target_branch_id = :bid
+               AND withdrawal_type = 'delivery'
+               AND received_at IS NULL"
+        );
+        $incStmt->execute([':bid' => $branchId]);
+        $incomingCount = (int)$incStmt->fetchColumn();
+    }
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
@@ -1363,6 +1380,8 @@ function handleCashierLedger(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
+        'incoming_count' => $incomingCount,
     ]);
 }
 
@@ -1487,6 +1506,313 @@ function apiGetLedgerDayStatus(array $params = []): void
         'ok' => true,
         'day_status' => $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open',
     ]);
+}
+
+
+function apiGetCashierWithdrawals(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser();
+    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    $productId = isset($_GET['product_id']) ? (int)$_GET['product_id'] : 0;
+    $date = $_GET['date'] ?? date('Y-m-d');
+    
+    if (!$productId || !$branchId) {
+        $ctx->json(['ok' => false, 'error' => 'Missing product or branch']);
+        return;
+    }
+    
+    $stmt = $ctx->db()->prepare('SELECT id, withdrawal_type, dr_number, target_branch_id, quantity FROM dl_cashier_withdrawals WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d');
+    $stmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $ctx->json(['ok' => true, 'withdrawals' => $rows]);
+}
+
+function apiSaveCashierWithdrawals(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser();
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $date = $input['date'] ?? date('Y-m-d');
+    $header = (array)($input['header'] ?? []);
+    $lines = (array)($input['lines'] ?? []);
+
+    if (!$branchId) {
+        $ctx->json(['ok' => false, 'error' => 'Missing branch']);
+        return;
+    }
+
+    $type = (string)($header['withdrawal_type'] ?? 'charge');
+    if (!in_array($type, ['charge', 'pullout', 'delivery'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type']);
+        return;
+    }
+    $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
+    $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
+
+    if ($type === 'delivery') {
+        if ($drNumber === null) {
+            $ctx->json(['ok' => false, 'error' => 'DR # is required for delivery.']);
+            return;
+        }
+        if ($targetBranchId === null || $targetBranchId <= 0) {
+            $ctx->json(['ok' => false, 'error' => 'Destination branch is required for delivery.']);
+            return;
+        }
+    }
+
+    // Filter to valid product+qty pairs
+    $validLines = [];
+    foreach ($lines as $l) {
+        $pid = isset($l['product_id']) ? (int)$l['product_id'] : 0;
+        $qty = isset($l['quantity']) ? max(0, (int)$l['quantity']) : 0;
+        if ($pid > 0 && $qty > 0) {
+            $validLines[] = ['product_id' => $pid, 'quantity' => $qty];
+        }
+    }
+    if (count($validLines) === 0) {
+        $ctx->json(['ok' => false, 'error' => 'Add at least one product with a quantity greater than 0.']);
+        return;
+    }
+
+    $role = (string)($user['role'] ?? '');
+    $dayStatus = dl_getDayStatus($branchId, $date);
+    if ($role === 'cashier' && $date !== dl_businessDate()) {
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
+    if ($dayStatus === 'closed' && $role === 'cashier') {
+        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+        return;
+    }
+
+    $userId = (int)($user['sub'] ?? 0);
+    $totals = [];
+
+    $ctx->db()->beginTransaction();
+    try {
+        $stmtIns = $ctx->db()->prepare(
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, dr_number, target_branch_id, quantity, encoded_by)
+             VALUES (:bid, :pid, :d, :typ, :dr, :tbid, :qty, :uid)'
+        );
+        $stmtSum = $ctx->db()->prepare(
+            'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+        );
+        $stmtCheck = $ctx->db()->prepare(
+            'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
+        );
+        $stmtUpd = $ctx->db()->prepare(
+            'UPDATE dl_daily_ledger SET withdraw = :wdr, updated_by = :uid
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+        );
+        $stmtPrice = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :pid');
+        $stmtInit = $ctx->db()->prepare(
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, withdraw, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :prc, :wdr, :uid_enc, :uid_upd)'
+        );
+
+        foreach ($validLines as $line) {
+            $pid = $line['product_id'];
+            $qty = $line['quantity'];
+
+            $stmtIns->execute([
+                ':bid' => $branchId,
+                ':pid' => $pid,
+                ':d' => $date,
+                ':typ' => $type,
+                ':dr' => $drNumber,
+                ':tbid' => $targetBranchId,
+                ':qty' => $qty,
+                ':uid' => $userId,
+            ]);
+
+            $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+            $newTotal = (int)$stmtSum->fetchColumn();
+
+            $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+            if ($stmtCheck->fetch()) {
+                $stmtUpd->execute([
+                    ':wdr' => $newTotal,
+                    ':uid' => $userId,
+                    ':bid' => $branchId,
+                    ':pid' => $pid,
+                    ':d' => $date,
+                ]);
+            } else {
+                $stmtPrice->execute([':pid' => $pid]);
+                $price = (float)$stmtPrice->fetchColumn();
+                $stmtInit->execute([
+                    ':bid' => $branchId,
+                    ':pid' => $pid,
+                    ':d' => $date,
+                    ':prc' => $price,
+                    ':wdr' => $newTotal,
+                    ':uid_enc' => $userId,
+                    ':uid_upd' => $userId,
+                ]);
+            }
+
+            $totals[] = ['product_id' => $pid, 'total' => $newTotal];
+        }
+
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'totals' => $totals]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->log('apiSaveCashierWithdrawals error: ' . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => 'Database error']);
+    }
+}
+
+function apiGetIncomingDeliveries(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser();
+    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    if (!$branchId) { $ctx->json(['ok' => true, 'deliveries' => []]); return; }
+
+    $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.quantity, cw.branch_id AS origin_branch_id,
+                   ob.name AS origin_branch_name, cw.product_id, p.name AS product_name
+            FROM dl_cashier_withdrawals cw
+            INNER JOIN dl_branches ob ON ob.id = cw.branch_id
+            INNER JOIN dl_products p ON p.id = cw.product_id
+            WHERE cw.target_branch_id = :bid
+              AND cw.withdrawal_type = \'delivery\'
+              AND cw.received_at IS NULL
+            ORDER BY cw.ledger_date DESC, cw.dr_number, cw.id';
+    $stmt = $ctx->db()->prepare($sql);
+    $stmt->execute([':bid' => $branchId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Group by DR# (or by origin branch + date if DR# is null)
+    $groups = [];
+    foreach ($rows as $r) {
+        $key = ($r['dr_number'] !== null && $r['dr_number'] !== '')
+            ? 'dr:' . $r['dr_number'] . ':' . $r['origin_branch_id']
+            : 'orig:' . $r['origin_branch_id'] . ':' . $r['ledger_date'];
+        if (!isset($groups[$key])) {
+            $groups[$key] = [
+                'group_key' => $key,
+                'dr_number' => $r['dr_number'],
+                'origin_branch_id' => (int)$r['origin_branch_id'],
+                'origin_branch_name' => $r['origin_branch_name'],
+                'ledger_date' => $r['ledger_date'],
+                'items' => [],
+                'ids' => [],
+            ];
+        }
+        $groups[$key]['items'][] = [
+            'id' => (int)$r['id'],
+            'product_id' => (int)$r['product_id'],
+            'product_name' => $r['product_name'],
+            'quantity' => (int)$r['quantity'],
+        ];
+        $groups[$key]['ids'][] = (int)$r['id'];
+    }
+
+    $ctx->json(['ok' => true, 'deliveries' => array_values($groups)]);
+}
+
+function apiReceiveDelivery(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser();
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $ids = array_values(array_filter(array_map('intval', (array)($input['withdrawal_ids'] ?? []))));
+
+    if (!$branchId || count($ids) === 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing fields']);
+        return;
+    }
+
+    $userId = (int)($user['sub'] ?? 0);
+    $receiveDate = dl_businessDate();
+
+    // Make sure all ids are deliveries targeting this branch and not yet received.
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $check = $ctx->db()->prepare(
+        "SELECT id, product_id, quantity FROM dl_cashier_withdrawals
+         WHERE id IN ($placeholders) AND target_branch_id = ? AND withdrawal_type = 'delivery' AND received_at IS NULL"
+    );
+    $check->execute(array_merge($ids, [$branchId]));
+    $rows = $check->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if (count($rows) === 0) {
+        $ctx->json(['ok' => false, 'error' => 'Nothing to receive']);
+        return;
+    }
+
+    $ctx->db()->beginTransaction();
+    try {
+        // Sum incoming pcs per product
+        $perProduct = [];
+        foreach ($rows as $r) {
+            $pid = (int)$r['product_id'];
+            $perProduct[$pid] = ($perProduct[$pid] ?? 0) + (int)$r['quantity'];
+        }
+
+        // Mark received
+        $foundIds = array_column($rows, 'id');
+        $markPh = implode(',', array_fill(0, count($foundIds), '?'));
+        $mark = $ctx->db()->prepare(
+            "UPDATE dl_cashier_withdrawals
+             SET received_at = NOW(), received_by = ?, received_ledger_date = ?
+             WHERE id IN ($markPh)"
+        );
+        $mark->execute(array_merge([$userId, $receiveDate], $foundIds));
+
+        // Apply to dl_daily_ledger.addtl for receive date
+        $stmtCheck = $ctx->db()->prepare(
+            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
+        );
+        $stmtUpd = $ctx->db()->prepare(
+            'UPDATE dl_daily_ledger SET addtl = :addtl, updated_by = :uid
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+        );
+        $stmtPrice = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :pid');
+        $stmtInit = $ctx->db()->prepare(
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, addtl, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :prc, :addtl, :uid_enc, :uid_upd)'
+        );
+
+        foreach ($perProduct as $pid => $qty) {
+            $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate]);
+            $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            if ($existing) {
+                $newAddtl = (int)$existing['addtl'] + (int)$qty;
+                $stmtUpd->execute([':addtl' => $newAddtl, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate]);
+            } else {
+                $stmtPrice->execute([':pid' => $pid]);
+                $price = (float)$stmtPrice->fetchColumn();
+                $stmtInit->execute([
+                    ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate,
+                    ':prc' => $price, ':addtl' => (int)$qty,
+                    ':uid_enc' => $userId, ':uid_upd' => $userId,
+                ]);
+            }
+        }
+
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'received_count' => count($foundIds), 'receive_date' => $receiveDate]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->log('apiReceiveDelivery error: ' . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => 'Database error']);
+    }
 }
 
 function apiSaveLedgerField(array $params = []): void
@@ -2441,6 +2767,9 @@ function handleAdminDashboard(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/dashboard.disyl', [
         'page_title'            => 'Dashboard',
@@ -2544,6 +2873,9 @@ function handleAdminSales(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/sales.disyl', [
         'page_title'   => 'Sales Summary',
@@ -2565,6 +2897,7 @@ function handleAdminSales(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
     ]);
 }
 
@@ -2651,6 +2984,9 @@ function handleAdminProduction(array $params = []): void
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canProductionOverride = dl_roleHasPermission($role, 'production.override');
     $featureSettings = dl_featureSettings();
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/production.disyl', [
         'page_title' => 'Production Withdrawal',
@@ -2674,6 +3010,7 @@ function handleAdminProduction(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
     ]);
 }
 
@@ -2759,6 +3096,9 @@ function handleAdminProductionOutput(array $params = []): void
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $featureSettings = dl_featureSettings();
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/production-output.disyl', [
         'page_title' => 'Production Output',
@@ -2781,6 +3121,7 @@ function handleAdminProductionOutput(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
     ]);
 }
 
@@ -5187,6 +5528,9 @@ function apiDailyLedgerMe(array $params = []): void
 
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin', 'production_in_charge']);
     $allowedBranchIds = dl_accessibleBranchIds($user);
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     $branches = [];
 
@@ -5217,6 +5561,7 @@ function apiDailyLedgerMe(array $params = []): void
             'close_of_day_time' => $clockLabel['close_of_day_time'],
             'operating_timezone' => $clockLabel['operating_timezone'],
             'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
         ],
     ]);
 }

@@ -63,8 +63,27 @@
     </div>
 </div>
 
-<div class="mb-4">
+<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
     <input type="text" class="form-input max-w-xs" id="ledger-search" placeholder="Search product..." oninput="filterLedgerRows(this.value)">
+    <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="btn btn-outline relative inline-flex items-center gap-2" onclick="openReceiveModal()">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7l9 6 9-6M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M3 7l9-4 9 4" />
+            </svg>
+            Receive Delivery
+            {if incoming_count > 0}
+            <span class="ml-1 inline-flex items-center justify-center rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white">{incoming_count}</span>
+            {/if}
+        </button>
+        {if day_status == 'open' && !reference_only}
+        <button type="button" class="btn btn-primary inline-flex items-center gap-2" onclick="openWithdrawalModal()">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            New Withdrawal
+        </button>
+        {/if}
+    </div>
 </div>
 
 <div class="card">
@@ -104,6 +123,9 @@
     {/if}
 </div>
 {/if}
+
+{include "modules/daily-ledger/cashier/modal_patch.disyl"}
+{include "modules/daily-ledger/cashier/receive_modal.disyl"}
 {/block}
 
 {block scripts}
@@ -112,6 +134,9 @@
     var BRANCH_ID = '{branch_id}';
     var LEDGER_DATE = '{ledger_date}';
     var DAY_STATUS = '{day_status}';
+    window.BASE = BASE;
+    window.BRANCH_ID = BRANCH_ID;
+    window.LEDGER_DATE = LEDGER_DATE;
 
     // Offline buffer: localStorage write-ahead log
     var PENDING_KEY = 'bbs_pending_saves';
@@ -130,7 +155,8 @@
         if (!row) return 0;
         var beg = parseInt(row.querySelector('[data-field="beg_bal"]').value) || 0;
         var add = parseInt(row.querySelector('[data-field="addtl"]').value) || 0;
-        var wdr = parseInt(row.querySelector('[data-field="withdraw"]').value) || 0;
+        var wdrEl = row.querySelector('[data-field="withdraw"]');
+        var wdr = parseInt(wdrEl ? (wdrEl.value !== undefined ? wdrEl.value : wdrEl.textContent) : 0) || 0;
         var end = parseInt(row.querySelector('[data-field="bal_end"]').value) || 0;
         var sales = beg + add - wdr - end;
         if (sales < 0) sales = 0;
@@ -357,7 +383,8 @@
             var product = (row.querySelector('.product-name') || {}).textContent || '';
             var beg = (row.querySelector('[data-field="beg_bal"]') || {}).value || '0';
             var addtl = (row.querySelector('[data-field="addtl"]') || {}).value || '0';
-            var withdraw = (row.querySelector('[data-field="withdraw"]') || {}).value || '0';
+            var withdrawEl = row.querySelector('[data-field="withdraw"]') || {};
+            var withdraw = (withdrawEl.value !== undefined ? withdrawEl.value : withdrawEl.textContent) || '0';
             var balEnd = (row.querySelector('[data-field="bal_end"]') || {}).value || '0';
             var sales = (row.querySelector('.sales-computed') || {}).textContent || '0';
 

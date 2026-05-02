@@ -191,28 +191,26 @@ t('redirect validator rejects encoded CRLF', $threw);
 
 heading('DB Validation Cadence');
 
-$appInstance = app();
-$appReflection = new ReflectionClass($appInstance);
-$configProperty = $appReflection->getProperty('config');
-$configProperty->setAccessible(true);
-$shouldValidateConnection = $appReflection->getMethod('shouldValidateConnection');
+// shouldValidateConnection now lives on DatabaseManager (refactor 2026-04).
+$dbManagerForTest = new \Ikabud\Kernel\Services\DatabaseManager(
+    ['app' => ['database' => ['idle_validation_seconds' => 60]]],
+    static function (): void {},
+    static function () { return null; },
+    static function (): ?int { return null; }
+);
+$dbManagerReflection = new ReflectionClass($dbManagerForTest);
+$shouldValidateConnection = $dbManagerReflection->getMethod('shouldValidateConnection');
 $shouldValidateConnection->setAccessible(true);
-
-$originalConfig = $configProperty->getValue($appInstance);
-$adjustedConfig = $originalConfig;
-$adjustedConfig['app']['database']['idle_validation_seconds'] = 60;
-$configProperty->setValue($appInstance, $adjustedConfig);
 
 t(
     'db validation skips ping before configured idle threshold',
-    $shouldValidateConnection->invoke($appInstance, time() - 30) === false
+    $shouldValidateConnection->invoke($dbManagerForTest, time() - 30) === false
 );
 t(
     'db validation pings after configured idle threshold',
-    $shouldValidateConnection->invoke($appInstance, time() - 61) === true
+    $shouldValidateConnection->invoke($dbManagerForTest, time() - 61) === true
 );
-
-$configProperty->setValue($appInstance, $originalConfig);
+unset($dbManagerForTest, $dbManagerReflection, $shouldValidateConnection);
 
 heading('Security Headers');
 

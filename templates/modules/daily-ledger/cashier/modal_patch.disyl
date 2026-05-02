@@ -1,0 +1,231 @@
+<!-- Withdrawal Modal -->
+<div x-data="withdrawalModal()"
+     x-cloak
+     x-on:open-withdrawal-modal.window="openModal($event.detail)"
+     class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true" x-show="isOpen">
+    <div x-show="isOpen" x-transition.opacity class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div x-show="isOpen"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 @click.away="closeModal()"
+                 class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-2xl sm:p-6">
+
+                <div>
+                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">New Withdrawal</h3>
+                    <p class="text-sm text-gray-500 mb-4">Record a withdrawal of one or more products. All products in this entry share the same Type, DR# and Branch.</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Type *</label>
+                            <select x-model="header.withdrawal_type" class="form-input mt-0 w-full" @change="onTypeChange()">
+                                <option value="charge">Charge (cashier)</option>
+                                <option value="pullout">Pullout (past saleable)</option>
+                                <option value="delivery">Delivery (to branch)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">
+                                DR # <span x-show="header.withdrawal_type === 'delivery'" class="text-rose-500">*</span>
+                            </label>
+                            <input type="text" x-model="header.dr_number" placeholder="Delivery Receipt #" class="form-input mt-0 w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">
+                                Deliver To <span x-show="header.withdrawal_type === 'delivery'" class="text-rose-500">*</span>
+                            </label>
+                            <select x-model="header.target_branch_id" class="form-input mt-0 w-full" x-bind:disabled="header.withdrawal_type !== 'delivery'">
+                                <option value="">-- N/A --</option>
+                                {foreach all_branches as b}
+                                <option value="{b.id}">{b.name}</option>
+                                {/foreach}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 bg-gray-50 rounded-lg p-3">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-200">
+                                    <th class="py-2 text-left font-medium text-gray-700">Product</th>
+                                    <th class="py-2 text-right font-medium text-gray-700 w-24">Pcs</th>
+                                    <th class="py-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(line, idx) in lines" :key="idx">
+                                    <tr class="border-b border-gray-100">
+                                        <td class="py-2 pr-2">
+                                            <select x-model="line.product_id" class="form-input mt-0 py-1 px-2 w-full">
+                                                <option value="">-- Select Product --</option>
+                                                <template x-for="p in products" :key="p.id">
+                                                    <option :value="p.id" x-text="p.name"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+                                        <td class="py-2 pr-2">
+                                            <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                        </td>
+                                        <td class="py-2 text-right">
+                                            <button type="button" @click="lines.splice(idx, 1)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" x-show="lines.length > 1">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                            <tfoot class="bg-gray-100 border-t border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 text-right font-medium text-gray-900">Total Pcs:</th>
+                                    <th class="py-2 text-right pr-2 font-bold text-gray-900" x-text="totalQty()"></th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <button type="button" @click="addEmptyLine()" class="btn btn-outline w-full justify-center mb-4">+ Add Product</button>
+
+                    <p x-show="errorMsg" x-text="errorMsg" class="text-sm text-rose-600 mb-2"></p>
+                </div>
+
+                <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse border-t border-gray-200 pt-4">
+                    <button type="button" @click="saveChanges()" class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto" x-bind:disabled="saving">
+                        <span x-text="saving ? 'Saving...' : 'Save Withdrawal'"></span>
+                    </button>
+                    <button type="button" @click="closeModal()" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto" x-bind:disabled="saving">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+window.openWithdrawalModal = function() {
+    window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
+};
+
+function withdrawalModal() {
+    return {
+        isOpen: false,
+        saving: false,
+        errorMsg: '',
+        header: { withdrawal_type: 'charge', dr_number: '', target_branch_id: '' },
+        lines: [],
+        products: [],
+
+        openModal() {
+            this.errorMsg = '';
+            this.header = { withdrawal_type: 'charge', dr_number: '', target_branch_id: '' };
+            this.lines = [{ product_id: '', quantity: '' }];
+            this.loadProducts();
+            this.isOpen = true;
+        },
+
+        closeModal() { this.isOpen = false; },
+
+        addEmptyLine() { this.lines.push({ product_id: '', quantity: '' }); },
+
+        onTypeChange() {
+            if (this.header.withdrawal_type !== 'delivery') {
+                this.header.target_branch_id = '';
+            }
+        },
+
+        totalQty() {
+            return this.lines.reduce(function(sum, l) { return sum + (parseInt(l.quantity) || 0); }, 0);
+        },
+
+        loadProducts() {
+            this.products = [];
+            var rows = document.querySelectorAll('tr[data-product-id]');
+            var seen = {};
+            rows.forEach(function(r) {
+                var pid = r.getAttribute('data-product-id');
+                var nm = (r.querySelector('.product-name') || {}).textContent || '';
+                if (pid && !seen[pid]) {
+                    seen[pid] = true;
+                    this.products.push({ id: pid, name: nm.trim() });
+                }
+            }.bind(this));
+        },
+
+        validate() {
+            this.errorMsg = '';
+            if (this.header.withdrawal_type === 'delivery') {
+                if (!this.header.dr_number || String(this.header.dr_number).trim() === '') {
+                    this.errorMsg = 'DR # is required for delivery.';
+                    return false;
+                }
+                if (!this.header.target_branch_id) {
+                    this.errorMsg = 'Destination branch is required for delivery.';
+                    return false;
+                }
+            }
+            var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
+            if (validLines.length === 0) {
+                this.errorMsg = 'Add at least one product with a quantity greater than 0.';
+                return false;
+            }
+            return true;
+        },
+
+        saveChanges() {
+            if (!this.validate()) return;
+            this.saving = true;
+
+            var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
+            var payload = {
+                date: LEDGER_DATE,
+                header: {
+                    withdrawal_type: this.header.withdrawal_type,
+                    dr_number: this.header.dr_number || null,
+                    target_branch_id: this.header.target_branch_id || null
+                },
+                lines: validLines.map(function(l) {
+                    return { product_id: parseInt(l.product_id), quantity: parseInt(l.quantity) };
+                })
+            };
+            if (window.BRANCH_ID) payload.branch_id = window.BRANCH_ID;
+
+            fetch(BASE + '/api/v1/cashier/ledger/withdrawals', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                this.saving = false;
+                if (data.ok) {
+                    showToast('Withdrawal saved', 'success');
+                    (data.totals || []).forEach(function(t) {
+                        var row = document.querySelector('tr[data-product-id="' + t.product_id + '"]');
+                        if (!row) return;
+                        var span = row.querySelector('[data-field="withdraw"]');
+                        if (span) span.textContent = t.total;
+                        if (typeof computeSales === 'function') computeSales(t.product_id);
+                    });
+                    this.closeModal();
+                } else {
+                    this.errorMsg = data.error || 'Failed to save withdrawal.';
+                }
+            }.bind(this))
+            .catch(function() {
+                this.saving = false;
+                this.errorMsg = 'Network error while saving withdrawal.';
+            }.bind(this));
+        }
+    };
+}
+</script>

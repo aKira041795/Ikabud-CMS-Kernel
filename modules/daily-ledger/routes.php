@@ -27,6 +27,8 @@ return [
         // API: product list for branch (used by cashier form)
         '/daily-ledger/api/v1/cashier/ledger/rows' => 'daily-ledger:apiGetLedgerRows',
         '/daily-ledger/api/v1/cashier/ledger/day-status' => 'daily-ledger:apiGetLedgerDayStatus',
+        '/daily-ledger/api/v1/cashier/ledger/withdrawals' => 'daily-ledger:apiGetCashierWithdrawals',
+        '/daily-ledger/api/v1/cashier/ledger/incoming-deliveries' => 'daily-ledger:apiGetIncomingDeliveries',
 
         // API: get current user and branches (Android sync)
         '/daily-ledger/api/v1/me'                  => 'daily-ledger:apiDailyLedgerMe',
@@ -48,6 +50,11 @@ return [
         '/daily-ledger/api/v1/cashier/ledger/save-batch' => 'daily-ledger:apiSaveLedgerBatch',
         // Cashier: close day
         '/daily-ledger/api/v1/cashier/ledger/close-day'  => 'daily-ledger:apiCloseDay',
+
+        // Cashier: detailed withdrawals
+        '/daily-ledger/api/v1/cashier/ledger/withdrawals' => 'daily-ledger:apiSaveCashierWithdrawals',
+        // Cashier: receive incoming delivery
+        '/daily-ledger/api/v1/cashier/ledger/receive-delivery' => 'daily-ledger:apiReceiveDelivery',
 
         // Admin: reopen day
         '/daily-ledger/api/v1/admin/reopen-day'          => 'daily-ledger:apiReopenDay',
