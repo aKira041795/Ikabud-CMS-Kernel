@@ -7,9 +7,16 @@
         <div class="guidance-modal-panel guidance-modal-panel--lg">
             {!-- Header --}
             <div class="guidance-modal-header">
-                <h2 class="text-xl font-semibold text-gray-800">
-                    {if case.id}Edit Case{else}New Case{/if}
-                </h2>
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800">
+                        {if case.id}Edit Case{else}New Case{/if}
+                    </h2>
+                    {if case.id and case.case_number}
+                    <p class="mt-1 text-sm font-medium text-gray-500">
+                        Case Number: <span class="font-semibold text-gray-700">{case.case_number | esc_html}</span>
+                    </p>
+                    {/if}
+                </div>
                 <button onclick="document.getElementById('modal-container').innerHTML=''"
                         class="guidance-modal-close">
                     <i class="fas fa-times text-xl"></i>
@@ -107,6 +114,13 @@
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Section</label>
+                            <input type="text" name="student_section"
+                                   value="{case.student_section | esc_attr | default:''}"
+                                   placeholder="e.g., Section A"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Gender</label>
                             <select name="gender"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
@@ -136,6 +150,20 @@
                                    placeholder="student@email.com"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
+                            <input type="text" name="nationality"
+                                   value="{case.nationality | esc_attr | default:''}"
+                                   placeholder="e.g., Filipino"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Civil Status</label>
+                            <input type="text" name="civil_status"
+                                   value="{case.civil_status | esc_attr | default:''}"
+                                   placeholder="e.g., Single"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        </div>
                     </div>
 
                     <div class="mb-4">
@@ -159,6 +187,11 @@
                                    placeholder="09XX-XXX-XXXX"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                         </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Address</label>
+                            <textarea name="emergency_contact_address" rows="2" placeholder="Emergency contact address"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{case.emergency_contact_address | esc_html | default:''}</textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -180,9 +213,12 @@
                             <select name="student_status"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                                 <option value="">Select status...</option>
-                                <option value="Probationary" {if case.student_status == 'Probationary'}selected{/if}>Probationary</option>
-                                <option value="For Follow-up" {if case.student_status == 'For Follow-up'}selected{/if}>For Follow-up</option>
-                                <option value="Terminated" {if case.student_status == 'Terminated'}selected{/if}>Terminated</option>
+                                <option value="Active" {if case.student_status == 'Active'}selected{/if}>Active</option>
+                                <option value="At Risk" {if case.student_status == 'At Risk'}selected{/if}>At Risk</option>
+                                <option value="On Leave" {if case.student_status == 'On Leave'}selected{/if}>On Leave</option>
+                                <option value="Transferred" {if case.student_status == 'Transferred'}selected{/if}>Transferred</option>
+                                <option value="Dropped" {if case.student_status == 'Dropped'}selected{/if}>Dropped</option>
+                                <option value="Graduated" {if case.student_status == 'Graduated'}selected{/if}>Graduated</option>
                             </select>
                         </div>
                     </div>
