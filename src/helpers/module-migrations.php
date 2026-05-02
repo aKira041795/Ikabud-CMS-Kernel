@@ -15,6 +15,7 @@ function tenantSafeKernelMigrationFiles(): array
         '014_integration_modes.sql' => BASE_PATH . '/database/migrations/014_integration_modes.sql',
         '015_users_token_version.sql' => BASE_PATH . '/database/migrations/015_users_token_version.sql',
         '017_audit_logs_actor_module.sql' => BASE_PATH . '/database/migrations/017_audit_logs_actor_module.sql',
+        '018_audit_logs_actor_columns_ensure.sql' => BASE_PATH . '/database/migrations/018_audit_logs_actor_columns_ensure.sql',
     ];
 
     $files = [];
@@ -474,6 +475,7 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
         '013_kernel_trigger_execution_history_module_idx.sql' => BASE_PATH . '/database/migrations/013_kernel_trigger_execution_history_module_idx.sql',
         '014_integration_modes.sql' => BASE_PATH . '/database/migrations/014_integration_modes.sql',
         '017_audit_logs_actor_module.sql' => BASE_PATH . '/database/migrations/017_audit_logs_actor_module.sql',
+        '018_audit_logs_actor_columns_ensure.sql' => BASE_PATH . '/database/migrations/018_audit_logs_actor_columns_ensure.sql',
     ];
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
