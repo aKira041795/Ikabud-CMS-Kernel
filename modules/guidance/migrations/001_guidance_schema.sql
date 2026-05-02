@@ -579,13 +579,13 @@ ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 INSERT INTO `gm_form_fields` (`form_type`, `field_name`, `field_label`, `field_type`, `field_group`, `field_options`, `placeholder`, `default_value`, `is_required`, `is_enabled`, `sort_order`, `grid_column`) VALUES
     -- Case form fields
     ('case', 'student_name',             'Student Name',           'text',     'Student Information', NULL, 'Full name', NULL, 1, 1, 1, 'half'),
-    ('case', 'student_id',               'Student ID',             'text',     'Student Information', NULL, 'e.g., 2024-0001', NULL, 1, 1, 2, 'half'),
-    ('case', 'college_id',               'College',                'select',   'Student Information', NULL, NULL, NULL, 1, 1, 3, 'half'),
-    ('case', 'student_grade',            'Grade / Year Level',     'text',     'Student Information', NULL, 'e.g., 3rd Year', NULL, 1, 1, 4, 'half'),
+    ('case', 'student_id',               'Student ID',             'text',     'Student Information', NULL, 'e.g., 2024-0001', NULL, 0, 1, 2, 'half'),
+    ('case', 'college_id',               'College',                'select',   'Student Information', NULL, NULL, NULL, 0, 1, 3, 'half'),
+    ('case', 'student_grade',            'Grade / Year Level',     'text',     'Student Information', NULL, 'e.g., 3rd Year', NULL, 0, 1, 4, 'half'),
     ('case', 'student_status',           'Student Status',         'select',   'Student Information', '["Active","At Risk","On Leave","Transferred","Dropped","Graduated"]', NULL, 'Active', 0, 1, 21, 'half'),
     ('case', 'student_section',          'Section',                'text',     'Student Information', NULL, 'e.g., Section A', NULL, 0, 1, 5, 'half'),
-    ('case', 'category',                 'Category',               'select',   'Case Details', '["academic","behavioral","emotional","family","peer","career","crisis","special_needs","substance","other"]', NULL, NULL, 1, 1, 6, 'half'),
-    ('case', 'severity',                 'Severity',               'select',   'Case Details', '["low","medium","high","critical"]', NULL, 'medium', 1, 1, 7, 'half'),
+    ('case', 'category',                 'Category',               'select',   'Case Details', '["academic","behavioral","emotional","family","peer","career","crisis","special_needs","substance","other"]', NULL, NULL, 0, 1, 6, 'half'),
+    ('case', 'severity',                 'Severity',               'select',   'Case Details', '["low","medium","high","critical"]', NULL, 'medium', 0, 1, 7, 'half'),
     ('case', 'presenting_issue',         'Presenting Issue',       'textarea', 'Case Details', NULL, 'Describe the main concern or issue...', NULL, 1, 1, 8, 'full'),
     ('case', 'background_info',          'Background Information', 'textarea', 'Case Details', NULL, 'Any relevant background...', NULL, 0, 1, 9, 'full'),
     ('case', 'is_urgent',                'Mark as Urgent',         'checkbox', 'Case Details', NULL, NULL, NULL, 0, 1, 10, 'half'),

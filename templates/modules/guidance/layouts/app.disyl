@@ -603,8 +603,17 @@
                 return;
             }
 
+            // HTMX 1.9.x does NOT dispatch HX-Trigger events on 4xx responses.
+            // Manually parse and dispatch them here so server-sent error toasts work.
             const triggerHeader = xhr.getResponseHeader('HX-Trigger');
             if (triggerHeader) {
+                try {
+                    const triggers = JSON.parse(triggerHeader);
+                    Object.keys(triggers).forEach(function(eventName) {
+                        const detail = triggers[eventName];
+                        document.body.dispatchEvent(new CustomEvent(eventName, { detail: detail, bubbles: true }));
+                    });
+                } catch (e) {}
                 return;
             }
 

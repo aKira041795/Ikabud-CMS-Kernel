@@ -1049,6 +1049,12 @@ class App
      */
     public function isHtmx(): bool
     {
+        // HX-History-Restore-Request means HTMX needs the full page (back/forward
+        // navigation with a cache miss). Treat it as a normal full-page request so
+        // the layout (sidebar, etc.) is returned.
+        if (!empty($_SERVER['HTTP_HX_HISTORY_RESTORE_REQUEST'])) {
+            return false;
+        }
         return isset($_SERVER['HTTP_HX_REQUEST']) && $_SERVER['HTTP_HX_REQUEST'] === 'true';
     }
 
