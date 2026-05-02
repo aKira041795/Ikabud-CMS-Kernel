@@ -91,7 +91,11 @@
         "migrations/002_guidance_seed.sql",
         "migrations/003_guidance_booking_snapshot.sql",
         "migrations/004_guidance_attachments_meta.sql",
-        "migrations/005_guidance_note_appointment_link.sql"
+        "migrations/005_guidance_note_appointment_link.sql",
+        "migrations/006_guidance_case_refactor.sql",
+        "migrations/007_guidance_case_mse.sql",
+        "migrations/008_guidance_form_fields_required_fix.sql",
+        "migrations/009_guidance_unique_active_student_email.sql"
     ],
     "seeds": [
         "seeds/001_guidance_baseline.sql"

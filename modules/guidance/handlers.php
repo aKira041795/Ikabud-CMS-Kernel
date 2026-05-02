@@ -590,6 +590,62 @@ function guidanceCaseInsertColumns(bool $hasStudentStatus): array
     return $base;
 }
 
+function guidanceFindActiveCaseByStudentEmail($db, string $email, ?int $excludeCaseId = null): ?array
+{
+    $normalizedEmail = strtolower(trim($email));
+    if ($normalizedEmail === '') {
+        return null;
+    }
+
+    $sql = 'SELECT id, case_number, student_name FROM gm_cases WHERE LOWER(TRIM(student_email)) = ? AND deleted_at IS NULL';
+    $params = [$normalizedEmail];
+
+    if ($excludeCaseId !== null) {
+        $sql .= ' AND id != ?';
+        $params[] = $excludeCaseId;
+    }
+
+    $sql .= ' LIMIT 1';
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($existing) ? $existing : null;
+}
+
+function guidanceDuplicateStudentEmailMessage(array $existingCase): string
+{
+    $studentName = trim((string)($existingCase['student_name'] ?? '')) ?: 'another student';
+    $caseNumber = trim((string)($existingCase['case_number'] ?? '')) ?: 'an existing case';
+
+    return 'Email already used by ' . $studentName . ' (' . $caseNumber . ')';
+}
+
+function guidanceIsDuplicateStudentEmailDbError(Throwable $e): bool
+{
+    return stripos($e->getMessage(), 'active student email must be unique') !== false;
+}
+
+function guidanceIsDuplicateStudentEmailMessage(string $message): bool
+{
+    return str_contains(strtolower($message), 'email already used');
+}
+
+function guidanceRespondCaseConflict(string $message, int $status = 409): void
+{
+    http_response_code($status);
+
+    if (guidanceIsHtmx()) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $message, 'type' => 'error']]), true, $status);
+        echo '';
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8', true, $status);
+    echo json_encode(['success' => false, 'error' => $message], JSON_UNESCAPED_SLASHES);
+}
+
 function guidanceAutoCreateCaseFromAppointment(
     \Ikabud\Kernel\Contracts\DatabaseContract $db,
     array $appointment,
@@ -609,6 +665,11 @@ function guidanceAutoCreateCaseFromAppointment(
         $userId,
         $hasStudentStatus
     );
+
+    $duplicateCase = guidanceFindActiveCaseByStudentEmail($db, (string)($caseData['student_email'] ?? ''));
+    if ($duplicateCase !== null) {
+        throw new RuntimeException(guidanceDuplicateStudentEmailMessage($duplicateCase));
+    }
 
     $attempts = 0;
     do {
@@ -643,6 +704,12 @@ function guidanceAutoCreateCaseFromAppointment(
                 'appointment_id' => $appointmentId,
             ];
         } catch (PDOException $e) {
+            if (guidanceIsDuplicateStudentEmailDbError($e)) {
+                $duplicateCase = guidanceFindActiveCaseByStudentEmail($db, (string)($caseData['student_email'] ?? ''));
+                throw new RuntimeException($duplicateCase !== null
+                    ? guidanceDuplicateStudentEmailMessage($duplicateCase)
+                    : 'Email already used by another active student case');
+            }
             if ($attempts >= 3 || stripos($e->getMessage(), 'Duplicate') === false) {
                 throw $e;
             }
@@ -729,6 +796,11 @@ function apiGuidanceCreateCase(): void
         }
 
         $caseData = guidanceBuildCaseRecordPayload($input, $counselorId, $userId, $hasStudentStatus);
+        $duplicateCase = guidanceFindActiveCaseByStudentEmail($db, (string)($caseData['student_email'] ?? ''));
+        if ($duplicateCase !== null) {
+            guidanceRespondCaseConflict(guidanceDuplicateStudentEmailMessage($duplicateCase));
+            return;
+        }
 
         $attempts = 0;
         do {
@@ -794,6 +866,10 @@ function apiGuidanceCreateCase(): void
                     $db->rollBack();
                 }
                 $message = $e->getMessage();
+                if (guidanceIsDuplicateStudentEmailMessage($message)) {
+                    guidanceRespondCaseConflict($message, 409);
+                    return;
+                }
                 $status = str_contains(strtolower($message), 'time slot') ? 409 : 422;
                 http_response_code($status);
                 header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $message, 'type' => 'error']]));
@@ -802,6 +878,14 @@ function apiGuidanceCreateCase(): void
             } catch (PDOException $e) {
                 if ($db->inTransaction()) {
                     $db->rollBack();
+                }
+                if (guidanceIsDuplicateStudentEmailDbError($e)) {
+                    $duplicateCase = guidanceFindActiveCaseByStudentEmail($db, (string)($caseData['student_email'] ?? ''));
+                    $message = $duplicateCase !== null
+                        ? guidanceDuplicateStudentEmailMessage($duplicateCase)
+                        : 'Email already used by another active student case';
+                    guidanceRespondCaseConflict($message, 409);
+                    return;
                 }
                 if ($attempts >= 3 || stripos($e->getMessage(), 'Duplicate') === false) {
                     throw $e;
@@ -874,6 +958,12 @@ function apiGuidanceUpdateCase(array $params = []): void
 
     try {
         $caseData = guidanceBuildCaseRecordPayload($input, $counselorId, $userId, $hasStudentStatus);
+        $duplicateCase = guidanceFindActiveCaseByStudentEmail($db, (string)($caseData['student_email'] ?? ''), $caseId);
+        if ($duplicateCase !== null) {
+            guidanceRespondCaseConflict(guidanceDuplicateStudentEmailMessage($duplicateCase));
+            return;
+        }
+
         $allowedColumns = ['student_id', 'student_first_name', 'student_last_name', 'student_name', 'student_grade', 'student_section', 'date_of_birth', 'gender', 'nationality', 'civil_status', 'address', 'student_mobile', 'student_email', 'college_id', 'counselor_id', 'category', 'categories', 'severity', 'presenting_issue', 'background_info', 'case_predisposition', 'case_precipitating', 'case_perpetuating', 'case_protective', 'session_date', 'mse_appearance', 'mse_mood', 'mse_affect', 'mse_behavior', 'mse_speech', 'mse_thought_process', 'mse_insight', 'mse_judgment', 'mse_notes', 'is_urgent', 'is_confidential', 'parent_guardian_name', 'parent_guardian_contact', 'emergency_contact_address', 'referral_source', 'referred_by'];
         if ($hasStudentStatus) {
             $allowedColumns[] = 'student_status';
@@ -11829,8 +11919,9 @@ function apiGuidanceApproveAppointment(array $params): void
         if ($startedTransaction && $db->inTransaction()) {
             $db->rollBack();
         }
-        header('Content-Type: application/json');
-        http_response_code(422);
+        $status = guidanceIsDuplicateStudentEmailMessage($e->getMessage()) ? 409 : 422;
+        header('Content-Type: application/json', true, $status);
+        http_response_code($status);
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
         return;
     } catch (Throwable $e) {
