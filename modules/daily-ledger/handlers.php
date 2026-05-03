@@ -5317,7 +5317,7 @@ function apiProductsImportCsv(): void
 // Daily Ledger — Commissary / Production Runs
 // ─────────────────────────────────────────────────────────────────────────
 
-function dl_buildUsagePageData(PDO $db, array $user, string $rawDate, int $requestedBranchId = 0): array
+function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, array $user, string $rawDate, int $requestedBranchId = 0): array
 {
     $productsStmt = $db->query("SELECT id, name, product_category, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label FROM dl_products ORDER BY product_category ASC, sort_order ASC, name ASC");
     $products = $productsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
