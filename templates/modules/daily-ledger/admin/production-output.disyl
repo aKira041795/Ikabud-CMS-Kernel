@@ -56,7 +56,7 @@
         {/if}
 
         {if branches | count > 0}
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5 mb-4">
             <div class="form-group mb-0">
                 <label class="form-label">Branch</label>
                 <select id="output-branch-id" class="form-input font-semibold">
@@ -80,6 +80,10 @@
             <div class="form-group mb-0">
                 <label class="form-label">Reason</label>
                 <input type="text" id="output-reason" class="form-input" placeholder="Optional output note">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Delivery Receipt #</label>
+                <input type="text" id="output-dr-number" class="form-input" placeholder="Optional DR number">
             </div>
         </div>
 
@@ -212,13 +216,14 @@
                     <th>Product</th>
                     <th>Flow</th>
                     <th class="text-right">Qty</th>
+                    <th>DR #</th>
                     <th>Reason</th>
                     <th>Actor</th>
                 </tr>
             </thead>
             <tbody>
                 {if movement_rows | count == 0}
-                <tr><td colspan="10" class="px-4 py-10 text-center text-sm text-gray-500">No output movement history in selected range.</td></tr>
+                <tr><td colspan="11" class="px-4 py-10 text-center text-sm text-gray-500">No output movement history in selected range.</td></tr>
                 {/if}
                 {foreach movement_rows as row}
                 <tr data-movement-type="{row.movement_type}">
@@ -235,6 +240,7 @@
                     <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
                     <td>{row.flow_mode}</td>
                     <td class="text-right font-semibold">{row.quantity}</td>
+                    <td class="text-sm text-muted">{row.dr_number | default:'—'}</td>
                     <td class="text-sm text-muted">{row.override_reason}</td>
                     <td class="text-sm text-muted">{row.created_by_role}</td>
                 </tr>
@@ -302,6 +308,7 @@
         var ledgerDate = (document.getElementById('output-ledger-date') || {}).value || '';
         var flowMode   = (document.getElementById('output-flow-mode')   || {}).value || 'production';
         var reason     = ((document.getElementById('output-reason')     || {}).value || '').trim();
+        var drNumber   = ((document.getElementById('output-dr-number')  || {}).value || '').trim();
 
         if (!branchId)   { showToast('Select a branch first', 'error'); return; }
         if (!ledgerDate) { showToast('Ledger date is required', 'error'); return; }
@@ -329,6 +336,7 @@
                 ledger_date: ledgerDate,
                 quantity: qty,
                 flow_mode: flowMode,
+                dr_number: drNumber,
                 reason: reason,
                 client_op_id: 'out-' + now + '-' + pid + '-' + (idx++)
             });
@@ -383,16 +391,17 @@
         var printedAt = new Date().toLocaleString();
         var htmlRows = rows.map(function(row) {
             var cells = row.querySelectorAll('td');
-            if (!cells || cells.length < 9) return '';
+            if (!cells || cells.length < 11) return '';
             return '<tr>' +
                 '<td>' + cells[0].textContent.trim() + '</td>' +
                 '<td>' + cells[1].textContent.trim() + '</td>' +
                 '<td>' + cells[2].textContent.trim() + '</td>' +
                 '<td>' + cells[3].textContent.trim() + '</td>' +
                 '<td>' + cells[4].textContent.trim() + '</td>' +
-                '<td style="text-align:right;">' + cells[6].textContent.trim() + '</td>' +
-                '<td>' + cells[7].textContent.trim() + '</td>' +
+                '<td style="text-align:right;">' + cells[7].textContent.trim() + '</td>' +
                 '<td>' + cells[8].textContent.trim() + '</td>' +
+                '<td>' + cells[9].textContent.trim() + '</td>' +
+                '<td>' + cells[10].textContent.trim() + '</td>' +
                 '</tr>';
         }).join('');
 
@@ -413,7 +422,7 @@
             '<div class="meta">Prepared By: {user_name} ({user_role})</div>' +
             '<div class="meta">Printed At: ' + printedAt + '</div>' +
             '<table><thead><tr>' +
-            '<th>Created</th><th>Date</th><th>Type</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>Reason</th><th>Actor</th>' +
+            '<th>Created</th><th>Date</th><th>Type</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>DR #</th><th>Reason</th><th>Actor</th>' +
             '</tr></thead><tbody>' + htmlRows + '</tbody></table>' +
             '</body></html>';
 

@@ -12,6 +12,8 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <style>
+        [x-cloak] { display: none !important; }
+
         .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border-radius: 3px; padding: .5rem .75rem; font-size: .875rem; font-weight: 600; transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .btn:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 3px rgba(99,102,241,.25); }
         .btn-sm { padding: .25rem .5rem; font-size: .75rem; }
@@ -232,6 +234,30 @@
                     <i class="fas fa-store w-6"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branches</span>
                 </a>
+
+                {if feature_formal_delivery || feature_selling_accounts}
+                <a href="{base_url}/admin/deliveries"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-truck w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Deliveries</span>
+                </a>
+                {/if}
+
+                {if feature_price_groups}
+                <a href="{base_url}/admin/price-groups"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'price-groups'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-tags w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Price Groups</span>
+                </a>
+                {/if}
+
+                {if feature_selling_accounts}
+                <a href="{base_url}/admin/selling-accounts"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'selling-accounts'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-user-tag w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Selling Accounts</span>
+                </a>
+                {/if}
 
                 <a href="{base_url}/admin/users"
                    class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'users'}bg-white/10 ring-1 ring-white/10{/if}">

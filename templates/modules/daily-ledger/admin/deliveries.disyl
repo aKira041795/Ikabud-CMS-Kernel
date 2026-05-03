@@ -1,0 +1,307 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block content}
+<div x-data="deliveriesPage()" x-init="init()">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Deliveries</h2>
+            <p class="text-sm text-gray-500">
+                Formal delivery documents (DR) between commissaries, branches, selling accounts, and other destinations.
+                {if !formal_delivery_enabled}
+                <span class="block mt-1 text-amber-700">Formal Delivery Workflow is currently disabled in Settings &rarr; Feature Activation. Posting will be blocked.</span>
+                {/if}
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <button class="btn btn-primary" @click="openCreate()">+ New Delivery</button>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                <select x-model="filter.status" @change="reload()" class="form-input mt-0 w-full">
+                    <option value="">All</option>
+                    <option value="draft">Draft</option>
+                    <option value="posted">Posted</option>
+                    <option value="received">Received</option>
+                    <option value="voided">Voided</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Destination Type</label>
+                <select x-model="filter.destination_type" @change="reload()" class="form-input mt-0 w-full">
+                    <option value="">All</option>
+                    <option value="branch">Branch</option>
+                    <option value="selling_account">Selling Account</option>
+                    <option value="own_account">Own Account</option>
+                    <option value="reseller">Reseller</option>
+                    <option value="customer">Customer</option>
+                    <option value="event">Event</option>
+                    <option value="wastage">Wastage</option>
+                    <option value="internal_use">Internal Use</option>
+                    <option value="adjustment">Adjustment</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button class="btn btn-outline" @click="reload()">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID / DR #</th>
+                        <th>Date</th>
+                        <th>Origin</th>
+                        <th>Destination</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="d in rows" :key="d.id">
+                        <tr>
+                            <td>
+                                <div class="font-mono text-sm">#<span x-text="d.id"></span></div>
+                                <div class="text-xs text-gray-500" x-text="d.dr_number || '—'"></div>
+                            </td>
+                            <td x-text="d.delivery_date"></td>
+                            <td>
+                                <span x-text="d.origin_type"></span>
+                                <span class="text-xs text-gray-500" x-text="d.origin_id ? '#' + d.origin_id : ''"></span>
+                            </td>
+                            <td>
+                                <span x-text="d.destination_type"></span>
+                                <span class="text-xs text-gray-500" x-text="d.destination_id ? '#' + d.destination_id : ''"></span>
+                            </td>
+                            <td>
+                                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+                                      :class="{
+                                          'bg-gray-50 text-gray-700 ring-gray-200': d.status === 'draft',
+                                          'bg-emerald-50 text-emerald-700 ring-emerald-200': d.status === 'posted' || d.status === 'received',
+                                          'bg-rose-50 text-rose-700 ring-rose-200': d.status === 'voided'
+                                      }" x-text="d.status"></span>
+                            </td>
+                            <td class="text-xs text-gray-500" x-text="d.created_at"></td>
+                            <td class="text-right">
+                                <template x-if="d.status === 'draft'">
+                                    <span>
+                                        <button class="btn btn-sm btn-primary" @click="postDelivery(d.id)" :disabled="!{if formal_delivery_enabled}true{else}false{/if}">Post</button>
+                                        <button class="btn btn-sm btn-outline" @click="voidDelivery(d.id)">Void</button>
+                                    </span>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="rows.length === 0">
+                        <td colspan="7" class="text-center text-sm text-gray-500 py-8">No deliveries match these filters.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div class="modal" :class="{ 'show': createOpen }" x-show="createOpen" x-cloak>
+        <div class="modal-content max-w-3xl">
+            <h3 class="text-lg font-semibold mb-3">New Delivery</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="form-label">Origin Type *</label>
+                    <select class="form-input" x-model="form.origin_type">
+                        <option value="commissary">Commissary</option>
+                        <option value="branch">Branch</option>
+                        <option value="supplier">Supplier</option>
+                        <option value="manual">Manual</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Origin Branch (if branch/commissary)</label>
+                    <select class="form-input" x-model="form.origin_id">
+                        <option value="">— None —</option>
+                        {foreach branches as b}
+                        <option value="{b.id}">{b.code} — {b.name}{if b.is_commissary} (commissary){/if}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Destination Type *</label>
+                    <select class="form-input" x-model="form.destination_type">
+                        <option value="branch">Branch</option>
+                        <option value="selling_account">Selling Account</option>
+                        <option value="own_account">Own Account</option>
+                        <option value="reseller">Reseller</option>
+                        <option value="customer">Customer</option>
+                        <option value="event">Event</option>
+                        <option value="wastage">Wastage</option>
+                        <option value="internal_use">Internal Use</option>
+                        <option value="adjustment">Adjustment</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Destination</label>
+                    <select class="form-input" x-model="form.destination_id" x-show="form.destination_type === 'branch'">
+                        <option value="">— Select branch —</option>
+                        {foreach branches as b}
+                        <option value="{b.id}">{b.code} — {b.name}</option>
+                        {/foreach}
+                    </select>
+                    <select class="form-input" x-model="form.destination_id" x-show="form.destination_type === 'selling_account'">
+                        <option value="">— Select selling account —</option>
+                        {foreach selling_accounts as a}
+                        <option value="{a.id}">{a.name}</option>
+                        {/foreach}
+                    </select>
+                    <input class="form-input" type="number" x-model="form.destination_id" placeholder="ID (optional)"
+                           x-show="form.destination_type !== 'branch' && form.destination_type !== 'selling_account'">
+                </div>
+                <div>
+                    <label class="form-label">DR Number</label>
+                    <input class="form-input" type="text" x-model="form.dr_number" placeholder="DR-YYYY-####">
+                </div>
+                <div>
+                    <label class="form-label">Delivery Date *</label>
+                    <input class="form-input" type="date" x-model="form.delivery_date">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Remarks</label>
+                <textarea class="form-input" rows="2" x-model="form.remarks"></textarea>
+            </div>
+
+            <div class="border-t border-gray-200 pt-3 mb-3">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-sm font-semibold">Items</h4>
+                    <button class="btn btn-sm btn-outline" @click="addItem()">+ Add Item</button>
+                </div>
+                <div class="space-y-2">
+                    <template x-for="(it, idx) in form.items" :key="idx">
+                        <div class="grid grid-cols-12 gap-2 items-end">
+                            <div class="col-span-6">
+                                <label class="text-xs text-gray-600">Product</label>
+                                <select class="form-input mt-0" x-model="it.product_id">
+                                    <option value="">— Select —</option>
+                                    {foreach products as p}
+                                    <option value="{p.id}">{p.name}</option>
+                                    {/foreach}
+                                </select>
+                            </div>
+                            <div class="col-span-3">
+                                <label class="text-xs text-gray-600">Qty</label>
+                                <input class="form-input mt-0" type="number" min="1" x-model.number="it.quantity">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="text-xs text-gray-600">Unit</label>
+                                <input class="form-input mt-0" type="text" x-model="it.unit" placeholder="pc">
+                            </div>
+                            <div class="col-span-1 flex justify-end">
+                                <button class="btn btn-sm btn-outline" @click="form.items.splice(idx, 1)">×</button>
+                            </div>
+                        </div>
+                    </template>
+                    <p x-show="form.items.length === 0" class="text-xs text-gray-500">No items yet. Click "+ Add Item".</p>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-outline" @click="createOpen = false">Cancel</button>
+                <button class="btn btn-primary" @click="submit()" :disabled="saving" x-text="saving ? 'Saving…' : 'Create as Draft'"></button>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+function deliveriesPage() {
+    return {
+        rows: [],
+        filter: { status: '', destination_type: '' },
+        createOpen: false,
+        saving: false,
+        form: {
+            origin_type: 'commissary',
+            origin_id: '',
+            destination_type: 'branch',
+            destination_id: '',
+            dr_number: '',
+            delivery_date: new Date().toISOString().slice(0, 10),
+            remarks: '',
+            items: []
+        },
+        init() { this.reload(); },
+        reload() {
+            const qs = new URLSearchParams();
+            if (this.filter.status) qs.set('status', this.filter.status);
+            if (this.filter.destination_type) qs.set('destination_type', this.filter.destination_type);
+            fetch('{base_url}/api/v1/deliveries?' + qs.toString())
+                .then(r => r.json())
+                .then(j => { this.rows = (j && j.ok) ? j.deliveries : []; });
+        },
+        openCreate() {
+            this.form = {
+                origin_type: 'commissary', origin_id: '',
+                destination_type: 'branch', destination_id: '',
+                dr_number: '', delivery_date: new Date().toISOString().slice(0, 10),
+                remarks: '', items: [{ product_id: '', quantity: 1, unit: 'pc' }]
+            };
+            this.createOpen = true;
+        },
+        addItem() { this.form.items.push({ product_id: '', quantity: 1, unit: 'pc' }); },
+        submit() {
+            const items = this.form.items
+                .filter(it => it.product_id && it.quantity > 0)
+                .map(it => ({ product_id: parseInt(it.product_id, 10), quantity: parseInt(it.quantity, 10), unit: it.unit || 'pc' }));
+            if (items.length === 0) { alert('Add at least one item'); return; }
+            this.saving = true;
+            fetch('{base_url}/api/v1/deliveries/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    origin_type: this.form.origin_type,
+                    origin_id: this.form.origin_id ? parseInt(this.form.origin_id, 10) : null,
+                    destination_type: this.form.destination_type,
+                    destination_id: this.form.destination_id ? parseInt(this.form.destination_id, 10) : null,
+                    dr_number: this.form.dr_number || null,
+                    delivery_date: this.form.delivery_date,
+                    remarks: this.form.remarks || null,
+                    items: items
+                })
+            })
+            .then(r => r.json())
+            .then(j => {
+                this.saving = false;
+                if (j && j.ok) { this.createOpen = false; this.reload(); }
+                else { alert((j && j.error) || 'Failed to create delivery'); }
+            })
+            .catch(() => { this.saving = false; alert('Network error'); });
+        },
+        postDelivery(id) {
+            if (!confirm('Post this delivery? This will consume inventory.')) return;
+            fetch('{base_url}/api/v1/deliveries/post', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ delivery_id: id })
+            })
+            .then(r => r.json())
+            .then(j => { if (j && j.ok) this.reload(); else alert((j && j.error) || 'Failed'); });
+        },
+        voidDelivery(id) {
+            if (!confirm('Void this delivery?')) return;
+            fetch('{base_url}/api/v1/deliveries/void', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ delivery_id: id })
+            })
+            .then(r => r.json())
+            .then(j => { if (j && j.ok) this.reload(); else alert((j && j.error) || 'Failed'); });
+        }
+    };
+}
+</script>
+{/block}

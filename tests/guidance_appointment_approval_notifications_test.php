@@ -110,6 +110,16 @@ function ensureAppointmentBookingSnapshotColumn(PDO $db): void
     $db->exec("ALTER TABLE gm_appointments ADD COLUMN booking_snapshot_json LONGTEXT DEFAULT NULL AFTER request_message");
 }
 
+function upsertGuidanceSetting(PDO $db, string $key, string $value, string $type = 'string'): void
+{
+    $stmt = $db->prepare(
+        'INSERT INTO gm_settings (setting_key, setting_value, setting_type, updated_by, updated_at) '
+        . 'VALUES (?, ?, ?, NULL, NOW()) '
+        . 'ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), setting_type = VALUES(setting_type), updated_at = NOW()'
+    );
+    $stmt->execute([$key, $value, $type]);
+}
+
 $modules = discoverModules();
 $guidance = $modules['guidance'] ?? null;
 if (!is_array($guidance)) {
@@ -171,6 +181,16 @@ try {
             'email_tpl_booking_rejected_body' => "Could not approve {date} at {time}.\n{reason}",
         ], $counselorId);
     });
+    upsertGuidanceSetting($db, 'appointment_settings', json_encode([
+        'email_notifications' => '1',
+        'notification_channel' => 'email_only',
+        'reminder_hours_before' => 24,
+    ], JSON_UNESCAPED_SLASHES), 'json');
+    upsertGuidanceSetting($db, 'notification_settings', json_encode([
+        'email_enabled' => true,
+        'sms_enabled' => false,
+        'appointment_reminder_hours' => 24,
+    ], JSON_UNESCAPED_SLASHES), 'json');
 
     $bookingSnapshotJson = json_encode([
         'student_id' => 'APPROVAL-' . substr($stamp, -6),

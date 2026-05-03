@@ -45,25 +45,44 @@
                                             &middot; <span x-text="g.ledger_date"></span>
                                         </div>
                                     </div>
-                                    <button type="button"
-                                            class="btn btn-primary"
-                                            x-bind:disabled="busyKey === g.group_key"
-                                            @click="acceptGroup(g)">
-                                        <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Accept'"></span>
-                                    </button>
+                                    <div class="flex items-center gap-2">
+                                        <template x-if="isPartial(g)">
+                                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
+                                        </template>
+                                        <button type="button"
+                                                class="btn btn-primary"
+                                                x-bind:disabled="busyKey === g.group_key"
+                                                @click="acceptGroup(g)">
+                                            <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Accept'"></span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <table class="w-full text-sm">
                                     <thead class="text-xs uppercase text-gray-500">
                                         <tr>
                                             <th class="text-left py-1">Product</th>
-                                            <th class="text-right py-1">Pcs</th>
+                                            <th class="text-right py-1 pr-2">Sent</th>
+                                            <th class="text-right py-1">Received</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <template x-for="it in g.items" :key="it.id">
                                             <tr class="border-t border-gray-100">
                                                 <td class="py-1 text-gray-800" x-text="it.product_name"></td>
-                                                <td class="py-1 text-right font-medium" x-text="it.quantity"></td>
+                                                <td class="py-1 text-right pr-2 text-gray-500" x-text="it.quantity"></td>
+                                                <td class="py-1 text-right">
+                                                    <template x-if="g.delivery_ids && g.delivery_ids.length">
+                                                        <input type="number"
+                                                               class="w-20 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                               :min="0"
+                                                               :max="it.quantity"
+                                                               :value="receivedQty(g, it)"
+                                                               @input="setReceivedQty(g, it, $event.target.value)">
+                                                    </template>
+                                                    <template x-if="!(g.delivery_ids && g.delivery_ids.length)">
+                                                        <span class="font-medium" x-text="it.quantity"></span>
+                                                    </template>
+                                                </td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -93,9 +112,12 @@ function receiveModal() {
         busyKey: '',
         errorMsg: '',
         deliveries: [],
+        // partialQtys: { group_key: { product_id: qty } }
+        partialQtys: {},
 
         openModal() {
             this.errorMsg = '';
+            this.partialQtys = {};
             this.isOpen = true;
             this.load();
         },
@@ -106,6 +128,26 @@ function receiveModal() {
             var sel = document.getElementById('branch-select');
             if (sel && sel.value) return sel.value;
             return window.BRANCH_ID || '';
+        },
+
+        receivedQty(g, it) {
+            var map = this.partialQtys[g.group_key];
+            return (map && map[it.product_id] !== undefined) ? map[it.product_id] : it.quantity;
+        },
+
+        setReceivedQty(g, it, val) {
+            if (!this.partialQtys[g.group_key]) {
+                this.partialQtys[g.group_key] = {};
+            }
+            this.partialQtys[g.group_key][it.product_id] = Math.max(0, Math.min(parseInt(val) || 0, it.quantity));
+        },
+
+        isPartial(g) {
+            var map = this.partialQtys[g.group_key];
+            if (!map) return false;
+            return g.items.some(function(it) {
+                return map[it.product_id] !== undefined && map[it.product_id] !== it.quantity;
+            });
         },
 
         load() {
@@ -135,6 +177,19 @@ function receiveModal() {
             this.busyKey = g.group_key;
             this.errorMsg = '';
             var payload = { withdrawal_ids: g.ids };
+            if (g.delivery_ids && g.delivery_ids.length) {
+                payload.delivery_ids = g.delivery_ids;
+                // Include partial quantities when any item was edited
+                var partialMap = this.partialQtys[g.group_key];
+                if (partialMap) {
+                    // Build { delivery_id: { product_id: qty } } for each delivery in group
+                    var byDelivery = {};
+                    g.delivery_ids.forEach(function(did) {
+                        byDelivery[did] = partialMap;
+                    });
+                    payload.partial_qtys = byDelivery;
+                }
+            }
             var bid = this.currentBranchId();
             if (bid) payload.branch_id = bid;
 

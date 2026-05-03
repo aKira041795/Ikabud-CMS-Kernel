@@ -265,7 +265,10 @@ class ModuleDB implements DatabaseContract
 
         // FROM / JOIN clauses: FROM table [alias] [, table2 [alias2], ...]
         // Also handles comma-separated table lists (implicit joins).
-        if (preg_match_all('/(?:FROM|JOIN)\s+`?(\w+)`?(?:\s+(?:AS\s+)?\w+)?(?:\s*,\s*`?(\w+)`?)*/i', $clean, $m, PREG_SET_ORDER)) {
+        // Use word boundaries so column names ending in `from` (e.g. effective_from)
+        // followed by an identifier (e.g. ORDER BY effective_from DESC) are not
+        // misread as a FROM clause.
+        if (preg_match_all('/\b(?:FROM|JOIN)\s+`?(\w+)`?(?:\s+(?:AS\s+)?\w+)?(?:\s*,\s*`?(\w+)`?)*/i', $clean, $m, PREG_SET_ORDER)) {
             foreach ($m as $match) {
                 $tables[] = $match[1];
             }

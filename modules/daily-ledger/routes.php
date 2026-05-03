@@ -12,6 +12,7 @@ return [
         '/daily-ledger/ledger'                     => 'daily-ledger:handleCashierLedger',
         '/daily-ledger/ledger/rows'                => 'daily-ledger:handleCashierRows',
         '/daily-ledger/admin/dashboard'            => 'daily-ledger:handleAdminDashboard',
+        '/daily-ledger/admin/usage'                => 'daily-ledger:handleAdminUsage',
         '/daily-ledger/admin/production'           => 'daily-ledger:handleAdminProduction',
         '/daily-ledger/admin/production-output'    => 'daily-ledger:handleAdminProductionOutput',
         '/daily-ledger/admin/commissary'           => 'daily-ledger:handleAdminCommissary',
@@ -20,6 +21,9 @@ return [
         '/daily-ledger/admin/products'             => 'daily-ledger:handleAdminProducts',
         '/daily-ledger/admin/products/export'      => 'daily-ledger:handleProductsCsvExport',
         '/daily-ledger/admin/branches'             => 'daily-ledger:handleAdminBranches',
+        '/daily-ledger/admin/deliveries'           => 'daily-ledger:handleAdminDeliveries',
+        '/daily-ledger/admin/price-groups'         => 'daily-ledger:handleAdminPriceGroups',
+        '/daily-ledger/admin/selling-accounts'     => 'daily-ledger:handleAdminSellingAccounts',
         '/daily-ledger/admin/users'                => 'daily-ledger:handleAdminUsers',
         '/daily-ledger/admin/activity'             => 'daily-ledger:handleAdminActivity',
         '/daily-ledger/admin/settings'             => 'daily-ledger:handleAdminSettings',
@@ -38,6 +42,24 @@ return [
         '/daily-ledger/api/v1/production/destinations' => 'daily-ledger:apiProductionDestinations',
         '/daily-ledger/api/v1/production/movements'    => 'daily-ledger:apiProductionMovements',
         '/daily-ledger/api/v1/commissary/materials'    => 'daily-ledger:apiCommissaryMaterials',
+
+        // Phase A: branch supply rules
+        '/daily-ledger/api/v1/admin/branch-supply-rules' => 'daily-ledger:apiBranchProductSupplyRuleList',
+
+        // Phase B: deliveries + receivings
+        '/daily-ledger/api/v1/deliveries'           => 'daily-ledger:apiListDeliveries',
+        '/daily-ledger/api/v1/receivings'           => 'daily-ledger:apiListReceivings',
+
+        // Phase D: price groups + prices
+        '/daily-ledger/api/v1/price-groups'         => 'daily-ledger:apiPriceGroupList',
+        '/daily-ledger/api/v1/product-prices'       => 'daily-ledger:apiProductPriceList',
+
+        // Phase E: selling accounts
+        '/daily-ledger/api/v1/selling-accounts'           => 'daily-ledger:apiSellingAccountList',
+        '/daily-ledger/api/v1/selling-accounts/ledger'    => 'daily-ledger:apiSellingAccountLedger',
+
+        // Phase F: branch consolidated summary
+        '/daily-ledger/api/v1/admin/branch-summary' => 'daily-ledger:apiBranchConsolidatedSummary',
     ],
     'POST' => [
         // Module-owned login (namespaced)
@@ -87,5 +109,30 @@ return [
         // Commissary API
         '/daily-ledger/api/v1/commissary/run'             => 'daily-ledger:apiSaveProductionRun',
         '/daily-ledger/api/v1/commissary/material'        => 'daily-ledger:apiSaveCommissaryMaterial',
+
+        // Phase A: branch product supply rules
+        '/daily-ledger/api/v1/admin/branch-supply-rules'  => 'daily-ledger:apiBranchProductSupplyRuleUpsert',
+
+        // Phase B: deliveries
+        '/daily-ledger/api/v1/deliveries/create'          => 'daily-ledger:apiCreateDelivery',
+        '/daily-ledger/api/v1/deliveries/post'            => 'daily-ledger:apiPostDelivery',
+        '/daily-ledger/api/v1/deliveries/void'            => 'daily-ledger:apiVoidDelivery',
+
+        // Phase B: branch receivings
+        '/daily-ledger/api/v1/receivings/create'          => 'daily-ledger:apiCreateReceiving',
+        '/daily-ledger/api/v1/receivings/post'            => 'daily-ledger:apiPostReceiving',
+        '/daily-ledger/api/v1/receivings/void'            => 'daily-ledger:apiVoidReceiving',
+
+        // Phase D: price groups + product prices
+        '/daily-ledger/api/v1/admin/price-groups'         => 'daily-ledger:apiPriceGroupCreate',
+        '/daily-ledger/api/v1/admin/price-groups/update'  => 'daily-ledger:apiPriceGroupUpdate',
+        '/daily-ledger/api/v1/admin/product-prices'       => 'daily-ledger:apiProductPriceUpsert',
+
+        // Phase E: selling accounts
+        '/daily-ledger/api/v1/admin/selling-accounts'     => 'daily-ledger:apiSellingAccountCreate',
+        '/daily-ledger/api/v1/admin/selling-accounts/update' => 'daily-ledger:apiSellingAccountUpdate',
+        '/daily-ledger/api/v1/selling-accounts/save'      => 'daily-ledger:apiSellingAccountSaveField',
+        '/daily-ledger/api/v1/selling-accounts/close-day' => 'daily-ledger:apiSellingAccountCloseDay',
+        '/daily-ledger/api/v1/admin/selling-accounts/reopen-day' => 'daily-ledger:apiSellingAccountReopenDay',
     ],
 ];

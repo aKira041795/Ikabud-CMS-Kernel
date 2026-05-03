@@ -1,6 +1,59 @@
 {extends "modules/daily-ledger/layouts/app.disyl"}
 
 {block head}
+<style>
+    .branch-modal {
+        max-width: 58rem;
+        border-radius: 3px;
+        padding: 0;
+        overflow: hidden;
+    }
+    .branch-modal__header {
+        border-bottom: 1px solid rgb(229 231 235);
+        padding: 1rem 1.25rem;
+    }
+    .branch-modal__body {
+        padding: 1.25rem;
+    }
+    .branch-modal__grid {
+        display: grid;
+        gap: 1rem 1.25rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .branch-modal__section {
+        border: 1px solid rgb(229 231 235);
+        border-radius: 3px;
+        background: rgb(248 250 252);
+        padding: 1rem;
+    }
+    .branch-modal__section-title {
+        margin-bottom: .75rem;
+        font-size: .75rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: rgb(75 85 99);
+    }
+    .branch-modal .form-input,
+    .branch-modal .btn,
+    .branch-modal .btn-outline,
+    .branch-modal .btn-primary {
+        border-radius: 3px;
+    }
+    .branch-modal .form-group:last-child {
+        margin-bottom: 0;
+    }
+    .branch-modal__actions {
+        margin-top: 0;
+        border-top: 1px solid rgb(229 231 235);
+        padding: .875rem 1.25rem;
+    }
+    @media (max-width: 767px) {
+        .branch-modal__grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
 {/block}
 
 {block content}
@@ -11,12 +64,20 @@
     </div>
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <form class="flex gap-2" action="{base_url}/admin/branches" method="GET">
+            {if selected_price_group_id > 0}<input type="hidden" name="price_group_id" value="{selected_price_group_id}">{/if}
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or code...">
             <button type="submit" class="btn btn-outline">Search</button>
         </form>
         <button class="btn btn-primary" onclick="openAddBranch()">+ Add Branch</button>
     </div>
 </div>
+
+{if selected_price_group_id > 0}
+<div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+    Showing <span class="font-semibold">{branches | length}</span> {if branches | length == 1}branch{else}branches{/if} assigned to <span class="font-semibold">{selected_price_group_name}</span>.
+    <a class="ml-2 font-semibold text-indigo-700 hover:underline" href="{base_url}/admin/branches{if search != ''}?q={search}{/if}">Clear filter</a>
+</div>
+{/if}
 
 <div class="card">
     <div class="table-wrap">
@@ -27,6 +88,9 @@
                     <th>Name</th>
                     <th>Area</th>
                     <th>Address</th>
+                    <th>Price Group</th>
+                    <th>Supply Mode</th>
+                    <th>Commissary</th>
                     <th class="text-right">Users</th>
                     <th class="text-right">Products</th>
                     <th>Status</th>
@@ -37,9 +101,25 @@
                 {foreach branches as b}
                 <tr>
                     <td class="font-mono text-sm font-semibold text-gray-900">{b.code}</td>
-                    <td class="font-medium text-gray-900">{b.name}</td>
+                    <td class="font-medium text-gray-900">
+                        {b.name}
+                        {if b.is_commissary == 1}<span class="ml-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">COMMISSARY</span>{/if}
+                    </td>
                     <td class="text-sm text-muted">{b.area}</td>
                     <td class="text-sm text-muted">{b.address}</td>
+                    <td class="text-sm text-muted">
+                        {if b.price_group_name}{b.price_group_name}{/if}
+                        {if !b.price_group_name}<span class="text-gray-400">Default branch pricing</span>{/if}
+                    </td>
+                    <td>
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200">
+                            {b.default_supply_mode | default:'self_managed'}
+                        </span>
+                    </td>
+                    <td class="text-sm text-muted">
+                        {if b.assigned_commissary_id}#{b.assigned_commissary_id}{/if}
+                        {if !b.assigned_commissary_id}—{/if}
+                    </td>
                     <td class="text-right">{b.user_count}</td>
                     <td class="text-right">{b.product_count}</td>
                     <td>
@@ -47,7 +127,7 @@
                         {if b.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline" onclick="openEditBranch({b.id}, '{b.name}', '{b.address}', '{b.area}', {b.is_active})">Edit</button>
+                        <button class="btn btn-sm btn-outline" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area | json}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary})'>Edit</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -58,25 +138,74 @@
 
 <!-- Add Branch Modal -->
 <div class="modal-overlay" id="add-modal">
-    <div class="modal">
-        <h3>Add Branch</h3>
-        <div class="form-group">
-            <label class="form-label">Branch Code</label>
-            <input class="form-input uppercase" type="text" id="add-code" placeholder="e.g. BR03">
+    <div class="modal branch-modal">
+        <div class="branch-modal__header">
+            <h3 class="mb-1">Add Branch</h3>
+            <p class="text-sm text-gray-500">Create a branch, define how it gets supplied, and set the price group that future ledger snapshots should follow.</p>
         </div>
-        <div class="form-group">
-            <label class="form-label">Branch Name</label>
-            <input class="form-input" type="text" id="add-name" placeholder="e.g. Branch 3">
+        <div class="branch-modal__body">
+            <div class="branch-modal__grid">
+                <div class="branch-modal__section">
+                    <div class="branch-modal__section-title">Branch Details</div>
+                    <div class="form-group">
+                        <label class="form-label">Branch Code</label>
+                        <input class="form-input uppercase" type="text" id="add-code" placeholder="e.g. BR03">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Branch Name</label>
+                        <input class="form-input" type="text" id="add-name" placeholder="e.g. Branch 3">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Area</label>
+                        <input class="form-input" type="text" id="add-area" placeholder="e.g. Dipolog, Rizal, Pagadian">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <input class="form-input" type="text" id="add-address" placeholder="Optional">
+                    </div>
+                </div>
+
+                <div class="branch-modal__section">
+                    <div class="branch-modal__section-title">Operations &amp; Pricing</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label class="form-label">Default Supply Mode</label>
+                            <select class="form-input" id="add-supply-mode">
+                                <option value="self_managed">Self-managed</option>
+                                <option value="commissary_supplied">Commissary-supplied</option>
+                                <option value="hybrid">Hybrid</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Assigned Commissary</label>
+                            <select class="form-input" id="add-commissary">
+                                <option value="">— None —</option>
+                                {foreach commissaries as c}
+                                <option value="{c.id}">{c.code} — {c.name}</option>
+                                {/foreach}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Assigned Price Group</label>
+                        <select class="form-input" id="add-price-group">
+                            <option value="">Default branch pricing</option>
+                            {foreach price_groups as pg}
+                            <option value="{pg.id}">{pg.name}{if pg.is_default} (default){/if}</option>
+                            {/foreach}
+                        </select>
+                        <p class="mt-2 text-xs text-gray-500">This controls the selling-price snapshots used when this branch records ledger rows.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="add-is-commissary">
+                            This branch acts as a commissary (supplies other branches)
+                        </label>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="form-group">
-            <label class="form-label">Area</label>
-            <input class="form-input" type="text" id="add-area" placeholder="e.g. Dipolog, Rizal, Pagadian">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Address</label>
-            <input class="form-input" type="text" id="add-address" placeholder="Optional">
-        </div>
-        <div class="modal-actions">
+        <div class="modal-actions branch-modal__actions">
             <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
             <button class="btn btn-primary" id="add-submit" onclick="submitAddBranch()">Add Branch</button>
         </div>
@@ -85,29 +214,78 @@
 
 <!-- Edit Branch Modal -->
 <div class="modal-overlay" id="edit-modal">
-    <div class="modal">
-        <h3>Edit Branch</h3>
-        <input type="hidden" id="edit-id">
-        <div class="form-group">
-            <label class="form-label">Branch Name</label>
-            <input class="form-input" type="text" id="edit-name">
+    <div class="modal branch-modal">
+        <div class="branch-modal__header">
+            <h3 class="mb-1">Edit Branch</h3>
+            <p class="text-sm text-gray-500">Update branch identity, branch status, supply routing, and the price group used for future ledger price snapshots.</p>
         </div>
-        <div class="form-group">
-            <label class="form-label">Area</label>
-            <input class="form-input" type="text" id="edit-area" placeholder="e.g. Dipolog, Rizal, Pagadian">
+        <div class="branch-modal__body">
+            <input type="hidden" id="edit-id">
+            <div class="branch-modal__grid">
+                <div class="branch-modal__section">
+                    <div class="branch-modal__section-title">Branch Details</div>
+                    <div class="form-group">
+                        <label class="form-label">Branch Name</label>
+                        <input class="form-input" type="text" id="edit-name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Area</label>
+                        <input class="form-input" type="text" id="edit-area" placeholder="e.g. Dipolog, Rizal, Pagadian">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <input class="form-input" type="text" id="edit-address">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-input" id="edit-active">
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="branch-modal__section">
+                    <div class="branch-modal__section-title">Operations &amp; Pricing</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label class="form-label">Default Supply Mode</label>
+                            <select class="form-input" id="edit-supply-mode">
+                                <option value="self_managed">Self-managed</option>
+                                <option value="commissary_supplied">Commissary-supplied</option>
+                                <option value="hybrid">Hybrid</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Assigned Commissary</label>
+                            <select class="form-input" id="edit-commissary">
+                                <option value="">— None —</option>
+                                {foreach commissaries as c}
+                                <option value="{c.id}">{c.code} — {c.name}</option>
+                                {/foreach}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Assigned Price Group</label>
+                        <select class="form-input" id="edit-price-group">
+                            <option value="">Default branch pricing</option>
+                            {foreach price_groups as pg}
+                            <option value="{pg.id}">{pg.name}{if pg.is_default} (default){/if}</option>
+                            {/foreach}
+                        </select>
+                        <p class="mt-2 text-xs text-gray-500">Changing this affects future price snapshots for this branch's ledger rows.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="edit-is-commissary">
+                            This branch acts as a commissary (supplies other branches)
+                        </label>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="form-group">
-            <label class="form-label">Address</label>
-            <input class="form-input" type="text" id="edit-address">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Status</label>
-            <select class="form-input" id="edit-active">
-                <option value="1">Active</option>
-                <option value="0">Inactive</option>
-            </select>
-        </div>
-        <div class="modal-actions">
+        <div class="modal-actions branch-modal__actions">
             <button class="btn btn-outline" onclick="closeModal('edit-modal')">Cancel</button>
             <button class="btn btn-primary" id="edit-submit" onclick="submitEditBranch()">Save Changes</button>
         </div>
@@ -122,18 +300,24 @@
     function openAddBranch() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-code').focus(); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    function openEditBranch(id, name, address, area, active) {
+    function openEditBranch(id, name, address, area, active, supplyMode, commissaryId, priceGroupId, isCommissary) {
         document.getElementById('edit-id').value = id;
-        document.getElementById('edit-name').value = name;
-        document.getElementById('edit-address').value = address;
-        document.getElementById('edit-area').value = area;
+        document.getElementById('edit-name').value = name || '';
+        document.getElementById('edit-address').value = address || '';
+        document.getElementById('edit-area').value = area || '';
         document.getElementById('edit-active').value = active;
+        document.getElementById('edit-supply-mode').value = supplyMode || 'self_managed';
+        document.getElementById('edit-commissary').value = commissaryId == null ? '' : String(commissaryId);
+        document.getElementById('edit-price-group').value = priceGroupId == null ? '' : String(priceGroupId);
+        document.getElementById('edit-is-commissary').checked = !!isCommissary;
         document.getElementById('edit-modal').classList.add('show');
     }
 
     function submitAddBranch() {
         var btn = document.getElementById('add-submit');
         btn.disabled = true; btn.textContent = 'Adding...';
+        var commissaryVal = document.getElementById('add-commissary').value;
+        var priceGroupVal = document.getElementById('add-price-group').value;
         fetch(BASE + '/api/v1/admin/branches', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -141,7 +325,11 @@
                 code: document.getElementById('add-code').value.toUpperCase(),
                 name: document.getElementById('add-name').value,
                 area: document.getElementById('add-area').value,
-                address: document.getElementById('add-address').value
+                address: document.getElementById('add-address').value,
+                default_supply_mode: document.getElementById('add-supply-mode').value,
+                assigned_commissary_id: commissaryVal === '' ? null : parseInt(commissaryVal, 10),
+                price_group_id: priceGroupVal === '' ? null : parseInt(priceGroupVal, 10),
+                is_commissary: document.getElementById('add-is-commissary').checked ? 1 : 0
             })
         })
         .then(function(r) { return r.json(); })
@@ -155,6 +343,8 @@
     function submitEditBranch() {
         var btn = document.getElementById('edit-submit');
         btn.disabled = true; btn.textContent = 'Saving...';
+        var commissaryVal = document.getElementById('edit-commissary').value;
+        var priceGroupVal = document.getElementById('edit-price-group').value;
         fetch(BASE + '/api/v1/admin/branches/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -163,7 +353,11 @@
                 name: document.getElementById('edit-name').value,
                 area: document.getElementById('edit-area').value,
                 address: document.getElementById('edit-address').value,
-                is_active: parseInt(document.getElementById('edit-active').value)
+                is_active: parseInt(document.getElementById('edit-active').value),
+                default_supply_mode: document.getElementById('edit-supply-mode').value,
+                assigned_commissary_id: commissaryVal === '' ? null : parseInt(commissaryVal, 10),
+                price_group_id: priceGroupVal === '' ? null : parseInt(priceGroupVal, 10),
+                is_commissary: document.getElementById('edit-is-commissary').checked ? 1 : 0
             })
         })
         .then(function(r) { return r.json(); })

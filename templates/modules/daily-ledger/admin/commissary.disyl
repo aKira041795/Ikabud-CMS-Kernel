@@ -6,447 +6,163 @@
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
-        <h2 class="text-lg font-semibold text-gray-900">Commissary & Production</h2>
-        <p class="text-sm text-gray-500">Record production runs and physical inventory counts.</p>
+        <h2 class="text-lg font-semibold text-gray-900">Commissary</h2>
+        <p class="text-sm text-gray-500">Track finished-goods output, branch dispatches, and commissary stock balance.</p>
     </div>
-    <div>
-        <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/commissary">
-            <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.submit()">
-            <input type="hidden" name="branch_id" value="{global_branch_id}">
-        </form>
+    <div class="text-xs text-gray-500">
+        Stock balance here means bread and cakes held by commissary, not raw ingredients.
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-    <!-- LEFT: PRODUCTION RUNS -->
-        <div class="card p-0 overflow-hidden flex flex-col">
-                <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-3">
-            <div class="flex items-center justify-between">
-                <h3 class="font-medium text-gray-900">Production Runs</h3>
-                <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+<form class="card mb-6" method="GET" action="{base_url}/admin/commissary">
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3 items-end">
+            <div class="form-group mb-0">
+                <label class="form-label">Date</label>
+                <input type="date" class="form-input" name="date" value="{date}">
             </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="form-label text-xs">Production In-Charge / Baker</label>
-                    <input type="text" id="commissary-baker" class="form-input" placeholder="Baker Initials or Name" value="{global_baker_name}" onblur="updateAllRunsMetadata()">
-                </div>
-                <div>
-                    <label class="form-label text-xs">Destination Branch</label>
-                    <select id="commissary-branch" class="form-input font-bold text-indigo-700" onchange="onCommissaryBranchChange(parseInt(this.value, 10) || 0);">
-                        <option value="0">-- Keep in Commissary (No Ledger Updates) --</option>
-                        {foreach branches as b}
-                            <option value="{b.id}" {if b.id == global_branch_id}selected{/if}>{b.name}</option>
-                        {/foreach}
-                    </select>
-                </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Branch</label>
+                <select class="form-input" name="branch_id">
+                    <option value="">All Branches</option>
+                    {foreach branches as br}
+                    <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+                    {/foreach}
+                </select>
             </div>
-        </div>
-        <!-- TABS -->
-        <div class="border-b border-gray-200">
-            <nav class="-mb-px flex px-4 gap-6" aria-label="Tabs">
-                <a href="javascript:void(0)" id="tab-bread" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm" onclick="switchProductTab('bread')">Bread Production</a>
-                <a href="javascript:void(0)" id="tab-cake" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm" onclick="switchProductTab('cake')">Cake Production</a>
-            </nav>
-        </div>
-
-        <div class="overflow-y-auto" style="max-height: 550px;">
-            <table class="w-full text-sm">
-                <thead class="sticky top-0 bg-white">
-                    <tr class="border-b text-xs text-gray-500 text-left">
-                        <th class="px-4 py-2">Description</th>
-                        <th class="px-4 py-2 w-24 text-center">Yield</th>
-                        <th class="px-4 py-2 w-24 text-center">Kilo</th>
-                        <th class="px-4 py-2 w-24 text-center">Egg</th>
-                    </tr>
-                </thead>
-                <!-- BREAD BODY -->
-                <tbody id="tbody-bread" class="divide-y divide-gray-100 align-middle">
-                    {foreach product_rows_bread as pr}
-                    <tr class="hover:bg-blue-50/50" id="run-row-bread-{pr.product_id}" data-product-id="{pr.product_id}" data-category="bread" data-oppb="{pr.output_pieces_per_batch}" data-biq="{pr.batch_input_qty}" data-biq-egg="{pr.batch_egg_qty}">
-                        <td class="px-4 py-2 font-medium">{pr.name}</td>
-                        <td class="px-2 py-1">
-                            <input type="number" step="1" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" id="run-yield-bread-{pr.product_id}" data-field-role="yield" value="{pr.yield_qty}" oninput="onFieldChange({pr.product_id}, 'yield')" onchange="onFieldChange({pr.product_id}, 'yield'); saveRunRow({pr.product_id})">
-                            {if pr.output_pieces_per_batch > 0}
-                            <div class="text-center text-gray-400 text-xs mt-0.5" id="run-yield-hint-bread-{pr.product_id}" data-field-role="yield-hint"></div>
-                            {/if}
-                        </td>
-                        <td class="px-2 py-1">
-                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-kilo-bread-{pr.product_id}" data-field-role="kilo" value="{pr.kilo_qty}" oninput="onFieldChange({pr.product_id}, 'kilo')" onchange="onFieldChange({pr.product_id}, 'kilo'); saveRunRow({pr.product_id})">
-                        </td>
-                        <td class="px-2 py-1">
-                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-egg-bread-{pr.product_id}" data-field-role="egg" value="{pr.egg_qty}" oninput="onFieldChange({pr.product_id}, 'egg')" onchange="onFieldChange({pr.product_id}, 'egg'); saveRunRow({pr.product_id})">
-                        </td>
-                    </tr>
-                    {/foreach}
-                </tbody>
-
-                <!-- CAKE BODY -->
-                <tbody id="tbody-cake" class="divide-y divide-gray-100 align-middle hidden">
-                    {foreach product_rows_cake as pr}
-                    <tr class="hover:bg-blue-50/50" id="run-row-cake-{pr.product_id}" data-product-id="{pr.product_id}" data-category="cake" data-oppb="{pr.output_pieces_per_batch}" data-biq="{pr.batch_input_qty}" data-biq-egg="{pr.batch_egg_qty}">
-                        <td class="px-4 py-2 font-medium">{pr.name}</td>
-                        <td class="px-2 py-1">
-                            <input type="number" step="1" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" id="run-yield-cake-{pr.product_id}" data-field-role="yield" value="{pr.yield_qty}" oninput="onFieldChange({pr.product_id}, 'yield')" onchange="onFieldChange({pr.product_id}, 'yield'); saveRunRow({pr.product_id})">
-                            {if pr.output_pieces_per_batch > 0}
-                            <div class="text-center text-gray-400 text-xs mt-0.5" id="run-yield-hint-cake-{pr.product_id}" data-field-role="yield-hint"></div>
-                            {/if}
-                        </td>
-                        <td class="px-2 py-1">
-                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-kilo-cake-{pr.product_id}" data-field-role="kilo" value="{pr.kilo_qty}" oninput="onFieldChange({pr.product_id}, 'kilo')" onchange="onFieldChange({pr.product_id}, 'kilo'); saveRunRow({pr.product_id})">
-                        </td>
-                        <td class="px-2 py-1">
-                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-egg-cake-{pr.product_id}" data-field-role="egg" value="{pr.egg_qty}" oninput="onFieldChange({pr.product_id}, 'egg')" onchange="onFieldChange({pr.product_id}, 'egg'); saveRunRow({pr.product_id})">
-                        </td>
-                    </tr>
-                    {/foreach}
-                </tbody>
-            </table>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="btn btn-primary">Apply</button>
+                <a class="btn btn-outline" href="{base_url}/admin/usage?date={date}">Open Usage</a>
+            </div>
         </div>
     </div>
+</form>
 
-    <!-- RIGHT: RAW MATERIALS INVENTORY -->
-    <div class="card p-0 overflow-hidden flex flex-col">
-        <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
-            <h3 class="font-medium text-gray-900">End of Shift Raw Materials</h3>
-            <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branch Yield</div>
+            <div class="mt-2 text-3xl font-semibold text-gray-900">{summary.branch_yield_total}</div>
+            <div class="mt-1 text-sm text-gray-500">Finished goods produced for branches on {date}</div>
         </div>
-        <div class="overflow-y-auto" style="max-height: 600px;">
-            <table class="w-full text-sm">
-                <thead class="sticky top-0 bg-white">
-                    <tr class="border-b text-xs text-gray-500 text-left">
-                        <th class="px-4 py-2">Material</th>
-                        <th class="px-4 py-2 text-center" title="Beginning Balance">Beg</th>
-                        <th class="px-4 py-2 text-center" title="Delivery Qty">Del</th>
-                        <th class="px-4 py-2 text-center" title="Used Qty">Used</th>
-                        <th class="px-4 py-2 text-center bg-gray-50 font-medium border-l border-r" title="Actual Manual Count">Actual</th>
-                        <th class="px-4 py-2 text-right">Var</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 align-middle">
-                    {foreach materials as m}
-                    {set var_color = 'text-gray-500'}
-                    {if m.calc_variance < 0}{set var_color = 'text-rose-600 font-bold'}{/if}
-                    {if m.calc_variance > 0}{set var_color = 'text-emerald-600 font-bold'}{/if}
-                    <tr class="hover:bg-blue-50/50">
-                        <td class="px-4 py-2 font-medium">
-                            {m.name} <span class="text-xs text-gray-400 font-mono ml-1">{m.unit}</span>
-                        </td>
-                        <td class="px-2 py-1 w-16">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.beg_bal}" onblur="saveRm({m.material_id}, 'beg_bal', this.value)">
-                        </td>
-                        <td class="px-2 py-1 w-16">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.delivery_qty}" onblur="saveRm({m.material_id}, 'delivery_qty', this.value)">
-                        </td>
-                        <td class="px-2 py-1 w-16">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.used_qty}" onblur="saveRm({m.material_id}, 'used_qty', this.value)">
-                        </td>
-                        <td class="px-2 py-1 w-16 bg-gray-50 border-l border-r border-gray-200">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" value="{m.actual_end_bal}" onblur="saveRm({m.material_id}, 'actual_end_bal', this.value)">
-                        </td>
-                        <td class="px-4 py-2 text-right font-mono text-xs {var_color}">
-                            {m.calc_variance}
-                        </td>
-                    </tr>
-                    {/foreach}
-                </tbody>
-            </table>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branch Dispatches</div>
+            <div class="mt-2 text-3xl font-semibold text-gray-900">{summary.branch_dispatch_total}</div>
+            <div class="mt-1 text-sm text-gray-500">Direct output plus formal branch deliveries on {date}</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Commissary On Hand</div>
+            <div class="mt-2 text-3xl font-semibold text-gray-900">{summary.commissary_remaining_total}</div>
+            <div class="mt-1 text-sm text-gray-500">Running finished-goods balance through {date}</div>
         </div>
     </div>
 </div>
 
-<script>
-    function getRunRow(pid) {
-        var visibleRow = document.querySelector('tbody:not(.hidden) tr[data-product-id="' + pid + '"]');
-        if (visibleRow) return visibleRow;
-        return document.querySelector('tr[data-product-id="' + pid + '"]');
-    }
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Yield Trace By Branch</span>
+        <span class="text-sm text-muted">{branch_yield_rows | count} rows</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Branch</th>
+                    <th>Product</th>
+                    <th class="text-right">Yield</th>
+                    <th>DR #</th>
+                    <th>Baker</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if branch_yield_rows | count == 0}
+                <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No branch-directed yield recorded for this date.</td></tr>
+                {/if}
+                {foreach branch_yield_rows as row}
+                <tr>
+                    <td>{row.ledger_date}</td>
+                    <td>{row.branch_name}</td>
+                    <td>{row.product_name}</td>
+                    <td class="text-right font-semibold">{row.yield_qty}</td>
+                    <td class="text-sm text-muted">{row.dr_number | default:'—'}</td>
+                    <td class="text-sm text-muted">{row.baker_name | default:'—'}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-    function getRunField(row, role) {
-        return row ? row.querySelector('[data-field-role="' + role + '"]') : null;
-    }
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Deliveries Per Branch</span>
+        <span class="text-sm text-muted">{delivery_rows | count} rows</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Branch</th>
+                    <th>Product</th>
+                    <th class="text-right">Qty</th>
+                    <th>DR #</th>
+                    <th>Source</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if delivery_rows | count == 0}
+                <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No commissary deliveries found for this date.</td></tr>
+                {/if}
+                {foreach delivery_rows as row}
+                <tr>
+                    <td>{row.movement_date}</td>
+                    <td>{row.branch_name}</td>
+                    <td>{row.product_name}</td>
+                    <td class="text-right font-semibold">{row.quantity}</td>
+                    <td class="text-sm text-muted">{row.dr_number | default:'—'}</td>
+                    <td class="text-sm text-muted">{row.source_label}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-    function getRunInputs(scope) {
-        var root = scope || document;
-        return root.querySelectorAll('[data-field-role="yield"], [data-field-role="kilo"], [data-field-role="egg"]');
-    }
-
-    function resetRunInputsToDefault(scope) {
-        getRunInputs(scope).forEach(function(el) {
-            el.value = el.defaultValue || '';
-            el.removeAttribute('data-prefilled');
-        });
-        var root = scope || document;
-        root.querySelectorAll('[data-field-role="yield-hint"]').forEach(function(el) {
-            el.textContent = '';
-        });
-    }
-
-    function saveRm(mid, field, val) {
-        if (!val) val = 0;
-        fetch('{base_url}/api/v1/commissary/material', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': (window.DL_CSRF || ''),
-                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
-            },
-            body: JSON.stringify({
-                date: '{date}',
-                material_id: mid,
-                field: field,
-                value: parseFloat(val)
-            })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-            if (!res.ok) alert('Failed: ' + res.error);
-            else window.location.reload(); // Reload to refresh the DB calculated variance
-        })
-        .catch(function(e) { alert('Network error'); });
-    }
-
-    function saveRunRow(pid) {
-        var row = getRunRow(pid);
-        if (!row) return;
-        row.classList.add('bg-yellow-50');
-        row.classList.remove('bg-blue-50/50');
-        
-        var kiloEl = getRunField(row, 'kilo');
-        var eggEl  = getRunField(row, 'egg');
-        var yieldEl = getRunField(row, 'yield');
-        fetch('{base_url}/api/v1/commissary/run', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': (window.DL_CSRF || ''),
-                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
-            },
-            body: JSON.stringify({
-                date: '{date}',
-                product_id: parseInt(pid),
-                baker_name: document.getElementById('commissary-baker').value,
-                destination_branch_id: parseInt(document.getElementById('commissary-branch').value) || 0,
-                kilo_qty: kiloEl ? parseFloat(kiloEl.value) || 0 : 0,
-                egg_qty:  eggEl ? parseFloat(eggEl.value) || 0 : 0,
-                yield_qty: yieldEl ? (parseInt(yieldEl.value, 10) || 0) : 0
-            })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-            row.classList.remove('bg-yellow-50');
-            if (res.ok) {
-                row.classList.add('bg-emerald-50');
-                setTimeout(() => row.classList.remove('bg-emerald-50'), 1500);
-            } else {
-                row.classList.add('bg-rose-50');
-                alert('Failed: ' + res.error);
-            }
-        })
-        .catch(function() { 
-            row.classList.remove('bg-yellow-50');
-            row.classList.add('bg-rose-50');
-        });
-    }
-
-        function switchProductTab(tab) {
-        var activeBody = null;
-        if (tab === 'bread') {
-            document.getElementById('tbody-bread').classList.remove('hidden');
-            document.getElementById('tbody-cake').classList.add('hidden');
-            activeBody = document.getElementById('tbody-bread');
-            
-            document.getElementById('tab-bread').classList.add('border-indigo-500', 'text-indigo-600');
-            document.getElementById('tab-bread').classList.remove('border-transparent', 'text-gray-500');
-            
-            document.getElementById('tab-cake').classList.remove('border-indigo-500', 'text-indigo-600');
-            document.getElementById('tab-cake').classList.add('border-transparent', 'text-gray-500');
-        } else {
-            document.getElementById('tbody-cake').classList.remove('hidden');
-            document.getElementById('tbody-bread').classList.add('hidden');
-            activeBody = document.getElementById('tbody-cake');
-            
-            document.getElementById('tab-cake').classList.add('border-indigo-500', 'text-indigo-600');
-            document.getElementById('tab-cake').classList.remove('border-transparent', 'text-gray-500');
-            
-            document.getElementById('tab-bread').classList.remove('border-indigo-500', 'text-indigo-600');
-            document.getElementById('tab-bread').classList.add('border-transparent', 'text-gray-500');
-        }
-
-        var currentBranch = parseInt(document.getElementById('commissary-branch').value, 10) || 0;
-        if (activeBody && currentBranch > 0) {
-            applyOutputPrefill(currentBranch, activeBody);
-        }
-    }
-
-    function updateAllRunsMetadata() {
-        var b = document.getElementById('commissary-baker').value;
-        var rType = document.getElementById('commissary-branch').value;
-        // Optionally flash or save 
-        // This relies on the next row save to pass these values, but since the user wants a single 
-        // baker and branch the backend logic would just stamp it on the runs as they are saved
-    }
-
-    function onCommissaryBranchChange(branchId) {
-        var url = new URL(window.location.href);
-        if (branchId > 0) {
-            url.searchParams.set('branch_id', String(branchId));
-        } else {
-            url.searchParams.delete('branch_id');
-        }
-
-        var dateInput = document.querySelector('input[name="date"]');
-        if (dateInput && dateInput.value) {
-            url.searchParams.set('date', dateInput.value);
-        }
-
-        window.location.assign(url.toString());
-    }
-
-    // Output movements map: outputByBranch[branchId][productId] = netQty
-    var outputByBranch = {output_by_branch | json | raw};
-
-    // Populate empty yield/kilo/egg fields from production output movements for the selected branch.
-    // Output movement qty = yield in pieces (e.g. 45 pcs = 1 batch of pandesal).
-    // batches = yield / oppb  →  kilo = batches × biq,  egg = batches × biq_egg  (fractional)
-    // Only fills cells that are currently blank — does not overwrite existing entries.
-    // On explicit branch switch: clear previously-prefilled fields, then re-prefill for new branch.
-    function switchOutputBranch(branchId) {
-        document.querySelectorAll('[data-prefilled="1"]').forEach(function(el) {
-            el.value = '';
-            el.removeAttribute('data-prefilled');
-        });
-        applyOutputPrefill(branchId);
-    }
-
-    function applyOutputPrefill(branchId, scope) {
-        branchId = parseInt(branchId) || 0;
-        var branchData = (branchId > 0 && outputByBranch[branchId]) ? outputByBranch[branchId] : {};
-        var filled = 0;
-        var root = scope || document;
-
-        function flash(el) {
-            el.classList.add('bg-indigo-50');
-            setTimeout(function() { el.classList.remove('bg-indigo-50'); }, 1500);
-        }
-
-        root.querySelectorAll('[data-field-role="yield"]').forEach(function(yieldEl) {
-            if (yieldEl.value !== '' && yieldEl.value !== '0') return;
-            var row = yieldEl.closest('tr[data-product-id]');
-            var pid = row ? (parseInt(row.getAttribute('data-product-id'), 10) || 0) : 0;
-            if (!pid) return;
-            var qty = branchData[pid];
-            if (!qty || qty <= 0) return;
-
-            var oppb   = row ? parseFloat(row.getAttribute('data-oppb')    || '0') : 0;
-            var biq    = row ? parseFloat(row.getAttribute('data-biq')     || '0') : 0;
-            var biqEgg = row ? parseFloat(row.getAttribute('data-biq-egg') || '0') : 0;
-
-            // yield = qty (pieces)
-            yieldEl.value = qty;
-            yieldEl.setAttribute('data-prefilled', '1');
-            flash(yieldEl);
-            filled++;
-
-            if (oppb > 0) {
-                var batches = qty / oppb;
-
-                // kilo = batches × kilo_per_batch (fractional, 3 dp)
-                var kiloEl = getRunField(row, 'kilo');
-                if (kiloEl && biq > 0 && (kiloEl.value === '' || kiloEl.value === '0')) {
-                    kiloEl.value = Math.round(batches * biq * 1000) / 1000;
-                    kiloEl.setAttribute('data-prefilled', '1');
-                    flash(kiloEl);
-                }
-
-                // egg = batches × egg_per_batch (fractional, 3 dp)
-                var eggEl = getRunField(row, 'egg');
-                if (eggEl && biqEgg > 0 && (eggEl.value === '' || eggEl.value === '0')) {
-                    eggEl.value = Math.round(batches * biqEgg * 1000) / 1000;
-                    eggEl.setAttribute('data-prefilled', '1');
-                    flash(eggEl);
-                }
-            }
-        });
-
-        if (filled > 0) {
-            var baker = document.getElementById('commissary-baker');
-            if (baker && baker.value === '') {
-                baker.placeholder = 'Prefilled ' + filled + ' row(s) from output movements';
-            }
-        }
-    }
-
-    // Auto-suggest theoretical yield based on kilo/egg qty and batch size
-    // Full bidirectional field sync: editing yield, kilo, or egg cascades to the others.
-    // Relationships (per product row data-attributes):
-    //   yield = batches × oppb  |  kilo = batches × biq  |  egg = batches × biq_egg
-    function onFieldChange(pid, source) {
-        source = source || 'kilo';
-        var row = getRunRow(pid);
-        if (!row) return;
-        var oppb   = parseFloat(row.getAttribute('data-oppb')    || '0');
-        var biq    = parseFloat(row.getAttribute('data-biq')     || '0');
-        var biqEgg = parseFloat(row.getAttribute('data-biq-egg') || '0');
-        var yieldEl = getRunField(row, 'yield');
-        var kiloEl  = getRunField(row, 'kilo');
-        var eggEl   = getRunField(row, 'egg');
-        var hintEl  = getRunField(row, 'yield-hint');
-
-        var batches = 0;
-        if (source === 'yield' && oppb > 0 && yieldEl) {
-            batches = (parseFloat(yieldEl.value) || 0) / oppb;
-        } else if (source === 'kilo' && biq > 0 && kiloEl) {
-            batches = (parseFloat(kiloEl.value) || 0) / biq;
-        } else if (source === 'egg' && biqEgg > 0 && eggEl) {
-            batches = (parseFloat(eggEl.value) || 0) / biqEgg;
-        }
-
-        if (batches <= 0) {
-            if (hintEl) hintEl.textContent = '';
-            return;
-        }
-
-        if (source !== 'yield' && yieldEl && oppb > 0) {
-            yieldEl.value = Math.round(batches * oppb);
-        }
-        if (source !== 'kilo' && kiloEl && biq > 0) {
-            kiloEl.value = Math.round(batches * biq * 1000) / 1000;
-        }
-        if (source !== 'egg' && eggEl && biqEgg > 0) {
-            eggEl.value = Math.round(batches * biqEgg * 1000) / 1000;
-        }
-        if (hintEl && oppb > 0) {
-            hintEl.textContent = '\u2248 ' + Math.round(batches * oppb) + ' pcs';
-        }
-    }
-
-    // On page load, trigger hints for any pre-filled kilo/egg values
-    // and auto-prefill yield from output movements for the current branch
-    document.addEventListener('DOMContentLoaded', function() {
-        resetRunInputsToDefault(document);
-        document.querySelectorAll('[data-field-role="kilo"]').forEach(function(el) {
-            var row = el.closest('tr[data-product-id]');
-            var pid = row ? (parseInt(row.getAttribute('data-product-id'), 10) || 0) : 0;
-            if (pid && el.value) onFieldChange(pid, 'kilo');
-        });
-        document.querySelectorAll('[data-field-role="egg"]').forEach(function(el) {
-            var row = el.closest('tr[data-product-id]');
-            var pid = row ? (parseInt(row.getAttribute('data-product-id'), 10) || 0) : 0;
-            if (pid && !el.disabled && el.value) onFieldChange(pid, 'egg');
-        });
-        // Auto-prefill from output movements based on the already-selected branch
-        var initialBranch = parseInt(document.getElementById('commissary-branch').value) || 0;
-        if (initialBranch > 0) applyOutputPrefill(initialBranch);
-
-        // When user manually edits a prefilled field, unmark it so branch switches don't clear it
-        document.addEventListener('input', function(e) {
-            var el = e.target;
-            if (el && el.hasAttribute('data-prefilled') && (
-                el.id && (el.id.indexOf('run-yield-') === 0 || el.id.indexOf('run-kilo-') === 0 || el.id.indexOf('run-egg-') === 0)
-            )) {
-                el.removeAttribute('data-prefilled');
-            }
-        });
-    });</script>
+<div class="card">
+    <div class="card-header">
+        <span>Finished Goods Balance</span>
+        <span class="text-sm text-muted">Produced to commissary minus formal deliveries through {date}</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th class="text-right">Produced To Commissary</th>
+                    <th class="text-right">Delivered From Commissary</th>
+                    <th class="text-right">Remaining</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if stock_rows | count == 0}
+                <tr><td colspan="4" class="px-4 py-10 text-center text-sm text-gray-500">No commissary stock balance available yet.</td></tr>
+                {/if}
+                {foreach stock_rows as row}
+                <tr>
+                    <td>{row.product_name}</td>
+                    <td class="text-right">{row.produced_qty}</td>
+                    <td class="text-right">{row.dispatched_qty}</td>
+                    <td class="text-right font-semibold">{row.remaining_qty}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
 {/block}

@@ -1,0 +1,402 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Usage & Ingredients</h2>
+        <p class="text-sm text-gray-500">Record branch-traceable production inputs and raw-material counts.</p>
+    </div>
+    <div>
+        <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/usage">
+            <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.submit()">
+            <input type="hidden" name="branch_id" value="{global_branch_id}">
+        </form>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <div class="card p-0 overflow-hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+                <h3 class="font-medium text-gray-900">Branch Usage Trace</h3>
+                <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                    <label class="form-label text-xs">Production In-Charge / Baker</label>
+                    <input type="text" id="commissary-baker" class="form-input" placeholder="Baker Initials or Name" value="{global_baker_name}" onblur="updateAllRunsMetadata()">
+                </div>
+                <div>
+                    <label class="form-label text-xs">Delivery Receipt #</label>
+                    <input type="text" id="commissary-dr-number" class="form-input font-semibold" placeholder="Optional DR number" value="{global_dr_number}" onblur="updateAllRunsMetadata()">
+                </div>
+                <div>
+                    <label class="form-label text-xs">Destination Branch</label>
+                    <select id="commissary-branch" class="form-input font-bold text-indigo-700" onchange="onCommissaryBranchChange(parseInt(this.value, 10) || 0);">
+                        <option value="0">-- Keep in Commissary (No Ledger Updates) --</option>
+                        {foreach branches as b}
+                            <option value="{b.id}" {if b.id == global_branch_id}selected{/if}>{b.name}</option>
+                        {/foreach}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex px-4 gap-6" aria-label="Tabs">
+                <a href="javascript:void(0)" id="tab-bread" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm" onclick="switchProductTab('bread')">Bread Usage</a>
+                <a href="javascript:void(0)" id="tab-cake" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm" onclick="switchProductTab('cake')">Cake Usage</a>
+            </nav>
+        </div>
+
+        <div class="overflow-y-auto" style="max-height: 550px;">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="border-b text-xs text-gray-500 text-left">
+                        <th class="px-4 py-2">Description</th>
+                        <th class="px-4 py-2 w-24 text-center">Yield</th>
+                        <th class="px-4 py-2 w-24 text-center">Kilo</th>
+                        <th class="px-4 py-2 w-24 text-center">Egg</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-bread" class="divide-y divide-gray-100 align-middle">
+                    {foreach product_rows_bread as pr}
+                    <tr class="hover:bg-blue-50/50" id="run-row-bread-{pr.product_id}" data-product-id="{pr.product_id}" data-category="bread" data-oppb="{pr.output_pieces_per_batch}" data-biq="{pr.batch_input_qty}" data-biq-egg="{pr.batch_egg_qty}">
+                        <td class="px-4 py-2 font-medium">{pr.name}</td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="1" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" id="run-yield-bread-{pr.product_id}" data-field-role="yield" value="{pr.yield_qty}" oninput="onFieldChange({pr.product_id}, 'yield')" onchange="onFieldChange({pr.product_id}, 'yield'); saveRunRow({pr.product_id})">
+                            {if pr.output_pieces_per_batch > 0}
+                            <div class="text-center text-gray-400 text-xs mt-0.5" id="run-yield-hint-bread-{pr.product_id}" data-field-role="yield-hint"></div>
+                            {/if}
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-kilo-bread-{pr.product_id}" data-field-role="kilo" value="{pr.kilo_qty}" oninput="onFieldChange({pr.product_id}, 'kilo')" onchange="onFieldChange({pr.product_id}, 'kilo'); saveRunRow({pr.product_id})">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-egg-bread-{pr.product_id}" data-field-role="egg" value="{pr.egg_qty}" oninput="onFieldChange({pr.product_id}, 'egg')" onchange="onFieldChange({pr.product_id}, 'egg'); saveRunRow({pr.product_id})">
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+
+                <tbody id="tbody-cake" class="divide-y divide-gray-100 align-middle hidden">
+                    {foreach product_rows_cake as pr}
+                    <tr class="hover:bg-blue-50/50" id="run-row-cake-{pr.product_id}" data-product-id="{pr.product_id}" data-category="cake" data-oppb="{pr.output_pieces_per_batch}" data-biq="{pr.batch_input_qty}" data-biq-egg="{pr.batch_egg_qty}">
+                        <td class="px-4 py-2 font-medium">{pr.name}</td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="1" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" id="run-yield-cake-{pr.product_id}" data-field-role="yield" value="{pr.yield_qty}" oninput="onFieldChange({pr.product_id}, 'yield')" onchange="onFieldChange({pr.product_id}, 'yield'); saveRunRow({pr.product_id})">
+                            {if pr.output_pieces_per_batch > 0}
+                            <div class="text-center text-gray-400 text-xs mt-0.5" id="run-yield-hint-cake-{pr.product_id}" data-field-role="yield-hint"></div>
+                            {/if}
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-kilo-cake-{pr.product_id}" data-field-role="kilo" value="{pr.kilo_qty}" oninput="onFieldChange({pr.product_id}, 'kilo')" onchange="onFieldChange({pr.product_id}, 'kilo'); saveRunRow({pr.product_id})">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-egg-cake-{pr.product_id}" data-field-role="egg" value="{pr.egg_qty}" oninput="onFieldChange({pr.product_id}, 'egg')" onchange="onFieldChange({pr.product_id}, 'egg'); saveRunRow({pr.product_id})">
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card p-0 overflow-hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+            <h3 class="font-medium text-gray-900">Raw Material Counts</h3>
+            <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+        </div>
+        <div class="overflow-y-auto" style="max-height: 600px;">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="border-b text-xs text-gray-500 text-left">
+                        <th class="px-4 py-2">Material</th>
+                        <th class="px-4 py-2 text-center" title="Beginning Balance">Beg</th>
+                        <th class="px-4 py-2 text-center" title="Delivery Qty">Del</th>
+                        <th class="px-4 py-2 text-center" title="Used Qty">Used</th>
+                        <th class="px-4 py-2 text-center bg-gray-50 font-medium border-l border-r" title="Actual Manual Count">Actual</th>
+                        <th class="px-4 py-2 text-right">Var</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 align-middle">
+                    {foreach materials as m}
+                    {set var_color = 'text-gray-500'}
+                    {if m.calc_variance < 0}{set var_color = 'text-rose-600 font-bold'}{/if}
+                    {if m.calc_variance > 0}{set var_color = 'text-emerald-600 font-bold'}{/if}
+                    <tr class="hover:bg-blue-50/50">
+                        <td class="px-4 py-2 font-medium">
+                            {m.name} <span class="text-xs text-gray-400 font-mono ml-1">{m.unit}</span>
+                        </td>
+                        <td class="px-2 py-1 w-16">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.beg_bal}" onblur="saveRm({m.material_id}, 'beg_bal', this.value)">
+                        </td>
+                        <td class="px-2 py-1 w-16">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.delivery_qty}" onblur="saveRm({m.material_id}, 'delivery_qty', this.value)">
+                        </td>
+                        <td class="px-2 py-1 w-16">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.used_qty}" onblur="saveRm({m.material_id}, 'used_qty', this.value)">
+                        </td>
+                        <td class="px-2 py-1 w-16 bg-gray-50 border-l border-r border-gray-200">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" value="{m.actual_end_bal}" onblur="saveRm({m.material_id}, 'actual_end_bal', this.value)">
+                        </td>
+                        <td class="px-4 py-2 text-right font-mono text-xs {var_color}">
+                            {m.calc_variance}
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function getRunRow(pid) {
+        var visibleRow = document.querySelector('tbody:not(.hidden) tr[data-product-id="' + pid + '"]');
+        if (visibleRow) return visibleRow;
+        return document.querySelector('tr[data-product-id="' + pid + '"]');
+    }
+
+    function getRunField(row, role) {
+        return row ? row.querySelector('[data-field-role="' + role + '"]') : null;
+    }
+
+    function getRunInputs(scope) {
+        var root = scope || document;
+        return root.querySelectorAll('[data-field-role="yield"], [data-field-role="kilo"], [data-field-role="egg"]');
+    }
+
+    function resetRunInputsToDefault(scope) {
+        getRunInputs(scope).forEach(function(el) {
+            el.value = el.defaultValue || '';
+            el.removeAttribute('data-prefilled');
+        });
+        var root = scope || document;
+        root.querySelectorAll('[data-field-role="yield-hint"]').forEach(function(el) {
+            el.textContent = '';
+        });
+    }
+
+    function saveRm(mid, field, val) {
+        if (!val) val = 0;
+        fetch('{base_url}/api/v1/commissary/material', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                date: '{date}',
+                material_id: mid,
+                field: field,
+                value: parseFloat(val)
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) alert('Failed: ' + res.error);
+            else window.location.reload();
+        })
+        .catch(function() { alert('Network error'); });
+    }
+
+    function saveRunRow(pid) {
+        var row = getRunRow(pid);
+        if (!row) return;
+        row.classList.add('bg-yellow-50');
+        row.classList.remove('bg-blue-50/50');
+
+        var kiloEl = getRunField(row, 'kilo');
+        var eggEl  = getRunField(row, 'egg');
+        var yieldEl = getRunField(row, 'yield');
+        fetch('{base_url}/api/v1/commissary/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                date: '{date}',
+                product_id: parseInt(pid),
+                baker_name: document.getElementById('commissary-baker').value,
+                dr_number: ((document.getElementById('commissary-dr-number') || {}).value || '').trim(),
+                destination_branch_id: parseInt(document.getElementById('commissary-branch').value) || 0,
+                kilo_qty: kiloEl ? parseFloat(kiloEl.value) || 0 : 0,
+                egg_qty:  eggEl ? parseFloat(eggEl.value) || 0 : 0,
+                yield_qty: yieldEl ? (parseInt(yieldEl.value, 10) || 0) : 0
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            row.classList.remove('bg-yellow-50');
+            if (res.ok) {
+                row.classList.add('bg-emerald-50');
+                setTimeout(function() { row.classList.remove('bg-emerald-50'); }, 1500);
+            } else {
+                row.classList.add('bg-rose-50');
+                alert('Failed: ' + res.error);
+            }
+        })
+        .catch(function() {
+            row.classList.remove('bg-yellow-50');
+            row.classList.add('bg-rose-50');
+        });
+    }
+
+    function switchProductTab(tab) {
+        var activeBody = null;
+        if (tab === 'bread') {
+            document.getElementById('tbody-bread').classList.remove('hidden');
+            document.getElementById('tbody-cake').classList.add('hidden');
+            activeBody = document.getElementById('tbody-bread');
+
+            document.getElementById('tab-bread').classList.add('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-bread').classList.remove('border-transparent', 'text-gray-500');
+
+            document.getElementById('tab-cake').classList.remove('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-cake').classList.add('border-transparent', 'text-gray-500');
+        } else {
+            document.getElementById('tbody-cake').classList.remove('hidden');
+            document.getElementById('tbody-bread').classList.add('hidden');
+            activeBody = document.getElementById('tbody-cake');
+
+            document.getElementById('tab-cake').classList.add('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-cake').classList.remove('border-transparent', 'text-gray-500');
+
+            document.getElementById('tab-bread').classList.remove('border-indigo-500', 'text-indigo-600');
+            document.getElementById('tab-bread').classList.add('border-transparent', 'text-gray-500');
+        }
+
+        var currentBranch = parseInt(document.getElementById('commissary-branch').value, 10) || 0;
+        if (activeBody && currentBranch > 0) {
+            applyOutputPrefill(currentBranch, activeBody);
+        }
+    }
+
+    function updateAllRunsMetadata() {
+        document.getElementById('commissary-baker').value = document.getElementById('commissary-baker').value || '';
+    }
+
+    function onCommissaryBranchChange(branchId) {
+        var url = new URL(window.location.href);
+        if (branchId > 0) {
+            url.searchParams.set('branch_id', String(branchId));
+        } else {
+            url.searchParams.delete('branch_id');
+        }
+
+        var dateInput = document.querySelector('input[name="date"]');
+        if (dateInput && dateInput.value) {
+            url.searchParams.set('date', dateInput.value);
+        }
+
+        window.location.assign(url.toString());
+    }
+
+    var outputByBranch = {output_by_branch | json | raw};
+
+    function applyOutputPrefill(branchId, scope) {
+        branchId = parseInt(branchId) || 0;
+        var branchData = (branchId > 0 && outputByBranch[branchId]) ? outputByBranch[branchId] : {};
+        var filled = 0;
+        var root = scope || document;
+
+        function flash(el) {
+            el.classList.add('bg-indigo-50');
+            setTimeout(function() { el.classList.remove('bg-indigo-50'); }, 1500);
+        }
+
+        root.querySelectorAll('[data-field-role="yield"]').forEach(function(yieldEl) {
+            if (yieldEl.value !== '' && yieldEl.value !== '0') return;
+            var row = yieldEl.closest('tr[data-product-id]');
+            var pid = row ? (parseInt(row.getAttribute('data-product-id'), 10) || 0) : 0;
+            if (!pid) return;
+            var qty = branchData[pid];
+            if (!qty || qty <= 0) return;
+
+            var oppb   = row ? parseFloat(row.getAttribute('data-oppb') || '0') : 0;
+            var biq    = row ? parseFloat(row.getAttribute('data-biq') || '0') : 0;
+            var biqEgg = row ? parseFloat(row.getAttribute('data-biq-egg') || '0') : 0;
+
+            yieldEl.value = qty;
+            yieldEl.setAttribute('data-prefilled', '1');
+            flash(yieldEl);
+            filled++;
+
+            if (oppb > 0) {
+                var batches = qty / oppb;
+                var kiloEl = getRunField(row, 'kilo');
+                if (kiloEl && biq > 0 && (kiloEl.value === '' || kiloEl.value === '0')) {
+                    kiloEl.value = Math.round(batches * biq * 1000) / 1000;
+                    kiloEl.setAttribute('data-prefilled', '1');
+                    flash(kiloEl);
+                }
+
+                var eggEl = getRunField(row, 'egg');
+                if (eggEl && biqEgg > 0 && (eggEl.value === '' || eggEl.value === '0')) {
+                    eggEl.value = Math.round(batches * biqEgg * 1000) / 1000;
+                    eggEl.setAttribute('data-prefilled', '1');
+                    flash(eggEl);
+                }
+            }
+        });
+
+        if (filled > 0) {
+            var baker = document.getElementById('commissary-baker');
+            if (baker && baker.value === '') {
+                baker.placeholder = 'Prefilled ' + filled + ' row(s) from output movements';
+            }
+        }
+    }
+
+    function onFieldChange(pid, source) {
+        source = source || 'kilo';
+        var row = getRunRow(pid);
+        if (!row) return;
+        var oppb   = parseFloat(row.getAttribute('data-oppb') || '0');
+        var biq    = parseFloat(row.getAttribute('data-biq') || '0');
+        var biqEgg = parseFloat(row.getAttribute('data-biq-egg') || '0');
+        var yieldEl = getRunField(row, 'yield');
+        var kiloEl  = getRunField(row, 'kilo');
+        var eggEl   = getRunField(row, 'egg');
+        var hintEl  = getRunField(row, 'yield-hint');
+
+        var batches = 0;
+        if (source === 'yield' && oppb > 0 && yieldEl) {
+            batches = (parseFloat(yieldEl.value) || 0) / oppb;
+        } else if (source === 'kilo' && biq > 0 && kiloEl) {
+            batches = (parseFloat(kiloEl.value) || 0) / biq;
+        } else if (source === 'egg' && biqEgg > 0 && eggEl) {
+            batches = (parseFloat(eggEl.value) || 0) / biqEgg;
+        }
+
+        if (batches <= 0) {
+            if (hintEl) hintEl.textContent = '';
+            return;
+        }
+
+        if (source !== 'yield' && yieldEl && oppb > 0) {
+            yieldEl.value = Math.round(batches * oppb);
+        }
+        if (source !== 'kilo' && kiloEl && biq > 0) {
+            kiloEl.value = Math.round(batches * biq * 1000) / 1000;
+        }
+        if (source !== 'egg' && eggEl && biqEgg > 0) {
+            eggEl.value = Math.round(batches * biqEgg * 1000) / 1000;
+        }
+        if (hintEl && oppb > 0) {
+            hintEl.textContent = '≈ ' + Math.round(batches * oppb) + ' pcs';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        switchProductTab('bread');
+    });
+</script>
+{/block}

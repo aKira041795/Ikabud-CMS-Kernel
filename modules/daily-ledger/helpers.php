@@ -45,6 +45,16 @@ function dlRender(string $template, array $context = []): string
     if (!array_key_exists('app_name', $context)) {
         $context['app_name'] = dlAppName();
     }
+    // Always supply layout-level feature flags so the sidebar can gate links
+    // consistently across every admin page, even handlers that do not explicitly
+    // pass them in. Existing values in $context win.
+    if (function_exists('dl_layoutFlags')) {
+        foreach (dl_layoutFlags() as $k => $v) {
+            if (!array_key_exists($k, $context)) {
+                $context[$k] = $v;
+            }
+        }
+    }
     return dlCtx()->render($template, kernelPrepareRenderContext($template, $context));
 }
 

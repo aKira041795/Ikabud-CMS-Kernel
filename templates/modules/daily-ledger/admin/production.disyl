@@ -56,7 +56,7 @@
         {/if}
 
         {if branches | count > 0}
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5 mb-4">
             <div class="form-group mb-0">
                 <label class="form-label">Branch</label>
                 <select id="wd-branch-id" class="form-input font-semibold">
@@ -80,6 +80,10 @@
             <div class="form-group mb-0">
                 <label class="form-label">Reason</label>
                 <input type="text" id="wd-reason" class="form-input" placeholder="Optional withdrawal note">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Delivery Receipt #</label>
+                <input type="text" id="wd-dr-number" class="form-input" placeholder="Optional DR number">
             </div>
         </div>
 
@@ -199,13 +203,14 @@
                     <th>Product</th>
                     <th>Flow</th>
                     <th class="text-right">Qty</th>
+                    <th>DR #</th>
                     <th>Reason</th>
                     <th>Actor</th>
                 </tr>
             </thead>
             <tbody>
                 {if movement_rows | count == 0}
-                <tr><td colspan="10" class="px-4 py-10 text-center text-sm text-gray-500">No production movement history in selected range.</td></tr>
+                <tr><td colspan="11" class="px-4 py-10 text-center text-sm text-gray-500">No production movement history in selected range.</td></tr>
                 {/if}
                 {foreach movement_rows as row}
                 <tr data-movement-type="{row.movement_type}">
@@ -226,6 +231,7 @@
                     <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
                     <td>{row.flow_mode}</td>
                     <td class="text-right font-semibold">{row.quantity}</td>
+                    <td class="text-sm text-muted">{row.dr_number | default:'—'}</td>
                     <td class="text-sm text-muted">{row.override_reason}</td>
                     <td class="text-sm text-muted">
                         <div>{row.created_by_role}</div>
@@ -233,7 +239,14 @@
                         <button
                             type="button"
                             class="btn btn-sm btn-outline mt-2 print-hide"
-                            onclick="openOverrideModal({row.id}, {row.destination_branch_id}, {row.product_id}, '{row.ledger_date}', {row.quantity}, '{row.flow_mode}')"
+                            data-movement-id="{row.id}"
+                            data-branch-id="{row.destination_branch_id}"
+                            data-product-id="{row.product_id}"
+                            data-ledger-date="{row.ledger_date}"
+                            data-quantity="{row.quantity}"
+                            data-flow-mode="{row.flow_mode}"
+                            data-dr-number="{row.dr_number | default:''}"
+                            onclick="openOverrideModalFromButton(this)"
                         >
                             Override
                         </button>
@@ -255,6 +268,7 @@
         <input type="hidden" id="ov-product-id">
         <input type="hidden" id="ov-ledger-date">
         <input type="hidden" id="ov-flow-mode">
+        <input type="hidden" id="ov-dr-number">
 
         <div class="form-group">
             <label class="form-label">Original Quantity</label>
@@ -310,6 +324,7 @@
         var ledgerDate = (document.getElementById('wd-ledger-date') || {}).value || '';
         var flowMode   = (document.getElementById('wd-flow-mode')   || {}).value || 'production';
         var reason     = ((document.getElementById('wd-reason')     || {}).value || '').trim();
+        var drNumber   = ((document.getElementById('wd-dr-number')  || {}).value || '').trim();
 
         if (!branchId)   { showToast('Select a branch first', 'error'); return; }
         if (!ledgerDate) { showToast('Ledger date is required', 'error'); return; }
@@ -333,7 +348,8 @@
                 ledger_date: ledgerDate,
                 quantity: qty,
                 flow_mode: flowMode,
-                override_reason: reason,
+                dr_number: drNumber,
+                reason: reason,
                 client_op_id: 'wd-' + now + '-' + pid + '-' + (idx++)
             });
         });
@@ -387,15 +403,16 @@
         var printedAt = new Date().toLocaleString();
         var htmlRows = rows.map(function(row) {
             var cells = row.querySelectorAll('td');
-            if (!cells || cells.length < 9) return '';
+            if (!cells || cells.length < 11) return '';
             return '<tr>' +
                 '<td>' + cells[0].textContent.trim() + '</td>' +
                 '<td>' + cells[1].textContent.trim() + '</td>' +
                 '<td>' + cells[3].textContent.trim() + '</td>' +
                 '<td>' + cells[4].textContent.trim() + '</td>' +
-                '<td style="text-align:right;">' + cells[6].textContent.trim() + '</td>' +
-                '<td>' + cells[7].textContent.trim() + '</td>' +
+                '<td style="text-align:right;">' + cells[7].textContent.trim() + '</td>' +
                 '<td>' + cells[8].textContent.trim() + '</td>' +
+                '<td>' + cells[9].textContent.trim() + '</td>' +
+                '<td>' + cells[10].textContent.trim() + '</td>' +
                 '</tr>';
         }).join('');
 
@@ -416,7 +433,7 @@
             '<div class="meta">Prepared By: {user_name} ({user_role})</div>' +
             '<div class="meta">Printed At: ' + printedAt + '</div>' +
             '<table><thead><tr>' +
-            '<th>Created</th><th>Date</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>Reason</th><th>Actor</th>' +
+            '<th>Created</th><th>Date</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>DR #</th><th>Reason</th><th>Actor</th>' +
             '</tr></thead><tbody>' + htmlRows + '</tbody></table>' +
             '</body></html>';
 
@@ -432,12 +449,26 @@
         w.print();
     }
 
-    function openOverrideModal(movementId, branchId, productId, ledgerDate, quantity, flowMode) {
+    function openOverrideModalFromButton(button) {
+        if (!button) return;
+        openOverrideModal(
+            parseInt(button.getAttribute('data-movement-id') || '0', 10) || 0,
+            parseInt(button.getAttribute('data-branch-id') || '0', 10) || 0,
+            parseInt(button.getAttribute('data-product-id') || '0', 10) || 0,
+            button.getAttribute('data-ledger-date') || '',
+            parseInt(button.getAttribute('data-quantity') || '0', 10) || 0,
+            button.getAttribute('data-flow-mode') || 'production',
+            button.getAttribute('data-dr-number') || ''
+        );
+    }
+
+    function openOverrideModal(movementId, branchId, productId, ledgerDate, quantity, flowMode, drNumber) {
         document.getElementById('ov-movement-id').value = movementId;
         document.getElementById('ov-branch-id').value = branchId;
         document.getElementById('ov-product-id').value = productId;
         document.getElementById('ov-ledger-date').value = ledgerDate;
         document.getElementById('ov-flow-mode').value = flowMode || 'production';
+        document.getElementById('ov-dr-number').value = drNumber || '';
         document.getElementById('ov-original-qty').value = quantity;
         document.getElementById('ov-corrected-qty').value = quantity;
         document.getElementById('ov-reason').value = '';
@@ -456,6 +487,7 @@
         var productId = parseInt(document.getElementById('ov-product-id').value, 10) || 0;
         var ledgerDate = document.getElementById('ov-ledger-date').value || '';
         var flowMode = document.getElementById('ov-flow-mode').value || 'production';
+        var drNumber = (document.getElementById('ov-dr-number').value || '').trim();
         var correctedQty = parseInt(document.getElementById('ov-corrected-qty').value, 10) || 0;
         var reason = (document.getElementById('ov-reason').value || '').trim();
 
@@ -482,6 +514,7 @@
             ledger_date: ledgerDate,
             quantity: correctedQty,
             flow_mode: flowMode,
+            dr_number: drNumber,
             reason: reason,
             client_op_id: 'ovr-rev-' + movementId + '-' + Date.now()
         };
@@ -508,6 +541,7 @@
                 ledger_date: ledgerDate,
                 quantity: correctedQty,
                 flow_mode: flowMode,
+                dr_number: drNumber,
                 reason: reason,
                 client_op_id: 'ovr-new-' + movementId + '-' + Date.now()
             };

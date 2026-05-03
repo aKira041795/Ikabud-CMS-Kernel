@@ -48,6 +48,24 @@
                         </div>
                     </div>
 
+                    <div class="mb-4" x-show="header.withdrawal_type !== 'delivery'">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">
+                            Reason Code <span class="text-rose-500">*</span>
+                        </label>
+                        <select x-model="header.reason_code" class="form-input mt-0 w-full">
+                            <option value="manual_adjustment">Manual adjustment</option>
+                            <option value="spoilage">Spoilage</option>
+                            <option value="staff_meal">Staff meal</option>
+                            <option value="sampling">Sampling</option>
+                            <option value="testing">Testing</option>
+                            <option value="promo">Promo</option>
+                            <option value="donation">Donation</option>
+                            <option value="damage">Damage</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Helps supervisors classify variances. Required for charge/pullout withdrawals.</p>
+                    </div>
+
                     <div class="mb-3 bg-gray-50 rounded-lg p-3">
                         <table class="w-full text-sm">
                             <thead>
@@ -117,13 +135,13 @@ function withdrawalModal() {
         isOpen: false,
         saving: false,
         errorMsg: '',
-        header: { withdrawal_type: 'charge', dr_number: '', target_branch_id: '' },
+        header: { withdrawal_type: 'charge', dr_number: '', target_branch_id: '', reason_code: 'manual_adjustment' },
         lines: [],
         products: [],
 
         openModal() {
             this.errorMsg = '';
-            this.header = { withdrawal_type: 'charge', dr_number: '', target_branch_id: '' };
+            this.header = { withdrawal_type: 'charge', dr_number: '', target_branch_id: '', reason_code: 'manual_adjustment' };
             this.lines = [{ product_id: '', quantity: '' }];
             this.loadProducts();
             this.isOpen = true;
@@ -187,7 +205,8 @@ function withdrawalModal() {
                 header: {
                     withdrawal_type: this.header.withdrawal_type,
                     dr_number: this.header.dr_number || null,
-                    target_branch_id: this.header.target_branch_id || null
+                    target_branch_id: this.header.target_branch_id || null,
+                    reason_code: (this.header.withdrawal_type === 'delivery') ? null : (this.header.reason_code || 'manual_adjustment')
                 },
                 lines: validLines.map(function(l) {
                     return { product_id: parseInt(l.product_id), quantity: parseInt(l.quantity) };

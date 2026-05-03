@@ -20,6 +20,65 @@ function guidanceGetSettingJson(string $key, array $default = []): array
 
 }
 
+function guidanceNotificationRuntimeSettings(): array
+{
+    $appointmentSettings = guidanceGetSettingJson('appointment_settings', []);
+    $legacySettings = guidanceGetSettingJson('notification_settings', []);
+
+    $defaultChannel = !empty($legacySettings['sms_enabled']) ? 'email_and_sms' : 'email_only';
+    $channel = trim((string)guidanceGetSetting(
+        'notification_channel',
+        (string)($appointmentSettings['notification_channel'] ?? $defaultChannel)
+    ));
+    if ($channel !== 'email_and_sms') {
+        $channel = 'email_only';
+    }
+
+    $defaultEmailEnabled = array_key_exists('email_enabled', $legacySettings)
+        ? (!empty($legacySettings['email_enabled']) ? '1' : '0')
+        : (array_key_exists('email_notifications', $appointmentSettings)
+            ? (!empty($appointmentSettings['email_notifications']) ? '1' : '0')
+            : '1');
+    $emailEnabledRaw = strtolower(trim((string)guidanceGetSetting('email_notifications', $defaultEmailEnabled)));
+    $emailEnabled = in_array($emailEnabledRaw, ['1', 'true', 'yes', 'on'], true);
+
+    $defaultReminderHours = array_key_exists('appointment_reminder_hours', $legacySettings)
+        ? (int)($legacySettings['appointment_reminder_hours'] ?? 24)
+        : (int)($appointmentSettings['reminder_hours_before'] ?? 24);
+    $reminderHours = max(0, (int)guidanceGetSetting('reminder_hours_before', (string)$defaultReminderHours));
+
+    return [
+        'notification_channel' => $channel,
+        'email_enabled' => $emailEnabled,
+        'email_notifications' => $emailEnabled ? '1' : '0',
+        'sms_enabled' => $channel === 'email_and_sms',
+        'reminder_hours_before' => $reminderHours,
+    ];
+}
+
+function guidanceSendNotificationEmail(string $email, string $subject, string $body, array $options = []): bool
+{
+    $email = trim($email);
+    $subject = trim($subject);
+    if ($email === '' || $subject === '' || trim($body) === '') {
+        return false;
+    }
+    if (!guidanceNotificationRuntimeSettings()['email_enabled'] || !function_exists('sendEmail')) {
+        return false;
+    }
+
+    return sendEmail($email, $subject, $body, $options);
+}
+
+function guidanceEmitAutomationEvent(string $event, array $payload = []): void
+{
+    $settings = guidanceNotificationRuntimeSettings();
+    $payload['notification_channel'] = (string)$settings['notification_channel'];
+    $payload['email_notifications'] = (string)$settings['email_notifications'];
+    $payload['sms_enabled'] = $settings['sms_enabled'] ? '1' : '0';
+    guidanceFireEvent($event, $payload);
+}
+
 function apiGuidanceCaseOptions(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
@@ -282,7 +341,7 @@ function guidanceCreateCaseInitialAppointment(\Ikabud\Kernel\Contracts\DatabaseC
 
     $appointmentId = (int)$db->lastInsertId();
     $clientNumber = trim((string)($caseData['student_mobile'] ?? ''));
-    guidanceFireEvent('guidance.appointment.created', [
+    guidanceEmitAutomationEvent('guidance.appointment.created', [
         'to' => $clientNumber,
         'appointment_id' => $appointmentId,
         'date' => $date,
@@ -1534,7 +1593,7 @@ function apiGuidanceCreateAppointment(): void
 
         $appointmentId = (int)$db->lastInsertId();
         $clientNumber = trim((string)($case['student_mobile'] ?? ''));
-        guidanceFireEvent('guidance.appointment.created', [
+        guidanceEmitAutomationEvent('guidance.appointment.created', [
             'to' => $clientNumber,
             'appointment_id' => $appointmentId,
             'date' => $date,
@@ -2973,7 +3032,7 @@ function guidanceCreatePublicBookingRecord(array $payload): int
     guidanceQueueCounselorNotification($db, (int)($payload['counselor_id'] ?? 0), $appointmentId, $payload);
     guidanceSendStudentBookingConfirmation($db, $appointmentId, $payload);
 
-    guidanceFireEvent('guidance.booking.created', [
+    guidanceEmitAutomationEvent('guidance.booking.created', [
         'to' => (string)($payload['student_phone'] ?? ''),
         'appointment_id' => $appointmentId,
         'student_name' => (string)($payload['student_name'] ?? ''),
@@ -3035,8 +3094,12 @@ function guidanceQueueCounselorNotification(\Ikabud\Kernel\Contracts\DatabaseCon
             . '<strong>Time:</strong> ' . htmlspecialchars(date('g:i A', strtotime((string)($payload['scheduled_time'] ?? '00:00')))) . '<br>'
             . '<strong>Purpose:</strong> ' . htmlspecialchars((string)($payload['purpose'] ?? '')) . '</p>'
             . '<p>Please log in to the Guidance system to approve or decline this request.</p>';
+        if (!function_exists('buildEmailTemplate')) {
+            return;
+        }
+
         $body = buildEmailTemplate('New Appointment Request', $content);
-        sendEmail($email, 'New Appointment Request from ' . (string)($payload['student_name'] ?? 'Student'), $body);
+        guidanceSendNotificationEmail($email, 'New Appointment Request from ' . (string)($payload['student_name'] ?? 'Student'), $body);
     } catch (Throwable $e) {
         app()->log('Booking: failed to send counselor email: ' . $e->getMessage(), 'error');
     }
@@ -3081,7 +3144,7 @@ function guidanceRenderEmailTemplateHtml(string $text): string
 function guidanceSendAppointmentTemplateEmail(string $templateKey, string $email, array $variables): bool
 {
     $email = trim($email);
-    if ($email === '' || !function_exists('sendEmail') || !function_exists('buildEmailTemplate')) {
+    if ($email === '' || !function_exists('buildEmailTemplate')) {
         return false;
     }
 
@@ -3098,7 +3161,7 @@ function guidanceSendAppointmentTemplateEmail(string $templateKey, string $email
         return false;
     }
 
-    return sendEmail($email, $subject, buildEmailTemplate($subject, $bodyHtml));
+    return guidanceSendNotificationEmail($email, $subject, buildEmailTemplate($subject, $bodyHtml));
 }
 
 function guidanceSendStudentBookingConfirmation(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $appointmentId, array $payload): void
@@ -3122,24 +3185,146 @@ function guidanceSendStudentBookingConfirmation(\Ikabud\Kernel\Contracts\Databas
     }
 }
 
+function guidanceAppointmentsDueForReminder(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?DateTimeInterface $now = null, int $limit = 100): array
+{
+    $settings = guidanceNotificationRuntimeSettings();
+    if (!$settings['email_enabled'] || $settings['reminder_hours_before'] < 1) {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+    $nowAt = $now instanceof DateTimeInterface
+        ? DateTimeImmutable::createFromInterface($now)
+        : new DateTimeImmutable('now');
+    $windowEnd = $nowAt->modify('+' . (int)$settings['reminder_hours_before'] . ' hours');
+
+    try {
+        $stmt = $db->prepare(
+            "SELECT id, student_name, student_email, student_phone, scheduled_date, scheduled_time, duration_minutes, location, status\n"
+            . "FROM gm_appointments\n"
+            . "WHERE status IN ('confirmed', 'scheduled', 'rescheduled')\n"
+            . "AND reminder_sent_at IS NULL\n"
+            . "AND TIMESTAMP(scheduled_date, scheduled_time) > ?\n"
+            . "AND TIMESTAMP(scheduled_date, scheduled_time) <= ?\n"
+            . "ORDER BY scheduled_date ASC, scheduled_time ASC\n"
+            . 'LIMIT ' . $limit
+        );
+        $stmt->execute([
+            $nowAt->format('Y-m-d H:i:s'),
+            $windowEnd->format('Y-m-d H:i:s'),
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        app()->log('Appointments reminder due query error: ' . $e->getMessage(), 'error');
+        return [];
+    }
+}
+
+function guidanceSendAppointmentReminder(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $appointmentId, ?DateTimeInterface $now = null): bool
+{
+    if ($appointmentId < 1) {
+        return false;
+    }
+
+    $dueIds = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), guidanceAppointmentsDueForReminder($db, $now, 500));
+    if (!in_array($appointmentId, $dueIds, true)) {
+        return false;
+    }
+
+    try {
+        $stmt = $db->prepare(
+            "SELECT id, student_name, student_email, scheduled_date, scheduled_time, duration_minutes, location\n"
+            . 'FROM gm_appointments WHERE id = ? LIMIT 1'
+        );
+        $stmt->execute([$appointmentId]);
+        $appointment = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($appointment)) {
+            return false;
+        }
+
+        $email = trim((string)($appointment['student_email'] ?? ''));
+        if ($email === '') {
+            return false;
+        }
+
+        $studentName = trim((string)($appointment['student_name'] ?? 'Student'));
+        $scheduledDate = date('F j, Y', strtotime((string)($appointment['scheduled_date'] ?? date('Y-m-d'))));
+        $scheduledTime = date('g:i A', strtotime((string)($appointment['scheduled_time'] ?? '00:00')));
+        $location = trim((string)($appointment['location'] ?? '')) !== ''
+            ? (string)$appointment['location']
+            : 'Guidance Office';
+
+        $content = '<p>This is a reminder that you have an upcoming appointment.</p>'
+            . '<p><strong>Date:</strong> ' . htmlspecialchars($scheduledDate, ENT_QUOTES, 'UTF-8') . '<br>'
+            . '<strong>Time:</strong> ' . htmlspecialchars($scheduledTime, ENT_QUOTES, 'UTF-8') . '<br>'
+            . '<strong>Location:</strong> ' . htmlspecialchars($location, ENT_QUOTES, 'UTF-8') . '</p>'
+            . '<p>If you need to reschedule, please contact the Guidance Office as soon as possible.</p>';
+        $body = function_exists('buildEmailTemplate')
+            ? buildEmailTemplate('Appointment Reminder', $content)
+            : $content;
+
+        if (!guidanceSendNotificationEmail($email, 'Appointment Reminder for ' . $studentName, $body)) {
+            return false;
+        }
+
+        $db->prepare('UPDATE gm_appointments SET reminder_sent_at = NOW(), updated_at = NOW() WHERE id = ? AND reminder_sent_at IS NULL')
+            ->execute([$appointmentId]);
+        return true;
+    } catch (Throwable $e) {
+        app()->log('Appointments reminder send error: ' . $e->getMessage(), 'error');
+        return false;
+    }
+}
+
+function guidanceProcessAppointmentReminders(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?DateTimeInterface $now = null, int $limit = 100): array
+{
+    $due = guidanceAppointmentsDueForReminder($db, $now, $limit);
+    $sent = 0;
+    $failed = 0;
+
+    foreach ($due as $appointment) {
+        $appointmentId = (int)($appointment['id'] ?? 0);
+        if ($appointmentId < 1) {
+            continue;
+        }
+
+        if (guidanceSendAppointmentReminder($db, $appointmentId, $now)) {
+            $sent++;
+        } else {
+            $failed++;
+        }
+    }
+
+    return ['due' => count($due), 'sent' => $sent, 'failed' => $failed];
+}
+
 function guidancePublicBookingSuccessPayload(array $payload, int $appointmentId): array
 {
     $rawDate = (string)($payload['scheduled_date'] ?? '');
     $rawTime = (string)($payload['scheduled_time'] ?? '');
     $scheduledDateFmt = $rawDate !== '' ? date('F j, Y', strtotime($rawDate)) : '';
     $scheduledTimeFmt = $rawTime !== '' ? date('g:i A', strtotime($rawTime)) : '';
+    $notificationSettings = guidanceNotificationRuntimeSettings();
+    $studentEmail = (string)($payload['student_email'] ?? '');
+    $confirmationNotice = $notificationSettings['email_enabled']
+        ? ('A confirmation email will be sent to ' . $studentEmail . ' once your appointment is approved.')
+        : 'Your request has been submitted for review. Guidance staff will confirm the appointment once it is approved.';
+    $message = $notificationSettings['email_enabled']
+        ? 'Appointment request submitted! You will receive a confirmation email once approved.'
+        : 'Appointment request submitted! Guidance staff will review it and confirm the appointment once approved.';
 
     return [
         'ok' => true,
         'success' => true,
         'appointment_id' => $appointmentId,
-        'message' => 'Appointment request submitted! You will receive a confirmation email once approved.',
+        'message' => $message,
         'html' => guidanceRender('modules/guidance/partials/booking-success.disyl', [
             'appointment_id' => $appointmentId,
             'student_name' => (string)($payload['student_name'] ?? ''),
             'scheduled_date' => $scheduledDateFmt,
             'scheduled_time' => $scheduledTimeFmt,
-            'student_email' => (string)($payload['student_email'] ?? ''),
+            'student_email' => $studentEmail,
+            'confirmation_notice' => $confirmationNotice,
             'base_url' => '/guidance',
         ]),
     ];
@@ -5231,6 +5416,11 @@ function modalGuidanceCaseNew(): void
         $colleges = [];
     }
 
+    $studentStatusConfig = guidanceGetStudentStatusOptionsForForm($db, (string)($casePrefill['student_status'] ?? ''));
+    if (empty($casePrefill['student_status']) && $studentStatusConfig['default'] !== '') {
+        $casePrefill['student_status'] = $studentStatusConfig['default'];
+    }
+
     echo guidanceRender('modules/guidance/modals/case-form.disyl', [
         'case' => $casePrefill,
         'today' => date('Y-m-d'),
@@ -5239,6 +5429,7 @@ function modalGuidanceCaseNew(): void
         'user_id' => $userId,
         'counselors' => $counselors,
         'colleges' => $colleges,
+        'student_statuses' => $studentStatusConfig['statuses'],
         'case_categories_json' => '[]',
         'dynamic_fields_html' => guidanceRenderFormFields('case', $casePrefill, ['colleges' => $colleges]),
         'source_appointment' => $sourceAppointment ?? [],
@@ -5325,6 +5516,8 @@ function modalGuidanceCaseEdit(array $params = []): void
         $colleges = [];
     }
 
+    $studentStatusConfig = guidanceGetStudentStatusOptionsForForm($db, (string)($case['student_status'] ?? ''));
+
     echo guidanceRender('modules/guidance/modals/case-form.disyl', [
         'case' => $case,
         'today' => date('Y-m-d'),
@@ -5333,6 +5526,7 @@ function modalGuidanceCaseEdit(array $params = []): void
         'user_id' => $userId,
         'counselors' => $counselors,
         'colleges' => $colleges,
+        'student_statuses' => $studentStatusConfig['statuses'],
         'case_categories_json' => (function() use ($case): string {
             $raw = $case['categories'] ?? null;
             if (is_string($raw) && trim($raw) !== '') {
@@ -9766,6 +9960,179 @@ function guidanceSettingsDefaults(): array
     return $defaults;
 }
 
+function guidanceResolvedAppointmentSettings(array $settings = []): array
+{
+    $resolved = guidanceGetSettingJson('appointment_settings', []);
+    if (!is_array($resolved)) {
+        $resolved = [];
+    }
+
+    $slotMinutes = (int)($settings['appointment_slot_minutes'] ?? 0);
+    if ($slotMinutes > 0) {
+        $resolved['default_duration_minutes'] = $slotMinutes;
+    }
+
+    $maxPerDay = (int)($settings['max_appointments_per_day'] ?? 0);
+    if ($maxPerDay > 0) {
+        $resolved['max_appointments_per_day'] = $maxPerDay;
+    }
+
+    $workingHoursStart = trim((string)($settings['working_hours_start'] ?? ''));
+    if ($workingHoursStart !== '') {
+        $resolved['working_hours_start'] = $workingHoursStart;
+    }
+
+    $workingHoursEnd = trim((string)($settings['working_hours_end'] ?? ''));
+    if ($workingHoursEnd !== '') {
+        $resolved['working_hours_end'] = $workingHoursEnd;
+    }
+
+    $reminderHours = (int)($settings['reminder_hours_before'] ?? 0);
+    if ($reminderHours >= 0) {
+        $resolved['reminder_hours_before'] = $reminderHours;
+    }
+
+    $notificationChannel = trim((string)($settings['notification_channel'] ?? ''));
+    if ($notificationChannel !== '') {
+        $resolved['notification_channel'] = $notificationChannel;
+    }
+
+    if (array_key_exists('email_notifications', $settings)) {
+        $resolved['email_notifications'] = !empty($settings['email_notifications']) ? '1' : '0';
+    }
+
+    return $resolved;
+}
+
+function guidanceHydratePageSettings(array $settings, array $storedSettings = []): array
+{
+    $appointmentSettings = guidanceGetSettingJson('appointment_settings', []);
+    $workingHours = guidanceGetSettingJson('working_hours', []);
+    $legacyNotificationSettings = guidanceGetSettingJson('notification_settings', []);
+    if (!is_array($appointmentSettings)) {
+        $appointmentSettings = [];
+    }
+    if (!is_array($workingHours)) {
+        $workingHours = [];
+    }
+    if (!is_array($legacyNotificationSettings)) {
+        $legacyNotificationSettings = [];
+    }
+
+    if (array_key_exists('appointment_slot_minutes', $storedSettings)) {
+        $appointmentSettings['default_duration_minutes'] = (int)($storedSettings['appointment_slot_minutes'] ?? 0);
+    }
+    if (array_key_exists('max_appointments_per_day', $storedSettings)) {
+        $appointmentSettings['max_appointments_per_day'] = (int)($storedSettings['max_appointments_per_day'] ?? 0);
+    }
+    if (array_key_exists('working_hours_start', $storedSettings)) {
+        $appointmentSettings['working_hours_start'] = (string)($storedSettings['working_hours_start'] ?? '');
+    }
+    if (array_key_exists('working_hours_end', $storedSettings)) {
+        $appointmentSettings['working_hours_end'] = (string)($storedSettings['working_hours_end'] ?? '');
+    }
+    if (array_key_exists('notification_channel', $storedSettings)) {
+        $appointmentSettings['notification_channel'] = (string)($storedSettings['notification_channel'] ?? '');
+    }
+    if (array_key_exists('email_notifications', $storedSettings)) {
+        $appointmentSettings['email_notifications'] = (string)($storedSettings['email_notifications'] ?? '0');
+    }
+    if (array_key_exists('reminder_hours_before', $storedSettings)) {
+        $appointmentSettings['reminder_hours_before'] = (int)($storedSettings['reminder_hours_before'] ?? 0);
+    }
+
+    $defaults = guidanceSettingsDefaults();
+    $globalWeekdayHours = null;
+    foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $weekday) {
+        if (is_array($workingHours[$weekday] ?? null)) {
+            $globalWeekdayHours = $workingHours[$weekday];
+            break;
+        }
+    }
+
+    if (!isset($settings['appointment_slot_minutes']) && isset($appointmentSettings['default_duration_minutes'])) {
+        $settings['appointment_slot_minutes'] = (string)((int)$appointmentSettings['default_duration_minutes']);
+    }
+    if (!isset($settings['max_appointments_per_day']) && isset($appointmentSettings['max_appointments_per_day'])) {
+        $settings['max_appointments_per_day'] = (string)((int)$appointmentSettings['max_appointments_per_day']);
+    }
+    if (!isset($settings['working_hours_start']) && is_array($globalWeekdayHours) && isset($globalWeekdayHours['start'])) {
+        $settings['working_hours_start'] = (string)$globalWeekdayHours['start'];
+    } elseif (!isset($settings['working_hours_start']) && isset($appointmentSettings['working_hours_start'])) {
+        $settings['working_hours_start'] = (string)$appointmentSettings['working_hours_start'];
+    }
+    if (!isset($settings['working_hours_end']) && is_array($globalWeekdayHours) && isset($globalWeekdayHours['end'])) {
+        $settings['working_hours_end'] = (string)$globalWeekdayHours['end'];
+    } elseif (!isset($settings['working_hours_end']) && isset($appointmentSettings['working_hours_end'])) {
+        $settings['working_hours_end'] = (string)$appointmentSettings['working_hours_end'];
+    }
+    if (!isset($settings['notification_channel']) && isset($appointmentSettings['notification_channel'])) {
+        $settings['notification_channel'] = (string)$appointmentSettings['notification_channel'];
+    } elseif (!isset($settings['notification_channel']) && array_key_exists('sms_enabled', $legacyNotificationSettings)) {
+        $settings['notification_channel'] = !empty($legacyNotificationSettings['sms_enabled']) ? 'email_and_sms' : 'email_only';
+    }
+    if ((!isset($settings['email_notifications']) || (string)($settings['email_notifications'] ?? '') === (string)($defaults['email_notifications'] ?? '')) && isset($appointmentSettings['email_notifications'])) {
+        $settings['email_notifications'] = (string)$appointmentSettings['email_notifications'];
+    } elseif ((!isset($settings['email_notifications']) || (string)($settings['email_notifications'] ?? '') === (string)($defaults['email_notifications'] ?? '')) && array_key_exists('email_enabled', $legacyNotificationSettings)) {
+        $settings['email_notifications'] = !empty($legacyNotificationSettings['email_enabled']) ? '1' : '0';
+    }
+    if ((!isset($settings['reminder_hours_before']) || (string)($settings['reminder_hours_before'] ?? '') === (string)($defaults['reminder_hours_before'] ?? '')) && isset($appointmentSettings['reminder_hours_before'])) {
+        $settings['reminder_hours_before'] = (string)((int)$appointmentSettings['reminder_hours_before']);
+    } elseif ((!isset($settings['reminder_hours_before']) || (string)($settings['reminder_hours_before'] ?? '') === (string)($defaults['reminder_hours_before'] ?? '')) && array_key_exists('appointment_reminder_hours', $legacyNotificationSettings)) {
+        $settings['reminder_hours_before'] = (string)((int)($legacyNotificationSettings['appointment_reminder_hours'] ?? 24));
+    }
+
+    $settings['appointment_slot_minutes'] = (string)($settings['appointment_slot_minutes'] ?? '30');
+    $settings['max_appointments_per_day'] = (string)($settings['max_appointments_per_day'] ?? '0');
+    $settings['working_hours_start'] = (string)($settings['working_hours_start'] ?? '08:00');
+    $settings['working_hours_end'] = (string)($settings['working_hours_end'] ?? '17:00');
+    $settings['notification_channel'] = (string)($settings['notification_channel'] ?? 'email_only');
+    $settings['email_notifications'] = (string)($settings['email_notifications'] ?? '1');
+    $settings['retention_active_years'] = (string)($settings['retention_active_years'] ?? '7');
+    $settings['retention_closed_years'] = (string)($settings['retention_closed_years'] ?? '5');
+    $settings['reminder_hours_before'] = (string)($settings['reminder_hours_before'] ?? '24');
+    $settings['app_country'] = (string)($settings['app_country'] ?? 'PH');
+    $settings['app_region'] = (string)($settings['app_region'] ?? 'Manila');
+    $settings['app_timezone'] = (string)($settings['app_timezone'] ?? 'Asia/Manila');
+    $settings['ai_provider'] = (string)($settings['ai_provider'] ?? '');
+    $settings['ai_api_key'] = (string)($settings['ai_api_key'] ?? '');
+    $settings['ai_model'] = (string)($settings['ai_model'] ?? '');
+    $settings['license_public_key_pem'] = (string)($settings['license_public_key_pem'] ?? '');
+
+    return $settings;
+}
+
+function guidanceSettingsPersistableInput(array $input): array
+{
+    $persistable = $input;
+    $persistable['appointment_settings'] = guidanceResolvedAppointmentSettings($input);
+    $persistable['notification_settings'] = array_merge(
+        guidanceGetSettingJson('notification_settings', []),
+        [
+            'email_enabled' => !empty($input['email_notifications']),
+            'sms_enabled' => trim((string)($input['notification_channel'] ?? 'email_only')) === 'email_and_sms',
+            'appointment_reminder_hours' => max(0, (int)($input['reminder_hours_before'] ?? 24)),
+        ]
+    );
+
+    $workingHoursStart = trim((string)($input['working_hours_start'] ?? ''));
+    $workingHoursEnd = trim((string)($input['working_hours_end'] ?? ''));
+    if ($workingHoursStart !== '' && $workingHoursEnd !== '') {
+        $weekdayHours = ['start' => $workingHoursStart, 'end' => $workingHoursEnd];
+        $persistable['working_hours'] = [
+            'monday' => $weekdayHours,
+            'tuesday' => $weekdayHours,
+            'wednesday' => $weekdayHours,
+            'thursday' => $weekdayHours,
+            'friday' => $weekdayHours,
+            'saturday' => null,
+            'sunday' => null,
+        ];
+    }
+
+    return $persistable;
+}
+
 function guidanceGetAllSettings(): array
 {
     $db = guidanceDb();
@@ -9798,6 +10165,8 @@ function guidanceGetAllSettings(): array
         $settings = [];
     }
 
+    $storedSettings = $settings;
+
     $defaults = guidanceSettingsDefaults();
     foreach ($defaults as $k => $v) {
         if (!array_key_exists($k, $settings)) {
@@ -9805,7 +10174,7 @@ function guidanceGetAllSettings(): array
         }
     }
 
-    return $settings;
+    return guidanceHydratePageSettings($settings, $storedSettings);
 }
 
 function apiGuidanceGetSettings(): void
@@ -9818,6 +10187,7 @@ function apiGuidanceGetSettings(): void
 function apiGuidanceUpdateSettings(): void
 {
     $user = guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $input = guidanceInput();
     if (!is_array($input) || empty($input)) {
         if (guidanceIsHtmx()) {
@@ -9833,6 +10203,7 @@ function apiGuidanceUpdateSettings(): void
 
     $db = guidanceDb();
     try {
+        $input = guidanceSettingsPersistableInput($input);
         $stmt = $db->prepare(
             "INSERT INTO gm_settings (setting_key, setting_value, setting_type, updated_by, updated_at)\n"
             . "VALUES (?, ?, ?, ?, NOW())\n"
@@ -9959,6 +10330,7 @@ function apiGuidanceCreateAppointmentType(): void
 {
     guidanceRequireStaff(['admin']);
     guidanceRequirePro();
+    app()->csrfEnforce();
 
     $db = guidanceDb();
     $input = guidanceInput();
@@ -10025,6 +10397,7 @@ function apiGuidanceUpdateAppointmentType(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
     guidanceRequirePro();
+    app()->csrfEnforce();
 
     $db = guidanceDb();
     $input = guidanceInput();
@@ -10112,6 +10485,7 @@ function apiGuidanceDeleteAppointmentType(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
     guidanceRequirePro();
+    app()->csrfEnforce();
 
     $db = guidanceDb();
     $id = (int) ($params['id'] ?? 0);
@@ -10311,6 +10685,28 @@ function getStudentStatusConfig(\Ikabud\Kernel\Contracts\DatabaseContract $db): 
     ];
 }
 
+function guidanceGetStudentStatusOptionsForForm(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?string $currentValue = null): array
+{
+    try {
+        $config = getStudentStatusConfig($db);
+        $statuses = $config['statuses'];
+        $default = $config['default'];
+    } catch (Throwable $e) {
+        $statuses = studentStatusDefaultOptions();
+        $default = $statuses[0] ?? '';
+    }
+
+    $currentValue = normalizeStudentStatusLabel((string)$currentValue);
+    if ($currentValue !== '' && !in_array($currentValue, $statuses, true)) {
+        $statuses[] = $currentValue;
+    }
+
+    return [
+        'statuses' => $statuses,
+        'default' => $default,
+    ];
+}
+
 function studentStatusOptionExists(array $statuses, string $label, ?int $excludeIndex = null): bool
 {
     $normalized = function_exists('mb_strtolower')
@@ -10403,6 +10799,7 @@ function apiGuidanceListStudentStatuses(): void
 function apiGuidanceCreateStudentStatus(): void
 {
     guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $db = guidanceDb();
     $input = guidanceInput();
     if (!is_array($input)) {
@@ -10455,6 +10852,7 @@ function apiGuidanceCreateStudentStatus(): void
 function apiGuidanceUpdateStudentStatus(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $db = guidanceDb();
     $input = guidanceInput();
     $index = (int) ($params['id'] ?? -1);
@@ -10528,6 +10926,7 @@ function apiGuidanceUpdateStudentStatus(array $params = []): void
 function apiGuidanceDeleteStudentStatus(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $db = guidanceDb();
     $index = (int) ($params['id'] ?? -1);
 

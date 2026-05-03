@@ -213,12 +213,9 @@
                             <select name="student_status"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                                 <option value="">Select status...</option>
-                                <option value="Active" {if case.student_status == 'Active'}selected{/if}>Active</option>
-                                <option value="At Risk" {if case.student_status == 'At Risk'}selected{/if}>At Risk</option>
-                                <option value="On Leave" {if case.student_status == 'On Leave'}selected{/if}>On Leave</option>
-                                <option value="Transferred" {if case.student_status == 'Transferred'}selected{/if}>Transferred</option>
-                                <option value="Dropped" {if case.student_status == 'Dropped'}selected{/if}>Dropped</option>
-                                <option value="Graduated" {if case.student_status == 'Graduated'}selected{/if}>Graduated</option>
+                                {foreach student_statuses as student_status}
+                                <option value="{student_status | esc_attr}" {if case.student_status == student_status}selected{/if}>{student_status | esc_html}</option>
+                                {/foreach}
                             </select>
                         </div>
                     </div>
