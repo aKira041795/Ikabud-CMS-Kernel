@@ -1362,6 +1362,7 @@ function handleCashierLedger(array $params = []): void
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Pending incoming deliveries (count of distinct DR groups for this branch)
+    // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
     $incomingCount = 0;
     if ($branchId) {
         $incStmt = $ctx->db()->prepare(
@@ -1373,6 +1374,22 @@ function handleCashierLedger(array $params = []): void
         );
         $incStmt->execute([':bid' => $branchId]);
         $incomingCount = (int)$incStmt->fetchColumn();
+
+        if (dl_isFormalDeliveryEnabled()) {
+            $formalIncStmt = $ctx->db()->prepare(
+                "SELECT COUNT(*)
+                 FROM dl_deliveries d
+                 WHERE d.destination_type = 'branch'
+                   AND d.destination_id = :bid
+                   AND d.status = 'posted'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM dl_branch_receivings br
+                       WHERE br.delivery_id = d.id AND br.status <> 'voided'
+                   )"
+            );
+            $formalIncStmt->execute([':bid' => $branchId]);
+            $incomingCount += (int)$formalIncStmt->fetchColumn();
+        }
     }
 
     $clockLabel = dl_operatingClockLabel();
