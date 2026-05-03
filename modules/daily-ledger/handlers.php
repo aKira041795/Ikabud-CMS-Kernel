@@ -3656,11 +3656,26 @@ function handleAdminActivity(array $params = []): void
         'batch_input_qty' => 'Batch Kilo Qty',
         'batch_egg_qty' => 'Batch Egg Qty',
     ];
-    $skipKeys = ['movement_uuid', 'reference_movement_id', 'client_op_id', 'source_payload'];
+    $skipKeys = ['movement_uuid', 'reference_movement_id', 'client_op_id', 'source_payload', 'role_permissions'];
     $priorityKeys = ['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id', 'dr_number', 'ledger_date', 'quantity', 'yield_qty', 'kilo_qty', 'egg_qty', 'flow_mode', 'status', 'role', 'reason', 'resulting_addtl'];
 
     $formatFieldLabel = static function (string $key) use ($fieldLabels): string {
         return $fieldLabels[$key] ?? ucwords(str_replace('_', ' ', $key));
+    };
+
+    $formatRolePermissions = static function ($value): string {
+        if (!is_array($value) || $value === []) {
+            return 'None';
+        }
+        $parts = [];
+        foreach ($value as $roleName => $caps) {
+            $label = ucwords(str_replace('_', ' ', (string)$roleName));
+            $capList = is_array($caps) && count($caps) > 0
+                ? implode(', ', array_map(static fn($c) => str_replace('.', ': ', (string)$c), $caps))
+                : 'no permissions';
+            $parts[] = $label . ' — ' . $capList;
+        }
+        return implode('; ', $parts);
     };
 
     $formatValue = static function (string $key, $value) use ($productLookup, $materialLookup, $branchLookup): string {
@@ -3747,9 +3762,21 @@ function handleAdminActivity(array $params = []): void
         return '';
     };
 
-    $buildDetailItems = static function (array $payload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue): array {
+    $buildDetailItems = static function (array $payload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue, $formatRolePermissions): array {
         $items = [];
         $seen = [];
+
+        // Expand role_permissions into per-role detail rows before the generic loop
+        if (isset($payload['role_permissions']) && is_array($payload['role_permissions'])) {
+            foreach ($payload['role_permissions'] as $roleName => $caps) {
+                $label = ucwords(str_replace('_', ' ', (string)$roleName));
+                $capList = is_array($caps) && count($caps) > 0
+                    ? implode(', ', array_map(static fn($c) => str_replace('.', ': ', (string)$c), $caps))
+                    : 'no permissions';
+                $items[] = ['label' => $label, 'value' => $capList];
+            }
+            $seen['role_permissions'] = true;
+        }
 
         foreach ($priorityKeys as $key) {
             if (!array_key_exists($key, $payload) || in_array($key, $skipKeys, true)) {
@@ -3777,7 +3804,7 @@ function handleAdminActivity(array $params = []): void
         return array_slice($items, 0, 8);
     };
 
-    $buildChangeItems = static function (array $oldPayload, array $newPayload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue): array {
+    $buildChangeItems = static function (array $oldPayload, array $newPayload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue, $formatRolePermissions): array {
         if ($oldPayload === []) {
             return [];
         }
@@ -3797,6 +3824,18 @@ function handleAdminActivity(array $params = []): void
         $items = [];
         foreach ($keys as $key) {
             if (in_array($key, $skipKeys, true)) {
+                // role_permissions skipped from generic loop — handle separately so from/to is readable
+                if ($key === 'role_permissions') {
+                    $oldEncoded = json_encode($oldPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    $newEncoded = json_encode($newPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    if ($oldEncoded !== $newEncoded) {
+                        $items[] = [
+                            'label' => 'Role Permissions',
+                            'from' => array_key_exists($key, $oldPayload) ? $formatRolePermissions($oldPayload[$key]) : 'None',
+                            'to'   => array_key_exists($key, $newPayload) ? $formatRolePermissions($newPayload[$key]) : 'None',
+                        ];
+                    }
+                }
                 continue;
             }
             $oldEncoded = json_encode($oldPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
