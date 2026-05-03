@@ -66,6 +66,7 @@
                 </thead>
                 <tbody>
                     <template x-for="d in rows" :key="d.id">
+                        <template>
                         <tr>
                             <td>
                                 <div class="font-mono text-sm">#<span x-text="d.id"></span></div>
@@ -87,6 +88,9 @@
                                           'bg-emerald-50 text-emerald-700 ring-emerald-200': d.status === 'posted' || d.status === 'received',
                                           'bg-rose-50 text-rose-700 ring-rose-200': d.status === 'voided'
                                       }" x-text="d.status"></span>
+                                <template x-if="receivingHasVariance(d.id)">
+                                    <span class="ml-1 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200" title="Receiving variance detected">⚠</span>
+                                </template>
                             </td>
                             <td class="text-xs text-gray-500" x-text="d.created_at"></td>
                             <td class="text-right">
@@ -96,8 +100,57 @@
                                         <button class="btn btn-sm btn-outline" @click="voidDelivery(d.id)">Void</button>
                                     </span>
                                 </template>
+                                <template x-if="d.status === 'received'">
+                                    <button class="btn btn-sm btn-outline" @click="toggleReceiving(d.id)"
+                                            x-text="expandedId === d.id ? 'Hide' : 'Receiving'"></button>
+                                </template>
                             </td>
                         </tr>
+                        <tr x-show="expandedId === d.id" class="bg-gray-50">
+                            <td colspan="7" class="p-0">
+                                <div class="px-4 py-3">
+                                    <template x-if="receivingCache[d.id] && receivingCache[d.id].loading">
+                                        <p class="text-xs text-gray-500 py-2">Loading receiving detail…</p>
+                                    </template>
+                                    <template x-if="receivingCache[d.id] && !receivingCache[d.id].loading && !receivingCache[d.id].receiving">
+                                        <p class="text-xs text-gray-500 py-2">No receiving record found for this delivery.</p>
+                                    </template>
+                                    <template x-if="receivingCache[d.id] && !receivingCache[d.id].loading && receivingCache[d.id].receiving">
+                                        <div>
+                                            <div class="flex items-center gap-3 mb-2">
+                                                <span class="text-xs font-semibold text-gray-700">Receiving Detail</span>
+                                                <span class="text-xs text-gray-500">Date: <span x-text="receivingCache[d.id].receiving.received_ledger_date"></span></span>
+                                                <span class="text-xs text-gray-500" x-show="receivingCache[d.id].receiving.received_by_name">By: <span x-text="receivingCache[d.id].receiving.received_by_name"></span></span>
+                                            </div>
+                                            <table class="w-full text-sm">
+                                                <thead class="text-xs text-gray-500 uppercase border-b border-gray-200">
+                                                    <tr>
+                                                        <th class="text-left py-1">Product</th>
+                                                        <th class="text-right py-1 pr-3">Sent</th>
+                                                        <th class="text-right py-1 pr-3">Received</th>
+                                                        <th class="text-right py-1">Variance</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="it in receivingCache[d.id].items" :key="it.product_name">
+                                                        <tr class="border-t border-gray-100"
+                                                            :class="{ 'bg-rose-50': it.variance !== 0 }">
+                                                            <td class="py-1" x-text="it.product_name"></td>
+                                                            <td class="py-1 text-right pr-3 text-gray-500" x-text="it.sent_qty"></td>
+                                                            <td class="py-1 text-right pr-3" x-text="it.received_qty"></td>
+                                                            <td class="py-1 text-right font-semibold"
+                                                                :class="{ 'text-rose-600': it.variance !== 0, 'text-gray-400': it.variance === 0 }"
+                                                                x-text="it.variance > 0 ? '+' + it.variance : it.variance"></td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </template>
+                                </div>
+                            </td>
+                        </tr>
+                        </template>
                     </template>
                     <tr x-show="rows.length === 0">
                         <td colspan="7" class="text-center text-sm text-gray-500 py-8">No deliveries match these filters.</td>
@@ -226,6 +279,8 @@ function deliveriesPage() {
         filter: { status: '', destination_type: '' },
         createOpen: false,
         saving: false,
+        expandedId: null,
+        receivingCache: {},
         form: {
             origin_type: 'commissary',
             origin_id: '',
@@ -300,6 +355,30 @@ function deliveriesPage() {
             })
             .then(r => r.json())
             .then(j => { if (j && j.ok) this.reload(); else alert((j && j.error) || 'Failed'); });
+        },
+        toggleReceiving(id) {
+            if (this.expandedId === id) { this.expandedId = null; return; }
+            this.expandedId = id;
+            if (!this.receivingCache[id]) {
+                this.receivingCache[id] = { loading: true, receiving: null, items: [] };
+                fetch('{base_url}/api/v1/deliveries/receiving-detail?delivery_id=' + id)
+                    .then(r => r.json())
+                    .then(j => {
+                        this.receivingCache[id] = {
+                            loading: false,
+                            receiving: (j && j.ok) ? (j.receiving || null) : null,
+                            items: (j && j.ok) ? (j.items || []) : []
+                        };
+                    })
+                    .catch(() => {
+                        this.receivingCache[id] = { loading: false, receiving: null, items: [] };
+                    });
+            }
+        },
+        receivingHasVariance(id) {
+            var cache = this.receivingCache[id];
+            if (!cache || !cache.items) return false;
+            return cache.items.some(function(it) { return it.variance !== 0; });
         }
     };
 }

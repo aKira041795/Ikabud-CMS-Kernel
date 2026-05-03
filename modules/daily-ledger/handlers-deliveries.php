@@ -762,6 +762,56 @@ function apiListDeliveries(array $params = []): void
     $ctx->json(['ok' => true, 'deliveries' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
 }
 
+function apiGetDeliveryReceivingDetail(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    dlCurrentUser(['admin', 'supervisor']);
+    $deliveryId = (int)($_GET['delivery_id'] ?? 0);
+    if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
+
+    // Get the latest non-voided receiving for this delivery
+    $rcvStmt = $ctx->db()->prepare(
+        'SELECT br.id, br.status, br.received_ledger_date, br.posted_at,
+                du.username AS received_by_name
+         FROM dl_branch_receivings br
+         LEFT JOIN dl_users du ON du.id = br.posted_by
+         WHERE br.delivery_id = :did AND br.status <> \'voided\'
+         ORDER BY br.id DESC LIMIT 1'
+    );
+    $rcvStmt->execute([':did' => $deliveryId]);
+    $rcv = $rcvStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$rcv) {
+        $ctx->json(['ok' => true, 'receiving' => null, 'items' => []]);
+        return;
+    }
+
+    $itemStmt = $ctx->db()->prepare(
+        'SELECT p.name AS product_name,
+                di.quantity AS sent_qty,
+                COALESCE(ri.quantity_received, di.quantity) AS received_qty,
+                COALESCE(ri.quantity_received, di.quantity) - di.quantity AS variance
+         FROM dl_delivery_items di
+         INNER JOIN dl_products p ON p.id = di.product_id
+         LEFT JOIN dl_branch_receiving_items ri
+             ON ri.delivery_item_id = di.id AND ri.receiving_id = :rcv
+         WHERE di.delivery_id = :did
+         ORDER BY p.name'
+    );
+    $itemStmt->execute([':did' => $deliveryId, ':rcv' => (int)$rcv['id']]);
+    $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($items as &$item) {
+        $item['sent_qty']     = (int)$item['sent_qty'];
+        $item['received_qty'] = (int)$item['received_qty'];
+        $item['variance']     = (int)$item['variance'];
+    }
+    unset($item);
+
+    $ctx->json(['ok' => true, 'receiving' => $rcv, 'items' => $items]);
+}
+
 function apiCreateReceiving(array $params = []): void
 {
     $ctx = module();

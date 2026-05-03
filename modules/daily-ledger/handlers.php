@@ -1873,6 +1873,9 @@ function apiReceiveDelivery(array $params = []): void
         }
     }
 
+    // Optional per-item received qty for informal transfers: { withdrawal_id => received_qty }
+    $informalPartialQtys = (array)($input['informal_partial_qtys'] ?? []);
+
     // Make sure all ids are deliveries targeting this branch and not yet received.
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $check = $ctx->db()->prepare(
@@ -1887,24 +1890,38 @@ function apiReceiveDelivery(array $params = []): void
         return;
     }
 
+    // Resolve received qty per row (partial or full)
+    $rowReceivedQtys = [];
+    foreach ($rows as $r) {
+        $rid = (int)$r['id'];
+        $sentQty = (int)$r['quantity'];
+        $rQty = isset($informalPartialQtys[(string)$rid])
+            ? max(0, min((int)$informalPartialQtys[(string)$rid], $sentQty))
+            : $sentQty;
+        $rowReceivedQtys[$rid] = $rQty;
+    }
+
     $ctx->db()->beginTransaction();
     try {
-        // Sum incoming pcs per product
+        // Sum received pcs per product (using actual received qty, not sent qty)
         $perProduct = [];
         foreach ($rows as $r) {
             $pid = (int)$r['product_id'];
-            $perProduct[$pid] = ($perProduct[$pid] ?? 0) + (int)$r['quantity'];
+            $perProduct[$pid] = ($perProduct[$pid] ?? 0) + $rowReceivedQtys[(int)$r['id']];
         }
 
-        // Mark received
-        $foundIds = array_column($rows, 'id');
-        $markPh = implode(',', array_fill(0, count($foundIds), '?'));
-        $mark = $ctx->db()->prepare(
+        // Mark each row received, storing the actual received_qty
+        $markIndiv = $ctx->db()->prepare(
             "UPDATE dl_cashier_withdrawals
-             SET received_at = NOW(), received_by = ?, received_ledger_date = ?
-             WHERE id IN ($markPh)"
+             SET received_at = NOW(), received_by = ?, received_ledger_date = ?, received_qty = ?
+             WHERE id = ?"
         );
-        $mark->execute(array_merge([$userId, $receiveDate], $foundIds));
+        $foundIds = [];
+        foreach ($rows as $r) {
+            $rid = (int)$r['id'];
+            $markIndiv->execute([$userId, $receiveDate, $rowReceivedQtys[$rid], $rid]);
+            $foundIds[] = $rid;
+        }
 
         // Apply to dl_daily_ledger.addtl for receive date
         $stmtCheck = $ctx->db()->prepare(

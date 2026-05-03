@@ -47,8 +47,9 @@ return [
         '/daily-ledger/api/v1/admin/branch-supply-rules' => 'daily-ledger:apiBranchProductSupplyRuleList',
 
         // Phase B: deliveries + receivings
-        '/daily-ledger/api/v1/deliveries'           => 'daily-ledger:apiListDeliveries',
-        '/daily-ledger/api/v1/receivings'           => 'daily-ledger:apiListReceivings',
+        '/daily-ledger/api/v1/deliveries'                    => 'daily-ledger:apiListDeliveries',
+        '/daily-ledger/api/v1/deliveries/receiving-detail'   => 'daily-ledger:apiGetDeliveryReceivingDetail',
+        '/daily-ledger/api/v1/receivings'                    => 'daily-ledger:apiListReceivings',
 
         // Phase D: price groups + prices
         '/daily-ledger/api/v1/price-groups'         => 'daily-ledger:apiPriceGroupList',

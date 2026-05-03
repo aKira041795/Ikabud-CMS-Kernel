@@ -88,17 +88,12 @@
                                                 <td class="py-1 text-gray-800" x-text="it.product_name"></td>
                                                 <td class="py-1 text-right pr-2 text-gray-500" x-text="it.quantity"></td>
                                                 <td class="py-1 text-right">
-                                                    <template x-if="g.delivery_ids && g.delivery_ids.length">
-                                                        <input type="number"
-                                                               class="w-20 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                               :min="0"
-                                                               :max="it.quantity"
-                                                               :value="receivedQty(g, it)"
-                                                               @input="setReceivedQty(g, it, $event.target.value)">
-                                                    </template>
-                                                    <template x-if="!(g.delivery_ids && g.delivery_ids.length)">
-                                                        <span class="font-medium" x-text="it.quantity"></span>
-                                                    </template>
+                                                    <input type="number"
+                                                           class="w-20 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                           :min="0"
+                                                           :max="it.quantity"
+                                                           :value="receivedQty(g, it)"
+                                                           @input="setReceivedQty(g, it, $event.target.value)">
                                                 </td>
                                             </tr>
                                         </template>
@@ -216,6 +211,14 @@ function receiveModal() {
                     });
                     payload.partial_qtys = byDelivery;
                 }
+            } else {
+                // Informal transfer: pass per-item received qty keyed by withdrawal record id
+                var self = this;
+                var informalMap = {};
+                g.items.forEach(function(it) {
+                    informalMap[it.id] = self.receivedQty(g, it);
+                });
+                payload.informal_partial_qtys = informalMap;
             }
             var bid = this.currentBranchId();
             if (bid) payload.branch_id = bid;
