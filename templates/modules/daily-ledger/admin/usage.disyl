@@ -31,13 +31,18 @@
                     <input type="text" id="commissary-baker" class="form-input" placeholder="Baker Initials or Name" value="{global_baker_name}" onblur="updateAllRunsMetadata()">
                 </div>
                 <div>
-                    <label class="form-label text-xs">Delivery Receipt #</label>
-                    <input type="text" id="commissary-dr-number" class="form-input font-semibold" placeholder="Optional DR number" value="{global_dr_number}" onblur="updateAllRunsMetadata()">
+                    {if formal_delivery_enabled}
+                    <label class="form-label text-xs">Delivery Receipt # <span class="text-rose-500">*</span><span class="ml-1 text-gray-400 font-normal">(required when dispatching to branch)</span></label>
+                    <input type="text" id="commissary-dr-number" class="form-input font-semibold" placeholder="e.g. DR-2026-001" value="{global_dr_number}" onblur="updateAllRunsMetadata()">
+                    {else}
+                    <label class="form-label text-xs">Delivery Receipt # <span class="ml-1 text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" id="commissary-dr-number" class="form-input font-semibold" placeholder="Optional" value="{global_dr_number}" onblur="updateAllRunsMetadata()">
+                    {/if}
                 </div>
                 <div>
-                    <label class="form-label text-xs">Destination Branch</label>
+                    <label class="form-label text-xs">Output Destination <span class="ml-1 text-gray-400 font-normal">(saving a row dispatches yield to this branch)</span></label>
                     <select id="commissary-branch" class="form-input font-bold text-indigo-700" onchange="onCommissaryBranchChange(parseInt(this.value, 10) || 0);">
-                        <option value="0">-- Keep in Commissary (No Ledger Updates) --</option>
+                        <option value="0">— Hold in Commissary (no branch ledger update) —</option>
                         {foreach branches as b}
                             <option value="{b.id}" {if b.id == global_branch_id}selected{/if}>{b.name}</option>
                         {/foreach}
@@ -54,12 +59,13 @@
 
         <div class="overflow-y-auto" style="max-height: 550px;">
             <table class="w-full text-sm">
-                <thead class="sticky top-0 bg-white">
+                <thead class="sticky top-0 bg-white z-10">
                     <tr class="border-b text-xs text-gray-500 text-left">
                         <th class="px-4 py-2">Description</th>
                         <th class="px-4 py-2 w-24 text-center">Yield</th>
                         <th class="px-4 py-2 w-24 text-center">Kilo</th>
                         <th class="px-4 py-2 w-24 text-center">Egg</th>
+                        <th class="px-3 py-2 w-24"></th>
                     </tr>
                 </thead>
                 <tbody id="tbody-bread" class="divide-y divide-gray-100 align-middle">
@@ -78,6 +84,7 @@
                         <td class="px-2 py-1">
                             <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-egg-bread-{pr.product_id}" data-field-role="egg" value="{pr.egg_qty}" oninput="onFieldChange({pr.product_id}, 'egg')" onchange="onFieldChange({pr.product_id}, 'egg'); saveRunRow({pr.product_id})">
                         </td>
+                        <td class="px-2 py-1 text-xs" data-field-role="run-status"></td>
                     </tr>
                     {/foreach}
                 </tbody>
@@ -98,6 +105,7 @@
                         <td class="px-2 py-1">
                             <input type="number" step="0.001" class="form-input px-1 py-1 text-center font-mono text-xs w-full" id="run-egg-cake-{pr.product_id}" data-field-role="egg" value="{pr.egg_qty}" oninput="onFieldChange({pr.product_id}, 'egg')" onchange="onFieldChange({pr.product_id}, 'egg'); saveRunRow({pr.product_id})">
                         </td>
+                        <td class="px-2 py-1 text-xs" data-field-role="run-status"></td>
                     </tr>
                     {/foreach}
                 </tbody>
@@ -112,39 +120,43 @@
         </div>
         <div class="overflow-y-auto" style="max-height: 600px;">
             <table class="w-full text-sm">
-                <thead class="sticky top-0 bg-white">
+                <thead class="sticky top-0 bg-white z-10">
                     <tr class="border-b text-xs text-gray-500 text-left">
                         <th class="px-4 py-2">Material</th>
                         <th class="px-4 py-2 text-center" title="Beginning Balance">Beg</th>
-                        <th class="px-4 py-2 text-center" title="Delivery Qty">Del</th>
-                        <th class="px-4 py-2 text-center" title="Used Qty">Used</th>
-                        <th class="px-4 py-2 text-center bg-gray-50 font-medium border-l border-r" title="Actual Manual Count">Actual</th>
-                        <th class="px-4 py-2 text-right">Var</th>
+                        <th class="px-4 py-2 text-center" title="Delivery received at commissary">Del</th>
+                        <th class="px-4 py-2 text-center" title="Amount consumed in production">Used</th>
+                        <th class="px-4 py-2 text-center bg-amber-50 font-semibold text-amber-800 border-l border-r" title="Physical count at end of day">Actual</th>
+                        <th class="px-4 py-2 text-right" title="Actual − (Beg + Del − Used)">Var</th>
+                        <th class="px-2 py-2 w-6"></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 align-middle">
                     {foreach materials as m}
-                    {set var_color = 'text-gray-500'}
+                    {set var_color = 'text-gray-400'}
                     {if m.calc_variance < 0}{set var_color = 'text-rose-600 font-bold'}{/if}
                     {if m.calc_variance > 0}{set var_color = 'text-emerald-600 font-bold'}{/if}
-                    <tr class="hover:bg-blue-50/50">
+                    <tr class="hover:bg-blue-50/50" id="rm-row-{m.material_id}" data-material-id="{m.material_id}">
                         <td class="px-4 py-2 font-medium">
                             {m.name} <span class="text-xs text-gray-400 font-mono ml-1">{m.unit}</span>
                         </td>
                         <td class="px-2 py-1 w-16">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.beg_bal}" onblur="saveRm({m.material_id}, 'beg_bal', this.value)">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.beg_bal}" onblur="saveRm({m.material_id}, 'beg_bal', this.value, this)">
                         </td>
                         <td class="px-2 py-1 w-16">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.delivery_qty}" onblur="saveRm({m.material_id}, 'delivery_qty', this.value)">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.delivery_qty}" onblur="saveRm({m.material_id}, 'delivery_qty', this.value, this)">
                         </td>
                         <td class="px-2 py-1 w-16">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.used_qty}" onblur="saveRm({m.material_id}, 'used_qty', this.value)">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs w-full" value="{m.used_qty}" onblur="saveRm({m.material_id}, 'used_qty', this.value, this)">
                         </td>
-                        <td class="px-2 py-1 w-16 bg-gray-50 border-l border-r border-gray-200">
-                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" value="{m.actual_end_bal}" onblur="saveRm({m.material_id}, 'actual_end_bal', this.value)">
+                        <td class="px-2 py-1 w-16 bg-amber-50 border-l border-r border-amber-200">
+                            <input type="number" step="0.01" class="form-input px-1 py-1 text-center font-mono text-xs font-bold text-indigo-700 w-full" value="{m.actual_end_bal}" onblur="saveRm({m.material_id}, 'actual_end_bal', this.value, this)">
                         </td>
-                        <td class="px-4 py-2 text-right font-mono text-xs {var_color}">
+                        <td class="px-4 py-2 text-right font-mono text-xs {var_color}" id="rm-var-{m.material_id}">
                             {m.calc_variance}
+                        </td>
+                        <td class="px-1 py-1 w-6 text-center">
+                            <span id="rm-status-{m.material_id}" class="text-xs" aria-live="polite"></span>
                         </td>
                     </tr>
                     {/foreach}
@@ -181,8 +193,12 @@
         });
     }
 
-    function saveRm(mid, field, val) {
+    function saveRm(mid, field, val, triggerEl) {
         if (!val) val = 0;
+        var statusEl = document.getElementById('rm-status-' + mid);
+        var varEl    = document.getElementById('rm-var-' + mid);
+        var row      = document.getElementById('rm-row-' + mid);
+        if (statusEl) { statusEl.textContent = '…'; statusEl.className = 'text-xs text-gray-400'; }
         fetch('{base_url}/api/v1/commissary/material', {
             method: 'POST',
             headers: {
@@ -199,17 +215,65 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (!res.ok) alert('Failed: ' + res.error);
-            else window.location.reload();
+            if (!res.ok) {
+                if (statusEl) { statusEl.textContent = '✗'; statusEl.className = 'text-xs text-rose-500 font-bold'; }
+                if (row) { row.classList.add('bg-rose-50'); setTimeout(function() { row.classList.remove('bg-rose-50'); }, 2000); }
+                alert('Save failed: ' + (res.error || 'unknown error'));
+                return;
+            }
+            // Update variance cell inline — no page reload
+            if (res.row && varEl) {
+                var v = parseFloat(res.row.calc_variance) || 0;
+                varEl.textContent = v === 0 ? '0' : (v > 0 ? '+' + v : String(v));
+                varEl.className = 'px-4 py-2 text-right font-mono text-xs ' +
+                    (v < 0 ? 'text-rose-600 font-bold' : v > 0 ? 'text-emerald-600 font-bold' : 'text-gray-400');
+                // Sync sibling input values from the returned row so displayed values stay consistent
+                if (row) {
+                    var inputs = row.querySelectorAll('input[type="number"]');
+                    var fieldOrder = ['beg_bal', 'delivery_qty', 'used_qty', 'actual_end_bal'];
+                    inputs.forEach(function(inp, i) {
+                        var fkey = fieldOrder[i];
+                        if (fkey && res.row[fkey] !== undefined && inp !== triggerEl) {
+                            inp.value = parseFloat(res.row[fkey]);
+                        }
+                    });
+                }
+            }
+            if (statusEl) {
+                statusEl.textContent = '✓';
+                statusEl.className = 'text-xs text-emerald-500 font-bold';
+                setTimeout(function() { if (statusEl) statusEl.textContent = ''; }, 2000);
+            }
         })
-        .catch(function() { alert('Network error'); });
+        .catch(function() {
+            if (statusEl) { statusEl.textContent = '✗'; statusEl.className = 'text-xs text-rose-500 font-bold'; }
+            alert('Network error saving material');
+        });
     }
 
     function saveRunRow(pid) {
         var row = getRunRow(pid);
         if (!row) return;
-        row.classList.add('bg-yellow-50');
-        row.classList.remove('bg-blue-50/50');
+        var statusEl = getRunField(row, 'run-status');
+
+        var destBranchId = parseInt(document.getElementById('commissary-branch').value) || 0;
+        var drNumber = ((document.getElementById('commissary-dr-number') || {}).value || '').trim();
+        var formalDeliveryEnabled = {if formal_delivery_enabled}true{else}false{/if};
+
+        // Warn if DR# is missing and branch is selected and formal delivery is on
+        if (formalDeliveryEnabled && destBranchId > 0 && drNumber === '') {
+            var drInput = document.getElementById('commissary-dr-number');
+            if (drInput) {
+                drInput.classList.add('border-rose-500', 'ring-1', 'ring-rose-400');
+                drInput.focus();
+                drInput.setAttribute('placeholder', 'DR # required — enter before saving');
+            }
+            if (statusEl) { statusEl.textContent = '⚠ DR# required'; statusEl.className = 'text-xs text-rose-500 font-bold'; }
+            return;
+        }
+
+        row.classList.add('opacity-60');
+        if (statusEl) { statusEl.textContent = '…'; statusEl.className = 'text-xs text-gray-400'; }
 
         var kiloEl = getRunField(row, 'kilo');
         var eggEl  = getRunField(row, 'egg');
@@ -225,8 +289,8 @@
                 date: '{date}',
                 product_id: parseInt(pid),
                 baker_name: document.getElementById('commissary-baker').value,
-                dr_number: ((document.getElementById('commissary-dr-number') || {}).value || '').trim(),
-                destination_branch_id: parseInt(document.getElementById('commissary-branch').value) || 0,
+                dr_number: drNumber,
+                destination_branch_id: destBranchId,
                 kilo_qty: kiloEl ? parseFloat(kiloEl.value) || 0 : 0,
                 egg_qty:  eggEl ? parseFloat(eggEl.value) || 0 : 0,
                 yield_qty: yieldEl ? (parseInt(yieldEl.value, 10) || 0) : 0
@@ -234,18 +298,31 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            row.classList.remove('bg-yellow-50');
+            row.classList.remove('opacity-60');
             if (res.ok) {
                 row.classList.add('bg-emerald-50');
                 setTimeout(function() { row.classList.remove('bg-emerald-50'); }, 1500);
+                if (statusEl) {
+                    statusEl.textContent = '✓ saved';
+                    statusEl.className = 'text-xs text-emerald-600';
+                    setTimeout(function() { if (statusEl) statusEl.textContent = ''; }, 2500);
+                }
+                // Clear DR# warning style on success
+                var drInput = document.getElementById('commissary-dr-number');
+                if (drInput) drInput.classList.remove('border-rose-500', 'ring-1', 'ring-rose-400');
             } else {
                 row.classList.add('bg-rose-50');
-                alert('Failed: ' + res.error);
+                setTimeout(function() { row.classList.remove('bg-rose-50'); }, 3000);
+                if (statusEl) {
+                    statusEl.textContent = '✗ ' + (res.error || 'failed');
+                    statusEl.className = 'text-xs text-rose-500 font-bold';
+                }
             }
         })
         .catch(function() {
-            row.classList.remove('bg-yellow-50');
+            row.classList.remove('opacity-60');
             row.classList.add('bg-rose-50');
+            if (statusEl) { statusEl.textContent = '✗ network error'; statusEl.className = 'text-xs text-rose-500 font-bold'; }
         });
     }
 

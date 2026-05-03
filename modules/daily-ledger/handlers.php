@@ -6037,6 +6037,16 @@ function apiSaveCommissaryMaterial(): void
             ':actor'=> $actorId > 0 ? $actorId : null,
         ]);
 
+        // Read back the full row so the UI can update variance inline (no page reload needed)
+        $rowStmt = $db->prepare(
+            "SELECT beg_bal, delivery_qty, used_qty, actual_end_bal, calc_variance
+             FROM dl_commissary_ledger
+             WHERE ledger_date = :date AND raw_material_id = :mid
+             LIMIT 1"
+        );
+        $rowStmt->execute([':date' => $date, ':mid' => $materialId]);
+        $updatedRow = $rowStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
         dl_auditLog('save_commissary_material', null, 'dl_commissary_ledger', "{$date}-{$materialId}", null, [
             'date'        => $date,
             'material_id' => $materialId,
@@ -6044,7 +6054,7 @@ function apiSaveCommissaryMaterial(): void
             'value'       => $val,
         ]);
 
-        $ctx->json(['ok' => true]);
+        $ctx->json(['ok' => true, 'row' => $updatedRow]);
     } catch (Throwable $e) {
         write_log("apiSaveCommissaryMaterial error: " . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => 'Save failed'], 500);
