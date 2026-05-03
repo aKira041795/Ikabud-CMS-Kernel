@@ -1708,6 +1708,8 @@ function apiGetIncomingDeliveries(array $params = []): void
     $branchId = dl_resolveLedgerBranchId($user, $_GET);
     if (!$branchId) { $ctx->json(['ok' => true, 'deliveries' => []]); return; }
 
+    $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
+
     $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.quantity, cw.branch_id AS origin_branch_id,
                    ob.name AS origin_branch_name, cw.product_id, p.name AS product_name
             FROM dl_cashier_withdrawals cw
@@ -1715,10 +1717,13 @@ function apiGetIncomingDeliveries(array $params = []): void
             INNER JOIN dl_products p ON p.id = cw.product_id
             WHERE cw.target_branch_id = :bid
               AND cw.withdrawal_type = \'delivery\'
-              AND cw.received_at IS NULL
-            ORDER BY cw.ledger_date DESC, cw.dr_number, cw.id';
+              AND cw.received_at IS NULL'
+        . ($drFilter !== '' ? ' AND cw.dr_number = :dr_filter' : '')
+        . ' ORDER BY cw.ledger_date DESC, cw.dr_number, cw.id';
     $stmt = $ctx->db()->prepare($sql);
-    $stmt->execute([':bid' => $branchId]);
+    $bind = [':bid' => $branchId];
+    if ($drFilter !== '') $bind[':dr_filter'] = $drFilter;
+    $stmt->execute($bind);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Group by DR# (or by origin branch + date if DR# is null)
@@ -1766,10 +1771,13 @@ function apiGetIncomingDeliveries(array $params = []): void
                         AND NOT EXISTS (
                             SELECT 1 FROM dl_branch_receivings br
                             WHERE br.delivery_id = d.id AND br.status <> "voided"
-                        )
-                      ORDER BY d.delivery_date DESC, d.dr_number, d.id';
+                        )'
+            . ($drFilter !== '' ? ' AND d.dr_number = :dr_filter' : '')
+            . ' ORDER BY d.delivery_date DESC, d.dr_number, d.id';
+        $formalBind = [':bid' => $branchId];
+        if ($drFilter !== '') $formalBind[':dr_filter'] = $drFilter;
         $formalStmt = $ctx->db()->prepare($formalSql);
-        $formalStmt->execute([':bid' => $branchId]);
+        $formalStmt->execute($formalBind);
         foreach ($formalStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
             $key = 'delivery:' . (int)$row['delivery_id'];
             if (!isset($groups[$key])) {

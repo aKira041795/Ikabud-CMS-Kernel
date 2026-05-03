@@ -28,12 +28,29 @@
                         <div class="py-8 text-center text-sm text-gray-500">No pending deliveries for this branch.</div>
                     </template>
 
+                    <template x-if="!loading && deliveries.length > 0 && filteredDeliveries.length === 0 && !drFilter.trim()">
+                        <div class="py-8 text-center text-sm text-gray-500">No pending deliveries for this branch.</div>
+                    </template>
+
                     <template x-if="errorMsg">
                         <div class="mb-3 rounded-md bg-rose-50 p-3 text-sm text-rose-700" x-text="errorMsg"></div>
                     </template>
 
+                    <!-- DR# search: cashier types the number from the paper DR -->
+                    <div class="mb-3">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Find by DR#</label>
+                        <input type="text"
+                               x-model="drFilter"
+                               placeholder="e.g. DR-2026-001"
+                               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
+                               autocomplete="off">
+                        <template x-if="drFilter.trim() && filteredDeliveries.length === 0 && !loading">
+                            <p class="mt-1 text-xs text-rose-600">No pending delivery found for DR# "<span x-text="drFilter.trim()"></span>". Check the number and try again, or clear to browse all.</p>
+                        </template>
+                    </div>
+
                     <div class="space-y-3 max-h-[60vh] overflow-y-auto">
-                        <template x-for="(g, gi) in deliveries" :key="g.group_key">
+                        <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
                             <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                                 <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                                     <div>
@@ -112,12 +129,22 @@ function receiveModal() {
         busyKey: '',
         errorMsg: '',
         deliveries: [],
+        drFilter: '',
         // partialQtys: { group_key: { product_id: qty } }
         partialQtys: {},
+
+        get filteredDeliveries() {
+            var q = this.drFilter.trim().toLowerCase();
+            if (!q) return this.deliveries;
+            return this.deliveries.filter(function(g) {
+                return (g.dr_number || '').toLowerCase().includes(q);
+            });
+        },
 
         openModal() {
             this.errorMsg = '';
             this.partialQtys = {};
+            this.drFilter = '';
             this.isOpen = true;
             this.load();
         },
