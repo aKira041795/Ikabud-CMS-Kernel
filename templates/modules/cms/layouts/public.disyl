@@ -254,6 +254,33 @@
         syncEligibleImages() {
             document.querySelectorAll(this.eligibleSelector).forEach((img) => this.decorateImage(img));
         },
+        resolveEventImage(event) {
+            const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+            for (const node of path) {
+                if (node instanceof HTMLImageElement) {
+                    return node;
+                }
+                if (node instanceof Element) {
+                    const nestedImage = node.matches('img') ? node : node.querySelector('img');
+                    if (nestedImage instanceof HTMLImageElement) {
+                        return nestedImage;
+                    }
+                }
+            }
+
+            const target = event.target;
+            if (target instanceof HTMLImageElement) {
+                return target;
+            }
+            if (target instanceof Element) {
+                const closestImage = target.closest('img');
+                if (closestImage instanceof HTMLImageElement) {
+                    return closestImage;
+                }
+            }
+
+            return null;
+        },
         updateHoverHintPosition(img) {
             const rect = img.getBoundingClientRect();
             const hintWidth = 144;
@@ -320,7 +347,7 @@
             window.addEventListener('load', syncEligibleImages, { once: true });
 
             window.addEventListener('click', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -333,7 +360,7 @@
                 if (event.key !== 'Enter' && event.key !== ' ') {
                     return;
                 }
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -343,7 +370,7 @@
             });
 
             window.addEventListener('mouseover', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -352,7 +379,7 @@
             });
 
             window.addEventListener('mousemove', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -361,7 +388,7 @@
             });
 
             window.addEventListener('mouseout', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
