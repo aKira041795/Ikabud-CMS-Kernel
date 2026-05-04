@@ -208,6 +208,67 @@ function moduleTenantSettingsTenantId(): ?int
     }
 }
 
+function moduleTenantSettingsCanWriteExplicitTenant(int $tenantId): bool
+{
+    if ($tenantId <= 0) {
+        return false;
+    }
+
+    $activeContext = kernel_request_context_get('_activeModuleContext');
+    if (!is_object($activeContext) || !method_exists($activeContext, 'moduleId')) {
+        return true;
+    }
+
+    $moduleId = (string)$activeContext->moduleId();
+    $currentTenantId = moduleTenantSettingsTenantId();
+    if ($currentTenantId !== null && $currentTenantId > 0 && $currentTenantId === $tenantId) {
+        return true;
+    }
+
+    write_log('Blocked cross-tenant tenant_module_settings write from module context', 'warning', [
+        'module' => $moduleId,
+        'current_tenant_id' => $currentTenantId,
+        'target_tenant_id' => $tenantId,
+    ]);
+
+    return false;
+}
+
+function moduleTenantSettingsCanReadExplicitTenant(string $moduleId, int $tenantId): bool
+{
+    if ($tenantId <= 0 || $moduleId === '') {
+        return false;
+    }
+
+    $activeContext = kernel_request_context_get('_activeModuleContext');
+    if (!is_object($activeContext) || !method_exists($activeContext, 'moduleId')) {
+        return true;
+    }
+
+    $callerModuleId = (string)$activeContext->moduleId();
+    $currentTenantId = moduleTenantSettingsTenantId();
+    if ($currentTenantId !== null && $currentTenantId > 0 && $currentTenantId === $tenantId) {
+        return true;
+    }
+
+    $allowedCrossTenantReaders = [
+        'guidance' => ['ecommerce'],
+    ];
+
+    if (isset($allowedCrossTenantReaders[$callerModuleId]) && in_array($moduleId, $allowedCrossTenantReaders[$callerModuleId], true)) {
+        return true;
+    }
+
+    write_log('Blocked cross-tenant tenant_module_settings read from module context', 'warning', [
+        'module' => $callerModuleId,
+        'target_module' => $moduleId,
+        'current_tenant_id' => $currentTenantId,
+        'target_tenant_id' => $tenantId,
+    ]);
+
+    return false;
+}
+
 function moduleTenantSettingsTableExists(PDO $db): bool
 {
     try {
@@ -428,6 +489,9 @@ function readTenantModuleSettingsForTenant(string $moduleId, int $tenantId): arr
     if ($moduleId === '' || $tenantId <= 0) {
         return [];
     }
+    if (!moduleTenantSettingsCanReadExplicitTenant($moduleId, $tenantId)) {
+        return [];
+    }
     $db = app()->dbForTenant($tenantId);
     if ($db === null) {
         return [];
@@ -441,6 +505,10 @@ function readTenantModuleSettingsForTenant(string $moduleId, int $tenantId): arr
 function saveTenantModuleSettingsForTenant(string $moduleId, int $tenantId, array $settings): bool
 {
     if ($tenantId <= 0 || $moduleId === '' || empty($settings)) {
+        return false;
+    }
+
+    if (!moduleTenantSettingsCanWriteExplicitTenant($tenantId)) {
         return false;
     }
 
@@ -856,13 +924,14 @@ function validateModuleCapabilities(array $manifest): array
  *     "touch_updated_at":           true                         // optional, default true (adds updated_at = NOW())
  *   }
  */
-function validateAuthOwnedSpec(mixed $raw): array
+function validateAuthOwnedSpec(mixed $raw, bool $strictReservedRoles = false): array
 {
     if (!is_array($raw)) {
         return ['ok' => false, 'error' => 'module.json field auth_owned must be an object'];
     }
 
     $identRegex = '/^[A-Za-z_][A-Za-z0-9_]*$/';
+    $reservedKernelRoles = ['superadmin'];
 
     $usersTable = (string)($raw['users_table'] ?? '');
     if ($usersTable === '' || !preg_match($identRegex, $usersTable)) {
@@ -886,11 +955,21 @@ function validateAuthOwnedSpec(mixed $raw): array
         if (!is_string($role) || trim($role) === '') {
             return ['ok' => false, 'error' => 'module.json field auth_owned.admin_roles must contain non-empty strings'];
         }
+
+        $normalizedRole = trim($role);
+        if ($strictReservedRoles && in_array($normalizedRole, $reservedKernelRoles, true)) {
+            return ['ok' => false, 'error' => 'module.json field auth_owned.admin_roles must not contain reserved kernel roles'];
+        }
     }
 
     if (array_key_exists('default_admin_role', $raw)) {
         if (!is_string($raw['default_admin_role']) || trim($raw['default_admin_role']) === '') {
             return ['ok' => false, 'error' => 'module.json field auth_owned.default_admin_role must be a non-empty string when provided'];
+        }
+
+        $defaultRole = trim($raw['default_admin_role']);
+        if ($strictReservedRoles && in_array($defaultRole, $reservedKernelRoles, true)) {
+            return ['ok' => false, 'error' => 'module.json field auth_owned.default_admin_role must not use a reserved kernel role'];
         }
     }
 
@@ -2118,19 +2197,27 @@ function executeModuleHandler(string $handler, array $params = []): void
  * Build nav items from all enabled modules for the current user's role.
  * Returns flat array: [ ['label'=>..., 'url'=>..., 'icon'=>..., 'module'=>...], ... ]
  */
-function getModuleNavItems(?string $role = null): array
+function getModuleNavItems(?string $role = null, ?array $user = null): array
 {
+    if ($user === null) {
+        $resolvedUser = app()->user();
+        $user = is_array($resolvedUser) ? $resolvedUser : null;
+    }
+
     if ($role === null) {
-        $user = app()->user();
         $role = $user ? (string)($user['role'] ?? '') : '';
     }
     if ($role === '') {
         return [];
     }
 
+    $source = $user ? (string)($user['source'] ?? '') : '';
+    $isKernelAdmin = $source === 'kernel' && $role === 'admin';
+    $isKernelSuperadmin = $source === 'kernel' && $role === 'superadmin';
+
     // Kernel superadmin: settings-only role — no module navigation.
     // Return dedicated kernel nav and skip all module items.
-    if ($role === 'superadmin') {
+    if ($isKernelSuperadmin) {
         return [
             ['label' => 'Feature Settings', 'url' => '/superadmin/settings', 'icon' => 'settings', 'module' => '_kernel', 'target' => null],
             ['label' => 'Performance',       'url' => '/superadmin/perf',     'icon' => 'chart',    'module' => '_kernel', 'target' => '_self'],
@@ -2147,7 +2234,7 @@ function getModuleNavItems(?string $role = null): array
         }
 
         // Kernel admin should not see module links unless the module opts in.
-        if ($role === 'admin') {
+        if ($isKernelAdmin) {
             $settings = $module['_settings'] ?? [];
             $allowKernelAdmin = (bool)($settings['allow_kernel_admin'] ?? false);
             if (!$allowKernelAdmin) {
@@ -2166,7 +2253,7 @@ function getModuleNavItems(?string $role = null): array
                 $isApiPath = strpos((string)$rawUrl, '/api/') === 0;
                 $isModulePath = strpos((string)$rawUrl, '/' . $moduleId) === 0;
 
-                if ($role === 'admin' && $rawUrl !== '#' && !$isExternal && !$isAdminPath && !$isApiPath && !$isModulePath) {
+                if ($isKernelAdmin && $rawUrl !== '#' && !$isExternal && !$isAdminPath && !$isApiPath && !$isModulePath) {
                     $rawUrl = '/' . $moduleId . (strpos((string)$rawUrl, '/') === 0 ? $rawUrl : '/' . $rawUrl);
                 }
                 $navItems[] = [
@@ -2181,7 +2268,7 @@ function getModuleNavItems(?string $role = null): array
     }
 
     // Kernel-level nav: Modules page (always available to admin, even if no modules enabled)
-    if ($role === 'admin') {
+    if ($isKernelAdmin) {
         $navItems[] = ['label' => '---', 'url' => '#', 'icon' => 'separator', 'module' => '_kernel'];
         $navItems[] = ['label' => 'Platform', 'url' => '/admin/platform', 'icon' => 'server', 'module' => '_kernel'];
         $navItems[] = ['label' => 'Profile', 'url' => '/admin/profile', 'icon' => 'user', 'module' => '_kernel'];
@@ -2213,7 +2300,7 @@ function getModuleHomeUrl(string $role, ?array $user = null): ?string
         return null;
     }
 
-    $items = getModuleNavItems($role);
+    $items = getModuleNavItems($role, $user);
     foreach ($items as $item) {
         $url = $item['url'] ?? '';
         if ($url !== '' && $url !== '#' && ($item['label'] ?? '') !== '---') {
@@ -2346,7 +2433,7 @@ function validateModuleManifest(string $path): array
     }
 
     if (array_key_exists('auth_owned', $manifest)) {
-        $authOwnedValidation = validateAuthOwnedSpec($manifest['auth_owned']);
+        $authOwnedValidation = validateAuthOwnedSpec($manifest['auth_owned'], true);
         if (empty($authOwnedValidation['ok'])) {
             return [
                 'ok' => false,

@@ -2,10 +2,37 @@
 
 declare(strict_types=1);
 
+function cmsNormalizeRole(string $role): string
+{
+    $role = trim($role);
+    return $role === 'superadmin' ? 'administrator' : $role;
+}
+
+function cmsNormalizeUserContext(?array $user): ?array
+{
+    if (!is_array($user)) {
+        return $user;
+    }
+
+    if ((string)($user['source'] ?? '') !== 'cms') {
+        return $user;
+    }
+
+    $role = trim((string)($user['role'] ?? ''));
+    $normalizedRole = cmsNormalizeRole($role);
+    if ($normalizedRole === $role) {
+        return $user;
+    }
+
+    $user['legacy_role'] = $role;
+    $user['role'] = $normalizedRole;
+    return $user;
+}
+
 function cmsRoleAtLeast(string $role, string $minimum): bool
 {
-    $roleLevel = CMS_ROLES[$role] ?? 0;
-    $minLevel  = CMS_ROLES[$minimum] ?? 999;
+    $roleLevel = CMS_ROLES[cmsNormalizeRole($role)] ?? 0;
+    $minLevel  = CMS_ROLES[cmsNormalizeRole($minimum)] ?? 999;
     return $roleLevel >= $minLevel;
 }
 
@@ -37,7 +64,7 @@ function cmsCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 
 function cmsCtxUser(): ?array
 {
-    return cmsCtx()->user();
+    return cmsNormalizeUserContext(cmsCtx()->user());
 }
 
 function cmsInput(?string $key = null, mixed $default = null): mixed

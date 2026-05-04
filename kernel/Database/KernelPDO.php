@@ -29,13 +29,39 @@ final class KernelPDO extends PDO
      */
     private static int $escalationDepth = 0;
 
+    private static function isDirectModuleCaller(): bool
+    {
+        $modulesRoot = defined('BASE_PATH') ? (rtrim((string)BASE_PATH, '/') . '/modules/') : null;
+        if ($modulesRoot === null) {
+            return false;
+        }
+
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+        $callerFile = $trace[1]['file'] ?? null;
+
+        return is_string($callerFile) && str_starts_with($callerFile, $modulesRoot);
+    }
+
     public static function kernelEscalationEnter(): void
     {
+        if (self::isDirectModuleCaller()) {
+            if (function_exists('write_log')) {
+                \write_log('Blocked direct module DB escalation request', 'warning', [
+                    'trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4),
+                ]);
+            }
+            return;
+        }
+
         self::$escalationDepth++;
     }
 
     public static function kernelEscalationLeave(): void
     {
+        if (self::isDirectModuleCaller()) {
+            return;
+        }
+
         self::$escalationDepth = max(0, self::$escalationDepth - 1);
     }
 

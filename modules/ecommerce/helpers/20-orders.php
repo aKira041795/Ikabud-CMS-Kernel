@@ -27,17 +27,6 @@ const EC_ORDER_STATUS_RANK = [
     'refunded' => 60,
 ];
 
-function ecWithKernelDbUnguarded(callable $callback): mixed
-{
-    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
-
-    try {
-        return $callback();
-    } finally {
-        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
-    }
-}
-
 function ecOrdersHasTokenExpiresAtColumn(): bool
 {
     static $has = null;
@@ -334,34 +323,7 @@ function ecRefundGenerateNumber(): string
 
 function ecActiveIntegrationMode(bool $refresh = false): string
 {
-    if (!$refresh) {
-        $cached = kernel_request_context_get('_ec_active_integration_mode', null);
-        if (is_string($cached)) {
-            return $cached;
-        }
-    }
-
-    try {
-        $mode = ecWithKernelDbUnguarded(static function (): string {
-            $stmt = app()->db()->prepare(
-                "SELECT integration_mode
-                 FROM kernel_integrations
-                 WHERE is_active = 1
-                   AND integration_mode IN ('wms_authoritative_products', 'ecommerce_authoritative_products')
-                 ORDER BY updated_at DESC, id DESC
-                 LIMIT 1"
-            );
-            $stmt->execute();
-
-            return trim((string)($stmt->fetchColumn() ?: ''));
-        });
-    } catch (\Throwable $e) {
-        $mode = '';
-    }
-
-    kernel_request_context_set('_ec_active_integration_mode', $mode);
-
-    return $mode;
+    return kernelActiveProductIntegrationMode($refresh);
 }
 
 function ecManualPaymentModeSetting(): string

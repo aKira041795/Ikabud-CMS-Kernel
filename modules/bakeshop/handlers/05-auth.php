@@ -4,78 +4,7 @@ declare(strict_types=1);
 
 function bakeshopLoginRateLimitState(?int $maxAttempts = null, ?int $windowSeconds = null): array
 {
-    $maxAttempts = max(1, (int)($maxAttempts ?? kernelLoginRateLimitMaxAttempts()));
-    $windowSeconds = max(1, (int)($windowSeconds ?? kernelLoginRateLimitWindowSeconds()));
-    $identifier = kernelLoginRateLimitIdentifier('bakeshop');
-    $action = 'login';
-
-    try {
-        $tenantId = app()->tenant()->current();
-        $db = $tenantId !== null ? app()->dbForTenant((int)$tenantId) : app()->db();
-        if (!$db instanceof PDO) {
-            throw new RuntimeException('Unable to resolve bakeshop login rate limit database.');
-        }
-
-        $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
-        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
-        try {
-            $db->prepare(
-                'INSERT INTO rate_limits (identifier, action, attempts, window_start)
-                 VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
-                 ON DUPLICATE KEY UPDATE
-                     attempts = IF(window_start >= :cutoff, attempts + 1, 1),
-                     window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
-            )->execute([
-                ':id' => $identifier,
-                ':action' => $action,
-                ':cutoff' => $cutoff,
-                ':cutoff2' => $cutoff,
-            ]);
-
-            $statement = $db->prepare(
-                'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
-            );
-            $statement->execute([':id' => $identifier, ':action' => $action]);
-            $row = $statement->fetch(PDO::FETCH_ASSOC);
-        } finally {
-            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
-        }
-
-        if (is_array($row) && ($row['window_start'] ?? '') >= $cutoff && (int)($row['attempts'] ?? 0) > $maxAttempts) {
-            return [
-                'limited' => true,
-                'retry_after' => max(1, $windowSeconds - (time() - strtotime((string)$row['window_start']))),
-                'identifier' => $identifier,
-                'module_id' => 'bakeshop',
-                'action' => $action,
-                'max_attempts' => $maxAttempts,
-                'window_seconds' => $windowSeconds,
-                'enforced' => true,
-            ];
-        }
-    } catch (Throwable $ignored) {
-        return [
-            'limited' => false,
-            'retry_after' => 0,
-            'identifier' => $identifier,
-            'module_id' => 'bakeshop',
-            'action' => $action,
-            'max_attempts' => $maxAttempts,
-            'window_seconds' => $windowSeconds,
-            'enforced' => false,
-        ];
-    }
-
-    return [
-        'limited' => false,
-        'retry_after' => 0,
-        'identifier' => $identifier,
-        'module_id' => 'bakeshop',
-        'action' => $action,
-        'max_attempts' => $maxAttempts,
-        'window_seconds' => $windowSeconds,
-        'enforced' => true,
-    ];
+    return kernelConsumeLoginRateLimit('bakeshop', $maxAttempts, $windowSeconds);
 }
 
 function bakeshopAuthHintPresent(): bool

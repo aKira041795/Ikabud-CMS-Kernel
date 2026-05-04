@@ -937,27 +937,32 @@ function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts
     $action = 'login';
 
     try {
-        $db = app()->db();
-        $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $db = app()->db();
+            $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
 
-        $db->prepare(
-            'INSERT INTO rate_limits (identifier, action, attempts, window_start)
-             VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE
-                 attempts = IF(window_start >= :cutoff, attempts + 1, 1),
-                 window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
-        )->execute([
-            ':id' => $identifier,
-            ':action' => $action,
-            ':cutoff' => $cutoff,
-            ':cutoff2' => $cutoff,
-        ]);
+            $db->prepare(
+                'INSERT INTO rate_limits (identifier, action, attempts, window_start)
+                 VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
+                 ON DUPLICATE KEY UPDATE
+                     attempts = IF(window_start >= :cutoff, attempts + 1, 1),
+                     window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
+            )->execute([
+                ':id' => $identifier,
+                ':action' => $action,
+                ':cutoff' => $cutoff,
+                ':cutoff2' => $cutoff,
+            ]);
 
-        $statement = $db->prepare(
-            'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
-        );
-        $statement->execute([':id' => $identifier, ':action' => $action]);
-        $row = $statement->fetch(PDO::FETCH_ASSOC);
+            $statement = $db->prepare(
+                'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
+            );
+            $statement->execute([':id' => $identifier, ':action' => $action]);
+            $row = $statement->fetch(PDO::FETCH_ASSOC);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
 
         if (is_array($row) && ($row['window_start'] ?? '') >= $cutoff && (int)($row['attempts'] ?? 0) > $maxAttempts) {
             $retryAfter = max(1, $windowSeconds - (time() - strtotime((string)$row['window_start'])));
@@ -1004,6 +1009,40 @@ function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts
         'window_seconds' => $windowSeconds,
         'enforced' => true,
     ];
+}
+
+function kernelActiveProductIntegrationMode(bool $refresh = false): string
+{
+    if (!$refresh) {
+        $cached = kernel_request_context_get('_kernel_active_product_integration_mode', null);
+        if (is_string($cached)) {
+            return $cached;
+        }
+    }
+
+    try {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $stmt = app()->db()->prepare(
+                "SELECT integration_mode
+                 FROM kernel_integrations
+                 WHERE is_active = 1
+                   AND integration_mode IN ('wms_authoritative_products', 'ecommerce_authoritative_products')
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT 1"
+            );
+            $stmt->execute();
+            $mode = trim((string)($stmt->fetchColumn() ?: ''));
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
+    } catch (Throwable $e) {
+        $mode = '';
+    }
+
+    kernel_request_context_set('_kernel_active_product_integration_mode', $mode);
+
+    return $mode;
 }
 
 function kernelEmitLoginRateLimitJson(array $rateLimit, string $message = 'Too many login attempts. Try again later.'): void

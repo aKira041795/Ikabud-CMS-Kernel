@@ -18,7 +18,6 @@
         "name_column": "display_name",
         "active_column": "is_active",
         "admin_roles": [
-            "superadmin",
             "administrator"
         ],
         "default_admin_role": "administrator",

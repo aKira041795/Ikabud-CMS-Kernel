@@ -193,7 +193,7 @@
                         <i class="fas fa-folder-open text-[11px]"></i> View Case
                     </a>
                     {/if}
-                    <button hx-get="{base_url}/pages/cases/{appt.case_id}/notes/new?session_type=follow-up&amp;session_date={appt.scheduled_date}&amp;appointment_id={appt.id}&amp;followup_required=1"
+                    <button hx-get="{base_url}/pages/cases/{appt.case_id}/notes/new?session_date={appt.scheduled_date}&amp;appointment_id={appt.id}&amp;followup_required=1"
                             hx-target="#modal-container" hx-swap="innerHTML"
                             class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
                         <i class="fas fa-plus-circle text-[11px]"></i> Add Follow-up Session Record

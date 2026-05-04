@@ -556,15 +556,18 @@ function cms_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if (is_array($row) && password_verify($password, (string)$row['password_hash'])) {
+            $authenticatedUser = cmsNormalizeUserContext([
+                'id'        => (int)$row['id'],
+                'username'  => (string)$row['username'],
+                'email'     => (string)$row['email'],
+                'full_name' => (string)$row['display_name'],
+                'role'      => (string)$row['role'],
+                'source'    => 'cms',
+                'sub'       => 'cms:' . $row['id'],
+            ]);
+
             return [
-                'user' => [
-                    'id'        => (int)$row['id'],
-                    'username'  => (string)$row['username'],
-                    'email'     => (string)$row['email'],
-                    'full_name' => (string)$row['display_name'],
-                    'role'      => (string)$row['role'],
-                    'sub'       => 'cms:' . $row['id'],
-                ],
+                'user' => is_array($authenticatedUser) ? $authenticatedUser : [],
                 'source' => 'cms',
             ];
         }

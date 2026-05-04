@@ -1478,6 +1478,17 @@ function guidanceNormalizeAppointmentTypeValue(?string $value): string
         : 'individual';
 }
 
+function guidanceNormalizeNoteSessionType(?string $value, string $default = 'walk-in'): string
+{
+    $sessionType = trim((string)$value);
+    if ($sessionType !== '') {
+        return $sessionType;
+    }
+
+    $fallback = trim($default);
+    return $fallback !== '' ? $fallback : 'walk-in';
+}
+
 function apiGuidanceCreateAppointment(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
@@ -4312,9 +4323,24 @@ function modalGuidanceCaseNoteNew(array $params = []): void
         return;
     }
 
-    $sessionType = (string)guidanceInput('session_type', 'walk-in');
-    if (!in_array($sessionType, ['walk-in', 'follow-up', 'referred'], true)) {
-        $sessionType = 'walk-in';
+    $appointmentId = max(0, (int)guidanceInput('appointment_id', 0));
+    $sessionType = guidanceNormalizeNoteSessionType((string)guidanceInput('session_type', ''));
+    if ($sessionType === 'walk-in' && trim((string)guidanceInput('session_type', '')) === '' && $appointmentId > 0) {
+        try {
+            $appointmentStmt = $db->prepare(
+                'SELECT COALESCE(at.name, a.appointment_type, "") AS session_type '
+                . 'FROM gm_appointments a '
+                . 'LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id '
+                . 'WHERE a.id = ? AND a.case_id = ? LIMIT 1'
+            );
+            $appointmentStmt->execute([$appointmentId, $caseId]);
+            $appointmentSessionType = trim((string)($appointmentStmt->fetchColumn() ?: ''));
+            if ($appointmentSessionType !== '') {
+                $sessionType = $appointmentSessionType;
+            }
+        } catch (Throwable $e) {
+            // Keep the safe fallback when the linked appointment cannot be resolved.
+        }
     }
 
     $sessionDate = (string)guidanceInput('session_date', date('Y-m-d'));
@@ -4322,7 +4348,6 @@ function modalGuidanceCaseNoteNew(array $params = []): void
         $sessionDate = date('Y-m-d');
     }
 
-    $appointmentId = max(0, (int)guidanceInput('appointment_id', 0));
     $followupRequired = !empty(guidanceInput('followup_required', 0));
 
     echo guidanceRender('modules/guidance/modals/note-form.disyl', [
@@ -4436,9 +4461,7 @@ function apiGuidanceCaseNoteUpdate(array $params = []): void
         return;
     }
 
-    $sessionType = in_array($input['session_type'] ?? '', ['walk-in', 'follow-up', 'referred', 'scheduled', 'referral'], true)
-        ? $input['session_type']
-        : 'walk-in';
+    $sessionType = guidanceNormalizeNoteSessionType((string)($input['session_type'] ?? 'walk-in'));
     $riskLevel = in_array($input['risk_level'] ?? '', ['none', 'low', 'moderate', 'high', 'critical'], true)
         ? $input['risk_level']
         : 'none';
@@ -5315,7 +5338,7 @@ function apiGuidanceCreateCaseNote(array $params = []): void
             (($input['appointment_id'] ?? '') !== '' ? (int)$input['appointment_id'] : null),
             $userId,
             (string)($input['note_type'] ?? 'session'),
-            (string)($input['session_type'] ?? 'walk-in'),
+            guidanceNormalizeNoteSessionType((string)($input['session_type'] ?? 'walk-in')),
             (string)($input['session_date'] ?? ($input['note_date'] ?? date('Y-m-d'))),
             (($input['session_duration_minutes'] ?? '') !== '' ? (int)$input['session_duration_minutes'] : null),
             $noteContent,
