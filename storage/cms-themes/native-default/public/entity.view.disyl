@@ -115,11 +115,9 @@
                                     {if entity_view_context.panel_copy}<p class="native-panel-copy">{entity_view_context.panel_copy}</p>{/if}
                                 </div>
                                 <div class="native-stack" style="gap:0.5rem;">
-                                    <div class="native-key-value"><strong>Mode</strong><span class="native-muted">{entity_view_context.mode_label|default:public_presentation_mode|default:'traditional'}</span></div>
-                                    <div class="native-key-value"><strong>Route</strong><span class="native-muted">{entity_view_context.route_label|default:public_route_kind|default:'generic'}</span></div>
-                                    {if entity_view_context.context_value}
-                                    <div class="native-key-value"><strong>{entity_view_context.context_label|default:'Context'}</strong><span class="native-muted">{entity_view_context.context_value}</span></div>
-                                    {/if}
+                                    {foreach entity_view_context.panel_facts as fact}
+                                    <div class="native-key-value"><strong>{fact.label}</strong><span class="native-muted">{fact.value}</span></div>
+                                    {/foreach}
                                 </div>
                             </div>
                             {/if}
@@ -170,11 +168,9 @@
                             {if entity_view_context.panel_copy}<p class="native-panel-copy">{entity_view_context.panel_copy}</p>{/if}
                         </div>
                         <div class="native-stack" style="gap:0.5rem;">
-                            <div class="native-key-value"><strong>Mode</strong><span class="native-muted">{entity_view_context.mode_label|default:public_presentation_mode|default:'traditional'}</span></div>
-                            <div class="native-key-value"><strong>Route</strong><span class="native-muted">{entity_view_context.route_label|default:public_route_kind|default:'generic'}</span></div>
-                            {if entity_view_context.context_value}
-                            <div class="native-key-value"><strong>{entity_view_context.context_label|default:'Context'}</strong><span class="native-muted">{entity_view_context.context_value}</span></div>
-                            {/if}
+                            {foreach entity_view_context.panel_facts as fact}
+                            <div class="native-key-value"><strong>{fact.label}</strong><span class="native-muted">{fact.value}</span></div>
+                            {/foreach}
                         </div>
                     </div>
                     {/if}
@@ -191,11 +187,9 @@
                             {if entity_view_context.panel_copy}<p class="native-panel-copy">{entity_view_context.panel_copy}</p>{/if}
                         </div>
                         <div class="native-stack" style="gap:0.5rem;">
-                            <div class="native-key-value"><strong>Mode</strong><span class="native-muted">{entity_view_context.mode_label|default:public_presentation_mode|default:'traditional'}</span></div>
-                            <div class="native-key-value"><strong>Route</strong><span class="native-muted">{entity_view_context.route_label|default:public_route_kind|default:'generic'}</span></div>
-                            {if entity_view_context.context_value}
-                            <div class="native-key-value"><strong>{entity_view_context.context_label|default:'Context'}</strong><span class="native-muted">{entity_view_context.context_value}</span></div>
-                            {/if}
+                            {foreach entity_view_context.panel_facts as fact}
+                            <div class="native-key-value"><strong>{fact.label}</strong><span class="native-muted">{fact.value}</span></div>
+                            {/foreach}
                         </div>
                     </div>
                     {/if}

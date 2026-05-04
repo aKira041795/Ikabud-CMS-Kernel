@@ -2183,6 +2183,18 @@ function cmsPublicCanonicalHumanLabel(string $value, array $labels = []): string
     return ucwords(str_replace(['-', '_'], ' ', $value));
 }
 
+function cmsPublicCanonicalPluralLabel(string $label, int $count): string
+{
+    if ($count === 1) {
+        return $label;
+    }
+
+    return match ($label) {
+        'Category' => 'Categories',
+        default => str_ends_with($label, 's') ? $label : ($label . 's'),
+    };
+}
+
 function cmsPublicCanonicalListPresentationContext(
     string $publicRenderOrigin,
     string $publicRouteKind,
@@ -2194,44 +2206,6 @@ function cmsPublicCanonicalListPresentationContext(
 ): array {
     $contentTypeLabel = cmsPublicCanonicalContentTypeLabel($defaultType);
     $resultCount = (int)($listContext['result_count'] ?? 0);
-    $summaryText = trim((string)($listContext['summary_text'] ?? ''));
-    $listDescription = trim((string)($options['list_description'] ?? ''));
-    $copyText = $summaryText !== '' ? $summaryText : $listDescription;
-
-    $routeLabels = $publicRenderOrigin === 'cms'
-        ? [
-            'blog-home' => 'Blog Home',
-            'archive' => 'Archive',
-            'category' => 'Category Archive',
-            'tag' => 'Tag Archive',
-            'search' => 'Search Results',
-            'generic' => $contentTypeLabel . ' Listing',
-        ]
-        : [
-            'shop_index' => 'Shop',
-            'category' => 'Category',
-            'search' => 'Search Results',
-            'collection' => 'Collection',
-            'generic' => 'Catalog',
-        ];
-    $routeLabel = cmsPublicCanonicalHumanLabel($publicRouteKind, $routeLabels);
-    if ($routeLabel === '') {
-        $routeLabel = $publicRenderOrigin === 'cms' ? ($contentTypeLabel . ' Listing') : 'Catalog';
-    }
-
-    $modeLabel = match ($publicPresentationMode) {
-        'canonical' => $publicRenderOrigin === 'cms' ? 'Canonical CMS List' : 'Canonical Catalog',
-        'traditional' => $publicRenderOrigin === 'cms' ? 'Traditional CMS List' : 'Traditional Catalog',
-        default => cmsPublicCanonicalHumanLabel($publicPresentationMode),
-    };
-
-    if ($copyText === '') {
-        $resultLabel = cmsEntityListResultLabel($resultCount);
-        $copyText = $publicRenderOrigin === 'cms'
-            ? $resultLabel . ' in ' . $routeLabel
-            : ($resultCount . ' item(s) are available for this route.');
-    }
-
     $panelTitle = match (true) {
         $publicRenderOrigin !== 'cms' => 'Catalog Snapshot',
         $publicRouteKind === 'blog-home' => 'Blog Snapshot',
@@ -2244,6 +2218,10 @@ function cmsPublicCanonicalListPresentationContext(
 
     $contextLabel = '';
     $contextValue = '';
+    $contentNoun = $publicRenderOrigin === 'cms' && $defaultType === 'post'
+        ? 'Article'
+        : ($publicRenderOrigin === 'ecommerce' && $defaultType === 'product' ? 'Product' : $contentTypeLabel);
+    $pluralContentNoun = cmsPublicCanonicalPluralLabel($contentNoun, $resultCount);
     if ($publicRouteKind === 'category') {
         $contextLabel = 'Category';
         $contextValue = trim((string)($templateContext['archive_name'] ?? $listContext['category_name'] ?? ''));
@@ -2258,13 +2236,52 @@ function cmsPublicCanonicalListPresentationContext(
         $contextValue = trim((string)$listContext['category_name']);
     }
 
+    $copyText = match (true) {
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'blog-home' => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . ' from the blog.',
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'category' && $contextValue !== '' => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . ' in ' . $contextValue . '.',
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'tag' && $contextValue !== '' => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . ' tagged ' . $contextValue . '.',
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'search' && $contextValue !== '' => 'Browse ' . $resultCount . ' matching result' . ($resultCount === 1 ? '' : 's') . ' for "' . $contextValue . '".',
+        $publicRenderOrigin === 'ecommerce' && $contextLabel === 'Category' && $contextValue !== '' => 'Browse ' . $resultCount . ' available ' . strtolower($pluralContentNoun) . ' in ' . $contextValue . '.',
+        $publicRenderOrigin === 'ecommerce' && $contextLabel === 'Query' && $contextValue !== '' => 'Browse ' . $resultCount . ' matching ' . strtolower($pluralContentNoun) . ' for "' . $contextValue . '".',
+        $publicRenderOrigin === 'ecommerce' => 'Browse ' . $resultCount . ' available ' . strtolower($pluralContentNoun) . ' in this catalog.',
+        default => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . '.',
+    };
+
+    $panelFacts = [];
+    $panelFacts[] = [
+        'label' => $publicRenderOrigin === 'cms' ? 'Published' : 'Available',
+        'value' => $resultCount . ' ' . strtolower($pluralContentNoun),
+    ];
+    if ($contextValue !== '') {
+        $panelFacts[] = [
+            'label' => $contextLabel,
+            'value' => $contextValue,
+        ];
+    } elseif ($publicRenderOrigin === 'cms') {
+        $panelFacts[] = [
+            'label' => 'Focus',
+            'value' => match ($publicRouteKind) {
+                'blog-home' => 'Latest articles',
+                'archive' => 'Archived content',
+                default => $contentTypeLabel . ' updates',
+            },
+        ];
+    } else {
+        $panelFacts[] = [
+            'label' => 'Browse',
+            'value' => match ($defaultType) {
+                'product' => 'Product catalog',
+                default => $contentTypeLabel . ' collection',
+            },
+        ];
+    }
+
     return [
         'panel_title' => $panelTitle,
         'panel_copy' => $copyText,
-        'route_label' => $routeLabel,
-        'mode_label' => $modeLabel,
         'context_label' => $contextLabel,
         'context_value' => $contextValue,
+        'panel_facts' => $panelFacts,
     ];
 }
 
@@ -2277,35 +2294,12 @@ function cmsPublicCanonicalEntityPresentationContext(
     array $entityTaxonomies = []
 ): array {
     $contentTypeLabel = cmsPublicCanonicalContentTypeLabel($type, $entity);
-    $routeLabels = $publicRenderOrigin === 'cms'
-        ? [
-            'front-page' => 'Front Page',
-            'page' => 'Page Detail',
-            'post' => 'Post Detail',
-            'generic' => $contentTypeLabel . ' Detail',
-        ]
-        : [
-            'product_detail' => 'Product Detail',
-            'generic' => $contentTypeLabel . ' Detail',
-        ];
-    $routeLabel = cmsPublicCanonicalHumanLabel($publicRouteKind, $routeLabels);
-    if ($routeLabel === '') {
-        $routeLabel = $contentTypeLabel . ' Detail';
-    }
-
-    $modeLabel = match ($publicPresentationMode) {
-        'canonical' => $publicRenderOrigin === 'cms' ? 'Canonical CMS View' : 'Canonical Detail View',
-        'entity_view' => $publicRenderOrigin === 'cms' ? 'Canonical CMS View' : 'Canonical Product View',
-        'traditional' => $publicRenderOrigin === 'cms' ? 'Traditional CMS View' : 'Traditional Detail View',
-        default => cmsPublicCanonicalHumanLabel($publicPresentationMode),
-    };
-
     $excerpt = trim((string)($entity['excerpt'] ?? ''));
     $copyText = $excerpt !== ''
         ? $excerpt
         : ($publicRenderOrigin === 'cms'
-            ? ('Explore this ' . strtolower($contentTypeLabel) . ' in the ' . strtolower($routeLabel) . ' view.')
-            : ('Review this ' . strtolower($contentTypeLabel) . ' in the ' . strtolower($routeLabel) . ' view.'));
+            ? ('Explore this ' . strtolower($contentTypeLabel) . ' and its latest details.')
+            : ('Review this ' . strtolower($contentTypeLabel) . ' and its key details.'));
 
     $panelTitle = match (true) {
         $publicRouteKind === 'front-page' => 'Front Page Snapshot',
@@ -2332,13 +2326,31 @@ function cmsPublicCanonicalEntityPresentationContext(
         $contextValue = trim((string)$entity['author_name']);
     }
 
+    $panelFacts = [
+        [
+            'label' => 'Type',
+            'value' => $contentTypeLabel,
+        ],
+    ];
+    if ($contextValue !== '') {
+        $panelFacts[] = [
+            'label' => $contextLabel,
+            'value' => $contextValue,
+        ];
+    }
+    if (!empty($entity['published_at_display']) || !empty($entity['published_at'])) {
+        $panelFacts[] = [
+            'label' => 'Published',
+            'value' => (string)($entity['published_at_display'] ?? $entity['published_at']),
+        ];
+    }
+
     return [
         'panel_title' => $panelTitle,
         'panel_copy' => $copyText,
-        'route_label' => $routeLabel,
-        'mode_label' => $modeLabel,
         'context_label' => $contextLabel,
         'context_value' => $contextValue,
+        'panel_facts' => $panelFacts,
     ];
 }
 

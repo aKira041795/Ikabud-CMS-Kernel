@@ -49,11 +49,9 @@
                     {if entity_view_context.panel_copy}<p class="poc-copy" style="margin-top:0.35rem;">{entity_view_context.panel_copy}</p>{/if}
                 </div>
                 <div class="poc-stack" style="gap:0.45rem;">
-                    <div class="poc-inline-meta"><strong>Mode</strong><span>{entity_view_context.mode_label|default:public_presentation_mode|default:'traditional'}</span></div>
-                    <div class="poc-inline-meta"><strong>Route</strong><span>{entity_view_context.route_label|default:public_route_kind|default:'generic'}</span></div>
-                    {if entity_view_context.context_value}
-                    <div class="poc-inline-meta"><strong>{entity_view_context.context_label|default:'Context'}</strong><span>{entity_view_context.context_value}</span></div>
-                    {/if}
+                    {foreach entity_view_context.panel_facts as fact}
+                    <div class="poc-inline-meta"><strong>{fact.label}</strong><span>{fact.value}</span></div>
+                    {/foreach}
                 </div>
             </div>
             {/if}
@@ -127,11 +125,9 @@
                 {if entity_view_context.panel_copy}<p class="poc-copy" style="margin-top:0.35rem;">{entity_view_context.panel_copy}</p>{/if}
             </div>
             <div class="poc-stack" style="gap:0.45rem;">
-                <div class="poc-inline-meta"><strong>Mode</strong><span>{entity_view_context.mode_label|default:public_presentation_mode|default:'traditional'}</span></div>
-                <div class="poc-inline-meta"><strong>Route</strong><span>{entity_view_context.route_label|default:public_route_kind|default:'generic'}</span></div>
-                {if entity_view_context.context_value}
-                <div class="poc-inline-meta"><strong>{entity_view_context.context_label|default:'Context'}</strong><span>{entity_view_context.context_value}</span></div>
-                {/if}
+                {foreach entity_view_context.panel_facts as fact}
+                <div class="poc-inline-meta"><strong>{fact.label}</strong><span>{fact.value}</span></div>
+                {/foreach}
             </div>
         </div>
         {/if}
