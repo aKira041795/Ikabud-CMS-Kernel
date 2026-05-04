@@ -84,12 +84,14 @@
         </div>
 
         <div class="native-storefront-panel">
-            <h2 class="native-panel-title">Catalog Snapshot</h2>
-            <p class="native-panel-copy">{entity_list_context.result_count|default:storefront.collection.total|default:0} item(s) are available for this route.</p>
+            <h2 class="native-panel-title">{entity_list_context.panel_title|default:'Catalog Snapshot'}</h2>
+            <p class="native-panel-copy">{entity_list_context.panel_copy|default:entity_list_context.summary_text|default:list_description|default:'Browse the available items for this route.'}</p>
             <div class="native-stack" style="margin-top:1rem;">
-                <div class="native-key-value"><strong>Mode</strong><span class="native-muted">{public_presentation_mode|default:'traditional'}</span></div>
-                <div class="native-key-value"><strong>Route</strong><span class="native-muted">{public_route_kind|default:'generic'}</span></div>
-                {if entity_list_context.category_name}
+                <div class="native-key-value"><strong>Mode</strong><span class="native-muted">{entity_list_context.mode_label|default:public_presentation_mode|default:'traditional'}</span></div>
+                <div class="native-key-value"><strong>Route</strong><span class="native-muted">{entity_list_context.route_label|default:public_route_kind|default:'generic'}</span></div>
+                {if entity_list_context.context_value}
+                <div class="native-key-value"><strong>{entity_list_context.context_label|default:'Context'}</strong><span class="native-muted">{entity_list_context.context_value}</span></div>
+                {elseif entity_list_context.category_name}
                 <div class="native-key-value"><strong>Category</strong><span class="native-muted">{entity_list_context.category_name}</span></div>
                 {/if}
             </div>
