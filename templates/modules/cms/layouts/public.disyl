@@ -188,6 +188,7 @@
         previousBodyOverflow: '',
         previousDocumentOverflow: '',
         previousActiveElement: null,
+        lightboxBackdropStyle: '',
         hoverHintVisible: false,
         hoverHintText: 'Zoom to enlarge',
         hoverHintStyle: '',
@@ -301,12 +302,19 @@
             this.hoverHintVisible = false;
             this.hoverHintStyle = '';
         },
+        syncLightboxViewport() {
+            const viewport = window.visualViewport || null;
+            const top = Math.round(window.scrollY + (viewport ? viewport.offsetTop : 0));
+            const height = Math.round(viewport ? viewport.height : window.innerHeight);
+            this.lightboxBackdropStyle = 'top:' + top + 'px; bottom:auto; height:' + height + 'px;';
+        },
         openFromImage(img) {
             if (!this.isEligibleImage(img)) {
                 return;
             }
 
             this.hideHoverHint();
+            this.syncLightboxViewport();
             this.lightboxModalSrc = (img.currentSrc || img.src || '').trim();
             this.lightboxModalAlt = (img.getAttribute('alt') || '').trim();
             this.lightboxModalCaption = this.resolveCaption(img);
@@ -326,6 +334,7 @@
             this.lightboxModalSrc = null;
             this.lightboxModalAlt = '';
             this.lightboxModalCaption = '';
+            this.lightboxBackdropStyle = '';
             document.body.style.overflow = this.previousBodyOverflow;
             document.documentElement.style.overflow = this.previousDocumentOverflow;
 
@@ -398,6 +407,11 @@
             });
 
             window.addEventListener('scroll', () => this.hideHoverHint(), { passive: true });
+            window.addEventListener('resize', () => {
+                if (this.lightboxModalSrc) {
+                    this.syncLightboxViewport();
+                }
+            }, { passive: true });
         }
     }">
            <template x-teleport="body">
@@ -412,6 +426,7 @@
             <div x-show="lightboxModalSrc"
                  class="cms-lightbox-backdrop"
                  style="display: none;"
+                  :style="lightboxBackdropStyle"
                  x-transition.opacity.duration.200ms
                  @click="closeLightbox()"
                  @keydown.escape.window="closeLightbox()"
