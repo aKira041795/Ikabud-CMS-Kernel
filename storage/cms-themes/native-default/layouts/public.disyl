@@ -20,7 +20,8 @@
         .prose img.aligncenter { display: block; margin-left: auto; margin-right: auto; }
         .cms-lightbox-image { cursor: zoom-in; }
         .cms-lightbox-image:focus-visible { outline: 3px solid var(--color-primary, #0ea5e9); outline-offset: 4px; }
-        .cms-lightbox-backdrop { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: clamp(0.75rem, 3vw, 1.5rem); background: rgba(15, 23, 42, 0.94); cursor: zoom-out; backdrop-filter: blur(8px); }
+        .cms-lightbox-backdrop { position: fixed; inset: 0; z-index: 99999; background: rgba(15, 23, 42, 0.94); cursor: zoom-out; backdrop-filter: blur(8px); }
+        .cms-lightbox-stage { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: clamp(0.75rem, 3vw, 1.5rem); box-sizing: border-box; }
         .cms-lightbox-figure { position: relative; width: min(100%, 1200px); max-height: 100%; margin: 0; cursor: default; }
         .cms-lightbox-figure img { display: block; max-width: 100%; max-height: calc(100vh - 5rem); margin: 0 auto; object-fit: contain; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.45); }
         .cms-lightbox-hover-hint { position: fixed; z-index: 99998; padding: 0.4rem 0.7rem; border-radius: 999px; background: rgba(15, 23, 42, 0.88); color: #fff; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em; pointer-events: none; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22); white-space: nowrap; transform: translateY(0); transition: opacity 0.14s ease, transform 0.14s ease; }
@@ -476,7 +477,8 @@
                  aria-modal="true"
                  :aria-label="lightboxModalAlt || 'Expanded image preview'">
 
-                 <figure class="cms-lightbox-figure" @click.stop>
+                     <div class="cms-lightbox-stage">
+                     <figure class="cms-lightbox-figure" @click.stop>
                      <button x-ref="lightboxClose" type="button" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem; color: rgba(255,255,255,0.7); background: transparent; border: none; cursor: pointer; z-index: 10;" @click="closeLightbox()" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.7)'" aria-label="Close image preview">
                          <svg style="width: 2rem; height: 2rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                      </button>
@@ -484,6 +486,7 @@
                      <img :src="lightboxModalSrc" :alt="lightboxModalAlt" @click.stop style="cursor: default; transition: transform 0.2s;" :style="lightboxModalSrc ? 'transform: scale(1);' : 'transform: scale(0.95);'" />
                      <figcaption x-show="lightboxModalCaption" class="cms-lightbox-caption" x-text="lightboxModalCaption"></figcaption>
                  </figure>
+                     </div>
             </div>
         </template>
     </div>
