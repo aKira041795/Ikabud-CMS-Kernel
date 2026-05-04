@@ -31,6 +31,10 @@
                     <i class="fas fa-user-tag w-5 text-center"></i>
                     <span class="ml-3">Student Statuses</span>
                 </a>
+                <a href="#case-severity-levels" data-section="case-severity-levels" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-exclamation-triangle w-5 text-center"></i>
+                    <span class="ml-3">Risk Levels</span>
+                </a>
                 <a href="#guidance-pro" data-section="guidance-pro" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-crown w-5 text-center"></i>
                     <span class="ml-3">Guidance Pro</span>
@@ -517,6 +521,22 @@
                      hx-target="#student-statuses-list">
                     <div class="text-center py-8 text-gray-400">
                         <i class="fas fa-spinner fa-spin"></i> Loading student statuses...
+                    </div>
+                </div>
+            </div>
+
+            <div id="case-severity-levels" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mt-5">
+                <h2 class="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-2 text-indigo-500"></i> Severity / Risk Levels
+                </h2>
+                <p class="text-sm text-gray-500 mb-5">Choose which built-in case risk levels appear in case forms and which one is selected by default.</p>
+
+                <div id="case-severity-levels-list"
+                     hx-get="{base_url}/api/case-severity-levels?context=settings"
+                     hx-trigger="load, refreshCaseSeverityLevels from:body"
+                     hx-target="#case-severity-levels-list">
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fas fa-spinner fa-spin"></i> Loading risk levels...
                     </div>
                 </div>
             </div>

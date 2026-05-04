@@ -269,10 +269,9 @@
                             <select id="inp-severity" name="severity" required
                                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                                 <option value="">Select risk level</option>
-                                <option value="low">Low Risk</option>
-                                <option value="medium">Moderate Risk</option>
-                                <option value="high">High Risk</option>
-                                <option value="critical">Critical</option>
+                                {foreach severity_levels as severity_level}
+                                <option value="{severity_level.value | esc_attr}" {if severity_default == severity_level.value}selected{/if}>{severity_level.label | esc_html}</option>
+                                {/foreach}
                             </select>
                         </div>
 

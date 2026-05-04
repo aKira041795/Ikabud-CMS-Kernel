@@ -104,6 +104,7 @@ return [
         '/admin/guidance/api/alerts' => 'guidance:apiGuidanceAlertsList',
         '/admin/guidance/api/appointment-types' => 'guidance:apiGuidanceListAppointmentTypes',
         '/admin/guidance/api/student-statuses' => 'guidance:apiGuidanceListStudentStatuses',
+        '/admin/guidance/api/case-severity-levels' => 'guidance:apiGuidanceListCaseSeverityLevels',
 
         '/admin/guidance/api/trackers' => 'guidance:apiGuidanceTrackers',
         '/admin/guidance/api/trackers/{id}/students' => 'guidance:apiGuidanceTrackerStudents',
@@ -184,6 +185,7 @@ return [
         '/admin/guidance/api/appointments/{id}' => 'guidance:apiGuidanceUpdateAppointment',
         '/admin/guidance/api/appointment-types/{id}' => 'guidance:apiGuidanceUpdateAppointmentType',
         '/admin/guidance/api/student-statuses/{id}' => 'guidance:apiGuidanceUpdateStudentStatus',
+        '/admin/guidance/api/case-severity-levels' => 'guidance:apiGuidanceUpdateCaseSeverityLevels',
         '/admin/guidance/api/trackers/{id}' => 'guidance:apiGuidanceUpdateTracker',
         '/admin/guidance/api/trackers/{id}/items/{itemId}' => 'guidance:apiGuidanceUpdateTrackerItem',
         '/admin/guidance/api/email-templates' => 'guidance:apiGuidanceUpdateEmailTemplates',

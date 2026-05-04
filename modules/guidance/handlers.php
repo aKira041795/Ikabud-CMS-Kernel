@@ -134,9 +134,40 @@ function guidanceAllowedCaseCategories(): array
     return ['general', 'academic', 'behavioral', 'emotional', 'family', 'peer', 'career', 'crisis', 'special_needs', 'substance', 'other'];
 }
 
-function guidanceAllowedCaseSeverityLevels(): array
+function guidanceDefaultCaseSeverityLevels(): array
 {
     return ['low', 'medium', 'high', 'critical'];
+}
+
+function guidanceAllowedCaseSeverityLevels(): array
+{
+    try {
+        $config = getCaseSeverityConfig(guidanceDb());
+        return $config['levels'];
+    } catch (Throwable $e) {
+        return guidanceDefaultCaseSeverityLevels();
+    }
+}
+
+function normalizeCaseSeverityValue(?string $value): string
+{
+    $value = strtolower(trim((string) $value));
+    if ($value === 'moderate') {
+        $value = 'medium';
+    }
+
+    return in_array($value, guidanceDefaultCaseSeverityLevels(), true) ? $value : '';
+}
+
+function guidanceCaseSeverityLabel(string $value): string
+{
+    return match (normalizeCaseSeverityValue($value)) {
+        'low' => 'Low Risk',
+        'medium' => 'Moderate Risk',
+        'high' => 'High Risk',
+        'critical' => 'Critical',
+        default => trim((string) $value),
+    };
 }
 
 function guidanceNormalizeCaseReferralSource(?string $value): string
@@ -199,9 +230,18 @@ function guidanceBuildCaseRecordPayload(array $input, int $counselorId, int $use
         $categoriesJson = null;
     }
 
-    $severity = strtolower(trim((string)($input['severity'] ?? 'medium')));
-    if (!in_array($severity, guidanceAllowedCaseSeverityLevels(), true)) {
-        $severity = 'medium';
+    try {
+        $severityConfig = getCaseSeverityConfig(guidanceDb());
+        $allowedSeverityLevels = $severityConfig['levels'];
+        $defaultSeverity = $severityConfig['default'] !== '' ? $severityConfig['default'] : 'medium';
+    } catch (Throwable $e) {
+        $allowedSeverityLevels = guidanceDefaultCaseSeverityLevels();
+        $defaultSeverity = 'medium';
+    }
+
+    $severity = normalizeCaseSeverityValue((string)($input['severity'] ?? $defaultSeverity));
+    if ($severity === '' || !in_array($severity, $allowedSeverityLevels, true)) {
+        $severity = $defaultSeverity;
     }
 
     $sessionDate = trim((string)($input['session_date'] ?? '')) ?: null;
@@ -242,7 +282,7 @@ function guidanceBuildCaseRecordPayload(array $input, int $counselorId, int $use
         'mse_judgment' => trim((string)($input['mse_judgment'] ?? '')) ?: null,
         'mse_notes' => trim((string)($input['mse_notes'] ?? '')) ?: null,
         'is_urgent' => !empty($input['is_urgent']) ? 1 : 0,
-        'is_confidential' => !empty($input['is_confidential']) ? 1 : 0,
+        'is_confidential' => 1,
         'parent_guardian_name' => trim((string)($input['parent_guardian_name'] ?? '')) ?: null,
         'parent_guardian_contact' => trim((string)($input['parent_guardian_contact'] ?? '')) ?: null,
         'emergency_contact_address' => trim((string)($input['emergency_contact_address'] ?? '')) ?: null,
@@ -1077,6 +1117,10 @@ function apiGuidanceUpdateCase(array $params = []): void
         $values = [];
         foreach ($allowedColumns as $column) {
             $shouldUpdate = array_key_exists($column, $input);
+
+            if ($column === 'is_confidential') {
+                $shouldUpdate = true;
+            }
 
             if (!$shouldUpdate && isset($enabledFieldMap[$column]) && (string)($enabledFieldMap[$column]['field_type'] ?? '') === 'checkbox') {
                 $shouldUpdate = true;
@@ -3633,6 +3677,7 @@ function pageGuidanceCaseNew(): void
     $counselors       = [];
     $colleges         = [];
     $appointmentTypes = [];
+    $severityConfig   = guidanceGetCaseSeverityOptionsForForm($db);
 
     if ($role !== 'counselor') {
         try {
@@ -3668,6 +3713,8 @@ function pageGuidanceCaseNew(): void
             'counselors'       => $counselors,
             'colleges'         => $colleges,
             'appointment_types' => $appointmentTypes,
+            'severity_levels'  => $severityConfig['options'],
+            'severity_default' => $severityConfig['default'],
             'user_role'        => $role,
             'is_admin'         => $role !== 'counselor',
             'today'            => date('Y-m-d'),
@@ -5443,6 +5490,10 @@ function modalGuidanceCaseNew(): void
     if (empty($casePrefill['student_status']) && $studentStatusConfig['default'] !== '') {
         $casePrefill['student_status'] = $studentStatusConfig['default'];
     }
+    $severityConfig = guidanceGetCaseSeverityOptionsForForm($db, (string)($casePrefill['severity'] ?? ''));
+    if (empty($casePrefill['severity']) && $severityConfig['default'] !== '') {
+        $casePrefill['severity'] = $severityConfig['default'];
+    }
 
     echo guidanceRender('modules/guidance/modals/case-form.disyl', [
         'case' => $casePrefill,
@@ -5453,6 +5504,8 @@ function modalGuidanceCaseNew(): void
         'counselors' => $counselors,
         'colleges' => $colleges,
         'student_statuses' => $studentStatusConfig['statuses'],
+        'severity_levels' => $severityConfig['options'],
+        'severity_default' => $severityConfig['default'],
         'case_categories_json' => '[]',
         'dynamic_fields_html' => guidanceRenderFormFields('case', $casePrefill, ['colleges' => $colleges]),
         'source_appointment' => $sourceAppointment ?? [],
@@ -5540,6 +5593,7 @@ function modalGuidanceCaseEdit(array $params = []): void
     }
 
     $studentStatusConfig = guidanceGetStudentStatusOptionsForForm($db, (string)($case['student_status'] ?? ''));
+    $severityConfig = guidanceGetCaseSeverityOptionsForForm($db, (string)($case['severity'] ?? ''));
 
     echo guidanceRender('modules/guidance/modals/case-form.disyl', [
         'case' => $case,
@@ -5550,6 +5604,8 @@ function modalGuidanceCaseEdit(array $params = []): void
         'counselors' => $counselors,
         'colleges' => $colleges,
         'student_statuses' => $studentStatusConfig['statuses'],
+        'severity_levels' => $severityConfig['options'],
+        'severity_default' => $severityConfig['default'],
         'case_categories_json' => (function() use ($case): string {
             $raw = $case['categories'] ?? null;
             if (is_string($raw) && trim($raw) !== '') {
@@ -10550,6 +10606,283 @@ function studentStatusError(string $message, int $status = 400): void
 
     app()->json(['error' => $message], $status);
     exit;
+}
+
+function caseSeverityError(string $message, int $status = 400): void
+{
+    if (guidanceIsHtmx()) {
+        http_response_code($status);
+        header('HX-Reswap: none');
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $message, 'type' => 'error']]));
+        echo '';
+        exit;
+    }
+
+    app()->json(['error' => $message], $status);
+    exit;
+}
+
+function ensureCaseSeverityField(\Ikabud\Kernel\Contracts\DatabaseContract $db): array
+{
+    $stmt = $db->prepare('SELECT * FROM gm_form_fields WHERE form_type = ? AND field_name = ? LIMIT 1');
+    $stmt->execute(['case', 'severity']);
+    $field = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($field) {
+        return $field;
+    }
+
+    $defaults = guidanceDefaultCaseSeverityLevels();
+    $nextSort = (int) $db->query("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM gm_form_fields WHERE form_type = 'case'")->fetchColumn();
+
+    $insert = $db->prepare(
+        'INSERT INTO gm_form_fields (
+            form_type, field_name, field_label, field_type, field_group,
+            field_options, placeholder, default_value, is_required, is_enabled,
+            is_system, sort_order, grid_column
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $insert->execute([
+        'case',
+        'severity',
+        'Severity',
+        'select',
+        'Case Details',
+        json_encode($defaults, JSON_UNESCAPED_UNICODE),
+        null,
+        'medium',
+        0,
+        1,
+        1,
+        max(1, $nextSort),
+        'half',
+    ]);
+
+    $stmt->execute(['case', 'severity']);
+    $field = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$field) {
+        throw new RuntimeException('Failed to initialize case severity field');
+    }
+
+    return $field;
+}
+
+function getCaseSeverityConfig(\Ikabud\Kernel\Contracts\DatabaseContract $db): array
+{
+    $field = ensureCaseSeverityField($db);
+    $configured = [];
+    if (!empty($field['field_options'])) {
+        $decoded = json_decode((string) $field['field_options'], true);
+        $source = is_array($decoded) ? $decoded : explode(',', (string) $field['field_options']);
+        foreach ($source as $option) {
+            $normalized = normalizeCaseSeverityValue((string) $option);
+            if ($normalized !== '' && !in_array($normalized, $configured, true)) {
+                $configured[] = $normalized;
+            }
+        }
+    }
+
+    if ($configured === []) {
+        $configured = guidanceDefaultCaseSeverityLevels();
+    }
+
+    $default = normalizeCaseSeverityValue((string) ($field['default_value'] ?? ''));
+    if ($default === '' || !in_array($default, $configured, true)) {
+        $default = $configured[0] ?? 'medium';
+    }
+
+    $usageCounts = [];
+    try {
+        $usageStmt = $db->query(
+            "SELECT severity, COUNT(*) AS severity_count
+             FROM gm_cases
+             WHERE severity IS NOT NULL AND TRIM(severity) != ''
+             GROUP BY severity"
+        );
+        foreach ($usageStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $severity = normalizeCaseSeverityValue((string) ($row['severity'] ?? ''));
+            if ($severity !== '') {
+                $usageCounts[$severity] = (int) ($row['severity_count'] ?? 0);
+            }
+        }
+    } catch (Throwable $e) {
+        $usageCounts = [];
+    }
+
+    $orderedValues = $configured;
+    foreach (guidanceDefaultCaseSeverityLevels() as $severity) {
+        if (!in_array($severity, $orderedValues, true)) {
+            $orderedValues[] = $severity;
+        }
+    }
+
+    $items = [];
+    foreach ($orderedValues as $index => $severity) {
+        $items[] = [
+            'value' => $severity,
+            'label' => guidanceCaseSeverityLabel($severity),
+            'sort_order' => $index + 1,
+            'is_enabled' => in_array($severity, $configured, true),
+            'is_default' => $severity === $default,
+            'in_use_count' => (int) ($usageCounts[$severity] ?? 0),
+        ];
+    }
+
+    return [
+        'field' => $field,
+        'levels' => $configured,
+        'default' => $default,
+        'items' => $items,
+    ];
+}
+
+function guidanceGetCaseSeverityOptionsForForm(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?string $currentValue = null): array
+{
+    try {
+        $config = getCaseSeverityConfig($db);
+        $levels = $config['levels'];
+        $default = $config['default'];
+    } catch (Throwable $e) {
+        $levels = guidanceDefaultCaseSeverityLevels();
+        $default = 'medium';
+    }
+
+    $currentValue = normalizeCaseSeverityValue($currentValue);
+    if ($currentValue !== '' && !in_array($currentValue, $levels, true)) {
+        $levels[] = $currentValue;
+    }
+
+    $options = [];
+    foreach ($levels as $level) {
+        $options[] = [
+            'value' => $level,
+            'label' => guidanceCaseSeverityLabel($level),
+        ];
+    }
+
+    return [
+        'levels' => $levels,
+        'default' => $default,
+        'options' => $options,
+    ];
+}
+
+function saveCaseSeverityConfig(\Ikabud\Kernel\Contracts\DatabaseContract $db, array $field, array $levels, ?string $defaultValue): array
+{
+    $normalized = [];
+    foreach ($levels as $level) {
+        $value = normalizeCaseSeverityValue((string) $level);
+        if ($value !== '' && !in_array($value, $normalized, true)) {
+            $normalized[] = $value;
+        }
+    }
+
+    if ($normalized === []) {
+        caseSeverityError('At least one severity level must remain enabled', 400);
+    }
+
+    $defaultValue = normalizeCaseSeverityValue((string) $defaultValue);
+    if ($defaultValue === '' || !in_array($defaultValue, $normalized, true)) {
+        $defaultValue = $normalized[0];
+    }
+
+    $stmt = $db->prepare('UPDATE gm_form_fields SET field_options = ?, default_value = ?, is_enabled = 1 WHERE id = ?');
+    $stmt->execute([
+        json_encode($normalized, JSON_UNESCAPED_UNICODE),
+        $defaultValue,
+        $field['id'],
+    ]);
+
+    return [
+        'levels' => $normalized,
+        'default' => $defaultValue,
+    ];
+}
+
+function apiGuidanceListCaseSeverityLevels(): void
+{
+    guidanceRequireStaff(['admin']);
+    $db = guidanceDb();
+    $context = (string) guidanceInput('context', '');
+
+    try {
+        $config = getCaseSeverityConfig($db);
+    } catch (Throwable $e) {
+        app()->log('Case severity list error: ' . $e->getMessage(), 'error');
+        caseSeverityError('Failed to load case severity settings', 500);
+    }
+
+    if (guidanceIsHtmx() && $context === 'settings') {
+        echo guidanceRender('modules/guidance/partials/case-severity-settings.disyl', [
+            'severity_levels' => $config['items'],
+            'default_severity' => $config['default'],
+        ]);
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => true, 'data' => $config['items'], 'default' => $config['default']], JSON_UNESCAPED_SLASHES);
+}
+
+function apiGuidanceUpdateCaseSeverityLevels(): void
+{
+    guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
+    $db = guidanceDb();
+    $input = guidanceInput();
+
+    if (!is_array($input)) {
+        caseSeverityError('Invalid request payload', 400);
+    }
+
+    $enabledInput = $input['enabled_levels'] ?? [];
+    if (!is_array($enabledInput)) {
+        $enabledInput = $enabledInput === '' ? [] : [$enabledInput];
+    }
+
+    $sortOrders = is_array($input['sort_order'] ?? null) ? $input['sort_order'] : [];
+    $enabled = [];
+    foreach ($enabledInput as $level) {
+        $normalized = normalizeCaseSeverityValue((string) $level);
+        if ($normalized !== '' && !in_array($normalized, $enabled, true)) {
+            $enabled[] = $normalized;
+        }
+    }
+
+    usort($enabled, static function (string $left, string $right) use ($sortOrders): int {
+        $leftSort = max(1, (int) ($sortOrders[$left] ?? PHP_INT_MAX));
+        $rightSort = max(1, (int) ($sortOrders[$right] ?? PHP_INT_MAX));
+        if ($leftSort === $rightSort) {
+            return array_search($left, guidanceDefaultCaseSeverityLevels(), true) <=> array_search($right, guidanceDefaultCaseSeverityLevels(), true);
+        }
+
+        return $leftSort <=> $rightSort;
+    });
+
+    try {
+        $config = getCaseSeverityConfig($db);
+        $db->beginTransaction();
+        saveCaseSeverityConfig($db, $config['field'], $enabled, (string) ($input['default_value'] ?? ''));
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        app()->log('Case severity update error: ' . $e->getMessage(), 'error');
+        caseSeverityError('Failed to update case severity settings', 500);
+    }
+
+    if (guidanceIsHtmx()) {
+        header('HX-Trigger: ' . json_encode([
+            'showToast' => ['message' => 'Case severity settings updated', 'type' => 'success'],
+            'refreshCaseSeverityLevels' => true,
+        ]));
+        echo '';
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
 }
 
 function studentStatusDefaultOptions(): array
