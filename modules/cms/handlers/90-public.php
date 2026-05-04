@@ -650,9 +650,10 @@ function cmsPublicCategoryArchive(array $params = []): void
 
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                u.display_name AS author_name
+                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
+         LEFT JOIN cms_media m ON m.id = c.featured_image_id
          INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id = ?
          WHERE c.type = 'post' AND c.deleted_at IS NULL AND {$vis}
          ORDER BY c.published_at DESC
@@ -661,6 +662,12 @@ function cmsPublicCategoryArchive(array $params = []): void
     $stmt->execute([(int)$category['id']]);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $posts = cmsProcessPostExcerpts($posts);
+    foreach ($posts as &$postRow) {
+        if (!empty($postRow['featured_image'])) {
+            $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
+        }
+    }
+    unset($postRow);
 
     $countStmt = $db->prepare(
         "SELECT COUNT(*) FROM cms_content c
@@ -783,9 +790,10 @@ function cmsPublicTagArchive(array $params = []): void
 
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                u.display_name AS author_name
+                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
+         LEFT JOIN cms_media m ON m.id = c.featured_image_id
          INNER JOIN cms_content_tags ct ON ct.content_id = c.id AND ct.tag_id = ?
          WHERE c.type = 'post' AND c.deleted_at IS NULL AND {$vis}
          ORDER BY c.published_at DESC
@@ -794,6 +802,12 @@ function cmsPublicTagArchive(array $params = []): void
     $stmt->execute([(int)$tag['id']]);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $posts = cmsProcessPostExcerpts($posts);
+    foreach ($posts as &$postRow) {
+        if (!empty($postRow['featured_image'])) {
+            $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
+        }
+    }
+    unset($postRow);
 
     $countStmt = $db->prepare(
         "SELECT COUNT(*) FROM cms_content c
@@ -883,9 +897,10 @@ function cmsPublicSearch(array $params = []): void
 
         $stmt = $db->prepare(
             "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                    u.display_name AS author_name
+                    c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
              FROM cms_content c
              LEFT JOIN cms_users u ON u.id = c.author_id
+             LEFT JOIN cms_media m ON m.id = c.featured_image_id
              WHERE c.deleted_at IS NULL AND {$vis}
              AND (c.title LIKE ? OR c.body LIKE ? OR c.excerpt LIKE ?)
              ORDER BY c.published_at DESC
@@ -895,6 +910,12 @@ function cmsPublicSearch(array $params = []): void
         $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
     $posts = cmsProcessPostExcerpts($posts);
+    foreach ($posts as &$postRow) {
+        if (!empty($postRow['featured_image'])) {
+            $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
+        }
+    }
+    unset($postRow);
 
     $totalPages = max(1, (int)ceil(max($total, 1) / $perPage));
     $baseUrl = cmsPublicCanonicalBaseUrl();
