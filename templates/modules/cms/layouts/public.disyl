@@ -399,13 +399,15 @@
             window.addEventListener('scroll', () => this.hideHoverHint(), { passive: true });
         }
     }">
-        <template x-teleport="body">
-            <div x-show="hoverHintVisible && !lightboxModalSrc"
-                 class="cms-lightbox-hover-hint"
-                 style="display: none;"
-                 x-transition.opacity.duration.100ms
-                 :style="hoverHintStyle"
-                 x-text="hoverHintText"></div>
+           <template x-teleport="body">
+              <div x-show="hoverHintVisible && !lightboxModalSrc"
+                  class="cms-lightbox-hover-hint"
+                  style="display: none;"
+                  x-transition.opacity.duration.100ms
+                  :style="hoverHintStyle"
+                  x-text="hoverHintText"></div>
+           </template>
+           <template x-teleport="body">
             <div x-show="lightboxModalSrc"
                  class="cms-lightbox-backdrop"
                  style="display: none;"
