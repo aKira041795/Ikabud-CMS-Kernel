@@ -306,7 +306,7 @@
                         </button>
                     {/if}
                     
-                    {if appointment.status == 'scheduled' or appointment.status == 'confirmed'}
+                    {if appointment.status == 'pending' or appointment.status == 'scheduled' or appointment.status == 'confirmed'}
                         {if appointment.status == 'confirmed' and !appointment.case_id}
                         <button type="button" hx-get="{base_url}/pages/cases/new?appointment_id={appointment.id}" hx-target="#modal-container" hx-swap="innerHTML"
                                 class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition">
@@ -339,14 +339,14 @@
                     {/if}
                 </div>
             </div>
-            {if (appointment.status == 'scheduled' or appointment.status == 'confirmed') and !can_mark_outcome}
+            {if (appointment.status == 'pending' or appointment.status == 'scheduled' or appointment.status == 'confirmed') and !can_mark_outcome}
             <div class="px-8 py-3 border-t bg-amber-50 text-xs text-amber-700">
                 <i class="fas fa-info-circle mr-1"></i>{outcome_locked_reason}
             </div>
             {/if}
             
             {!-- Hidden Cancel Form --}
-            {if appointment.status == 'scheduled' or appointment.status == 'confirmed'}
+            {if appointment.status == 'pending' or appointment.status == 'scheduled' or appointment.status == 'confirmed'}
             <div id="cancel-form-{appointment.id}" class="hidden px-8 py-4 border-t bg-red-50">
                 <form hx-post="{base_url}/api/appointments/{appointment.id}/cancel" hx-swap="none" class="flex items-end space-x-3">
                     <div class="flex-1">

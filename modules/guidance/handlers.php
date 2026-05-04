@@ -1458,16 +1458,15 @@ function modalGuidanceAppointmentDetail(array $params = []): void
         $appt['student_name'] = $appt['case_student_name'];
     }
 
-    $canMarkOutcome = guidanceAppointmentScheduledAtReached(
-        (string)($appt['scheduled_date'] ?? ''),
-        (string)($appt['scheduled_time'] ?? '')
-    );
-
     echo guidanceRender('modules/guidance/modals/appointment-detail.disyl', [
         'appointment' => $appt,
         'case_notes' => [],
-        'can_mark_outcome' => $canMarkOutcome,
-        'outcome_locked_reason' => 'Complete and No Show become available once the scheduled date and time is reached.',
+        'can_mark_outcome' => guidanceAppointmentCanMarkOutcome(
+            (string)($appt['status'] ?? ''),
+            (string)($appt['scheduled_date'] ?? ''),
+            (string)($appt['scheduled_time'] ?? '')
+        ),
+        'outcome_locked_reason' => 'Complete and No Show become available for past appointments once the scheduled date and time is reached.',
         'base_url' => '/admin/guidance',
     ]);
 }
@@ -1491,6 +1490,16 @@ function guidanceAppointmentScheduledAtReached(string $date, string $time): bool
     }
 
     return $scheduledAt <= $now;
+}
+
+function guidanceAppointmentCanMarkOutcome(string $status, string $date, string $time): bool
+{
+    $status = strtolower(trim($status));
+    if (!in_array($status, ['pending', 'scheduled', 'confirmed'], true)) {
+        return false;
+    }
+
+    return guidanceAppointmentScheduledAtReached($date, $time);
 }
 
 function guidanceAppointmentConflict(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $counselorId, string $date, string $time, int $durationMinutes, int $excludeId = 0): bool
@@ -1891,7 +1900,7 @@ function apiGuidanceCompleteAppointment(array $params = []): void
         }
     }
 
-    $ok = guidanceSetAppointmentStatus($db, $id, 'completed', $userId, ['scheduled', 'confirmed']);
+    $ok = guidanceSetAppointmentStatus($db, $id, 'completed', $userId, ['pending', 'scheduled', 'confirmed']);
     if (!$ok) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid status transition', 'type' => 'error']]));
@@ -1924,7 +1933,7 @@ function apiGuidanceNoShowAppointment(array $params = []): void
         }
     }
 
-    $ok = guidanceSetAppointmentStatus($db, $id, 'no_show', $userId, ['scheduled', 'confirmed']);
+    $ok = guidanceSetAppointmentStatus($db, $id, 'no_show', $userId, ['pending', 'scheduled', 'confirmed']);
     if (!$ok) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid status transition', 'type' => 'error']]));
@@ -5938,11 +5947,12 @@ function apiGuidanceAppointments(): void
         foreach ($appointments as &$appt) {
             $appt['status_key'] = strtolower(trim((string)($appt['status_key'] ?? ($appt['status'] ?? ''))));
             $appt['counselor_name'] = trim((string)($appt['counselor_first'] ?? '') . ' ' . (string)($appt['counselor_last'] ?? ''));
-            $appt['can_mark_outcome'] = guidanceAppointmentScheduledAtReached(
+            $appt['can_mark_outcome'] = guidanceAppointmentCanMarkOutcome(
+                (string)($appt['status_key'] ?? ''),
                 (string)($appt['scheduled_date'] ?? ''),
                 (string)($appt['scheduled_time'] ?? '')
             );
-            $appt['outcome_locked_reason'] = 'Available once the scheduled date and time has been reached.';
+            $appt['outcome_locked_reason'] = 'Available for past appointments once the scheduled date and time has been reached.';
 
             if (($appt['scheduled_date'] ?? '') === $today) {
                 $appt['date_label'] = 'Today';
