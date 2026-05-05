@@ -290,6 +290,13 @@ try {
     btUsage('usage totals aggregate delivered base qty', abs((float)($totals['delivered_qty_base'] ?? 0) - 7.0) < 0.0001, json_encode($totals, JSON_UNESCAPED_SLASHES));
     btUsage('usage totals aggregate consumed base qty', abs((float)($totals['consumed_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($totals, JSON_UNESCAPED_SLASHES));
     btUsage('usage totals aggregate variance base qty', abs((float)($totals['variance_qty_base'] ?? 0) - 4.0) < 0.0001, json_encode($totals, JSON_UNESCAPED_SLASHES));
+    btUsage('usage totals display carries base unit label', (string)($totals['delivered_display'] ?? '') === '7.00 kg', json_encode($totals, JSON_UNESCAPED_SLASHES));
+
+    $mixedUsageTotals = bakeshopUsageTotals([
+        ['dimension' => 'mass', 'delivered_qty_base' => 2.0, 'consumed_qty_base' => 1.0, 'variance_qty_base' => 1.0],
+        ['dimension' => 'volume', 'delivered_qty_base' => 3.0, 'consumed_qty_base' => 1.5, 'variance_qty_base' => 1.5],
+    ]);
+    btUsage('mixed usage totals display separates unit breakdowns', (string)($mixedUsageTotals['delivered_display'] ?? '') === '2.00 kg, 3.00 L' && (string)($mixedUsageTotals['variance_display'] ?? '') === '1.00 kg, 1.50 L', json_encode($mixedUsageTotals, JSON_UNESCAPED_SLASHES));
 
     $inventoryRows = bakeshopInventorySnapshotRows([
         'branch_id' => $branchId,
@@ -308,6 +315,13 @@ try {
     $inventoryTotals = bakeshopInventorySnapshotTotals($inventoryRows);
     btUsage('inventory snapshot totals aggregate on-hand base qty', abs((float)($inventoryTotals['on_hand_qty_base'] ?? 0) - 4.0) < 0.0001, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
     btUsage('inventory snapshot totals count tracked ingredient lines', (int)($inventoryTotals['item_count'] ?? 0) === 2, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
+    btUsage('inventory snapshot totals display carries base unit label', (string)($inventoryTotals['on_hand_display'] ?? '') === '4.00 kg', json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
+
+    $mixedInventoryTotals = bakeshopInventorySnapshotTotals([
+        ['dimension' => 'mass', 'on_hand_qty_base' => 4.0],
+        ['dimension' => 'volume', 'on_hand_qty_base' => 1.25],
+    ]);
+    btUsage('mixed inventory totals display separates unit breakdowns', (string)($mixedInventoryTotals['on_hand_display'] ?? '') === '4.00 kg, 1.25 L', json_encode($mixedInventoryTotals, JSON_UNESCAPED_SLASHES));
 
     $factualSummary = bakeshopUsageFactualSummary([
         'branch_id' => $branchId,
@@ -316,6 +330,7 @@ try {
     ]);
     btUsage('factual summary excludes voided production runs and includes override test run', (int)($factualSummary['production_run_count'] ?? 0) === 2, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
     btUsage('factual summary consumption ignores override runs without snapshot items', abs((float)($factualSummary['consumed_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+    btUsage('factual summary on-hand display carries base unit label', (string)($factualSummary['inventory_on_hand_display'] ?? '') === '4.00 kg', json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
 
     $currentInventoryRows = bakeshopInventorySnapshotRows([
         'branch_id' => $branchId,

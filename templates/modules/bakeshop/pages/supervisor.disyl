@@ -717,7 +717,7 @@
                     <span>Saved Batches</span>
                 </div>
                 <div class="bakeshop-stat">
-                    <strong>{summary_report.factual_summary.inventory_on_hand_qty_base | default:usage_zero_value}</strong>
+                    <strong>{summary_report.factual_summary.inventory_on_hand_display | default:usage_zero_value}</strong>
                     <span>On Hand At Scope End</span>
                 </div>
             </div>
@@ -1369,15 +1369,15 @@
                         <div class="bakeshop-grid-3">
                             <div class="bakeshop-stat">
                                 <strong id="usage-total-delivered">{usage_zero_value | default:'0.00'}</strong>
-                                <span>Delivered Base Qty</span>
+                                <span>Delivered By Unit</span>
                             </div>
                             <div class="bakeshop-stat">
                                 <strong id="usage-total-consumed">{usage_zero_value | default:'0.00'}</strong>
-                                <span>Consumed Base Qty</span>
+                                <span>Consumed By Unit</span>
                             </div>
                             <div class="bakeshop-stat">
                                 <strong id="usage-total-variance">{usage_zero_value | default:'0.00'}</strong>
-                                <span>Variance Base Qty</span>
+                                <span>Variance By Unit</span>
                             </div>
                         </div>
 
@@ -1427,7 +1427,7 @@
                                 <div class="bakeshop-grid-2">
                                     <div class="bakeshop-stat">
                                         <strong id="inventory-total-on-hand">{usage_zero_value | default:'0.00'}</strong>
-                                        <span>On-Hand Base Qty At Scope End</span>
+                                        <span>On-Hand By Unit At Scope End</span>
                                     </div>
                                     <div class="bakeshop-stat">
                                         <strong id="inventory-total-lines">0</strong>
@@ -1621,16 +1621,21 @@ document.addEventListener('DOMContentLoaded', () => {
         usageTotals: {
             delivered_qty_base: '{usage_zero_value | default:"0.00"}',
             consumed_qty_base: '{usage_zero_value | default:"0.00"}',
-            variance_qty_base: '{usage_zero_value | default:"0.00"}'
+            variance_qty_base: '{usage_zero_value | default:"0.00"}',
+            delivered_display: '{usage_zero_value | default:"0.00"}',
+            consumed_display: '{usage_zero_value | default:"0.00"}',
+            variance_display: '{usage_zero_value | default:"0.00"}'
         },
         factualSummary: {
             ingredient_count: 0,
             delivery_item_count: 0,
             production_run_count: 0,
-            inventory_on_hand_qty_base: '{usage_zero_value | default:"0.00"}'
+            inventory_on_hand_qty_base: '{usage_zero_value | default:"0.00"}',
+            inventory_on_hand_display: '{usage_zero_value | default:"0.00"}'
         },
         inventoryTotals: {
             on_hand_qty_base: '{usage_zero_value | default:"0.00"}',
+            on_hand_display: '{usage_zero_value | default:"0.00"}',
             item_count: 0
         },
         loaded: {
@@ -3102,9 +3107,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ], 'No usage rows matched the selected filters.');
 
         const usageZeroValue = (0).toFixed(state.usageDecimalPlaces);
-        $('#usage-total-delivered').textContent = state.usageTotals.delivered_qty_base || usageZeroValue;
-        $('#usage-total-consumed').textContent = state.usageTotals.consumed_qty_base || usageZeroValue;
-        $('#usage-total-variance').textContent = state.usageTotals.variance_qty_base || usageZeroValue;
+        $('#usage-total-delivered').textContent = state.usageTotals.delivered_display || state.usageTotals.delivered_qty_base || usageZeroValue;
+        $('#usage-total-consumed').textContent = state.usageTotals.consumed_display || state.usageTotals.consumed_qty_base || usageZeroValue;
+        $('#usage-total-variance').textContent = state.usageTotals.variance_display || state.usageTotals.variance_qty_base || usageZeroValue;
         $('#usage-factual-ingredients').textContent = String(state.factualSummary.ingredient_count || 0);
         $('#usage-factual-deliveries').textContent = String(state.factualSummary.delivery_item_count || 0);
         $('#usage-factual-runs').textContent = String(state.factualSummary.production_run_count || 0);
@@ -3117,7 +3122,7 @@ document.addEventListener('DOMContentLoaded', () => {
             (row) => escapeHtml(row.consumed_qty_base),
             (row) => '<strong>' + escapeHtml(row.on_hand_qty_base) + '</strong>'
         ], 'No inventory snapshot rows are available for the selected branch yet.');
-        $('#inventory-total-on-hand').textContent = state.inventoryTotals.on_hand_qty_base || usageZeroValue;
+        $('#inventory-total-on-hand').textContent = state.inventoryTotals.on_hand_display || state.inventoryTotals.on_hand_qty_base || usageZeroValue;
         $('#inventory-total-lines').textContent = String(state.inventoryTotals.item_count || state.inventorySnapshot.length || 0);
     }
 

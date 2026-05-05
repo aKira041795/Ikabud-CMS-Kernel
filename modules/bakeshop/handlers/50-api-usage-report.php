@@ -45,6 +45,82 @@ function bakeshopUsageBaseUnitCode(string $dimension): string
     };
 }
 
+function bakeshopUsageResolveUnitCode(array $row): string
+{
+    $unitCode = trim((string)($row['unit_code'] ?? ''));
+    if ($unitCode !== '') {
+        return $unitCode;
+    }
+
+    return bakeshopUsageBaseUnitCode((string)($row['dimension'] ?? ''));
+}
+
+function bakeshopUsageSortUnitCode(string $unitCode): array
+{
+    $normalized = strtolower(trim($unitCode));
+    $rank = match ($normalized) {
+        'kg' => 10,
+        'l' => 20,
+        'pc' => 30,
+        'unit' => 40,
+        default => 100,
+    };
+
+    return [$rank, $normalized];
+}
+
+function bakeshopUsageBuildUnitBreakdown(array $totalsByUnit, int $decimalPlaces): array
+{
+    if ($totalsByUnit === []) {
+        return [];
+    }
+
+    uksort($totalsByUnit, static function (string $left, string $right): int {
+        return bakeshopUsageSortUnitCode($left) <=> bakeshopUsageSortUnitCode($right);
+    });
+
+    $breakdown = [];
+    foreach ($totalsByUnit as $unitCode => $amount) {
+        $breakdown[] = [
+            'unit_code' => $unitCode,
+            'quantity' => number_format((float)$amount, $decimalPlaces, '.', ''),
+            'display' => number_format((float)$amount, $decimalPlaces, '.', '') . ' ' . $unitCode,
+        ];
+    }
+
+    return $breakdown;
+}
+
+function bakeshopUsageBreakdownDisplay(array $breakdown, int $decimalPlaces): string
+{
+    if ($breakdown === []) {
+        return number_format(0, $decimalPlaces, '.', '');
+    }
+
+    return implode(', ', array_map(static fn (array $item): string => (string)($item['display'] ?? ''), $breakdown));
+}
+
+function bakeshopUsageSummarizeFieldByUnit(array $rows, string $field, int $decimalPlaces): array
+{
+    $totalsByUnit = [];
+    foreach ($rows as $row) {
+        $unitCode = bakeshopUsageResolveUnitCode($row);
+        if (!isset($totalsByUnit[$unitCode])) {
+            $totalsByUnit[$unitCode] = 0.0;
+        }
+
+        $totalsByUnit[$unitCode] += (float)($row[$field] ?? 0);
+    }
+
+    $breakdown = bakeshopUsageBuildUnitBreakdown($totalsByUnit, $decimalPlaces);
+
+    return [
+        'total' => number_format(array_sum($totalsByUnit), $decimalPlaces, '.', ''),
+        'breakdown' => $breakdown,
+        'display' => bakeshopUsageBreakdownDisplay($breakdown, $decimalPlaces),
+    ];
+}
+
 function bakeshopUsageParseSupplierFilter(?string $value): ?array
 {
     $raw = trim((string)($value ?? ''));
@@ -351,22 +427,20 @@ function bakeshopUsageReportRows(array $input = []): array
 function bakeshopUsageTotals(array $rows): array
 {
     $decimalPlaces = bakeshopUsageDecimalPlaces();
-    $totals = [
-        'delivered_qty_base' => 0.0,
-        'consumed_qty_base' => 0.0,
-        'variance_qty_base' => 0.0,
-    ];
-
-    foreach ($rows as $row) {
-        $totals['delivered_qty_base'] += (float)($row['delivered_qty_base'] ?? 0);
-        $totals['consumed_qty_base'] += (float)($row['consumed_qty_base'] ?? 0);
-        $totals['variance_qty_base'] += (float)($row['variance_qty_base'] ?? 0);
-    }
+    $delivered = bakeshopUsageSummarizeFieldByUnit($rows, 'delivered_qty_base', $decimalPlaces);
+    $consumed = bakeshopUsageSummarizeFieldByUnit($rows, 'consumed_qty_base', $decimalPlaces);
+    $variance = bakeshopUsageSummarizeFieldByUnit($rows, 'variance_qty_base', $decimalPlaces);
 
     return [
-        'delivered_qty_base' => number_format($totals['delivered_qty_base'], $decimalPlaces, '.', ''),
-        'consumed_qty_base' => number_format($totals['consumed_qty_base'], $decimalPlaces, '.', ''),
-        'variance_qty_base' => number_format($totals['variance_qty_base'], $decimalPlaces, '.', ''),
+        'delivered_qty_base' => $delivered['total'],
+        'consumed_qty_base' => $consumed['total'],
+        'variance_qty_base' => $variance['total'],
+        'delivered_display' => $delivered['display'],
+        'consumed_display' => $consumed['display'],
+        'variance_display' => $variance['display'],
+        'delivered_breakdown' => $delivered['breakdown'],
+        'consumed_breakdown' => $consumed['breakdown'],
+        'variance_breakdown' => $variance['breakdown'],
     ];
 }
 
@@ -727,15 +801,18 @@ function bakeshopUsageFactualSummary(array $input = []): array
     $filters = bakeshopUsageNormalizeFilters($input);
     $decimalPlaces = bakeshopUsageDecimalPlaces();
     $summaryRows = bakeshopPrintSummaryRows($filters);
-
-    $deliveredQtyBase = 0.0;
-    $consumedQtyBase = 0.0;
-    $inventoryOnHandQtyBase = 0.0;
-    foreach ($summaryRows as $row) {
-        $deliveredQtyBase += (float)($row['total_delivery'] ?? 0);
-        $consumedQtyBase += (float)($row['total_usage'] ?? 0);
-        $inventoryOnHandQtyBase += (float)($row['remaining_balance'] ?? 0);
-    }
+    $delivered = bakeshopUsageSummarizeFieldByUnit(array_map(static function (array $row): array {
+        $row['delivered_qty_base'] = $row['total_delivery'] ?? 0;
+        return $row;
+    }, $summaryRows), 'delivered_qty_base', $decimalPlaces);
+    $consumed = bakeshopUsageSummarizeFieldByUnit(array_map(static function (array $row): array {
+        $row['consumed_qty_base'] = $row['total_usage'] ?? 0;
+        return $row;
+    }, $summaryRows), 'consumed_qty_base', $decimalPlaces);
+    $inventoryOnHand = bakeshopUsageSummarizeFieldByUnit(array_map(static function (array $row): array {
+        $row['on_hand_qty_base'] = $row['remaining_balance'] ?? 0;
+        return $row;
+    }, $summaryRows), 'on_hand_qty_base', $decimalPlaces);
 
     $deliveryWhere = [];
     $deliveryBindings = [];
@@ -789,10 +866,16 @@ function bakeshopUsageFactualSummary(array $input = []): array
         'ingredient_count' => count($summaryRows),
         'delivery_item_count' => $deliveryCount,
         'production_run_count' => $productionRunCount,
-        'delivered_qty_base' => round($deliveredQtyBase, $decimalPlaces),
-        'consumed_qty_base' => round($consumedQtyBase, $decimalPlaces),
-        'variance_qty_base' => round($deliveredQtyBase - $consumedQtyBase, $decimalPlaces),
-        'inventory_on_hand_qty_base' => round($inventoryOnHandQtyBase, $decimalPlaces),
+        'delivered_qty_base' => (float)$delivered['total'],
+        'consumed_qty_base' => (float)$consumed['total'],
+        'variance_qty_base' => round(((float)$delivered['total']) - ((float)$consumed['total']), $decimalPlaces),
+        'inventory_on_hand_qty_base' => (float)$inventoryOnHand['total'],
+        'delivered_display' => $delivered['display'],
+        'consumed_display' => $consumed['display'],
+        'inventory_on_hand_display' => $inventoryOnHand['display'],
+        'delivered_breakdown' => $delivered['breakdown'],
+        'consumed_breakdown' => $consumed['breakdown'],
+        'inventory_on_hand_breakdown' => $inventoryOnHand['breakdown'],
     ];
 }
 
@@ -838,14 +921,12 @@ function bakeshopInventorySnapshotRows(array $input = []): array
 function bakeshopInventorySnapshotTotals(array $rows): array
 {
     $decimalPlaces = bakeshopUsageDecimalPlaces();
-    $onHandTotal = 0.0;
-
-    foreach ($rows as $row) {
-        $onHandTotal += (float)($row['on_hand_qty_base'] ?? 0);
-    }
+    $onHand = bakeshopUsageSummarizeFieldByUnit($rows, 'on_hand_qty_base', $decimalPlaces);
 
     return [
-        'on_hand_qty_base' => number_format($onHandTotal, $decimalPlaces, '.', ''),
+        'on_hand_qty_base' => $onHand['total'],
+        'on_hand_display' => $onHand['display'],
+        'on_hand_breakdown' => $onHand['breakdown'],
         'item_count' => count($rows),
     ];
 }
@@ -876,8 +957,10 @@ function bakeshopApiUsageIndex(array $params = []): void
         $supplierOptionFilters['ingredient_ids'] = [];
         $ingredientOptionFilters = $filters;
         $ingredientOptionFilters['ingredient_ids'] = [];
-        $items = bakeshopUsageFormatRows(bakeshopUsageReportRows($filters));
-        $inventoryItems = bakeshopInventorySnapshotFormatRows(bakeshopInventorySnapshotRows($filters));
+        $usageRows = bakeshopUsageReportRows($filters);
+        $inventoryRows = bakeshopInventorySnapshotRows($filters);
+        $items = bakeshopUsageFormatRows($usageRows);
+        $inventoryItems = bakeshopInventorySnapshotFormatRows($inventoryRows);
 
         bakeshopJsonOk([
             'items' => $items,
@@ -885,11 +968,11 @@ function bakeshopApiUsageIndex(array $params = []): void
             'branches' => bakeshopUsageBranchOptions(),
             'supplier_options' => bakeshopUsageSupplierOptions($supplierOptionFilters),
             'ingredient_options' => bakeshopPrintSummaryIngredientOptions($ingredientOptionFilters),
-            'totals' => bakeshopUsageTotals($items),
+            'totals' => bakeshopUsageTotals($usageRows),
             'factual_summary' => bakeshopUsageFactualSummary($filters),
             'inventory' => [
                 'items' => $inventoryItems,
-                'totals' => bakeshopInventorySnapshotTotals($inventoryItems),
+                'totals' => bakeshopInventorySnapshotTotals($inventoryRows),
             ],
             'settings' => array_merge(bakeshopSettings(), [
                 'usage_decimal_places' => bakeshopUsageDecimalPlaces(),

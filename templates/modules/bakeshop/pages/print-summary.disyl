@@ -190,7 +190,7 @@
         </div>
         <div>
             <strong>On Hand At Scope End</strong>
-            <p>{factual_summary.inventory_on_hand_qty_base | default:'0.00'}</p>
+            <p>{factual_summary.inventory_on_hand_display | default:'0.00'}</p>
         </div>
     </div>
 
