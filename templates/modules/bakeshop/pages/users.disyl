@@ -73,16 +73,20 @@
 
     {if bootstrap_onboarding.required}
     <section class="bakeshop-users-onboarding">
-        <h3>Bootstrap Admin Onboarding</h3>
-        {if bootstrap_onboarding.needs_successor_admin}
-        <p>You are still using the default bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong>. Create a named <strong>admin</strong> account for the real operator first, sign in with that account, then come back and retire the bootstrap login.</p>
-        {else}
-        <p>The default bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong> is still active. A replacement admin already exists, so the next step is to sign in with that named admin and deactivate the bootstrap account below.</p>
-        {/if}
-        {if bootstrap_onboarding.password_setup_required}
-        <p>The bootstrap account is currently marked for password setup only. It no longer ships with a shared default password, so create a named admin below or set a fresh password intentionally before any handoff.</p>
-        {/if}
-        <p>{if bootstrap_onboarding.can_retire_bootstrap}Active named admins detected: {bootstrap_onboarding.other_admin_count}.{else}No other active admin accounts exist yet.{/if} Use the form below to keep the handoff inside the bakeshop module.</p>
+        <h3>Bootstrap Admin Handoff</h3>
+        <p>The default bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong> is still active. Use this same checklist on every Bakeshop page so account setup, successor creation, and retirement happen in one order.</p>
+        <div class="bakeshop-onboarding-checklist">
+            {each bootstrap_onboarding_guide.steps as step}
+            <article class="bakeshop-onboarding-step {step.status}">
+                <div class="bakeshop-onboarding-step-head">
+                    <h4>{step.title}</h4>
+                    <span class="bakeshop-step-status {step.status}">{step.status_label}</span>
+                </div>
+                <p>{step.description}</p>
+                <a class="bakeshop-step-action" href="{base_url}{step.action_url}">{step.action_label}</a>
+            </article>
+            {/each}
+        </div>
     </section>
     {/if}
 

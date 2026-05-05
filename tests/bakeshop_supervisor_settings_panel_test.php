@@ -29,12 +29,21 @@ function btPanel(string $label, bool $ok, string $detail = ''): void
     echo "  ✗ {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
 }
 
-function renderBakeshopSupervisorForUser(array $user): string
+function renderBakeshopSupervisorForUser(array $user, array $query = []): string
 {
+    $previousGet = $_GET;
+    $previousRequestUri = $_SERVER['REQUEST_URI'] ?? '/admin/bakeshop';
+    $_GET = $query;
+    $_SERVER['REQUEST_URI'] = '/admin/bakeshop' . ($query === [] ? '' : ('?' . http_build_query($query)));
     app()->setUser($user);
     ob_start();
-    bakeshopPageSupervisor();
-    return (string)ob_get_clean();
+    try {
+        bakeshopPageSupervisor();
+        return (string)ob_get_clean();
+    } finally {
+        $_GET = $previousGet;
+        $_SERVER['REQUEST_URI'] = $previousRequestUri;
+    }
 }
 
 function renderBakeshopPageForUser(array $user, callable $page): string
@@ -91,10 +100,22 @@ try {
                 || str_contains($adminHtml, 'Branch ingredient balance summary for handoff: beginning stock, delivery source, total delivery, production usage, and remaining balance.')
             )
     );
-    btPanel('admin dashboard hides work areas panel', str_contains($adminHtml, 'style="display:none;" id="work-areas-panel"'));
+    btPanel('admin dashboard keeps work areas visible', str_contains($adminHtml, 'id="work-areas-panel"') && !str_contains($adminHtml, 'style="display:none;" id="work-areas-panel"'));
+    btPanel('admin dashboard renders workspace submenu deep links', str_contains($adminHtml, '/admin/bakeshop?view=workspace#branches') && str_contains($adminHtml, '/admin/bakeshop?view=workspace#usage'));
     btPanel('admin page moves access settings out of workspace', !str_contains($adminHtml, 'Access Settings'));
     btPanel('admin page moves seeded units out of workspace', !str_contains($adminHtml, 'Seeded Units'));
     btPanel('admin page usage totals render configured decimal placeholders', str_contains($adminHtml, 'id="usage-total-delivered">0.00</strong>'), $adminHtml);
+
+    $focusedAdminHtml = renderBakeshopSupervisorForUser([
+        'id' => 1,
+        'username' => 'admin',
+        'role' => 'admin',
+        'source' => 'bakeshop',
+    ], ['view' => 'workspace']);
+    btPanel('focused workspace mode updates shell title', str_contains($focusedAdminHtml, 'Focused Operations Workspace'));
+    btPanel('focused workspace mode hides dashboard overview panels', str_contains($focusedAdminHtml, 'class="bakeshop-stats" style="display:none;"') && str_contains($focusedAdminHtml, 'Summary Report') && str_contains($focusedAdminHtml, 'Back to Full Overview'));
+    btPanel('focused workspace mode exposes contextual title targets', str_contains($focusedAdminHtml, 'id="bakeshop-page-title"') && str_contains($focusedAdminHtml, 'id="bakeshop-page-intro"'));
+    btPanel('focused workspace tabs expose contextual header metadata', str_contains($focusedAdminHtml, 'data-workspace-title="Branch Setup"') && str_contains($focusedAdminHtml, 'data-workspace-title="Usage Summary"'));
 
     $branchesHtml = renderBakeshopPageForUser([
         'id' => 1,
@@ -106,6 +127,7 @@ try {
     btPanel('work-area pages no longer use generic shell description', !str_contains($branchesHtml, 'Module-owned workspace UI. This shell no longer inherits the kernel admin navigation.'));
     btPanel('work-area pages hide dashboard quick-start panel', str_contains($branchesHtml, 'class="bakeshop-stats" style="display:none;"') && str_contains($branchesHtml, '<section class="bakeshop-panel" style="display:none;">'));
     btPanel('work-area pages hide dashboard summary report', str_contains($branchesHtml, '<section class="bakeshop-panel" style="display:none;">') && str_contains($branchesHtml, 'Summary Report'));
+    btPanel('work-area pages keep workspace tabs visible', str_contains($branchesHtml, 'Bakeshop setup sections') && !str_contains($branchesHtml, 'display:none;" role="tablist" aria-label="Bakeshop setup sections"'));
 
     app()->setUser([
         'id' => 1,

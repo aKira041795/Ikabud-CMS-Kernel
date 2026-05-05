@@ -27,6 +27,10 @@
     .bakeshop-account-field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
     .bakeshop-account-field input { width: 100%; border-radius: 12px; border: 1px solid var(--border-color, #dfe3e8); padding: 11px 12px; background: #fff; }
     .bakeshop-account-note { padding: 12px 14px; border-radius: 12px; background: #fff7ed; color: #9a3412; font-size: 0.9rem; }
+    .bakeshop-account-onboarding { padding: 18px 20px; border-radius: 14px; border: 1px solid #f3d7a5; background: linear-gradient(135deg, #fff7ed, #fffbeb); box-shadow: 0 14px 30px rgba(180, 83, 9, 0.08); display: grid; gap: 12px; }
+    .bakeshop-account-onboarding h3 { margin: 0; }
+    .bakeshop-account-onboarding > p { margin: 0; color: #7c5a32; line-height: 1.6; }
+    .bakeshop-account-onboarding strong { color: #92400e; }
     @media (max-width: 920px) { .bakeshop-account-grid { grid-template-columns: 1fr; } }
 </style>
 {/block}
@@ -45,8 +49,23 @@
 
     <div class="bakeshop-account-banner" id="bakeshop-account-banner"></div>
 
-    {if is_bootstrap_user && bootstrap_onboarding.required}
-    <div class="bakeshop-account-note">This is the bootstrap admin account. Change this password now, then create a named admin in Manage Staff and retire @{bootstrap_onboarding.bootstrap_user.username} after the replacement admin can sign in.</div>
+    {if bootstrap_onboarding.required && can_manage_users}
+    <section class="bakeshop-account-onboarding">
+        <h3>Bootstrap Admin Handoff</h3>
+        <p>{if is_bootstrap_user}This is the bootstrap admin account. Secure it here, then create a named admin and retire <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong> after the replacement admin can sign in.{else}A bootstrap admin is still active for this tenant. Use the same handoff checklist here that appears in the workspace and Manage Staff so the setup account gets retired cleanly.{/if}</p>
+        <div class="bakeshop-onboarding-checklist">
+            {each bootstrap_onboarding_guide.steps as step}
+            <article class="bakeshop-onboarding-step {step.status}">
+                <div class="bakeshop-onboarding-step-head">
+                    <h4>{step.title}</h4>
+                    <span class="bakeshop-step-status {step.status}">{step.status_label}</span>
+                </div>
+                <p>{step.description}</p>
+                <a class="bakeshop-step-action" href="{base_url}{step.action_url}">{step.action_label}</a>
+            </article>
+            {/each}
+        </div>
+    </section>
     {/if}
 
     <div class="bakeshop-account-grid">

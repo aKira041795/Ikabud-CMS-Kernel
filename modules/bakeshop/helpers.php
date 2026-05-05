@@ -210,6 +210,81 @@ function bakeshopShouldForceBootstrapOnboarding(?array $user, ?array $state = nu
     return bakeshopIsBootstrapUser($user) && (($state['required'] ?? false) === true);
 }
 
+function bakeshopBootstrapOnboardingGuide(array $state, ?array $viewer = null): array
+{
+    $isBootstrapViewer = bakeshopIsBootstrapUser($viewer);
+    $required = (($state['required'] ?? false) === true);
+    $needsSuccessorAdmin = (($state['needs_successor_admin'] ?? false) === true);
+    $canRetireBootstrap = (($state['can_retire_bootstrap'] ?? false) === true);
+    $passwordSetupRequired = (($state['password_setup_required'] ?? false) === true);
+    $bootstrapUsername = trim((string)($state['bootstrap_user']['username'] ?? bakeshopBootstrapUsername()));
+    if ($bootstrapUsername === '') {
+        $bootstrapUsername = bakeshopBootstrapUsername();
+    }
+
+    $steps = [
+        [
+            'key' => 'password',
+            'title' => 'Secure the bootstrap password',
+            'description' => 'Use My Account to set a fresh bootstrap password. This setup account no longer ships with a shared default password.',
+            'action_url' => '/admin/bakeshop/account#current-password',
+            'action_label' => 'Open My Account',
+            'status' => !$required || !$passwordSetupRequired ? 'done' : ($isBootstrapViewer ? 'current' : 'pending'),
+        ],
+        [
+            'key' => 'successor',
+            'title' => 'Create a named admin account',
+            'description' => 'Add the real operator as an admin in Manage Staff so day-to-day work stops depending on @' . $bootstrapUsername . '.',
+            'action_url' => '/admin/bakeshop/users?onboarding=bootstrap#new-full-name',
+            'action_label' => 'Open Manage Staff',
+            'status' => !$required || !$needsSuccessorAdmin ? 'done' : 'current',
+        ],
+        [
+            'key' => 'sign-in',
+            'title' => 'Sign in with the named admin',
+            'description' => 'Confirm the replacement admin can open the workspace before you retire the bootstrap login.',
+            'action_url' => '/admin/bakeshop',
+            'action_label' => 'Open Workspace',
+            'status' => !$required ? 'done' : (!$canRetireBootstrap ? 'pending' : ($isBootstrapViewer ? 'current' : 'done')),
+        ],
+        [
+            'key' => 'retire',
+            'title' => 'Deactivate the bootstrap admin',
+            'description' => 'Return to Manage Staff and deactivate @' . $bootstrapUsername . ' after the named admin is working.',
+            'action_url' => '/admin/bakeshop/users?onboarding=bootstrap',
+            'action_label' => 'Finish in Manage Staff',
+            'status' => !$required ? 'done' : (!$canRetireBootstrap ? 'pending' : ($isBootstrapViewer ? 'pending' : 'current')),
+        ],
+    ];
+
+    $statusLabels = [
+        'done' => 'Done',
+        'current' => 'Do Now',
+        'pending' => 'Later',
+    ];
+
+    $currentStep = null;
+    $completedCount = 0;
+    foreach ($steps as &$step) {
+        $step['status_label'] = $statusLabels[$step['status']] ?? 'Later';
+        if ($step['status'] === 'done') {
+            $completedCount++;
+        }
+        if ($currentStep === null && $step['status'] === 'current') {
+            $currentStep = $step;
+        }
+    }
+    unset($step);
+
+    return [
+        'required' => $required,
+        'steps' => $steps,
+        'current_step' => $currentStep,
+        'completed_count' => $completedCount,
+        'total_count' => count($steps),
+    ];
+}
+
 app()->hooks()->on('kernel.home_url', function (?string $url, string $role, ?array $user = null) {
     if (!in_array($role, ['admin', 'supervisor', 'superadmin'], true)) {
         return $url;
@@ -323,9 +398,10 @@ function bakeshopCanViewHistory(array $user): bool
 
 function bakeshopPageContext(array $user, string $currentPage, array $extra = []): array
 {
-    return array_merge([
+    $context = array_merge([
         'user' => $user,
         'current_page' => $currentPage,
+        'in_workspace' => false,
         'page_title' => 'Bakeshop Operations',
         'base_url' => bakeshopBaseUrl(),
         'csrf_token' => app()->csrfToken(),
@@ -333,7 +409,21 @@ function bakeshopPageContext(array $user, string $currentPage, array $extra = []
         'can_manage_settings' => bakeshopCanManageSettings($user),
         'can_view_history' => bakeshopCanViewHistory($user),
         'brand_settings' => bakeshopBrandSettings(),
+        'allow_production_guard_override' => bakeshopAllowProductionGuardOverride(),
     ], $extra);
+
+    if (is_array($context['bootstrap_onboarding'] ?? null)) {
+        $context['bootstrap_onboarding_guide'] = bakeshopBootstrapOnboardingGuide($context['bootstrap_onboarding'], $user);
+    }
+
+    return $context;
+}
+
+function bakeshopAllowProductionGuardOverride(): bool
+{
+    $env = strtolower((string)config('app.env', 'development'));
+
+    return in_array($env, ['development', 'dev', 'testing', 'test', 'local'], true);
 }
 
 function bakeshopDb(): \Ikabud\Kernel\Contracts\ModuleDB

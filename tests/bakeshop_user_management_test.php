@@ -158,7 +158,7 @@ try {
     $usersHtml = (string)ob_get_clean();
     btUser('users page renders staff heading', str_contains($usersHtml, 'Active Staff'));
     btUser('users page renders created supervisor', str_contains($usersHtml, 'Updated Bakeshop Supervisor'));
-    btUser('users page renders bootstrap onboarding', str_contains($usersHtml, 'Bootstrap Admin Onboarding'));
+    btUser('users page renders bootstrap handoff checklist', str_contains($usersHtml, 'Bootstrap Admin Handoff') && str_contains($usersHtml, 'Secure the bootstrap password'));
     btUser('users page explains bootstrap password setup requirement when needed', str_contains(bakeshopRender('pages/users.disyl', bakeshopPageContext($actor, 'users', [
         'page_title' => 'Bakeshop Staff',
         'current_user_id' => $createdId,
@@ -201,7 +201,7 @@ try {
     $settingsHtml = (string)ob_get_clean();
     btUser('settings page renders access settings heading', str_contains($settingsHtml, 'Access Settings'));
     btUser('settings page renders save access settings button', str_contains($settingsHtml, 'Save Access Settings'));
-    btUser('settings page renders seeded units heading', str_contains($settingsHtml, 'Seeded Units'));
+    btUser('settings page renders units heading', str_contains($settingsHtml, 'Units'));
 
     $bootstrapStmt = $db->prepare("SELECT id, email FROM bakeshop_users WHERE username = 'bakeshopadmin' LIMIT 1");
     $bootstrapStmt->execute();
@@ -217,12 +217,12 @@ try {
     ob_start();
     bakeshopPageAccount();
     $bootstrapAccountHtml = (string)ob_get_clean();
-    btUser('bootstrap account page renders onboarding note', str_contains($bootstrapAccountHtml, 'This is the bootstrap admin account.'));
+    btUser('bootstrap account page renders handoff checklist', str_contains($bootstrapAccountHtml, 'This is the bootstrap admin account.') && str_contains($bootstrapAccountHtml, 'Secure the bootstrap password'));
 
     ob_start();
     bakeshopPageSupervisor();
     $bootstrapWorkspaceHtml = (string)ob_get_clean();
-    btUser('bootstrap workspace renders onboarding notice', str_contains($bootstrapWorkspaceHtml, 'Bootstrap Admin Onboarding'));
+    btUser('bootstrap workspace renders onboarding checklist', str_contains($bootstrapWorkspaceHtml, 'Bootstrap Admin Handoff') && str_contains($bootstrapWorkspaceHtml, 'Secure the bootstrap password'));
     btUser('bootstrap workspace keeps handoff link', str_contains($bootstrapWorkspaceHtml, '/admin/bakeshop/users?onboarding=bootstrap'));
     btUser('bootstrap workspace stays on supervisor shell', str_contains($bootstrapWorkspaceHtml, 'Work Areas'));
 

@@ -58,6 +58,8 @@ $deliveryId = 0;
 $futureDeliveryId = 0;
 $runId = 0;
 $voidedRunId = 0;
+$guardOverrideProductId = 0;
+$guardOverrideRunId = 0;
 
 try {
     $kgUnitId = (int)($db->query("SELECT id FROM bakeshop_units WHERE code = 'kg' LIMIT 1")->fetchColumn() ?: 0);
@@ -83,6 +85,17 @@ try {
     ]);
     $productId = (int)($product['id'] ?? 0);
     btUsage('product created', $productId > 0, json_encode($product, JSON_UNESCAPED_SLASHES));
+
+    $guardOverrideProduct = bakeshopCatalogCreateProduct([
+        'name' => 'Guard Override Product ' . $suffix,
+        'sku' => 'PRD-GUARD-' . $suffix,
+        'category' => 'Test',
+        'default_yield_qty' => 1,
+        'default_yield_unit_id' => $kgUnitId,
+    ]);
+    $guardOverrideProductId = (int)($guardOverrideProduct['id'] ?? 0);
+    btUsage('guard override product created', $guardOverrideProductId > 0, json_encode($guardOverrideProduct, JSON_UNESCAPED_SLASHES));
+    $db->prepare('UPDATE bakeshop_products SET default_yield_qty = 0 WHERE id = ?')->execute([$guardOverrideProductId]);
 
     $flour = bakeshopCatalogCreateIngredient([
         'name' => 'Flour ' . $suffix,
@@ -165,6 +178,33 @@ try {
     $snapshotSugar = btUsageFindRow((array)($run['items'] ?? []), static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
     btUsage('production snapshot scales flour to 2.0000 kg', abs((float)($snapshotFlour['qty_used'] ?? 0) - 2.0) < 0.0001, json_encode($snapshotFlour, JSON_UNESCAPED_SLASHES));
     btUsage('production snapshot scales sugar to 1000.0000 g', abs((float)($snapshotSugar['qty_used'] ?? 0) - 1000.0) < 0.0001, json_encode($snapshotSugar, JSON_UNESCAPED_SLASHES));
+
+    try {
+        bakeshopProductionCreate([
+            'branch_id' => $branchId,
+            'product_id' => $guardOverrideProductId,
+            'produced_at' => '2026-04-26 10:15:00',
+            'qty_produced' => 5,
+            'produced_by' => 'Baker',
+            'notes' => 'Guard should block this run',
+        ]);
+        btUsage('production guard blocks test-only product without override', false, 'Expected InvalidArgumentException was not thrown.');
+    } catch (InvalidArgumentException $e) {
+        btUsage('production guard blocks test-only product without override', str_contains($e->getMessage(), 'default_yield_qty must be greater than zero') || str_contains($e->getMessage(), 'no recipe lines yet'), $e->getMessage());
+    }
+
+    $guardOverrideRun = bakeshopProductionCreate([
+        'branch_id' => $branchId,
+        'product_id' => $guardOverrideProductId,
+        'produced_at' => '2026-04-26 10:20:00',
+        'qty_produced' => 5,
+        'produced_by' => 'Baker',
+        'notes' => 'Guard override test run',
+        'relax_guards' => true,
+    ]);
+    $guardOverrideRunId = (int)($guardOverrideRun['id'] ?? 0);
+    btUsage('production guard override creates test run', $guardOverrideRunId > 0, json_encode($guardOverrideRun, JSON_UNESCAPED_SLASHES));
+    btUsage('production guard override skips snapshot items', count((array)($guardOverrideRun['items'] ?? [])) === 0, json_encode($guardOverrideRun['items'] ?? [], JSON_UNESCAPED_SLASHES));
 
     $updatedRun = bakeshopProductionUpdate([
         'id' => $runId,
@@ -266,7 +306,8 @@ try {
         'from_date' => '2026-04-26',
         'to_date' => '2026-04-26',
     ]);
-    btUsage('factual summary excludes voided production runs', (int)($factualSummary['production_run_count'] ?? 0) === 1, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+    btUsage('factual summary excludes voided production runs and includes override test run', (int)($factualSummary['production_run_count'] ?? 0) === 2, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+    btUsage('factual summary consumption ignores override runs without snapshot items', abs((float)($factualSummary['consumed_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
 
     $currentInventoryRows = bakeshopInventorySnapshotRows([
         'branch_id' => $branchId,
@@ -279,6 +320,11 @@ try {
     if ($voidedRunId > 0) {
         $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$voidedRunId]);
         $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$voidedRunId]);
+    }
+
+    if ($guardOverrideRunId > 0) {
+        $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$guardOverrideRunId]);
+        $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$guardOverrideRunId]);
     }
 
     if ($runId > 0) {
@@ -299,6 +345,11 @@ try {
     if ($productId > 0) {
         $db->prepare('DELETE FROM bakeshop_product_recipe WHERE product_id = ?')->execute([$productId]);
         $db->prepare('DELETE FROM bakeshop_products WHERE id = ?')->execute([$productId]);
+    }
+
+    if ($guardOverrideProductId > 0) {
+        $db->prepare('DELETE FROM bakeshop_product_recipe WHERE product_id = ?')->execute([$guardOverrideProductId]);
+        $db->prepare('DELETE FROM bakeshop_products WHERE id = ?')->execute([$guardOverrideProductId]);
     }
 
     if ($sugarId > 0) {

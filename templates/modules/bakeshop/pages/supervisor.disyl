@@ -126,6 +126,14 @@
     .bakeshop-banner.show { display: block; }
     .bakeshop-banner.ok { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
     .bakeshop-banner.error { background: #fff3f2; border-color: #fecaca; color: #991b1b; }
+    .bakeshop-readonly-note {
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid #fde68a;
+        background: #fffbeb;
+        color: #92400e;
+        line-height: 1.55;
+    }
     .bakeshop-onboarding {
         display: grid;
         gap: 10px;
@@ -138,7 +146,6 @@
     .bakeshop-onboarding h3 { margin: 0; }
     .bakeshop-onboarding p { margin: 0; color: #7c5a32; line-height: 1.6; }
     .bakeshop-onboarding strong { color: #92400e; }
-    .bakeshop-onboarding-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .bakeshop-stats { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
     .bakeshop-stat {
         border: 1px solid var(--border-color);
@@ -197,6 +204,8 @@
     }
     .bakeshop-field textarea { min-height: 92px; resize: vertical; }
     .bakeshop-form-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .bakeshop-form-actions.bakeshop-view-tabs { justify-content: flex-start; align-items: center; gap: 14px; }
+    .bakeshop-view-tabs .bakeshop-help { margin: 0; }
     .bakeshop-help { font-size: 0.82rem; color: var(--text-muted); }
     .bakeshop-setup-shell { display: grid; gap: 18px; }
     .bakeshop-tabs {
@@ -225,6 +234,42 @@
     }
     .bakeshop-tab-panel { display: none; }
     .bakeshop-tab-panel.active { display: block; }
+    .bakeshop-section-tabs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 8px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #ecfdf3 0%, #f8fffb 100%);
+        border: 1px solid #b7e4c7;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+    .bakeshop-section-tab {
+        border: 1px solid #a7d7b5;
+        background: linear-gradient(180deg, #f4fff7 0%, #e8f8ee 100%);
+        color: #21543a;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-weight: 700;
+        box-shadow: 0 4px 12px rgba(22, 101, 52, 0.08);
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+    .bakeshop-section-tab:hover,
+    .bakeshop-section-tab:focus-visible {
+        border-color: #63b37d;
+        box-shadow: 0 10px 22px rgba(22, 101, 52, 0.14);
+        transform: translateY(-1px);
+        outline: none;
+    }
+    .bakeshop-section-tab.active {
+        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+        border-color: #1d4ed8;
+        color: #ffffff;
+        box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+    }
+    .bakeshop-section-panel { display: none; }
+    .bakeshop-section-panel.active { display: grid; gap: 16px; }
     .bakeshop-tab-summary {
         display: grid;
         gap: 6px;
@@ -244,6 +289,8 @@
     .bakeshop-table th,
     .bakeshop-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: top; }
     .bakeshop-table th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-table th.bakeshop-checkbox-cell,
+    .bakeshop-table td.bakeshop-checkbox-cell { width: 44px; padding-right: 8px; padding-left: 12px; text-align: center; }
     .bakeshop-table tr:last-child td { border-bottom: none; }
     .bakeshop-table tr.bakeshop-row-selectable { cursor: pointer; }
     .bakeshop-table tr.bakeshop-row-selectable:hover td {
@@ -267,14 +314,151 @@
         background: #eef6ff;
         box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18);
     }
+    .bakeshop-table tr.bakeshop-row-recent td {
+        background: linear-gradient(180deg, rgba(220, 252, 231, 0.95) 0%, rgba(240, 253, 244, 0.75) 100%);
+    }
     .bakeshop-muted { color: var(--text-muted); }
     .bakeshop-delivery-sheet input[type="number"] { min-width: 110px; }
     .bakeshop-delivery-sheet tr.is-imported td { background: #effaf4; }
     .bakeshop-inline-note { font-size: 0.82rem; color: var(--text-muted); }
+    .bakeshop-inline-note.ok { color: #15803d; }
+    .bakeshop-inline-note.error { color: #b91c1c; }
+    .bakeshop-review-card {
+        display: grid;
+        gap: 10px;
+        padding: 16px 18px;
+        border-radius: 14px;
+        border: 1px solid #bbf7d0;
+        background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+    }
+    .bakeshop-review-card strong {
+        display: block;
+        margin-bottom: 4px;
+    }
+    .bakeshop-review-card p {
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
     .bakeshop-detail-stack { display: grid; gap: 6px; }
     .bakeshop-detail-list { display: grid; gap: 4px; margin-top: 2px; }
     .bakeshop-detail-list span { display: block; color: var(--text-muted); font-size: 0.82rem; }
     .bakeshop-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .bakeshop-checkbox {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #2563eb;
+    }
+    .bakeshop-bulk-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .bakeshop-bulk-actions .bakeshop-help { margin: 0; }
+    .bakeshop-inline-tabs {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #ecfdf3 0%, #f8fffb 100%);
+        border: 1px solid #b7e4c7;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+    .bakeshop-inline-tab {
+        border: 1px solid #a7d7b5;
+        background: linear-gradient(180deg, #f4fff7 0%, #e8f8ee 100%);
+        color: #21543a;
+        border-radius: 10px;
+        padding: 9px 14px;
+        font-weight: 700;
+        box-shadow: 0 4px 12px rgba(22, 101, 52, 0.08);
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+    .bakeshop-inline-tab:hover,
+    .bakeshop-inline-tab:focus-visible {
+        border-color: #63b37d;
+        box-shadow: 0 10px 22px rgba(22, 101, 52, 0.14);
+        transform: translateY(-1px);
+        outline: none;
+    }
+    .bakeshop-inline-tab.active {
+        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+        border-color: #1d4ed8;
+        color: #ffffff;
+        box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+    }
+    .bakeshop-inline-tab-count {
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-left: 6px;
+    }
+    .bakeshop-inline-tab.active .bakeshop-inline-tab-count {
+        color: rgba(255, 255, 255, 0.88);
+    }
+    body.bakeshop-confirm-open { overflow: hidden; }
+    .bakeshop-confirm-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(15, 23, 42, 0.46);
+    }
+    .bakeshop-confirm-backdrop[hidden] {
+        display: none;
+    }
+    .bakeshop-confirm-panel {
+        width: min(100%, 560px);
+        display: grid;
+        gap: 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(248, 113, 113, 0.35);
+        background: #ffffff;
+        box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+        padding: 22px;
+    }
+    .bakeshop-confirm-panel h3 {
+        margin: 0;
+        font-size: 1.08rem;
+    }
+    .bakeshop-confirm-panel p {
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.55;
+    }
+    .bakeshop-confirm-impact {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: 0.86rem;
+    }
+    .bakeshop-confirm-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 8px;
+    }
+    .bakeshop-confirm-list li {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        background: #f8fafc;
+        color: #0f172a;
+        font-size: 0.9rem;
+    }
+    .bakeshop-confirm-overflow {
+        font-size: 0.84rem;
+        color: var(--text-muted);
+    }
     .bakeshop-link-button {
         border: none;
         background: transparent;
@@ -296,6 +480,7 @@
     }
     .bakeshop-chip.active { background: #eff6ff; color: #1d4ed8; }
     .bakeshop-chip.inactive { background: #eef2f7; color: #51627b; }
+    .bakeshop-chip.recent { background: #dcfce7; color: #166534; }
     .bakeshop-focus-note {
         padding: 10px 12px;
         border-radius: 12px;
@@ -376,17 +561,41 @@
 
     <div class="bakeshop-banner" id="bakeshop-banner"></div>
 
-    {if bootstrap_onboarding.required && is_bootstrap_user}
+    <div class="bakeshop-confirm-backdrop" id="bakeshop-delete-confirm" hidden>
+        <div class="bakeshop-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="bakeshop-delete-confirm-title" aria-describedby="bakeshop-delete-confirm-message">
+            <div class="bakeshop-shell" style="gap: 12px;">
+                <h3 id="bakeshop-delete-confirm-title">Delete selected records?</h3>
+                <p id="bakeshop-delete-confirm-message">Review the selected items before confirming this delete.</p>
+                <div class="bakeshop-confirm-impact" id="bakeshop-delete-confirm-impact" hidden></div>
+                <ul class="bakeshop-confirm-list" id="bakeshop-delete-confirm-list" hidden></ul>
+                <p class="bakeshop-confirm-overflow" id="bakeshop-delete-confirm-overflow" hidden></p>
+            </div>
+            <div class="bakeshop-actions" style="justify-content: flex-end;">
+                <button class="bakeshop-button secondary" type="button" id="bakeshop-delete-confirm-cancel">Cancel</button>
+                <button class="bakeshop-button danger" type="button" id="bakeshop-delete-confirm-submit">Delete Selected</button>
+            </div>
+        </div>
+    </div>
+
+    {if !can_manage_workspace}
+    <div class="bakeshop-readonly-note">This workspace is currently read only for your role. You can review setup, deliveries, production, and usage here, but saving changes requires <strong>bakeshop.manage</strong>.</div>
+    {/if}
+
+    {if bootstrap_onboarding.required && can_manage_users}
     <section class="bakeshop-onboarding">
-        <h3>Bootstrap Admin Onboarding</h3>
-        {if bootstrap_onboarding.needs_successor_admin}
-        <p>You are viewing the workspace as the default bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong>. Create a named <strong>admin</strong> account for the real operator, then sign in with that account and retire the bootstrap login.</p>
-        {else}
-        <p>The default bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong> is still active. A replacement admin already exists, so the remaining step is to sign in with that named admin and deactivate the bootstrap login.</p>
-        {/if}
-        <p>{if bootstrap_onboarding.can_retire_bootstrap}Active named admins detected: {bootstrap_onboarding.other_admin_count}.{else}No other active admin accounts exist yet.{/if} The workspace stays available while you complete the handoff.</p>
-        <div class="bakeshop-onboarding-actions">
-            <a class="bakeshop-button staff" href="{base_url}/admin/bakeshop/users?onboarding=bootstrap">Manage Staff Handoff</a>
+        <h3>Bootstrap Admin Handoff</h3>
+        <p>{if is_bootstrap_user}You are signed in as the bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong>. Follow the same checklist here that appears on staff and account pages so the real operator ends up on a named admin login.{else}The bootstrap admin <strong>@{bootstrap_onboarding.bootstrap_user.username}</strong> is still active. Finish the handoff below so daily work stays on a named admin instead of the setup account.{/if}</p>
+        <div class="bakeshop-onboarding-checklist">
+            {each bootstrap_onboarding_guide.steps as step}
+            <article class="bakeshop-onboarding-step {step.status}">
+                <div class="bakeshop-onboarding-step-head">
+                    <h4>{step.title}</h4>
+                    <span class="bakeshop-step-status {step.status}">{step.status_label}</span>
+                </div>
+                <p>{step.description}</p>
+                <a class="bakeshop-step-action" href="{base_url}{step.action_url}">{step.action_label}</a>
+            </article>
+            {/each}
         </div>
     </section>
     {/if}
@@ -468,7 +677,7 @@
                     </div>
                 </div>
                 <div class="bakeshop-form-actions">
-                    <span class="bakeshop-help">Use the same branch and date scope here and in the printable report.</span>
+                    <span class="bakeshop-help">This branch and date scope also seeds the usage work area and printable report.</span>
                     <div class="bakeshop-actions">
                         {if summary_report.has_active_filters}
                         <a class="bakeshop-button secondary" href="{base_url}{summary_report.dashboard_url}">Reset</a>
@@ -505,7 +714,7 @@
                 </div>
                 <div class="bakeshop-stat">
                     <strong>{summary_report.factual_summary.production_run_count | default:'0'}</strong>
-                    <span>Production Runs</span>
+                    <span>Saved Batches</span>
                 </div>
                 <div class="bakeshop-stat">
                     <strong>{summary_report.factual_summary.inventory_on_hand_qty_base | default:usage_zero_value}</strong>
@@ -514,7 +723,7 @@
             </div>
 
             <div class="bakeshop-summary-note">
-                Beginning balance reflects stock before the first visible report date. Usage comes from production runs through recipe quantities, and all displayed values follow the configured {usage_decimal_places}-decimal output setting.
+                Beginning balance reflects stock before the first visible report date. Usage comes from saved batches through recipe quantities, and all displayed values follow the configured {usage_decimal_places}-decimal output setting.
             </div>
 
             {if summary_report.groups}
@@ -577,21 +786,26 @@
         <div class="bakeshop-panel-head" style="{workspace_head_visibility_style}">
             <h3>Work Areas</h3>
             <p>Use one work area at a time so setup, receiving, production, and reporting stay separate instead of competing for attention on one long page.</p>
+            {if focused_workspace_mode}
+            <div class="bakeshop-actions" style="margin-top: 10px;">
+                <a class="bakeshop-button secondary" href="{base_url}{workspace_overview_url}">Back to Full Overview</a>
+            </div>
+            {/if}
         </div>
         <div class="bakeshop-panel-body bakeshop-setup-shell">
             <div class="bakeshop-tabs" role="tablist" aria-label="Bakeshop setup sections" style="{workspace_tabs_visibility_style}">
-                <a class="bakeshop-tab active" href="{base_url}{work_area_routes.branches}" data-tab="branches" role="tab" aria-selected="true">Branches</a>
-                <a class="bakeshop-tab" href="{base_url}{work_area_routes.catalog}" data-tab="catalog" role="tab" aria-selected="false">Products</a>
-                <a class="bakeshop-tab" href="{base_url}{work_area_routes.ingredients}" data-tab="ingredients" role="tab" aria-selected="false">Ingredients</a>
-                <a class="bakeshop-tab" href="{base_url}{work_area_routes.deliveries}" data-tab="deliveries" role="tab" aria-selected="false">Ingredient Deliveries</a>
-                <a class="bakeshop-tab" href="{base_url}{work_area_routes.production}" data-tab="production" role="tab" aria-selected="false">Production Runs</a>
-                <a class="bakeshop-tab" href="{base_url}{work_area_routes.usage}" data-tab="usage" role="tab" aria-selected="false">Usage Summary</a>
+                <a class="bakeshop-tab active" href="{base_url}{work_area_routes.branches}" data-tab="branches" data-workspace-title="{work_area_meta.branches.title}" data-workspace-intro="{work_area_meta.branches.intro}" role="tab" aria-selected="true">Branches</a>
+                <a class="bakeshop-tab" href="{base_url}{work_area_routes.catalog}" data-tab="catalog" data-workspace-title="{work_area_meta.catalog.title}" data-workspace-intro="{work_area_meta.catalog.intro}" role="tab" aria-selected="false">Products</a>
+                <a class="bakeshop-tab" href="{base_url}{work_area_routes.ingredients}" data-tab="ingredients" data-workspace-title="{work_area_meta.ingredients.title}" data-workspace-intro="{work_area_meta.ingredients.intro}" role="tab" aria-selected="false">Ingredients</a>
+                <a class="bakeshop-tab" href="{base_url}{work_area_routes.deliveries}" data-tab="deliveries" data-workspace-title="{work_area_meta.deliveries.title}" data-workspace-intro="{work_area_meta.deliveries.intro}" role="tab" aria-selected="false">Ingredient Deliveries</a>
+                <a class="bakeshop-tab" href="{base_url}{work_area_routes.production}" data-tab="production" data-workspace-title="{work_area_meta.production.title}" data-workspace-intro="{work_area_meta.production.intro}" role="tab" aria-selected="false">Baking Log</a>
+                <a class="bakeshop-tab" href="{base_url}{work_area_routes.usage}" data-tab="usage" data-workspace-title="{work_area_meta.usage.title}" data-workspace-intro="{work_area_meta.usage.intro}" role="tab" aria-selected="false">Usage Summary</a>
             </div>
 
             <section class="bakeshop-tab-panel active" data-tab-panel="branches">
                 <div class="bakeshop-panel">
                     <div class="bakeshop-panel-body">
-                        <form id="branch-form" class="bakeshop-grid-3">
+                        <form id="branch-form" class="bakeshop-grid-3" data-manage-required="true">
                             <div class="bakeshop-focus-note" id="branch-focus-note" style="grid-column: 1 / -1;" hidden></div>
                             <input type="hidden" name="id" value="">
                             <input type="hidden" name="is_active" value="1">
@@ -646,7 +860,7 @@
                             <p>Define your finished goods. Click a product row to edit it; its recipe lines appear in the sub-section below.</p>
                         </div>
                         <div class="bakeshop-panel-body">
-                            <form id="product-form" class="bakeshop-shell" style="gap: 16px;">
+                            <form id="product-form" class="bakeshop-shell" style="gap: 16px;" data-manage-required="true">
                                 <div class="bakeshop-focus-note" id="product-focus-note" hidden></div>
                                 <input type="hidden" name="id" value="">
                                 <input type="hidden" name="is_active" value="1">
@@ -673,7 +887,7 @@
                                     </div>
                                 </div>
                                 <div class="bakeshop-form-actions">
-                                    <span class="bakeshop-help">Default yield drives recipe scaling for production runs.</span>
+                                    <span class="bakeshop-help">Default yield drives recipe scaling for saved batch records.</span>
                                     <div class="bakeshop-actions">
                                             <button class="bakeshop-button success" type="button" id="product-add">Add Product</button>
                                         <button class="bakeshop-button danger" type="button" id="product-cancel" hidden>Cancel Edit</button>
@@ -697,7 +911,7 @@
                                 <div class="bakeshop-panel-body">
                                     <div id="recipe-panel-empty" class="bakeshop-muted">Select Edit on a product to open that product's recipe.</div>
                                     <div id="recipe-panel-details" hidden>
-                                    <form id="recipe-form" class="bakeshop-grid-3">
+                                    <form id="recipe-form" class="bakeshop-grid-3" data-manage-required="true">
                                         <div class="bakeshop-focus-note" id="recipe-focus-note" style="grid-column: 1 / -1;" hidden></div>
                                         <input id="recipe-product" name="product_id" type="hidden" value="">
                                         <div class="bakeshop-field">
@@ -743,10 +957,30 @@
                                 </div>
                             </section>
 
+                            <div class="bakeshop-form-actions bakeshop-view-tabs">
+                                <div class="bakeshop-inline-tabs" role="tablist" aria-label="Product status views">
+                                    <button class="bakeshop-inline-tab active" type="button" id="products-view-active" data-product-view="active" aria-selected="true">Active <span class="bakeshop-inline-tab-count" id="products-active-count">0</span></button>
+                                    <button class="bakeshop-inline-tab" type="button" id="products-view-archived" data-product-view="archived" aria-selected="false">Archived <span class="bakeshop-inline-tab-count" id="products-archived-count">0</span></button>
+                                </div>
+                                <span class="bakeshop-help" id="products-view-summary">View active products used for current batch recording.</span>
+                            </div>
+
+                            <div class="bakeshop-form-actions bakeshop-bulk-actions">
+                                <span class="bakeshop-help" id="products-selection-summary">No products selected.</span>
+                                {if can_manage_workspace}
+                                <div class="bakeshop-actions">
+                                    <button class="bakeshop-button secondary" type="button" id="products-select-visible">Select Visible</button>
+                                    <button class="bakeshop-button secondary" type="button" id="products-clear-selection" hidden>Clear Selection</button>
+                                    <button class="bakeshop-button danger" type="button" id="products-delete-selected" hidden>Delete Selected</button>
+                                </div>
+                                {/if}
+                            </div>
+
                             <div class="bakeshop-table-wrap">
                                 <table class="bakeshop-table" id="products-table">
                                     <thead>
                                         <tr>
+                                            <th class="bakeshop-checkbox-cell">{if can_manage_workspace}<input class="bakeshop-checkbox" id="products-select-all" type="checkbox" aria-label="Select visible products">{/if}</th>
                                             <th>Product</th>
                                             <th>Category</th>
                                             <th>Yield</th>
@@ -771,7 +1005,7 @@
                             <p>Maintain the ingredient master list and its base unit before using items in deliveries or recipe lines.</p>
                         </div>
                         <div class="bakeshop-panel-body">
-                            <form id="ingredient-form" class="bakeshop-shell" style="gap: 16px;">
+                            <form id="ingredient-form" class="bakeshop-shell" style="gap: 16px;" data-manage-required="true">
                                 <div class="bakeshop-focus-note" id="ingredient-focus-note" hidden></div>
                                 <input type="hidden" name="id" value="">
                                 <input type="hidden" name="is_active" value="1">
@@ -804,10 +1038,30 @@
                                 <input id="ingredients-filter" type="search" placeholder="Search by ingredient, SKU, or unit">
                             </div>
 
+                            <div class="bakeshop-form-actions bakeshop-view-tabs">
+                                <div class="bakeshop-inline-tabs" role="tablist" aria-label="Ingredient status views">
+                                    <button class="bakeshop-inline-tab active" type="button" id="ingredients-view-active" data-ingredient-view="active" aria-selected="true">Active <span class="bakeshop-inline-tab-count" id="ingredients-active-count">0</span></button>
+                                    <button class="bakeshop-inline-tab" type="button" id="ingredients-view-archived" data-ingredient-view="archived" aria-selected="false">Archived <span class="bakeshop-inline-tab-count" id="ingredients-archived-count">0</span></button>
+                                </div>
+                                <span class="bakeshop-help" id="ingredients-view-summary">View active ingredients used in current operations.</span>
+                            </div>
+
+                            <div class="bakeshop-form-actions bakeshop-bulk-actions">
+                                <span class="bakeshop-help" id="ingredients-selection-summary">No ingredients selected.</span>
+                                {if can_manage_workspace}
+                                <div class="bakeshop-actions">
+                                    <button class="bakeshop-button secondary" type="button" id="ingredients-select-visible">Select Visible</button>
+                                    <button class="bakeshop-button secondary" type="button" id="ingredients-clear-selection" hidden>Clear Selection</button>
+                                    <button class="bakeshop-button danger" type="button" id="ingredients-delete-selected" hidden>Delete Selected</button>
+                                </div>
+                                {/if}
+                            </div>
+
                             <div class="bakeshop-table-wrap">
                                 <table class="bakeshop-table" id="ingredients-table">
                                     <thead>
                                         <tr>
+                                            <th class="bakeshop-checkbox-cell">{if can_manage_workspace}<input class="bakeshop-checkbox" id="ingredients-select-all" type="checkbox" aria-label="Select visible ingredients">{/if}</th>
                                             <th>Ingredient</th>
                                             <th>SKU</th>
                                             <th>Default Unit</th>
@@ -829,7 +1083,8 @@
                         <p>Set the day's received quantities for one branch at a time. Every ingredient is listed below so encoding stays predictable.</p>
                     </div>
                     <div class="bakeshop-panel-body">
-                        <form id="delivery-form" class="bakeshop-shell" style="gap: 16px;">
+                        <div class="bakeshop-section-panel active" data-delivery-section-panel="receive">
+                        <form id="delivery-form" class="bakeshop-shell" style="gap: 16px;" data-manage-required="true">
                             <div class="bakeshop-grid-2">
                                 <div class="bakeshop-field">
                                     <label for="delivery-branch">Branch</label>
@@ -876,6 +1131,13 @@
                                 </div>
                             </div>
                             <div>
+                                <div class="bakeshop-form-actions bakeshop-view-tabs" style="margin-bottom: 10px;">
+                                    <div class="bakeshop-section-tabs" role="tablist" aria-label="Delivery sections">
+                                        <button class="bakeshop-section-tab active" type="button" data-delivery-section-tab="receive" role="tab" aria-selected="true">Daily Receiving</button>
+                                        <button class="bakeshop-section-tab" type="button" data-delivery-section-tab="saved" role="tab" aria-selected="false">Saved Receipts</button>
+                                    </div>
+                                    <span class="bakeshop-help">Set one branch's received quantities for the day and save a single receipt.</span>
+                                </div>
                                 <div class="bakeshop-form-actions" style="margin-bottom: 10px;">
                                     <span class="bakeshop-help">Every ingredient is listed below in its default unit. Enter received quantities directly, or import a CSV with `sku` or `ingredient`, `qty`, optional `unit_cost`, and optional `cost_basis` columns.</span>
                                     <div class="bakeshop-actions">
@@ -904,16 +1166,37 @@
                                 <button class="bakeshop-button" type="submit">Save Delivery</button>
                             </div>
                         </form>
+                        </div>
 
+                        <div class="bakeshop-section-panel" data-delivery-section-panel="saved">
+                        <div class="bakeshop-form-actions bakeshop-view-tabs">
+                            <div class="bakeshop-section-tabs" role="tablist" aria-label="Delivery sections">
+                                <button class="bakeshop-section-tab" type="button" data-delivery-section-tab="receive" role="tab" aria-selected="false">Daily Receiving</button>
+                                <button class="bakeshop-section-tab active" type="button" data-delivery-section-tab="saved" role="tab" aria-selected="true">Saved Receipts</button>
+                            </div>
+                            <span class="bakeshop-help">Review saved branch receipts by date, source, receiver, and delivery detail.</span>
+                        </div>
                         <div class="bakeshop-field">
                             <label for="deliveries-filter">Find Delivery</label>
                             <input id="deliveries-filter" type="search" placeholder="Search by branch, source, reference, receiver, or date">
+                        </div>
+
+                        <div class="bakeshop-form-actions bakeshop-bulk-actions">
+                            <span class="bakeshop-help" id="deliveries-selection-summary">No deliveries selected.</span>
+                            {if can_manage_workspace}
+                            <div class="bakeshop-actions">
+                                <button class="bakeshop-button secondary" type="button" id="deliveries-select-visible">Select Visible</button>
+                                <button class="bakeshop-button secondary" type="button" id="deliveries-clear-selection" hidden>Clear Selection</button>
+                                <button class="bakeshop-button danger" type="button" id="deliveries-delete-selected" hidden>Delete Selected</button>
+                            </div>
+                            {/if}
                         </div>
 
                         <div class="bakeshop-table-wrap">
                             <table class="bakeshop-table" id="deliveries-table">
                                 <thead>
                                     <tr>
+                                        <th class="bakeshop-checkbox-cell">{if can_manage_workspace}<input class="bakeshop-checkbox" id="deliveries-select-all" type="checkbox" aria-label="Select visible deliveries">{/if}</th>
                                         <th>Branch</th>
                                         <th>Delivered At</th>
                                         <th>Reference</th>
@@ -924,6 +1207,7 @@
                                 <tbody></tbody>
                             </table>
                         </div>
+                        </div>
                     </div>
                 </section>
             </section>
@@ -931,45 +1215,60 @@
             <section class="bakeshop-tab-panel" data-tab-panel="production">
                 <section class="bakeshop-panel">
                     <div class="bakeshop-panel-head">
-                        <p>Saving a run snapshots the current recipe into `bakeshop_production_items` so later recipe edits do not rewrite history.</p>
+                        <p>Record what was made, keep saved entries easy to review, and preserve the ingredient-use detail that belonged to each finished batch.</p>
                     </div>
                     <div class="bakeshop-panel-body">
-                        <form id="production-form" class="bakeshop-grid-2">
+                        <div class="bakeshop-section-panel active" data-production-section-panel="record">
+                        <form id="production-form" class="bakeshop-grid-2" data-manage-required="true">
                             <input name="id" type="hidden" value="">
+                            <input id="production-product" name="product_id" type="hidden" value="">
+                            <input id="production-qty-produced" name="qty_produced" type="hidden" value="">
                             <div class="bakeshop-field">
                                 <label for="production-branch">Branch</label>
                                 <select id="production-branch" name="branch_id"></select>
                             </div>
                             <div class="bakeshop-field">
-                                <label for="production-at">Produced At</label>
+                                <label for="production-at">Finished At</label>
                                 <input id="production-at" name="produced_at" type="datetime-local">
-                                <input id="production-product" name="product_id" type="hidden" value="">
                             </div>
                             <div class="bakeshop-field">
-                                <label for="production-by">Produced By</label>
-                                <input id="production-by" name="produced_by" placeholder="Baker or supervisor">
+                                <label for="production-by">Made By</label>
+                                <input id="production-by" name="produced_by" placeholder="Baker or supervisor name">
                             </div>
                             <div class="bakeshop-field">
-                                <label for="production-notes">Notes</label>
-                                <input id="production-notes" name="notes" placeholder="Optional run note">
+                                <label for="production-notes">Batch Note</label>
+                                <input id="production-notes" name="notes" placeholder="Optional note for this saved entry">
                             </div>
                             <div style="grid-column: 1 / -1; display: grid; gap: 10px;">
+                                <div class="bakeshop-form-actions bakeshop-view-tabs">
+                                    <div class="bakeshop-section-tabs" role="tablist" aria-label="Production sections">
+                                        <button class="bakeshop-section-tab active" type="button" data-production-section-tab="record" role="tab" aria-selected="true">Record Batch</button>
+                                        <button class="bakeshop-section-tab" type="button" data-production-section-tab="saved" role="tab" aria-selected="false">Saved Entries</button>
+                                    </div>
+                                    <span class="bakeshop-help">Record batches one item at a time and keep the latest saved entry ready to review.</span>
+                                </div>
                                 <div class="bakeshop-form-actions">
                                     <span class="bakeshop-help" id="production-focus-note" hidden></span>
-                                    <span class="bakeshop-help" id="production-product-note">Click a product row below to select it for this production run.</span>
+                                    <span class="bakeshop-help" id="production-product-note">Choose the branch, finished time, and who made it. Then enter the amount made in the item list below. Leaving a box blank means nothing was made for that item.</span>
                                 </div>
+                                {if allow_production_guard_override}
+                                <div class="bakeshop-form-actions">
+                                    <span class="bakeshop-help" id="production-guard-note">Temporary non-production testing override. When enabled, an entry can still be saved even if the item setup is incomplete.</span>
+                                    <button class="bakeshop-button secondary" type="button" id="production-guard-toggle">Testing Override: Off</button>
+                                </div>
+                                {/if}
                                 <div class="bakeshop-field">
-                                    <label for="production-products-filter">Find Product</label>
-                                    <input id="production-products-filter" type="search" placeholder="Search by product, SKU, or category">
+                                    <label for="production-products-filter">Find Item To Record</label>
+                                    <input id="production-products-filter" type="search" placeholder="Search by item, SKU, or category">
                                 </div>
                                 <div class="bakeshop-table-wrap">
                                     <table class="bakeshop-table" id="production-products-table">
                                         <thead>
                                             <tr>
-                                                <th>Product</th>
+                                                <th>Item</th>
                                                 <th>Category</th>
-                                                <th>Yield</th>
-                                                <th>Qty Produced</th>
+                                                <th>Standard Batch</th>
+                                                <th>Amount Made</th>
                                             </tr>
                                         </thead>
                                         <tbody></tbody>
@@ -977,15 +1276,49 @@
                                 </div>
                             </div>
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
-                                <span class="bakeshop-help">The handler scales recipe quantities using the product default yield quantity.</span>
-                                <button class="bakeshop-button" type="submit" id="production-submit">Save Production Run</button>
+                                <span class="bakeshop-help">When you review a saved entry later, only the time, person, and note can be updated from this form.</span>
+                                <button class="bakeshop-button" type="submit" id="production-submit" hidden>Update Saved Entry</button>
                                 <button class="bakeshop-button secondary" type="button" id="production-cancel" hidden>Cancel</button>
                             </div>
                         </form>
 
+                        <div class="bakeshop-review-card" id="production-last-saved" hidden>
+                            <div>
+                                <strong>Last Saved Entry</strong>
+                                <p id="production-last-saved-summary">The next saved batch will appear here so it can be reviewed right away.</p>
+                            </div>
+                            <div class="bakeshop-actions">
+                                <button class="bakeshop-button secondary" type="button" id="production-review-last-saved">Review In Saved Entries</button>
+                                <button class="bakeshop-button secondary" type="button" id="production-edit-last-saved">Edit This Entry</button>
+                            </div>
+                        </div>
+                        </div>
+
+                        <div class="bakeshop-section-panel" data-production-section-panel="saved">
+                        <div class="bakeshop-form-actions bakeshop-view-tabs">
+                            <div class="bakeshop-section-tabs" role="tablist" aria-label="Production sections">
+                                <button class="bakeshop-section-tab" type="button" data-production-section-tab="record" role="tab" aria-selected="false">Record Batch</button>
+                                <button class="bakeshop-section-tab active" type="button" data-production-section-tab="saved" role="tab" aria-selected="true">Saved Entries</button>
+                            </div>
+                            <span class="bakeshop-help">Review saved batch entries by branch, item, time, and ingredient-use detail.</span>
+                        </div>
+                        <div class="bakeshop-stats" id="production-saved-summary">
+                            <div class="bakeshop-stat">
+                                <strong id="production-saved-count">0</strong>
+                                <span>Visible Saved Entries</span>
+                            </div>
+                            <div class="bakeshop-stat">
+                                <strong id="production-saved-latest-item">None yet</strong>
+                                <span>Last Saved Item</span>
+                            </div>
+                            <div class="bakeshop-stat">
+                                <strong id="production-saved-latest-branch">No branch yet</strong>
+                                <span>Last Saved Branch</span>
+                            </div>
+                        </div>
                         <div class="bakeshop-field">
-                            <label for="production-filter">Find Production Run</label>
-                            <input id="production-filter" type="search" placeholder="Search by branch, product, or produced at">
+                            <label for="production-filter">Find Saved Entry</label>
+                            <input id="production-filter" type="search" placeholder="Search by branch, item, finished time, person, or note">
                         </div>
 
                         <div class="bakeshop-table-wrap">
@@ -993,15 +1326,16 @@
                                 <thead>
                                     <tr>
                                         <th>Branch</th>
-                                        <th>Product</th>
-                                        <th>Produced At</th>
-                                        <th>Qty</th>
-                                        <th>Snapshot Detail</th>
+                                        <th>Item</th>
+                                        <th>Finished At</th>
+                                        <th>Amount Made</th>
+                                        <th>Ingredients Used</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
                             </table>
+                        </div>
                         </div>
                     </div>
                 </section>
@@ -1016,18 +1350,18 @@
                         <form id="usage-form" class="bakeshop-grid-3">
                             <div class="bakeshop-field">
                                 <label for="usage-branch">Branch</label>
-                                <select id="usage-branch" name="branch_id"></select>
+                                <select id="usage-branch" name="branch_id" data-report-scope="branch_id"></select>
                             </div>
                             <div class="bakeshop-field">
                                 <label for="usage-from">From Date</label>
-                                <input id="usage-from" name="from_date" type="date">
+                                <input id="usage-from" name="from_date" type="date" value="{summary_report.filters.from_date}" data-report-scope="from_date">
                             </div>
                             <div class="bakeshop-field">
                                 <label for="usage-to">To Date</label>
-                                <input id="usage-to" name="to_date" type="date">
+                                <input id="usage-to" name="to_date" type="date" value="{summary_report.filters.to_date}" data-report-scope="to_date">
                             </div>
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
-                                <span class="bakeshop-help">Use filters to review inventory movement for one branch or date range, then prepare the printable summary.</span>
+                                <span class="bakeshop-help">These filters mirror the dashboard summary scope and drive the printable report.</span>
                                 <button class="bakeshop-button" type="submit">Refresh Usage</button>
                             </div>
                         </form>
@@ -1058,7 +1392,7 @@
                             </div>
                             <div class="bakeshop-stat">
                                 <strong id="usage-factual-runs">0</strong>
-                                <span>Production Runs</span>
+                                <span>Saved Batches</span>
                             </div>
                         </div>
 
@@ -1249,6 +1583,8 @@ document.addEventListener('DOMContentLoaded', () => {
     api.branchStatus = bakeshopApiPath('/api/v1/bakeshop/branches/[id]/status');
 
     const canManageSettings = {if can_manage_settings}true{else}false{/if};
+    const canManageWorkspace = {if can_manage_workspace}true{else}false{/if};
+    const allowProductionGuardOverride = {if allow_production_guard_override}true{else}false{/if};
     const defaultUsageDecimalPlaces = Number('{usage_decimal_places | default:"2"}');
     const searchParams = new URLSearchParams(window.location.search);
     const focusState = {
@@ -1261,10 +1597,22 @@ document.addEventListener('DOMContentLoaded', () => {
         branches: [],
         units: [],
         products: [],
+        productListView: 'active',
+        selectedProductIds: new Set(),
+        productionDraftQuantities: {},
+        productionDraftSaveState: {},
+        productionGuardOverride: false,
+        deliverySectionTab: 'receive',
+        productionSectionTab: 'record',
+        lastSavedProductionId: 0,
+        lastSavedProductionSummary: null,
         ingredients: [],
+        ingredientListView: 'active',
+        selectedIngredientIds: new Set(),
         recipes: [],
         activeProductId: 0,
         deliveries: [],
+        selectedDeliveryIds: new Set(),
         production: [],
         usage: [],
         inventorySnapshot: [],
@@ -1283,12 +1631,39 @@ document.addEventListener('DOMContentLoaded', () => {
         inventoryTotals: {
             on_hand_qty_base: '{usage_zero_value | default:"0.00"}',
             item_count: 0
+        },
+        loaded: {
+            branches: false,
+            units: false,
+            products: false,
+            ingredients: false,
+            recipes: false,
+            deliveries: false,
+            production: false
         }
     };
 
     const $ = (selector) => document.querySelector(selector);
     const banner = $('#bakeshop-banner');
+    const deleteConfirm = $('#bakeshop-delete-confirm');
+    const deleteConfirmTitle = $('#bakeshop-delete-confirm-title');
+    const deleteConfirmMessage = $('#bakeshop-delete-confirm-message');
+    const deleteConfirmImpact = $('#bakeshop-delete-confirm-impact');
+    const deleteConfirmList = $('#bakeshop-delete-confirm-list');
+    const deleteConfirmOverflow = $('#bakeshop-delete-confirm-overflow');
+    const deleteConfirmCancel = $('#bakeshop-delete-confirm-cancel');
+    const deleteConfirmSubmit = $('#bakeshop-delete-confirm-submit');
     const printLink = $('#bakeshop-print-link');
+    const productionGuardToggle = $('#production-guard-toggle');
+    const productionGuardNote = $('#production-guard-note');
+    const productionLastSaved = $('#production-last-saved');
+    const productionLastSavedSummary = $('#production-last-saved-summary');
+    const productionReviewLastSaved = $('#production-review-last-saved');
+    const productionEditLastSaved = $('#production-edit-last-saved');
+    const deliverySectionTabs = document.querySelectorAll('[data-delivery-section-tab]');
+    const deliverySectionPanels = document.querySelectorAll('[data-delivery-section-panel]');
+    const productionSectionTabs = document.querySelectorAll('[data-production-section-tab]');
+    const productionSectionPanels = document.querySelectorAll('[data-production-section-panel]');
     const deliveryLines = $('#delivery-lines');
     const deliveryCsvFile = $('#delivery-csv-file');
     const permissionsForm = $('#permissions-form');
@@ -1297,10 +1672,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const ingredientForm = $('#ingredient-form');
     const recipeForm = $('#recipe-form');
     const productionForm = $('#production-form');
+    const manageRequiredForms = document.querySelectorAll('[data-manage-required="true"]');
     const setupTabs = document.querySelectorAll('[data-tab]');
     const setupPanels = document.querySelectorAll('[data-tab-panel]');
+    const focusedWorkspaceMode = {if focused_workspace_mode}true{else}false{/if};
+    const pageTitle = document.getElementById('bakeshop-page-title');
+    const pageIntro = document.getElementById('bakeshop-page-intro');
+    const defaultWorkspaceTitle = pageTitle ? pageTitle.textContent : '';
+    const defaultWorkspaceIntro = pageIntro ? pageIntro.textContent : '';
     const defaultTab = '{initial_tab | default:"branches"}';
     const isDashboardPage = '{current_page | default:"dashboard"}' === 'dashboard';
+    let pendingDeleteConfirmResolve = null;
 
     function resolveTabName(candidate) {
         if (!candidate) {
@@ -1312,7 +1694,23 @@ document.addEventListener('DOMContentLoaded', () => {
             : defaultTab;
     }
 
-    function activateTab(tabName, options = {}) {
+    function syncFocusedWorkspaceHeader(tabName) {
+        if (!focusedWorkspaceMode || !pageTitle || !pageIntro) {
+            return;
+        }
+
+        const activeButton = Array.from(setupTabs).find((button) => button.getAttribute('data-tab') === tabName);
+        if (!activeButton) {
+            pageTitle.textContent = defaultWorkspaceTitle;
+            pageIntro.textContent = defaultWorkspaceIntro;
+            return;
+        }
+
+        pageTitle.textContent = activeButton.getAttribute('data-workspace-title') || defaultWorkspaceTitle;
+        pageIntro.textContent = activeButton.getAttribute('data-workspace-intro') || defaultWorkspaceIntro;
+    }
+
+    async function activateTab(tabName, options = {}) {
         const updateHash = options.updateHash !== false;
         const resolvedTab = resolveTabName(tabName);
         setupTabs.forEach((button) => {
@@ -1323,26 +1721,50 @@ document.addEventListener('DOMContentLoaded', () => {
         setupPanels.forEach((panel) => {
             panel.classList.toggle('active', panel.getAttribute('data-tab-panel') === resolvedTab);
         });
+        syncFocusedWorkspaceHeader(resolvedTab);
 
         if (updateHash && window.location.hash.slice(1) !== resolvedTab) {
             history.replaceState(null, '', '#' + resolvedTab);
         }
+
+        await ensureTabData(resolvedTab, { force: options.force === true });
     }
 
     setupTabs.forEach((button) => {
-        button.addEventListener('click', (event) => {
+        button.addEventListener('click', async (event) => {
             const tabName = button.getAttribute('data-tab');
-            if (button.getAttribute('href') === window.location.pathname) {
+            let targetUrl = null;
+            try {
+                targetUrl = new URL(button.getAttribute('href') || '', window.location.origin);
+            } catch (error) {
+                targetUrl = null;
+            }
+
+            if (targetUrl && targetUrl.pathname === window.location.pathname && targetUrl.search === window.location.search) {
                 event.preventDefault();
-                activateTab(tabName);
+                try {
+                    await activateTab(tabName);
+                } catch (error) {
+                    showBanner(error.message || 'Unable to open this work area.', false);
+                }
             }
         });
     });
 
-    if (window.location.hash && !isDashboardPage) {
-        activateTab(window.location.hash.slice(1));
+    window.addEventListener('hashchange', () => {
+        activateTab(window.location.hash.slice(1), { updateHash: false }).catch((error) => {
+            showBanner(error.message || 'Unable to open this work area.', false);
+        });
+    });
+
+    if (window.location.hash) {
+        activateTab(window.location.hash.slice(1)).catch((error) => {
+            showBanner(error.message || 'Unable to open this work area.', false);
+        });
     } else {
-        activateTab(defaultTab, { updateHash: !isDashboardPage });
+        activateTab(defaultTab, { updateHash: true }).catch((error) => {
+            showBanner(error.message || 'Unable to open this work area.', false);
+        });
     }
 
     function rowStatusChip(isActive) {
@@ -1352,31 +1774,31 @@ document.addEventListener('DOMContentLoaded', () => {
     function rowActionButtons(kind, row) {
         const rowId = normalizedRowId(kind, row);
         const actionId = rowId > 0 ? String(rowId) : '';
+        if (!canManageWorkspace) {
+            return '<span class="bakeshop-inline-note">View only</span>';
+        }
+
+        let deleteAction = '';
+        if (kind === 'product') {
+            deleteAction = Number(row.can_delete) === 1
+                ? '<button type="button" class="bakeshop-link-button warn" data-kind="' + escapeHtml(kind) + '" data-action="delete" data-id="' + escapeHtml(actionId) + '">Delete</button>'
+                : '<span class="bakeshop-inline-note">In use, archive instead</span>';
+        }
+        if (kind === 'ingredient') {
+            deleteAction = Number(row.can_delete) === 1
+                ? '<button type="button" class="bakeshop-link-button warn" data-kind="' + escapeHtml(kind) + '" data-action="delete" data-id="' + escapeHtml(actionId) + '">Delete</button>'
+                : '<span class="bakeshop-inline-note">In use, archive instead</span>';
+        }
+
         return '<div class="bakeshop-row-actions">'
             + '<button type="button" class="bakeshop-link-button" data-kind="' + escapeHtml(kind) + '" data-action="edit" data-id="' + escapeHtml(actionId) + '">Edit</button>'
-            + ((kind === 'product' || kind === 'ingredient')
-                ? '<button type="button" class="bakeshop-link-button warn" data-kind="' + escapeHtml(kind) + '" data-action="delete" data-id="' + escapeHtml(actionId) + '">Delete</button>'
-                : '')
+            + deleteAction
             + '<button type="button" class="bakeshop-link-button ' + (Number(row.is_active) === 0 ? '' : 'warn') + '" data-kind="' + escapeHtml(kind) + '" data-action="toggle-active" data-id="' + escapeHtml(actionId) + '"' + (rowId > 0 ? '' : ' disabled') + '>' + (Number(row.is_active) === 0 ? 'Restore' : 'Archive') + '</button>'
             + '</div>';
     }
 
     function activeProductRecord() {
         return state.products.find((row) => Number(row.id) === Number(state.activeProductId)) || null;
-    }
-
-    function productionQtyInputFor(productId) {
-        return document.querySelector('#production-products-table tbody input[data-production-qty-id="' + String(productId) + '"]');
-    }
-
-    function getSelectedProductionQuantity() {
-        const selected = selectedProductionProductRecord();
-        if (!selected) {
-            return '';
-        }
-
-        const input = productionQtyInputFor(selected.id);
-        return input ? input.value : '';
     }
 
     function selectedProductionProductRecord() {
@@ -1390,6 +1812,186 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return state.products.find((row) => Number(row.id) === productId) || null;
+    }
+
+    function productionDraftEntries() {
+        return Object.entries(state.productionDraftQuantities || {})
+            .map(([productId, qty]) => {
+                const numericProductId = Number(productId);
+                const normalizedQty = String(qty || '').trim();
+                const numericQty = Number.parseFloat(normalizedQty);
+                return {
+                    productId: numericProductId,
+                    qty: normalizedQty,
+                    numericQty,
+                    product: state.products.find((row) => Number(row.id) === numericProductId) || null
+                };
+            })
+            .filter((entry) => Number.isFinite(entry.productId) && entry.productId > 0 && Number.isFinite(entry.numericQty) && entry.numericQty > 0);
+    }
+
+    function normalizeOptionalTwoDecimalQuantity(value) {
+        const normalized = String(value ?? '').trim();
+        if (normalized === '') {
+            return '';
+        }
+
+        const numeric = Number.parseFloat(normalized);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return '';
+        }
+
+        return numeric.toFixed(2);
+    }
+
+    function productionRowBlockedReason(row) {
+        if (!row) {
+            return 'Product not found.';
+        }
+
+        if (!Number.isFinite(Number(row.default_yield_qty)) || Number(row.default_yield_qty) <= 0) {
+            return 'Set the standard batch size first.';
+        }
+
+        if (Number(row.recipe_item_count || 0) <= 0) {
+            return 'Add ingredients for this item first.';
+        }
+
+        return '';
+    }
+
+    function productionGuardOverrideActive() {
+        return allowProductionGuardOverride && state.productionGuardOverride === true;
+    }
+
+    function activateDeliverySectionTab(tabName, options = {}) {
+        const resolvedTab = tabName === 'saved' ? 'saved' : 'receive';
+        state.deliverySectionTab = resolvedTab;
+
+        deliverySectionTabs.forEach((button) => {
+            const isActive = button.getAttribute('data-delivery-section-tab') === resolvedTab;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        deliverySectionPanels.forEach((panel) => {
+            panel.classList.toggle('active', panel.getAttribute('data-delivery-section-panel') === resolvedTab);
+        });
+
+        if (resolvedTab === 'saved' && options.scrollToFocused === true) {
+            const focusedRow = document.querySelector('#deliveries-table tbody tr.bakeshop-row-focus');
+            if (focusedRow) {
+                focusedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    }
+
+    function activateProductionSectionTab(tabName, options = {}) {
+        const resolvedTab = tabName === 'saved' ? 'saved' : 'record';
+        state.productionSectionTab = resolvedTab;
+
+        productionSectionTabs.forEach((button) => {
+            const isActive = button.getAttribute('data-production-section-tab') === resolvedTab;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        productionSectionPanels.forEach((panel) => {
+            panel.classList.toggle('active', panel.getAttribute('data-production-section-panel') === resolvedTab);
+        });
+
+        if (resolvedTab === 'saved' && options.scrollToRecent === true) {
+            const recentRow = document.querySelector('#production-table tbody tr.bakeshop-row-recent');
+            if (recentRow) {
+                recentRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    }
+
+    function formatProductionLastSavedSummary(summary) {
+        if (!summary) {
+            return '';
+        }
+
+        const parts = [];
+        if (summary.product_name) {
+            parts.push(summary.product_name + ' · ' + displayTwoDecimalQuantity(summary.qty_produced) + ' ' + (summary.default_yield_unit_code || '').trim());
+        }
+        if (summary.branch_name) {
+            parts.push('Branch: ' + summary.branch_name);
+        }
+        if (summary.produced_at) {
+            parts.push('Finished: ' + summary.produced_at);
+        }
+        if (summary.produced_by) {
+            parts.push('Made by: ' + summary.produced_by);
+        }
+        if (summary.notes) {
+            parts.push('Note: ' + summary.notes);
+        }
+
+        return parts.join(' | ');
+    }
+
+    function syncProductionLastSavedCard() {
+        if (!productionLastSaved || !productionLastSavedSummary) {
+            return;
+        }
+
+        const summary = state.lastSavedProductionSummary;
+        if (!summary || Number(state.lastSavedProductionId || 0) <= 0) {
+            productionLastSaved.hidden = true;
+            productionLastSavedSummary.textContent = 'The next saved batch will appear here so it can be reviewed right away.';
+            return;
+        }
+
+        productionLastSaved.hidden = false;
+        productionLastSavedSummary.textContent = formatProductionLastSavedSummary(summary);
+    }
+
+    function rememberLastSavedProduction(row) {
+        const rowId = Number(row && row.id ? row.id : 0);
+        if (rowId <= 0) {
+            return;
+        }
+
+        state.lastSavedProductionId = rowId;
+        state.lastSavedProductionSummary = {
+            id: rowId,
+            branch_name: row.branch_name || '',
+            product_name: row.product_name || row.name || '',
+            produced_at: row.produced_at || '',
+            qty_produced: row.qty_produced || '0',
+            default_yield_unit_code: row.default_yield_unit_code || '',
+            produced_by: row.produced_by || '',
+            notes: row.notes || ''
+        };
+        syncProductionLastSavedCard();
+    }
+
+    function syncProductionGuardOverrideControls() {
+        if (!productionGuardToggle) {
+            return;
+        }
+
+        const active = productionGuardOverrideActive();
+        productionGuardToggle.textContent = active ? 'Testing Override: On' : 'Testing Override: Off';
+        productionGuardToggle.classList.toggle('warn', active);
+
+        if (productionGuardNote) {
+            productionGuardNote.textContent = active
+                ? 'Temporary non-production testing override is on. Saved entries will still be recorded even if the item setup is incomplete.'
+                : 'Temporary non-production testing override. When enabled, an entry can still be saved even if the item setup is incomplete.';
+        }
+    }
+
+    function setProductionDraftSaveState(productId, kind, message = '') {
+        state.productionDraftSaveState[String(productId)] = {
+            kind,
+            message
+        };
+    }
+
+    function productionDraftSaveStateFor(productId) {
+        return state.productionDraftSaveState[String(productId)] || null;
     }
 
     function productionMetadataEditActive() {
@@ -1415,51 +2017,239 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const note = $('#production-product-note');
-        const selected = selectedProductionProductRecord();
-        const hiddenField = productionForm.elements.namedItem('product_id');
+        const productField = productionForm.elements.namedItem('product_id');
+        const qtyField = productionForm.elements.namedItem('qty_produced');
+        const draftEntries = productionDraftEntries();
+        const selected = productionMetadataEditActive()
+            ? selectedProductionProductRecord()
+            : (draftEntries.length === 1 ? draftEntries[0].product : null);
+        const draftProductIds = new Set(draftEntries.map((entry) => Number(entry.productId)));
 
-        if (!note || !hiddenField) {
+        if (!note || !productField || !qtyField) {
             return;
         }
 
-        if (!selected) {
-            hiddenField.value = '';
-            note.textContent = 'Click a product row below and enter the quantity directly in that row.';
-        } else if (productionMetadataEditActive()) {
-            note.textContent = 'Editing metadata only for ' + (selected.name || 'product') + '. Branch, product, quantity, and snapshot lines are locked.';
+        if (!productionMetadataEditActive()) {
+            productField.value = '';
+            qtyField.value = '';
+        }
+
+        if (productionMetadataEditActive() && selected) {
+            note.textContent = 'Reviewing the saved entry for ' + (selected.name || 'item') + '. Branch, item, amount made, and ingredients used stay locked here.';
+        } else if (draftEntries.length === 0) {
+            note.textContent = 'Choose the branch, finished time, and who made it. Then enter the amount made in the item list below. Leave a box blank if nothing was made for that item.';
+        } else if (draftEntries.length === 1 && selected) {
+            note.textContent = 'Ready to save ' + (selected.name || 'item') + ' · Standard batch ' + displayTwoDecimalQuantity(selected.default_yield_qty) + ' ' + (selected.default_yield_unit_code || 'unit') + ' · Amount made ' + draftEntries[0].qty + '.';
         } else {
-            const selectedQty = getSelectedProductionQuantity();
-            note.textContent = 'Selected ' + (selected.name || 'product') + ' · Yield ' + displayTwoDecimalQuantity(selected.default_yield_qty) + ' ' + (selected.default_yield_unit_code || 'unit') + ' · ' + String(selected.recipe_item_count || 0) + ' recipe line' + (Number(selected.recipe_item_count || 0) === 1 ? '' : 's') + (selectedQty ? ' · Qty ' + selectedQty + '.' : '.');
+            note.textContent = 'Amounts will save as you leave each box.';
+        }
+
+        if (productionGuardOverrideActive()) {
+            note.textContent += ' Testing override is on.';
         }
 
         document.querySelectorAll('#production-products-table tbody tr[data-row-kind="production-product"]').forEach((rowElement) => {
-            const isSelected = selected && Number(rowElement.getAttribute('data-row-id') || '0') === Number(selected.id || 0);
-            rowElement.classList.toggle('bakeshop-row-editing', Boolean(isSelected));
-            rowElement.classList.add('bakeshop-row-selectable');
+            const rowId = Number(rowElement.getAttribute('data-row-id') || '0');
+            const isSelected = productionMetadataEditActive()
+                ? Boolean(selected && rowId === Number(selected.id || 0))
+                : draftProductIds.has(rowId);
+            rowElement.classList.toggle('bakeshop-row-editing', isSelected);
+            rowElement.classList.toggle('bakeshop-row-selectable', canManageWorkspace && !productionMetadataEditActive());
         });
     }
 
-    function selectProductionProduct(row, options = {}) {
+    async function autosaveProductionDraft(productId, qtyValue, qtyInput) {
+        if (!productionForm || productionMetadataEditActive()) {
+            return;
+        }
+
+        const normalizedQty = normalizeOptionalTwoDecimalQuantity(qtyValue);
+        if (normalizedQty === '') {
+            delete state.productionDraftQuantities[String(productId)];
+            delete state.productionDraftSaveState[String(productId)];
+            syncProductionProductSelection();
+            if (qtyInput instanceof HTMLInputElement) {
+                qtyInput.value = '';
+            }
+            renderCatalogTables();
+            return;
+        }
+
+        const row = state.products.find((item) => Number(item.id) === Number(productId) && Number(item.is_active) !== 0);
+        if (!row) {
+            setProductionDraftSaveState(productId, 'error', 'This item could not be found.');
+            renderCatalogTables();
+            showBanner('That item could not be found.', false);
+            return;
+        }
+
+        const blockedReason = productionRowBlockedReason(row);
+        if (blockedReason !== '' && !productionGuardOverrideActive()) {
+            setProductionDraftSaveState(productId, 'error', blockedReason);
+            renderCatalogTables();
+            showBanner(blockedReason, false);
+            return;
+        }
+
+        if (!productionForm.elements.namedItem('branch_id').value) {
+            setProductionDraftSaveState(productId, 'error', 'Choose a branch first.');
+            renderCatalogTables();
+            showBanner('Choose a branch before entering the amount made.', false);
+            return;
+        }
+        if (!productionForm.elements.namedItem('produced_at').value) {
+            setProductionDraftSaveState(productId, 'error', 'Set the finished time first.');
+            renderCatalogTables();
+            showBanner('Set the finished time before entering the amount made.', false);
+            return;
+        }
+
+        state.productionDraftQuantities[String(productId)] = normalizedQty;
+        setProductionDraftSaveState(productId, 'saving', 'Saving entry...');
+        syncProductionProductSelection();
+        renderCatalogTables();
+
+        if (qtyInput instanceof HTMLInputElement) {
+            qtyInput.value = normalizedQty;
+            qtyInput.disabled = true;
+        }
+
+        const result = await submitJson(api.production, {
+            branch_id: productionForm.elements.namedItem('branch_id').value,
+            product_id: String(productId),
+            produced_at: productionForm.elements.namedItem('produced_at').value,
+            qty_produced: normalizedQty,
+            produced_by: productionForm.elements.namedItem('produced_by').value,
+            notes: productionForm.elements.namedItem('notes').value,
+            relax_guards: productionGuardOverrideActive() ? '1' : '0'
+        }, (row.name || 'Item') + ' was saved.', async (data) => {
+            delete state.productionDraftQuantities[String(productId)];
+            await loadProduction(true);
+            const savedRow = state.production.find((item) => Number(item.id) === Number((data && data.item && data.item.id) || 0)) || (data ? data.item : null);
+            if (savedRow) {
+                rememberLastSavedProduction(savedRow);
+            }
+            setProductionDraftSaveState(productId, 'saved', productionGuardOverrideActive() && blockedReason !== '' ? 'Saved for testing review.' : 'Saved and ready to review.');
+            renderCatalogTables();
+            await loadUsage();
+        });
+
+        if (!result) {
+            setProductionDraftSaveState(productId, 'error', 'Could not save. Try again.');
+            renderCatalogTables();
+            if (qtyInput instanceof HTMLInputElement) {
+                qtyInput.disabled = false;
+                qtyInput.value = normalizedQty;
+            }
+            return;
+        }
+
+        if (qtyInput instanceof HTMLInputElement && qtyInput.isConnected) {
+            qtyInput.disabled = false;
+            qtyInput.value = '';
+        }
+    }
+
+    function focusProductionDraftInput(row) {
         if (!productionForm) {
             return;
         }
 
-        if (productionMetadataEditActive()) {
-            showBanner('Production metadata edit mode locks product and quantity. Cancel the edit to record a new run.', false);
+        if (!canManageWorkspace) {
+            showBanner('Production entry is read only for your role.', false);
             return;
         }
 
-        productionForm.elements.namedItem('product_id').value = String(row.id || '');
-        const qtyInput = productionQtyInputFor(row.id);
-        if (qtyInput && !qtyInput.value) {
-            qtyInput.value = '1';
+        if (productionMetadataEditActive()) {
+            showBanner('You are reviewing a saved entry. Cancel review mode to record a new batch.', false);
+            return;
         }
-        syncProductionProductSelection();
 
-        if (options.focusQty && qtyInput) {
-            qtyInput.focus();
-            qtyInput.select();
+        const qtyField = document.querySelector('[data-production-qty-input="' + String(row.id || '') + '"]');
+        if (!(qtyField instanceof HTMLInputElement)) {
+            return;
         }
+
+        qtyField.focus();
+        qtyField.select();
+    }
+
+    function renderProductionProductsTable(rows) {
+        const tbody = document.querySelector('#production-products-table tbody');
+        if (!tbody) {
+            return;
+        }
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="bakeshop-muted">No active products available for production.</td></tr>';
+            syncProductionProductSelection();
+            return;
+        }
+
+        tbody.innerHTML = rows.map((row) => {
+            const rowId = normalizedRowId('production-product', row);
+            const draftQty = String((state.productionDraftQuantities && state.productionDraftQuantities[String(rowId)]) || '');
+            const blockedReason = productionRowBlockedReason(row);
+            const inputDisabled = !canManageWorkspace || productionMetadataEditActive();
+            const saveState = productionDraftSaveStateFor(rowId);
+            const saveStateClass = blockedReason !== '' && !productionGuardOverrideActive()
+                ? ' error'
+                : (saveState && saveState.kind === 'saved'
+                ? ' ok'
+                : (saveState && saveState.kind === 'error' ? ' error' : ''));
+            const saveStateMessage = blockedReason !== ''
+                ? (productionGuardOverrideActive()
+                    ? 'Testing override active. This will save without ingredient-use detail.'
+                    : blockedReason)
+                : (saveState && saveState.message
+                    ? saveState.message
+                    : 'Blank = no production');
+            return '<tr data-row-kind="production-product" data-row-id="' + escapeHtml(rowId) + '">'
+                + '<td><strong>' + escapeHtml(row.name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.sku || 'No SKU') + '</div></td>'
+                + '<td>' + escapeHtml(row.category || '—') + '</td>'
+                + '<td>' + displayTwoDecimalQuantity(row.default_yield_qty) + ' ' + escapeHtml(row.default_yield_unit_code || '') + '</td>'
+                + '<td><input class="bakeshop-table-input" type="number" min="0.01" step="0.01" placeholder="0.00" data-production-qty-input="' + escapeHtml(rowId) + '" value="' + escapeHtml(draftQty) + '"' + (inputDisabled ? ' disabled' : '') + '><div class="bakeshop-inline-note' + saveStateClass + '">' + escapeHtml(saveStateMessage) + '</div></td>'
+                + '</tr>';
+        }).join('');
+
+        syncProductionProductSelection();
+    }
+
+    function currentReportScope() {
+        const fromUsage = {
+            branch_id: $('#usage-branch') ? $('#usage-branch').value : '',
+            from_date: $('#usage-from') ? $('#usage-from').value : '',
+            to_date: $('#usage-to') ? $('#usage-to').value : ''
+        };
+
+        if (fromUsage.branch_id !== '' || fromUsage.from_date !== '' || fromUsage.to_date !== '') {
+            return fromUsage;
+        }
+
+        return {
+            branch_id: $('#summary-branch-filter') ? $('#summary-branch-filter').value : '',
+            from_date: $('#summary-from-filter') ? $('#summary-from-filter').value : '',
+            to_date: $('#summary-to-filter') ? $('#summary-to-filter').value : ''
+        };
+    }
+
+    function syncReportScopeInputs(sourcePrefix) {
+        const source = {
+            branch_id: $('#' + sourcePrefix + '-branch-filter') || $('#' + sourcePrefix + '-branch'),
+            from_date: $('#' + sourcePrefix + '-from-filter') || $('#' + sourcePrefix + '-from'),
+            to_date: $('#' + sourcePrefix + '-to-filter') || $('#' + sourcePrefix + '-to')
+        };
+        const usageTargets = {
+            branch_id: $('#usage-branch'),
+            from_date: $('#usage-from'),
+            to_date: $('#usage-to')
+        };
+
+        Object.keys(usageTargets).forEach((key) => {
+            if (source[key] && usageTargets[key]) {
+                usageTargets[key].value = source[key].value || '';
+            }
+        });
     }
 
     function syncRecipePanel() {
@@ -1504,6 +2294,30 @@ document.addEventListener('DOMContentLoaded', () => {
         banner.textContent = '';
     }
 
+    function filteredProductRows() {
+        const showArchived = state.productListView === 'archived';
+        return state.products.filter((row) => {
+            const isArchived = Number(row.is_active) === 0;
+            return showArchived === isArchived;
+        });
+    }
+
+    function filteredDeliveryRows() {
+        return state.deliveries.filter((row) => rowMatchesSearch(tableSearchQuery('#deliveries-filter'), [row.branch_name, row.delivered_at, row.reference, row.received_by, row.source_label, row.cost_basis_summary, row.item_count, row.total_quantity, row.total_amount]));
+    }
+
+    function pruneProductSelection() {
+        const validIds = new Set(state.products
+            .filter((row) => Number(row.can_delete) === 1)
+            .map((row) => Number(row.id))
+            .filter((id) => Number.isFinite(id) && id > 0));
+        Array.from(state.selectedProductIds).forEach((id) => {
+            if (!validIds.has(id)) {
+                state.selectedProductIds.delete(id);
+            }
+        });
+    }
+
     function escapeHtml(value) {
         return String(value ?? '')
             .replace(/&/g, '&amp;')
@@ -1513,43 +2327,205 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/'/g, '&#039;');
     }
 
+    function productDeletePreviewLabel(row, id) {
+        const name = row && row.name ? row.name : ('Product #' + String(id));
+        return row && row.sku ? (name + ' (' + row.sku + ')') : name;
+    }
+
+    function ingredientDeletePreviewLabel(row, id) {
+        const name = row && row.name ? row.name : ('Ingredient #' + String(id));
+        return row && row.sku ? (name + ' (' + row.sku + ')') : name;
+    }
+
+    function deliveryDeletePreviewLabel(row, id) {
+        const reference = row && row.reference ? row.reference : ('Delivery #' + String(id));
+        const branch = row && row.branch_name ? row.branch_name : '';
+        const deliveredAt = row && row.delivered_at ? row.delivered_at : '';
+        return [reference, branch, deliveredAt].filter(Boolean).join(' - ');
+    }
+
+    function pruneDeliverySelection() {
+        const validIds = new Set(state.deliveries.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0));
+        Array.from(state.selectedDeliveryIds).forEach((id) => {
+            if (!validIds.has(id)) {
+                state.selectedDeliveryIds.delete(id);
+            }
+        });
+    }
+
+    function syncSelectionControls(options) {
+        const rows = options.rows || [];
+        const selectedIds = options.selectedIds;
+        const prefix = options.prefix;
+        const noun = options.noun;
+        const singular = options.singular || noun.replace(/s$/, '');
+        const selectAll = $('#' + prefix + '-select-all');
+        const summary = $('#' + prefix + '-selection-summary');
+        const clearButton = $('#' + prefix + '-clear-selection');
+        const deleteButton = $('#' + prefix + '-delete-selected');
+        const selectVisibleButton = $('#' + prefix + '-select-visible');
+        const visibleIds = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+        const selectedCount = selectedIds.size;
+        const visibleSelectedCount = visibleIds.filter((id) => selectedIds.has(id)).length;
+
+        if (summary) {
+            if (selectedCount === 0) {
+                summary.textContent = 'No ' + noun + ' selected.';
+            } else if (selectedCount === 1) {
+                summary.textContent = '1 ' + singular + ' selected.';
+            } else {
+                summary.textContent = String(selectedCount) + ' ' + noun + ' selected.';
+            }
+        }
+
+        if (selectAll) {
+            selectAll.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+            selectAll.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
+            selectAll.disabled = !canManageWorkspace || visibleIds.length === 0;
+        }
+        if (selectVisibleButton) {
+            selectVisibleButton.disabled = !canManageWorkspace || visibleIds.length === 0;
+        }
+        if (clearButton) {
+            clearButton.hidden = selectedCount === 0;
+            clearButton.disabled = !canManageWorkspace || selectedCount === 0;
+        }
+        if (deleteButton) {
+            deleteButton.hidden = selectedCount === 0;
+            deleteButton.disabled = !canManageWorkspace || selectedCount === 0;
+            deleteButton.textContent = selectedCount > 1 ? 'Delete Selected (' + String(selectedCount) + ')' : 'Delete Selected';
+        }
+    }
+
+    function productDeleteEligibleRows(rows = filteredProductRows()) {
+        return rows.filter((row) => Number(row.can_delete) === 1);
+    }
+
+    function syncProductViewControls() {
+        const activeButton = $('#products-view-active');
+        const archivedButton = $('#products-view-archived');
+        const summary = $('#products-view-summary');
+        const activeCount = state.products.filter((row) => Number(row.is_active) !== 0).length;
+        const archivedCount = state.products.filter((row) => Number(row.is_active) === 0).length;
+
+        $('#products-active-count').textContent = String(activeCount);
+        $('#products-archived-count').textContent = String(archivedCount);
+
+        if (activeButton) {
+            const isActiveView = state.productListView === 'active';
+            activeButton.classList.toggle('active', isActiveView);
+            activeButton.setAttribute('aria-selected', isActiveView ? 'true' : 'false');
+        }
+        if (archivedButton) {
+            const isArchivedView = state.productListView === 'archived';
+            archivedButton.classList.toggle('active', isArchivedView);
+            archivedButton.setAttribute('aria-selected', isArchivedView ? 'true' : 'false');
+        }
+        if (summary) {
+            summary.textContent = state.productListView === 'archived'
+                ? 'Archived products stay out of batch recording until they are restored.'
+                : 'View active products used for current batch recording.';
+        }
+    }
+
+    function syncProductSelectionControls(rows = filteredProductRows()) {
+        const selectAll = $('#products-select-all');
+        const summary = $('#products-selection-summary');
+        const clearButton = $('#products-clear-selection');
+        const deleteButton = $('#products-delete-selected');
+        const selectVisibleButton = $('#products-select-visible');
+        const deletableRows = productDeleteEligibleRows(rows);
+        const visibleIds = deletableRows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+        const selectedCount = state.selectedProductIds.size;
+        const visibleSelectedCount = visibleIds.filter((id) => state.selectedProductIds.has(id)).length;
+
+        if (summary) {
+            if (selectedCount === 0) {
+                summary.textContent = rows.length > 0 && visibleIds.length === 0 ? 'Products already used in saved batches can be archived but not deleted.' : 'No products selected.';
+            } else if (selectedCount === 1) {
+                summary.textContent = '1 product selected.';
+            } else {
+                summary.textContent = String(selectedCount) + ' products selected.';
+            }
+        }
+
+        if (selectAll) {
+            selectAll.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+            selectAll.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
+            selectAll.disabled = !canManageWorkspace || visibleIds.length === 0;
+        }
+
+        if (selectVisibleButton) {
+            selectVisibleButton.disabled = !canManageWorkspace || visibleIds.length === 0;
+        }
+        if (clearButton) {
+            clearButton.hidden = selectedCount === 0;
+            clearButton.disabled = !canManageWorkspace || selectedCount === 0;
+        }
+        if (deleteButton) {
+            deleteButton.hidden = selectedCount === 0;
+            deleteButton.disabled = !canManageWorkspace || selectedCount === 0;
+            deleteButton.textContent = selectedCount > 1 ? 'Delete Selected (' + String(selectedCount) + ')' : 'Delete Selected';
+        }
+    }
+
+    function syncDeliverySelectionControls(rows = filteredDeliveryRows()) {
+        syncSelectionControls({ rows, selectedIds: state.selectedDeliveryIds, prefix: 'deliveries', noun: 'deliveries', singular: 'delivery' });
+    }
+
     function normalizeTwoDecimalQuantity(value, fallback = '1.00') {
-        const number = Number(value);
-        if (!Number.isFinite(number) || number <= 0) {
+        const numeric = Number.parseFloat(String(value ?? '').trim());
+        if (!Number.isFinite(numeric) || numeric <= 0) {
             return fallback;
         }
-
-        return (Math.max(0.01, Math.round(number * 100) / 100)).toFixed(2);
+        return numeric.toFixed(2);
     }
 
-    function displayTwoDecimalQuantity(value) {
-        const number = Number(value);
-        if (!Number.isFinite(number)) {
-            return escapeHtml(value || '0.00');
+    function displayTwoDecimalQuantity(value, fallback = '0.00') {
+        const numeric = Number.parseFloat(String(value ?? '').trim());
+        if (!Number.isFinite(numeric)) {
+            return fallback;
         }
-
-        return escapeHtml(number.toFixed(2));
+        return numeric.toFixed(2);
     }
 
-    function formatCurrencyDisplay(value) {
-        const number = Number(value);
-        if (!Number.isFinite(number)) {
-            return '—';
+    function renderProductsTable(rows) {
+        const tbody = document.querySelector('#products-table tbody');
+        if (!tbody) {
+            return;
         }
 
-        return escapeHtml(number.toFixed(2));
-    }
-
-    function renderDetailList(items, formatter, emptyMessage) {
-        if (!Array.isArray(items) || !items.length) {
-            return '<div class="bakeshop-detail-list"><span>' + escapeHtml(emptyMessage) + '</span></div>';
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="bakeshop-muted">' + escapeHtml(state.productListView === 'archived' ? 'No archived products yet.' : 'No active products yet.') + '</td></tr>';
+            syncProductViewControls();
+            syncProductSelectionControls(rows);
+            return;
         }
 
-        const lines = items.slice(0, 3).map((item) => '<span>' + formatter(item) + '</span>');
-        if (items.length > 3) {
-            lines.push('<span>+' + escapeHtml(String(items.length - 3)) + ' more lines</span>');
-        }
-        return '<div class="bakeshop-detail-list">' + lines.join('') + '</div>';
+        tbody.innerHTML = rows.map((row) => {
+            const resolvedRowId = normalizedRowId('product', row);
+            const selected = resolvedRowId > 0 && state.selectedProductIds.has(resolvedRowId);
+            const selectionCell = canManageWorkspace && resolvedRowId > 0 && Number(row.can_delete) === 1
+                ? '<td class="bakeshop-checkbox-cell"><input class="bakeshop-checkbox" type="checkbox" data-product-select="' + escapeHtml(resolvedRowId) + '" aria-label="Select product ' + escapeHtml(row.name || String(resolvedRowId)) + '"' + (selected ? ' checked' : '') + '></td>'
+                : '<td class="bakeshop-checkbox-cell"></td>';
+
+            const dependencyNote = Number(row.production_reference_count) > 0
+                ? '<div class="bakeshop-inline-note">Used by ' + escapeHtml(String(row.production_reference_count)) + ' saved batch' + (Number(row.production_reference_count) === 1 ? '' : 'es') + '.</div>'
+                : '';
+
+            return '<tr data-row-kind="product" data-row-id="' + escapeHtml(resolvedRowId) + '">'
+                + selectionCell
+                + '<td><strong>' + escapeHtml(row.name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.sku || 'No SKU') + '</div>' + dependencyNote + '</td>'
+                + '<td>' + escapeHtml(row.category || '—') + '</td>'
+                + '<td>' + displayTwoDecimalQuantity(row.default_yield_qty) + ' ' + escapeHtml(row.default_yield_unit_code || '') + '</td>'
+                + '<td>' + escapeHtml(row.recipe_item_count) + '</td>'
+                + '<td>' + rowStatusChip(row.is_active) + '</td>'
+                + '<td>' + rowActionButtons('product', row) + '</td>'
+                + '</tr>';
+        }).join('');
+
+        syncProductViewControls();
+        syncProductSelectionControls(rows);
     }
 
     function renderDeliveryDetail(row) {
@@ -1565,9 +2541,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderProductionSnapshotDetail(row) {
         const items = Array.isArray(row.items) ? row.items : [];
         return '<div class="bakeshop-detail-stack">'
-            + '<strong>' + escapeHtml(String(row.consumed_item_count || items.length || 0)) + ' snapshot lines</strong>'
-            + '<span class="bakeshop-inline-note">' + escapeHtml(String(row.total_consumed_qty || '0')) + ' total consumed qty</span>'
-            + renderDetailList(items, (item) => escapeHtml(item.ingredient_name || 'Ingredient') + ': ' + escapeHtml(String(item.qty_used || '0')) + ' ' + escapeHtml(item.unit_code || ''), 'No production snapshot detail loaded.')
+            + '<strong>' + escapeHtml(String(row.consumed_item_count || items.length || 0)) + ' ingredient line(s)</strong>'
+            + '<span class="bakeshop-inline-note">' + escapeHtml(String(row.total_consumed_qty || '0')) + ' total ingredient quantity</span>'
+            + renderDetailList(items, (item) => escapeHtml(item.ingredient_name || 'Ingredient') + ': ' + escapeHtml(String(item.qty_used || '0')) + ' ' + escapeHtml(item.unit_code || ''), 'No ingredient-use detail was saved for this entry.')
             + '</div>';
     }
 
@@ -1649,6 +2625,22 @@ document.addEventListener('DOMContentLoaded', () => {
             select.value = currentValue;
         }
     }
+
+    function applyWorkspaceAccessMode() {
+        if (canManageWorkspace) {
+            return;
+        }
+
+        manageRequiredForms.forEach((form) => {
+            form.querySelectorAll('input, select, textarea, button').forEach((field) => {
+                if (field instanceof HTMLElement && field.getAttribute('type') === 'hidden') {
+                    return;
+                }
+                field.disabled = true;
+            });
+        });
+    }
+
     function tableSearchQuery(selector) {
         const input = $(selector);
         return input ? String(input.value || '').trim().toLowerCase() : '';
@@ -1663,6 +2655,17 @@ document.addEventListener('DOMContentLoaded', () => {
             .map((value) => String(value || '').toLowerCase())
             .join(' ')
             .includes(query);
+    }
+
+    function renderDetailList(items, renderItem, emptyMessage = 'No detail loaded.') {
+        const listItems = Array.isArray(items) ? items : [];
+        if (!listItems.length) {
+            return '<div class="bakeshop-detail-list"><span>' + escapeHtml(emptyMessage) + '</span></div>';
+        }
+
+        return '<div class="bakeshop-detail-list">'
+            + listItems.map((item) => '<span>' + renderItem(item) + '</span>').join('')
+            + '</div>';
     }
 
     function renderTable(selector, rows, columns, emptyMessage = 'No rows yet.', rowKind = '') {
@@ -1761,6 +2764,186 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#stat-recipes').textContent = String(state.recipes.length);
     }
 
+    function filteredIngredientRows() {
+        const ingredientQuery = tableSearchQuery('#ingredients-filter');
+        const showArchived = state.ingredientListView === 'archived';
+        return state.ingredients.filter((row) => {
+            const isArchived = Number(row.is_active) === 0;
+            if (showArchived !== isArchived) {
+                return false;
+            }
+
+            return rowMatchesSearch(ingredientQuery, [row.name, row.sku, row.default_unit_code, row.default_unit_name]);
+        });
+    }
+
+    function syncIngredientViewControls() {
+        const activeButton = $('#ingredients-view-active');
+        const archivedButton = $('#ingredients-view-archived');
+        const summary = $('#ingredients-view-summary');
+        const activeCount = state.ingredients.filter((row) => Number(row.is_active) !== 0).length;
+        const archivedCount = state.ingredients.filter((row) => Number(row.is_active) === 0).length;
+
+        $('#ingredients-active-count').textContent = String(activeCount);
+        $('#ingredients-archived-count').textContent = String(archivedCount);
+
+        if (activeButton) {
+            const isActiveView = state.ingredientListView === 'active';
+            activeButton.classList.toggle('active', isActiveView);
+            activeButton.setAttribute('aria-selected', isActiveView ? 'true' : 'false');
+        }
+        if (archivedButton) {
+            const isArchivedView = state.ingredientListView === 'archived';
+            archivedButton.classList.toggle('active', isArchivedView);
+            archivedButton.setAttribute('aria-selected', isArchivedView ? 'true' : 'false');
+        }
+        if (summary) {
+            summary.textContent = state.ingredientListView === 'archived'
+                ? 'Archived ingredients stay out of delivery and recipe pickers until they are restored.'
+                : 'View active ingredients used in current operations.';
+        }
+    }
+
+    function ingredientDeleteEligibleRows(rows = filteredIngredientRows()) {
+        return rows.filter((row) => Number(row.can_delete) === 1);
+    }
+
+    function pruneIngredientSelection() {
+        const validIds = new Set(state.ingredients
+            .filter((row) => Number(row.can_delete) === 1)
+            .map((row) => Number(row.id))
+            .filter((id) => Number.isFinite(id) && id > 0));
+        Array.from(state.selectedIngredientIds).forEach((id) => {
+            if (!validIds.has(id)) {
+                state.selectedIngredientIds.delete(id);
+            }
+        });
+    }
+
+    function syncIngredientSelectionControls(rows = filteredIngredientRows()) {
+        const selectAll = $('#ingredients-select-all');
+        const summary = $('#ingredients-selection-summary');
+        const clearButton = $('#ingredients-clear-selection');
+        const deleteButton = $('#ingredients-delete-selected');
+        const selectVisibleButton = $('#ingredients-select-visible');
+        const deletableRows = ingredientDeleteEligibleRows(rows);
+        const visibleIds = deletableRows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+        const selectedCount = state.selectedIngredientIds.size;
+        const visibleSelectedCount = visibleIds.filter((id) => state.selectedIngredientIds.has(id)).length;
+
+        if (summary) {
+            if (selectedCount === 0) {
+                summary.textContent = rows.length > 0 && visibleIds.length === 0 ? 'Ingredients already in use can be archived but not deleted.' : 'No ingredients selected.';
+            } else if (selectedCount === 1) {
+                summary.textContent = '1 ingredient selected.';
+            } else {
+                summary.textContent = String(selectedCount) + ' ingredients selected.';
+            }
+        }
+
+        if (selectAll) {
+            selectAll.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+            selectAll.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
+            selectAll.disabled = !canManageWorkspace || visibleIds.length === 0;
+        }
+
+        if (selectVisibleButton) {
+            selectVisibleButton.disabled = !canManageWorkspace || visibleIds.length === 0;
+        }
+        if (clearButton) {
+            clearButton.hidden = selectedCount === 0;
+            clearButton.disabled = !canManageWorkspace || selectedCount === 0;
+        }
+        if (deleteButton) {
+            deleteButton.hidden = selectedCount === 0;
+            deleteButton.disabled = !canManageWorkspace || selectedCount === 0;
+            deleteButton.textContent = selectedCount > 1 ? 'Delete Selected (' + String(selectedCount) + ')' : 'Delete Selected';
+        }
+    }
+
+    function renderIngredientsTable(rows) {
+        const tbody = document.querySelector('#ingredients-table tbody');
+        if (!tbody) {
+            return;
+        }
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="bakeshop-muted">' + escapeHtml(state.ingredientListView === 'archived' ? 'No archived ingredients yet.' : 'No active ingredients yet.') + '</td></tr>';
+            syncIngredientViewControls();
+            syncIngredientSelectionControls(rows);
+            return;
+        }
+
+        tbody.innerHTML = rows.map((row) => {
+            const resolvedRowId = normalizedRowId('ingredient', row);
+            const selected = resolvedRowId > 0 && state.selectedIngredientIds.has(resolvedRowId);
+            const selectionCell = canManageWorkspace && resolvedRowId > 0 && Number(row.can_delete) === 1
+                ? '<td class="bakeshop-checkbox-cell"><input class="bakeshop-checkbox" type="checkbox" data-ingredient-select="' + escapeHtml(resolvedRowId) + '" aria-label="Select ingredient ' + escapeHtml(row.name || String(resolvedRowId)) + '"' + (selected ? ' checked' : '') + '></td>'
+                : '<td class="bakeshop-checkbox-cell"></td>';
+
+            const dependencyNotes = [];
+            if (Number(row.recipe_reference_count) > 0) {
+                dependencyNotes.push(String(row.recipe_reference_count) + ' recipe line(s)');
+            }
+            if (Number(row.delivery_reference_count) > 0) {
+                dependencyNotes.push(String(row.delivery_reference_count) + ' delivery line(s)');
+            }
+            if (Number(row.production_reference_count) > 0) {
+                dependencyNotes.push(String(row.production_reference_count) + ' production snapshot line(s)');
+            }
+            if (Number(row.usage_reference_count) > 0) {
+                dependencyNotes.push(String(row.usage_reference_count) + ' usage record(s)');
+            }
+            const dependencyNote = dependencyNotes.length > 0
+                ? '<div class="bakeshop-inline-note">In use by ' + escapeHtml(dependencyNotes.join(' · ')) + '.</div>'
+                : '';
+
+            return '<tr data-row-kind="ingredient" data-row-id="' + escapeHtml(resolvedRowId) + '">'
+                + selectionCell
+                + '<td><strong>' + escapeHtml(row.name) + '</strong>' + dependencyNote + '</td>'
+                + '<td>' + escapeHtml(row.sku || '—') + '</td>'
+                + '<td>' + escapeHtml([row.default_unit_code, row.default_unit_name].filter(Boolean).join(' — ') || '—') + '</td>'
+                + '<td>' + rowStatusChip(row.is_active) + '</td>'
+                + '<td>' + rowActionButtons('ingredient', row) + '</td>'
+                + '</tr>';
+        }).join('');
+
+        syncIngredientViewControls();
+        syncIngredientSelectionControls(rows);
+    }
+
+    function renderDeliveriesTable(rows) {
+        const tbody = document.querySelector('#deliveries-table tbody');
+        if (!tbody) {
+            return;
+        }
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="bakeshop-muted">No deliveries yet.</td></tr>';
+            syncDeliverySelectionControls(rows);
+            return;
+        }
+
+        tbody.innerHTML = rows.map((row) => {
+            const resolvedRowId = normalizedRowId('delivery', row);
+            const selected = resolvedRowId > 0 && state.selectedDeliveryIds.has(resolvedRowId);
+            const selectionCell = canManageWorkspace && resolvedRowId > 0
+                ? '<td class="bakeshop-checkbox-cell"><input class="bakeshop-checkbox" type="checkbox" data-delivery-select="' + escapeHtml(resolvedRowId) + '" aria-label="Select delivery ' + escapeHtml(row.reference || String(resolvedRowId)) + '"' + (selected ? ' checked' : '') + '></td>'
+                : '<td class="bakeshop-checkbox-cell"></td>';
+
+            return '<tr data-row-kind="delivery" data-row-id="' + escapeHtml(resolvedRowId) + '">'
+                + selectionCell
+                + '<td><strong>' + escapeHtml(row.branch_name || '—') + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.source_label || 'Delivery source not set') + '</div></td>'
+                + '<td>' + escapeHtml(row.delivered_at || '—') + '</td>'
+                + '<td>' + escapeHtml(row.reference || '—') + '<div class="bakeshop-inline-note">' + escapeHtml(row.received_by || 'Receiver not set') + '</div></td>'
+                + '<td><div class="bakeshop-detail-stack"><span>' + escapeHtml(row.item_count || 0) + ' item(s)</span><span>' + escapeHtml(row.total_quantity || '0') + ' total qty</span><span>' + escapeHtml(row.cost_basis_summary || 'Cost basis pending') + '</span></div></td>'
+                + '<td>' + (canManageWorkspace ? '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button warn" data-action="delete-delivery" data-id="' + escapeHtml(row.id) + '">Delete</button></div>' : '<span class="bakeshop-inline-note">View only</span>') + '</td>'
+                + '</tr>';
+        }).join('');
+
+        syncDeliverySelectionControls(rows);
+    }
+
     function renderBranchTables() {
         const filteredBranches = state.branches.filter((row) => rowMatchesSearch(tableSearchQuery('#branches-filter'), [row.code, row.name, row.address]));
 
@@ -1781,37 +2964,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCatalogTables() {
         const activeProductId = Number(state.activeProductId || 0);
-        const ingredientQuery = tableSearchQuery('#ingredients-filter');
         const recipeQuery = tableSearchQuery('#recipes-filter');
-        const filteredProducts = state.products;
-        const filteredIngredients = state.ingredients.filter((row) => rowMatchesSearch(ingredientQuery, [row.name, row.sku, row.default_unit_code, row.default_unit_name]));
+        if (focusState.kind === 'product' && !focusState.applied) {
+            const focusedProduct = state.products.find((row) => Number(row.id) === focusState.id);
+            if (focusedProduct) {
+                state.productListView = Number(focusedProduct.is_active) === 0 ? 'archived' : 'active';
+            }
+        }
+        if (focusState.kind === 'ingredient' && !focusState.applied) {
+            const focusedIngredient = state.ingredients.find((row) => Number(row.id) === focusState.id);
+            if (focusedIngredient) {
+                state.ingredientListView = Number(focusedIngredient.is_active) === 0 ? 'archived' : 'active';
+            }
+        }
+        const filteredProducts = filteredProductRows();
+        const filteredIngredients = filteredIngredientRows();
         const filteredRecipes = activeProductId > 0
             ? state.recipes.filter((row) => Number(row.product_id) === activeProductId && rowMatchesSearch(recipeQuery, [row.ingredient_name, row.unit_code, row.notes]))
             : [];
 
-        renderTable('#products-table', filteredProducts, [
-            (row) => '<strong>' + escapeHtml(row.name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.sku || 'No SKU') + '</div>',
-            (row) => escapeHtml(row.category || '—'),
-            (row) => displayTwoDecimalQuantity(row.default_yield_qty) + ' ' + escapeHtml(row.default_yield_unit_code || ''),
-            (row) => escapeHtml(row.recipe_item_count),
-            (row) => rowStatusChip(row.is_active),
-            (row) => rowActionButtons('product', row)
-        ], 'No products yet.', 'product');
+        renderProductsTable(filteredProducts);
 
-        renderTable('#ingredients-table', filteredIngredients, [
-            (row) => '<strong>' + escapeHtml(row.name) + '</strong>',
-            (row) => escapeHtml(row.sku || '—'),
-            (row) => escapeHtml([row.default_unit_code, row.default_unit_name].filter(Boolean).join(' — ') || '—'),
-            (row) => rowStatusChip(row.is_active),
-            (row) => rowActionButtons('ingredient', row)
-        ], 'No ingredients yet.', 'ingredient');
+        renderIngredientsTable(filteredIngredients);
 
         renderTable('#recipes-table', filteredRecipes, [
             (row) => escapeHtml(row.ingredient_name),
             (row) => displayTwoDecimalQuantity(row.qty),
             (row) => escapeHtml(row.unit_code),
             (row) => escapeHtml(row.notes || '—'),
-            (row) => '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button" data-action="edit-recipe" data-id="' + escapeHtml(row.id) + '">Edit</button><button type="button" class="bakeshop-link-button warn" data-action="delete-recipe" data-id="' + escapeHtml(row.id) + '">Delete</button></div>'
+            (row) => canManageWorkspace
+                ? '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button" data-action="edit-recipe" data-id="' + escapeHtml(row.id) + '">Edit</button><button type="button" class="bakeshop-link-button warn" data-action="delete-recipe" data-id="' + escapeHtml(row.id) + '">Delete</button></div>'
+                : '<span class="bakeshop-inline-note">View only</span>'
         ], activeProductId > 0 ? 'No recipe lines yet for this product.' : 'Edit a product to view its recipe lines.', 'recipe');
         applyFocusedRow('#products-table', 'product', filteredProducts, 'Product');
         applyFocusedRow('#ingredients-table', 'ingredient', filteredIngredients, 'Ingredient');
@@ -1830,44 +3013,53 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeProducts = state.products.filter((row) => Number(row.is_active) !== 0);
         const activeIngredients = state.ingredients.filter((row) => Number(row.is_active) !== 0);
         const filteredProductionProducts = activeProducts.filter((row) => rowMatchesSearch(tableSearchQuery('#production-products-filter'), [row.name, row.sku, row.category, row.default_yield_unit_code]));
-        const selectedProduction = selectedProductionProductRecord();
-        const selectedProductionQty = getSelectedProductionQuantity();
-        const productionMetadataEditing = productionMetadataEditActive();
-        renderTable('#production-products-table', filteredProductionProducts, [
-            (row) => '<strong>' + escapeHtml(row.name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.sku || 'No SKU') + '</div>',
-            (row) => escapeHtml(row.category || '—'),
-            (row) => displayTwoDecimalQuantity(row.default_yield_qty) + ' ' + escapeHtml(row.default_yield_unit_code || ''),
-            (row) => productionMetadataEditing
-                ? '<span class="bakeshop-inline-note">Locked during metadata edit</span>'
-                : '<input class="bakeshop-table-input" type="number" min="0.0001" step="0.0001" data-production-qty-id="' + escapeHtml(row.id) + '" value="' + escapeHtml(selectedProduction && Number(selectedProduction.id) === Number(row.id) ? (selectedProductionQty || '1') : '') + '" placeholder="0.0000">'
-        ], 'No active products available for production.', 'production-product');
+        renderProductionProductsTable(filteredProductionProducts);
         populateSelect('#recipe-ingredient', activeIngredients, (row) => ({ value: row.id, label: row.name }), 'Select ingredient');
-        syncProductionProductSelection();
         syncRecipePanel();
     }
 
     function renderOperationalTables() {
-        const filteredDeliveries = state.deliveries.filter((row) => rowMatchesSearch(tableSearchQuery('#deliveries-filter'), [row.branch_name, row.delivered_at, row.reference, row.received_by, row.source_label, row.cost_basis_summary, row.item_count, row.total_quantity, row.total_amount]));
-        const filteredProduction = state.production.filter((row) => rowMatchesSearch(tableSearchQuery('#production-filter'), [row.branch_name, row.product_name, row.produced_at, row.qty_produced, row.default_yield_unit_code, row.consumed_item_count, row.total_consumed_qty]));
+        const filteredDeliveries = filteredDeliveryRows();
+        const filteredProduction = state.production.filter((row) => rowMatchesSearch(tableSearchQuery('#production-filter'), [row.branch_name, row.product_name, row.produced_at, row.produced_by, row.notes, row.qty_produced, row.default_yield_unit_code, row.consumed_item_count, row.total_consumed_qty]));
 
-        renderTable('#deliveries-table', filteredDeliveries, [
-            (row) => '<strong>' + escapeHtml(row.branch_name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.source_label || 'Commissary') + '</div>',
-            (row) => escapeHtml(row.delivered_at),
-            (row) => '<div class="bakeshop-detail-stack"><strong>' + escapeHtml(row.reference || 'No reference') + '</strong><span class="bakeshop-inline-note">' + escapeHtml(row.received_by || 'Receiver not recorded') + '</span>' + ((row.notes || '').trim() !== '' ? '<span class="bakeshop-inline-note">' + escapeHtml(row.notes) + '</span>' : '') + '</div>',
-            (row) => renderDeliveryDetail(row),
-            (row) => '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button warn" data-action="delete-delivery" data-id="' + escapeHtml(row.id) + '">Delete</button></div>'
-        ], 'No deliveries yet.', 'delivery');
+        if (focusState.kind === 'delivery' && !focusState.applied) {
+            activateDeliverySectionTab('saved');
+        }
+
+        renderDeliveriesTable(filteredDeliveries);
 
         renderTable('#production-table', filteredProduction, [
             (row) => escapeHtml(row.branch_name),
-            (row) => escapeHtml(row.product_name),
+            (row) => escapeHtml(row.product_name) + (Number(row.id || 0) === Number(state.lastSavedProductionId || 0) ? ' <span class="bakeshop-chip recent">Recent</span>' : ''),
             (row) => escapeHtml(row.produced_at),
             (row) => escapeHtml(row.qty_produced) + ' ' + escapeHtml(row.default_yield_unit_code || ''),
             (row) => renderProductionSnapshotDetail(row),
-            (row) => '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button" data-action="edit-production" data-id="' + escapeHtml(row.id) + '">Edit Metadata</button><button type="button" class="bakeshop-link-button warn" data-action="void-production" data-id="' + escapeHtml(row.id) + '">Void</button></div>'
-        ], 'No production runs yet.', 'production');
+            (row) => canManageWorkspace
+                ? '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button" data-action="edit-production" data-id="' + escapeHtml(row.id) + '">Edit Details</button><button type="button" class="bakeshop-link-button warn" data-action="void-production" data-id="' + escapeHtml(row.id) + '">Void Entry</button></div>'
+                : '<span class="bakeshop-inline-note">View only</span>'
+        ], 'No saved entries yet.', 'production');
+        document.querySelectorAll('#production-table tbody tr[data-row-kind="production"]').forEach((rowElement) => {
+            const rowId = Number(rowElement.getAttribute('data-row-id') || '0');
+            rowElement.classList.toggle('bakeshop-row-recent', rowId > 0 && rowId === Number(state.lastSavedProductionId || 0));
+        });
+        const productionSavedCount = $('#production-saved-count');
+        const productionSavedLatestItem = $('#production-saved-latest-item');
+        const productionSavedLatestBranch = $('#production-saved-latest-branch');
+        if (productionSavedCount) {
+            productionSavedCount.textContent = String(filteredProduction.length || 0);
+        }
+        if (productionSavedLatestItem) {
+            productionSavedLatestItem.textContent = state.lastSavedProductionSummary && state.lastSavedProductionSummary.product_name
+                ? state.lastSavedProductionSummary.product_name
+                : 'None yet';
+        }
+        if (productionSavedLatestBranch) {
+            productionSavedLatestBranch.textContent = state.lastSavedProductionSummary && state.lastSavedProductionSummary.branch_name
+                ? state.lastSavedProductionSummary.branch_name
+                : 'No branch yet';
+        }
         applyFocusedRow('#deliveries-table', 'delivery', filteredDeliveries, 'Delivery');
-        applyFocusedRow('#production-table', 'production', filteredProduction, 'Production run');
+        applyFocusedRow('#production-table', 'production', filteredProduction, 'Saved entry');
     }
 
     function renderUsage() {
@@ -1905,17 +3097,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function syncPrintLink() {
-        const scope = isDashboardPage
-            ? {
-                branch_id: $('#summary-branch-filter') ? $('#summary-branch-filter').value : '',
-                from_date: $('#summary-from-filter') ? $('#summary-from-filter').value : '',
-                to_date: $('#summary-to-filter') ? $('#summary-to-filter').value : ''
-            }
-            : {
-                branch_id: $('#usage-branch').value,
-                from_date: $('#usage-from').value,
-                to_date: $('#usage-to').value
-            };
+        const scope = currentReportScope();
 
         printLink.href = apiUrl('/admin/bakeshop/print', scope);
     }
@@ -1960,13 +3142,14 @@ document.addEventListener('DOMContentLoaded', () => {
         deliveryLines.innerHTML = activeIngredients.map((row) => {
             const unitLabel = [row.default_unit_code, row.default_unit_name].filter(Boolean).join(' — ');
             const searchText = [row.name, row.sku || '', row.default_unit_code || ''].join(' ').toLowerCase();
+            const disabledAttr = canManageWorkspace ? '' : ' disabled';
             return '<tr data-ingredient-id="' + escapeHtml(row.id) + '" data-unit-id="' + escapeHtml(row.default_unit_id) + '" data-search="' + escapeHtml(searchText) + '">'
                 + '<td><strong>' + escapeHtml(row.name) + '</strong></td>'
                 + '<td>' + escapeHtml(row.sku || '—') + '</td>'
                 + '<td>' + escapeHtml(unitLabel || '—') + '</td>'
-                + '<td><input data-field="qty" type="number" min="0" step="0.0001" placeholder="0.0000"></td>'
-                + '<td><input data-field="unit_cost" type="number" min="0" step="0.0001" placeholder="Optional"></td>'
-                + '<td><select data-field="cost_basis" class="bakeshop-table-input"><option value="">Delivery Source</option><option value="receipt">Receipt</option><option value="price_list">Price List</option><option value="manual">Manual</option></select></td>'
+                + '<td><input data-field="qty" type="number" min="0" step="0.0001" placeholder="0.0000"' + disabledAttr + '></td>'
+                + '<td><input data-field="unit_cost" type="number" min="0" step="0.0001" placeholder="Optional"' + disabledAttr + '></td>'
+                + '<td><select data-field="cost_basis" class="bakeshop-table-input"' + disabledAttr + '><option value="">Delivery Source</option><option value="receipt">Receipt</option><option value="price_list">Price List</option><option value="manual">Manual</option></select></td>'
                 + '</tr>';
         }).join('');
     }
@@ -2126,50 +3309,93 @@ document.addEventListener('DOMContentLoaded', () => {
         URL.revokeObjectURL(objectUrl);
     }
 
-    async function loadBranches() {
+    async function loadBranches(force = false) {
+        if (!force && state.loaded.branches) {
+            renderBranchTables();
+            return;
+        }
         const data = await request(api.branches);
         state.branches = normalizeMaintenanceRows('branch', data.items || []);
+        state.loaded.branches = true;
         renderBranchTables();
     }
 
-    async function loadUnits() {
+    async function loadUnits(force = false) {
+        if (!force && state.loaded.units) {
+            renderCatalogTables();
+            return;
+        }
         const data = await request(api.units);
         state.units = data.items || [];
+        state.loaded.units = true;
         renderCatalogTables();
     }
 
-    async function loadProducts() {
+    async function loadProducts(force = false) {
+        if (!force && state.loaded.products) {
+            renderCatalogTables();
+            updateStats();
+            return;
+        }
         const data = await request(api.products);
         state.products = normalizeMaintenanceRows('product', data.items || []);
+        state.loaded.products = true;
+        pruneProductSelection();
         renderCatalogTables();
         updateStats();
     }
 
-    async function loadIngredients() {
+    async function loadIngredients(force = false) {
+        if (!force && state.loaded.ingredients) {
+            renderCatalogTables();
+            renderDeliverySheet();
+            filterDeliverySheet();
+            updateStats();
+            return;
+        }
         const data = await request(api.ingredients);
         state.ingredients = normalizeMaintenanceRows('ingredient', data.items || []);
+        state.loaded.ingredients = true;
+        pruneIngredientSelection();
         renderCatalogTables();
         renderDeliverySheet();
         filterDeliverySheet();
         updateStats();
     }
 
-    async function loadRecipes() {
+    async function loadRecipes(force = false) {
+        if (!force && state.loaded.recipes) {
+            renderCatalogTables();
+            updateStats();
+            return;
+        }
         const data = await request(api.recipes);
         state.recipes = data.items || [];
+        state.loaded.recipes = true;
         renderCatalogTables();
         updateStats();
     }
 
-    async function loadDeliveries() {
+    async function loadDeliveries(force = false) {
+        if (!force && state.loaded.deliveries) {
+            renderOperationalTables();
+            return;
+        }
         const data = await request(api.deliveries);
         state.deliveries = data.items || [];
+        state.loaded.deliveries = true;
+        pruneDeliverySelection();
         renderOperationalTables();
     }
 
-    async function loadProduction() {
+    async function loadProduction(force = false) {
+        if (!force && state.loaded.production) {
+            renderOperationalTables();
+            return;
+        }
         const data = await request(api.production);
         state.production = data.items || [];
+        state.loaded.production = true;
         renderOperationalTables();
     }
 
@@ -2191,16 +3417,31 @@ document.addEventListener('DOMContentLoaded', () => {
         renderUsage();
     }
 
-    async function loadEverything() {
-        clearBanner();
-        await loadBranches();
-        await loadUnits();
-        await loadProducts();
-        await loadIngredients();
-        await loadRecipes();
-        await loadDeliveries();
-        await loadProduction();
-        await loadUsage();
+    async function ensureTabData(tabName, options = {}) {
+        const force = options.force === true;
+        const resolvedTab = resolveTabName(tabName);
+        const tabRequirements = {
+            branches: ['branches'],
+            catalog: ['units', 'products', 'ingredients', 'recipes'],
+            ingredients: ['units', 'ingredients'],
+            deliveries: ['branches', 'ingredients', 'deliveries'],
+            production: ['branches', 'products', 'production'],
+            usage: ['branches', 'usage']
+        };
+        const datasetLoaders = {
+            branches: loadBranches,
+            units: loadUnits,
+            products: loadProducts,
+            ingredients: loadIngredients,
+            recipes: loadRecipes,
+            deliveries: loadDeliveries,
+            production: loadProduction,
+            usage: loadUsage
+        };
+
+        for (const requirement of tabRequirements[resolvedTab] || []) {
+            await datasetLoaders[requirement](force);
+        }
     }
 
     async function submitJson(url, payload, successMessage, after) {
@@ -2224,6 +3465,66 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.confirm(message);
     }
 
+    function closeDeleteConfirm(confirmed) {
+        if (deleteConfirm) {
+            deleteConfirm.hidden = true;
+        }
+        document.body.classList.remove('bakeshop-confirm-open');
+
+        if (typeof pendingDeleteConfirmResolve === 'function') {
+            const resolve = pendingDeleteConfirmResolve;
+            pendingDeleteConfirmResolve = null;
+            resolve(confirmed === true);
+        }
+    }
+
+    function confirmBulkDelete(options = {}) {
+        const previewItems = Array.from(new Set((options.items || []).map((item) => String(item || '').trim()).filter(Boolean)));
+        const previewLimit = 5;
+
+        if (!deleteConfirm || !deleteConfirmTitle || !deleteConfirmMessage || !deleteConfirmImpact || !deleteConfirmList || !deleteConfirmOverflow || !deleteConfirmSubmit) {
+            const fallbackMessage = [
+                options.message || 'Delete the selected records?',
+                previewItems.length ? previewItems.slice(0, previewLimit).map((item) => '- ' + item).join('\n') : '',
+                previewItems.length > previewLimit ? ('+' + String(previewItems.length - previewLimit) + ' more') : ''
+            ].filter(Boolean).join('\n\n');
+            return Promise.resolve(window.confirm(fallbackMessage));
+        }
+
+        if (typeof pendingDeleteConfirmResolve === 'function') {
+            closeDeleteConfirm(false);
+        }
+
+        deleteConfirmTitle.textContent = options.title || 'Delete selected records?';
+        deleteConfirmMessage.textContent = options.message || 'Review the selected items before confirming this delete.';
+
+        const impactMessage = String(options.impact || '').trim();
+        deleteConfirmImpact.textContent = impactMessage;
+        deleteConfirmImpact.hidden = impactMessage === '';
+
+        deleteConfirmList.innerHTML = previewItems.slice(0, previewLimit)
+            .map((item) => '<li>' + escapeHtml(item) + '</li>')
+            .join('');
+        deleteConfirmList.hidden = previewItems.length === 0;
+
+        if (previewItems.length > previewLimit) {
+            deleteConfirmOverflow.textContent = '+' + String(previewItems.length - previewLimit) + ' more selected item(s)';
+            deleteConfirmOverflow.hidden = false;
+        } else {
+            deleteConfirmOverflow.textContent = '';
+            deleteConfirmOverflow.hidden = true;
+        }
+
+        deleteConfirmSubmit.textContent = options.confirmLabel || 'Delete Selected';
+        deleteConfirm.hidden = false;
+        document.body.classList.add('bakeshop-confirm-open');
+
+        return new Promise((resolve) => {
+            pendingDeleteConfirmResolve = resolve;
+            deleteConfirmCancel?.focus();
+        });
+    }
+
     function promptRequiredValue(message, defaultValue = '') {
         const value = window.prompt(message, defaultValue);
         if (value === null) {
@@ -2232,7 +3533,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const normalized = String(value).trim();
         if (normalized === '') {
-            showBanner('A reason is required to void a production run.', false);
+            showBanner('A reason is required to void a saved entry.', false);
             return null;
         }
 
@@ -2262,36 +3563,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function resetProductionForm() {
         productionForm.reset();
+        state.productionDraftQuantities = {};
+        state.productionDraftSaveState = {};
+        state.productionGuardOverride = false;
         productionForm.elements.namedItem('id').value = '';
         productionForm.elements.namedItem('product_id').value = '';
+        productionForm.elements.namedItem('qty_produced').value = '';
         productionForm.elements.namedItem('branch_id').disabled = false;
         $('#production-products-filter').disabled = false;
         setFocusNote('#production-focus-note', '');
-        $('#production-submit').textContent = 'Save Production Run';
+        $('#production-submit').textContent = 'Update Saved Entry';
+        $('#production-submit').hidden = true;
         $('#production-cancel').hidden = true;
         productionForm.elements.namedItem('produced_at').value = nowLocalDateTime();
-        document.querySelectorAll('#production-products-table tbody input[data-production-qty-id]').forEach((input) => {
-            input.disabled = false;
-            input.value = '';
-        });
+        syncProductionGuardOverrideControls();
+        activateProductionSectionTab('record');
+        syncProductionLastSavedCard();
         syncProductionProductSelection();
         renderCatalogTables();
     }
 
     function editProduction(row, source = 'table') {
+        state.productionDraftQuantities = {
+            [String(row.product_id || '')]: String(row.qty_produced || '')
+        };
+        state.productionDraftSaveState = {
+            [String(row.product_id || '')]: {
+                kind: 'saved',
+                message: 'Saved entry selected for review.'
+            }
+        };
         productionForm.elements.namedItem('id').value = String(row.id || '');
         productionForm.elements.namedItem('branch_id').value = String(row.branch_id || '');
         productionForm.elements.namedItem('branch_id').disabled = true;
         productionForm.elements.namedItem('product_id').value = String(row.product_id || '');
+        productionForm.elements.namedItem('qty_produced').value = String(row.qty_produced || '');
         productionForm.elements.namedItem('produced_at').value = productionDateTimeInputValue(row.produced_at || '');
         productionForm.elements.namedItem('produced_by').value = row.produced_by || '';
         productionForm.elements.namedItem('notes').value = row.notes || '';
         $('#production-products-filter').disabled = true;
         setFocusNote('#production-focus-note', source === 'history'
-            ? 'Reviewing this production run from activity history. Only the timestamp, operator, and notes can be updated here.'
-            : 'Editing production metadata only. Branch, product, quantity, and snapshot lines remain unchanged.');
-        $('#production-submit').textContent = 'Update Production Metadata';
+            ? 'Reviewing this saved entry from activity history. Only the finished time, staff name, and note can be updated here.'
+            : 'Reviewing a saved entry. Branch, item, amount made, and ingredients used stay unchanged.');
+        $('#production-submit').textContent = 'Update Saved Entry';
+        $('#production-submit').hidden = false;
         $('#production-cancel').hidden = false;
+        syncProductionGuardOverrideControls();
+        rememberLastSavedProduction(row);
+        activateProductionSectionTab('record');
         renderCatalogTables();
         syncProductionProductSelection();
         productionForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2314,6 +3633,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function editProduct(row, source = 'table') {
         state.activeProductId = Number(row.id || 0);
+        state.productListView = Number(row.is_active) === 0 ? 'archived' : 'active';
         productForm.elements.namedItem('id').value = String(row.id || '');
         productForm.elements.namedItem('is_active').value = String(Number(row.is_active) === 0 ? 0 : 1);
         productForm.elements.namedItem('name').value = row.name || '';
@@ -2398,62 +3718,194 @@ document.addEventListener('DOMContentLoaded', () => {
             if (recipeForm.dataset.recipeId === String(row.id)) {
                 resetRecipeForm();
             }
-            await loadRecipes();
-            await loadProducts();
+            await loadRecipes(true);
+            await loadProducts(true);
         });
+    }
+
+    async function deleteProductsByIds(ids) {
+        const normalizedIds = Array.from(new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
+        if (!normalizedIds.length) {
+            return;
+        }
+
+        const message = normalizedIds.length === 1
+            ? 'Delete this product? Its recipe lines will also be deleted. This cannot be undone.'
+            : 'Delete ' + String(normalizedIds.length) + ' selected products? Their recipe lines will also be deleted. This cannot be undone.';
+        const shouldDelete = normalizedIds.length === 1
+            ? confirmDelete(message)
+            : await confirmBulkDelete({
+                title: 'Delete selected products?',
+                message,
+                impact: 'Each selected product also removes its recipe lines.',
+                items: normalizedIds.map((id) => productDeletePreviewLabel(findStateRow('product', id), id)),
+                confirmLabel: 'Delete Products'
+            });
+        if (!shouldDelete) {
+            return;
+        }
+
+        let deletedCount = 0;
+        const failedLabels = [];
+        for (const id of normalizedIds) {
+            const row = findStateRow('product', id);
+            try {
+                await request(api.productsDelete, {
+                    method: 'POST',
+                    body: JSON.stringify({ _token: csrfToken, id })
+                });
+                deletedCount += 1;
+                state.selectedProductIds.delete(id);
+                if (productForm.elements.namedItem('id').value === String(id) || Number(state.activeProductId) === id) {
+                    resetProductForm();
+                }
+            } catch (error) {
+                failedLabels.push((row && row.name) ? row.name : ('ID ' + String(id)));
+            }
+        }
+
+        await loadProducts(true);
+        await loadRecipes(true);
+
+        if (deletedCount > 0 && failedLabels.length === 0) {
+            showBanner(deletedCount === 1 ? 'Product deleted.' : ('Deleted ' + String(deletedCount) + ' products.'), true);
+            return;
+        }
+        if (deletedCount > 0) {
+            showBanner('Deleted ' + String(deletedCount) + ' products. Failed: ' + failedLabels.slice(0, 3).join(', ') + (failedLabels.length > 3 ? '...' : '') + '.', false);
+            return;
+        }
+
+        showBanner('Unable to delete the selected products.', false);
     }
 
     async function deleteProduct(row) {
-        if (!confirmDelete('Delete this product? Its recipe lines will also be deleted. This cannot be undone.')) {
+        await deleteProductsByIds([row.id]);
+    }
+
+    async function deleteIngredientsByIds(ids) {
+        const normalizedIds = Array.from(new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
+        if (!normalizedIds.length) {
             return;
         }
 
-        await submitJson(api.productsDelete, {
-            id: row.id
-        }, 'Product deleted.', async () => {
-            if (productForm.elements.namedItem('id').value === String(row.id)) {
-                resetProductForm();
+        const message = normalizedIds.length === 1
+            ? 'Delete this ingredient? This cannot be undone.'
+            : 'Delete ' + String(normalizedIds.length) + ' selected ingredients? This cannot be undone.';
+        const shouldDelete = normalizedIds.length === 1
+            ? confirmDelete(message)
+            : await confirmBulkDelete({
+                title: 'Delete selected ingredients?',
+                message,
+                impact: 'Deleting ingredients removes them from the active master list immediately.',
+                items: normalizedIds.map((id) => ingredientDeletePreviewLabel(findStateRow('ingredient', id), id)),
+                confirmLabel: 'Delete Ingredients'
+            });
+        if (!shouldDelete) {
+            return;
+        }
+
+        let deletedCount = 0;
+        const failedLabels = [];
+        for (const id of normalizedIds) {
+            const row = findStateRow('ingredient', id);
+            try {
+                await request(api.ingredientsDelete, {
+                    method: 'POST',
+                    body: JSON.stringify({ _token: csrfToken, id })
+                });
+                deletedCount += 1;
+                state.selectedIngredientIds.delete(id);
+                if (ingredientForm.elements.namedItem('id').value === String(id)) {
+                    resetIngredientForm();
+                }
+            } catch (error) {
+                failedLabels.push((row && row.name) ? row.name : ('ID ' + String(id)));
             }
-            await loadProducts();
-            await loadRecipes();
-        });
+        }
+
+        await loadIngredients(true);
+        await loadRecipes(true);
+
+        if (deletedCount > 0 && failedLabels.length === 0) {
+            showBanner(deletedCount === 1 ? 'Ingredient deleted.' : ('Deleted ' + String(deletedCount) + ' ingredients.'), true);
+            return;
+        }
+        if (deletedCount > 0) {
+            showBanner('Deleted ' + String(deletedCount) + ' ingredients. Failed: ' + failedLabels.slice(0, 3).join(', ') + (failedLabels.length > 3 ? '...' : '') + '.', false);
+            return;
+        }
+
+        showBanner('Unable to delete the selected ingredients.', false);
     }
 
     async function deleteIngredient(row) {
-        if (!confirmDelete('Delete this ingredient? This cannot be undone.')) {
+        await deleteIngredientsByIds([row.id]);
+    }
+
+    async function deleteDeliveriesByIds(ids) {
+        const normalizedIds = Array.from(new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
+        if (!normalizedIds.length) {
             return;
         }
 
-        await submitJson(api.ingredientsDelete, {
-            id: row.id
-        }, 'Ingredient deleted.', async () => {
-            if (ingredientForm.elements.namedItem('id').value === String(row.id)) {
-                resetIngredientForm();
+        const message = normalizedIds.length === 1
+            ? 'Delete this delivery and its item lines? This cannot be undone.'
+            : 'Delete ' + String(normalizedIds.length) + ' selected deliveries and their item lines? This cannot be undone.';
+        const shouldDelete = normalizedIds.length === 1
+            ? confirmDelete(message)
+            : await confirmBulkDelete({
+                title: 'Delete selected deliveries?',
+                message,
+                impact: 'Each selected delivery also removes its received ingredient lines from daily receiving history.',
+                items: normalizedIds.map((id) => deliveryDeletePreviewLabel(findStateRow('delivery', id), id)),
+                confirmLabel: 'Delete Deliveries'
+            });
+        if (!shouldDelete) {
+            return;
+        }
+
+        let deletedCount = 0;
+        const failedLabels = [];
+        for (const id of normalizedIds) {
+            const row = findStateRow('delivery', id);
+            try {
+                await request(api.deliveriesDelete, {
+                    method: 'POST',
+                    body: JSON.stringify({ _token: csrfToken, id })
+                });
+                deletedCount += 1;
+                state.selectedDeliveryIds.delete(id);
+            } catch (error) {
+                failedLabels.push((row && row.reference) ? row.reference : ('ID ' + String(id)));
             }
-            await loadIngredients();
-            await loadRecipes();
-        });
+        }
+
+        await loadDeliveries(true);
+        await loadUsage();
+
+        if (deletedCount > 0 && failedLabels.length === 0) {
+            showBanner(deletedCount === 1 ? 'Delivery deleted.' : ('Deleted ' + String(deletedCount) + ' deliveries.'), true);
+            return;
+        }
+        if (deletedCount > 0) {
+            showBanner('Deleted ' + String(deletedCount) + ' deliveries. Failed: ' + failedLabels.slice(0, 3).join(', ') + (failedLabels.length > 3 ? '...' : '') + '.', false);
+            return;
+        }
+
+        showBanner('Unable to delete the selected deliveries.', false);
     }
 
     async function deleteDelivery(row) {
-        if (!confirmDelete('Delete this delivery and its item lines? This cannot be undone.')) {
-            return;
-        }
-
-        await submitJson(api.deliveriesDelete, {
-            id: row.id
-        }, 'Delivery deleted.', async () => {
-            await loadDeliveries();
-            await loadUsage();
-        });
+        await deleteDeliveriesByIds([row.id]);
     }
 
     async function voidProductionRun(row) {
-        if (!confirmDelete('Void this production run and exclude its snapshot lines from usage and inventory?')) {
+        if (!confirmDelete('Void this saved entry and remove its ingredient use from usage and inventory?')) {
             return;
         }
 
-        const voidReason = promptRequiredValue('Why is this production run being voided?', 'Duplicate or incorrect run entry');
+        const voidReason = promptRequiredValue('Why is this saved entry being voided?', 'Duplicate or incorrect entry');
         if (voidReason === null) {
             return;
         }
@@ -2461,8 +3913,8 @@ document.addEventListener('DOMContentLoaded', () => {
         await submitJson(api.productionVoid, {
             id: row.id,
             void_reason: voidReason
-        }, 'Production run voided.', async () => {
-            await loadProduction();
+        }, 'Saved entry voided.', async () => {
+            await loadProduction(true);
             await loadUsage();
         });
     }
@@ -2482,7 +3934,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (branchForm.elements.namedItem('id').value === String(row.id)) {
                     resetBranchForm();
                 }
-                await loadBranches();
+                await loadBranches(true);
             });
             return;
         }
@@ -2494,8 +3946,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (productForm.elements.namedItem('id').value === String(row.id)) {
                     resetProductForm();
                 }
-                await loadProducts();
-                await loadRecipes();
+                await loadProducts(true);
+                await loadRecipes(true);
             });
             return;
         }
@@ -2507,8 +3959,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (ingredientForm.elements.namedItem('id').value === String(row.id)) {
                     resetIngredientForm();
                 }
-                await loadIngredients();
-                await loadRecipes();
+                await loadIngredients(true);
+                await loadRecipes(true);
             });
         }
     }
@@ -2540,6 +3992,11 @@ document.addEventListener('DOMContentLoaded', () => {
         $(selector).addEventListener('click', async (event) => {
             const button = event.target.closest('[data-action]');
             if (!button) {
+                return;
+            }
+
+            if (!canManageWorkspace) {
+                showBanner('This work area is read only for your role.', false);
                 return;
             }
 
@@ -2611,8 +4068,8 @@ document.addEventListener('DOMContentLoaded', () => {
             default_yield_unit_id: form.elements.namedItem('default_yield_unit_id').value
         }, form.elements.namedItem('id').value ? 'Product updated.' : 'Product saved.', async () => {
             const savedProductId = Number(form.elements.namedItem('id').value || 0);
-            await loadProducts();
-            await loadRecipes();
+            await loadProducts(true);
+            await loadRecipes(true);
             if (savedProductId > 0) {
                 const savedRow = state.products.find((row) => Number(row.id) === savedProductId);
                 if (savedRow) {
@@ -2635,8 +4092,8 @@ document.addEventListener('DOMContentLoaded', () => {
             default_unit_id: form.elements.namedItem('default_unit_id').value
         }, form.elements.namedItem('id').value ? 'Ingredient updated.' : 'Ingredient saved.', async () => {
             resetIngredientForm();
-            await loadIngredients();
-            await loadRecipes();
+            await loadIngredients(true);
+            await loadRecipes(true);
         });
     });
 
@@ -2646,11 +4103,157 @@ document.addEventListener('DOMContentLoaded', () => {
         productForm.elements.namedItem('name').focus();
     });
     $('#product-cancel').addEventListener('click', resetProductForm);
+    deleteConfirmCancel?.addEventListener('click', () => {
+        closeDeleteConfirm(false);
+    });
+    deleteConfirmSubmit?.addEventListener('click', () => {
+        closeDeleteConfirm(true);
+    });
+    deleteConfirm?.addEventListener('click', (event) => {
+        if (event.target === deleteConfirm) {
+            closeDeleteConfirm(false);
+        }
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && deleteConfirm && !deleteConfirm.hidden) {
+            event.preventDefault();
+            closeDeleteConfirm(false);
+        }
+    });
+    $('#products-select-visible')?.addEventListener('click', () => {
+        productDeleteEligibleRows().forEach((row) => {
+            const rowId = Number(row.id);
+            if (Number.isFinite(rowId) && rowId > 0) {
+                state.selectedProductIds.add(rowId);
+            }
+        });
+        renderCatalogTables();
+    });
+    $('#products-clear-selection')?.addEventListener('click', () => {
+        state.selectedProductIds.clear();
+        renderCatalogTables();
+    });
+    $('#products-delete-selected')?.addEventListener('click', async () => {
+        await deleteProductsByIds(Array.from(state.selectedProductIds));
+    });
+    $('#products-select-all')?.addEventListener('change', (event) => {
+        const checked = event.currentTarget.checked;
+        productDeleteEligibleRows().forEach((row) => {
+            const rowId = Number(row.id);
+            if (!Number.isFinite(rowId) || rowId <= 0) {
+                return;
+            }
+            if (checked) {
+                state.selectedProductIds.add(rowId);
+            } else {
+                state.selectedProductIds.delete(rowId);
+            }
+        });
+        renderCatalogTables();
+    });
+    $('#products-table')?.addEventListener('change', (event) => {
+        const checkbox = event.target.closest('[data-product-select]');
+        if (!checkbox) {
+            return;
+        }
+
+        const rowId = Number(checkbox.getAttribute('data-product-select') || '0');
+        if (!Number.isFinite(rowId) || rowId <= 0) {
+            return;
+        }
+
+        if (checkbox.checked) {
+            state.selectedProductIds.add(rowId);
+        } else {
+            state.selectedProductIds.delete(rowId);
+        }
+        syncProductSelectionControls(filteredProductRows());
+    });
+    document.querySelectorAll('[data-product-view]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextView = button.getAttribute('data-product-view') === 'archived' ? 'archived' : 'active';
+            if (state.productListView === nextView) {
+                return;
+            }
+
+            state.productListView = nextView;
+            state.selectedProductIds.clear();
+            if (state.activeProductId > 0) {
+                const activeProduct = state.products.find((row) => Number(row.id) === Number(state.activeProductId));
+                if (activeProduct && ((nextView === 'archived') !== (Number(activeProduct.is_active) === 0))) {
+                    resetProductForm();
+                    return;
+                }
+            }
+            renderCatalogTables();
+        });
+    });
     $('#ingredient-add').addEventListener('click', () => {
         resetIngredientForm();
         ingredientForm.elements.namedItem('name').focus();
     });
     $('#ingredient-cancel').addEventListener('click', resetIngredientForm);
+    document.querySelectorAll('[data-ingredient-view]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextView = button.getAttribute('data-ingredient-view') === 'archived' ? 'archived' : 'active';
+            if (state.ingredientListView === nextView) {
+                return;
+            }
+
+            state.ingredientListView = nextView;
+            state.selectedIngredientIds.clear();
+            renderCatalogTables();
+        });
+    });
+    $('#ingredients-select-visible')?.addEventListener('click', () => {
+        ingredientDeleteEligibleRows().forEach((row) => {
+            const rowId = Number(row.id);
+            if (Number.isFinite(rowId) && rowId > 0) {
+                state.selectedIngredientIds.add(rowId);
+            }
+        });
+        renderCatalogTables();
+    });
+    $('#ingredients-clear-selection')?.addEventListener('click', () => {
+        state.selectedIngredientIds.clear();
+        renderCatalogTables();
+    });
+    $('#ingredients-delete-selected')?.addEventListener('click', async () => {
+        await deleteIngredientsByIds(Array.from(state.selectedIngredientIds));
+    });
+    $('#ingredients-select-all')?.addEventListener('change', (event) => {
+        const checked = event.currentTarget.checked;
+        ingredientDeleteEligibleRows().forEach((row) => {
+            const rowId = Number(row.id);
+            if (!Number.isFinite(rowId) || rowId <= 0) {
+                return;
+            }
+            if (checked) {
+                state.selectedIngredientIds.add(rowId);
+            } else {
+                state.selectedIngredientIds.delete(rowId);
+            }
+        });
+        renderCatalogTables();
+    });
+    $('#ingredients-table')?.addEventListener('change', (event) => {
+        const checkbox = event.target.closest('[data-ingredient-select]');
+        if (!checkbox) {
+            return;
+        }
+
+        const rowId = Number(checkbox.getAttribute('data-ingredient-select') || '0');
+        if (!Number.isFinite(rowId) || rowId <= 0) {
+            return;
+        }
+
+        if (checkbox.checked) {
+            state.selectedIngredientIds.add(rowId);
+        } else {
+            state.selectedIngredientIds.delete(rowId);
+        }
+        syncIngredientSelectionControls(filteredIngredientRows());
+    });
     $('#recipe-cancel').addEventListener('click', resetRecipeForm);
 
     $('#recipe-form').addEventListener('submit', async (event) => {
@@ -2664,8 +4267,8 @@ document.addEventListener('DOMContentLoaded', () => {
             notes: form.notes.value
         }, form.dataset.recipeId ? 'Recipe line updated.' : 'Recipe line saved.', async () => {
             resetRecipeForm();
-            await loadRecipes();
-            await loadProducts();
+            await loadRecipes(true);
+            await loadProducts(true);
         });
     });
 
@@ -2746,21 +4349,63 @@ document.addEventListener('DOMContentLoaded', () => {
             form.source_name.value = preservedSourceName;
             syncDeliverySourceField();
             clearDeliverySheetValues();
-            await loadDeliveries();
+            await loadDeliveries(true);
             await loadUsage();
         });
     });
-
-    $('#production-products-table').addEventListener('click', (event) => {
-        const qtyInput = event.target.closest('input[data-production-qty-id]');
-        if (qtyInput) {
-            const row = state.products.find((item) => Number(item.id) === Number(qtyInput.getAttribute('data-production-qty-id') || '0') && Number(item.is_active) !== 0);
-            if (!row) {
-                showBanner('Selected product could not be found.', false);
+    $('#deliveries-select-visible')?.addEventListener('click', () => {
+        filteredDeliveryRows().forEach((row) => {
+            const rowId = Number(row.id);
+            if (Number.isFinite(rowId) && rowId > 0) {
+                state.selectedDeliveryIds.add(rowId);
+            }
+        });
+        renderOperationalTables();
+    });
+    $('#deliveries-clear-selection')?.addEventListener('click', () => {
+        state.selectedDeliveryIds.clear();
+        renderOperationalTables();
+    });
+    $('#deliveries-delete-selected')?.addEventListener('click', async () => {
+        await deleteDeliveriesByIds(Array.from(state.selectedDeliveryIds));
+    });
+    $('#deliveries-select-all')?.addEventListener('change', (event) => {
+        const checked = event.currentTarget.checked;
+        filteredDeliveryRows().forEach((row) => {
+            const rowId = Number(row.id);
+            if (!Number.isFinite(rowId) || rowId <= 0) {
                 return;
             }
+            if (checked) {
+                state.selectedDeliveryIds.add(rowId);
+            } else {
+                state.selectedDeliveryIds.delete(rowId);
+            }
+        });
+        renderOperationalTables();
+    });
+    $('#deliveries-table')?.addEventListener('change', (event) => {
+        const checkbox = event.target.closest('[data-delivery-select]');
+        if (!checkbox) {
+            return;
+        }
 
-            selectProductionProduct(row);
+        const rowId = Number(checkbox.getAttribute('data-delivery-select') || '0');
+        if (!Number.isFinite(rowId) || rowId <= 0) {
+            return;
+        }
+
+        if (checkbox.checked) {
+            state.selectedDeliveryIds.add(rowId);
+        } else {
+            state.selectedDeliveryIds.delete(rowId);
+        }
+        syncDeliverySelectionControls(filteredDeliveryRows());
+    });
+
+    $('#production-products-table').addEventListener('click', (event) => {
+        const qtyInput = event.target.closest('[data-production-qty-input]');
+        if (qtyInput) {
             return;
         }
 
@@ -2775,21 +4420,55 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        selectProductionProduct(row, { focusQty: true });
+        focusProductionDraftInput(row);
     });
 
     $('#production-products-table').addEventListener('input', (event) => {
-        const qtyInput = event.target.closest('input[data-production-qty-id]');
-        if (!qtyInput) {
+        const qtyInput = event.target.closest('[data-production-qty-input]');
+        if (!(qtyInput instanceof HTMLInputElement)) {
             return;
         }
 
-        const row = state.products.find((item) => Number(item.id) === Number(qtyInput.getAttribute('data-production-qty-id') || '0') && Number(item.is_active) !== 0);
-        if (!row) {
+        const productId = Number(qtyInput.getAttribute('data-production-qty-input') || '0');
+        if (!Number.isFinite(productId) || productId <= 0) {
             return;
         }
 
-        selectProductionProduct(row);
+        const rawValue = String(qtyInput.value || '').trim();
+        const numericValue = Number.parseFloat(rawValue);
+        if (rawValue === '' || !Number.isFinite(numericValue) || numericValue <= 0) {
+            delete state.productionDraftQuantities[String(productId)];
+        } else {
+            state.productionDraftQuantities[String(productId)] = rawValue;
+        }
+
+        syncProductionProductSelection();
+    });
+
+    $('#production-products-table').addEventListener('change', async (event) => {
+        const qtyInput = event.target.closest('[data-production-qty-input]');
+        if (!(qtyInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        const productId = Number(qtyInput.getAttribute('data-production-qty-input') || '0');
+        if (!Number.isFinite(productId) || productId <= 0) {
+            return;
+        }
+
+        await autosaveProductionDraft(productId, qtyInput.value, qtyInput);
+    });
+
+    $('#production-products-table').addEventListener('keydown', (event) => {
+        const qtyInput = event.target.closest('[data-production-qty-input]');
+        if (!(qtyInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            qtyInput.blur();
+        }
     });
 
     $('#production-form').addEventListener('submit', async (event) => {
@@ -2802,8 +4481,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 produced_at: form.produced_at.value,
                 produced_by: form.produced_by.value,
                 notes: form.notes.value
-            }, 'Production run metadata updated.', async () => {
-                await loadProduction();
+            }, 'Saved entry updated.', async (data) => {
+                await loadProduction(true);
+                const updatedId = Number((data && data.item && data.item.id) || productionRunId || 0);
+                const updatedSavedRow = state.production.find((row) => Number(row.id) === updatedId);
+                if (updatedSavedRow) {
+                    rememberLastSavedProduction(updatedSavedRow);
+                }
                 await loadUsage();
                 const updatedRow = state.production.find((row) => Number(row.id) === productionRunId);
                 if (updatedRow) {
@@ -2815,31 +4499,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const selectedProduct = selectedProductionProductRecord();
-        if (!selectedProduct || !form.product_id.value) {
-            showBanner('Select a product from the table before saving a production run.', false);
-            return;
-        }
-
-        const selectedQtyInput = productionQtyInputFor(selectedProduct.id);
-        const qtyProduced = selectedQtyInput ? selectedQtyInput.value : '';
-        if (!qtyProduced) {
-            showBanner('Enter the quantity to produce in the selected product row before saving.', false);
-            return;
-        }
-
-        await submitJson(api.production, {
-            branch_id: form.branch_id.value,
-            product_id: form.product_id.value,
-            produced_at: form.produced_at.value,
-            qty_produced: qtyProduced,
-            produced_by: form.produced_by.value,
-            notes: form.notes.value
-        }, 'Production run saved.', async () => {
-            resetProductionForm();
-            await loadProduction();
-            await loadUsage();
-        });
+        showBanner('Enter the amount made in the item list. Each row saves when you leave the box.', false);
     });
 
     if (permissionsForm && canManageSettings) {
@@ -2868,15 +4528,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('#bakeshop-refresh').addEventListener('click', async () => {
         try {
-            await loadEverything();
-            showBanner('Bakeshop data refreshed.', true);
+            await ensureTabData(window.location.hash.slice(1) || defaultTab, { force: true });
+            showBanner('The current work area has been refreshed.', true);
         } catch (error) {
             showBanner(error.message || 'Unable to refresh data.', false);
         }
     });
 
     ['#usage-branch', '#usage-from', '#usage-to', '#summary-branch-filter', '#summary-from-filter', '#summary-to-filter'].forEach((selector) => {
-        $(selector).addEventListener('change', syncPrintLink);
+        $(selector).addEventListener('change', () => {
+            if (selector.startsWith('#summary-')) {
+                syncReportScopeInputs('summary');
+            }
+            syncPrintLink();
+        });
     });
 
     bindMaintenanceActions('#branches-table');
@@ -2885,6 +4550,11 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#recipes-table').addEventListener('click', async (event) => {
         const button = event.target.closest('[data-action]');
         if (!button) {
+            return;
+        }
+
+        if (!canManageWorkspace) {
+            showBanner('This work area is read only for your role.', false);
             return;
         }
 
@@ -2909,6 +4579,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (!canManageWorkspace) {
+            showBanner('This work area is read only for your role.', false);
+            return;
+        }
+
         const row = findStateRow('delivery', button.getAttribute('data-id'));
         if (!row) {
             showBanner('Selected delivery could not be found.', false);
@@ -2919,14 +4594,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $('#production-table').addEventListener('click', async (event) => {
+        if (!canManageWorkspace) {
+            const readonlyButton = event.target.closest('[data-action="edit-production"], [data-action="void-production"]');
+            if (readonlyButton) {
+                showBanner('This work area is read only for your role.', false);
+            }
+            return;
+        }
+
         const editButton = event.target.closest('[data-action="edit-production"]');
         if (editButton) {
             const editRow = findStateRow('production', editButton.getAttribute('data-id'));
             if (!editRow) {
-                showBanner('Selected production run could not be found.', false);
+                showBanner('That saved entry could not be found.', false);
                 return;
             }
 
+            activateProductionSectionTab('record');
             editProduction(editRow);
             return;
         }
@@ -2938,7 +4622,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const row = findStateRow('production', button.getAttribute('data-id'));
         if (!row) {
-            showBanner('Selected production run could not be found.', false);
+            showBanner('That saved entry could not be found.', false);
             return;
         }
 
@@ -2948,20 +4632,55 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#delivery-at').value = nowLocalDate();
     $('#delivery-source-type').value = 'commissary';
     syncDeliverySourceField();
+    applyWorkspaceAccessMode();
     $('#delivery-source-type').addEventListener('change', syncDeliverySourceField);
+    deliverySectionTabs.forEach((button) => {
+        button.addEventListener('click', () => {
+            activateDeliverySectionTab(button.getAttribute('data-delivery-section-tab') || 'receive');
+        });
+    });
     $('#production-cancel').addEventListener('click', resetProductionForm);
+    productionSectionTabs.forEach((button) => {
+        button.addEventListener('click', () => {
+            activateProductionSectionTab(button.getAttribute('data-production-section-tab') || 'record');
+        });
+    });
+    productionGuardToggle?.addEventListener('click', () => {
+        if (productionMetadataEditActive()) {
+            showBanner('Testing override is only available while recording a new batch.', false);
+            return;
+        }
+
+        state.productionGuardOverride = !state.productionGuardOverride;
+        syncProductionGuardOverrideControls();
+        syncProductionProductSelection();
+        renderCatalogTables();
+    });
+    productionReviewLastSaved?.addEventListener('click', () => {
+        activateProductionSectionTab('saved', { scrollToRecent: true });
+    });
+    productionEditLastSaved?.addEventListener('click', () => {
+        const row = state.production.find((item) => Number(item.id) === Number(state.lastSavedProductionId || 0));
+        if (!row) {
+            showBanner('The last saved entry could not be found. Refresh the list and try again.', false);
+            return;
+        }
+
+        editProduction(row);
+    });
     resetProductionForm();
     resetBranchForm();
     resetProductForm();
     resetIngredientForm();
     resetRecipeForm();
+    syncReportScopeInputs('summary');
     syncPrintLink();
 
     if (searchParams.get('onboarding') === 'bootstrap') {
         showBanner('Bootstrap onboarding is still active. You can review live workspace data here while finishing the staff handoff.', true);
     }
 
-    loadEverything().catch((error) => {
+    ensureTabData(window.location.hash.slice(1) || defaultTab).catch((error) => {
         showBanner(error.message || 'Unable to load initial bakeshop data.', false);
     });
 });

@@ -202,7 +202,12 @@ function bakeshopCatalogListProducts(): array
             p.created_at,
             p.updated_at,
             u.code AS default_yield_unit_code,
-            COUNT(r.id) AS recipe_item_count
+            COUNT(r.id) AS recipe_item_count,
+            (SELECT COUNT(*) FROM bakeshop_production_runs prn WHERE prn.product_id = p.id) AS production_reference_count,
+            CASE
+                WHEN (SELECT COUNT(*) FROM bakeshop_production_runs prn WHERE prn.product_id = p.id) = 0 THEN 1
+                ELSE 0
+            END AS can_delete
          FROM bakeshop_products p
          LEFT JOIN bakeshop_units u ON u.id = p.default_yield_unit_id
          LEFT JOIN bakeshop_product_recipe r ON r.product_id = p.id
@@ -234,7 +239,20 @@ function bakeshopCatalogListIngredients(): array
             i.updated_at,
             u.code AS default_unit_code,
             u.name AS default_unit_name,
-            u.dimension AS unit_dimension
+            u.dimension AS unit_dimension,
+            (SELECT COUNT(*) FROM bakeshop_product_recipe pr WHERE pr.ingredient_id = i.id) AS recipe_reference_count,
+            (SELECT COUNT(*) FROM bakeshop_delivery_items di WHERE di.ingredient_id = i.id) AS delivery_reference_count,
+            (SELECT COUNT(*) FROM bakeshop_production_items pi WHERE pi.ingredient_id = i.id) AS production_reference_count,
+            (SELECT COUNT(*) FROM bakeshop_ingredient_usage iu WHERE iu.ingredient_id = i.id) AS usage_reference_count,
+            CASE
+                WHEN (
+                    (SELECT COUNT(*) FROM bakeshop_product_recipe pr WHERE pr.ingredient_id = i.id) +
+                    (SELECT COUNT(*) FROM bakeshop_delivery_items di WHERE di.ingredient_id = i.id) +
+                    (SELECT COUNT(*) FROM bakeshop_production_items pi WHERE pi.ingredient_id = i.id) +
+                    (SELECT COUNT(*) FROM bakeshop_ingredient_usage iu WHERE iu.ingredient_id = i.id)
+                ) = 0 THEN 1
+                ELSE 0
+            END AS can_delete
          FROM bakeshop_ingredients i
          INNER JOIN bakeshop_units u ON u.id = i.default_unit_id
          ORDER BY i.name ASC'
