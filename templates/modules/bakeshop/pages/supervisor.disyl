@@ -1398,7 +1398,7 @@
 
                         <div class="bakeshop-field">
                             <label for="usage-filter">Find Usage Row</label>
-                            <input id="usage-filter" type="search" placeholder="Search by branch, ingredient, date, or dimension">
+                            <input id="usage-filter" type="search" placeholder="Search by branch, ingredient, date, or unit">
                         </div>
 
                         <div class="bakeshop-table-wrap">
@@ -1408,7 +1408,7 @@
                                         <th>Branch</th>
                                         <th>Date</th>
                                         <th>Ingredient</th>
-                                        <th>Dimension</th>
+                                        <th>Unit</th>
                                         <th>Delivered</th>
                                         <th>Consumed</th>
                                         <th>Variance</th>
@@ -1437,7 +1437,7 @@
 
                                 <div class="bakeshop-field">
                                     <label for="inventory-filter">Find Inventory Row</label>
-                                    <input id="inventory-filter" type="search" placeholder="Search by branch, ingredient, or dimension">
+                                    <input id="inventory-filter" type="search" placeholder="Search by branch, ingredient, or unit">
                                 </div>
 
                                 <div class="bakeshop-table-wrap">
@@ -1446,7 +1446,7 @@
                                             <tr>
                                                 <th>Branch</th>
                                                 <th>Ingredient</th>
-                                                <th>Dimension</th>
+                                                <th>Unit</th>
                                                 <th>Received To Date</th>
                                                 <th>Consumed To Date</th>
                                                 <th>On Hand</th>
@@ -3088,14 +3088,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderUsage() {
-        const filteredUsage = state.usage.filter((row) => rowMatchesSearch(tableSearchQuery('#usage-filter'), [row.branch_name, row.period_date, row.ingredient_name, row.dimension, row.delivered_qty_base, row.consumed_qty_base, row.variance_qty_base]));
-        const filteredInventory = state.inventorySnapshot.filter((row) => rowMatchesSearch(tableSearchQuery('#inventory-filter'), [row.branch_name, row.ingredient_name, row.dimension, row.delivered_qty_base, row.consumed_qty_base, row.on_hand_qty_base]));
+        const filteredUsage = state.usage.filter((row) => rowMatchesSearch(tableSearchQuery('#usage-filter'), [row.branch_name, row.period_date, row.ingredient_name, row.unit_code || row.dimension, row.delivered_qty_base, row.consumed_qty_base, row.variance_qty_base]));
+        const filteredInventory = state.inventorySnapshot.filter((row) => rowMatchesSearch(tableSearchQuery('#inventory-filter'), [row.branch_name, row.ingredient_name, row.unit_code || row.dimension, row.delivered_qty_base, row.consumed_qty_base, row.on_hand_qty_base]));
 
         renderTable('#usage-table', filteredUsage, [
             (row) => escapeHtml(row.branch_name),
             (row) => escapeHtml(row.period_date),
             (row) => escapeHtml(row.ingredient_name),
-            (row) => escapeHtml(row.dimension),
+            (row) => escapeHtml(row.unit_code || row.dimension || 'unit'),
             (row) => escapeHtml(row.delivered_qty_base),
             (row) => escapeHtml(row.consumed_qty_base),
             (row) => escapeHtml(row.variance_qty_base)
@@ -3112,7 +3112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTable('#inventory-table', filteredInventory, [
             (row) => escapeHtml(row.branch_name),
             (row) => escapeHtml(row.ingredient_name),
-            (row) => escapeHtml(row.dimension),
+            (row) => escapeHtml(row.unit_code || row.dimension || 'unit'),
             (row) => escapeHtml(row.delivered_qty_base),
             (row) => escapeHtml(row.consumed_qty_base),
             (row) => '<strong>' + escapeHtml(row.on_hand_qty_base) + '</strong>'

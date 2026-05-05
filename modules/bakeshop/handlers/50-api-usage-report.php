@@ -375,6 +375,7 @@ function bakeshopUsageFormatRows(array $rows): array
     $decimalPlaces = bakeshopUsageDecimalPlaces();
 
     foreach ($rows as &$row) {
+        $row['unit_code'] = bakeshopUsageBaseUnitCode((string)($row['dimension'] ?? ''));
         foreach (['delivered_qty_base', 'consumed_qty_base', 'variance_qty_base'] as $field) {
             $row[$field] = number_format((float)($row[$field] ?? 0), $decimalPlaces, '.', '');
         }
@@ -854,6 +855,7 @@ function bakeshopInventorySnapshotFormatRows(array $rows): array
     $decimalPlaces = bakeshopUsageDecimalPlaces();
 
     foreach ($rows as &$row) {
+        $row['unit_code'] = bakeshopUsageBaseUnitCode((string)($row['dimension'] ?? ''));
         foreach (['delivered_qty_base', 'consumed_qty_base', 'on_hand_qty_base'] as $field) {
             $row[$field] = number_format((float)($row[$field] ?? 0), $decimalPlaces, '.', '');
         }

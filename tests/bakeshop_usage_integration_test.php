@@ -268,18 +268,23 @@ try {
         'from_date' => '2026-04-26',
         'to_date' => '2026-04-26',
     ]);
+    $formattedUsageRows = bakeshopUsageFormatRows($usageRows);
     btUsage('usage view returned rows', count($usageRows) >= 2, json_encode($usageRows, JSON_UNESCAPED_SLASHES));
 
     $flourUsage = btUsageFindRow($usageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     $sugarUsage = btUsageFindRow($usageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
+    $formattedFlourUsage = btUsageFindRow($formattedUsageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
+    $formattedSugarUsage = btUsageFindRow($formattedUsageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
 
     btUsage('flour delivered base qty equals 5.0000', abs((float)($flourUsage['delivered_qty_base'] ?? 0) - 5.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
     btUsage('flour consumed base qty equals 2.0000 after void exclusion', abs((float)($flourUsage['consumed_qty_base'] ?? 0) - 2.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
     btUsage('flour variance base qty equals 3.0000', abs((float)($flourUsage['variance_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
+    btUsage('formatted flour usage exposes kg base unit', (string)($formattedFlourUsage['unit_code'] ?? '') === 'kg', json_encode($formattedFlourUsage, JSON_UNESCAPED_SLASHES));
 
     btUsage('sugar delivered base qty normalizes 2000 g to 2.0000 kg-base', abs((float)($sugarUsage['delivered_qty_base'] ?? 0) - 2.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
     btUsage('sugar consumed base qty normalizes 1000 g to 1.0000 kg-base after void exclusion', abs((float)($sugarUsage['consumed_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
     btUsage('sugar variance base qty equals 1.0000', abs((float)($sugarUsage['variance_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
+    btUsage('formatted sugar usage exposes kg base unit', (string)($formattedSugarUsage['unit_code'] ?? '') === 'kg', json_encode($formattedSugarUsage, JSON_UNESCAPED_SLASHES));
 
     $totals = bakeshopUsageTotals($usageRows);
     btUsage('usage totals aggregate delivered base qty', abs((float)($totals['delivered_qty_base'] ?? 0) - 7.0) < 0.0001, json_encode($totals, JSON_UNESCAPED_SLASHES));
@@ -290,12 +295,15 @@ try {
         'branch_id' => $branchId,
         'to_date' => '2026-04-26',
     ]);
+    $formattedInventoryRows = bakeshopInventorySnapshotFormatRows($inventoryRows);
     btUsage('inventory snapshot returned rows', count($inventoryRows) >= 2, json_encode($inventoryRows, JSON_UNESCAPED_SLASHES));
 
     $flourInventory = btUsageFindRow($inventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     $sugarInventory = btUsageFindRow($inventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
+    $formattedFlourInventory = btUsageFindRow($formattedInventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     btUsage('flour inventory as of selected end date equals 3.0000', abs((float)($flourInventory['on_hand_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($flourInventory, JSON_UNESCAPED_SLASHES));
     btUsage('sugar inventory as of selected end date equals 1.0000', abs((float)($sugarInventory['on_hand_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarInventory, JSON_UNESCAPED_SLASHES));
+    btUsage('formatted inventory rows expose kg base unit', (string)($formattedFlourInventory['unit_code'] ?? '') === 'kg', json_encode($formattedFlourInventory, JSON_UNESCAPED_SLASHES));
 
     $inventoryTotals = bakeshopInventorySnapshotTotals($inventoryRows);
     btUsage('inventory snapshot totals aggregate on-hand base qty', abs((float)($inventoryTotals['on_hand_qty_base'] ?? 0) - 4.0) < 0.0001, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
