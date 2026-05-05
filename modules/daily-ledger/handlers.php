@@ -4262,8 +4262,8 @@ function handleAdminActivity(array $params = []): void
                 $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
                 break;
             case 'review_delivery_provenance':
-                $summary = 'Reviewed paper DR provenance';
-                $badgeLabel = 'Provenance';
+                $summary = 'Reviewed paper DR';
+                $badgeLabel = 'DR Review';
                 $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
                 break;
             case 'variance_status':
@@ -4837,10 +4837,13 @@ function handleAdminBranches(array $params = []): void
         ? (int)$input['price_group_id'] : 0;
 
     $sql = 'SELECT b.*, pg.name AS price_group_name,
+                ac.code AS assigned_commissary_code,
+                ac.name AS assigned_commissary_name,
                 (SELECT COUNT(*) FROM dl_user_branches ub INNER JOIN dl_users u ON u.id = ub.user_id WHERE ub.branch_id = b.id AND u.role = \'cashier\' AND u.is_active = 1 AND u.deleted_at IS NULL) AS user_count,
                 (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.branch_id = b.id AND bp.is_active = 1) AS product_count
             FROM dl_branches b
             LEFT JOIN dl_price_groups pg ON pg.id = b.price_group_id
+            LEFT JOIN dl_branches ac ON ac.id = b.assigned_commissary_id
             WHERE 1=1';
     $bind = [];
     if ($selectedPriceGroupId > 0) {
@@ -4919,6 +4922,18 @@ function apiCreateBranch(array $params = []): void
         return;
     }
 
+    if ($assignedCommissaryId !== null) {
+        $commStmt = $ctx->db()->prepare(
+            'SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1'
+        );
+        $commStmt->execute([':id' => $assignedCommissaryId]);
+        if (!$commStmt->fetchColumn()) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Assigned commissary must be an active branch marked as a commissary', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Assigned commissary must be an active branch marked as a commissary'], 422);
+            return;
+        }
+    }
+
     try {
         $ctx->db()->prepare(
             'INSERT INTO dl_branches (code, name, address, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary)
@@ -4985,6 +5000,24 @@ function apiUpdateBranch(array $params = []): void
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
         return;
+    }
+
+    if ($assignedCommissaryId !== null && $assignedCommissaryId === $branchId) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'A branch cannot be assigned to itself as a commissary', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'A branch cannot be assigned to itself as a commissary'], 422);
+        return;
+    }
+
+    if ($assignedCommissaryId !== null) {
+        $commStmt = $ctx->db()->prepare(
+            'SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1'
+        );
+        $commStmt->execute([':id' => $assignedCommissaryId]);
+        if (!$commStmt->fetchColumn()) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Assigned commissary must be an active branch marked as a commissary', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Assigned commissary must be an active branch marked as a commissary'], 422);
+            return;
+        }
     }
 
     try {

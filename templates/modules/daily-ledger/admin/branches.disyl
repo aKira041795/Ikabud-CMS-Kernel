@@ -72,6 +72,14 @@
     </div>
 </div>
 
+{if commissaries | length == 0}
+<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    No commissary branches are designated yet.
+    To create one, edit the branch that will supply other branches and turn on <span class="font-semibold">This branch acts as a commissary</span>.
+    After saving, it will appear in the <span class="font-semibold">Assigned Commissary</span> list for other branches.
+</div>
+{/if}
+
 {if selected_price_group_id > 0}
 <div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
     Showing <span class="font-semibold">{branches | length}</span> {if branches | length == 1}branch{else}branches{/if} assigned to <span class="font-semibold">{selected_price_group_name}</span>.
@@ -117,7 +125,7 @@
                         </span>
                     </td>
                     <td class="text-sm text-muted">
-                        {if b.assigned_commissary_id}#{b.assigned_commissary_id}{/if}
+                        {if b.assigned_commissary_name}{b.assigned_commissary_code} — {b.assigned_commissary_name}{/if}
                         {if !b.assigned_commissary_id}—{/if}
                     </td>
                     <td class="text-right">{b.user_count}</td>
@@ -184,6 +192,10 @@
                                 <option value="{c.id}">{c.code} — {c.name}</option>
                                 {/foreach}
                             </select>
+                            <p class="mt-2 text-xs text-gray-500">
+                                {if commissaries | length > 0}Choose the commissary that supplies this branch. Only branches designated as a commissary appear here.{/if}
+                                {if commissaries | length == 0}No commissary branches are available yet. Save a branch as a commissary first, then come back and assign it here.{/if}
+                            </p>
                         </div>
                     </div>
                     <div class="form-group">
@@ -201,6 +213,7 @@
                             <input type="checkbox" id="add-is-commissary">
                             This branch acts as a commissary (supplies other branches)
                         </label>
+                        <p class="mt-2 text-xs text-gray-500">Turn this on for branches that dispatch stock to other branches. Once saved, this branch becomes selectable in Assigned Commissary.</p>
                     </div>
                 </div>
             </div>
@@ -264,6 +277,10 @@
                                 <option value="{c.id}">{c.code} — {c.name}</option>
                                 {/foreach}
                             </select>
+                            <p class="mt-2 text-xs text-gray-500">
+                                {if commissaries | length > 0}Choose the commissary that supplies this branch. Only branches designated as a commissary appear here.{/if}
+                                {if commissaries | length == 0}No commissary branches are available yet. Save a branch as a commissary first, then come back and assign it here.{/if}
+                            </p>
                         </div>
                     </div>
                     <div class="form-group">
@@ -281,6 +298,7 @@
                             <input type="checkbox" id="edit-is-commissary">
                             This branch acts as a commissary (supplies other branches)
                         </label>
+                        <p class="mt-2 text-xs text-gray-500">Turn this on for branches that dispatch stock to other branches. Once saved, this branch becomes selectable in Assigned Commissary.</p>
                     </div>
                 </div>
             </div>
@@ -307,7 +325,11 @@
         document.getElementById('edit-area').value = area || '';
         document.getElementById('edit-active').value = active;
         document.getElementById('edit-supply-mode').value = supplyMode || 'self_managed';
-        document.getElementById('edit-commissary').value = commissaryId == null ? '' : String(commissaryId);
+        var commissarySelect = document.getElementById('edit-commissary');
+        Array.from(commissarySelect.options).forEach(function(option) {
+            option.disabled = option.value !== '' && parseInt(option.value, 10) === id;
+        });
+        commissarySelect.value = commissaryId == null || commissaryId === id ? '' : String(commissaryId);
         document.getElementById('edit-price-group').value = priceGroupId == null ? '' : String(priceGroupId);
         document.getElementById('edit-is-commissary').checked = !!isCommissary;
         document.getElementById('edit-modal').classList.add('show');
