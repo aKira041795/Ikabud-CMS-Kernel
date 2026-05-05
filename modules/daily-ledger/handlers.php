@@ -818,6 +818,13 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         throw new \RuntimeException('Destination branch is not allowed for this user.');
     }
 
+    $branchStmt = $ctx->db()->prepare('SELECT id, is_active FROM dl_branches WHERE id = :id LIMIT 1');
+    $branchStmt->execute([':id' => $destinationBranchId]);
+    $destinationBranch = $branchStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$destinationBranch || (int)($destinationBranch['is_active'] ?? 0) !== 1) {
+        throw new \RuntimeException('Destination branch no longer exists or is inactive. Refresh the page and choose a current branch.');
+    }
+
     dl_maybeAutoCloseBranchDay($destinationBranchId, $actorId);
 
     $dayStatus = dl_getDayStatus($destinationBranchId, $ledgerDate);
@@ -827,6 +834,11 @@ function dl_processProductionMovement(array $user, string $movementType, array $
 
     $referenceMovementId = null;
     $delta = $quantity;
+    $formalDeliveryEnabled = dl_isFormalDeliveryEnabled();
+    $shouldAutoCreateFormalDelivery = $movementType === 'output'
+        && $referenceMovementId === null
+        && $formalDeliveryEnabled
+        && $drNumber !== '';
     if ($movementType === 'reverse') {
         if ($reason === '') {
             throw new \RuntimeException('Reverse requires an override reason.');
@@ -928,6 +940,20 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         ]);
         $movementId = (int)$ctx->db()->lastInsertId();
 
+        $autoDeliveryId = null;
+        if ($shouldAutoCreateFormalDelivery) {
+            $autoDeliveryId = dl_upsertCommissaryOutputDeliveryItem(
+                $ctx->db(),
+                $destinationBranchId,
+                $productId,
+                $ledgerDate,
+                $quantity,
+                $drNumber,
+                $actorId,
+                $movementId
+            );
+        }
+
         dl_auditLog(
             'production_' . $movementType,
             $destinationBranchId,
@@ -961,6 +987,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
             'ledger_date' => $ledgerDate,
             'quantity' => $quantity,
             'dr_number' => $drNumber,
+            'delivery_id' => $autoDeliveryId,
             'resulting_' . $ledgerColumn => (int)($ledgerState[$ledgerColumn] ?? 0),
             'ledger_column' => $ledgerColumn,
             'duplicate' => false,
@@ -971,6 +998,129 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         }
         throw $e;
     }
+}
+
+function dl_upsertCommissaryOutputDeliveryItem(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $branchId,
+    int $productId,
+    string $deliveryDate,
+    int $quantity,
+    string $drNumber,
+    int $actorId,
+    int $movementId
+): int {
+    if ($branchId <= 0 || $productId <= 0 || $quantity <= 0 || trim($drNumber) === '') {
+        throw new \RuntimeException('Formal production output delivery requires branch, product, quantity, and DR number.');
+    }
+
+    $existingPaper = dl_findPaperCapturedCommissaryDelivery($db, $branchId, $deliveryDate, $drNumber);
+    if ($existingPaper) {
+        $deliveryId = (int)$existingPaper['id'];
+        if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
+            throw new \RuntimeException('Matching paper DR delivery already has a receiving. Encode the source in Usage/Commissary instead of creating another delivery from Production Output.');
+        }
+
+        $itemStmt = $db->prepare(
+            'SELECT id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery_id AND product_id = :product_id LIMIT 1'
+        );
+        $itemStmt->execute([':delivery_id' => $deliveryId, ':product_id' => $productId]);
+        $existingItem = $itemStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($existingItem) {
+            $newQty = (int)$existingItem['quantity'] + $quantity;
+            $db->prepare('UPDATE dl_delivery_items SET quantity = :quantity WHERE id = :id')
+                ->execute([':quantity' => $newQty, ':id' => (int)$existingItem['id']]);
+        } else {
+            $priceGroupId = dl_defaultPriceGroupId();
+            $db->prepare(
+                'INSERT INTO dl_delivery_items
+                    (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+                 VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+            )->execute([
+                ':delivery_id' => $deliveryId,
+                ':product_id' => $productId,
+                ':quantity' => $quantity,
+                ':unit' => 'pcs',
+                ':unit_cost_snapshot' => 0,
+                ':price_snapshot' => dl_resolveProductPrice($productId, $priceGroupId, $deliveryDate),
+                ':price_group_id' => $priceGroupId,
+                ':remarks' => 'production_output_movement:' . $movementId,
+            ]);
+        }
+
+        dl_auditLog('update_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
+            'dr_number' => $drNumber,
+            'source' => 'production_output',
+            'movement_id' => $movementId,
+            'product_id' => $productId,
+            'quantity_added' => $quantity,
+        ]);
+
+        return $deliveryId;
+    }
+
+    $existingAuto = dl_findAutoCommissaryDelivery($db, $branchId, $deliveryDate, $drNumber);
+    $priceGroupId = dl_defaultPriceGroupId();
+    if ($existingAuto) {
+        $deliveryId = (int)$existingAuto['id'];
+        if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
+            throw new \RuntimeException('Delivery already has a receiving. Void the receiving first before changing production output for this DR.');
+        }
+    } else {
+        $stmt = $db->prepare(
+            'INSERT INTO dl_deliveries
+                (origin_type, origin_id, destination_type, destination_id, dr_number,
+                 delivery_date, status, created_by, posted_by, posted_at, remarks)
+             VALUES (:origin_type, NULL, :destination_type, :destination_id, :dr_number,
+                     :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks)'
+        );
+        $stmt->execute([
+            ':origin_type' => 'commissary',
+            ':destination_type' => 'branch',
+            ':destination_id' => $branchId,
+            ':dr_number' => $drNumber,
+            ':delivery_date' => $deliveryDate,
+            ':created_by' => $actorId > 0 ? $actorId : null,
+            ':posted_by' => $actorId > 0 ? $actorId : null,
+            ':remarks' => dl_autoCommissaryDeliveryRemark(),
+        ]);
+        $deliveryId = (int)$db->lastInsertId();
+
+        dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
+            'dr_number' => $drNumber,
+            'status' => 'posted',
+            'source' => 'production_output',
+            'movement_id' => $movementId,
+        ]);
+    }
+
+    $itemStmt = $db->prepare(
+        'SELECT id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery_id AND product_id = :product_id LIMIT 1'
+    );
+    $itemStmt->execute([':delivery_id' => $deliveryId, ':product_id' => $productId]);
+    $existingItem = $itemStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($existingItem) {
+        $newQty = (int)$existingItem['quantity'] + $quantity;
+        $db->prepare('UPDATE dl_delivery_items SET quantity = :quantity WHERE id = :id')
+            ->execute([':quantity' => $newQty, ':id' => (int)$existingItem['id']]);
+    } else {
+        $db->prepare(
+            'INSERT INTO dl_delivery_items
+                (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+             VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+        )->execute([
+            ':delivery_id' => $deliveryId,
+            ':product_id' => $productId,
+            ':quantity' => $quantity,
+            ':unit' => 'pcs',
+            ':unit_cost_snapshot' => 0,
+            ':price_snapshot' => dl_resolveProductPrice($productId, $priceGroupId, $deliveryDate),
+            ':price_group_id' => $priceGroupId,
+            ':remarks' => 'production_output_movement:' . $movementId,
+        ]);
+    }
+
+    return $deliveryId;
 }
 
 function dl_recomputeSales(int $branchId, int $productId, string $date, int $userId): void
@@ -3521,34 +3671,72 @@ function handleAdminProductionOutput(array $params = []): void
                 $productRowsBread[] = $p;
             }
         }
-        $moveSql =
-            "SELECT pm.id, pm.destination_branch_id, pm.product_id,
-                    pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
-                    pm.dr_number,
-                    pm.override_reason, pm.created_at,
-                    b.name AS destination_name, b.code AS destination_code,
-                    COALESCE(b.area, '') AS destination_area,
-                    p.name AS product_name, p.sku,
-                    pm.created_by_role,
-                    EXISTS(
-                        SELECT 1
-                        FROM dl_production_movements r
-                        WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
-                    ) AS has_reverse
-             FROM dl_production_movements pm
-             INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
-             INNER JOIN dl_products p ON p.id = pm.product_id
-             WHERE pm.destination_branch_id IN ({$placeholders})
-               AND pm.ledger_date BETWEEN ? AND ?
-               AND (pm.movement_type = 'output'
-                    OR (pm.movement_type = 'reverse' AND pm.reference_movement_id IN (
-                        SELECT id FROM dl_production_movements WHERE movement_type = 'output'
-                    )))
-             ORDER BY pm.created_at DESC
-             LIMIT 200";
+                $moveSql =
+                        "SELECT CONCAT('movement:', pm.id) AS row_key,
+                                        pm.id, pm.destination_branch_id, pm.product_id,
+                                        pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
+                                        pm.dr_number,
+                                        pm.override_reason, pm.created_at,
+                                        b.name AS destination_name, b.code AS destination_code,
+                                        COALESCE(b.area, '') AS destination_area,
+                                        p.name AS product_name, p.sku,
+                                        pm.created_by_role,
+                                        EXISTS(
+                                                SELECT 1
+                                                FROM dl_production_movements r
+                                                WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
+                                        ) AS has_reverse,
+                                        0 AS is_paper_dr_capture
+                         FROM dl_production_movements pm
+                         INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
+                         INNER JOIN dl_products p ON p.id = pm.product_id
+                         WHERE pm.destination_branch_id IN ({$placeholders})
+                             AND pm.ledger_date BETWEEN ? AND ?
+                             AND (pm.movement_type = 'output'
+                                        OR (pm.movement_type = 'reverse' AND pm.reference_movement_id IN (
+                                                SELECT id FROM dl_production_movements WHERE movement_type = 'output'
+                                        )))
+
+                         UNION ALL
+
+                         SELECT CONCAT('paper-dr:', d.id, ':', di.id) AS row_key,
+                                        d.id, d.destination_id AS destination_branch_id, di.product_id,
+                                        'paper_dr_capture' AS movement_type,
+                                        'commissary' AS flow_mode,
+                                        d.delivery_date AS ledger_date,
+                                        di.quantity,
+                                        d.dr_number,
+                                        'Captured from paper DR' AS override_reason,
+                                        d.created_at,
+                                        b.name AS destination_name, b.code AS destination_code,
+                                        COALESCE(b.area, '') AS destination_area,
+                                        p.name AS product_name, p.sku,
+                                        COALESCE(u.role, 'paper_dr') AS created_by_role,
+                                        0 AS has_reverse,
+                                        1 AS is_paper_dr_capture
+                         FROM dl_deliveries d
+                         INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                         INNER JOIN dl_branches b ON b.id = d.destination_id
+                         INNER JOIN dl_products p ON p.id = di.product_id
+                         LEFT JOIN dl_users u ON u.id = d.created_by
+                         WHERE d.origin_type = 'commissary'
+                             AND d.destination_type = 'branch'
+                             AND d.destination_id IN ({$placeholders})
+                             AND d.delivery_date BETWEEN ? AND ?
+                             AND d.remarks = ?
+                             AND d.status <> 'voided'
+
+                         ORDER BY created_at DESC
+                         LIMIT 200";
         $bind = $allowedBranchIds;
         $bind[] = $dateFrom;
         $bind[] = $dateTo;
+        foreach ($allowedBranchIds as $branchId) {
+            $bind[] = $branchId;
+        }
+        $bind[] = $dateFrom;
+        $bind[] = $dateTo;
+        $bind[] = dl_paperDrCaptureRemark();
         $moveStmt = $ctx->db()->prepare($moveSql);
         $moveStmt->execute($bind);
         $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -5772,8 +5960,26 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
         );
         $defaultBranchStmt->execute([':date' => $rawDate]);
         $defaultBranchId = (int)($defaultBranchStmt->fetchColumn() ?: 0);
+        $paperBranchId = 0;
+        if ($defaultBranchId <= 0 || !in_array($defaultBranchId, $availableBranchIds, true)) {
+            $paperDefaultStmt = $db->prepare(
+                "SELECT destination_id
+                 FROM dl_deliveries
+                 WHERE delivery_date = :date
+                   AND origin_type = 'commissary'
+                   AND destination_type = 'branch'
+                   AND remarks = :remarks
+                   AND status <> 'voided'
+                 ORDER BY id ASC
+                 LIMIT 1"
+            );
+            $paperDefaultStmt->execute([':date' => $rawDate, ':remarks' => dl_paperDrCaptureRemark()]);
+            $paperBranchId = (int)($paperDefaultStmt->fetchColumn() ?: 0);
+        }
         if ($defaultBranchId > 0 && in_array($defaultBranchId, $availableBranchIds, true)) {
             $selectedBranchId = $defaultBranchId;
+        } elseif ($paperBranchId > 0 && in_array($paperBranchId, $availableBranchIds, true)) {
+            $selectedBranchId = $paperBranchId;
         } elseif ($availableBranchIds !== []) {
             $selectedBranchId = $availableBranchIds[0];
         }
@@ -5798,6 +6004,44 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
         $runsStmt->execute([':date' => $rawDate]);
     }
     $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $paperCaptureItems = [];
+    if ($selectedBranchId > 0) {
+        $paperStmt = $db->prepare(
+            "SELECT d.id AS delivery_id, d.dr_number, d.delivery_date, d.created_at,
+                    di.product_id, di.quantity,
+                    COALESCE(u.username, '') AS created_by_name
+             FROM dl_deliveries d
+             INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+             LEFT JOIN dl_users u ON u.id = d.created_by
+             WHERE d.delivery_date = :date
+               AND d.origin_type = 'commissary'
+               AND d.destination_type = 'branch'
+               AND d.destination_id = :branch
+               AND d.remarks = :remarks
+               AND d.status <> 'voided'
+             ORDER BY d.id DESC, di.id ASC"
+        );
+        $paperStmt->execute([
+            ':date' => $rawDate,
+            ':branch' => $selectedBranchId,
+            ':remarks' => dl_paperDrCaptureRemark(),
+        ]);
+        $paperCaptureItems = $paperStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $paperCaptureMap = [];
+    $paperDrNumber = '';
+    foreach ($paperCaptureItems as $paperItem) {
+        $productId = (int)($paperItem['product_id'] ?? 0);
+        $quantity = (int)($paperItem['quantity'] ?? 0);
+        if ($productId > 0 && $quantity > 0) {
+            $paperCaptureMap[$productId] = ($paperCaptureMap[$productId] ?? 0) + $quantity;
+        }
+        if ($paperDrNumber === '' && trim((string)($paperItem['dr_number'] ?? '')) !== '') {
+            $paperDrNumber = trim((string)$paperItem['dr_number']);
+        }
+    }
 
     // Map selected-branch runs by product_id so we can associate them 1:1 on the spreadsheet
     $runMap = [];
@@ -5869,6 +6113,9 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
             $globalDrNumber = trim((string)$r['dr_number']);
         }
     }
+    if ($globalDrNumber === '' && $paperDrNumber !== '') {
+        $globalDrNumber = $paperDrNumber;
+    }
 
     // Load net production output movements for the date (scoped to accessible branches).
     // Used on the commissary page to auto-populate yield fields when a branch is selected.
@@ -5899,6 +6146,37 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
         }
     }
 
+    $paperPrefillStmt = null;
+    if (count($accessibleBranchIds) > 0) {
+        $paperPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+        $paperPrefillStmt = $db->prepare(
+            "SELECT d.destination_id AS branch_id, di.product_id, SUM(di.quantity) AS net_qty
+             FROM dl_deliveries d
+             INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+             WHERE d.delivery_date = ?
+               AND d.origin_type = 'commissary'
+               AND d.destination_type = 'branch'
+               AND d.destination_id IN ({$paperPlaceholders})
+               AND d.remarks = ?
+               AND d.status <> 'voided'
+             GROUP BY d.destination_id, di.product_id
+             HAVING net_qty > 0"
+        );
+        $paperPrefillStmt->execute(array_merge([$rawDate], $accessibleBranchIds, [dl_paperDrCaptureRemark()]));
+        foreach ($paperPrefillStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $bid = (int)$row['branch_id'];
+            $pid = (int)$row['product_id'];
+            if (!isset($outputByBranch[$bid])) {
+                $outputByBranch[$bid] = [];
+            }
+            $existingQty = (int)($outputByBranch[$bid][$pid] ?? 0);
+            $paperQty = (int)$row['net_qty'];
+            if ($paperQty > $existingQty) {
+                $outputByBranch[$bid][$pid] = $paperQty;
+            }
+        }
+    }
+
     return [
         'date' => $rawDate,
         'products' => $products,
@@ -5910,6 +6188,8 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
         'product_rows_cake' => $productRowsCake,
         'materials' => $commissaryRows,
         'output_by_branch' => $outputByBranch,
+        'paper_capture_product_map' => $paperCaptureMap,
+        'paper_capture_dr_number' => $paperDrNumber,
     ];
 }
 

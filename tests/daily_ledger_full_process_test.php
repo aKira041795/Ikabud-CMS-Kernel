@@ -89,6 +89,7 @@ $trackedDeliveryIds  = [];
 $trackedReceivingIds = [];
 $trackedAccountIds   = [];
 $trackedRunIds       = [];
+$trackedMovementIds  = [];
 $retailBranchId      = 0;
 $commissaryBranchId  = 0;
 
@@ -213,7 +214,6 @@ try {
              yield_qty, dr_number, destination_branch_id, recorded_by)
          VALUES (:d, :pid, :baker, "regular", :iqty, "kilo", :yield, :dr, :dest, :actor)'
     );
-
     // Run 1: PANDESAL, 5 kilo → 100 pcs
     $runInsert->execute([
         ':d'     => $today, ':pid'   => $productAId,
@@ -571,6 +571,9 @@ try {
         'client_op_id'          => 'stress-wd-' . $suffix,
     ];
     $wResult = dl_processProductionMovement($adminUser, 'withdrawal', $wInput);
+    if ((int)($wResult['movement_id'] ?? 0) > 0) {
+        $trackedMovementIds[] = (int)$wResult['movement_id'];
+    }
     fp('production withdrawal recorded',
         isset($wResult['movement_id']) && $wResult['movement_id'] > 0,
         json_encode($wResult));
@@ -594,6 +597,12 @@ try {
         'client_op_id'          => 'stress-out-' . $suffix,
     ];
     $oResult = dl_processProductionMovement($adminUser, 'output', $oInput);
+    if ((int)($oResult['movement_id'] ?? 0) > 0) {
+        $trackedMovementIds[] = (int)$oResult['movement_id'];
+    }
+    if ((int)($oResult['delivery_id'] ?? 0) > 0) {
+        $trackedDeliveryIds[] = (int)$oResult['delivery_id'];
+    }
     fp('production output movement recorded',
         isset($oResult['movement_id']) && $oResult['movement_id'] > 0,
         json_encode($oResult));
@@ -743,6 +752,9 @@ try {
     foreach (['stress-wd-' . $suffix, 'stress-out-' . $suffix] as $coid) {
         $pdo->prepare('DELETE FROM dl_production_movements WHERE client_op_id = :coid')->execute([':coid' => $coid]);
     }
+    foreach ($trackedMovementIds as $mid) {
+        $pdo->prepare('DELETE FROM dl_production_movements WHERE id = :id')->execute([':id' => $mid]);
+    }
     // Also remove the bridge auto-reverse movements
     $pdo->prepare('DELETE FROM dl_production_movements WHERE created_by_id = :uid AND flow_mode = "commissary" AND source_payload LIKE "%stress%"')
         ->execute([':uid' => $actorId]);
@@ -771,6 +783,37 @@ try {
         $pdo->prepare('DELETE FROM dl_delivery_items WHERE delivery_id = :id')->execute([':id' => $did]);
         $pdo->prepare('DELETE FROM dl_deliveries WHERE id = :id')->execute([':id' => $did]);
     }
+
+    // Backstop cleanup by stress suffix in case any auto-created ids were not tracked.
+    $stressLike = '%' . $suffix;
+    $pdo->prepare(
+        'DELETE rii
+           FROM dl_branch_receiving_items rii
+           INNER JOIN dl_branch_receivings r ON r.id = rii.receiving_id
+          WHERE r.dr_number LIKE :suffix'
+    )->execute([':suffix' => $stressLike]);
+    $pdo->prepare('DELETE FROM dl_branch_receivings WHERE dr_number LIKE :suffix')
+        ->execute([':suffix' => $stressLike]);
+    $pdo->prepare(
+        'DELETE vf
+           FROM dl_delivery_variance_flags vf
+           INNER JOIN dl_deliveries d ON d.id = vf.delivery_id
+          WHERE d.dr_number LIKE :suffix'
+    )->execute([':suffix' => $stressLike]);
+    $pdo->prepare(
+        'DELETE di
+           FROM dl_delivery_items di
+           INNER JOIN dl_deliveries d ON d.id = di.delivery_id
+          WHERE d.dr_number LIKE :suffix'
+    )->execute([':suffix' => $stressLike]);
+    $pdo->prepare('DELETE FROM dl_deliveries WHERE dr_number LIKE :suffix')
+        ->execute([':suffix' => $stressLike]);
+    $pdo->prepare('DELETE FROM audit_logs WHERE module = "daily-ledger" AND (CAST(new_data AS CHAR) LIKE :like_new OR CAST(old_data AS CHAR) LIKE :like_old OR CAST(metadata_json AS CHAR) LIKE :like_meta)')
+        ->execute([
+            ':like_new' => '%' . $suffix . '%',
+            ':like_old' => '%' . $suffix . '%',
+            ':like_meta' => '%' . $suffix . '%',
+        ]);
 
     // Remove daily ledger rows for our test branches
     foreach ($trackedBranchIds as $bid) {

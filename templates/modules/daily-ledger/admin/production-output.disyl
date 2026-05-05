@@ -233,7 +233,11 @@
                         <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
                             {if row.movement_type == 'output'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
                             {if row.movement_type == 'reverse'}bg-rose-50 text-rose-700 ring-rose-200{/if}
-                        ">{row.movement_type}</span>
+                            {if row.movement_type == 'paper_dr_capture'}bg-amber-50 text-amber-800 ring-amber-300{/if}
+                        ">
+                            {if row.movement_type == 'paper_dr_capture'}paper DR{/if}
+                            {if row.movement_type != 'paper_dr_capture'}{row.movement_type}{/if}
+                        </span>
                     </td>
                     <td>{row.destination_name} <span class="text-muted">({row.destination_code})</span></td>
                     <td class="text-sm text-muted">{row.destination_area}</td>
@@ -382,7 +386,7 @@
     }
 
     function printOutputLedger() {
-        var rows = Array.from(document.querySelectorAll('tr[data-movement-type="output"], tr[data-movement-type="reverse"]'));
+        var rows = Array.from(document.querySelectorAll('tr[data-movement-type="output"], tr[data-movement-type="reverse"], tr[data-movement-type="paper_dr_capture"]'));
         if (rows.length === 0) {
             showToast('No output movement rows to print in current range.', 'error');
             return;

@@ -71,18 +71,24 @@
             <table>
                 <thead>
                     <tr>
-                        <th>ID / DR #</th>
-                        <th>Date</th>
-                        <th>Origin</th>
-                        <th>Destination</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th></th>
+                        <th class="text-left">ID / DR #</th>
+                        <th class="text-left">Date</th>
+                        <th class="text-left">Origin</th>
+                        <th class="text-left">Destination</th>
+                        <th class="text-left">Status</th>
+                        <th class="text-left">Created</th>
+                        <th class="text-right"></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <template x-for="d in rows" :key="d.id">
-                        <template>
+                <template x-if="loadError">
+                    <tbody>
+                        <tr>
+                            <td colspan="7" class="text-center text-sm text-rose-600 py-4" x-text="loadError"></td>
+                        </tr>
+                    </tbody>
+                </template>
+                <template x-for="d in rows" :key="d.id">
+                    <tbody>
                         <tr>
                             <td>
                                 <div class="font-mono text-sm">#<span x-text="d.id"></span></div>
@@ -95,14 +101,8 @@
                                 </template>
                             </td>
                             <td x-text="d.delivery_date"></td>
-                            <td>
-                                <span x-text="d.origin_type"></span>
-                                <span class="text-xs text-gray-500" x-text="d.origin_id ? '#' + d.origin_id : ''"></span>
-                            </td>
-                            <td>
-                                <span x-text="d.destination_type"></span>
-                                <span class="text-xs text-gray-500" x-text="d.destination_id ? '#' + d.destination_id : ''"></span>
-                            </td>
+                            <td x-text="d.origin_label"></td>
+                            <td x-text="d.destination_label"></td>
                             <td>
                                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
                                       :class="{
@@ -192,12 +192,15 @@
                                 </div>
                             </td>
                         </tr>
-                        </template>
-                    </template>
-                    <tr x-show="rows.length === 0">
-                        <td colspan="7" class="text-center text-sm text-gray-500 py-8">No deliveries match these filters.</td>
-                    </tr>
-                </tbody>
+                    </tbody>
+                </template>
+                <template x-if="rows.length === 0 && !loadError">
+                    <tbody>
+                        <tr>
+                            <td colspan="7" class="text-center text-sm text-gray-500 py-8">No deliveries match these filters.</td>
+                        </tr>
+                    </tbody>
+                </template>
             </table>
         </div>
     </div>
@@ -318,6 +321,7 @@
 function deliveriesPage() {
     return {
         rows: [],
+        loadError: '',
         filter: { status: '', destination_type: '', provenance_status: '' },
         createOpen: false,
         saving: false,
@@ -339,9 +343,24 @@ function deliveriesPage() {
             if (this.filter.status) qs.set('status', this.filter.status);
             if (this.filter.destination_type) qs.set('destination_type', this.filter.destination_type);
             if (this.filter.provenance_status) qs.set('provenance_status', this.filter.provenance_status);
-            fetch('{base_url}/api/v1/deliveries?' + qs.toString())
+            this.loadError = '';
+            fetch('{base_url}/api/v1/deliveries?' + qs.toString(), {
+                credentials: 'same-origin',
+                headers: {
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                }
+            })
                 .then(r => r.json())
-                .then(j => { this.rows = (j && j.ok) ? j.deliveries : []; });
+                .then(j => {
+                    this.rows = (j && j.ok) ? j.deliveries : [];
+                    if (!j || !j.ok) {
+                        this.loadError = (j && j.error) ? j.error : 'Failed to load deliveries.';
+                    }
+                })
+                .catch(() => {
+                    this.rows = [];
+                    this.loadError = 'Failed to load deliveries.';
+                });
         },
         openCreate() {
             this.form = {
@@ -361,7 +380,12 @@ function deliveriesPage() {
             this.saving = true;
             fetch('{base_url}/api/v1/deliveries/create', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
                 body: JSON.stringify({
                     origin_type: this.form.origin_type,
                     origin_id: this.form.origin_id ? parseInt(this.form.origin_id, 10) : null,
@@ -384,7 +408,13 @@ function deliveriesPage() {
         postDelivery(id) {
             if (!confirm('Post this delivery? This will consume inventory.')) return;
             fetch('{base_url}/api/v1/deliveries/post', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
                 body: JSON.stringify({ delivery_id: id })
             })
             .then(r => r.json())
@@ -393,7 +423,13 @@ function deliveriesPage() {
         voidDelivery(id) {
             if (!confirm('Void this delivery?')) return;
             fetch('{base_url}/api/v1/deliveries/void', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
                 body: JSON.stringify({ delivery_id: id })
             })
             .then(r => r.json())
@@ -413,7 +449,12 @@ function deliveriesPage() {
             }
             fetch('{base_url}/api/v1/deliveries/review-provenance', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
                 body: JSON.stringify({ delivery_id: id, action: action, note: note || null })
             })
             .then(r => r.json())
@@ -430,7 +471,12 @@ function deliveriesPage() {
             this.expandedId = id;
             if (!this.receivingCache[id]) {
                 this.receivingCache[id] = { loading: true, receiving: null, items: [] };
-                fetch('{base_url}/api/v1/deliveries/receiving-detail?delivery_id=' + id)
+                fetch('{base_url}/api/v1/deliveries/receiving-detail?delivery_id=' + id, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                    }
+                })
                     .then(r => r.json())
                     .then(j => {
                         this.receivingCache[id] = {

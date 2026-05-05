@@ -427,7 +427,7 @@
         if (filled > 0) {
             var baker = document.getElementById('commissary-baker');
             if (baker && baker.value === '') {
-                baker.placeholder = 'Prefilled ' + filled + ' row(s) from output movements';
+                baker.placeholder = 'Prefilled ' + filled + ' row(s) from upstream output / paper DR';
             }
         }
     }

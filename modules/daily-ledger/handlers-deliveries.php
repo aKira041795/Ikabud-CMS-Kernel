@@ -934,8 +934,25 @@ function apiListDeliveries(array $params = []): void
                    d.created_at, d.posted_at, d.voided_at,
                    d.remarks, d.provenance_status, d.provenance_reviewed_at, d.provenance_review_note,
                    CASE WHEN d.remarks = :paper_dr_remark THEN 1 ELSE 0 END AS is_paper_dr_exception,
-                   ru.username AS provenance_reviewer_name
+                   ru.username AS provenance_reviewer_name,
+                   CASE
+                       WHEN d.origin_type = "commissary" THEN "Commissary"
+                       WHEN d.origin_type = "branch" THEN COALESCE(ob.name, CONCAT("Branch #", d.origin_id))
+                       WHEN d.origin_type = "selling_account" THEN COALESCE(osa.name, CONCAT("Selling Account #", d.origin_id))
+                       WHEN d.origin_id IS NOT NULL AND d.origin_id > 0 THEN CONCAT(REPLACE(d.origin_type, "_", " "), " #", d.origin_id)
+                       ELSE REPLACE(d.origin_type, "_", " ")
+                   END AS origin_label,
+                   CASE
+                       WHEN d.destination_type = "branch" THEN COALESCE(db.name, CONCAT("Branch #", d.destination_id))
+                       WHEN d.destination_type = "selling_account" THEN COALESCE(dsa.name, CONCAT("Selling Account #", d.destination_id))
+                       WHEN d.destination_id IS NOT NULL AND d.destination_id > 0 THEN CONCAT(REPLACE(d.destination_type, "_", " "), " #", d.destination_id)
+                       ELSE REPLACE(d.destination_type, "_", " ")
+                   END AS destination_label
               FROM dl_deliveries d
+              LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type = "branch"
+              LEFT JOIN dl_selling_accounts osa ON osa.id = d.origin_id AND d.origin_type = "selling_account"
+              LEFT JOIN dl_branches db ON db.id = d.destination_id AND d.destination_type = "branch"
+              LEFT JOIN dl_selling_accounts dsa ON dsa.id = d.destination_id AND d.destination_type = "selling_account"
               LEFT JOIN dl_users ru ON ru.id = d.provenance_reviewed_by'
          . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '')
          . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 200';
