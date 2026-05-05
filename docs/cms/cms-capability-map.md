@@ -29,12 +29,29 @@ The following capabilities are declared by `modules/cms/module.json` and impleme
 
 The CMS restricts callers for its content capabilities through `module.json` policy entries.
 
-Allowed callers currently include:
+Allowed callers for `cms.content.get@1` and `cms.content.list@1` currently include:
 
+- `media`
+- `search`
+- `workflow`
+
+Allowed callers for `cms.content.create@1` and `cms.content.update@1` currently include:
+
+- `content-ingestion`
 - `media`
 - `search`
 - `users`
 - `workflow`
+
+### Caller-aware content scope
+
+The content read capabilities now enforce the same ownership rules used by the CMS admin and HTTP API layers when a caller user context is supplied through the capability bus.
+
+- CMS contributors, authors, and other non-editor CMS users are author-scoped.
+- CMS editors and above can read any CMS content.
+- kernel admin can read any CMS content.
+
+This means `cms.content.get@1` and `cms.content.list@1` should not be treated as public bypasses when they are invoked by allowed modules such as `workflow`.
 
 ---
 
