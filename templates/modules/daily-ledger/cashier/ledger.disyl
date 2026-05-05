@@ -76,11 +76,19 @@
             {/if}
         </button>
         {if day_status == 'open' && !reference_only}
-        <button type="button" class="btn btn-primary inline-flex items-center gap-2" onclick="openWithdrawalModal()">
+        {if formal_delivery_enabled}
+        <button type="button" class="btn btn-primary inline-flex items-center gap-2" onclick="openDispatchModal()">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h10M7 12h10M7 17h6" />
+            </svg>
+            New Dispatch
+        </button>
+        {/if}
+        <button type="button" class="btn btn-outline inline-flex items-center gap-2" onclick="openWithdrawalModal()">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            New Withdrawal
+            New Adjustment
         </button>
         {/if}
     </div>
@@ -125,6 +133,7 @@
 {/if}
 
 {include "modules/daily-ledger/cashier/modal_patch.disyl"}
+{include "modules/daily-ledger/cashier/dispatch_modal.disyl"}
 {include "modules/daily-ledger/cashier/receive_modal.disyl"}
 {/block}
 
@@ -134,9 +143,11 @@
     var BRANCH_ID = '{branch_id}';
     var LEDGER_DATE = '{ledger_date}';
     var DAY_STATUS = '{day_status}';
+    var FORMAL_DELIVERY_ENABLED = {if formal_delivery_enabled}true{else}false{/if};
     window.BASE = BASE;
     window.BRANCH_ID = BRANCH_ID;
     window.LEDGER_DATE = LEDGER_DATE;
+    window.FORMAL_DELIVERY_ENABLED = FORMAL_DELIVERY_ENABLED;
 
     // Offline buffer: localStorage write-ahead log
     var PENDING_KEY = 'bbs_pending_saves';

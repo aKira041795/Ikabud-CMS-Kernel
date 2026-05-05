@@ -168,6 +168,53 @@ function dl_autoCommissaryDeliveryRemark(): string
     return '[auto-commissary-run]';
 }
 
+function dl_cashierDispatchRemark(): string
+{
+    return '[cashier-dispatch]';
+}
+
+function dl_paperDrCaptureRemark(): string
+{
+    return '[captured-from-paper-dr]';
+}
+
+function dl_isPaperDrCapturedDelivery(array $delivery): bool
+{
+    return (string)($delivery['remarks'] ?? '') === dl_paperDrCaptureRemark();
+}
+
+function dl_findPaperCapturedCommissaryDelivery(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $branchId,
+    string $deliveryDate,
+    string $drNumber
+): ?array {
+    $stmt = $db->prepare(
+        'SELECT *
+           FROM dl_deliveries
+          WHERE origin_type = :origin_type
+            AND destination_type = :destination_type
+            AND destination_id = :destination_id
+            AND delivery_date = :delivery_date
+            AND dr_number = :dr_number
+            AND remarks = :remarks
+            AND status <> "voided"
+          ORDER BY id DESC
+          LIMIT 1'
+    );
+    $stmt->execute([
+        ':origin_type' => 'commissary',
+        ':destination_type' => 'branch',
+        ':destination_id' => $branchId,
+        ':delivery_date' => $deliveryDate,
+        ':dr_number' => $drNumber,
+        ':remarks' => dl_paperDrCaptureRemark(),
+    ]);
+
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
 function dl_findAutoCommissaryDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, string $deliveryDate, string $drNumber): ?array
 {
     $stmt = $db->prepare(
@@ -280,11 +327,12 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
     }
 
     $desiredItems = dl_collectCommissaryRunDeliveryItems($db, $deliveryDate, $branchId, $drNumber);
-    $existing = dl_findAutoCommissaryDelivery($db, $branchId, $deliveryDate, $drNumber);
+    $existingAuto = dl_findAutoCommissaryDelivery($db, $branchId, $deliveryDate, $drNumber);
+    $existingPaper = dl_findPaperCapturedCommissaryDelivery($db, $branchId, $deliveryDate, $drNumber);
 
     if ($desiredItems === []) {
-        if ($existing) {
-            $deliveryId = (int)$existing['id'];
+        if ($existingAuto) {
+            $deliveryId = (int)$existingAuto['id'];
             if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
                 throw new RuntimeException('Cannot remove or reduce a delivery that already has a receiving. Void the receiving first.');
             }
@@ -299,7 +347,7 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
                 ':id' => $deliveryId,
             ]);
             dl_auditLog('update_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, [
-                'status' => $existing['status'] ?? 'posted',
+                'status' => $existingAuto['status'] ?? 'posted',
                 'dr_number' => $drNumber,
             ], [
                 'status' => 'voided',
@@ -307,12 +355,23 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
                 'source' => 'auto_commissary_run',
             ]);
         }
+        if ($existingPaper) {
+            return (int)$existingPaper['id'];
+        }
         return null;
     }
 
+    if ($existingPaper) {
+        $deliveryId = (int)$existingPaper['id'];
+        if (!dl_deliveryItemsMatchDesired($db, $deliveryId, $desiredItems)) {
+            throw new RuntimeException('Paper DR delivery already exists with different items. Review and reconcile the exception instead of creating a duplicate delivery.');
+        }
+        return $deliveryId;
+    }
+
     $deliveryId = 0;
-    if ($existing) {
-        $deliveryId = (int)$existing['id'];
+    if ($existingAuto) {
+        $deliveryId = (int)$existingAuto['id'];
         if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
             if (!dl_deliveryItemsMatchDesired($db, $deliveryId, $desiredItems)) {
                 throw new RuntimeException('This delivery already has a receiving. Update the receiving workflow instead of changing the usage rows.');
@@ -720,11 +779,36 @@ function apiVoidDelivery(array $params = []): void
     if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
 
     try {
-        $stmt = $ctx->db()->prepare('SELECT status FROM dl_deliveries WHERE id = :id');
+        $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, destination_type, delivery_date, remarks, status FROM dl_deliveries WHERE id = :id');
         $stmt->execute([':id' => $deliveryId]);
-        $status = $stmt->fetchColumn();
-        if ($status === false) { $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404); return; }
+        $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$delivery) { $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404); return; }
+        $status = (string)($delivery['status'] ?? '');
         if ($status === 'voided') { $ctx->json(['ok' => true]); return; }
+
+        if ((string)($delivery['destination_type'] ?? '') === 'branch' && dl_deliveryHasActiveReceivings($ctx->db(), $deliveryId)) {
+            $ctx->json(['ok' => false, 'error' => 'Cannot void a delivery that already has a receiving. Void the receiving first.'], 422);
+            return;
+        }
+
+        $shouldReverseOriginWithdraw = (string)($delivery['origin_type'] ?? '') === 'branch'
+            && (int)($delivery['origin_id'] ?? 0) > 0
+            && in_array((string)($delivery['remarks'] ?? ''), [dl_cashierDispatchRemark(), dl_paperDrCaptureRemark()], true);
+
+        if ($shouldReverseOriginWithdraw) {
+            $itemsStmt = $ctx->db()->prepare('SELECT product_id, quantity FROM dl_delivery_items WHERE delivery_id = :id');
+            $itemsStmt->execute([':id' => $deliveryId]);
+            foreach ($itemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $item) {
+                dl_applyLedgerDelta(
+                    (int)$delivery['origin_id'],
+                    (int)$item['product_id'],
+                    (string)$delivery['delivery_date'],
+                    -((int)$item['quantity']),
+                    $userId,
+                    'withdraw'
+                );
+            }
+        }
 
         $ctx->db()->prepare(
             'UPDATE dl_deliveries SET status = "voided", voided_by = :u, voided_at = NOW() WHERE id = :id'
@@ -738,6 +822,76 @@ function apiVoidDelivery(array $params = []): void
     }
 }
 
+function apiReviewDeliveryProvenance(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $role = (string)($user['role'] ?? '');
+    $reviewerId = dl_getActorUserId($user);
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $deliveryId = (int)($input['delivery_id'] ?? 0);
+    $action = trim((string)($input['action'] ?? ''));
+    $note = trim((string)($input['note'] ?? ''));
+
+    if ($deliveryId <= 0 || !in_array($action, ['accepted', 'discrepant', 'reopen'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid review request'], 422);
+        return;
+    }
+    if ($role === 'production_in_charge' && $action !== 'accepted') {
+        $ctx->json(['ok' => false, 'error' => 'Production In Charge can only accept provenance.'], 403);
+        return;
+    }
+
+    $stmt = $ctx->db()->prepare(
+        'SELECT id, destination_id, remarks, provenance_status, provenance_review_note
+           FROM dl_deliveries
+          WHERE id = :id
+          LIMIT 1'
+    );
+    $stmt->execute([':id' => $deliveryId]);
+    $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$delivery) {
+        $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404);
+        return;
+    }
+    if (!dl_isPaperDrCapturedDelivery($delivery)) {
+        $ctx->json(['ok' => false, 'error' => 'Only captured paper-DR deliveries can be reviewed here.'], 422);
+        return;
+    }
+
+    $newStatus = $action === 'reopen' ? 'paper_dr_pending' : $action;
+    $bind = [
+        ':status' => $newStatus,
+        ':id' => $deliveryId,
+    ];
+    $sql = 'UPDATE dl_deliveries
+               SET provenance_status = :status';
+    if ($action === 'reopen') {
+        $sql .= ', provenance_reviewed_by = NULL, provenance_reviewed_at = NULL, provenance_review_note = NULL';
+    } else {
+        $sql .= ', provenance_reviewed_by = :reviewed_by, provenance_reviewed_at = NOW(), provenance_review_note = :note';
+        $bind[':reviewed_by'] = $reviewerId > 0 ? $reviewerId : null;
+        $bind[':note'] = $note !== '' ? $note : null;
+    }
+    $sql .= ' WHERE id = :id';
+
+    $ctx->db()->prepare($sql)->execute($bind);
+
+    dl_auditLog('review_delivery_provenance', (int)($delivery['destination_id'] ?? 0) ?: null, 'dl_deliveries', (string)$deliveryId, [
+        'provenance_status' => (string)($delivery['provenance_status'] ?? 'none'),
+        'provenance_review_note' => (string)($delivery['provenance_review_note'] ?? ''),
+    ], [
+        'provenance_status' => $newStatus,
+        'provenance_review_note' => $action === 'reopen' ? '' : $note,
+        'review_action' => $action,
+        'reviewed_by_role' => $role,
+    ]);
+
+    $ctx->json(['ok' => true, 'provenance_status' => $newStatus]);
+}
+
 function apiListDeliveries(array $params = []): void
 {
     $ctx = module();
@@ -746,18 +900,47 @@ function apiListDeliveries(array $params = []): void
     $status = (string)($_GET['status'] ?? '');
     $destType = (string)($_GET['destination_type'] ?? '');
     $destId   = isset($_GET['destination_id']) ? (int)$_GET['destination_id'] : 0;
+    $provenanceStatus = (string)($_GET['provenance_status'] ?? '');
 
     $where = [];
     $bind = [];
-    if ($status !== '') { $where[] = 'status = :s'; $bind[':s'] = $status; }
-    if ($destType !== '') { $where[] = 'destination_type = :dt'; $bind[':dt'] = $destType; }
-    if ($destId > 0) { $where[] = 'destination_id = :did'; $bind[':did'] = $destId; }
-    $sql = 'SELECT id, origin_type, origin_id, destination_type, destination_id, dr_number,
-                   delivery_date, status, created_at, posted_at, voided_at
-              FROM dl_deliveries'
+    $hasReceivingSql = 'EXISTS (
+        SELECT 1
+          FROM dl_branch_receivings br
+         WHERE br.delivery_id = d.id
+           AND br.status <> "voided"
+    )';
+    if ($status === 'received') {
+        $where[] = $hasReceivingSql;
+    } elseif ($status === 'posted') {
+        $where[] = 'd.status = :s';
+        $where[] = 'NOT ' . $hasReceivingSql;
+        $bind[':s'] = 'posted';
+    } elseif ($status !== '') {
+        $where[] = 'd.status = :s';
+        $bind[':s'] = $status;
+    }
+    if ($destType !== '') { $where[] = 'd.destination_type = :dt'; $bind[':dt'] = $destType; }
+    if ($destId > 0) { $where[] = 'd.destination_id = :did'; $bind[':did'] = $destId; }
+    if (in_array($provenanceStatus, ['paper_dr_pending', 'accepted', 'discrepant'], true)) {
+        $where[] = 'd.provenance_status = :ps';
+        $bind[':ps'] = $provenanceStatus;
+    }
+    $sql = 'SELECT d.id, d.origin_type, d.origin_id, d.destination_type, d.destination_id, d.dr_number,
+                   d.delivery_date,
+                   CASE WHEN ' . $hasReceivingSql . ' THEN "received" ELSE d.status END AS status,
+                   d.status AS delivery_status,
+                   CASE WHEN ' . $hasReceivingSql . ' THEN 1 ELSE 0 END AS has_receiving,
+                   d.created_at, d.posted_at, d.voided_at,
+                   d.remarks, d.provenance_status, d.provenance_reviewed_at, d.provenance_review_note,
+                   CASE WHEN d.remarks = :paper_dr_remark THEN 1 ELSE 0 END AS is_paper_dr_exception,
+                   ru.username AS provenance_reviewer_name
+              FROM dl_deliveries d
+              LEFT JOIN dl_users ru ON ru.id = d.provenance_reviewed_by'
          . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '')
-         . ' ORDER BY delivery_date DESC, id DESC LIMIT 200';
+         . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 200';
     $stmt = $ctx->db()->prepare($sql);
+    $bind[':paper_dr_remark'] = dl_paperDrCaptureRemark();
     $stmt->execute($bind);
     $ctx->json(['ok' => true, 'deliveries' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
 }
@@ -1627,7 +1810,7 @@ function handleAdminDeliveries(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
-    $user = dlCurrentUser(['admin', 'supervisor']);
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
 
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $accounts = [];
@@ -1650,6 +1833,9 @@ function handleAdminDeliveries(array $params = []): void
         'selling_accounts' => $accounts,
         'products'     => $products,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
+        'can_create_delivery_docs' => in_array($role, ['admin', 'supervisor'], true),
+        'can_review_delivery_provenance' => in_array($role, ['admin', 'supervisor', 'production_in_charge'], true),
+        'can_mark_delivery_discrepant' => in_array($role, ['admin', 'supervisor'], true),
     ]));
 }
 

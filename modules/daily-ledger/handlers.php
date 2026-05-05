@@ -1358,7 +1358,7 @@ function handleCashierLedger(array $params = []): void
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
-        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name");
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Pending incoming deliveries (count of distinct DR groups for this branch)
@@ -1416,6 +1416,7 @@ function handleCashierLedger(array $params = []): void
         'operating_region' => $clockLabel['operating_region'],
         'all_branches' => $allBranches,
         'incoming_count' => $incomingCount,
+        'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
     ]);
 }
 
@@ -1587,7 +1588,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout', 'delivery'], true)) {
+    if (!in_array($type, ['charge', 'pullout'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type']);
         return;
     }
@@ -1601,17 +1602,6 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
     if (in_array($type, ['charge','pullout'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
-    }
-
-    if ($type === 'delivery') {
-        if ($drNumber === null) {
-            $ctx->json(['ok' => false, 'error' => 'DR # is required for delivery.']);
-            return;
-        }
-        if ($targetBranchId === null || $targetBranchId <= 0) {
-            $ctx->json(['ok' => false, 'error' => 'Destination branch is required for delivery.']);
-            return;
-        }
     }
 
     // Filter to valid product+qty pairs
@@ -1714,6 +1704,143 @@ function apiSaveCashierWithdrawals(array $params = []): void
         $ctx->db()->rollBack();
         $ctx->log('apiSaveCashierWithdrawals error: ' . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => 'Database error']);
+    }
+}
+
+function apiCreateCashierDispatch(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser();
+    if (!dl_isFormalDeliveryEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled for branch deliveries.'], 403);
+        return;
+    }
+
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $originBranchId = dl_resolveLedgerBranchId($user, $input);
+    $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
+    $targetBranchId = (int)($input['target_branch_id'] ?? 0);
+    $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
+    $role = (string)($user['role'] ?? '');
+    $actorId = dl_getActorUserId($user);
+
+    if ($originBranchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing source branch.'], 422);
+        return;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid delivery date.'], 422);
+        return;
+    }
+    if ($drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
+        return;
+    }
+    if ($targetBranchId <= 0 || $targetBranchId === $originBranchId) {
+        $ctx->json(['ok' => false, 'error' => 'A different destination branch is required.'], 422);
+        return;
+    }
+    if ($items === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one item is required.'], 422);
+        return;
+    }
+
+    $dayStatus = dl_getDayStatus($originBranchId, $deliveryDate);
+    if ($role === 'cashier' && $deliveryDate !== dl_businessDate()) {
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
+    if ($dayStatus === 'closed' && !dl_roleHasPermission($role, 'ledger.override')) {
+        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+        return;
+    }
+
+    $dupStmt = $ctx->db()->prepare(
+        'SELECT id, status
+           FROM dl_deliveries
+          WHERE origin_type = :origin_type
+            AND origin_id = :origin_id
+            AND destination_type = :destination_type
+            AND destination_id = :destination_id
+            AND dr_number = :dr_number
+            AND status <> "voided"
+          ORDER BY id DESC
+          LIMIT 1'
+    );
+    $dupStmt->execute([
+        ':origin_type' => 'branch',
+        ':origin_id' => $originBranchId,
+        ':destination_type' => 'branch',
+        ':destination_id' => $targetBranchId,
+        ':dr_number' => $drNumber,
+    ]);
+    $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($dup) {
+        $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Delivery on the destination branch.'], 422);
+        return;
+    }
+
+    $priceGroupId = dl_defaultPriceGroupId();
+
+    $ctx->db()->beginTransaction();
+    try {
+        $ins = $ctx->db()->prepare(
+            'INSERT INTO dl_deliveries
+                (origin_type, origin_id, destination_type, destination_id, dr_number,
+                 delivery_date, status, created_by, posted_by, posted_at, remarks)
+             VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :posted_by, NOW(), :remarks)'
+        );
+        $ins->execute([
+            ':ot' => 'branch',
+            ':oid' => $originBranchId,
+            ':dt' => 'branch',
+            ':did' => $targetBranchId,
+            ':dr' => $drNumber,
+            ':dd' => $deliveryDate,
+            ':created_by' => $actorId ?: null,
+            ':posted_by' => $actorId ?: null,
+            ':remarks' => dl_cashierDispatchRemark(),
+        ]);
+        $deliveryId = (int)$ctx->db()->lastInsertId();
+
+        $itemStmt = $ctx->db()->prepare(
+            'INSERT INTO dl_delivery_items
+                (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+             VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+        );
+        foreach ($items as $item) {
+            $itemStmt->execute([
+                ':delivery_id' => $deliveryId,
+                ':product_id' => $item['product_id'],
+                ':quantity' => $item['quantity'],
+                ':unit' => $item['unit'],
+                ':unit_cost_snapshot' => $item['unit_cost_snapshot'],
+                ':price_snapshot' => dl_resolveProductPrice((int)$item['product_id'], $priceGroupId, $deliveryDate),
+                ':price_group_id' => $priceGroupId,
+                ':remarks' => $item['remarks'],
+            ]);
+            dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
+        }
+
+        $ctx->db()->commit();
+        dl_auditLog('create_delivery', $originBranchId, 'dl_deliveries', (string)$deliveryId, null, [
+            'destination_type' => 'branch',
+            'destination_id' => $targetBranchId,
+            'items' => count($items),
+            'dr_number' => $drNumber,
+            'status' => 'posted',
+            'source' => 'cashier_dispatch',
+        ]);
+        $ctx->json(['ok' => true, 'delivery_id' => $deliveryId]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
     }
 }
 
@@ -1958,6 +2085,167 @@ function apiReceiveDelivery(array $params = []): void
         $ctx->db()->rollBack();
         $ctx->log('apiReceiveDelivery error: ' . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => 'Database error']);
+    }
+}
+
+function apiReceivePaperDelivery(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser();
+    if (!dl_isFormalDeliveryEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled for branch deliveries.'], 403);
+        return;
+    }
+
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $destinationBranchId = dl_resolveLedgerBranchId($user, $input);
+    $originType = (string)($input['origin_type'] ?? 'commissary');
+    $originId = isset($input['origin_id']) && $input['origin_id'] !== '' ? (int)$input['origin_id'] : null;
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
+    $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
+    $receiveDate = (string)($input['receive_date'] ?? dl_businessDate());
+    $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
+    $userId = (int)($user['sub'] ?? 0);
+    $actorId = dl_getActorUserId($user);
+    $role = (string)($user['role'] ?? '');
+    $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
+
+    if ($destinationBranchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing destination branch.'], 422);
+        return;
+    }
+    if (!in_array($originType, ['branch', 'commissary'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid origin type.'], 422);
+        return;
+    }
+    if ($originType === 'branch' && (($originId ?? 0) <= 0 || $originId === $destinationBranchId)) {
+        $ctx->json(['ok' => false, 'error' => 'A different source branch is required.'], 422);
+        return;
+    }
+    if ($drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
+        return;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $receiveDate)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid date.'], 422);
+        return;
+    }
+    if ($items === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one item is required.'], 422);
+        return;
+    }
+
+    $businessDate = dl_businessDate();
+    if ($role === 'cashier' && $receiveDate !== $businessDate) {
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
+    if ($originType === 'branch' && !$isAdminUser && $deliveryDate !== $businessDate) {
+        $ctx->json(['ok' => false, 'error' => 'Admin required for late branch paper DR capture'], 403);
+        return;
+    }
+
+    $receiveDayStatus = dl_getDayStatus($destinationBranchId, $receiveDate);
+    if ($receiveDayStatus === 'closed' && !dl_roleHasPermission($role, 'ledger.override')) {
+        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+        return;
+    }
+    if ($originType === 'branch' && $originId !== null) {
+        $originDayStatus = dl_getDayStatus((int)$originId, $deliveryDate);
+        if ($originDayStatus === 'closed' && !$isAdminUser) {
+            $ctx->json(['ok' => false, 'error' => 'Admin required for closed source-branch paper DR capture'], 403);
+            return;
+        }
+    }
+
+    $findStmt = $ctx->db()->prepare(
+        'SELECT id, status
+           FROM dl_deliveries
+          WHERE destination_type = :destination_type
+            AND destination_id = :destination_id
+            AND dr_number = :dr_number
+            AND status <> "voided"
+          ORDER BY id DESC
+          LIMIT 1'
+    );
+    $findStmt->execute([
+        ':destination_type' => 'branch',
+        ':destination_id' => $destinationBranchId,
+        ':dr_number' => $drNumber,
+    ]);
+    $existing = $findStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    $ctx->db()->beginTransaction();
+    try {
+        if ($existing && dl_deliveryHasActiveReceivings($ctx->db(), (int)$existing['id'])) {
+            throw new \RuntimeException('This paper DR was already received.');
+        }
+
+        $deliveryId = $existing ? (int)$existing['id'] : 0;
+        if (!$existing) {
+            $priceGroupId = dl_defaultPriceGroupId();
+            $ins = $ctx->db()->prepare(
+                'INSERT INTO dl_deliveries
+                    (origin_type, origin_id, destination_type, destination_id, dr_number,
+                     delivery_date, status, created_by, posted_by, posted_at, remarks, provenance_status)
+                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status)'
+            );
+            $ins->execute([
+                ':ot' => $originType,
+                ':oid' => $originId,
+                ':dt' => 'branch',
+                ':did' => $destinationBranchId,
+                ':dr' => $drNumber,
+                ':dd' => $deliveryDate,
+                ':created_by' => $userId ?: null,
+                ':posted_by' => $userId ?: null,
+                ':remarks' => dl_paperDrCaptureRemark(),
+                ':provenance_status' => 'paper_dr_pending',
+            ]);
+            $deliveryId = (int)$ctx->db()->lastInsertId();
+
+            $itemStmt = $ctx->db()->prepare(
+                'INSERT INTO dl_delivery_items
+                    (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+                 VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+            );
+            foreach ($items as $item) {
+                $itemStmt->execute([
+                    ':delivery_id' => $deliveryId,
+                    ':product_id' => $item['product_id'],
+                    ':quantity' => $item['quantity'],
+                    ':unit' => $item['unit'],
+                    ':unit_cost_snapshot' => $item['unit_cost_snapshot'],
+                    ':price_snapshot' => dl_resolveProductPrice((int)$item['product_id'], $priceGroupId, $deliveryDate),
+                    ':price_group_id' => $priceGroupId,
+                    ':remarks' => $item['remarks'],
+                ]);
+                if ($originType === 'branch' && $originId !== null) {
+                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
+                }
+            }
+
+            dl_auditLog('create_delivery', $originType === 'branch' ? (int)$originId : null, 'dl_deliveries', (string)$deliveryId, null, [
+                'destination_type' => 'branch',
+                'destination_id' => $destinationBranchId,
+                'items' => count($items),
+                'dr_number' => $drNumber,
+                'status' => 'posted',
+                'source' => 'captured_from_paper_dr',
+            ]);
+        } elseif ((string)$existing['status'] === 'draft') {
+            $ctx->db()->prepare(
+                'UPDATE dl_deliveries SET status = "posted", posted_by = :u, posted_at = NOW() WHERE id = :id'
+            )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
+        }
+
+        $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $userId, $receiveDate, null);
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
     }
 }
 
@@ -2973,6 +3261,18 @@ function handleAdminSales(array $params = []): void
     $actionFilterMap = [
         'output' => ['production_output'],
         'withdrawal' => ['production_withdrawal'],
+        'delivery' => [
+            'create_delivery',
+            'delivery_created',
+            'update_delivery',
+            'delivery_posted',
+            'delivery_voided',
+            'create_receiving',
+            'receiving_created',
+            'receiving_posted',
+            'receiving_voided',
+            'review_delivery_provenance',
+        ],
         'product' => ['create_product', 'update_product'],
         'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
         'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
@@ -2986,6 +3286,7 @@ function handleAdminSales(array $params = []): void
         ['value' => '', 'label' => 'All Activities'],
         ['value' => 'output', 'label' => 'Output'],
         ['value' => 'withdrawal', 'label' => 'Withdrawal'],
+        ['value' => 'delivery', 'label' => 'Delivery'],
         ['value' => 'ledger', 'label' => 'Ledger'],
         ['value' => 'commissary', 'label' => 'Commissary'],
         ['value' => 'product', 'label' => 'Product'],
@@ -3857,6 +4158,8 @@ function handleAdminActivity(array $params = []): void
         'product' => 'product',
         'user' => 'user',
         'branch' => 'branch',
+        'dl_deliveries' => 'delivery',
+        'dl_branch_receivings' => 'receiving',
         'dl_production_movements' => 'production movement',
         'dl_production_runs' => 'production run',
         'dl_commissary_ledger' => 'commissary material',
@@ -3920,6 +4223,48 @@ function handleAdminActivity(array $params = []): void
                 $summary = 'Saved commissary material count';
                 $badgeLabel = 'Material';
                 $badgeClasses = 'bg-sky-50 text-sky-800 ring-sky-200';
+                break;
+            case 'create_delivery':
+            case 'delivery_created':
+                $summary = 'Created delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'update_delivery':
+                $summary = 'Updated delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+                break;
+            case 'delivery_posted':
+                $summary = 'Posted delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'delivery_voided':
+                $summary = 'Voided delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'create_receiving':
+            case 'receiving_created':
+                $summary = 'Created receiving';
+                $badgeLabel = 'Receiving';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'receiving_posted':
+                $summary = 'Posted receiving';
+                $badgeLabel = 'Receiving';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'receiving_voided':
+                $summary = 'Voided receiving';
+                $badgeLabel = 'Receiving';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'review_delivery_provenance':
+                $summary = 'Reviewed paper DR provenance';
+                $badgeLabel = 'Provenance';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
                 break;
             case 'variance_status':
                 $summary = 'Updated variance status';

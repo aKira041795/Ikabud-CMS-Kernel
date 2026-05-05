@@ -1,8 +1,8 @@
-<!-- Withdrawal Modal -->
-<div x-data="withdrawalModal()"
+<!-- Dispatch Modal -->
+<div x-data="dispatchModal()"
      x-cloak
-     x-on:open-withdrawal-modal.window="openModal($event.detail)"
-     class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true" x-show="isOpen">
+     x-on:open-dispatch-modal.window="openModal()"
+     class="relative z-50" aria-labelledby="dispatch-modal-title" role="dialog" aria-modal="true" x-show="isOpen">
     <div x-show="isOpen" x-transition.opacity class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
@@ -17,31 +17,28 @@
                  class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-2xl sm:p-6">
 
                 <div>
-                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">New Adjustment</h3>
-                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock adjustments such as charge or pullout. Use New Dispatch for branch transfers, and Receive by Paper DR when the truck arrived before the dispatch was encoded.</p>
+                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="dispatch-modal-title">New Dispatch</h3>
+                    <p class="text-sm text-gray-500 mb-4">Create a posted branch dispatch using the paper DR as the source of truth. This reduces the source branch withdrawal and makes the delivery available for Receive Delivery on the destination branch.</p>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Type *</label>
-                            <select x-model="header.withdrawal_type" class="form-input mt-0 w-full">
-                                <option value="charge">Charge (cashier)</option>
-                                <option value="pullout">Pullout (past saleable)</option>
-                            </select>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Dispatch Date *</label>
+                            <input type="date" x-model="form.delivery_date" class="form-input mt-0 w-full">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Reason Code <span class="text-rose-500">*</span></label>
-                        <select x-model="header.reason_code" class="form-input mt-0 w-full">
-                            <option value="manual_adjustment">Manual adjustment</option>
-                            <option value="spoilage">Spoilage</option>
-                            <option value="staff_meal">Staff meal</option>
-                            <option value="sampling">Sampling</option>
-                            <option value="testing">Testing</option>
-                            <option value="promo">Promo</option>
-                            <option value="donation">Donation</option>
-                            <option value="damage">Damage</option>
-                            <option value="other">Other</option>
-                        </select>
-                        <p class="mt-1 text-xs text-gray-500">Required for branch-side adjustments. Branch-to-branch transfers now go through New Dispatch.</p>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR # <span class="text-rose-500">*</span></label>
+                            <input type="text" x-model="form.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Deliver To <span class="text-rose-500">*</span></label>
+                            <select x-model="form.target_branch_id" class="form-input mt-0 w-full">
+                                <option value="">-- Select branch --</option>
+                                {foreach all_branches as b}
+                                {if b.id != branch_id}
+                                <option value="{b.id}">{b.code} — {b.name}</option>
+                                {/if}
+                                {/foreach}
+                            </select>
                         </div>
                     </div>
 
@@ -78,24 +75,16 @@
                                     </tr>
                                 </template>
                             </tbody>
-                            <tfoot class="bg-gray-100 border-t border-gray-200">
-                                <tr>
-                                    <th class="py-2 px-3 text-right font-medium text-gray-900">Total Pcs:</th>
-                                    <th class="py-2 text-right pr-2 font-bold text-gray-900" x-text="totalQty()"></th>
-                                    <th></th>
-                                </tr>
-                            </tfoot>
                         </table>
                     </div>
 
                     <button type="button" @click="addEmptyLine()" class="btn btn-outline w-full justify-center mb-4">+ Add Product</button>
-
                     <p x-show="errorMsg" x-text="errorMsg" class="text-sm text-rose-600 mb-2"></p>
                 </div>
 
                 <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse border-t border-gray-200 pt-4">
                     <button type="button" @click="saveChanges()" class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto" x-bind:disabled="saving">
-                        <span x-text="saving ? 'Saving...' : 'Save Adjustment'"></span>
+                        <span x-text="saving ? 'Saving...' : 'Save Dispatch'"></span>
                     </button>
                     <button type="button" @click="closeModal()" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto" x-bind:disabled="saving">Cancel</button>
                 </div>
@@ -105,22 +94,22 @@
 </div>
 
 <script>
-window.openWithdrawalModal = function() {
-    window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
+window.openDispatchModal = function() {
+    window.dispatchEvent(new CustomEvent('open-dispatch-modal', { detail: {} }));
 };
 
-function withdrawalModal() {
+function dispatchModal() {
     return {
         isOpen: false,
         saving: false,
         errorMsg: '',
-        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment' },
+        form: { delivery_date: '', dr_number: '', target_branch_id: '' },
         lines: [],
         products: [],
 
         openModal() {
             this.errorMsg = '';
-            this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment' };
+            this.form = { delivery_date: LEDGER_DATE, dr_number: '', target_branch_id: '' };
             this.lines = [{ product_id: '', quantity: '' }];
             this.loadProducts();
             this.isOpen = true;
@@ -129,10 +118,6 @@ function withdrawalModal() {
         closeModal() { this.isOpen = false; },
 
         addEmptyLine() { this.lines.push({ product_id: '', quantity: '' }); },
-
-        totalQty() {
-            return this.lines.reduce(function(sum, l) { return sum + (parseInt(l.quantity) || 0); }, 0);
-        },
 
         loadProducts() {
             this.products = [];
@@ -150,8 +135,16 @@ function withdrawalModal() {
 
         validate() {
             this.errorMsg = '';
-            if (!this.header.reason_code || String(this.header.reason_code).trim() === '') {
-                this.errorMsg = 'Reason code is required.';
+            if (!this.form.delivery_date) {
+                this.errorMsg = 'Dispatch date is required.';
+                return false;
+            }
+            if (!this.form.dr_number || String(this.form.dr_number).trim() === '') {
+                this.errorMsg = 'Paper DR number is required.';
+                return false;
+            }
+            if (!this.form.target_branch_id) {
+                this.errorMsg = 'Destination branch is required.';
                 return false;
             }
             var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
@@ -168,18 +161,16 @@ function withdrawalModal() {
 
             var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
             var payload = {
-                date: LEDGER_DATE,
-                header: {
-                    withdrawal_type: this.header.withdrawal_type,
-                    reason_code: this.header.reason_code || 'manual_adjustment'
-                },
-                lines: validLines.map(function(l) {
-                    return { product_id: parseInt(l.product_id), quantity: parseInt(l.quantity) };
+                branch_id: BRANCH_ID,
+                delivery_date: this.form.delivery_date,
+                dr_number: this.form.dr_number,
+                target_branch_id: parseInt(this.form.target_branch_id, 10),
+                items: validLines.map(function(l) {
+                    return { product_id: parseInt(l.product_id, 10), quantity: parseInt(l.quantity, 10), unit: 'pcs' };
                 })
             };
-            if (window.BRANCH_ID) payload.branch_id = window.BRANCH_ID;
 
-            fetch(BASE + '/api/v1/cashier/ledger/withdrawals', {
+            fetch(BASE + '/api/v1/cashier/ledger/dispatch', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -191,23 +182,22 @@ function withdrawalModal() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 this.saving = false;
-                if (data.ok) {
-                    showToast('Adjustment saved', 'success');
-                    (data.totals || []).forEach(function(t) {
-                        var row = document.querySelector('tr[data-product-id="' + t.product_id + '"]');
-                        if (!row) return;
-                        var span = row.querySelector('[data-field="withdraw"]');
-                        if (span) span.textContent = t.total;
-                        if (typeof computeSales === 'function') computeSales(t.product_id);
-                    });
+                if (data && data.ok) {
+                    showToast('Dispatch saved', 'success');
                     this.closeModal();
+                    var body = document.getElementById('ledger-body');
+                    if (body && window.htmx) {
+                        window.htmx.trigger(body, 'load');
+                    } else {
+                        window.location.reload();
+                    }
                 } else {
-                    this.errorMsg = data.error || 'Failed to save adjustment.';
+                    this.errorMsg = (data && data.error) || 'Failed to save dispatch.';
                 }
             }.bind(this))
             .catch(function() {
                 this.saving = false;
-                this.errorMsg = 'Network error while saving adjustment.';
+                this.errorMsg = 'Network error while saving dispatch.';
             }.bind(this));
         }
     };

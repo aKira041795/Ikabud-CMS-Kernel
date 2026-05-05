@@ -76,8 +76,12 @@ return [
 
         // Cashier: detailed withdrawals
         '/daily-ledger/api/v1/cashier/ledger/withdrawals' => 'daily-ledger:apiSaveCashierWithdrawals',
+        // Cashier: create posted branch dispatch from paper DR
+        '/daily-ledger/api/v1/cashier/ledger/dispatch' => 'daily-ledger:apiCreateCashierDispatch',
         // Cashier: receive incoming delivery
         '/daily-ledger/api/v1/cashier/ledger/receive-delivery' => 'daily-ledger:apiReceiveDelivery',
+        // Cashier: capture and receive a missing delivery from paper DR
+        '/daily-ledger/api/v1/cashier/ledger/receive-paper-dr' => 'daily-ledger:apiReceivePaperDelivery',
 
         // Admin: reopen day
         '/daily-ledger/api/v1/admin/reopen-day'          => 'daily-ledger:apiReopenDay',
@@ -117,6 +121,7 @@ return [
         // Phase B: deliveries
         '/daily-ledger/api/v1/deliveries/create'          => 'daily-ledger:apiCreateDelivery',
         '/daily-ledger/api/v1/deliveries/post'            => 'daily-ledger:apiPostDelivery',
+        '/daily-ledger/api/v1/deliveries/review-provenance' => 'daily-ledger:apiReviewDeliveryProvenance',
         '/daily-ledger/api/v1/deliveries/void'            => 'daily-ledger:apiVoidDelivery',
 
         // Phase B: branch receivings

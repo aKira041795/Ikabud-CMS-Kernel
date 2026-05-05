@@ -36,6 +36,101 @@
                         <div class="mb-3 rounded-md bg-rose-50 p-3 text-sm text-rose-700" x-text="errorMsg"></div>
                     </template>
 
+                    {if formal_delivery_enabled}
+                    <div class="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div class="text-sm font-semibold text-indigo-900">Receive by Paper DR</div>
+                                <p class="mt-1 text-xs text-indigo-800">Use this when the truck already arrived but the dispatch was not encoded in the system. The paper DR number remains the source of truth.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline" @click="paperOpen = !paperOpen" x-text="paperOpen ? 'Hide Paper DR Form' : 'Receive by Paper DR'"></button>
+                        </div>
+
+                        <div class="mt-3 space-y-3" x-show="paperOpen" x-cloak>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                <div>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Source Type</label>
+                                    <select x-model="paperForm.origin_type" class="form-input mt-0 w-full">
+                                        <option value="commissary">Commissary</option>
+                                        <option value="branch">Branch</option>
+                                    </select>
+                                </div>
+                                <div x-show="paperForm.origin_type === 'branch'">
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Source Branch</label>
+                                    <select x-model="paperForm.origin_id" class="form-input mt-0 w-full">
+                                        <option value="">-- Select branch --</option>
+                                        {foreach all_branches as b}
+                                        {if b.id != branch_id}
+                                        <option value="{b.id}">{b.code} — {b.name}</option>
+                                        {/if}
+                                        {/foreach}
+                                    </select>
+                                </div>
+                                <div x-show="paperForm.origin_type === 'commissary'">
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Commissary</label>
+                                    <select x-model="paperForm.origin_id" class="form-input mt-0 w-full">
+                                        <option value="">-- Optional --</option>
+                                        {foreach all_branches as b}
+                                        {if b.is_commissary == 1}
+                                        <option value="{b.id}">{b.code} — {b.name}</option>
+                                        {/if}
+                                        {/foreach}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Delivery Date</label>
+                                    <input type="date" x-model="paperForm.delivery_date" class="form-input mt-0 w-full">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Receive Date</label>
+                                    <input type="date" x-model="paperForm.receive_date" class="form-input mt-0 w-full">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Paper DR #</label>
+                                    <input type="text" x-model="paperForm.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full">
+                                </div>
+                            </div>
+
+                            <div class="rounded-lg border border-indigo-200 bg-white p-3">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b border-gray-200">
+                                            <th class="py-2 text-left font-medium text-gray-700">Product</th>
+                                            <th class="py-2 text-right font-medium text-gray-700 w-24">Pcs</th>
+                                            <th class="py-2 w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="(line, idx) in paperForm.items" :key="idx">
+                                            <tr class="border-b border-gray-100">
+                                                <td class="py-2 pr-2">
+                                                    <select x-model="line.product_id" class="form-input mt-0 py-1 px-2 w-full">
+                                                        <option value="">-- Select Product --</option>
+                                                        <template x-for="p in products" :key="p.id">
+                                                            <option :value="p.id" x-text="p.name"></option>
+                                                        </template>
+                                                    </select>
+                                                </td>
+                                                <td class="py-2 pr-2">
+                                                    <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                                </td>
+                                                <td class="py-2 text-right">
+                                                    <button type="button" @click="paperForm.items.splice(idx, 1)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" x-show="paperForm.items.length > 1">×</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <button type="button" class="btn btn-outline w-full justify-center mt-3" @click="addPaperItem()">+ Add Product</button>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button type="button" class="btn btn-primary" x-bind:disabled="paperSaving" @click="submitPaperDelivery()" x-text="paperSaving ? 'Receiving...' : 'Capture and Receive Paper DR'"></button>
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
+
                     <!-- DR# search: cashier types the number from the paper DR -->
                     <div class="mb-3">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Find by DR#</label>
@@ -125,6 +220,17 @@ function receiveModal() {
         errorMsg: '',
         deliveries: [],
         drFilter: '',
+        paperOpen: false,
+        paperSaving: false,
+        products: [],
+        paperForm: {
+            origin_type: 'commissary',
+            origin_id: '',
+            delivery_date: '',
+            receive_date: '',
+            dr_number: '',
+            items: [{ product_id: '', quantity: '' }]
+        },
         // partialQtys: { group_key: { product_id: qty } }
         partialQtys: {},
 
@@ -140,16 +246,126 @@ function receiveModal() {
             this.errorMsg = '';
             this.partialQtys = {};
             this.drFilter = '';
+            this.paperOpen = false;
+            this.paperSaving = false;
+            this.resetPaperForm();
+            this.loadProducts();
             this.isOpen = true;
             this.load();
         },
 
         closeModal() { this.isOpen = false; },
 
+        resetPaperForm() {
+            this.paperForm = {
+                origin_type: 'commissary',
+                origin_id: '',
+                delivery_date: LEDGER_DATE,
+                receive_date: LEDGER_DATE,
+                dr_number: '',
+                items: [{ product_id: '', quantity: '' }]
+            };
+        },
+
         currentBranchId() {
             var sel = document.getElementById('branch-select');
             if (sel && sel.value) return sel.value;
             return window.BRANCH_ID || '';
+        },
+
+        loadProducts() {
+            this.products = [];
+            var rows = document.querySelectorAll('tr[data-product-id]');
+            var seen = {};
+            rows.forEach(function(r) {
+                var pid = r.getAttribute('data-product-id');
+                var nm = (r.querySelector('.product-name') || {}).textContent || '';
+                if (pid && !seen[pid]) {
+                    seen[pid] = true;
+                    this.products.push({ id: pid, name: nm.trim() });
+                }
+            }.bind(this));
+        },
+
+        addPaperItem() {
+            this.paperForm.items.push({ product_id: '', quantity: '' });
+        },
+
+        validatePaperDelivery() {
+            this.errorMsg = '';
+            if (!this.paperForm.dr_number || !String(this.paperForm.dr_number).trim()) {
+                this.errorMsg = 'Paper DR number is required.';
+                return false;
+            }
+            if (this.paperForm.origin_type === 'branch' && !this.paperForm.origin_id) {
+                this.errorMsg = 'Source branch is required for branch-to-branch paper DR receiving.';
+                return false;
+            }
+            if (!this.paperForm.delivery_date || !this.paperForm.receive_date) {
+                this.errorMsg = 'Delivery date and receive date are required.';
+                return false;
+            }
+            var validItems = this.paperForm.items.filter(function(item) {
+                return item.product_id && parseInt(item.quantity, 10) > 0;
+            });
+            if (validItems.length === 0) {
+                this.errorMsg = 'Add at least one delivered item from the paper DR.';
+                return false;
+            }
+            return true;
+        },
+
+        submitPaperDelivery() {
+            if (!this.validatePaperDelivery()) return;
+            this.paperSaving = true;
+
+            var payload = {
+                branch_id: this.currentBranchId(),
+                origin_type: this.paperForm.origin_type,
+                origin_id: this.paperForm.origin_id || null,
+                delivery_date: this.paperForm.delivery_date,
+                receive_date: this.paperForm.receive_date,
+                dr_number: this.paperForm.dr_number,
+                items: this.paperForm.items.filter(function(item) {
+                    return item.product_id && parseInt(item.quantity, 10) > 0;
+                }).map(function(item) {
+                    return {
+                        product_id: parseInt(item.product_id, 10),
+                        quantity: parseInt(item.quantity, 10),
+                        unit: 'pcs'
+                    };
+                })
+            };
+
+            fetch(BASE + '/api/v1/cashier/ledger/receive-paper-dr', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                this.paperSaving = false;
+                if (data && data.ok) {
+                    showToast('Paper DR captured and received', 'success');
+                    this.closeModal();
+                    var body = document.getElementById('ledger-body');
+                    if (body && window.htmx) {
+                        window.htmx.trigger(body, 'load');
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    this.errorMsg = (data && data.error) || 'Failed to receive paper DR.';
+                }
+            }.bind(this))
+            .catch(function() {
+                this.paperSaving = false;
+                this.errorMsg = 'Network error while receiving paper DR.';
+            }.bind(this));
         },
 
         receivedQty(g, it) {
