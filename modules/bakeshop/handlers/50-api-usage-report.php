@@ -45,12 +45,189 @@ function bakeshopUsageBaseUnitCode(string $dimension): string
     };
 }
 
+function bakeshopUsageParseSupplierFilter(?string $value): ?array
+{
+    $raw = trim((string)($value ?? ''));
+    if ($raw === '') {
+        return null;
+    }
+
+    if (strcasecmp($raw, 'commissary') === 0) {
+        return [
+            'value' => 'commissary',
+            'canonical' => 'commissary',
+            'type' => 'commissary',
+            'name' => null,
+            'label' => 'Commissary',
+        ];
+    }
+
+    if (strcasecmp($raw, 'other') === 0) {
+        return [
+            'value' => 'other',
+            'canonical' => 'other',
+            'type' => 'other',
+            'name' => null,
+            'label' => 'Other',
+        ];
+    }
+
+    if (preg_match('/^other\s*:\s*(.+)$/i', $raw, $matches) === 1) {
+        $name = preg_replace('/\s+/', ' ', trim((string)($matches[1] ?? '')));
+        if ($name === '') {
+            throw new InvalidArgumentException('supplier other name is required.');
+        }
+
+        return [
+            'value' => 'other:' . $name,
+            'canonical' => 'other:' . strtolower($name),
+            'type' => 'other',
+            'name' => $name,
+            'label' => 'Other: ' . $name,
+        ];
+    }
+
+    throw new InvalidArgumentException('supplier must be commissary or other:<name>.');
+}
+
+function bakeshopUsageAppendIngredientFilter(array &$where, array &$bindings, array $ingredientIds, string $column, string $bindingPrefix = 'ingredient'): void
+{
+    if ($ingredientIds === []) {
+        return;
+    }
+
+    $placeholders = [];
+    foreach (array_values($ingredientIds) as $index => $ingredientId) {
+        $placeholder = ':' . $bindingPrefix . '_' . $index;
+        $placeholders[] = $placeholder;
+        $bindings[$placeholder] = (int)$ingredientId;
+    }
+
+    $where[] = $column . ' IN (' . implode(', ', $placeholders) . ')';
+}
+
+function bakeshopUsageAppendSupplierFilter(array &$where, array &$bindings, ?string $supplierValue, string $typeColumn, string $nameColumn, string $bindingPrefix = 'supplier'): void
+{
+    $supplier = bakeshopUsageParseSupplierFilter($supplierValue);
+    if ($supplier === null) {
+        return;
+    }
+
+    $typePlaceholder = ':' . $bindingPrefix . '_type';
+    $where[] = $typeColumn . ' = ' . $typePlaceholder;
+    $bindings[$typePlaceholder] = $supplier['type'];
+
+    if ($supplier['type'] === 'other' && $supplier['name'] !== null) {
+        $namePlaceholder = ':' . $bindingPrefix . '_name';
+        $where[] = 'LOWER(TRIM(COALESCE(' . $nameColumn . ", ''))) = " . $namePlaceholder;
+        $bindings[$namePlaceholder] = strtolower((string)$supplier['name']);
+    }
+}
+
+function bakeshopUsageSupplierOptions(array $input = []): array
+{
+    $filters = bakeshopUsageNormalizeFilters($input);
+    $selectedSupplier = bakeshopUsageParseSupplierFilter($filters['supplier'] ?? null);
+    if (!bakeshopTableHasColumn('bakeshop_deliveries', 'source_type') || !bakeshopTableHasColumn('bakeshop_deliveries', 'source_name')) {
+        return $selectedSupplier === null ? [] : [[
+            'value' => (string)$selectedSupplier['value'],
+            'label' => (string)$selectedSupplier['label'],
+            'selected' => true,
+        ]];
+    }
+
+    $where = [];
+    $bindings = [];
+    if ($filters['branch_id'] !== null) {
+        $where[] = 'd.branch_id = :branch_id';
+        $bindings[':branch_id'] = $filters['branch_id'];
+    }
+    if ($filters['from_date'] !== null) {
+        $where[] = 'DATE(d.delivered_at) >= :from_date';
+        $bindings[':from_date'] = $filters['from_date'];
+    }
+    if ($filters['to_date'] !== null) {
+        $where[] = 'DATE(d.delivered_at) <= :to_date';
+        $bindings[':to_date'] = $filters['to_date'];
+    }
+    bakeshopUsageAppendIngredientFilter($where, $bindings, $filters['ingredient_ids'], 'di.ingredient_id', 'supplier_option_ingredient');
+
+    $sql = 'SELECT DISTINCT
+                d.source_type,
+                NULLIF(TRIM(COALESCE(d.source_name, "")), "") AS source_name,
+                CASE WHEN d.source_type = "commissary" THEN 0 ELSE 1 END AS source_sort
+            FROM bakeshop_deliveries d
+            INNER JOIN bakeshop_delivery_items di ON di.delivery_id = d.id';
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY source_sort ASC, source_name ASC';
+
+    $hasCommissary = false;
+    $hasOther = false;
+    $specificOtherOptions = [];
+    foreach (bakeshopCatalogFetchAll($sql, $bindings) as $row) {
+        $sourceType = strtolower((string)($row['source_type'] ?? ''));
+        if ($sourceType === 'commissary') {
+            $hasCommissary = true;
+            continue;
+        }
+
+        $hasOther = true;
+        $value = 'other:' . trim((string)($row['source_name'] ?? ''));
+        $parsed = bakeshopUsageParseSupplierFilter($value);
+        if ($parsed === null || isset($specificOtherOptions[$parsed['canonical']])) {
+            continue;
+        }
+
+        $specificOtherOptions[$parsed['canonical']] = [
+            'value' => (string)$parsed['value'],
+            'label' => (string)$parsed['label'],
+            'selected' => $selectedSupplier !== null && $selectedSupplier['canonical'] === $parsed['canonical'],
+        ];
+    }
+
+    $options = [];
+    if ($hasCommissary || ($selectedSupplier !== null && $selectedSupplier['canonical'] === 'commissary')) {
+        $options[] = [
+            'value' => 'commissary',
+            'label' => 'Commissary',
+            'selected' => $selectedSupplier !== null && $selectedSupplier['canonical'] === 'commissary',
+        ];
+    }
+    if ($hasOther || ($selectedSupplier !== null && str_starts_with((string)$selectedSupplier['canonical'], 'other'))) {
+        $options[] = [
+            'value' => 'other',
+            'label' => 'Other',
+            'selected' => $selectedSupplier !== null && $selectedSupplier['canonical'] === 'other',
+        ];
+    }
+    foreach ($specificOtherOptions as $option) {
+        $options[] = $option;
+    }
+
+    if ($selectedSupplier !== null) {
+        $knownValues = array_column($options, 'value');
+        if (!in_array((string)$selectedSupplier['value'], $knownValues, true)) {
+            $options[] = [
+                'value' => (string)$selectedSupplier['value'],
+                'label' => (string)$selectedSupplier['label'],
+                'selected' => true,
+            ];
+        }
+    }
+
+    return $options;
+}
+
 function bakeshopUsageNormalizeFilters(array $input): array
 {
     $filters = [
         'branch_id' => null,
         'from_date' => null,
         'to_date' => null,
+        'supplier' => null,
+        'ingredient_ids' => [],
     ];
 
     if (($input['branch_id'] ?? null) !== null && (string)$input['branch_id'] !== '') {
@@ -71,6 +248,26 @@ function bakeshopUsageNormalizeFilters(array $input): array
     if ($filters['from_date'] !== null && $filters['to_date'] !== null && $filters['from_date'] > $filters['to_date']) {
         throw new InvalidArgumentException('from_date cannot be after to_date.');
     }
+
+    $supplier = bakeshopUsageParseSupplierFilter(($input['supplier'] ?? null));
+    $filters['supplier'] = $supplier['value'] ?? null;
+
+    $rawIngredientIds = $input['ingredient_ids'] ?? [];
+    if (!is_array($rawIngredientIds)) {
+        $rawIngredientIds = [$rawIngredientIds];
+    }
+
+    $ingredientIds = [];
+    foreach ($rawIngredientIds as $rawIngredientId) {
+        if ((string)$rawIngredientId === '') {
+            continue;
+        }
+
+        $ingredientId = bakeshopCatalogRequirePositiveInt($rawIngredientId, 'ingredient_ids');
+        bakeshopCatalogAssertRecordExists('bakeshop_ingredients', $ingredientId);
+        $ingredientIds[$ingredientId] = $ingredientId;
+    }
+    $filters['ingredient_ids'] = array_values($ingredientIds);
 
     return $filters;
 }
@@ -95,6 +292,7 @@ function bakeshopUsageVisibleDateBounds(array $input = []): array
         $where[] = 'period_date <= :to_date';
         $bindings[':to_date'] = $filters['to_date'];
     }
+    bakeshopUsageAppendIngredientFilter($where, $bindings, $filters['ingredient_ids'], 'ingredient_id', 'visible_bound_ingredient');
 
     $sql = 'SELECT MIN(period_date) AS from_date, MAX(period_date) AS to_date FROM bakeshop_ingredient_usage';
     if ($where !== []) {
@@ -129,6 +327,7 @@ function bakeshopUsageReportRows(array $input = []): array
         $where[] = 'period_date <= :to_date';
         $bindings[':to_date'] = $filters['to_date'];
     }
+    bakeshopUsageAppendIngredientFilter($where, $bindings, $filters['ingredient_ids'], 'ingredient_id', 'usage_report_ingredient');
 
     $sql = 'SELECT
                 branch_id,
@@ -188,6 +387,7 @@ function bakeshopUsageFormatRows(array $rows): array
 function bakeshopPrintSummaryRows(array $input = []): array
 {
     $filters = bakeshopUsageNormalizeFilters($input);
+    $selectedSupplier = bakeshopUsageParseSupplierFilter($filters['supplier'] ?? null);
     $rowsByKey = [];
 
     $mergeRows = static function (array $sourceRows, string $valueField) use (&$rowsByKey): void {
@@ -211,6 +411,7 @@ function bakeshopPrintSummaryRows(array $input = []): array
                     'total_usage' => 0.0,
                     'remaining_balance' => 0.0,
                     'supplier_label' => '—',
+                    'supplier_filter_keys' => [],
                 ];
             }
 
@@ -231,6 +432,7 @@ function bakeshopPrintSummaryRows(array $input = []): array
             $openingWhere[] = 'branch_id = :branch_id';
             $openingBindings[':branch_id'] = $filters['branch_id'];
         }
+        bakeshopUsageAppendIngredientFilter($openingWhere, $openingBindings, $filters['ingredient_ids'], 'ingredient_id', 'opening_ingredient');
 
         $mergeRows(bakeshopCatalogFetchAll(
             'SELECT
@@ -261,6 +463,7 @@ function bakeshopPrintSummaryRows(array $input = []): array
         $periodWhere[] = 'period_date <= :to_date';
         $periodBindings[':to_date'] = $filters['to_date'];
     }
+    bakeshopUsageAppendIngredientFilter($periodWhere, $periodBindings, $filters['ingredient_ids'], 'ingredient_id', 'period_ingredient');
 
     $periodSql = 'SELECT
             branch_id,
@@ -298,6 +501,7 @@ function bakeshopPrintSummaryRows(array $input = []): array
         $balanceWhere[] = 'period_date <= :to_date';
         $balanceBindings[':to_date'] = $filters['to_date'];
     }
+    bakeshopUsageAppendIngredientFilter($balanceWhere, $balanceBindings, $filters['ingredient_ids'], 'ingredient_id', 'balance_ingredient');
 
     $balanceSql = 'SELECT
             branch_id,
@@ -320,6 +524,7 @@ function bakeshopPrintSummaryRows(array $input = []): array
         foreach ($rowsByKey as &$row) {
             if ((float)($row['total_delivery'] ?? 0) > 0.0000001) {
                 $row['supplier_label'] = 'Not recorded';
+                $row['supplier_filter_keys'] = ['not-recorded'];
             }
         }
         unset($row);
@@ -338,6 +543,8 @@ function bakeshopPrintSummaryRows(array $input = []): array
             $sourceWhere[] = 'DATE(d.delivered_at) <= :to_date';
             $sourceBindings[':to_date'] = $filters['to_date'];
         }
+        bakeshopUsageAppendIngredientFilter($sourceWhere, $sourceBindings, $filters['ingredient_ids'], 'di.ingredient_id', 'source_ingredient');
+        bakeshopUsageAppendSupplierFilter($sourceWhere, $sourceBindings, $filters['supplier'] ?? null, 'd.source_type', 'd.source_name', 'source_supplier');
 
         $sourceSql = <<<'SQL'
 SELECT
@@ -346,16 +553,12 @@ SELECT
     di.ingredient_id,
     i.name AS ingredient_name,
     u.dimension AS dimension,
-    GROUP_CONCAT(DISTINCT (
-        CASE
-            WHEN d.source_type = 'other' THEN
-                CASE
-                    WHEN TRIM(COALESCE(d.source_name, '')) <> '' THEN CONCAT('Other - ', TRIM(d.source_name))
-                    ELSE 'Other'
-                END
-            ELSE 'Commissary'
-        END
-    ) ORDER BY d.source_type ASC, TRIM(COALESCE(d.source_name, '')) ASC SEPARATOR ', ') AS supplier_label
+    MAX(CASE WHEN d.source_type = 'other' THEN 1 ELSE 0 END) AS has_other_source,
+    GROUP_CONCAT(
+        DISTINCT NULLIF(TRIM(COALESCE(d.source_name, '')), '')
+        ORDER BY TRIM(COALESCE(d.source_name, '')) ASC
+        SEPARATOR ', '
+    ) AS other_source_names
 FROM bakeshop_deliveries d
 INNER JOIN bakeshop_delivery_items di ON di.delivery_id = d.id
 INNER JOIN bakeshop_ingredients i ON i.id = di.ingredient_id
@@ -377,9 +580,23 @@ SQL;
                 continue;
             }
 
-            $rowsByKey[$key]['supplier_label'] = trim((string)($row['supplier_label'] ?? '')) !== ''
-                ? (string)$row['supplier_label']
-                : '—';
+            $hasOtherSource = (int)($row['has_other_source'] ?? 0) > 0;
+            $otherSourceNames = trim((string)($row['other_source_names'] ?? ''));
+            $otherSourceFilterKeys = [];
+            if ($otherSourceNames !== '') {
+                foreach (explode(',', $otherSourceNames) as $otherSourceName) {
+                    $parsed = bakeshopUsageParseSupplierFilter('other:' . trim((string)$otherSourceName));
+                    if ($parsed !== null) {
+                        $otherSourceFilterKeys[] = (string)$parsed['canonical'];
+                    }
+                }
+            }
+            $rowsByKey[$key]['supplier_label'] = $hasOtherSource
+                ? ($otherSourceNames !== '' ? ('Other: ' . $otherSourceNames) : 'Other')
+                : 'Commissary';
+            $rowsByKey[$key]['supplier_filter_keys'] = $hasOtherSource
+                ? array_values(array_unique(array_merge(['other'], $otherSourceFilterKeys)))
+                : ['commissary'];
         }
     }
 
@@ -390,11 +607,72 @@ SQL;
             || abs((float)$row['remaining_balance']) > 0.0000001;
     }));
 
+    if ($selectedSupplier !== null) {
+        $rows = array_values(array_filter($rows, static function (array $row) use ($selectedSupplier): bool {
+            return in_array((string)$selectedSupplier['canonical'], (array)($row['supplier_filter_keys'] ?? []), true);
+        }));
+    }
+
+    foreach ($rows as &$row) {
+        unset($row['supplier_filter_keys']);
+    }
+    unset($row);
+
     usort($rows, static function (array $left, array $right): int {
         return [$left['branch_name'] ?? '', $left['ingredient_name'] ?? ''] <=> [$right['branch_name'] ?? '', $right['ingredient_name'] ?? ''];
     });
 
     return $rows;
+}
+
+function bakeshopPrintSummaryIngredientOptions(array $input = []): array
+{
+    $filters = bakeshopUsageNormalizeFilters($input);
+    $selectedIngredientIds = array_fill_keys($filters['ingredient_ids'], true);
+    $optionFilters = $filters;
+    $optionFilters['ingredient_ids'] = [];
+
+    $optionsById = [];
+    foreach (bakeshopPrintSummaryRows($optionFilters) as $row) {
+        $ingredientId = (int)($row['ingredient_id'] ?? 0);
+        if ($ingredientId <= 0 || isset($optionsById[$ingredientId])) {
+            continue;
+        }
+
+        $optionsById[$ingredientId] = [
+            'value' => (string)$ingredientId,
+            'label' => (string)($row['ingredient_name'] ?? ('Ingredient #' . $ingredientId)),
+            'selected' => isset($selectedIngredientIds[$ingredientId]),
+        ];
+    }
+
+    $missingIngredientIds = array_values(array_diff($filters['ingredient_ids'], array_keys($optionsById)));
+    if ($missingIngredientIds !== []) {
+        $where = [];
+        $bindings = [];
+        bakeshopUsageAppendIngredientFilter($where, $bindings, $missingIngredientIds, 'id', 'selected_ingredient_option');
+        $sql = 'SELECT id, name FROM bakeshop_ingredients';
+        if ($where !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+
+        foreach (bakeshopCatalogFetchAll($sql, $bindings) as $row) {
+            $ingredientId = (int)($row['id'] ?? 0);
+            if ($ingredientId <= 0) {
+                continue;
+            }
+
+            $optionsById[$ingredientId] = [
+                'value' => (string)$ingredientId,
+                'label' => (string)($row['name'] ?? ('Ingredient #' . $ingredientId)),
+                'selected' => true,
+            ];
+        }
+    }
+
+    uasort($optionsById, static fn (array $left, array $right): int => strcasecmp((string)($left['label'] ?? ''), (string)($right['label'] ?? '')));
+
+    return array_values($optionsById);
 }
 
 function bakeshopPrintSummaryBranchGroups(array $input = []): array
@@ -472,6 +750,8 @@ function bakeshopUsageFactualSummary(array $input = []): array
         $deliveryWhere[] = 'DATE(d.delivered_at) <= :to_date';
         $deliveryBindings[':to_date'] = $filters['to_date'];
     }
+    bakeshopUsageAppendIngredientFilter($deliveryWhere, $deliveryBindings, $filters['ingredient_ids'], 'di.ingredient_id', 'factual_delivery_ingredient');
+    bakeshopUsageAppendSupplierFilter($deliveryWhere, $deliveryBindings, $filters['supplier'] ?? null, 'd.source_type', 'd.source_name', 'factual_delivery_supplier');
 
     $deliverySql = 'SELECT COUNT(*) AS aggregate_count
         FROM bakeshop_delivery_items di
@@ -481,25 +761,27 @@ function bakeshopUsageFactualSummary(array $input = []): array
     }
     $deliveryCount = (int)((bakeshopCatalogFetchOne($deliverySql, $deliveryBindings)['aggregate_count'] ?? 0));
 
-    $productionWhere = [];
+    $productionWhere = ['r.voided_at IS NULL'];
     $productionBindings = [];
     if ($filters['branch_id'] !== null) {
-        $productionWhere[] = 'branch_id = :branch_id';
+        $productionWhere[] = 'r.branch_id = :branch_id';
         $productionBindings[':branch_id'] = $filters['branch_id'];
     }
     if ($filters['from_date'] !== null) {
-        $productionWhere[] = 'DATE(produced_at) >= :from_date';
+        $productionWhere[] = 'DATE(r.produced_at) >= :from_date';
         $productionBindings[':from_date'] = $filters['from_date'];
     }
     if ($filters['to_date'] !== null) {
-        $productionWhere[] = 'DATE(produced_at) <= :to_date';
+        $productionWhere[] = 'DATE(r.produced_at) <= :to_date';
         $productionBindings[':to_date'] = $filters['to_date'];
     }
-
-    $productionSql = 'SELECT COUNT(*) AS aggregate_count FROM bakeshop_production_runs WHERE voided_at IS NULL';
-    if ($productionWhere !== []) {
-        $productionSql .= ' AND ' . implode(' AND ', $productionWhere);
+    $productionSql = 'SELECT COUNT(DISTINCT r.id) AS aggregate_count FROM bakeshop_production_runs r';
+    if ($filters['ingredient_ids'] !== []) {
+        $productionSql .= ' INNER JOIN bakeshop_production_items pi ON pi.run_id = r.id';
+        bakeshopUsageAppendIngredientFilter($productionWhere, $productionBindings, $filters['ingredient_ids'], 'pi.ingredient_id', 'factual_production_ingredient');
     }
+
+    $productionSql .= ' WHERE ' . implode(' AND ', $productionWhere);
     $productionRunCount = (int)((bakeshopCatalogFetchOne($productionSql, $productionBindings)['aggregate_count'] ?? 0));
 
     return [
@@ -528,6 +810,7 @@ function bakeshopInventorySnapshotRows(array $input = []): array
         $where[] = 'period_date <= :to_date';
         $bindings[':to_date'] = $effectiveToDate;
     }
+    bakeshopUsageAppendIngredientFilter($where, $bindings, $filters['ingredient_ids'], 'ingredient_id', 'inventory_ingredient');
 
     $sql = 'SELECT
                 branch_id,
@@ -586,6 +869,11 @@ function bakeshopApiUsageIndex(array $params = []): void
         bakeshopCurrentUser('bakeshop.read');
 
         $filters = bakeshopUsageNormalizeFilters(bakeshopInput());
+        $supplierOptionFilters = $filters;
+        $supplierOptionFilters['supplier'] = null;
+        $supplierOptionFilters['ingredient_ids'] = [];
+        $ingredientOptionFilters = $filters;
+        $ingredientOptionFilters['ingredient_ids'] = [];
         $items = bakeshopUsageFormatRows(bakeshopUsageReportRows($filters));
         $inventoryItems = bakeshopInventorySnapshotFormatRows(bakeshopInventorySnapshotRows($filters));
 
@@ -593,6 +881,8 @@ function bakeshopApiUsageIndex(array $params = []): void
             'items' => $items,
             'filters' => $filters,
             'branches' => bakeshopUsageBranchOptions(),
+            'supplier_options' => bakeshopUsageSupplierOptions($supplierOptionFilters),
+            'ingredient_options' => bakeshopPrintSummaryIngredientOptions($ingredientOptionFilters),
             'totals' => bakeshopUsageTotals($items),
             'factual_summary' => bakeshopUsageFactualSummary($filters),
             'inventory' => [

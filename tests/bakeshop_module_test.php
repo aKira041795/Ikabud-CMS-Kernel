@@ -178,6 +178,35 @@ bt('bakeshop app layout exists', is_file($layoutBase . '/app.disyl'));
 bt('bakeshop print layout exists', is_file($layoutBase . '/print.disyl'));
 
 try {
+    $printSummaryHtml = bakeshopRender('pages/print-summary.disyl', [
+        'page_title' => 'Printable Bakeshop Summary',
+        'brand_settings' => bakeshopBrandSettings(),
+        'filters' => ['branch_id' => null, 'from_date' => null, 'to_date' => null, 'supplier' => null, 'ingredient_ids' => []],
+        'branch_filter_options' => [],
+        'supplier_options' => [],
+        'ingredient_options' => [],
+        'branch_scope_label' => 'All branches with activity',
+        'supplier_scope_label' => 'All suppliers',
+        'ingredient_scope_label' => 'All ingredients',
+        'branches' => [],
+        'summary_groups' => [],
+        'factual_summary' => ['ingredient_count' => 0, 'delivery_item_count' => 0, 'production_run_count' => 0, 'inventory_on_hand_qty_base' => '0.00'],
+        'display_from_date' => null,
+        'display_to_date' => null,
+        'usage_decimal_places' => 2,
+        'print_template_label' => 'Standard Template',
+        'output_summary_label' => 'Rounded to 2 decimal places',
+    ]);
+    bt('print summary template exposes filter controls', str_contains($printSummaryHtml, 'name="branch_id"') && str_contains($printSummaryHtml, 'name="supplier"') && str_contains($printSummaryHtml, 'name="ingredient_ids[]"') && str_contains($printSummaryHtml, 'Apply Filters'));
+    bt('print summary template supports live scoped filter refresh', str_contains($printSummaryHtml, '/api/v1/bakeshop/usage') && str_contains($printSummaryHtml, 'print-filter-status') && str_contains($printSummaryHtml, 'print-ingredient-modal'));
+    bt('print summary template exposes all-branches reset flow', str_contains($printSummaryHtml, 'All branches') && str_contains($printSummaryHtml, '/admin/bakeshop/print'));
+} catch (Throwable $e) {
+    bt('print summary template exposes filter controls', false, $e->getMessage());
+    bt('print summary template supports live scoped filter refresh', false, $e->getMessage());
+    bt('print summary template exposes all-branches reset flow', false, $e->getMessage());
+}
+
+try {
     $loginHtml = app()->render('pages/login.disyl', bakeshopLoginPageContext());
     bt('login template renders bakeshop brand', str_contains($loginHtml, "Julie&#039;s Bakeshop") || str_contains($loginHtml, "Julie's Bakeshop"));
     bt('login template renders bakeshop CTA', str_contains($loginHtml, 'Enter Bakeshop'));
@@ -223,10 +252,12 @@ try {
     bt('supervisor template separates active and archived ingredients', str_contains($shellHtml, 'ingredients-view-active') && str_contains($shellHtml, 'ingredients-view-archived') && str_contains($shellHtml, 'No archived ingredients yet.'));
     bt('supervisor template exposes delivery multi-delete controls', str_contains($shellHtml, 'deliveries-delete-selected') && str_contains($shellHtml, 'deliveries-select-all'));
     bt('supervisor template separates daily receiving and saved receipts', str_contains($shellHtml, 'data-delivery-section-tab="receive"') && str_contains($shellHtml, 'data-delivery-section-tab="saved"') && str_contains($shellHtml, 'Daily Receiving') && str_contains($shellHtml, 'Saved Receipts'));
+    bt('supervisor template exposes saved receipt detail toggle', str_contains($shellHtml, 'data-action="toggle-delivery-detail"') && str_contains($shellHtml, 'View Details') && str_contains($shellHtml, 'renderDeliveryDetail(row)'));
     bt('supervisor template previews bulk delete targets before confirmation', str_contains($shellHtml, 'bakeshop-delete-confirm') && str_contains($shellHtml, 'confirmBulkDelete({'));
     bt('supervisor template guides in-use products toward archive instead of delete', str_contains($shellHtml, 'Products already used in saved batches can be archived but not deleted.') && str_contains($shellHtml, 'Used by ') && str_contains($shellHtml, 'saved batch'));
     bt('supervisor template guides in-use ingredients toward archive instead of delete', str_contains($shellHtml, 'In use, archive instead') && str_contains($shellHtml, 'Ingredients already in use can be archived but not deleted.'));
     bt('supervisor template forces cache-safe reloads after list mutations', str_contains($shellHtml, 'await loadIngredients(true);') && str_contains($shellHtml, 'await loadProducts(true);') && str_contains($shellHtml, 'await loadDeliveries(true);') && str_contains($shellHtml, 'deleteIngredientsByIds') && str_contains($shellHtml, 'deleteProductsByIds') && str_contains($shellHtml, 'deleteDeliveriesByIds'));
+    bt('supervisor template merges summary and usage report scope', str_contains($shellHtml, 'branch_id: fromUsage.branch_id || fromSummary.branch_id') && str_contains($shellHtml, 'const scope = currentReportScope();') && str_contains($shellHtml, 'const fromSummary = {'));
     bt('supervisor template exposes delivery CSV import controls', str_contains($shellHtml, 'delivery-csv-file') && str_contains($shellHtml, 'Download CSV Template'));
     bt('supervisor template lists a daily ingredient delivery sheet', str_contains($shellHtml, 'Every ingredient is listed below in its default unit.') && str_contains($shellHtml, 'cost_basis'));
     bt('supervisor template frames usage as inventory movement', str_contains($shellHtml, 'Read the inventory movement view: received deliveries minus recipe-based production consumption'));

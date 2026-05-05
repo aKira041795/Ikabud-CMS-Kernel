@@ -5,6 +5,36 @@
     .bakeshop-print { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
     .bakeshop-print h2 { margin: 0; font-size: var(--font-size-h2, 2rem); font-weight: 800; }
     .bakeshop-print p { color: var(--text-muted); margin: 0; }
+    .bakeshop-print-toolbar { display: grid; gap: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: #fff; padding: 16px 18px; }
+    .bakeshop-print-toolbar-head { display: grid; gap: 4px; }
+    .bakeshop-print-toolbar-head h3 { margin: 0; }
+    .bakeshop-print-filters { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .bakeshop-print-filter { display: grid; gap: 6px; }
+    .bakeshop-print-filter strong { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-print-filter input,
+    .bakeshop-print-filter select { width: 100%; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; font: inherit; background: #fff; color: var(--text-color); }
+    .bakeshop-print-filter span { color: var(--text-muted); font-size: 0.84rem; }
+    .bakeshop-filter-hint { color: var(--text-muted); font-size: 0.84rem; }
+    .bakeshop-filter-status { min-height: 1.2em; color: var(--text-muted); font-size: 0.84rem; }
+    .bakeshop-filter-status.is-loading { color: var(--accent); }
+    .bakeshop-filter-status.is-error { color: #b42318; }
+    .bakeshop-ingredient-trigger { width: 100%; justify-content: space-between; text-align: left; }
+    .bakeshop-ingredient-trigger small { color: rgba(255,255,255,0.84); font-weight: 500; }
+    .bakeshop-filter-modal[hidden] { display: none; }
+    .bakeshop-filter-modal { position: fixed; inset: 0; background: rgba(43, 25, 12, 0.45); display: flex; align-items: center; justify-content: center; padding: 18px; z-index: 1000; }
+    .bakeshop-filter-dialog { width: min(720px, 100%); max-height: min(82vh, 760px); overflow: hidden; border-radius: 18px; border: 1px solid var(--border-color); background: #fffdf8; box-shadow: 0 24px 60px rgba(43, 25, 12, 0.22); display: grid; grid-template-rows: auto auto 1fr auto; }
+    .bakeshop-filter-dialog-head { padding: 18px 20px 12px; border-bottom: 1px solid var(--border-color); display: grid; gap: 4px; }
+    .bakeshop-filter-dialog-head h4 { margin: 0; font-size: 1.1rem; }
+    .bakeshop-filter-dialog-search { padding: 14px 20px 0; }
+    .bakeshop-filter-dialog-search input { width: 100%; border: 1px solid var(--border-color); border-radius: 12px; padding: 11px 13px; font: inherit; }
+    .bakeshop-filter-dialog-body { padding: 14px 20px 20px; overflow: auto; display: grid; gap: 10px; align-content: start; }
+    .bakeshop-ingredient-option { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 12px; background: #fff; }
+    .bakeshop-ingredient-option[hidden] { display: none; }
+    .bakeshop-ingredient-option input { width: 18px; height: 18px; }
+    .bakeshop-filter-dialog-actions { padding: 14px 20px 20px; border-top: 1px solid var(--border-color); display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .bakeshop-print-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .bakeshop-print-button { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 10px 16px; font-weight: 700; text-decoration: none; border: 1px solid #1f4f46; background: #1f4f46; color: #fff; }
+    .bakeshop-print-button.secondary { border-color: var(--border-color); background: #fff; color: var(--text-color); }
     .bakeshop-print-meta { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     .bakeshop-print-meta div { border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; background: #fff; }
     .bakeshop-print-meta strong { display: block; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
@@ -35,6 +65,92 @@
     <h2>{page_title}</h2>
     <p>Per-store ingredient balance summary showing opening stock, delivery source, delivery totals, production usage, and remaining balance.</p>
 
+    <form class="bakeshop-print-toolbar" id="bakeshop-print-filter-form" method="get" action="/admin/bakeshop/print">
+        <div class="bakeshop-print-toolbar-head">
+            <h3>Filter Summary</h3>
+            <p>Limit the printable report by branch, date, supplier, or a selected ingredient list. Branch and supplier refresh the report as soon as you change them.</p>
+        </div>
+        <div class="bakeshop-print-filters">
+            <label class="bakeshop-print-filter">
+                <strong>Store / Branch</strong>
+                <select id="print-branch-filter" name="branch_id">
+                    <option value="">All branches</option>
+                    {each branch_filter_options as option}
+                    <option value="{option.value}"{if option.selected} selected{/if}>{option.label}</option>
+                    {/each}
+                </select>
+            </label>
+            <label class="bakeshop-print-filter">
+                <strong>From Date</strong>
+                <input type="date" name="from_date" value="{filters.from_date}">
+            </label>
+            <label class="bakeshop-print-filter">
+                <strong>To Date</strong>
+                <input type="date" name="to_date" value="{filters.to_date}">
+            </label>
+            <label class="bakeshop-print-filter">
+                <strong>Supplier</strong>
+                <select id="print-supplier-filter" name="supplier">
+                    <option value="">All suppliers</option>
+                    {each supplier_options as option}
+                    <option value="{option.value}"{if option.selected} selected{/if}>{option.label}</option>
+                    {/each}
+                </select>
+            </label>
+            <label class="bakeshop-print-filter" style="grid-column: 1 / -1;">
+                <strong>Ingredient</strong>
+                <button class="bakeshop-print-button bakeshop-ingredient-trigger" id="print-ingredient-trigger" type="button">
+                    <span id="print-ingredient-summary">{ingredient_scope_label}</span>
+                    <small>Choose Ingredients</small>
+                </button>
+                <span class="bakeshop-filter-hint">Open the ingredient picker for a searchable checklist.</span>
+            </label>
+        </div>
+        <div class="bakeshop-filter-modal" id="print-ingredient-modal" hidden>
+            <div class="bakeshop-filter-dialog" role="dialog" aria-modal="true" aria-labelledby="print-ingredient-modal-title">
+                <div class="bakeshop-filter-dialog-head">
+                    <h4 id="print-ingredient-modal-title">Choose Ingredients</h4>
+                    <p>Select one or more ingredients to narrow the printable report.</p>
+                </div>
+                <div class="bakeshop-filter-dialog-search">
+                    <input id="print-ingredient-search" type="search" placeholder="Search ingredients">
+                </div>
+                <div class="bakeshop-filter-dialog-body" id="print-ingredient-options">
+                    {if ingredient_options}
+                    {each ingredient_options as option}
+                    <label class="bakeshop-ingredient-option" data-label="{option.label}">
+                        <input type="checkbox" name="ingredient_ids[]" value="{option.value}" data-label="{option.label}"{if option.selected} checked{/if}>
+                        <span>{option.label}</span>
+                    </label>
+                    {/each}
+                    {else}
+                    <div class="bakeshop-empty">No ingredients matched the current branch and date scope.</div>
+                    {/if}
+                </div>
+                <div class="bakeshop-filter-dialog-actions">
+                    <button class="bakeshop-print-button secondary" id="print-ingredient-clear" type="button">Clear Ingredients</button>
+                    <button class="bakeshop-print-button secondary" id="print-ingredient-cancel" type="button">Close</button>
+                    <button class="bakeshop-print-button" id="print-ingredient-apply" type="button">Apply Ingredient Selection</button>
+                </div>
+            </div>
+        </div>
+        <noscript>
+            <label class="bakeshop-print-filter" style="grid-column: 1 / -1;">
+                <strong>Ingredient</strong>
+                <select name="ingredient_ids[]" multiple size="8">
+                    {each ingredient_options as option}
+                    <option value="{option.value}"{if option.selected} selected{/if}>{option.label}</option>
+                    {/each}
+                </select>
+            </label>
+        </noscript>
+        <div class="bakeshop-print-actions">
+            <button class="bakeshop-print-button" type="submit">Apply Filters</button>
+            <a class="bakeshop-print-button secondary" href="/admin/bakeshop/print">Reset</a>
+        </div>
+        <div class="bakeshop-filter-status" id="print-filter-status" aria-live="polite"></div>
+    </form>
+
     <div class="bakeshop-print-meta">
         <div>
             <strong>Branch</strong>
@@ -51,6 +167,14 @@
         <div>
             <strong>Output</strong>
             <p>{output_summary_label}<span>{print_template_label}</span></p>
+        </div>
+        <div>
+            <strong>Supplier</strong>
+            <p>{supplier_scope_label}</p>
+        </div>
+        <div>
+            <strong>Ingredients</strong>
+            <p>{ingredient_scope_label}</p>
         </div>
         <div>
             <strong>Tracked Ingredients</strong>
@@ -130,4 +254,255 @@
     </div>
     {/if}
 </div>
+{/block}
+
+{block scripts}
+<script>
+    (function () {
+        const filterForm = document.getElementById('bakeshop-print-filter-form');
+        if (!filterForm) {
+            return;
+        }
+
+        const branchFilter = document.getElementById('print-branch-filter');
+        const fromDateFilter = filterForm.querySelector('input[name="from_date"]');
+        const toDateFilter = filterForm.querySelector('input[name="to_date"]');
+        const supplierFilter = document.getElementById('print-supplier-filter');
+        const filterStatus = document.getElementById('print-filter-status');
+        const ingredientModal = document.getElementById('print-ingredient-modal');
+        const ingredientTrigger = document.getElementById('print-ingredient-trigger');
+        const ingredientApply = document.getElementById('print-ingredient-apply');
+        const ingredientCancel = document.getElementById('print-ingredient-cancel');
+        const ingredientClear = document.getElementById('print-ingredient-clear');
+        const ingredientSummary = document.getElementById('print-ingredient-summary');
+        const ingredientSearch = document.getElementById('print-ingredient-search');
+        const ingredientOptionsContainer = document.getElementById('print-ingredient-options');
+        let ingredientOptions = Array.from(document.querySelectorAll('.bakeshop-ingredient-option'));
+        let ingredientCheckboxes = Array.from(document.querySelectorAll('input[name="ingredient_ids[]"][type="checkbox"]'));
+        let refreshRequestToken = 0;
+
+        const submitFilters = function () {
+            if (typeof filterForm.requestSubmit === 'function') {
+                filterForm.requestSubmit();
+                return;
+            }
+            filterForm.submit();
+        };
+
+        const updateIngredientSummary = function () {
+            if (!ingredientSummary) {
+                return;
+            }
+
+            const selected = ingredientCheckboxes.filter((checkbox) => checkbox.checked);
+            if (selected.length === 0) {
+                ingredientSummary.textContent = 'All ingredients';
+                return;
+            }
+
+            if (selected.length === 1) {
+                ingredientSummary.textContent = selected[0].getAttribute('data-label') || '1 ingredient selected';
+                return;
+            }
+
+            ingredientSummary.textContent = selected.length + ' ingredients selected';
+        };
+
+        const setFilterStatus = function (message, state) {
+            if (!filterStatus) {
+                return;
+            }
+
+            filterStatus.textContent = message || '';
+            filterStatus.classList.toggle('is-loading', state === 'loading');
+            filterStatus.classList.toggle('is-error', state === 'error');
+        };
+
+        const currentIngredientSelection = function () {
+            return ingredientCheckboxes
+                .filter(function (checkbox) { return checkbox.checked; })
+                .map(function (checkbox) { return String(checkbox.value); });
+        };
+
+        const bindIngredientCheckboxes = function () {
+            ingredientOptions = Array.from(document.querySelectorAll('.bakeshop-ingredient-option'));
+            ingredientCheckboxes = Array.from(document.querySelectorAll('input[name="ingredient_ids[]"][type="checkbox"]'));
+            ingredientCheckboxes.forEach(function (checkbox) {
+                checkbox.addEventListener('change', updateIngredientSummary);
+            });
+        };
+
+        const renderSupplierOptions = function (options) {
+            if (!supplierFilter) {
+                return;
+            }
+
+            const currentValue = String(supplierFilter.value || '');
+            const fragment = ['<option value="">All suppliers</option>'];
+            let nextValue = '';
+            (Array.isArray(options) ? options : []).forEach(function (option) {
+                const value = String(option.value || '');
+                const label = String(option.label || value || 'Supplier');
+                if (currentValue !== '' && value === currentValue) {
+                    nextValue = currentValue;
+                }
+                fragment.push('<option value="' + value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '">' + label.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</option>');
+            });
+            supplierFilter.innerHTML = fragment.join('');
+            supplierFilter.value = nextValue;
+        };
+
+        const renderIngredientOptions = function (options) {
+            if (!ingredientOptionsContainer) {
+                return;
+            }
+
+            const selectedValues = currentIngredientSelection();
+            const optionList = Array.isArray(options) ? options : [];
+            if (optionList.length === 0) {
+                ingredientOptionsContainer.innerHTML = '<div class="bakeshop-empty">No ingredients matched the current branch, date, and supplier scope.</div>';
+                bindIngredientCheckboxes();
+                updateIngredientSummary();
+                return;
+            }
+
+            ingredientOptionsContainer.innerHTML = optionList.map(function (option) {
+                const value = String(option.value || '');
+                const label = String(option.label || value || 'Ingredient');
+                const checked = selectedValues.indexOf(value) !== -1 || !!option.selected;
+                const escapedLabel = label.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+                const escapedValue = value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                return '<label class="bakeshop-ingredient-option" data-label="' + escapedLabel.replace(/"/g, '&quot;') + '">'
+                    + '<input type="checkbox" name="ingredient_ids[]" value="' + escapedValue + '" data-label="' + escapedLabel.replace(/"/g, '&quot;') + '"' + (checked ? ' checked' : '') + '>'
+                    + '<span>' + escapedLabel + '</span>'
+                    + '</label>';
+            }).join('');
+            bindIngredientCheckboxes();
+            if (ingredientSearch) {
+                ingredientSearch.dispatchEvent(new Event('input'));
+            }
+            updateIngredientSummary();
+        };
+
+        const buildScopedRefreshUrl = function () {
+            const url = new URL('/api/v1/bakeshop/usage', window.location.origin);
+            if (branchFilter && branchFilter.value) {
+                url.searchParams.set('branch_id', branchFilter.value);
+            }
+            if (fromDateFilter && fromDateFilter.value) {
+                url.searchParams.set('from_date', fromDateFilter.value);
+            }
+            if (toDateFilter && toDateFilter.value) {
+                url.searchParams.set('to_date', toDateFilter.value);
+            }
+            if (supplierFilter && supplierFilter.value) {
+                url.searchParams.set('supplier', supplierFilter.value);
+            }
+            return url.toString();
+        };
+
+        const refreshScopedOptions = async function () {
+            const requestToken = ++refreshRequestToken;
+            setFilterStatus('Refreshing supplier and ingredient choices…', 'loading');
+
+            try {
+                const response = await fetch(buildScopedRefreshUrl(), {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload || payload.ok === false) {
+                    throw new Error((payload && payload.error) || 'Unable to refresh filter choices.');
+                }
+                if (requestToken !== refreshRequestToken) {
+                    return;
+                }
+
+                const data = payload.data || {};
+                renderSupplierOptions(data.supplier_options || []);
+                renderIngredientOptions(data.ingredient_options || []);
+                setFilterStatus('Filter choices updated for the current scope.', 'ready');
+            } catch (error) {
+                if (requestToken !== refreshRequestToken) {
+                    return;
+                }
+                setFilterStatus((error && error.message) || 'Unable to refresh filter choices.', 'error');
+            }
+        };
+
+        const setModalOpen = function (isOpen) {
+            if (!ingredientModal) {
+                return;
+            }
+
+            ingredientModal.hidden = !isOpen;
+            document.body.style.overflow = isOpen ? 'hidden' : '';
+            if (isOpen && ingredientSearch) {
+                ingredientSearch.focus();
+            }
+        };
+
+        if (branchFilter) {
+            branchFilter.addEventListener('change', refreshScopedOptions);
+        }
+        if (fromDateFilter) {
+            fromDateFilter.addEventListener('change', refreshScopedOptions);
+        }
+        if (toDateFilter) {
+            toDateFilter.addEventListener('change', refreshScopedOptions);
+        }
+        if (supplierFilter) {
+            supplierFilter.addEventListener('change', refreshScopedOptions);
+        }
+        if (ingredientTrigger) {
+            ingredientTrigger.addEventListener('click', function () {
+                updateIngredientSummary();
+                setModalOpen(true);
+            });
+        }
+        if (ingredientApply) {
+            ingredientApply.addEventListener('click', function () {
+                updateIngredientSummary();
+                setModalOpen(false);
+            });
+        }
+        if (ingredientCancel) {
+            ingredientCancel.addEventListener('click', function () {
+                setModalOpen(false);
+            });
+        }
+        if (ingredientClear) {
+            ingredientClear.addEventListener('click', function () {
+                ingredientCheckboxes.forEach(function (checkbox) {
+                    checkbox.checked = false;
+                });
+                updateIngredientSummary();
+            });
+        }
+        if (ingredientModal) {
+            ingredientModal.addEventListener('click', function (event) {
+                if (event.target === ingredientModal) {
+                    setModalOpen(false);
+                }
+            });
+        }
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && ingredientModal && !ingredientModal.hidden) {
+                setModalOpen(false);
+            }
+        });
+        if (ingredientSearch) {
+            ingredientSearch.addEventListener('input', function () {
+                const query = String(ingredientSearch.value || '').trim().toLowerCase();
+                ingredientOptions.forEach(function (option) {
+                    const label = String(option.getAttribute('data-label') || '').toLowerCase();
+                    option.hidden = query !== '' && label.indexOf(query) === -1;
+                });
+            });
+        }
+        bindIngredientCheckboxes();
+        updateIngredientSummary();
+        setFilterStatus('Adjust branch, date, supplier, then apply when ready.', 'ready');
+    })();
+</script>
 {/block}

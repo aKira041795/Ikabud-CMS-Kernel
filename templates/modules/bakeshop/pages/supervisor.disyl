@@ -1612,6 +1612,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recipes: [],
         activeProductId: 0,
         deliveries: [],
+        expandedDeliveryId: 0,
         selectedDeliveryIds: new Set(),
         production: [],
         usage: [],
@@ -2216,20 +2217,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function currentReportScope() {
+        const fromSummary = {
+            branch_id: $('#summary-branch-filter') ? $('#summary-branch-filter').value : '',
+            from_date: $('#summary-from-filter') ? $('#summary-from-filter').value : '',
+            to_date: $('#summary-to-filter') ? $('#summary-to-filter').value : ''
+        };
         const fromUsage = {
             branch_id: $('#usage-branch') ? $('#usage-branch').value : '',
             from_date: $('#usage-from') ? $('#usage-from').value : '',
             to_date: $('#usage-to') ? $('#usage-to').value : ''
         };
 
-        if (fromUsage.branch_id !== '' || fromUsage.from_date !== '' || fromUsage.to_date !== '') {
-            return fromUsage;
-        }
-
         return {
-            branch_id: $('#summary-branch-filter') ? $('#summary-branch-filter').value : '',
-            from_date: $('#summary-from-filter') ? $('#summary-from-filter').value : '',
-            to_date: $('#summary-to-filter') ? $('#summary-to-filter').value : ''
+            branch_id: fromUsage.branch_id || fromSummary.branch_id,
+            from_date: fromUsage.from_date || fromSummary.from_date,
+            to_date: fromUsage.to_date || fromSummary.to_date
         };
     }
 
@@ -2489,6 +2491,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return numeric.toFixed(2);
     }
 
+    function formatCurrencyDisplay(value, fallback = 'PHP 0.00') {
+        const numeric = Number.parseFloat(String(value ?? '').trim());
+        if (!Number.isFinite(numeric)) {
+            return fallback;
+        }
+        return 'PHP ' + numeric.toFixed(2);
+    }
+
     function renderProductsTable(rows) {
         const tbody = document.querySelector('#products-table tbody');
         if (!tbody) {
@@ -2720,6 +2730,11 @@ document.addEventListener('DOMContentLoaded', () => {
             editIngredient(row, 'history');
             return true;
         }
+        if (kind === 'delivery') {
+            state.expandedDeliveryId = Number(row.id || 0);
+            renderOperationalTables();
+            return false;
+        }
         if (kind === 'recipe') {
             editRecipe(row, 'history');
             return true;
@@ -2927,9 +2942,16 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = rows.map((row) => {
             const resolvedRowId = normalizedRowId('delivery', row);
             const selected = resolvedRowId > 0 && state.selectedDeliveryIds.has(resolvedRowId);
+            const expanded = resolvedRowId > 0 && Number(state.expandedDeliveryId || 0) === resolvedRowId;
             const selectionCell = canManageWorkspace && resolvedRowId > 0
                 ? '<td class="bakeshop-checkbox-cell"><input class="bakeshop-checkbox" type="checkbox" data-delivery-select="' + escapeHtml(resolvedRowId) + '" aria-label="Select delivery ' + escapeHtml(row.reference || String(resolvedRowId)) + '"' + (selected ? ' checked' : '') + '></td>'
                 : '<td class="bakeshop-checkbox-cell"></td>';
+            const actionButtons = [
+                '<button type="button" class="bakeshop-link-button" data-action="toggle-delivery-detail" data-id="' + escapeHtml(row.id) + '">' + (expanded ? 'Hide Details' : 'View Details') + '</button>'
+            ];
+            if (canManageWorkspace) {
+                actionButtons.push('<button type="button" class="bakeshop-link-button warn" data-action="delete-delivery" data-id="' + escapeHtml(row.id) + '">Delete</button>');
+            }
 
             return '<tr data-row-kind="delivery" data-row-id="' + escapeHtml(resolvedRowId) + '">'
                 + selectionCell
@@ -2937,8 +2959,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 + '<td>' + escapeHtml(row.delivered_at || '—') + '</td>'
                 + '<td>' + escapeHtml(row.reference || '—') + '<div class="bakeshop-inline-note">' + escapeHtml(row.received_by || 'Receiver not set') + '</div></td>'
                 + '<td><div class="bakeshop-detail-stack"><span>' + escapeHtml(row.item_count || 0) + ' item(s)</span><span>' + escapeHtml(row.total_quantity || '0') + ' total qty</span><span>' + escapeHtml(row.cost_basis_summary || 'Cost basis pending') + '</span></div></td>'
-                + '<td>' + (canManageWorkspace ? '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button warn" data-action="delete-delivery" data-id="' + escapeHtml(row.id) + '">Delete</button></div>' : '<span class="bakeshop-inline-note">View only</span>') + '</td>'
-                + '</tr>';
+                + '<td><div class="bakeshop-row-actions">' + actionButtons.join('') + '</div></td>'
+                + '</tr>'
+                + (expanded
+                    ? '<tr class="bakeshop-row-focus"><td colspan="6">' + renderDeliveryDetail(row) + '</td></tr>'
+                    : '');
         }).join('');
 
         syncDeliverySelectionControls(rows);
@@ -3401,11 +3426,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadUsage() {
         syncPrintLink();
-        const data = await request(apiUrl(api.usage, {
-            branch_id: $('#usage-branch').value,
-            from_date: $('#usage-from').value,
-            to_date: $('#usage-to').value
-        }));
+        const scope = currentReportScope();
+        const usageBranch = $('#usage-branch');
+        const usageFrom = $('#usage-from');
+        const usageTo = $('#usage-to');
+        if (usageBranch) {
+            usageBranch.value = scope.branch_id || '';
+        }
+        if (usageFrom) {
+            usageFrom.value = scope.from_date || '';
+        }
+        if (usageTo) {
+            usageTo.value = scope.to_date || '';
+        }
+        const data = await request(apiUrl(api.usage, scope));
         if (data.settings && Number.isFinite(Number(data.settings.usage_decimal_places))) {
             state.usageDecimalPlaces = Number(data.settings.usage_decimal_places);
         }
@@ -3876,6 +3910,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 deletedCount += 1;
                 state.selectedDeliveryIds.delete(id);
+                if (Number(state.expandedDeliveryId || 0) === id) {
+                    state.expandedDeliveryId = 0;
+                }
             } catch (error) {
                 failedLabels.push((row && row.reference) ? row.reference : ('ID ' + String(id)));
             }
@@ -4574,6 +4611,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $('#deliveries-table').addEventListener('click', async (event) => {
+        const detailButton = event.target.closest('[data-action="toggle-delivery-detail"]');
+        if (detailButton) {
+            const row = findStateRow('delivery', detailButton.getAttribute('data-id'));
+            if (!row) {
+                showBanner('Selected delivery could not be found.', false);
+                return;
+            }
+
+            const rowId = Number(row.id || 0);
+            state.expandedDeliveryId = Number(state.expandedDeliveryId || 0) === rowId ? 0 : rowId;
+            renderOperationalTables();
+            return;
+        }
+
         const button = event.target.closest('[data-action="delete-delivery"]');
         if (!button) {
             return;

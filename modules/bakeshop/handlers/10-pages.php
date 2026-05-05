@@ -657,6 +657,24 @@ function bakeshopPagePrintSummary(array $params = []): void
 
         $filters = bakeshopUsageNormalizeFilters(bakeshopInput());
         $branches = bakeshopUsageBranchOptions();
+        $branchFilterOptions = array_map(static function (array $branch) use ($filters): array {
+            $branchId = (int)($branch['id'] ?? 0);
+            $code = trim((string)($branch['code'] ?? ''));
+            $name = trim((string)($branch['name'] ?? ''));
+            $label = $code !== '' && $name !== ''
+                ? ($code . ' - ' . $name)
+                : ($name !== '' ? $name : ($code !== '' ? $code : ('Branch #' . $branchId)));
+
+            return [
+                'value' => (string)$branchId,
+                'label' => $label,
+                'selected' => $branchId > 0 && $branchId === (int)($filters['branch_id'] ?? 0),
+            ];
+        }, $branches);
+        $supplierOptions = bakeshopUsageSupplierOptions($filters);
+        $ingredientOptions = bakeshopPrintSummaryIngredientOptions($filters);
+        $selectedSupplier = bakeshopUsageParseSupplierFilter($filters['supplier'] ?? null);
+        $selectedIngredientOptions = array_values(array_filter($ingredientOptions, static fn (array $option): bool => !empty($option['selected'])));
         $summaryGroups = bakeshopPrintSummaryBranchGroups($filters);
         $factualSummary = bakeshopUsageFactualSummary($filters);
         $visibleBounds = bakeshopUsageVisibleDateBounds($filters);
@@ -667,7 +685,16 @@ function bakeshopPagePrintSummary(array $params = []): void
             'page_title' => 'Printable Bakeshop Summary',
             'brand_settings' => bakeshopBrandSettings(),
             'filters' => $filters,
+            'branch_filter_options' => $branchFilterOptions,
+            'supplier_options' => $supplierOptions,
+            'ingredient_options' => $ingredientOptions,
             'branch_scope_label' => bakeshopPrintSummaryScopeLabel($filters, $branches, $summaryGroups),
+            'supplier_scope_label' => $selectedSupplier['label'] ?? 'All suppliers',
+            'ingredient_scope_label' => $selectedIngredientOptions === []
+                ? 'All ingredients'
+                : (count($selectedIngredientOptions) === 1
+                    ? (string)($selectedIngredientOptions[0]['label'] ?? '1 ingredient selected')
+                    : (count($selectedIngredientOptions) . ' ingredients selected')),
             'branches' => $branches,
             'summary_groups' => $summaryGroups,
             'factual_summary' => $factualSummary,
