@@ -6,7 +6,7 @@ function bakeshopPageSupervisor(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         $user = bakeshopCurrentUser('bakeshop.read');
-        echo bakeshopRenderSupervisorWorkspace($user, 'dashboard', 'branches', 'Bakeshop Operations', 'One operations workspace for branch setup, recipes, deliveries, production, and usage. The sections below are grouped so non-technical staff can work in the order they actually do the day.');
+        echo bakeshopRenderSupervisorWorkspace($user, 'dashboard', 'branches', 'Bakeshop Operations', 'One operations workspace for branch setup, ingredients, products, deliveries, production, and usage. The sections below are grouped so non-technical staff can work in the order they actually do the day.');
     });
 }
 
@@ -442,6 +442,11 @@ function bakeshopPageHistory(array $params = []): void
         $user = bakeshopCurrentUser(null, ['admin']);
         $history = bakeshopAuditHistoryList((array)bakeshopInput());
         $filters = $history['filters'];
+        $workspaceScopeQuery = array_filter([
+            'branch_id' => $filters['branch_id'],
+            'from_date' => $filters['date_from'],
+            'to_date' => $filters['date_to'],
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         echo bakeshopRender('pages/history.disyl', bakeshopPageContext($user, 'history', [
             'page_title' => 'Activity History',
@@ -453,6 +458,7 @@ function bakeshopPageHistory(array $params = []): void
             'history_branches' => bakeshopUsageBranchOptions(),
             'history_previous_url' => (int)$filters['offset'] > 0 ? bakeshopAuditHistoryPageUrl($filters, (int)$filters['offset'] - (int)$filters['limit']) : null,
             'history_next_url' => $history['has_more'] ? bakeshopAuditHistoryPageUrl($filters, (int)$filters['offset'] + (int)$filters['limit']) : null,
+            'workspace_scope_query' => $workspaceScopeQuery,
         ]));
     });
 }
@@ -464,9 +470,18 @@ function bakeshopRenderSupervisorWorkspace(array $user, string $currentPage, str
     $focusedWorkspaceMode = !$isDashboard
         || strtolower(trim((string)bakeshopInput('view', ''))) === 'workspace';
     $showDashboardPanels = $isDashboard && !$focusedWorkspaceMode;
+    $workspaceNavCurrentTab = (!$isDashboard || $focusedWorkspaceMode) ? $initialTab : null;
     $canManageWorkspace = bakeshopCanManageSettings($user);
-    $focusedWorkspaceBase = '/admin/bakeshop?view=workspace';
-    $workspaceTabBase = $focusedWorkspaceMode ? $focusedWorkspaceBase : '/admin/bakeshop';
+    $summaryFilters = $isDashboard ? bakeshopUsageNormalizeFilters(bakeshopInput()) : bakeshopUsageNormalizeFilters([]);
+    $summaryQuery = array_filter([
+        'branch_id' => $summaryFilters['branch_id'],
+        'from_date' => $summaryFilters['from_date'],
+        'to_date' => $summaryFilters['to_date'],
+    ], static fn (mixed $value): bool => $value !== null && $value !== '');
+    $workspaceOverviewUrl = '/admin/bakeshop' . ($summaryQuery === [] ? '' : ('?' . http_build_query($summaryQuery)));
+    $focusedWorkspaceQuery = array_merge(['view' => 'workspace'], $summaryQuery);
+    $focusedWorkspaceBase = '/admin/bakeshop?' . http_build_query($focusedWorkspaceQuery);
+    $workspaceTabBase = $focusedWorkspaceMode ? $focusedWorkspaceBase : $workspaceOverviewUrl;
     $workAreaMeta = [
         'branches' => [
             'title' => 'Branch Setup',
@@ -526,7 +541,6 @@ function bakeshopRenderSupervisorWorkspace(array $user, string $currentPage, str
     );
     $stats = $statsStmt ? ($statsStmt->fetch(PDO::FETCH_ASSOC) ?: []) : [];
     $usageDecimalPlaces = bakeshopUsageDecimalPlaces();
-    $summaryFilters = $isDashboard ? bakeshopUsageNormalizeFilters(bakeshopInput()) : bakeshopUsageNormalizeFilters([]);
     $summaryBranches = bakeshopUsageBranchOptions();
     $summaryGroups = $isDashboard ? bakeshopPrintSummaryBranchGroups($summaryFilters) : [];
     $summaryBounds = $isDashboard ? bakeshopUsageVisibleDateBounds($summaryFilters) : ['from_date' => null, 'to_date' => null];
@@ -544,11 +558,6 @@ function bakeshopRenderSupervisorWorkspace(array $user, string $currentPage, str
     }
     $summaryDisplayFromDate = $summaryFilters['from_date'] ?? $summaryBounds['from_date'];
     $summaryDisplayToDate = $summaryFilters['to_date'] ?? $summaryBounds['to_date'];
-    $summaryQuery = array_filter([
-        'branch_id' => $summaryFilters['branch_id'],
-        'from_date' => $summaryFilters['from_date'],
-        'to_date' => $summaryFilters['to_date'],
-    ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
     return bakeshopRender('pages/supervisor.disyl', bakeshopPageContext($user, $currentPage, [
         'in_workspace' => true,
@@ -556,8 +565,8 @@ function bakeshopRenderSupervisorWorkspace(array $user, string $currentPage, str
         'page_intro' => $pageIntro,
         'initial_tab' => $initialTab,
         'focused_workspace_mode' => $focusedWorkspaceMode,
-        'workspace_overview_url' => '/admin/bakeshop',
-        'workspace_nav_current_tab' => $isDashboard ? null : $initialTab,
+        'workspace_overview_url' => $workspaceOverviewUrl,
+        'workspace_nav_current_tab' => $workspaceNavCurrentTab,
         'workspace_submenu_routes' => $workspaceSubmenuRoutes,
         'work_area_labels' => $workAreaLabels,
         'work_area_meta' => $workAreaMeta,

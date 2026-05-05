@@ -396,8 +396,34 @@ function bakeshopCanViewHistory(array $user): bool
     return bakeshopCanManageUsers($user);
 }
 
+function bakeshopWorkspaceScopeQuery(?array $input = null): array
+{
+    $filters = bakeshopUsageNormalizeFilters($input ?? bakeshopInput());
+
+    return array_filter([
+        'branch_id' => $filters['branch_id'] ?? null,
+        'from_date' => $filters['from_date'] ?? null,
+        'to_date' => $filters['to_date'] ?? null,
+    ], static fn (mixed $value): bool => $value !== null && $value !== '');
+}
+
+function bakeshopPathWithQuery(string $path, array $query = [], string $fragment = ''): string
+{
+    $url = $path;
+    if ($query !== []) {
+        $url .= '?' . http_build_query($query);
+    }
+    if ($fragment !== '') {
+        $url .= '#' . ltrim($fragment, '#');
+    }
+
+    return $url;
+}
+
 function bakeshopPageContext(array $user, string $currentPage, array $extra = []): array
 {
+    $workspaceScopeQuery = $extra['workspace_scope_query'] ?? bakeshopWorkspaceScopeQuery();
+
     $context = array_merge([
         'user' => $user,
         'current_page' => $currentPage,
@@ -408,6 +434,13 @@ function bakeshopPageContext(array $user, string $currentPage, array $extra = []
         'can_manage_users' => bakeshopCanManageUsers($user),
         'can_manage_settings' => bakeshopCanManageSettings($user),
         'can_view_history' => bakeshopCanViewHistory($user),
+        'workspace_scope_query' => $workspaceScopeQuery,
+        'workspace_overview_url' => bakeshopPathWithQuery('/admin/bakeshop', $workspaceScopeQuery),
+        'workspace_print_url' => bakeshopPathWithQuery('/admin/bakeshop/print', $workspaceScopeQuery),
+        'workspace_history_url' => bakeshopPathWithQuery('/admin/bakeshop/history', $workspaceScopeQuery),
+        'workspace_users_url' => bakeshopPathWithQuery('/admin/bakeshop/users', $workspaceScopeQuery),
+        'workspace_settings_url' => bakeshopPathWithQuery('/admin/bakeshop/settings', $workspaceScopeQuery),
+        'workspace_account_url' => bakeshopPathWithQuery('/admin/bakeshop/account', $workspaceScopeQuery),
         'brand_settings' => bakeshopBrandSettings(),
         'allow_production_guard_override' => bakeshopAllowProductionGuardOverride(),
     ], $extra);

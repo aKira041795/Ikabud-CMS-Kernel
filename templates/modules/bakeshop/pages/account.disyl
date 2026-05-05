@@ -42,8 +42,8 @@
             <p>Keep your staff profile visible, update your password, and handle bootstrap handoff tasks without leaving the Bakeshop module.</p>
         </div>
         <div class="bakeshop-account-actions">
-            <a class="bakeshop-account-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
-            {if can_manage_users}<a class="bakeshop-account-button secondary" href="{base_url}/admin/bakeshop/users">Manage Staff</a>{/if}
+            <a class="bakeshop-account-button secondary" href="{base_url}{workspace_overview_url}">Back to Workspace</a>
+            {if can_manage_users}<a class="bakeshop-account-button secondary" href="{base_url}{workspace_users_url}">Manage Staff</a>{/if}
         </div>
     </div>
 

@@ -577,27 +577,27 @@
             <nav class="bakeshop-nav">
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Daily Work</div>
-                    <a href="{base_url}/admin/bakeshop" class="{if in_workspace}active{/if}">
+                    <a href="{base_url}{workspace_overview_url}" class="{if in_workspace}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Operations Workspace</strong>
-                            <span>Overview plus focused views for branches, catalog, deliveries, production, and usage</span>
+                            <span>Overview plus focused views for branches, products, ingredients, deliveries, production, and usage</span>
                         </span>
                     </a>
                     {if in_workspace && workspace_submenu_routes}
                     <div class="bakeshop-nav-submenu" aria-label="Focused work areas">
-                        <a href="{base_url}{workspace_submenu_routes.branches}" class="{if workspace_nav_current_tab == 'branches'}active{/if}" data-workspace-submenu="true" data-tab-target="branches" data-server-active="{if workspace_nav_current_tab == 'branches'}true{else}false{/if}">Branches</a>
-                        <a href="{base_url}{workspace_submenu_routes.catalog}" class="{if workspace_nav_current_tab == 'catalog'}active{/if}" data-workspace-submenu="true" data-tab-target="catalog" data-server-active="{if workspace_nav_current_tab == 'catalog'}true{else}false{/if}">Products</a>
-                        <a href="{base_url}{workspace_submenu_routes.ingredients}" class="{if workspace_nav_current_tab == 'ingredients'}active{/if}" data-workspace-submenu="true" data-tab-target="ingredients" data-server-active="{if workspace_nav_current_tab == 'ingredients'}true{else}false{/if}">Ingredients</a>
-                        <a href="{base_url}{workspace_submenu_routes.deliveries}" class="{if workspace_nav_current_tab == 'deliveries'}active{/if}" data-workspace-submenu="true" data-tab-target="deliveries" data-server-active="{if workspace_nav_current_tab == 'deliveries'}true{else}false{/if}">Ingredient Deliveries</a>
-                        <a href="{base_url}{workspace_submenu_routes.production}" class="{if workspace_nav_current_tab == 'production'}active{/if}" data-workspace-submenu="true" data-tab-target="production" data-server-active="{if workspace_nav_current_tab == 'production'}true{else}false{/if}">Production Runs</a>
-                        <a href="{base_url}{workspace_submenu_routes.usage}" class="{if workspace_nav_current_tab == 'usage'}active{/if}" data-workspace-submenu="true" data-tab-target="usage" data-server-active="{if workspace_nav_current_tab == 'usage'}true{else}false{/if}">Usage Summary</a>
+                        <a href="{base_url}{workspace_submenu_routes.branches}" class="{if workspace_nav_current_tab == 'branches'}active{/if}"{if workspace_nav_current_tab == 'branches'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="branches" data-server-active="{if workspace_nav_current_tab == 'branches'}true{else}false{/if}">Branches</a>
+                        <a href="{base_url}{workspace_submenu_routes.catalog}" class="{if workspace_nav_current_tab == 'catalog'}active{/if}"{if workspace_nav_current_tab == 'catalog'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="catalog" data-server-active="{if workspace_nav_current_tab == 'catalog'}true{else}false{/if}">Products</a>
+                        <a href="{base_url}{workspace_submenu_routes.ingredients}" class="{if workspace_nav_current_tab == 'ingredients'}active{/if}"{if workspace_nav_current_tab == 'ingredients'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="ingredients" data-server-active="{if workspace_nav_current_tab == 'ingredients'}true{else}false{/if}">Ingredients</a>
+                        <a href="{base_url}{workspace_submenu_routes.deliveries}" class="{if workspace_nav_current_tab == 'deliveries'}active{/if}"{if workspace_nav_current_tab == 'deliveries'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="deliveries" data-server-active="{if workspace_nav_current_tab == 'deliveries'}true{else}false{/if}">Ingredient Deliveries</a>
+                        <a href="{base_url}{workspace_submenu_routes.production}" class="{if workspace_nav_current_tab == 'production'}active{/if}"{if workspace_nav_current_tab == 'production'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="production" data-server-active="{if workspace_nav_current_tab == 'production'}true{else}false{/if}">Production Runs</a>
+                        <a href="{base_url}{workspace_submenu_routes.usage}" class="{if workspace_nav_current_tab == 'usage'}active{/if}"{if workspace_nav_current_tab == 'usage'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="usage" data-server-active="{if workspace_nav_current_tab == 'usage'}true{else}false{/if}">Usage Summary</a>
                     </div>
                     {/if}
                 </div>
 
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Reports</div>
-                    <a href="{base_url}/admin/bakeshop/print" target="_blank" rel="noopener">
+                    <a href="{base_url}{workspace_print_url}" target="_blank" rel="noopener">
                         <span class="bakeshop-nav-title">
                             <strong>Print Summary</strong>
                             <span>Open the clean branch usage report</span>
@@ -608,7 +608,7 @@
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Administration</div>
                     {if can_view_history}
-                    <a href="{base_url}/admin/bakeshop/history" class="{if current_page == 'history'}active{/if}">
+                    <a href="{base_url}{workspace_history_url}" class="{if current_page == 'history'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Activity History</strong>
                             <span>Changes to staff, settings, and operations</span>
@@ -616,7 +616,7 @@
                     </a>
                     {/if}
                     {if can_manage_users}
-                    <a href="{base_url}/admin/bakeshop/users" class="{if current_page == 'users'}active{/if}">
+                    <a href="{base_url}{workspace_users_url}" class="{if current_page == 'users'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Staff</strong>
                             <span>Admins, supervisors, onboarding</span>
@@ -624,7 +624,7 @@
                     </a>
                     {/if}
                     {if can_manage_settings}
-                    <a href="{base_url}/admin/bakeshop/settings" class="{if current_page == 'settings'}active{/if}">
+                    <a href="{base_url}{workspace_settings_url}" class="{if current_page == 'settings'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Settings</strong>
                             <span>Access rules and module defaults</span>
@@ -635,7 +635,7 @@
 
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Account</div>
-                    <a href="{base_url}/admin/bakeshop/account" class="{if current_page == 'account'}active{/if}">
+                    <a href="{base_url}{workspace_account_url}" class="{if current_page == 'account'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>My Account</strong>
                             <span>Password and account details</span>
@@ -646,7 +646,7 @@
 
             <div class="bakeshop-sidebar-card">
                 <h2>Recommended Order</h2>
-                <p>Open the operations workspace once, then move across the tabs in order: branches, catalog, deliveries, production, and usage review.</p>
+                <p>Open the operations workspace once, then move across the tabs in order: branches, ingredients, products, deliveries, production, and usage review.</p>
                 {if bootstrap_onboarding.required}
                 <div class="bakeshop-shell-note">Bootstrap admin handoff is active: {bootstrap_onboarding_guide.completed_count}/{bootstrap_onboarding_guide.total_count} steps finished.</div>
                 {/if}

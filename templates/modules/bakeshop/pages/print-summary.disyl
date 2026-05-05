@@ -65,10 +65,10 @@
     <h2>{page_title}</h2>
     <p>Per-store ingredient balance summary showing opening stock, delivery source, delivery totals, production usage, and remaining balance.</p>
 
-    <form class="bakeshop-print-toolbar" id="bakeshop-print-filter-form" method="get" action="/admin/bakeshop/print">
+    <form class="bakeshop-print-toolbar" id="bakeshop-print-filter-form" method="get" action="{base_url}/admin/bakeshop/print">
         <div class="bakeshop-print-toolbar-head">
             <h3>Filter Summary</h3>
-            <p>Limit the printable report by branch, date, supplier, or a selected ingredient list. Branch and supplier refresh the report as soon as you change them.</p>
+            <p>Limit the printable report by branch, date, supplier, or a selected ingredient list. Branch, date, and supplier changes refresh the available supplier and ingredient choices; apply filters when you are ready to update the report.</p>
         </div>
         <div class="bakeshop-print-filters">
             <label class="bakeshop-print-filter">
@@ -146,7 +146,7 @@
         </noscript>
         <div class="bakeshop-print-actions">
             <button class="bakeshop-print-button" type="submit">Apply Filters</button>
-            <a class="bakeshop-print-button secondary" href="/admin/bakeshop/print">Reset</a>
+            <a class="bakeshop-print-button secondary" href="{base_url}/admin/bakeshop/print">Reset</a>
         </div>
         <div class="bakeshop-filter-status" id="print-filter-status" aria-live="polite"></div>
     </form>
@@ -294,6 +294,11 @@
                 return;
             }
 
+            if (ingredientTrigger && ingredientTrigger.disabled && ingredientCheckboxes.length === 0) {
+                ingredientSummary.textContent = 'No ingredients for this scope';
+                return;
+            }
+
             const selected = ingredientCheckboxes.filter((checkbox) => checkbox.checked);
             if (selected.length === 0) {
                 ingredientSummary.textContent = 'All ingredients';
@@ -338,9 +343,10 @@
             }
 
             const currentValue = String(supplierFilter.value || '');
+            const optionList = Array.isArray(options) ? options : [];
             const fragment = ['<option value="">All suppliers</option>'];
             let nextValue = '';
-            (Array.isArray(options) ? options : []).forEach(function (option) {
+            optionList.forEach(function (option) {
                 const value = String(option.value || '');
                 const label = String(option.label || value || 'Supplier');
                 if (currentValue !== '' && value === currentValue) {
@@ -350,6 +356,7 @@
             });
             supplierFilter.innerHTML = fragment.join('');
             supplierFilter.value = nextValue;
+            supplierFilter.disabled = optionList.length === 0;
         };
 
         const renderIngredientOptions = function (options) {
@@ -359,9 +366,15 @@
 
             const selectedValues = currentIngredientSelection();
             const optionList = Array.isArray(options) ? options : [];
+            if (ingredientTrigger) {
+                ingredientTrigger.disabled = optionList.length === 0;
+            }
             if (optionList.length === 0) {
                 ingredientOptionsContainer.innerHTML = '<div class="bakeshop-empty">No ingredients matched the current branch, date, and supplier scope.</div>';
                 bindIngredientCheckboxes();
+                if (ingredientSummary) {
+                    ingredientSummary.textContent = 'No ingredients for this scope';
+                }
                 updateIngredientSummary();
                 return;
             }
@@ -385,7 +398,7 @@
         };
 
         const buildScopedRefreshUrl = function () {
-            const url = new URL('/api/v1/bakeshop/usage', window.location.origin);
+            const url = new URL('{base_url}/api/v1/bakeshop/usage', window.location.origin);
             if (branchFilter && branchFilter.value) {
                 url.searchParams.set('branch_id', branchFilter.value);
             }
@@ -421,6 +434,14 @@
                 const data = payload.data || {};
                 renderSupplierOptions(data.supplier_options || []);
                 renderIngredientOptions(data.ingredient_options || []);
+                const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+                const supplierCount = Array.isArray(data.supplier_options) ? data.supplier_options.length : 0;
+                const ingredientCount = Array.isArray(data.ingredient_options) ? data.ingredient_options.length : 0;
+                if (itemCount === 0 && supplierCount === 0 && ingredientCount === 0) {
+                    setFilterStatus('No report data matched this branch and date scope yet. Supplier and ingredient filters will stay empty until deliveries or production exist for it.', 'ready');
+                    return;
+                }
+
                 setFilterStatus('Filter choices updated for the current scope.', 'ready');
             } catch (error) {
                 if (requestToken !== refreshRequestToken) {

@@ -110,8 +110,8 @@
             <p>Use the panels below to manage access, store branding, print defaults, and unit setup without returning to the operations workspace.</p>
         </div>
         <div class="bakeshop-settings-actions">
-            <a class="bakeshop-settings-button secondary" href="{base_url}/admin/bakeshop">Back to Workspace</a>
-            <a class="bakeshop-settings-button secondary" href="{base_url}/admin/bakeshop/account">My Account</a>
+            <a class="bakeshop-settings-button secondary" href="{base_url}{workspace_overview_url}">Back to Workspace</a>
+            <a class="bakeshop-settings-button secondary" href="{base_url}{workspace_account_url}">My Account</a>
         </div>
     </div>
 

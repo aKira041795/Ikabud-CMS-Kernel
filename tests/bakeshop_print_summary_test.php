@@ -260,6 +260,7 @@ try {
     $ingredientOptions = bakeshopPrintSummaryIngredientOptions($filters);
     $html = bakeshopRender('pages/print-summary.disyl', [
         'page_title' => 'Printable Bakeshop Summary',
+        'base_url' => '/shared/app',
         'brand_settings' => bakeshopBrandSettings(),
         'filters' => $filters,
         'branch_filter_options' => [[
@@ -288,6 +289,8 @@ try {
     btPrint('print summary renders branch label', str_contains($html, $branchLabel), $html);
     btPrint('print summary renders ingredient row', str_contains($html, (string)($ingredient['name'] ?? '')), $html);
     btPrint('print summary renders filter controls', str_contains($html, 'All branches') && str_contains($html, 'name="supplier"') && str_contains($html, 'name="ingredient_ids[]"') && str_contains($html, 'Apply Filters'), $html);
+    btPrint('print summary filter copy matches apply-first behavior', str_contains($html, 'apply filters when you are ready to update the report'), $html);
+    btPrint('print summary uses base_url for filter routes', str_contains($html, 'action="/shared/app/admin/bakeshop/print"') && str_contains($html, 'href="/shared/app/admin/bakeshop/print"') && str_contains($html, "new URL('/shared/app/api/v1/bakeshop/usage', window.location.origin)"), $html);
     btPrint('print summary renders new balance headings', str_contains($html, 'Beginning Balance') && str_contains($html, 'Delivery Source') && str_contains($html, 'Remaining Balance'), $html);
     btPrint('print summary renders beginning balance using configured decimals', str_contains($html, '5.00'), $html);
     btPrint('print summary renders period delivery using configured decimals', str_contains($html, '7.00'), $html);

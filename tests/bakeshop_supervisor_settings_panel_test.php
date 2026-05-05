@@ -46,12 +46,21 @@ function renderBakeshopSupervisorForUser(array $user, array $query = []): string
     }
 }
 
-function renderBakeshopPageForUser(array $user, callable $page): string
+function renderBakeshopPageForUser(array $user, callable $page, array $query = []): string
 {
+    $previousGet = $_GET;
+    $previousRequestUri = $_SERVER['REQUEST_URI'] ?? '/admin/bakeshop';
+    $_GET = $query;
+    $_SERVER['REQUEST_URI'] = '/admin/bakeshop' . ($query === [] ? '' : ('?' . http_build_query($query)));
     app()->setUser($user);
     ob_start();
-    $page();
-    return (string)ob_get_clean();
+    try {
+        $page();
+        return (string)ob_get_clean();
+    } finally {
+        $_GET = $previousGet;
+        $_SERVER['REQUEST_URI'] = $previousRequestUri;
+    }
 }
 
 $appLogPath = STORAGE_PATH . '/logs/app.log';
@@ -106,6 +115,28 @@ try {
     btPanel('admin page moves seeded units out of workspace', !str_contains($adminHtml, 'Seeded Units'));
     btPanel('admin page usage totals render configured decimal placeholders', str_contains($adminHtml, 'id="usage-total-delivered">0.00</strong>'), $adminHtml);
 
+    $scopedQuery = [
+        'from_date' => '2026-04-28',
+        'to_date' => '2026-05-04',
+    ];
+    $scopedBranches = bakeshopUsageBranchOptions();
+    $scopedBranchId = (string)($scopedBranches[0]['id'] ?? '');
+    if ($scopedBranchId !== '') {
+        $scopedQuery['branch_id'] = $scopedBranchId;
+    }
+    $scopedQueryString = http_build_query($scopedQuery);
+    $scopedAdminHtml = renderBakeshopSupervisorForUser([
+        'id' => 1,
+        'username' => 'admin',
+        'role' => 'admin',
+        'source' => 'bakeshop',
+    ], $scopedQuery);
+    btPanel(
+        'dashboard work area tabs preserve applied report scope',
+        str_contains($scopedAdminHtml, htmlspecialchars('/admin/bakeshop?' . $scopedQueryString . '#usage', ENT_QUOTES))
+            && str_contains($scopedAdminHtml, htmlspecialchars('/admin/bakeshop?view=workspace&' . $scopedQueryString . '#usage', ENT_QUOTES))
+    );
+
     $focusedAdminHtml = renderBakeshopSupervisorForUser([
         'id' => 1,
         'username' => 'admin',
@@ -116,6 +147,10 @@ try {
     btPanel('focused workspace mode hides dashboard overview panels', str_contains($focusedAdminHtml, 'class="bakeshop-stats" style="display:none;"') && str_contains($focusedAdminHtml, 'Summary Report') && str_contains($focusedAdminHtml, 'Back to Full Overview'));
     btPanel('focused workspace mode exposes contextual title targets', str_contains($focusedAdminHtml, 'id="bakeshop-page-title"') && str_contains($focusedAdminHtml, 'id="bakeshop-page-intro"'));
     btPanel('focused workspace tabs expose contextual header metadata', str_contains($focusedAdminHtml, 'data-workspace-title="Branch Setup"') && str_contains($focusedAdminHtml, 'data-workspace-title="Usage Summary"'));
+    btPanel(
+        'focused workspace mode defaults shell submenu to branches',
+        preg_match('/<a\\b(?=[^>]*data-tab-target="branches")(?=[^>]*data-server-active="true")(?=[^>]*aria-current="page")[^>]*>Branches<\\/a>/', $focusedAdminHtml) === 1
+    );
 
     $branchesHtml = renderBakeshopPageForUser([
         'id' => 1,
@@ -128,6 +163,44 @@ try {
     btPanel('work-area pages hide dashboard quick-start panel', str_contains($branchesHtml, 'class="bakeshop-stats" style="display:none;"') && str_contains($branchesHtml, '<section class="bakeshop-panel" style="display:none;">'));
     btPanel('work-area pages hide dashboard summary report', str_contains($branchesHtml, '<section class="bakeshop-panel" style="display:none;">') && str_contains($branchesHtml, 'Summary Report'));
     btPanel('work-area pages keep workspace tabs visible', str_contains($branchesHtml, 'Bakeshop setup sections') && !str_contains($branchesHtml, 'display:none;" role="tablist" aria-label="Bakeshop setup sections"'));
+
+    $scopedSettingsHtml = renderBakeshopPageForUser([
+        'id' => 1,
+        'username' => 'admin',
+        'role' => 'admin',
+        'source' => 'bakeshop',
+    ], 'bakeshopPageSettings', $scopedQuery);
+    btPanel(
+        'admin pages preserve scoped workspace return links',
+        str_contains($scopedSettingsHtml, htmlspecialchars('/admin/bakeshop?' . $scopedQueryString, ENT_QUOTES))
+            && str_contains($scopedSettingsHtml, htmlspecialchars('/admin/bakeshop/account?' . $scopedQueryString, ENT_QUOTES))
+            && str_contains($scopedSettingsHtml, htmlspecialchars('/admin/bakeshop/history?' . $scopedQueryString, ENT_QUOTES))
+    );
+
+    $historyScopedQuery = [
+        'branch_id' => $scopedQuery['branch_id'] ?? '',
+        'date_from' => $scopedQuery['from_date'],
+        'date_to' => $scopedQuery['to_date'],
+        'search' => 'production',
+        'limit' => '25',
+    ];
+    $historyWorkspaceScopeQuery = array_filter([
+        'branch_id' => $historyScopedQuery['branch_id'],
+        'from_date' => $historyScopedQuery['date_from'],
+        'to_date' => $historyScopedQuery['date_to'],
+    ], static fn (mixed $value): bool => $value !== null && $value !== '');
+    $historyScopedHtml = renderBakeshopPageForUser([
+        'id' => 1,
+        'username' => 'admin',
+        'role' => 'admin',
+        'source' => 'bakeshop',
+    ], 'bakeshopPageHistory', $historyScopedQuery);
+    btPanel(
+        'history filters map back into workspace scope links',
+        str_contains($historyScopedHtml, htmlspecialchars('/admin/bakeshop?' . http_build_query($historyWorkspaceScopeQuery), ENT_QUOTES))
+            && str_contains($historyScopedHtml, htmlspecialchars('/admin/bakeshop/settings?' . http_build_query($historyWorkspaceScopeQuery), ENT_QUOTES))
+            && str_contains($historyScopedHtml, htmlspecialchars('/admin/bakeshop/print?' . http_build_query($historyWorkspaceScopeQuery), ENT_QUOTES))
+    );
 
     app()->setUser([
         'id' => 1,

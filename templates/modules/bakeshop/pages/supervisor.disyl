@@ -677,7 +677,7 @@
                     </div>
                 </div>
                 <div class="bakeshop-form-actions">
-                    <span class="bakeshop-help">This branch and date scope also seeds the usage work area and printable report.</span>
+                    <span class="bakeshop-help">Filters you apply here also carry into the usage work area and printable report.</span>
                     <div class="bakeshop-actions">
                         {if summary_report.has_active_filters}
                         <a class="bakeshop-button secondary" href="{base_url}{summary_report.dashboard_url}">Reset</a>
@@ -1361,7 +1361,7 @@
                                 <input id="usage-to" name="to_date" type="date" value="{summary_report.filters.to_date}" data-report-scope="to_date">
                             </div>
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
-                                <span class="bakeshop-help">These filters mirror the dashboard summary scope and drive the printable report.</span>
+                                <span class="bakeshop-help">These filters mirror any applied dashboard summary filters and drive the printable report.</span>
                                 <button class="bakeshop-button" type="submit">Refresh Usage</button>
                             </div>
                         </form>
