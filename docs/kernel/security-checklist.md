@@ -35,6 +35,7 @@
 
 - Use database users with only the privileges the app needs.
 - Protect control-plane database credentials and `CONTROL_DB_ENC_KEY` with the same rigor as production secrets.
+- If database TLS is enabled, keep `DB_SSL_VERIFY_SERVER_CERT` and `CONTROL_DB_SSL_VERIFY_SERVER_CERT` enabled and ensure the configured CA path is deployed with the app.
 - Back up both tenant and control-plane databases before running upgrades or importing large data sets.
 - Validate that multi-tenant deployments reject cross-tenant JWTs and do not fall back to global settings unexpectedly.
 

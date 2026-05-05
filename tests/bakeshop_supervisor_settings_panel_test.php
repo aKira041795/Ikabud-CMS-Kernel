@@ -211,10 +211,14 @@ try {
     ob_start();
     bakeshopPageSettings();
     $settingsHtml = (string)ob_get_clean();
+    $expectedPrimaryTimeout = (int) app()->config('database.timeout_seconds', 0);
+    $expectedControlTimeout = (int) app()->config('control_database.timeout_seconds', 0);
     btPanel('settings page renders branding section', str_contains($settingsHtml, 'Branding, Usage, and Print Defaults'));
     btPanel('settings page renders store branding fields', str_contains($settingsHtml, 'Store Name') && str_contains($settingsHtml, 'Store Description') && str_contains($settingsHtml, 'Upload Logo'), $settingsHtml);
     btPanel('settings page renders branding save action', str_contains($settingsHtml, 'Save Branding and Display Defaults'));
     btPanel('settings page renders logo upload controls', str_contains($settingsHtml, 'store_logo_file') && str_contains($settingsHtml, 'Use Lettermark'), $settingsHtml);
+    btPanel('settings page renders runtime diagnostics section', str_contains($settingsHtml, 'Runtime Diagnostics') && str_contains($settingsHtml, 'Primary Request DB Target') && str_contains($settingsHtml, 'Tenant DB Config Cache') && str_contains($settingsHtml, 'Encrypted Tenant Credentials'), $settingsHtml);
+    btPanel('settings page runtime diagnostics distinguish primary and control timeout policy', str_contains($settingsHtml, 'Primary ' . $expectedPrimaryTimeout . 's, control ' . $expectedControlTimeout . 's'), $settingsHtml);
     btPanel('shell sidebar uses configured store name', str_contains($adminHtml, 'Crust &amp; Crumb') || str_contains($adminHtml, 'Crust & Crumb'), $adminHtml);
     btPanel('shell sidebar uses configured store description', str_contains($adminHtml, 'Morning bake production and delivery control center.'), $adminHtml);
     btPanel('shell sidebar renders configured logo', str_contains($adminHtml, '/uploads/bakeshop/crust-and-crumb.png'), $adminHtml);
@@ -226,8 +230,16 @@ try {
         'source' => 'bakeshop',
     ]);
 
+    $supervisorSettingsHtml = renderBakeshopPageForUser([
+        'id' => 2,
+        'username' => 'supervisor',
+        'role' => 'supervisor',
+        'source' => 'bakeshop',
+    ], 'bakeshopPageSettings');
+
     btPanel('read-only supervisor page also omits access settings section', !str_contains($supervisorHtml, 'Access Settings'));
     btPanel('read-only supervisor page also omits seeded units section', !str_contains($supervisorHtml, 'Seeded Units'));
+    btPanel('read-only supervisor settings omit runtime diagnostics section', !str_contains($supervisorSettingsHtml, 'Runtime Diagnostics'), $supervisorSettingsHtml);
 } finally {
     saveModuleSettings('bakeshop', [
         'role_permissions' => $originalRolePermissions,

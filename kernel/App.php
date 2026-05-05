@@ -750,6 +750,11 @@ class App
         return $this->databaseManager()->tenantDbPoolStats();
     }
 
+    public function dbRuntimeSnapshot(): array
+    {
+        return $this->databaseManager()->runtimeSnapshot();
+    }
+
     /** Get primary database connection (lazy loaded, tenant-aware). */
     public function db(): PDO
     {

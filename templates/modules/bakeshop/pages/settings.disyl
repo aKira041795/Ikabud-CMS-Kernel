@@ -280,6 +280,69 @@
             </div>
         </div>
     </section>
+
+    {if can_manage_settings}
+    <section class="bakeshop-settings-panel">
+        <div class="bakeshop-settings-panel-head">
+            <h3>Runtime Diagnostics</h3>
+            <p>Read-only kernel connection policy and request-level DB runtime status for this Bakeshop session.</p>
+        </div>
+        <div class="bakeshop-settings-panel-body">
+            <div class="bakeshop-settings-table-wrap">
+                <table class="bakeshop-settings-table">
+                    <thead>
+                        <tr>
+                            <th>Diagnostic</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Primary Request DB Target</strong><div class="bakeshop-settings-note">Whether the current request resolves to the shared primary DB or a tenant DB.</div></td>
+                            <td>{if db_runtime.primary_request_target == 'tenant'}Tenant DB{else}Primary DB{/if}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Current Tenant</strong><div class="bakeshop-settings-note">Resolved tenant id for this request, when multi-tenant routing is active.</div></td>
+                            <td>{if db_runtime.request_tenant_id}{db_runtime.request_tenant_id}{else}None{/if}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tenant DB Pool</strong><div class="bakeshop-settings-note">Active cross-tenant connections cached inside the kernel for this request.</div></td>
+                            <td>{db_runtime.tenant_pool.active} active / {db_runtime.tenant_pool.max} max</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tenant DB Config Cache</strong><div class="bakeshop-settings-note">How tenant DB connection rows are cached before the kernel reaches the control plane.</div></td>
+                            <td>{db_runtime.tenant_config_cache.backend}, TTL {db_runtime.tenant_config_cache.ttl_seconds}s</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Prepared Statement Policy</strong><div class="bakeshop-settings-note">Kernel DB manager enforces native prepares and typed fetch behavior on every connection.</div></td>
+                            <td>{if !db_runtime.primary_policy.emulate_prepares}Native prepares enforced{/if}, stringify fetches {if db_runtime.primary_policy.stringify_fetches}on{else}off{/if}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Connection Timeout</strong><div class="bakeshop-settings-note">Primary and control DB timeouts after central kernel policy normalization.</div></td>
+                            <td>Primary {db_runtime.primary_policy.timeout_seconds}s, control {db_runtime.control_policy.timeout_seconds}s</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Persistent Connections</strong><div class="bakeshop-settings-note">Whether the kernel keeps PDO connections persistent for primary and control-plane access.</div></td>
+                            <td>Primary {if db_runtime.primary_policy.persistent}enabled{else}disabled{/if}, control {if db_runtime.control_policy.persistent}enabled{else}disabled{/if}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Encrypted Tenant Credentials</strong><div class="bakeshop-settings-note">Control-plane tenant DB passwords can be required to stay encrypted at rest.</div></td>
+                            <td>{if db_runtime.primary_policy.encrypted_tenant_passwords_enforced}Required{else}Allowed but not enforced{/if}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>DB TLS</strong><div class="bakeshop-settings-note">Primary and control-plane MySQL transport security posture after kernel normalization.</div></td>
+                            <td>Primary {if db_runtime.primary_policy.ssl_enabled}enabled{if db_runtime.primary_policy.ssl_verify_server_cert}, verified{/if}{if db_runtime.primary_policy.ssl_has_ca}, CA configured{/if}{else}disabled{/if}; control {if db_runtime.control_policy.ssl_enabled}enabled{if db_runtime.control_policy.ssl_verify_server_cert}, verified{/if}{if db_runtime.control_policy.ssl_has_ca}, CA configured{/if}{else}disabled{/if}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Request Counters</strong><div class="bakeshop-settings-note">Connection and cache activity seen by the kernel during this request.</div></td>
+                            <td>Primary connects {db_runtime.counters.primary_connects}, control connects {db_runtime.counters.control_connects}, tenant connects {db_runtime.counters.tenant_connects}, tenant pool hits {db_runtime.counters.tenant_pool_hits}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    {/if}
 </div>
 
 <script>

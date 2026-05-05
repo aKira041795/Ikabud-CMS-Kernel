@@ -632,6 +632,8 @@ function bakeshopPageSettings(array $params = []): void
         $units = $unitsStmt ? ($unitsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
         $settings = bakeshopSettings();
         $brandSettings = bakeshopBrandSettings();
+        $canManageSettings = bakeshopCanManageSettings($user);
+        $dbRuntime = $canManageSettings ? app()->dbRuntimeSnapshot() : null;
 
         echo bakeshopRender('pages/settings.disyl', bakeshopPageContext($user, 'settings', [
             'page_title' => 'Bakeshop Settings',
@@ -654,7 +656,8 @@ function bakeshopPageSettings(array $params = []): void
                     'manage' => in_array('bakeshop.manage', $rolePermissions['supervisor'] ?? [], true),
                 ],
             ],
-                'can_manage_settings' => bakeshopCanManageSettings($user),
+            'db_runtime' => $dbRuntime,
+            'can_manage_settings' => $canManageSettings,
         ]));
     });
 }
