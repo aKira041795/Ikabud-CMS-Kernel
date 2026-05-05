@@ -4132,6 +4132,10 @@ function handleAdminActivity(array $params = []): void
         'dr_number' => 'DR Number',
         'ledger_date' => 'Ledger Date',
         'flow_mode' => 'Flow',
+        'review_action' => 'Check Action',
+        'reviewed_by_role' => 'Checked By Role',
+        'provenance_status' => 'Paper DR Check Status',
+        'provenance_review_note' => 'Check Note',
         'yield_qty' => 'Yield',
         'kilo_qty' => 'Kilo',
         'egg_qty' => 'Egg',
@@ -4193,7 +4197,23 @@ function handleAdminActivity(array $params = []): void
         if ($key === 'is_active') {
             return (int)$value === 1 ? 'Yes' : 'No';
         }
-        if (in_array($key, ['role', 'flow_mode', 'status', 'primary_input_type'], true)) {
+        if ($key === 'provenance_status') {
+            return match (trim((string)$value)) {
+                'paper_dr_pending' => 'Needs Check',
+                'accepted' => 'Verified',
+                'discrepant' => 'Discrepancy',
+                default => trim((string)$value) === '' ? 'None' : ucwords(str_replace('_', ' ', trim((string)$value))),
+            };
+        }
+        if ($key === 'review_action') {
+            return match (trim((string)$value)) {
+                'accepted' => 'Verified',
+                'discrepant' => 'Flagged Discrepancy',
+                'reopen' => 'Reopened Check',
+                default => trim((string)$value) === '' ? 'None' : ucwords(str_replace('_', ' ', trim((string)$value))),
+            };
+        }
+        if (in_array($key, ['role', 'flow_mode', 'status', 'primary_input_type', 'reviewed_by_role'], true)) {
             $text = trim((string)$value);
             return $text === '' ? 'None' : ucwords(str_replace('_', ' ', $text));
         }
@@ -4450,8 +4470,8 @@ function handleAdminActivity(array $params = []): void
                 $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
                 break;
             case 'review_delivery_provenance':
-                $summary = 'Reviewed paper DR';
-                $badgeLabel = 'DR Review';
+                $summary = 'Updated paper DR check';
+                $badgeLabel = 'Paper DR';
                 $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
                 break;
             case 'variance_status':

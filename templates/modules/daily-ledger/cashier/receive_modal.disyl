@@ -19,6 +19,9 @@
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="receive-modal-title">Incoming Deliveries</h3>
                     <p class="text-sm text-gray-500 mb-4">Accept a delivery to add the received quantity to today's <span class="font-semibold">Addt'l</span> column.</p>
+                    <div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700">
+                        Two cases live here: <span class="font-semibold">receive an already-encoded dispatch</span>, or if the truck arrived first, <span class="font-semibold">capture the paper DR and receive it immediately</span>. Use the second path only when no pending system delivery exists yet.
+                    </div>
 
                     <template x-if="loading">
                         <div class="py-8 text-center text-sm text-gray-500">Loading deliveries...</div>
@@ -40,10 +43,10 @@
                     <div class="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <div class="text-sm font-semibold text-indigo-900">Receive by Paper DR</div>
+                                <div class="text-sm font-semibold text-indigo-900">Truck arrived first? Receive by Paper DR</div>
                                 <p class="mt-1 text-xs text-indigo-800">Use this when the truck already arrived but the dispatch was not encoded in the system. The paper DR number remains the source of truth.</p>
                             </div>
-                            <button type="button" class="btn btn-outline" @click="paperOpen = !paperOpen" x-text="paperOpen ? 'Hide Paper DR Form' : 'Receive by Paper DR'"></button>
+                            <button type="button" class="btn btn-outline" @click="paperOpen = !paperOpen" x-text="paperOpen ? 'Hide Paper DR Form' : 'Open Paper DR Form'"></button>
                         </div>
 
                         <div class="mt-3 space-y-3" x-show="paperOpen" x-cloak>
@@ -133,10 +136,11 @@
 
                     <!-- DR# search: cashier types the number from the paper DR -->
                     <div class="mb-3">
+                           <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Receive An Encoded Delivery</div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Find by DR#</label>
                         <input type="text"
                                x-model="drFilter"
-                               placeholder="e.g. DR-2026-001"
+                               placeholder="Type the DR number from the paper slip if it was already dispatched"
                                class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
                                autocomplete="off">
                         <template x-if="drFilter.trim() && filteredDeliveries.length === 0 && !loading">

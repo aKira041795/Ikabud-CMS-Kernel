@@ -14,7 +14,7 @@
         </div>
         {if can_review_delivery_provenance}
         <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
-            Paper-DR exceptions can be reviewed here without changing downstream stock. Production In Charge may mark them reviewed; admin and supervisor may also mark discrepant or reopen.
+            Paper-DR exceptions can be checked here without changing downstream stock. Production In Charge may verify them; admin and supervisor may also flag a discrepancy or reopen the check.
         </div>
         {/if}
         <div class="flex gap-2">
@@ -52,12 +52,12 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR Review</label>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR Check</label>
                 <select x-model="filter.provenance_status" @change="reload()" class="form-input mt-0 w-full">
                     <option value="">All</option>
-                    <option value="paper_dr_pending">Pending Review</option>
-                    <option value="accepted">Reviewed</option>
-                    <option value="discrepant">Discrepant</option>
+                    <option value="paper_dr_pending">Needs Check</option>
+                    <option value="accepted">Verified</option>
+                    <option value="discrepant">Discrepancy</option>
                 </select>
             </div>
             <div class="flex items-end">
@@ -97,7 +97,7 @@
                                     <div class="mt-1 inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Paper DR Exception</div>
                                 </template>
                                 <template x-if="d.provenance_reviewer_name">
-                                    <div class="mt-1 text-[11px] text-gray-500">Reviewed by <span x-text="d.provenance_reviewer_name"></span></div>
+                                    <div class="mt-1 text-[11px] text-gray-500">Verified by <span x-text="d.provenance_reviewer_name"></span></div>
                                 </template>
                             </td>
                             <td x-text="d.delivery_date"></td>
@@ -117,7 +117,7 @@
                                               'bg-emerald-50 text-emerald-700 ring-emerald-200': d.provenance_status === 'accepted',
                                               'bg-rose-50 text-rose-700 ring-rose-200': d.provenance_status === 'discrepant'
                                           }"
-                                          x-text="d.provenance_status === 'paper_dr_pending' ? 'pending review' : (d.provenance_status === 'accepted' ? 'reviewed' : 'discrepant')"></span>
+                                          x-text="d.provenance_status === 'paper_dr_pending' ? 'needs check' : (d.provenance_status === 'accepted' ? 'verified' : 'discrepancy')"></span>
                                 </template>
                                 <template x-if="receivingHasVariance(d.id)">
                                     <span class="ml-1 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200" title="Receiving variance detected">⚠</span>
@@ -133,14 +133,14 @@
                                 </template>
                                 <template x-if="d.is_paper_dr_exception == 1 && d.provenance_status === 'paper_dr_pending' && {if can_review_delivery_provenance}true{else}false{/if}">
                                     <span class="inline-flex gap-2">
-                                        <button class="btn btn-sm btn-primary" @click="reviewProvenance(d.id, 'accepted')">Mark Reviewed</button>
+                                        <button class="btn btn-sm btn-primary" @click="reviewProvenance(d.id, 'accepted')">Verify</button>
                                         {if can_mark_delivery_discrepant}
-                                        <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'discrepant')">Discrepant</button>
+                                        <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'discrepant')">Flag Discrepancy</button>
                                         {/if}
                                     </span>
                                 </template>
                                 <template x-if="d.is_paper_dr_exception == 1 && d.provenance_status !== 'paper_dr_pending' && {if can_mark_delivery_discrepant}true{else}false{/if}">
-                                    <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'reopen')">Reopen Paper DR Review</button>
+                                    <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'reopen')">Reopen Check</button>
                                 </template>
                                 <template x-if="d.status === 'received'">
                                     <button class="btn btn-sm btn-outline" @click="toggleReceiving(d.id)"
@@ -438,14 +438,14 @@ function deliveriesPage() {
         reviewProvenance(id, action) {
             let note = '';
             if (action === 'discrepant') {
-                note = prompt('Enter a discrepancy note for this paper DR:') || '';
+                note = prompt('Enter a discrepancy note for this paper DR check:') || '';
                 if (!note.trim()) return;
             }
             if (action === 'accepted') {
-                note = prompt('Optional review note:') || '';
+                note = prompt('Optional verification note:') || '';
             }
             if (action === 'reopen') {
-                if (!confirm('Reopen paper DR review for this delivery?')) return;
+                if (!confirm('Reopen the paper DR check for this delivery?')) return;
             }
             fetch('{base_url}/api/v1/deliveries/review-provenance', {
                 method: 'POST',
@@ -462,7 +462,7 @@ function deliveriesPage() {
                 if (j && j.ok) {
                     this.reload();
                 } else {
-                    alert((j && j.error) || 'Failed to update paper DR review');
+                    alert((j && j.error) || 'Failed to update paper DR check');
                 }
             });
         },

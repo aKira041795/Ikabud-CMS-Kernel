@@ -836,11 +836,11 @@ function apiReviewDeliveryProvenance(array $params = []): void
     $note = trim((string)($input['note'] ?? ''));
 
     if ($deliveryId <= 0 || !in_array($action, ['accepted', 'discrepant', 'reopen'], true)) {
-        $ctx->json(['ok' => false, 'error' => 'Invalid review request'], 422);
+        $ctx->json(['ok' => false, 'error' => 'Invalid paper DR check request'], 422);
         return;
     }
     if ($role === 'production_in_charge' && $action !== 'accepted') {
-        $ctx->json(['ok' => false, 'error' => 'Production In Charge can only accept provenance.'], 403);
+        $ctx->json(['ok' => false, 'error' => 'Production In Charge can only verify paper DR exceptions.'], 403);
         return;
     }
 
@@ -857,7 +857,7 @@ function apiReviewDeliveryProvenance(array $params = []): void
         return;
     }
     if (!dl_isPaperDrCapturedDelivery($delivery)) {
-        $ctx->json(['ok' => false, 'error' => 'Only captured paper-DR deliveries can be reviewed here.'], 422);
+        $ctx->json(['ok' => false, 'error' => 'Only captured paper-DR deliveries can be checked here.'], 422);
         return;
     }
 

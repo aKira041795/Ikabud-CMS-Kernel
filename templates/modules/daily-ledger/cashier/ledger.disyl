@@ -94,6 +94,23 @@
     </div>
 </div>
 
+<div class="mb-4 grid gap-3 lg:grid-cols-3">
+    <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+        <div class="text-sm font-semibold text-indigo-900">Receive Delivery</div>
+        <p class="mt-1 text-xs leading-5 text-indigo-800">Use when stock is arriving into this branch. If the dispatch is already in the system, just search the DR and accept it. If the truck arrived first, use the Paper DR section inside this modal.</p>
+    </div>
+    {if formal_delivery_enabled}
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+        <div class="text-sm font-semibold text-emerald-900">New Dispatch</div>
+        <p class="mt-1 text-xs leading-5 text-emerald-800">Use only for branch-to-branch transfer out. Encode the paper DR, pick the destination branch, and list only the products actually sent.</p>
+    </div>
+    {/if}
+    <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div class="text-sm font-semibold text-amber-900">New Adjustment</div>
+        <p class="mt-1 text-xs leading-5 text-amber-800">Use for charge, pullout, spoilage, and other branch-side corrections. Do not use this for transfers between branches.</p>
+    </div>
+</div>
+
 <div class="card">
     <div class="table-wrap">
         <table>
