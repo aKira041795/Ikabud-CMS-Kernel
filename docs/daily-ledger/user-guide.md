@@ -18,16 +18,18 @@ As a Cashier, your main focus is on recording the daily operations of your speci
 * **Offline Work:** If the internet or server is unavailable, the Android app can continue working with locally cached data after you unlock it using your offline PIN.
 * **Reconnect Behavior:** Offline entries are queued and synced automatically when the connection comes back. If the day cannot be closed because the app is offline, reconnect first and try again.
 
-## 2. Production In-charge (Commissary View)
-If you manage the bakery or commissary, you will be logging the total goods produced each day.
+## 2. Production In-charge (Commissary Flow)
+If you manage the bakery or commissary, your work now follows one operator flow instead of separate disconnected pages.
 
 **What you will see and do:**
-* **Commissary Interface:** Your main workspace is the Commissary page, which has been designed to look exactly like the physical paper clipboards you use.
+* **Default landing page:** After sign-in, you land on **Production Output**.
+* **Flow order:** Your sidebar follows the operator sequence **Production Output -> Deliveries -> Production Withdrawal**.
 * **Bread vs. Cake Tabs:** At the top of your production sheet, you can select the **"Bread Production"** or **"Cake Production"** tab. This keeps the long list organized. 
-* **Global Baker & Branch:** Instead of typing your name on every single row, you just select the **Baker** and the destination **Branch** once at the very top of the page.
-* **Entering Yields:** In the rows for each product, you simply enter your `Yield` (how much was made) and your `Kilo/Egg` inputs. 
-* **DR-backed branch runs:** When output is meant for a branch under the formal workflow, encode the destination branch and DR number on the run so the system can tie production, delivery, and receiving together.
-* **Paper DR follow-up:** If a branch already captured a paper DR before production was encoded, the Deliveries page will show that delivery in the **Paper DR Review** queue. Production In-charge can mark it reviewed, while admin and supervisors can also mark it discrepant or reopen it.
+* **Branch + date first:** Start in **Production Output**, choose the destination branch, confirm the ledger date, and enter the branch DR number when the output is meant to create or update a branch delivery.
+* **No flow-mode choice:** The production pages no longer ask you to choose a flow mode. Production output and production withdrawal both use the production flow automatically.
+* **Upstream to downstream:** Use **Production Output** first, confirm the DR handoff in **Deliveries**, then use **Production Withdrawal** only after the same branch flow already has a matching delivery DR in the system.
+* **Paper DR follow-up:** If a branch already captured a paper DR before production was encoded, the Deliveries page shows that delivery in the **Paper DR Check** queue. Production In-charge can mark it **Verified**. Admin and supervisors can also mark **Discrepancy** or **Reopen Check**.
+* **Receiving detail access:** From the Deliveries page, Production In-charge can open the **Receiving** detail for received branch deliveries to confirm the sent and received quantities tied to that DR.
 * **Auto-save:** The moment you finish typing in a box and click away, the row turns green briefly—this means it has successfully saved to the database.
 
 ## 3. Supervisor (Multi-Branch View)
@@ -47,7 +49,7 @@ The Administrator completely configures the system constraints, products, and pe
 * **Branch Management:** Add new stores, deactivate old ones, assign cashiers/supervisors to specific locations, mark a branch as a commissary, and assign that commissary to the branches it supplies.
 * **User Management:** Create employee accounts and assign their exact role (Admin, Supervisor, Cashier, or Commissary). 
 * **System Settings:** Configure global requirements like what time the daily ledger strictly cuts off.
-* **Paper DR oversight:** Use the Deliveries page to review branch or commissary deliveries that were captured from paper DR before the source encoded them in the system.
+* **Paper DR oversight:** Use the Deliveries page to review branch or commissary deliveries that were captured from paper DR before the source encoded them in the system. The user-facing statuses are **Needs Check**, **Verified**, and **Discrepancy**.
 * **Complete Oversight:** Admins can view every single page—from the Commissary production sheets to the individual branch sales ledgers and system-wide variance reports.
 
 ---
@@ -62,7 +64,7 @@ A branch must first be flagged **Is Commissary** before it appears in the **Assi
 
 ## 6. Formal Delivery & Receiving Workflow (Phase B, feature-flagged)
 When **Formal Delivery Workflow** is enabled in **System Settings → Daily Ledger** (default OFF), branch stock movements become an explicit delivery-and-receiving process:
-1. **Commissary production with DR** can create the pending delivery automatically when a run is branch-directed.
+1. **Production Output with DR** can create the pending delivery automatically when a run is branch-directed.
 2. **Branch-to-branch movement** should be encoded through **New Dispatch**, not through cashier adjustments.
 3. **Branch posts a receiving** through **Receive Delivery** once the goods physically arrive.
 4. **Receive by Paper DR** is available when the paper DR exists but the source dispatch is still missing in the system.
@@ -72,7 +74,8 @@ Once posted, the receiving feeds the day's `dl_daily_ledger.addtl` for each prod
 Important operating rules:
 * A branch-origin paper DR captured for a past business date requires admin.
 * A branch-origin paper DR tied to a closed source day also requires admin.
-* A paper DR capture creates a delivery with a pending **Paper DR Review** status until someone reviews the exception.
+* A paper DR capture creates a delivery with a pending **Paper DR Check** status until someone checks the exception.
+* Production withdrawal under the formal workflow requires a DR number that already matches an existing branch delivery for the same downstream flow.
 
 For concrete examples, see [Movement Scenarios](./movement-scenarios.md), which walks through a DR-backed commissary delivery, standalone branch movement, regular pricing, and mall pricing.
 

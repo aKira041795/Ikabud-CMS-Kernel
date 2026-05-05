@@ -835,6 +835,34 @@ function dl_processProductionMovement(array $user, string $movementType, array $
     $referenceMovementId = null;
     $delta = $quantity;
     $formalDeliveryEnabled = dl_isFormalDeliveryEnabled();
+    if ($formalDeliveryEnabled && $movementType === 'withdrawal' && $flowMode === 'production') {
+        if ($drNumber === '') {
+            throw new \RuntimeException('Delivery Receipt number is required for production withdrawal when formal delivery workflow is enabled.');
+        }
+
+        $deliveryStmt = $ctx->db()->prepare(
+            'SELECT d.id
+               FROM dl_deliveries d
+               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+              WHERE d.destination_type = :destination_type
+                AND d.destination_id = :destination_id
+                AND d.dr_number = :dr_number
+                AND d.status <> "voided"
+                AND di.product_id = :product_id
+              ORDER BY d.id DESC
+              LIMIT 1'
+        );
+        $deliveryStmt->execute([
+            ':destination_type' => 'branch',
+            ':destination_id' => $destinationBranchId,
+            ':dr_number' => $drNumber,
+            ':product_id' => $productId,
+        ]);
+        if (!$deliveryStmt->fetchColumn()) {
+            throw new \RuntimeException('Production withdrawal requires a matching branch delivery for the same DR before the downstream step can be encoded.');
+        }
+    }
+
     $shouldAutoCreateFormalDelivery = $movementType === 'output'
         && $referenceMovementId === null
         && $formalDeliveryEnabled

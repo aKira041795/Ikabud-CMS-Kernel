@@ -38,7 +38,7 @@ Additional column-level changes used by the current workflow:
 | --- | --- | --- |
 | `dl_production_runs` | `dr_number` | Ties branch-directed production runs to a delivery receipt. |
 | `dl_cashier_withdrawals` | `reason_code`, `received_qty` | Keeps adjustments classified and stores receiving-related quantity metadata from the migration wave. |
-| `dl_deliveries` | `provenance_status`, `provenance_reviewed_by`, `provenance_reviewed_at`, `provenance_review_note` | Tracks paper DR exception review state. |
+| `dl_deliveries` | `provenance_status`, `provenance_reviewed_by`, `provenance_reviewed_at`, `provenance_review_note` | Tracks paper DR exception check state. |
 
 ## 3. Formulas
 ### Branch ledger (regular, per product per day)
@@ -90,7 +90,7 @@ Emitted via the standard module audit channel. Each entry stores `actor_id`, `su
 | `delivery_created` / `delivery_posted` / `delivery_voided` | Lifecycle of `dl_deliveries`. |
 | `create_receiving` | Branch-side receive flow posts the receiving directly from the cashier surface. |
 | `receiving_created` / `receiving_posted` / `receiving_voided` | Lifecycle of `dl_branch_receivings`. |
-| `review_delivery_provenance` | Admin, supervisor, or Production In-charge reviews a paper DR exception. |
+| `review_delivery_provenance` | Admin, supervisor, or Production In-charge updates a paper DR check on an exception delivery. |
 | `price_group_created` / `price_group_changed` | Price group CRUD. |
 | `product_price_changed` | Insert/update of a `dl_product_prices` row. |
 | `selling_account_created` / `selling_account_changed` | Selling account CRUD. |
@@ -106,6 +106,7 @@ All routes require an authenticated daily-ledger user; superadmin bypass applies
 * `branches/{id}/supply` — resolved supply source for the branch's products.
 * `branches/{id}/consolidated-summary?date=YYYY-MM-DD` — combined ledger + selling-account totals.
 * `deliveries?destination_id=&destination_type=&status=&provenance_status=` — list deliveries. `status=received` is derived from active receivings, not only from the raw delivery row.
+* `deliveries/receiving-detail?delivery_id=` — receiving detail used by the Deliveries page to show sent vs received quantities for a received delivery.
 * `deliveries/{id}` — delivery detail with items + receiving status.
 * `receivings/{id}` — receiving detail with variance rows.
 * `price-groups` — list groups + product price overrides.
@@ -117,7 +118,7 @@ All routes require an authenticated daily-ledger user; superadmin bypass applies
 * `cashier/ledger/receive-delivery` — receives an existing delivery into branch stock.
 * `cashier/ledger/receive-paper-dr` — captures a missing delivery from paper DR and receives it in one action.
 * `deliveries/create` / `deliveries/{id}/post` / `deliveries/{id}/void`
-* `deliveries/review-provenance` — review a paper DR exception (`accepted`, `discrepant`, `reopen`). Production In-charge is limited to `accepted`.
+* `deliveries/review-provenance` — update a paper DR check on an exception delivery (`accepted`, `discrepant`, `reopen`). User-facing states map to **Verified**, **Discrepancy**, and **Reopen Check**. Production In-charge is limited to `accepted`.
 * `receivings/create` / `receivings/{id}/post` / `receivings/{id}/void`
 * `price-groups/create` / `price-groups/{id}/update`
 * `product-prices/upsert`
@@ -125,6 +126,8 @@ All routes require an authenticated daily-ledger user; superadmin bypass applies
 * `selling-accounts/create` / `selling-accounts/{id}/update`
 * `selling-accounts/{id}/ledger/upsert`
 * `selling-accounts/{id}/day/close` / `selling-accounts/{id}/day/reopen`
+
+When the formal delivery workflow is enabled, production-side `withdrawal` operations in the production flow require a DR number that already matches an existing branch delivery for the same branch and product.
 
 Handler implementations live in `modules/daily-ledger/handlers-deliveries.php`; route map in `modules/daily-ledger/routes.php`.
 
