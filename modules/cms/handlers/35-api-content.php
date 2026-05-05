@@ -37,6 +37,12 @@ function cmsApiContentList(array $params = []): void
     $where = ['c.deleted_at IS NULL', 'c.type = :type'];
     $bind  = [':type' => $type];
 
+    $scopedAuthorId = cmsScopedContentAuthorId($user);
+    if ($scopedAuthorId !== null) {
+        $where[] = 'c.author_id = :viewer_author_id';
+        $bind[':viewer_author_id'] = $scopedAuthorId;
+    }
+
     if ($status !== '') {
         $where[] = 'c.status = :status';
         $bind[':status'] = $status;
@@ -172,6 +178,12 @@ function cmsApiContentGet(array $params = []): void
         exit;
     }
 
+    if (!cmsCanReadContent($user, $row)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Permission denied']);
+        exit;
+    }
+
     $meta = cmsLoadContentMeta($db, (int)$row['id']);
     $row['meta'] = $meta;
     $row['page_builder_enabled'] = ((string)($row['type'] ?? '') === 'page') ? cmsPageBuilderEnabled($meta) : false;
@@ -198,12 +210,18 @@ function cmsApiContentWorkflowState(array $params = []): void
     }
 
     $db = cmsDb();
-    $stmt = $db->prepare("SELECT id FROM cms_content WHERE id = :id AND deleted_at IS NULL LIMIT 1");
+    $stmt = $db->prepare("SELECT id, author_id FROM cms_content WHERE id = :id AND deleted_at IS NULL LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'error' => 'Not found']);
+        exit;
+    }
+
+    if (!cmsCanReadContent($user, $row)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Permission denied']);
         exit;
     }
 
@@ -235,6 +253,22 @@ function cmsApiContentWorkflowTransition(array $params = []): void
     if ($id <= 0 || $action === '') {
         http_response_code(422);
         echo json_encode(['ok' => false, 'error' => 'id and action are required']);
+        exit;
+    }
+
+    $db = cmsDb();
+    $stmt = $db->prepare("SELECT id, author_id FROM cms_content WHERE id = :id AND deleted_at IS NULL LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'Not found']);
+        exit;
+    }
+
+    if (!cmsCanEditContent($user, $row)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Permission denied']);
         exit;
     }
 

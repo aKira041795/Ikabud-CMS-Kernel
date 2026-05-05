@@ -41,6 +41,8 @@ function cms_cap_cms_content_get_1(mixed $payload, string $capabilityId, string 
         return ['ok' => false, 'error' => 'Module context unavailable'];
     }
 
+    $callerUser = cmsCapabilityCallerUser();
+
     try {
         $stmt = $ctx->db()->prepare(
             "SELECT c.*, u.display_name as author_name
@@ -52,6 +54,9 @@ function cms_cap_cms_content_get_1(mixed $payload, string $capabilityId, string 
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!is_array($row)) {
             return ['ok' => false, 'error' => 'Not found'];
+        }
+        if (is_array($callerUser) && !cmsCanReadContent($callerUser, $row)) {
+            return ['ok' => false, 'error' => 'Permission denied'];
         }
         return ['ok' => true, 'data' => $row];
     } catch (\Throwable $e) {
@@ -78,17 +83,47 @@ function cms_cap_cms_content_list_1(mixed $payload, string $capabilityId, string
         return ['ok' => false, 'error' => 'Module context unavailable'];
     }
 
+    $callerUser = cmsCapabilityCallerUser();
+
     try {
-        $stmt = $ctx->db()->prepare(
-            "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status,
-                    c.published_at, c.created_at, u.display_name as author_name
-             FROM cms_content c
-             LEFT JOIN cms_users u ON u.id = c.author_id
-             WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c') . "
-             ORDER BY COALESCE(c.published_at, c.created_at) DESC, c.id DESC
-             LIMIT {$limit} OFFSET {$offset}"
-        );
-        $stmt->execute([':type' => $type]);
+        if (is_array($callerUser)) {
+            $where = ['c.deleted_at IS NULL', 'c.type = :type'];
+            $bind = [':type' => $type];
+
+            if ($status !== '') {
+                $where[] = 'c.status = :status';
+                $bind[':status'] = $status;
+            }
+
+            $scopedAuthorId = cmsScopedContentAuthorId($callerUser);
+            if ($scopedAuthorId !== null) {
+                $where[] = 'c.author_id = :author_id';
+                $bind[':author_id'] = $scopedAuthorId;
+            }
+
+            $whereSql = implode(' AND ', $where);
+            $stmt = $ctx->db()->prepare(
+                "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status,
+                        c.published_at, c.created_at, u.display_name as author_name, u.id as author_id
+                 FROM cms_content c
+                 LEFT JOIN cms_users u ON u.id = c.author_id
+                 WHERE {$whereSql}
+                 ORDER BY COALESCE(c.published_at, c.created_at) DESC, c.id DESC
+                 LIMIT {$limit} OFFSET {$offset}"
+            );
+            $stmt->execute($bind);
+        } else {
+            $stmt = $ctx->db()->prepare(
+                "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status,
+                        c.published_at, c.created_at, u.display_name as author_name
+                 FROM cms_content c
+                 LEFT JOIN cms_users u ON u.id = c.author_id
+                 WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c') . "
+                 ORDER BY COALESCE(c.published_at, c.created_at) DESC, c.id DESC
+                 LIMIT {$limit} OFFSET {$offset}"
+            );
+            $stmt->execute([':type' => $type]);
+        }
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         return ['ok' => true, 'data' => $rows];
     } catch (\Throwable $e) {
