@@ -13,6 +13,12 @@ It is meant to answer one practical question: when stock moves, which document o
    The branch does not get stock just because commissary logged output. It gets stock when the branch posts the receiving.
 4. **Pricing and quantity movement are related but not identical.**
    Quantity lands in the destination ledger. Sales value later uses the destination ledger's price snapshot rules.
+5. **Branch-to-branch movement is a dispatch flow, not a cashier adjustment.**
+   Use a posted dispatch and a receiving, or capture the movement from paper DR when the source dispatch was missed.
+6. **Paper DR capture is an exception path, not a replacement for normal source encoding.**
+   A captured paper DR delivery is traceable immediately, but it stays in a pending paper DR review state until someone reviews the exception.
+7. **Late branch-origin paper DR capture is an admin-controlled exception.**
+   If the branch-origin delivery date is not the current business date, or the source branch day is already closed, the capture path must be handled by admin.
 
 ## 2. Movement Matrix
 
@@ -115,6 +121,65 @@ The same DR can be followed across:
 2. `dl_deliveries.dr_number`
 3. `dl_branch_receivings.dr_number`
 4. activity audit filters using the DR value
+
+### Variation: Branch-to-branch transfer with a system dispatch
+
+Example:
+
+- Branch A sends 24 Spanish Bread to Branch B
+- paper DR exists at dispatch time
+- Formal Delivery Workflow is enabled
+
+Recommended flow:
+
+1. Branch A uses **New Dispatch** from the cashier ledger page.
+2. The system creates a posted `dl_deliveries` record for the branch-to-branch transfer.
+3. The dispatch deducts quantity from Branch A on the delivery date.
+4. Branch B later receives the delivery through **Receive Delivery**.
+5. Branch B quantity lands in `dl_daily_ledger.addtl` on the receive date.
+
+Why this matters:
+
+- dispatch and receiving stay tied to one DR
+- source and destination custody stay auditable
+- delivery is no longer hidden inside cashier adjustment rows
+
+### Variation: Branch receives by paper DR when the source missed the system dispatch
+
+Example:
+
+- Branch B physically received stock
+- the paper DR exists
+- no matching system delivery was encoded yet
+
+Recommended flow:
+
+1. Branch B opens **Receive by Paper DR**.
+2. Branch B enters the source, DR number, dates, and item quantities from the paper DR.
+3. The system creates a posted delivery if none exists yet.
+4. The same action posts the branch receiving so stock lands in Branch B immediately.
+5. The created delivery is tagged as a paper DR exception and enters pending paper DR review.
+
+Important guardrails:
+
+- cashiers can only use this against the current business date
+- branch-origin late capture is admin-only
+- branch-origin closed-source capture is admin-only
+- the same paper DR cannot be received twice
+
+### Variation: Production is encoded after the branch already captured the paper DR
+
+Example:
+
+- Branch B already received `DR-1042` through **Receive by Paper DR**
+- later, commissary encodes the production run that should have produced the same delivery
+
+System behavior:
+
+1. The production-side sync looks for an existing paper-DR-captured delivery with the same destination and DR number.
+2. If the line items match, the system reuses that delivery instead of creating a duplicate.
+3. The delivery remains traceable as a paper DR exception until reviewed.
+4. If the encoded run does not match the paper DR quantities, the sync raises a reconciliation error instead of silently duplicating stock.
 
 ## 4. Scenario A: From Commissary
 
@@ -258,6 +323,9 @@ Use **mall pricing** when stock is meant for a selling account with its own pric
 ## 9. Anti-Patterns To Avoid
 
 1. Do not let commissary output increase branch stock immediately when the formal delivery workflow is enabled.
-2. Do not mix usage facts with branch receiving facts in the same operational step.
-3. Do not use the branch regular ledger for mall-kiosk pricing if the kiosk should report separately.
-4. Do not treat DR as optional for branch-directed commissary output when the formal workflow is on.
+2. Do not use cashier adjustments to represent branch-to-branch delivery movement.
+3. Do not recapture the same paper DR after it already has an active receiving.
+4. Do not treat a pending paper DR review as proof that downstream stock should be reversed. Review status is an upstream audit state, not a stock undo action.
+5. Do not mix usage facts with branch receiving facts in the same operational step.
+6. Do not use the branch regular ledger for mall-kiosk pricing if the kiosk should report separately.
+7. Do not treat DR as optional for branch-directed commissary output when the formal workflow is on.
