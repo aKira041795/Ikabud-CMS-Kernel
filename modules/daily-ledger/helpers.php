@@ -169,7 +169,7 @@ app()->hooks()->on('kernel.home_url', function (?string $url, string $role, ?arr
     }
 
     if ($role === 'production_in_charge') {
-        return '/daily-ledger/admin/production';
+        return '/daily-ledger/admin/production-output';
     }
 
     if (in_array($role, ['admin', 'supervisor'], true)) {

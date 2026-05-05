@@ -966,7 +966,7 @@ function apiGetDeliveryReceivingDetail(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    dlCurrentUser(['admin', 'supervisor']);
+    dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $deliveryId = (int)($_GET['delivery_id'] ?? 0);
     if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
 

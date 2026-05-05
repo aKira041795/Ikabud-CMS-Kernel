@@ -1338,7 +1338,7 @@ function pageDailyLedgerLogin(): void
         if ($role === 'cashier') {
             $redir = '/daily-ledger/ledger';
         } elseif ($role === 'production_in_charge') {
-            $redir = '/daily-ledger/admin/production';
+            $redir = '/daily-ledger/admin/production-output';
         } else {
             $redir = '/daily-ledger/admin/dashboard';
         }
@@ -1420,7 +1420,7 @@ function dailyLedgerAuthLogin(): void
     if ($role === 'cashier') {
         $redirect = '/daily-ledger/ledger';
     } elseif ($role === 'production_in_charge') {
-        $redirect = '/daily-ledger/admin/production';
+        $redirect = '/daily-ledger/admin/production-output';
     } else {
         $redirect = '/daily-ledger/admin/dashboard';
     }
