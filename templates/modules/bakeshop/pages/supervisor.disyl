@@ -116,6 +116,32 @@
     .bakeshop-button.danger:hover {
         background: #b91c1c;
     }
+    .bakeshop-button:disabled,
+    .bakeshop-button.secondary:disabled,
+    .bakeshop-button.print:disabled,
+    .bakeshop-button.staff:disabled,
+    .bakeshop-button.refresh:disabled,
+    .bakeshop-button.success:disabled,
+    .bakeshop-button.danger:disabled {
+        background: #d1d5db;
+        border-color: #cbd5e1;
+        color: #6b7280;
+        cursor: not-allowed;
+        box-shadow: none;
+        opacity: 0.72;
+        pointer-events: none;
+    }
+    .bakeshop-button:disabled:hover,
+    .bakeshop-button.secondary:disabled:hover,
+    .bakeshop-button.print:disabled:hover,
+    .bakeshop-button.staff:disabled:hover,
+    .bakeshop-button.refresh:disabled:hover,
+    .bakeshop-button.success:disabled:hover,
+    .bakeshop-button.danger:disabled:hover {
+        background: #d1d5db;
+        border-color: #cbd5e1;
+        color: #6b7280;
+    }
     .bakeshop-banner {
         display: none;
         padding: 14px 16px;
@@ -824,7 +850,7 @@
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                 <span class="bakeshop-help">Branch IDs are owned by this module. No ecommerce or WMS bridge is wired in v1.</span>
                                 <div class="bakeshop-actions">
-                                    <button class="bakeshop-button danger" type="button" id="branch-cancel" hidden>Cancel Edit</button>
+                                    <button class="bakeshop-button danger" type="button" id="branch-cancel" hidden disabled>Cancel Edit</button>
                                     <button class="bakeshop-button" type="submit" id="branch-submit">Save Branch</button>
                                 </div>
                             </div>
@@ -890,7 +916,7 @@
                                     <span class="bakeshop-help">Default yield drives recipe scaling for saved batch records.</span>
                                     <div class="bakeshop-actions">
                                             <button class="bakeshop-button success" type="button" id="product-add">Add Product</button>
-                                        <button class="bakeshop-button danger" type="button" id="product-cancel" hidden>Cancel Edit</button>
+                                        <button class="bakeshop-button danger" type="button" id="product-cancel" hidden disabled>Cancel Edit</button>
                                         <button class="bakeshop-button" type="submit" id="product-submit">Save Product</button>
                                     </div>
                                 </div>
@@ -933,7 +959,7 @@
                                         <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                             <span class="bakeshop-help">Update the ingredient usage for this product.</span>
                                             <div class="bakeshop-actions">
-                                                <button class="bakeshop-button danger" type="button" id="recipe-cancel" hidden>Cancel Edit</button>
+                                                <button class="bakeshop-button danger" type="button" id="recipe-cancel" hidden disabled>Cancel Edit</button>
                                                 <button class="bakeshop-button" type="submit" id="recipe-submit">Save Recipe Line</button>
                                             </div>
                                         </div>
@@ -1027,7 +1053,7 @@
                                     <span class="bakeshop-help">Units are seeded globally as `kg`, `g`, `L`, `mL`, `pc`, and `pack`.</span>
                                     <div class="bakeshop-actions">
                                             <button class="bakeshop-button success" type="button" id="ingredient-add">Add Ingredient</button>
-                                        <button class="bakeshop-button danger" type="button" id="ingredient-cancel" hidden>Cancel Edit</button>
+                                        <button class="bakeshop-button danger" type="button" id="ingredient-cancel" hidden disabled>Cancel Edit</button>
                                         <button class="bakeshop-button" type="submit" id="ingredient-submit">Save Ingredient</button>
                                     </div>
                                 </div>
@@ -1278,7 +1304,7 @@
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
                                 <span class="bakeshop-help">When you review a saved entry later, only the time, person, and note can be updated from this form.</span>
                                 <button class="bakeshop-button" type="submit" id="production-submit" hidden>Update Saved Entry</button>
-                                <button class="bakeshop-button secondary" type="button" id="production-cancel" hidden>Cancel</button>
+                                <button class="bakeshop-button secondary" type="button" id="production-cancel" hidden disabled>Cancel</button>
                             </div>
                         </form>
 
@@ -3579,13 +3605,28 @@ document.addEventListener('DOMContentLoaded', () => {
         return normalized;
     }
 
+    function syncEditorActionButtons(options) {
+        const addButton = options.addSelector ? $(options.addSelector) : null;
+        const cancelButton = options.cancelSelector ? $(options.cancelSelector) : null;
+        const editing = options.editing === true;
+
+        if (addButton) {
+            addButton.disabled = !canManageWorkspace || editing;
+        }
+
+        if (cancelButton) {
+            cancelButton.hidden = !editing;
+            cancelButton.disabled = !canManageWorkspace || !editing;
+        }
+    }
+
     function resetBranchForm() {
         branchForm.reset();
         branchForm.elements.namedItem('id').value = '';
         branchForm.elements.namedItem('is_active').value = '1';
         setFocusNote('#branch-focus-note', '');
         $('#branch-submit').textContent = 'Save Branch';
-        $('#branch-cancel').hidden = true;
+        syncEditorActionButtons({ cancelSelector: '#branch-cancel', editing: false });
     }
 
     function editBranch(row, source = 'table') {
@@ -3596,7 +3637,7 @@ document.addEventListener('DOMContentLoaded', () => {
         branchForm.elements.namedItem('address').value = row.address || '';
         setFocusNote('#branch-focus-note', source === 'history' ? 'Reviewing this branch from activity history. Confirm the details below before saving changes.' : '');
         $('#branch-submit').textContent = 'Update Branch';
-        $('#branch-cancel').hidden = false;
+        syncEditorActionButtons({ cancelSelector: '#branch-cancel', editing: true });
         branchForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -3613,7 +3654,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setFocusNote('#production-focus-note', '');
         $('#production-submit').textContent = 'Update Saved Entry';
         $('#production-submit').hidden = true;
-        $('#production-cancel').hidden = true;
+        syncEditorActionButtons({ cancelSelector: '#production-cancel', editing: false });
         productionForm.elements.namedItem('produced_at').value = nowLocalDateTime();
         syncProductionGuardOverrideControls();
         activateProductionSectionTab('record');
@@ -3646,7 +3687,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : 'Reviewing a saved entry. Branch, item, amount made, and ingredients used stay unchanged.');
         $('#production-submit').textContent = 'Update Saved Entry';
         $('#production-submit').hidden = false;
-        $('#production-cancel').hidden = false;
+        syncEditorActionButtons({ cancelSelector: '#production-cancel', editing: true });
         syncProductionGuardOverrideControls();
         rememberLastSavedProduction(row);
         activateProductionSectionTab('record');
@@ -3665,7 +3706,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const _pfd = $('#product-form-description'); if (_pfd) _pfd.textContent = 'Finished goods for production.';
         setFocusNote('#product-focus-note', '');
         $('#product-submit').textContent = 'Save Product';
-        $('#product-cancel').hidden = true;
+        syncEditorActionButtons({ addSelector: '#product-add', cancelSelector: '#product-cancel', editing: false });
         resetRecipeForm();
         renderCatalogTables();
     }
@@ -3684,7 +3725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const _pfd2 = $('#product-form-description'); if (_pfd2) _pfd2.textContent = 'Update this finished good without leaving the catalog workspace.';
         setFocusNote('#product-focus-note', source === 'history' ? 'Reviewing this product from activity history. Confirm the product details and yield before saving.' : '');
         $('#product-submit').textContent = 'Update Product';
-        $('#product-cancel').hidden = false;
+        syncEditorActionButtons({ addSelector: '#product-add', cancelSelector: '#product-cancel', editing: true });
         resetRecipeForm();
         renderCatalogTables();
         productForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -3698,7 +3739,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const _ifd = $('#ingredient-form-description'); if (_ifd) _ifd.textContent = 'Raw materials received into branch inventory through deliveries.';
         setFocusNote('#ingredient-focus-note', '');
         $('#ingredient-submit').textContent = 'Save Ingredient';
-        $('#ingredient-cancel').hidden = true;
+        syncEditorActionButtons({ addSelector: '#ingredient-add', cancelSelector: '#ingredient-cancel', editing: false });
     }
 
     function editIngredient(row, source = 'table') {
@@ -3711,7 +3752,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const _ifd2 = $('#ingredient-form-description'); if (_ifd2) _ifd2.textContent = 'Update this raw material without leaving the catalog workspace.';
         setFocusNote('#ingredient-focus-note', source === 'history' ? 'Reviewing this ingredient from activity history. Confirm the stock unit and identity details before saving.' : '');
         $('#ingredient-submit').textContent = 'Update Ingredient';
-        $('#ingredient-cancel').hidden = false;
+        syncEditorActionButtons({ addSelector: '#ingredient-add', cancelSelector: '#ingredient-cancel', editing: true });
         ingredientForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -3724,7 +3765,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setFocusNote('#recipe-focus-note', '');
         $('#recipe-submit').textContent = 'Save Recipe Line';
-        $('#recipe-cancel').hidden = true;
+        syncEditorActionButtons({ cancelSelector: '#recipe-cancel', editing: false });
         syncRecipePanel();
     }
 
@@ -3741,7 +3782,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recipeForm.elements.namedItem('notes').value = row.notes || '';
         setFocusNote('#recipe-focus-note', source === 'history' ? 'Reviewing this recipe line from activity history. Confirm the product, ingredient, and quantity before saving.' : '');
         $('#recipe-submit').textContent = 'Update Recipe Line';
-        $('#recipe-cancel').hidden = false;
+        syncEditorActionButtons({ cancelSelector: '#recipe-cancel', editing: true });
         syncRecipePanel();
         recipeForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -4689,6 +4730,11 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#delivery-source-type').value = 'commissary';
     syncDeliverySourceField();
     applyWorkspaceAccessMode();
+    syncEditorActionButtons({ cancelSelector: '#branch-cancel', editing: false });
+    syncEditorActionButtons({ addSelector: '#product-add', cancelSelector: '#product-cancel', editing: false });
+    syncEditorActionButtons({ addSelector: '#ingredient-add', cancelSelector: '#ingredient-cancel', editing: false });
+    syncEditorActionButtons({ cancelSelector: '#recipe-cancel', editing: false });
+    syncEditorActionButtons({ cancelSelector: '#production-cancel', editing: false });
     $('#delivery-source-type').addEventListener('change', syncDeliverySourceField);
     deliverySectionTabs.forEach((button) => {
         button.addEventListener('click', () => {
