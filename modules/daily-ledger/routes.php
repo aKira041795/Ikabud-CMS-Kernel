@@ -104,6 +104,7 @@ return [
         // Admin: variance status
         '/daily-ledger/api/v1/admin/variances/update'    => 'daily-ledger:apiUpdateVarianceStatus',
         '/daily-ledger/api/v1/admin/settings/permissions' => 'daily-ledger:apiSaveRolePermissions',
+        '/daily-ledger/api/v1/admin/settings/branding-asset' => 'daily-ledger:apiUploadBrandingAsset',
 
         // Production movements (supports transition + offline sync)
         '/daily-ledger/api/v1/production/withdrawal'      => 'daily-ledger:apiProductionWithdrawal',

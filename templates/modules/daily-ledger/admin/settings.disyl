@@ -14,10 +14,58 @@
         <span class="text-sm text-muted">Appearance</span>
     </div>
     <div class="card-body">
-        <div class="form-group mb-0" style="max-width:360px">
-            <label class="form-label" for="app-name">App Name</label>
-            <input type="text" id="app-name" class="form-input" value="{app_name}" maxlength="80" placeholder="Daily Ledger">
-            <p class="mt-2 text-sm text-gray-500">Display name shown on the login page and throughout the app.</p>
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,360px),minmax(0,1fr)]">
+            <div class="form-group mb-0">
+                <label class="form-label" for="app-name">App Name</label>
+                <input type="text" id="app-name" class="form-input" value="{app_name}" maxlength="80" placeholder="Daily Ledger">
+                <p class="mt-2 text-sm text-gray-500">Display name shown on the login page and throughout the app.</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-slate-900">Logo</h3>
+                            <p class="mt-1 text-sm text-slate-500">Used on the login screen and in the Daily Ledger sidebar.</p>
+                        </div>
+                        <div id="logo-preview" class="flex h-16 w-20 items-center justify-center rounded-xl bg-white ring-1 ring-slate-200">
+                            {if logo_url}
+                            <img src="{logo_url}" alt="{app_name} logo" class="max-h-12 w-auto object-contain">
+                            {/if}
+                            {if !logo_url}
+                            <span class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">No logo</span>
+                            {/if}
+                        </div>
+                    </div>
+                    <label class="form-label mt-4" for="logo-url">Logo URL</label>
+                    <input type="text" id="logo-url" class="form-input" value="{logo_url}" placeholder="/uploads/daily-ledger/... or https://...">
+                    <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input type="file" id="logo-file" class="block w-full text-sm text-slate-600" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml">
+                        <button type="button" class="btn btn-outline whitespace-nowrap" id="logo-upload-btn" onclick="uploadBrandAsset('logo')">Upload Logo</button>
+                    </div>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-slate-900">Favicon</h3>
+                            <p class="mt-1 text-sm text-slate-500">Used in browser tabs across Daily Ledger pages.</p>
+                        </div>
+                        <div id="favicon-preview" class="flex h-16 w-16 items-center justify-center rounded-xl bg-white ring-1 ring-slate-200">
+                            {if favicon_url}
+                            <img src="{favicon_url}" alt="{app_name} favicon" class="h-10 w-10 rounded-lg object-contain">
+                            {/if}
+                            {if !favicon_url}
+                            <span class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Default</span>
+                            {/if}
+                        </div>
+                    </div>
+                    <label class="form-label mt-4" for="favicon-url">Favicon URL</label>
+                    <input type="text" id="favicon-url" class="form-input" value="{favicon_url}" placeholder="/uploads/daily-ledger/... or https://...">
+                    <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input type="file" id="favicon-file" class="block w-full text-sm text-slate-600" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,.ico">
+                        <button type="button" class="btn btn-outline whitespace-nowrap" id="favicon-upload-btn" onclick="uploadBrandAsset('favicon')">Upload Favicon</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -232,6 +280,76 @@
         // so admins can preconfigure the value before enabling it.
     }
 
+    function updateBrandAssetPreview(assetType, assetUrl) {
+        var preview = document.getElementById(assetType + '-preview');
+        if (!preview) {
+            return;
+        }
+
+        preview.innerHTML = '';
+
+        if (assetUrl) {
+            var img = document.createElement('img');
+            img.src = assetUrl;
+            img.alt = assetType === 'logo' ? 'Daily Ledger logo preview' : 'Daily Ledger favicon preview';
+            img.className = assetType === 'logo'
+                ? 'max-h-12 w-auto object-contain'
+                : 'h-10 w-10 rounded-lg object-contain';
+            preview.appendChild(img);
+            return;
+        }
+
+        var empty = document.createElement('span');
+        empty.className = 'text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400';
+        empty.textContent = assetType === 'logo' ? 'No logo' : 'Default';
+        preview.appendChild(empty);
+    }
+
+    function uploadBrandAsset(assetType) {
+        var fileInput = document.getElementById(assetType + '-file');
+        var urlInput = document.getElementById(assetType + '-url');
+        var button = document.getElementById(assetType + '-upload-btn');
+
+        if (!fileInput || !urlInput || !button || !fileInput.files || !fileInput.files[0]) {
+            showToast('Choose a ' + assetType + ' image first.', 'error');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('asset_type', assetType);
+        formData.append('asset_file', fileInput.files[0]);
+
+        button.disabled = true;
+        button.textContent = assetType === 'logo' ? 'Uploading Logo...' : 'Uploading Favicon...';
+
+        fetch('{base_url}/api/v1/admin/settings/branding-asset', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: formData
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok || !res.asset_url) {
+                throw new Error(res.error || 'Upload failed');
+            }
+            urlInput.value = res.asset_url;
+            updateBrandAssetPreview(assetType, res.asset_url);
+            fileInput.value = '';
+            showToast(res.message || 'Branding asset uploaded. Save settings to apply it everywhere.', 'success');
+        })
+        .catch(function(err) {
+            showToast(err.message || 'Upload failed', 'error');
+        })
+        .finally(function() {
+            button.disabled = false;
+            button.textContent = assetType === 'logo' ? 'Upload Logo' : 'Upload Favicon';
+        });
+    }
+
     function updateCutoffBadgePreview() {
         var val = document.getElementById('close-of-day-time').value || '00:00';
         document.getElementById('cutoff-badge-preview').textContent = 'Cutoff: ' + val;
@@ -283,6 +401,8 @@
         if (appNameInput) {
             payload.app_name = appNameInput.value.trim() || 'Daily Ledger';
         }
+        payload.logo_url = (document.getElementById('logo-url') || {}).value || '';
+        payload.favicon_url = (document.getElementById('favicon-url') || {}).value || '';
 
         fetch('{base_url}/api/v1/admin/settings/permissions', {
             method: 'POST',
@@ -317,6 +437,8 @@
             cutoffInput.addEventListener('input', updateCutoffBadgePreview);
             updateCutoffBadgePreview();
         }
+        updateBrandAssetPreview('logo', (document.getElementById('logo-url') || {}).value || '');
+        updateBrandAssetPreview('favicon', (document.getElementById('favicon-url') || {}).value || '');
     });
 </script>
 {/block}

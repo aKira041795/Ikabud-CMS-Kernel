@@ -40,6 +40,215 @@ function dlAppName(): string
     return $name !== '' ? $name : 'Daily Ledger';
 }
 
+function dlDefaultFaviconUrl(): string
+{
+    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23b45309'/%3E%3Cpath d='M8 7h10a5 5 0 010 10H8V7zm0 10h10a5 5 0 010 10H8V17z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E";
+}
+
+function dlNormalizeBrandAssetUrl(mixed $value, string $label = 'Brand asset URL'): string
+{
+    $assetUrl = trim((string)$value);
+    if ($assetUrl === '') {
+        return '';
+    }
+
+    if (function_exists('mb_strlen') && mb_strlen($assetUrl) > 2048) {
+        throw new InvalidArgumentException($label . ' must be 2048 characters or fewer.');
+    }
+    if (strlen($assetUrl) > 2048) {
+        throw new InvalidArgumentException($label . ' must be 2048 characters or fewer.');
+    }
+
+    $scheme = strtolower((string)parse_url($assetUrl, PHP_URL_SCHEME));
+    if ($scheme !== '' && !in_array($scheme, ['http', 'https'], true)) {
+        throw new InvalidArgumentException($label . ' must use http, https, or a relative path.');
+    }
+
+    return $assetUrl;
+}
+
+function dlLogoUrl(): string
+{
+    try {
+        return dlNormalizeBrandAssetUrl(dlModuleSettings()['logo_url'] ?? '', 'Logo URL');
+    } catch (Throwable $ignored) {
+        return '';
+    }
+}
+
+function dlFaviconUrl(): string
+{
+    try {
+        return dlNormalizeBrandAssetUrl(dlModuleSettings()['favicon_url'] ?? '', 'Favicon URL');
+    } catch (Throwable $ignored) {
+        return '';
+    }
+}
+
+function dlResolvedFaviconUrl(): string
+{
+    $faviconUrl = dlFaviconUrl();
+    return $faviconUrl !== '' ? $faviconUrl : dlDefaultFaviconUrl();
+}
+
+function dlBrandAssetUploadMaxBytes(): int
+{
+    if (function_exists('cmsMediaMaxUploadBytes')) {
+        return max(262144, (int)cmsMediaMaxUploadBytes());
+    }
+
+    return 2 * 1024 * 1024;
+}
+
+function dlBrandAssetFallbackPath(): string
+{
+    $tenantId = app()->tenant()->current();
+    $tenantSegment = $tenantId !== null ? ('/t' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$tenantId)) : '';
+    return BASE_PATH . '/public/uploads/daily-ledger' . $tenantSegment;
+}
+
+function dlBrandAssetFallbackUrl(string $relativePath): string
+{
+    $tenantId = app()->tenant()->current();
+    $tenantSegment = $tenantId !== null ? ('/t' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$tenantId)) : '';
+    return '/uploads/daily-ledger' . $tenantSegment . '/' . ltrim($relativePath, '/');
+}
+
+function dlUploadBrandAsset(string $assetType, array $file): array
+{
+    $assetType = strtolower(trim($assetType));
+    $labels = [
+        'logo' => 'Logo',
+        'favicon' => 'Favicon',
+    ];
+    if (!isset($labels[$assetType])) {
+        throw new InvalidArgumentException('Unsupported branding asset type.');
+    }
+
+    if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException('Upload a ' . strtolower($labels[$assetType]) . ' image first.');
+    }
+
+    $tmpPath = trim((string)($file['tmp_name'] ?? ''));
+    if ($tmpPath === '' || !is_file($tmpPath)) {
+        throw new InvalidArgumentException('Uploaded ' . strtolower($labels[$assetType]) . ' file is not available.');
+    }
+
+    if (PHP_SAPI !== 'cli' && function_exists('is_uploaded_file') && !is_uploaded_file($tmpPath)) {
+        throw new InvalidArgumentException($labels[$assetType] . ' upload did not arrive through the HTTP upload pipeline.');
+    }
+
+    $originalName = trim((string)($file['name'] ?? ($assetType . '.png')));
+    $declaredSize = (int)($file['size'] ?? 0);
+    if ($declaredSize <= 0) {
+        $declaredSize = (int)(@filesize($tmpPath) ?: 0);
+    }
+    if ($declaredSize <= 0) {
+        throw new InvalidArgumentException('Uploaded ' . strtolower($labels[$assetType]) . ' file is empty.');
+    }
+    if ($declaredSize > dlBrandAssetUploadMaxBytes()) {
+        throw new InvalidArgumentException('Uploaded ' . strtolower($labels[$assetType]) . ' file exceeds the maximum allowed size.');
+    }
+
+    $allowedMimeTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'image/svg+xml',
+    ];
+    if ($assetType === 'favicon') {
+        $allowedMimeTypes[] = 'image/x-icon';
+        $allowedMimeTypes[] = 'image/vnd.microsoft.icon';
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = strtolower((string)($finfo->file($tmpPath) ?: ''));
+    if ($mimeType === '' || !in_array($mimeType, $allowedMimeTypes, true)) {
+        throw new InvalidArgumentException($labels[$assetType] . ' must be a JPG, PNG, GIF, WEBP, SVG, or ICO image.');
+    }
+
+    $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+    if ($assetType === 'favicon') {
+        $allowedExtensions[] = 'ico';
+    }
+    if (!in_array($ext, $allowedExtensions, true)) {
+        $ext = match ($mimeType) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/svg+xml' => 'svg',
+            'image/x-icon', 'image/vnd.microsoft.icon' => 'ico',
+            default => 'png',
+        };
+    }
+
+    $filename = $assetType . '_' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '.' . $ext;
+    $subDir = 'branding/' . date('Y') . '/' . date('m');
+    $relativePath = $subDir . '/' . $filename;
+
+    $destinations = [];
+    if (function_exists('cmsUploadsPath') && function_exists('cmsResolveUploadUrl')) {
+        $destinations[] = [
+            'dir' => cmsUploadsPath() . '/daily-ledger/' . $subDir,
+            'path' => cmsUploadsPath() . '/daily-ledger/' . $subDir . '/' . $filename,
+            'url' => cmsResolveUploadUrl('daily-ledger/' . $relativePath),
+            'label' => 'cms',
+        ];
+    }
+    $destinations[] = [
+        'dir' => dlBrandAssetFallbackPath() . '/' . $subDir,
+        'path' => dlBrandAssetFallbackPath() . '/' . $subDir . '/' . $filename,
+        'url' => dlBrandAssetFallbackUrl($relativePath),
+        'label' => 'fallback',
+    ];
+
+    $destinationPath = '';
+    $assetUrl = '';
+    $saved = false;
+    foreach ($destinations as $destination) {
+        if (!kernelEnsureDirectory($destination['dir'])) {
+            continue;
+        }
+        if (!kernelCopyFile($tmpPath, $destination['path'])) {
+            continue;
+        }
+
+        $destinationPath = $destination['path'];
+        $assetUrl = $destination['url'];
+        $saved = true;
+
+        if ($destination['label'] === 'fallback' && function_exists('write_log')) {
+            write_log('daily-ledger branding upload fell back to public module storage.', 'warning', [
+                'asset_type' => $assetType,
+                'relative_path' => $relativePath,
+            ]);
+        }
+        break;
+    }
+
+    if (!$saved) {
+        throw new InvalidArgumentException('Unable to save the uploaded ' . strtolower($labels[$assetType]) . '.');
+    }
+
+    if ($mimeType === 'image/svg+xml' && function_exists('cmsSanitizeSvgContent')) {
+        $svg = (string)@file_get_contents($destinationPath);
+        if ($svg !== '') {
+            kernelWriteFile($destinationPath, cmsSanitizeSvgContent($svg));
+        }
+    }
+
+    return [
+        'asset_url' => $assetUrl,
+        'absolute_path' => $destinationPath,
+        'relative_path' => $relativePath,
+        'mime_type' => $mimeType,
+        'file_size' => (int)(@filesize($destinationPath) ?: $declaredSize),
+    ];
+}
+
 function dl_areSellingAccountsEnabled(): bool
 {
     $settings = dlModuleSettings();
@@ -130,6 +339,15 @@ function dlRender(string $template, array $context = []): string
     if (!array_key_exists('app_name', $context)) {
         $context['app_name'] = dlAppName();
     }
+    if (!array_key_exists('logo_url', $context)) {
+        $context['logo_url'] = dlLogoUrl();
+    }
+    if (!array_key_exists('favicon_url', $context)) {
+        $context['favicon_url'] = dlFaviconUrl();
+    }
+    if (!array_key_exists('resolved_favicon_url', $context)) {
+        $context['resolved_favicon_url'] = dlResolvedFaviconUrl();
+    }
     // Always supply layout-level feature flags so the sidebar can gate links
     // consistently across every admin page, even handlers that do not explicitly
     // pass them in. Existing values in $context win.
@@ -148,6 +366,9 @@ function dlNormalizeLoginRenderContext(array $context, string $template, array &
     return kernelApplyRenderContextShape($context, [
         'page_title' => 'Daily Ledger Sign In',
         'app_name' => 'Daily Ledger',
+        'logo_url' => '',
+        'favicon_url' => '',
+        'resolved_favicon_url' => dlDefaultFaviconUrl(),
     ], ['page_title', 'app_name'], $missingKeys, $typeMismatches);
 }
 
@@ -192,12 +413,16 @@ function dlNormalizeAdminRenderContext(array $context, string $template, array &
 {
     return kernelApplyRenderContextShape($context, [
         'page_title' => '',
+        'app_name' => 'Daily Ledger',
         'user_name' => '',
         'user_role' => '',
         'current_page' => '',
         'base_url' => '',
         'dl_token' => '',
-    ], ['page_title', 'user_name', 'user_role', 'current_page', 'base_url'], $missingKeys, $typeMismatches);
+        'logo_url' => '',
+        'favicon_url' => '',
+        'resolved_favicon_url' => dlDefaultFaviconUrl(),
+    ], ['page_title', 'app_name', 'user_name', 'user_role', 'current_page', 'base_url'], $missingKeys, $typeMismatches);
 }
 
 kernelRegisterRenderContextContract('daily-ledger.page.login', [

@@ -134,6 +134,20 @@
             "description": "Display name shown on the login page and throughout the app."
         },
         {
+            "key": "logo_url",
+            "type": "text",
+            "label": "Logo URL",
+            "default": "",
+            "description": "Optional uploaded logo shown in the Daily Ledger sidebar and login screen."
+        },
+        {
+            "key": "favicon_url",
+            "type": "text",
+            "label": "Favicon URL",
+            "default": "",
+            "description": "Optional uploaded favicon used across Daily Ledger pages."
+        },
+        {
             "key": "production_output_enabled",
             "type": "checkbox",
             "label": "Enable Production Output",
