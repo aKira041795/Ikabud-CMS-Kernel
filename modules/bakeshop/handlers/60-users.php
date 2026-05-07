@@ -246,13 +246,18 @@ function bakeshopPageUsers(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         $user = bakeshopCurrentUser(null, ['admin']);
         $bootstrapOnboarding = bakeshopBootstrapOnboardingState();
+        $users = bakeshopUsersListData();
+        $activeUsers = array_values(array_filter($users, static fn (array $staff): bool => (int)($staff['is_active'] ?? 0) === 1));
+        $inactiveUsers = array_values(array_filter($users, static fn (array $staff): bool => (int)($staff['is_active'] ?? 0) !== 1));
         echo bakeshopRender('pages/users.disyl', bakeshopPageContext($user, 'users', [
             'page_title' => 'Bakeshop Staff',
             'page_intro' => 'Create admins and supervisors, manage account status, and keep staff access inside the Bakeshop module.',
             'current_user_id' => (int)($user['id'] ?? 0),
             'bootstrap_onboarding' => $bootstrapOnboarding,
             'is_bootstrap_user' => bakeshopIsBootstrapUser($user),
-            'users' => bakeshopUsersListData(),
+            'users' => $users,
+            'active_users' => $activeUsers,
+            'inactive_users' => $inactiveUsers,
         ]));
     });
 }
