@@ -395,7 +395,7 @@ function bakeshopApiProductionStore(array $params = []): void
         $input = bakeshopInput();
         $isUpdate = (($input['id'] ?? null) !== null && trim((string)$input['id']) !== '');
         $item = $isUpdate ? bakeshopProductionUpdate($input) : bakeshopProductionCreate($input);
-        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
+        bakeshopJsonMutationOk(['item' => $item], ['production', 'usage'], $isUpdate ? 200 : 201);
     });
 }
 
@@ -405,7 +405,7 @@ function bakeshopApiProductionVoid(array $params = []): void
         bakeshopEnforceCsrf();
         $user = bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopProductionVoid(bakeshopInput(), $user);
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['production', 'usage']);
     });
 }
 

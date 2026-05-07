@@ -32,6 +32,10 @@ function bakeshopCookieName(): string
 
 function bakeshopSetAuthCookie(string $token, int $expiresInSeconds = 86400): void
 {
+    if (headers_sent()) {
+        return;
+    }
+
     $expiry = time() + max(60, $expiresInSeconds);
     setcookie(bakeshopCookieName(), $token, [
         'expires' => $expiry,
@@ -44,6 +48,10 @@ function bakeshopSetAuthCookie(string $token, int $expiresInSeconds = 86400): vo
 
 function bakeshopClearAuthCookie(): void
 {
+    if (headers_sent()) {
+        return;
+    }
+
     setcookie(bakeshopCookieName(), '', [
         'expires' => time() - 3600,
         'path' => '/',
@@ -86,6 +94,49 @@ function bakeshopUserTokenVersion(int $userId): int
     } catch (Throwable $e) {
         return 0;
     }
+}
+
+function bakeshopAuthenticatedUserRecord(int $userId): ?array
+{
+    if ($userId <= 0) {
+        return null;
+    }
+
+    try {
+        $columns = [
+            'id',
+            'username',
+            'email',
+            'full_name',
+            'role',
+            'is_active',
+        ];
+        if (bakeshopSupportsTokenVersion()) {
+            $columns[] = 'COALESCE(token_version, 0) AS token_version';
+        }
+
+        $stmt = bakeshopDb()->prepare(
+            'SELECT ' . implode(', ', $columns) . ' FROM bakeshop_users WHERE id = ? LIMIT 1'
+        );
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function bakeshopRejectStaleSession(string $message = 'Session expired. Please sign in again.'): void
+{
+    bakeshopClearAuthCookie();
+
+    try {
+        app()->setUser([]);
+    } catch (Throwable $ignored) {
+    }
+
+    throw new DomainException($message);
 }
 
 function bakeshopIsKernelSuperadmin(?array $user): bool
@@ -602,6 +653,32 @@ function bakeshopJsonOk(array $data = [], int $status = 200): void
     ], $status);
 }
 
+function bakeshopNormalizeCacheInvalidations(array $datasets): array
+{
+    $normalized = [];
+    foreach ($datasets as $dataset) {
+        $name = strtolower(trim((string)$dataset));
+        if ($name === '') {
+            continue;
+        }
+
+        $normalized[$name] = true;
+    }
+
+    return array_keys($normalized);
+}
+
+function bakeshopJsonMutationOk(array $data = [], array $cacheInvalidate = [], int $status = 200): void
+{
+    $payload = $data;
+    $normalized = bakeshopNormalizeCacheInvalidations($cacheInvalidate);
+    if ($normalized !== []) {
+        $payload['cache_invalidate'] = $normalized;
+    }
+
+    bakeshopJsonOk($payload, $status);
+}
+
 function bakeshopJsonError(string $message, int $status = 422, array $extra = []): void
 {
     bakeshopJson([
@@ -856,8 +933,147 @@ function bakeshopStoreLogoFallbackUrl(string $relativePath): string
     return '/uploads/bakeshop' . $tenantSegment . '/' . ltrim($relativePath, '/');
 }
 
+function bakeshopStoreLogoTenantQuotaBytes(): int
+{
+    return 5 * 1024 * 1024;
+}
+
+function bakeshopStoreLogoStorageRoots(): array
+{
+    $roots = [bakeshopStoreLogoFallbackPath()];
+    if (function_exists('cmsUploadsPath')) {
+        $roots[] = rtrim(cmsUploadsPath(), '/') . '/bakeshop/branding';
+    }
+
+    $normalized = [];
+    foreach ($roots as $root) {
+        $path = rtrim(str_replace('\\', '/', (string)$root), '/');
+        if ($path === '') {
+            continue;
+        }
+        $normalized[$path] = true;
+    }
+
+    return array_keys($normalized);
+}
+
+function bakeshopDirectorySize(string $path): int
+{
+    if (!is_dir($path)) {
+        return 0;
+    }
+
+    $size = 0;
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $item) {
+        if ($item->isFile()) {
+            $size += max(0, (int)$item->getSize());
+        }
+    }
+
+    return $size;
+}
+
+function bakeshopStoreLogoCurrentUsageBytes(): int
+{
+    $total = 0;
+    foreach (bakeshopStoreLogoStorageRoots() as $root) {
+        $total += bakeshopDirectorySize($root);
+    }
+
+    return $total;
+}
+
+function bakeshopStoreLogoUploadRateLimitSnapshot(?string $ip = null): array
+{
+    $tenantId = app()->tenant()->current();
+    $tenantKey = $tenantId !== null && trim((string)$tenantId) !== ''
+        ? preg_replace('/[^A-Za-z0-9_-]/', '_', (string)$tenantId)
+        : 'global';
+    $normalizedIp = trim((string)($ip ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown')));
+    if ($normalizedIp === '') {
+        $normalizedIp = 'unknown';
+    }
+
+    $key = 'bakeshop_store_logo_upload:' . $tenantKey . ':ip:' . sha1($normalizedIp);
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    if (!is_array($cached)) {
+        return [
+            'key' => $key,
+            'count' => 0,
+            'expires_at' => 0,
+        ];
+    }
+
+    return [
+        'key' => $key,
+        'count' => max(0, (int)($cached['count'] ?? 0)),
+        'expires_at' => max(0, (int)($cached['expires_at'] ?? 0)),
+    ];
+}
+
+function bakeshopStoreLogoUploadRateLimitState(?string $ip = null): array
+{
+    $windowSeconds = 60;
+    $snapshot = bakeshopStoreLogoUploadRateLimitSnapshot($ip);
+    $now = time();
+    $expiresAt = (int)($snapshot['expires_at'] ?? 0);
+    $count = (int)($snapshot['count'] ?? 0);
+
+    if ($expiresAt <= $now) {
+        $count = 0;
+        $expiresAt = 0;
+    }
+
+    return [
+        'key' => (string)($snapshot['key'] ?? ''),
+        'count' => $count,
+        'retry_after' => $expiresAt > $now ? max(1, $expiresAt - $now) : 0,
+        'limited' => $count >= 1 && $expiresAt > $now,
+        'enforced' => true,
+        'window_seconds' => $windowSeconds,
+    ];
+}
+
+function bakeshopEnforceStoreLogoUploadRateLimit(?string $ip = null): void
+{
+    $rateLimit = bakeshopStoreLogoUploadRateLimitState($ip);
+    if (!($rateLimit['limited'] ?? false)) {
+        $windowSeconds = max(1, (int)($rateLimit['window_seconds'] ?? 60));
+        app()->cache()->set(
+            'security_rate_limits',
+            (string)($rateLimit['key'] ?? ''),
+            [
+                'count' => max(0, (int)($rateLimit['count'] ?? 0)) + 1,
+                'expires_at' => time() + $windowSeconds,
+            ],
+            $windowSeconds
+        );
+        return;
+    }
+
+    $retryAfter = max(1, (int)($rateLimit['retry_after'] ?? 60));
+    throw new InvalidArgumentException('Store logo uploads are limited to one change per minute. Try again in ' . $retryAfter . ' second(s).');
+}
+
+function bakeshopEnforceStoreLogoQuota(int $incomingBytes = 0): void
+{
+    $quota = bakeshopStoreLogoTenantQuotaBytes();
+    $usage = bakeshopStoreLogoCurrentUsageBytes();
+    if (($usage + max(0, $incomingBytes)) <= $quota) {
+        return;
+    }
+
+    throw new InvalidArgumentException('Store logo storage quota exceeded for this tenant. Remove an older logo before uploading another.');
+}
+
 function bakeshopStoreLogoUpload(array $file): array
 {
+    bakeshopEnforceStoreLogoUploadRateLimit();
+
     if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         throw new InvalidArgumentException('Upload a logo image first.');
     }
@@ -883,6 +1099,8 @@ function bakeshopStoreLogoUpload(array $file): array
         throw new InvalidArgumentException('Uploaded logo file exceeds the maximum allowed size.');
     }
 
+    bakeshopEnforceStoreLogoQuota($declaredSize);
+
     if (function_exists('cmsValidateMediaUploadFile') && function_exists('cmsUploadsPath') && function_exists('cmsResolveUploadUrl')) {
         $validated = cmsValidateMediaUploadFile($tmpPath, $originalName, $declaredSize);
         if (!($validated['ok'] ?? false)) {
@@ -894,13 +1112,29 @@ function bakeshopStoreLogoUpload(array $file): array
             throw new InvalidArgumentException('Store logo must be an image file.');
         }
 
-        $subPath = 'bakeshop/branding/' . date('Y') . '/' . date('m');
-        $destinationDir = cmsUploadsPath() . '/' . $subPath;
-        if (!kernelEnsureDirectory($destinationDir)) {
-            throw new InvalidArgumentException('Unable to prepare the logo upload directory.');
+        $filename = (string)($validated['filename'] ?? cmsGenerateMediaFilename($originalName));
+        $cmsSubPath = 'bakeshop/branding/' . date('Y') . '/' . date('m');
+        $cmsDestinationDir = cmsUploadsPath() . '/' . $cmsSubPath;
+        $destinationDir = $cmsDestinationDir;
+        $relativePath = $cmsSubPath . '/' . $filename;
+        $resolveUrl = static fn (string $path): string => cmsResolveUploadUrl($path);
+
+        if (!kernelEnsureDirectory($cmsDestinationDir)) {
+            $fallbackRelativeDir = 'branding/' . date('Y') . '/' . date('m');
+            $destinationDir = bakeshopStoreLogoFallbackPath() . '/' . $fallbackRelativeDir;
+            if (!kernelEnsureDirectory($destinationDir)) {
+                throw new InvalidArgumentException('Unable to prepare the logo upload directory.');
+            }
+
+            $relativePath = $fallbackRelativeDir . '/' . $filename;
+            $resolveUrl = static fn (string $path): string => bakeshopStoreLogoFallbackUrl($path);
+
+            try {
+                bakeshopCtx()->log('bakeshop logo upload fell back to module storage because the CMS upload directory was unavailable.', 'warning');
+            } catch (Throwable $ignored) {
+            }
         }
 
-        $filename = (string)($validated['filename'] ?? cmsGenerateMediaFilename($originalName));
         $destinationPath = $destinationDir . '/' . $filename;
         if (!kernelCopyFile($tmpPath, $destinationPath)) {
             throw new InvalidArgumentException('Unable to save the uploaded logo file.');
@@ -922,10 +1156,17 @@ function bakeshopStoreLogoUpload(array $file): array
             throw $e;
         }
 
-        $relativePath = $subPath . '/' . $filename;
+        try {
+            bakeshopEnforceStoreLogoQuota();
+        } catch (Throwable $e) {
+            if (is_file($destinationPath)) {
+                @unlink($destinationPath);
+            }
+            throw $e;
+        }
 
         return [
-            'store_logo_url' => cmsResolveUploadUrl($relativePath),
+            'store_logo_url' => $resolveUrl($relativePath),
             'relative_path' => $relativePath,
             'absolute_path' => $destinationPath,
             'mime_type' => $mimeType,
@@ -970,6 +1211,14 @@ function bakeshopStoreLogoUpload(array $file): array
     }
 
     $relativePath = $relativeDir . '/' . $filename;
+    try {
+        bakeshopEnforceStoreLogoQuota();
+    } catch (Throwable $e) {
+        if (is_file($destinationPath)) {
+            @unlink($destinationPath);
+        }
+        throw $e;
+    }
 
     return [
         'store_logo_url' => bakeshopStoreLogoFallbackUrl($relativePath),
@@ -997,17 +1246,75 @@ function bakeshopStoreInitial(string $storeName): string
     return strtoupper(substr($trimmed, 0, 1));
 }
 
+function bakeshopBrandSettingsCacheInstance(): string
+{
+    $tenantId = 'global';
+    try {
+        $currentTenant = app()->tenant()->current();
+        if ($currentTenant !== null && trim((string)$currentTenant) !== '') {
+            $tenantId = preg_replace('/[^A-Za-z0-9_-]/', '_', (string)$currentTenant) ?: 'global';
+        }
+    } catch (Throwable $ignored) {
+    }
+
+    return 'bakeshop_brand_settings_' . $tenantId;
+}
+
+function bakeshopBrandSettingsCacheKey(): string
+{
+    return 'brand_settings';
+}
+
+function bakeshopClearBrandSettingsCache(): void
+{
+    try {
+        app()->cache()->clearWithDependencies(
+            bakeshopBrandSettingsCacheInstance(),
+            bakeshopBrandSettingsCacheKey()
+        );
+    } catch (Throwable $ignored) {
+    }
+}
+
 function bakeshopBrandSettings(): array
 {
+    try {
+        $cached = app()->cache()->get(
+            bakeshopBrandSettingsCacheInstance(),
+            bakeshopBrandSettingsCacheKey()
+        );
+        if (is_array($cached)
+            && array_key_exists('store_name', $cached)
+            && array_key_exists('store_description', $cached)
+            && array_key_exists('store_logo_url', $cached)
+            && array_key_exists('store_initial', $cached)) {
+            unset($cached['_cache_expires_at']);
+            return $cached;
+        }
+    } catch (Throwable $ignored) {
+    }
+
     $settings = bakeshopSettings();
     $storeName = bakeshopNormalizeStoreName($settings['store_name'] ?? null);
 
-    return [
+    $brandSettings = [
         'store_name' => $storeName,
         'store_description' => bakeshopNormalizeStoreDescription($settings['store_description'] ?? null),
         'store_logo_url' => bakeshopNormalizeStoreLogoUrl($settings['store_logo_url'] ?? null),
         'store_initial' => bakeshopStoreInitial($storeName),
     ];
+
+    try {
+        app()->cache()->set(
+            bakeshopBrandSettingsCacheInstance(),
+            bakeshopBrandSettingsCacheKey(),
+            $brandSettings,
+            3600
+        );
+    } catch (Throwable $ignored) {
+    }
+
+    return $brandSettings;
 }
 
 function bakeshopSupportedPrintTemplates(): array

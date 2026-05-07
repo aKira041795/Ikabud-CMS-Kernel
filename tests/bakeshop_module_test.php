@@ -154,6 +154,17 @@ try {
             'is_active' => 1,
             'created_at' => '2026-04-27 00:00:00',
         ]],
+        'active_users' => [[
+            'id' => 5,
+            'username' => 'focususer',
+            'email' => 'focus@example.test',
+            'phone' => '',
+            'full_name' => 'Focus User',
+            'role' => 'supervisor',
+            'is_active' => 1,
+            'created_at' => '2026-04-27 00:00:00',
+        ]],
+        'inactive_users' => [],
     ]));
     bt('users template exposes focus user card target', str_contains($userFocusHtml, 'data-user-card-id="5"'));
     bt('users template reads focus_user_id query param', str_contains($userFocusHtml, "searchParams.get('focus_user_id')"));

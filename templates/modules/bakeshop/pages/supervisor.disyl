@@ -1592,13 +1592,16 @@ document.addEventListener('DOMContentLoaded', () => {
         units: bakeshopApiPath('/api/v1/bakeshop/units'),
         products: bakeshopApiPath('/api/v1/bakeshop/products'),
         productStatus: bakeshopApiPath('/api/v1/bakeshop/products/[id]/status'),
+        productsBatchDelete: bakeshopApiPath('/api/v1/bakeshop/products/batch-delete'),
         productsDelete: bakeshopApiPath('/api/v1/bakeshop/products/delete'),
         ingredients: bakeshopApiPath('/api/v1/bakeshop/ingredients'),
         ingredientStatus: bakeshopApiPath('/api/v1/bakeshop/ingredients/[id]/status'),
+        ingredientsBatchDelete: bakeshopApiPath('/api/v1/bakeshop/ingredients/batch-delete'),
         ingredientsDelete: bakeshopApiPath('/api/v1/bakeshop/ingredients/delete'),
         recipes: bakeshopApiPath('/api/v1/bakeshop/recipes'),
         recipesDelete: bakeshopApiPath('/api/v1/bakeshop/recipes/delete'),
         deliveries: bakeshopApiPath('/api/v1/bakeshop/deliveries'),
+        deliveriesBatchDelete: bakeshopApiPath('/api/v1/bakeshop/deliveries/batch-delete'),
         deliveriesDelete: bakeshopApiPath('/api/v1/bakeshop/deliveries/delete'),
         production: bakeshopApiPath('/api/v1/bakeshop/production'),
         productionVoid: bakeshopApiPath('/api/v1/bakeshop/production/void'),
@@ -1724,6 +1727,78 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(setupTabs).some((button) => button.getAttribute('data-tab') === candidate)
             ? candidate
             : defaultTab;
+    }
+
+    function currentTabName() {
+        const activeButton = Array.from(setupTabs).find((button) => button.classList.contains('active'));
+        return resolveTabName(activeButton ? activeButton.getAttribute('data-tab') : window.location.hash.slice(1));
+    }
+
+    function tabRequirementsFor(tabName) {
+        const tabRequirements = {
+            branches: ['branches'],
+            catalog: ['units', 'products', 'ingredients', 'recipes'],
+            ingredients: ['units', 'ingredients'],
+            deliveries: ['branches', 'ingredients', 'deliveries'],
+            production: ['branches', 'products', 'production'],
+            usage: ['branches', 'usage']
+        };
+
+        return tabRequirements[resolveTabName(tabName)] || [];
+    }
+
+    function datasetLoaders() {
+        return {
+            branches: loadBranches,
+            units: loadUnits,
+            products: loadProducts,
+            ingredients: loadIngredients,
+            recipes: loadRecipes,
+            deliveries: loadDeliveries,
+            production: loadProduction,
+            usage: loadUsage
+        };
+    }
+
+    function normalizeCacheInvalidations(values) {
+        if (!Array.isArray(values)) {
+            return [];
+        }
+
+        return Array.from(new Set(values
+            .map((value) => String(value || '').trim().toLowerCase())
+            .filter(Boolean)));
+    }
+
+    function invalidateCachedDatasets(values) {
+        normalizeCacheInvalidations(values).forEach((dataset) => {
+            if (Object.prototype.hasOwnProperty.call(state.loaded, dataset)) {
+                state.loaded[dataset] = false;
+            }
+        });
+    }
+
+    async function applyCacheInvalidations(values, options = {}) {
+        const invalidations = normalizeCacheInvalidations(values);
+        if (!invalidations.length) {
+            return;
+        }
+
+        invalidateCachedDatasets(invalidations);
+
+        if (options.refreshCurrentTab === false) {
+            return;
+        }
+
+        const currentTab = currentTabName();
+        const requirements = tabRequirementsFor(currentTab);
+        const refreshCurrentTab = invalidations.some((dataset) => dataset === 'usage'
+            ? currentTab === 'usage'
+            : requirements.includes(dataset));
+
+        if (refreshCurrentTab) {
+            await ensureTabData(currentTab, { force: true });
+        }
     }
 
     function syncFocusedWorkspaceHeader(tabName) {
@@ -3485,27 +3560,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function ensureTabData(tabName, options = {}) {
         const force = options.force === true;
         const resolvedTab = resolveTabName(tabName);
-        const tabRequirements = {
-            branches: ['branches'],
-            catalog: ['units', 'products', 'ingredients', 'recipes'],
-            ingredients: ['units', 'ingredients'],
-            deliveries: ['branches', 'ingredients', 'deliveries'],
-            production: ['branches', 'products', 'production'],
-            usage: ['branches', 'usage']
-        };
-        const datasetLoaders = {
-            branches: loadBranches,
-            units: loadUnits,
-            products: loadProducts,
-            ingredients: loadIngredients,
-            recipes: loadRecipes,
-            deliveries: loadDeliveries,
-            production: loadProduction,
-            usage: loadUsage
-        };
+        const loaders = datasetLoaders();
 
-        for (const requirement of tabRequirements[resolvedTab] || []) {
-            await datasetLoaders[requirement](force);
+        for (const requirement of tabRequirementsFor(resolvedTab)) {
+            await loaders[requirement](force);
         }
     }
 
@@ -3519,6 +3577,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof after === 'function') {
                 await after(data);
             }
+            await applyCacheInvalidations(data.cache_invalidate || [], {
+                refreshCurrentTab: typeof after !== 'function'
+            });
             return data;
         } catch (error) {
             showBanner(error.message || 'Request failed.', false);
@@ -3825,38 +3886,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let deletedCount = 0;
-        const failedLabels = [];
-        for (const id of normalizedIds) {
-            const row = findStateRow('product', id);
-            try {
-                await request(api.productsDelete, {
-                    method: 'POST',
-                    body: JSON.stringify({ _token: csrfToken, id })
-                });
-                deletedCount += 1;
-                state.selectedProductIds.delete(id);
-                if (productForm.elements.namedItem('id').value === String(id) || Number(state.activeProductId) === id) {
-                    resetProductForm();
-                }
-            } catch (error) {
-                failedLabels.push((row && row.name) ? row.name : ('ID ' + String(id)));
-            }
+        const data = await submitJson(api.productsBatchDelete, {
+            ids: normalizedIds
+        }, normalizedIds.length === 1 ? 'Product deleted.' : ('Deleted ' + String(normalizedIds.length) + ' products.'));
+        if (!data) {
+            return;
         }
+
+        normalizedIds.forEach((id) => {
+            state.selectedProductIds.delete(id);
+            if (productForm.elements.namedItem('id').value === String(id) || Number(state.activeProductId) === id) {
+                resetProductForm();
+            }
+        });
 
         await loadProducts(true);
         await loadRecipes(true);
-
-        if (deletedCount > 0 && failedLabels.length === 0) {
-            showBanner(deletedCount === 1 ? 'Product deleted.' : ('Deleted ' + String(deletedCount) + ' products.'), true);
-            return;
-        }
-        if (deletedCount > 0) {
-            showBanner('Deleted ' + String(deletedCount) + ' products. Failed: ' + failedLabels.slice(0, 3).join(', ') + (failedLabels.length > 3 ? '...' : '') + '.', false);
-            return;
-        }
-
-        showBanner('Unable to delete the selected products.', false);
     }
 
     async function deleteProduct(row) {
@@ -3885,38 +3930,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let deletedCount = 0;
-        const failedLabels = [];
-        for (const id of normalizedIds) {
-            const row = findStateRow('ingredient', id);
-            try {
-                await request(api.ingredientsDelete, {
-                    method: 'POST',
-                    body: JSON.stringify({ _token: csrfToken, id })
-                });
-                deletedCount += 1;
-                state.selectedIngredientIds.delete(id);
-                if (ingredientForm.elements.namedItem('id').value === String(id)) {
-                    resetIngredientForm();
-                }
-            } catch (error) {
-                failedLabels.push((row && row.name) ? row.name : ('ID ' + String(id)));
-            }
+        const data = await submitJson(api.ingredientsBatchDelete, {
+            ids: normalizedIds
+        }, normalizedIds.length === 1 ? 'Ingredient deleted.' : ('Deleted ' + String(normalizedIds.length) + ' ingredients.'));
+        if (!data) {
+            return;
         }
+
+        normalizedIds.forEach((id) => {
+            state.selectedIngredientIds.delete(id);
+            if (ingredientForm.elements.namedItem('id').value === String(id)) {
+                resetIngredientForm();
+            }
+        });
 
         await loadIngredients(true);
         await loadRecipes(true);
-
-        if (deletedCount > 0 && failedLabels.length === 0) {
-            showBanner(deletedCount === 1 ? 'Ingredient deleted.' : ('Deleted ' + String(deletedCount) + ' ingredients.'), true);
-            return;
-        }
-        if (deletedCount > 0) {
-            showBanner('Deleted ' + String(deletedCount) + ' ingredients. Failed: ' + failedLabels.slice(0, 3).join(', ') + (failedLabels.length > 3 ? '...' : '') + '.', false);
-            return;
-        }
-
-        showBanner('Unable to delete the selected ingredients.', false);
     }
 
     async function deleteIngredient(row) {
@@ -3945,38 +3974,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let deletedCount = 0;
-        const failedLabels = [];
-        for (const id of normalizedIds) {
-            const row = findStateRow('delivery', id);
-            try {
-                await request(api.deliveriesDelete, {
-                    method: 'POST',
-                    body: JSON.stringify({ _token: csrfToken, id })
-                });
-                deletedCount += 1;
-                state.selectedDeliveryIds.delete(id);
-                if (Number(state.expandedDeliveryId || 0) === id) {
-                    state.expandedDeliveryId = 0;
-                }
-            } catch (error) {
-                failedLabels.push((row && row.reference) ? row.reference : ('ID ' + String(id)));
-            }
+        const data = await submitJson(api.deliveriesBatchDelete, {
+            ids: normalizedIds
+        }, normalizedIds.length === 1 ? 'Delivery deleted.' : ('Deleted ' + String(normalizedIds.length) + ' deliveries.'));
+        if (!data) {
+            return;
         }
+
+        normalizedIds.forEach((id) => {
+            state.selectedDeliveryIds.delete(id);
+            if (Number(state.expandedDeliveryId || 0) === id) {
+                state.expandedDeliveryId = 0;
+            }
+        });
 
         await loadDeliveries(true);
         await loadUsage();
-
-        if (deletedCount > 0 && failedLabels.length === 0) {
-            showBanner(deletedCount === 1 ? 'Delivery deleted.' : ('Deleted ' + String(deletedCount) + ' deliveries.'), true);
-            return;
-        }
-        if (deletedCount > 0) {
-            showBanner('Deleted ' + String(deletedCount) + ' deliveries. Failed: ' + failedLabels.slice(0, 3).join(', ') + (failedLabels.length > 3 ? '...' : '') + '.', false);
-            return;
-        }
-
-        showBanner('Unable to delete the selected deliveries.', false);
     }
 
     async function deleteDelivery(row) {

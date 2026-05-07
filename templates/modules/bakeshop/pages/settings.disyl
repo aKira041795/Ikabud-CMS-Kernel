@@ -74,6 +74,12 @@
     .bakeshop-settings-field select,
     .bakeshop-settings-field textarea { width: 100%; border-radius: 2px; border: 1px solid #d1d5db; padding: 11px 12px; background: #fff; color: #111827; }
     .bakeshop-settings-field textarea { min-height: 104px; resize: vertical; }
+    .bakeshop-settings-field.is-invalid input,
+    .bakeshop-settings-field.is-invalid select,
+    .bakeshop-settings-field.is-invalid textarea,
+    .bakeshop-settings-logo-controls input.is-invalid { border-color: #dc2626; box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.16); }
+    .bakeshop-settings-field-error { display: none; font-size: 0.82rem; color: #b91c1c; line-height: 1.4; }
+    .bakeshop-settings-field-error.show { display: block; }
     .bakeshop-settings-field.span-2 { grid-column: span 2; }
     .bakeshop-settings-field-grid.units { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .bakeshop-settings-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -166,6 +172,7 @@
                     <div class="bakeshop-settings-field">
                         <label for="store-name">Store Name</label>
                         <input id="store-name" name="store_name" maxlength="120" value="{settings.store_name}" {if !can_manage_settings}disabled{/if}>
+                        <div class="bakeshop-settings-field-error" data-field-error="store_name"></div>
                     </div>
                     <div class="bakeshop-settings-field span-2">
                         <label for="store-logo-file">Upload Logo</label>
@@ -175,6 +182,7 @@
                             <div class="bakeshop-settings-logo-controls">
                                 <input id="store-logo-file" name="store_logo_file" type="file" accept="image/*" {if !can_manage_settings}disabled{/if}>
                                 <div class="bakeshop-settings-logo-status" id="store-logo-status">{if settings.store_logo_url}Current uploaded logo will stay in place until you choose a new one or switch back to the lettermark. Oversized raster logos are reduced to fit within {if brand_settings.store_logo_url}512{/if}512x512 before display.{else}No uploaded logo yet. The generated lettermark is currently in use. Oversized raster logos are reduced to fit within 512x512 before display.{/if}</div>
+                                <div class="bakeshop-settings-field-error" data-field-error="store_logo_file"></div>
                                 {if can_manage_settings}
                                 <div class="bakeshop-settings-actions">
                                     <button class="bakeshop-settings-button secondary" type="button" id="store-logo-remove" {if !settings.store_logo_url}hidden{/if}>Use Lettermark</button>
@@ -186,16 +194,19 @@
                     <div class="bakeshop-settings-field span-2">
                         <label for="store-description">Store Description</label>
                         <textarea id="store-description" name="store_description" maxlength="280" {if !can_manage_settings}disabled{/if}>{settings.store_description}</textarea>
+                        <div class="bakeshop-settings-field-error" data-field-error="store_description"></div>
                     </div>
                     <div class="bakeshop-settings-field">
                         <label for="usage-decimal-places">Usage Decimal Places</label>
                         <input id="usage-decimal-places" name="usage_decimal_places" type="number" min="0" max="4" step="1" value="{settings.usage_decimal_places}" {if !can_manage_settings}disabled{/if}>
+                        <div class="bakeshop-settings-field-error" data-field-error="usage_decimal_places"></div>
                     </div>
                     <div class="bakeshop-settings-field">
                         <label for="print-template">Print Template</label>
                         <select id="print-template" name="print_template" {if !can_manage_settings}disabled{/if}>
                             <option value="standard" {if settings.print_template == 'standard'}selected{/if}>Standard</option>
                         </select>
+                        <div class="bakeshop-settings-field-error" data-field-error="print_template"></div>
                     </div>
                 </div>
                 <div class="bakeshop-settings-actions-row" style="margin-top:16px;">
@@ -361,10 +372,90 @@
     const logoRemoveButton = document.getElementById('store-logo-remove');
     const storeNameInput = displayForm?.querySelector('[name="store_name"]');
     const banner = document.getElementById('bakeshop-settings-banner');
+    const displayErrorNames = ['store_name', 'store_logo_file', 'store_description', 'usage_decimal_places', 'print_template'];
 
     function showBanner(message, ok = true) {
         banner.textContent = message;
         banner.className = 'bakeshop-settings-banner show ' + (ok ? 'ok' : 'error');
+    }
+
+    function clearDisplayFieldError(name) {
+        if (!displayForm) {
+            return;
+        }
+
+        const errorNode = displayForm.querySelector('[data-field-error="' + name + '"]');
+        if (errorNode) {
+            errorNode.textContent = '';
+            errorNode.classList.remove('show');
+        }
+
+        const field = displayForm.querySelector('[name="' + name + '"]');
+        if (field instanceof HTMLElement) {
+            field.classList.remove('is-invalid');
+            field.removeAttribute('aria-invalid');
+        }
+
+        const fieldShell = errorNode?.closest('.bakeshop-settings-field');
+        if (fieldShell) {
+            fieldShell.classList.remove('is-invalid');
+        }
+    }
+
+    function clearDisplayFieldErrors() {
+        displayErrorNames.forEach(clearDisplayFieldError);
+    }
+
+    function showDisplayFieldError(name, message) {
+        if (!displayForm) {
+            return;
+        }
+
+        const errorNode = displayForm.querySelector('[data-field-error="' + name + '"]');
+        if (!errorNode) {
+            return;
+        }
+
+        errorNode.textContent = message;
+        errorNode.classList.add('show');
+
+        const field = displayForm.querySelector('[name="' + name + '"]');
+        if (field instanceof HTMLElement) {
+            field.classList.add('is-invalid');
+            field.setAttribute('aria-invalid', 'true');
+        }
+
+        const fieldShell = errorNode.closest('.bakeshop-settings-field');
+        if (fieldShell) {
+            fieldShell.classList.add('is-invalid');
+        }
+    }
+
+    function inferDisplayFieldFromMessage(message) {
+        const normalized = String(message || '').toLowerCase();
+        if (normalized.includes('logo') || normalized.includes('image') || normalized.includes('upload')) {
+            return 'store_logo_file';
+        }
+        if (normalized.includes('store name')) {
+            return 'store_name';
+        }
+        if (normalized.includes('description')) {
+            return 'store_description';
+        }
+        if (normalized.includes('decimal')) {
+            return 'usage_decimal_places';
+        }
+        if (normalized.includes('print template') || normalized.includes('template')) {
+            return 'print_template';
+        }
+
+        return null;
+    }
+
+    function buildRequestError(payload, fallbackMessage) {
+        const error = new Error(payload.error || fallbackMessage);
+        error.field = inferDisplayFieldFromMessage(payload.error || '');
+        return error;
     }
 
     async function postJson(url, body) {
@@ -381,7 +472,7 @@
 
         const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
         if (!response.ok || payload.ok === false) {
-            throw new Error(payload.error || 'Request failed');
+            throw buildRequestError(payload, 'Request failed');
         }
 
         return payload;
@@ -404,7 +495,7 @@
 
         const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid server response' }));
         if (!response.ok || payload.ok === false) {
-            throw new Error(payload.error || 'Logo upload failed');
+            throw buildRequestError(payload, 'Logo upload failed');
         }
 
         return payload.data || {};
@@ -480,6 +571,7 @@
 
     displayForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
+        clearDisplayFieldErrors();
         try {
             let logoUrl = logoUrlInput?.value || '';
             const selectedLogo = logoFileInput?.files?.[0] || null;
@@ -509,6 +601,10 @@
 
             showBanner('Branding and display defaults saved.');
         } catch (error) {
+            const fieldName = String(error?.field || '').trim();
+            if (fieldName !== '') {
+                showDisplayFieldError(fieldName, error.message || 'Please review this field.');
+            }
             showBanner(error.message || 'Unable to save branding and display defaults.', false);
         }
     });
@@ -524,10 +620,16 @@
     });
 
     storeNameInput?.addEventListener('input', () => {
+        clearDisplayFieldError('store_name');
         if (!logoUrlInput?.value) {
             renderLogoPreview('');
         }
     });
+
+    displayForm?.querySelector('[name="store_description"]')?.addEventListener('input', () => clearDisplayFieldError('store_description'));
+    displayForm?.querySelector('[name="usage_decimal_places"]')?.addEventListener('input', () => clearDisplayFieldError('usage_decimal_places'));
+    displayForm?.querySelector('[name="print_template"]')?.addEventListener('change', () => clearDisplayFieldError('print_template'));
+    logoFileInput?.addEventListener('change', () => clearDisplayFieldError('store_logo_file'));
 
     renderLogoPreview(logoUrlInput?.value || '');
 
