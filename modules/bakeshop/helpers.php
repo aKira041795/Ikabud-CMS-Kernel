@@ -1042,21 +1042,26 @@ function bakeshopEnforceStoreLogoUploadRateLimit(?string $ip = null): void
 {
     $rateLimit = bakeshopStoreLogoUploadRateLimitState($ip);
     if (!($rateLimit['limited'] ?? false)) {
-        $windowSeconds = max(1, (int)($rateLimit['window_seconds'] ?? 60));
-        app()->cache()->set(
-            'security_rate_limits',
-            (string)($rateLimit['key'] ?? ''),
-            [
-                'count' => max(0, (int)($rateLimit['count'] ?? 0)) + 1,
-                'expires_at' => time() + $windowSeconds,
-            ],
-            $windowSeconds
-        );
         return;
     }
 
     $retryAfter = max(1, (int)($rateLimit['retry_after'] ?? 60));
     throw new InvalidArgumentException('Store logo uploads are limited to one change per minute. Try again in ' . $retryAfter . ' second(s).');
+}
+
+function bakeshopRecordStoreLogoUploadRateLimit(?string $ip = null): void
+{
+    $rateLimit = bakeshopStoreLogoUploadRateLimitState($ip);
+    $windowSeconds = max(1, (int)($rateLimit['window_seconds'] ?? 60));
+    app()->cache()->set(
+        'security_rate_limits',
+        (string)($rateLimit['key'] ?? ''),
+        [
+            'count' => max(0, (int)($rateLimit['count'] ?? 0)) + 1,
+            'expires_at' => time() + $windowSeconds,
+        ],
+        $windowSeconds
+    );
 }
 
 function bakeshopEnforceStoreLogoQuota(int $incomingBytes = 0): void
@@ -1123,6 +1128,17 @@ function bakeshopStoreLogoUpload(array $file): array
             $fallbackRelativeDir = 'branding/' . date('Y') . '/' . date('m');
             $destinationDir = bakeshopStoreLogoFallbackPath() . '/' . $fallbackRelativeDir;
             if (!kernelEnsureDirectory($destinationDir)) {
+                try {
+                    bakeshopCtx()->log(
+                        'bakeshop logo upload directory preparation failed for both CMS and fallback roots.',
+                        'warning',
+                        [
+                            'cms_destination_dir' => $cmsDestinationDir,
+                            'fallback_destination_dir' => $destinationDir,
+                        ]
+                    );
+                } catch (Throwable $ignored) {
+                }
                 throw new InvalidArgumentException('Unable to prepare the logo upload directory.');
             }
 
@@ -1165,6 +1181,8 @@ function bakeshopStoreLogoUpload(array $file): array
             throw $e;
         }
 
+        bakeshopRecordStoreLogoUploadRateLimit();
+
         return [
             'store_logo_url' => $resolveUrl($relativePath),
             'relative_path' => $relativePath,
@@ -1192,6 +1210,16 @@ function bakeshopStoreLogoUpload(array $file): array
     $relativeDir = 'branding/' . date('Y') . '/' . date('m');
     $destinationDir = bakeshopStoreLogoFallbackPath() . '/' . $relativeDir;
     if (!kernelEnsureDirectory($destinationDir)) {
+        try {
+            bakeshopCtx()->log(
+                'bakeshop logo upload directory preparation failed for the fallback root.',
+                'warning',
+                [
+                    'fallback_destination_dir' => $destinationDir,
+                ]
+            );
+        } catch (Throwable $ignored) {
+        }
         throw new InvalidArgumentException('Unable to prepare the logo upload directory.');
     }
 
@@ -1219,6 +1247,8 @@ function bakeshopStoreLogoUpload(array $file): array
         }
         throw $e;
     }
+
+    bakeshopRecordStoreLogoUploadRateLimit();
 
     return [
         'store_logo_url' => bakeshopStoreLogoFallbackUrl($relativePath),

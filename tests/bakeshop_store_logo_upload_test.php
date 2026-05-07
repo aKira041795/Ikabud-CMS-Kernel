@@ -80,12 +80,21 @@ try {
 
     $_SERVER['REMOTE_ADDR'] = '203.0.113.' . (string)random_int(10, 200);
 
+    try {
+        bakeshopStoreLogoUpload([]);
+        btLogo('failed upload does not consume the rate limit window', false, 'Expected InvalidArgumentException.');
+    } catch (InvalidArgumentException $e) {
+        btLogo('failed upload returns the expected validation error', str_contains(strtolower($e->getMessage()), 'upload a logo image first'), $e->getMessage());
+    }
+
     $result = bakeshopStoreLogoUpload([
         'name' => 'store-logo.png',
         'tmp_name' => $tmpPath,
         'error' => UPLOAD_ERR_OK,
         'size' => (int)filesize($tmpPath),
     ]);
+
+    btLogo('failed upload does not consume the rate limit window', ($result['store_logo_url'] ?? '') !== '', json_encode($result, JSON_UNESCAPED_SLASHES));
 
     $uploadedAbsolutePath = (string)($result['absolute_path'] ?? '');
     btLogo('logo upload returns public url', ($result['store_logo_url'] ?? '') !== '', json_encode($result, JSON_UNESCAPED_SLASHES));
