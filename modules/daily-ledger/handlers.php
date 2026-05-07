@@ -13,7 +13,6 @@ require_once __DIR__ . '/handlers-deliveries.php';
  */
 
 // ─── Helpers ───────────────────────────────────────────────────────────
-
 function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType = null, ?string $entityId = null, $oldData = null, $newData = null, ?string $reason = null): void
 {
     $ctx = module();
@@ -26,6 +25,100 @@ function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType 
     } catch (\Throwable $e) {
         // Non-fatal
     }
+}
+
+function dl_refreshTokenCacheKey(string $refreshToken): string
+{
+    return 'refresh_token:' . hash('sha256', $refreshToken);
+}
+
+function dl_registerRefreshToken(string $refreshToken, ?int $ttl = null): void
+{
+    if ($refreshToken === '') {
+        return;
+    }
+
+    app()->cache()->set('daily-ledger', dl_refreshTokenCacheKey($refreshToken), ['active' => true], $ttl ?? (30 * 86400));
+}
+
+function dl_isRefreshTokenActive(string $refreshToken): bool
+{
+    if ($refreshToken === '') {
+        return false;
+    }
+
+    $cached = app()->cache()->get('daily-ledger', dl_refreshTokenCacheKey($refreshToken));
+    if (!is_array($cached)) {
+        return true;
+    }
+
+    return !empty($cached['active']);
+}
+
+function dl_revokeRefreshToken(string $refreshToken): void
+{
+    if ($refreshToken === '') {
+        return;
+    }
+
+    app()->cache()->set('daily-ledger', dl_refreshTokenCacheKey($refreshToken), ['active' => false], 30 * 86400);
+}
+
+function dl_idempotencyCacheKey(string $scope, string $idempotencyKey): string
+{
+    return 'idempotency:' . $scope . ':' . hash('sha256', $idempotencyKey);
+}
+
+function dl_loadIdempotentResponse(string $scope, string $idempotencyKey): ?array
+{
+    $idempotencyKey = trim($idempotencyKey);
+    if ($idempotencyKey === '') {
+        return null;
+    }
+
+    $cached = app()->cache()->get('daily-ledger', dl_idempotencyCacheKey($scope, $idempotencyKey));
+    if (!is_array($cached) || !is_array($cached['response'] ?? null)) {
+        return null;
+    }
+
+    return $cached['response'];
+}
+
+function dl_storeIdempotentResponse(string $scope, string $idempotencyKey, array $response, int $ttl = 600): void
+{
+    $idempotencyKey = trim($idempotencyKey);
+    if ($idempotencyKey === '') {
+        return;
+    }
+
+    app()->cache()->set('daily-ledger', dl_idempotencyCacheKey($scope, $idempotencyKey), ['response' => $response], $ttl);
+}
+
+function dl_lockDayStatusRow($db, int $branchId, string $date): string
+{
+    $ensureStmt = $db->prepare(
+        'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status)
+         VALUES (:bid, :d, "open")
+         ON DUPLICATE KEY UPDATE branch_id = branch_id'
+    );
+    $ensureStmt->execute([':bid' => $branchId, ':d' => $date]);
+
+    $lockStmt = $db->prepare(
+        'SELECT status
+           FROM dl_ledger_day_status
+          WHERE branch_id = :bid AND ledger_date = :d
+          LIMIT 1
+          FOR UPDATE'
+    );
+    $lockStmt->execute([':bid' => $branchId, ':d' => $date]);
+    $status = (string)($lockStmt->fetchColumn() ?: 'open');
+    return $status === 'closed' ? 'closed' : 'open';
+}
+
+function dl_allowedColumn(string $field, array $map): ?string
+{
+    $column = $map[$field] ?? null;
+    return is_string($column) && $column !== '' ? $column : null;
 }
 
 function dl_generateAuthTokens(array $payload): array
@@ -41,6 +134,7 @@ function dl_generateAuthTokens(array $payload): array
         30 * 86400
     );
     $refreshToken = $refreshJwt->generate($refreshPayload);
+    dl_registerRefreshToken($refreshToken, 30 * 86400);
 
     return [
         'token' => $accessToken,
@@ -66,6 +160,9 @@ function dl_verifyRefreshToken(string $refreshToken): ?array
     }
 
     if (($payload['source'] ?? '') !== 'daily-ledger' || ($payload['token_type'] ?? '') !== 'refresh') {
+        return null;
+    }
+    if (!dl_isRefreshTokenActive($refreshToken)) {
         return null;
     }
 
@@ -1481,6 +1578,7 @@ function dailyLedgerAuthRefresh(): void
         return;
     }
 
+    dl_revokeRefreshToken($refreshToken);
     $tokens = dl_generateAuthTokens($payload);
     dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
 
@@ -2446,21 +2544,7 @@ function apiSaveLedgerField(array $params = []): void
     $field     = (string)($input['field'] ?? '');
     $value     = (int)($input['value'] ?? 0);
     $date      = (string)($input['date'] ?? dl_businessDate());
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId    = dl_getActorUserId($user);
     if ($userId <= 0) {
         write_log('daily-ledger save auth required', 'error', [
             'path' => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
@@ -2486,15 +2570,22 @@ function apiSaveLedgerField(array $params = []): void
     }
 
     // Validate field name and value
-    $allowed = ['beg_bal', 'addtl', 'withdraw', 'bal_end', 'sales'];
-    if (!in_array($field, $allowed, true) || !$branchId || !$productId) {
+    $fieldMap = [
+        'beg_bal' => 'beg_bal',
+        'addtl' => 'addtl',
+        'withdraw' => 'withdraw',
+        'bal_end' => 'bal_end',
+        'sales' => 'sales',
+    ];
+    $column = dl_allowedColumn($field, $fieldMap);
+    if ($column === null || !$branchId || !$productId) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
         return;
     }
-    if ($value < 0) {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Value cannot be negative', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Value cannot be negative'], 422);
+    if ($value < 0 || $value > 999999999) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Value out of bounds', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Value out of bounds'], 422);
         return;
     }
 
@@ -2534,87 +2625,42 @@ function apiSaveLedgerField(array $params = []): void
         }
     }
 
-    // Check day status — soft lock: cashier can't edit closed days
-    $dayStatus = dl_getDayStatus($branchId, $date);
     if ($role === 'cashier' && $date !== dl_businessDate()) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
         return;
     }
-    if ($dayStatus === 'closed' && $role === 'cashier') {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
-        return;
-    }
-
-    // Get branch-resolved price snapshot
-    $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
-
-    // Upsert the ledger row.
-    // Note: ON DUPLICATE KEY requires a UNIQUE index on (branch_id, product_id, ledger_date).
-    $sql = "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, {$field}, encoded_by, updated_by)
-            VALUES (:bid, :pid, :d, :price, :val, :uid, :uid2)
-            ON DUPLICATE KEY UPDATE {$field} = :val2, updated_by = :uid3, updated_at = CURRENT_TIMESTAMP";
 
     try {
-        // Get old value for audit
+        $ctx->db()->beginTransaction();
+        $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
+        if ($dayStatus === 'closed' && $role === 'cashier') {
+            throw new RuntimeException('Day is closed');
+        }
+
+        $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
         $oldStmt = $ctx->db()->prepare(
-            "SELECT {$field} FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d"
+            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d LIMIT 1 FOR UPDATE"
         );
         $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
         $oldVal = $oldStmt->fetchColumn();
 
-        $stmt = $ctx->db()->prepare($sql);
-        try {
-            $stmt->execute([
-                ':bid'   => $branchId,
-                ':pid'   => $productId,
-                ':d'     => $date,
-                ':price' => $currentPrice,
-                ':val'   => $value,
-                ':uid'   => $userId,
-                ':uid2'  => $userId,
-                ':val2'  => $value,
-                ':uid3'  => $userId,
-            ]);
-        } catch (\Throwable $e2) {
-            // Fallback for environments missing the expected UNIQUE index.
-            $ctx->db()->beginTransaction();
-            try {
-                $existsStmt = $ctx->db()->prepare(
-                    'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d LIMIT 1'
-                );
-                $existsStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
-                $existingId = (int)($existsStmt->fetchColumn() ?: 0);
-
-                if ($existingId > 0) {
-                    $updateStmt = $ctx->db()->prepare(
-                        "UPDATE dl_daily_ledger
-                         SET {$field} = :val, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
-                         WHERE id = :id"
-                    );
-                    $updateStmt->execute([':val' => $value, ':uid' => $userId, ':id' => $existingId]);
-                } else {
-                    $insertStmt = $ctx->db()->prepare(
-                        "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, {$field}, encoded_by, updated_by)
-                         VALUES (:bid, :pid, :d, :price, :val, :uid, :uid2)"
-                    );
-                    $insertStmt->execute([
-                        ':bid' => $branchId,
-                        ':pid' => $productId,
-                        ':d' => $date,
-                        ':price' => $currentPrice,
-                        ':val' => $value,
-                        ':uid' => $userId,
-                        ':uid2' => $userId,
-                    ]);
-                }
-                $ctx->db()->commit();
-            } catch (\Throwable $e3) {
-                $ctx->db()->rollBack();
-                throw $e3;
-            }
-        }
+        $stmt = $ctx->db()->prepare(
+            "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, {$column}, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :price, :val, :uid, :uid2)
+             ON DUPLICATE KEY UPDATE {$column} = :val2, updated_by = :uid3, updated_at = CURRENT_TIMESTAMP"
+        );
+        $stmt->execute([
+            ':bid'   => $branchId,
+            ':pid'   => $productId,
+            ':d'     => $date,
+            ':price' => $currentPrice,
+            ':val'   => $value,
+            ':uid'   => $userId,
+            ':uid2'  => $userId,
+            ':val2'  => $value,
+            ':uid3'  => $userId,
+        ]);
 
         // Silent variance computation when beg_bal changes
         if ($field === 'beg_bal') {
@@ -2636,9 +2682,19 @@ function apiSaveLedgerField(array $params = []): void
             [$field => $value]
         );
 
+        $ctx->db()->commit();
+
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'field' => $field, 'value' => $value]);
     } catch (\Throwable $e) {
+        if ($ctx->db()->inTransaction()) {
+            $ctx->db()->rollBack();
+        }
+        if ($e instanceof RuntimeException && $e->getMessage() === 'Day is closed') {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+            return;
+        }
         $ctx->log('apiSaveLedgerField failed: ' . $e->getMessage(), 'error', [
             'branch_id'  => $branchId,
             'product_id' => $productId,
@@ -2668,6 +2724,15 @@ function apiSaveLedgerBatch(array $params = []): void
     $input = $ctx->input();
     $date = (string)($input['date'] ?? dl_businessDate());
     $rows = $input['rows'] ?? null;
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+
+    if ($idempotencyKey !== '') {
+        $cachedResponse = dl_loadIdempotentResponse('ledger_batch', $idempotencyKey);
+        if (is_array($cachedResponse)) {
+            $ctx->json($cachedResponse);
+            return;
+        }
+    }
 
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
@@ -2689,9 +2754,7 @@ function apiSaveLedgerBatch(array $params = []): void
         return;
     }
 
-    // Check day status — cashier cannot edit closed days
-    $dayStatus = dl_getDayStatus($branchId, $date);
-    $isReadOnly = ($role === 'cashier' && ($date > dl_businessDate() || $dayStatus === 'closed'));
+    $isReadOnly = ($role === 'cashier' && $date > dl_businessDate());
 
     // Validate payload and normalize
     $normalized = [];
@@ -2709,8 +2772,8 @@ function apiSaveLedgerBatch(array $params = []): void
         $with = (int)($r['withdraw'] ?? 0);
         $end = (int)($r['bal_end'] ?? 0);
 
-        if ($beg < 0 || $add < 0 || $with < 0 || $end < 0) {
-            $ctx->json(['ok' => false, 'error' => 'Values cannot be negative'], 422);
+        if ($beg < 0 || $add < 0 || $with < 0 || $end < 0 || $beg > 999999999 || $add > 999999999 || $with > 999999999 || $end > 999999999) {
+            $ctx->json(['ok' => false, 'error' => 'Values are out of bounds'], 422);
             return;
         }
 
@@ -2730,6 +2793,7 @@ function apiSaveLedgerBatch(array $params = []): void
     }
 
     try {
+        $dayStatus = dl_getDayStatus($branchId, $date);
         if (!$isReadOnly) {
             // For cashier: identify production-locked columns per product before entering the transaction
             $productionLocks = [];
@@ -2755,6 +2819,10 @@ function apiSaveLedgerBatch(array $params = []): void
             }
 
             $ctx->db()->beginTransaction();
+            $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
+            if ($role === 'cashier' && $dayStatus === 'closed') {
+                throw new RuntimeException('Day is closed');
+            }
 
         $selectOld = $ctx->db()->prepare(
             'SELECT beg_bal, addtl, withdraw, bal_end FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
@@ -2870,19 +2938,27 @@ function apiSaveLedgerBatch(array $params = []): void
         $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
-        $ctx->json([
+        $response = [
             'ok' => true,
             'branch_id' => $branchId,
             'date' => $date,
             'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
             'day_status' => $dayStatus,
-        ]);
+        ];
+        dl_storeIdempotentResponse('ledger_batch', $idempotencyKey, $response);
+        $ctx->json($response);
     } catch (\Throwable $e) {
         try {
             if ($ctx->db()->inTransaction()) {
                 $ctx->db()->rollBack();
             }
         } catch (\Throwable $ignored) {
+        }
+
+        if ($e instanceof RuntimeException && $e->getMessage() === 'Day is closed') {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+            return;
         }
 
         $ctx->log('apiSaveLedgerBatch failed: ' . $e->getMessage(), 'error', [
@@ -3113,6 +3189,14 @@ function apiProductionSyncBatch(array $params = []): void
     $outputEnabled = dl_isFeatureEnabled('production_output_enabled');
     $input = $ctx->input();
     $operations = $input['operations'] ?? [];
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+    if ($idempotencyKey !== '') {
+        $cachedResponse = dl_loadIdempotentResponse('production_sync_batch', $idempotencyKey);
+        if (is_array($cachedResponse)) {
+            $ctx->json($cachedResponse);
+            return;
+        }
+    }
     if (!is_array($operations) || count($operations) === 0) {
         $ctx->json(['ok' => false, 'error' => 'operations[] is required'], 422);
         return;
@@ -3149,7 +3233,7 @@ function apiProductionSyncBatch(array $params = []): void
         }
     }
 
-    $ctx->json([
+    $response = [
         'ok' => true,
         'summary' => [
             'total' => count($results),
@@ -3157,7 +3241,9 @@ function apiProductionSyncBatch(array $params = []): void
             'failed' => count($results) - $okCount,
         ],
         'results' => $results,
-    ]);
+    ];
+    dl_storeIdempotentResponse('production_sync_batch', $idempotencyKey, $response);
+    $ctx->json($response);
 }
 
 function apiCloseDay(array $params = []): void
@@ -3174,21 +3260,7 @@ function apiCloseDay(array $params = []): void
     $input = $ctx->input();
     $branchId = dl_resolveLedgerBranchId($user, $input);
     $date     = (string)($input['date'] ?? dl_businessDate());
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
@@ -3245,21 +3317,7 @@ function apiReopenDay(array $params = []): void
     $input = $ctx->input();
     $branchId = (int)($input['branch_id'] ?? 0);
     $date     = (string)($input['date'] ?? '');
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
@@ -4879,21 +4937,7 @@ function apiCreateProduct(array $params = []): void
     }
 
     $sku = dl_generateSku();
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId = dl_getActorUserId($user);
 
     // dl_product_price_history.changed_by has an FK to kernel users.id.
     // Daily-ledger JWTs intentionally use id=0; use NULL when we don't have a kernel actor id.
@@ -4915,11 +4959,17 @@ function apiCreateProduct(array $params = []): void
         )->execute([':pid' => $productId, ':price' => $price, ':uid' => $kernelActorUserId]);
 
         // Assign to all active branches by default
-        $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
-        foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
+        $branches = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($branches !== []) {
+            $values = [];
+            $params = [':pid' => $productId];
+            foreach ($branches as $index => $br) {
+                $values[] = "(:bid_{$index}, :pid)";
+                $params[":bid_{$index}"] = (int)$br['id'];
+            }
             $ctx->db()->prepare(
-                'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
-            )->execute([':bid' => (int)$br['id'], ':pid' => $productId]);
+                'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES ' . implode(', ', $values)
+            )->execute($params);
         }
 
         dl_auditLog('create_product', null, 'product', (string)$productId, null, [
@@ -6761,9 +6811,20 @@ function apiSaveCommissaryMaterial(): void
     $materialId = (int)($input['material_id'] ?? 0);
     $field      = (string)($input['field'] ?? '');
     $val        = (float)($input['value'] ?? 0);
+    $fieldMap = [
+        'beg_bal' => 'beg_bal',
+        'delivery_qty' => 'delivery_qty',
+        'used_qty' => 'used_qty',
+        'actual_end_bal' => 'actual_end_bal',
+    ];
+    $column = dl_allowedColumn($field, $fieldMap);
 
-    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $materialId <= 0 || !in_array($field, ['beg_bal', 'delivery_qty', 'used_qty', 'actual_end_bal'], true)) {
+    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $materialId <= 0 || $column === null) {
         $ctx->json(['ok' => false, 'error' => 'Invalid data'], 400);
+        return;
+    }
+    if ($val < 0 || $val > 999999.999) {
+        $ctx->json(['ok' => false, 'error' => 'Value out of bounds'], 422);
         return;
     }
 
@@ -6771,9 +6832,9 @@ function apiSaveCommissaryMaterial(): void
 
     try {
         $stmt = $db->prepare(
-            "INSERT INTO dl_commissary_ledger (ledger_date, raw_material_id, $field, recorded_by)
+            "INSERT INTO dl_commissary_ledger (ledger_date, raw_material_id, {$column}, recorded_by)
              VALUES (:date, :mid, :val, :actor)
-             ON DUPLICATE KEY UPDATE $field = :val, recorded_by = :actor"
+             ON DUPLICATE KEY UPDATE {$column} = :val, recorded_by = :actor"
         );
         $stmt->execute([
             ':date' => $date,

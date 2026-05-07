@@ -63,79 +63,6 @@ function dl_resolveProductSupplySource(int $branchId, int $productId): array
     return ['source' => $source, 'source_id' => $assigned, 'origin' => 'branch_default', 'mode' => $mode];
 }
 
-// ─── Phase D: Price-group resolution ──────────────────────────────────────
-
-function dl_defaultPriceGroupId(): ?int
-{
-    $ctx = module();
-    if (!$ctx) {
-        return null;
-    }
-    static $cached = null;
-    if ($cached !== null) {
-        return $cached ?: null;
-    }
-    $row = $ctx->db()->query('SELECT id FROM dl_price_groups WHERE is_default = 1 AND is_active = 1 LIMIT 1')
-        ->fetch(PDO::FETCH_ASSOC);
-    $cached = $row ? (int)$row['id'] : 0;
-    return $cached ?: null;
-}
-
-function dl_branchPriceGroupId(int $branchId): ?int
-{
-    $ctx = module();
-    if (!$ctx || $branchId <= 0) {
-        return dl_defaultPriceGroupId();
-    }
-
-    static $cache = [];
-    if (array_key_exists($branchId, $cache)) {
-        return $cache[$branchId];
-    }
-
-    $stmt = $ctx->db()->prepare('SELECT price_group_id FROM dl_branches WHERE id = :id LIMIT 1');
-    $stmt->execute([':id' => $branchId]);
-    $value = $stmt->fetchColumn();
-    $cache[$branchId] = ($value !== false && $value !== null) ? (int)$value : dl_defaultPriceGroupId();
-    return $cache[$branchId];
-}
-
-function dl_resolveBranchProductPrice(int $branchId, int $productId, ?string $atDate = null): float
-{
-    return dl_resolveProductPrice($productId, dl_branchPriceGroupId($branchId), $atDate);
-}
-
-function dl_resolveProductPrice(int $productId, ?int $priceGroupId = null, ?string $atDate = null): float
-{
-    $ctx = module();
-    if (!$ctx) {
-        return 0.0;
-    }
-
-    $atDate = $atDate ?: date('Y-m-d');
-    $priceGroupId = $priceGroupId ?: dl_defaultPriceGroupId();
-
-        if (dl_arePriceGroupsEnabled() && $priceGroupId !== null) {
-        $stmt = $ctx->db()->prepare(
-            'SELECT selling_price FROM dl_product_prices
-              WHERE product_id = :p AND price_group_id = :g AND is_active = 1
-                AND effective_from <= :d1
-                AND (effective_to IS NULL OR effective_to >= :d2)
-              ORDER BY effective_from DESC
-              LIMIT 1'
-        );
-        $stmt->execute([':p' => $productId, ':g' => $priceGroupId, ':d1' => $atDate, ':d2' => $atDate]);
-        $price = $stmt->fetchColumn();
-        if ($price !== false && $price !== null) {
-            return (float)$price;
-        }
-    }
-
-    $stmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :p');
-    $stmt->execute([':p' => $productId]);
-    return (float)($stmt->fetchColumn() ?: 0.0);
-}
-
 // ─── Phase B: Delivery + Receiving handlers ───────────────────────────────
 
 function dl_normalizeDeliveryItems(array $items): array
@@ -554,25 +481,22 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
     return $receivingId;
 }
 
-function dl_areSellingAccountsEnabled(): bool
-{
-    $settings = dlModuleSettings();
-    return dl_settingToBool($settings['selling_accounts_enabled'] ?? false);
-}
-
-function dl_arePriceGroupsEnabled(): bool
-{
-    $settings = dlModuleSettings();
-    return dl_settingToBool($settings['price_groups_enabled'] ?? true);
-}
-
 function apiCreateDelivery(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser();
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+
+    if ($idempotencyKey !== '') {
+        $cachedResponse = dl_loadIdempotentResponse('create_delivery', $idempotencyKey);
+        if (is_array($cachedResponse)) {
+            $ctx->json($cachedResponse);
+            return;
+        }
+    }
 
     $originType = (string)($input['origin_type'] ?? '');
     $originId   = isset($input['origin_id']) ? (int)$input['origin_id'] : null;
@@ -607,14 +531,32 @@ function apiCreateDelivery(array $params = []): void
     }
 
     $priceGroupId = null;
-    if (dl_arePriceGroupsEnabled() && $destType === 'selling_account' && $destId) {
-        $stmt = $ctx->db()->prepare('SELECT price_group_id FROM dl_selling_accounts WHERE id = :id');
-        $stmt->execute([':id' => $destId]);
-        $pgId = $stmt->fetchColumn();
+    if ($destType === 'selling_account' && $destId) {
+        $accountStmt = $ctx->db()->prepare(
+            'SELECT assigned_branch_id, price_group_id, is_active
+               FROM dl_selling_accounts
+              WHERE id = :id
+              LIMIT 1'
+        );
+        $accountStmt->execute([':id' => $destId]);
+        $accountRow = $accountStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$accountRow || (int)($accountRow['is_active'] ?? 0) !== 1) {
+            $ctx->json(['ok' => false, 'error' => 'Selling account not found'], 404);
+            return;
+        }
+
+        $assignedBranchId = (int)($accountRow['assigned_branch_id'] ?? 0);
+        $allowedBranchIds = dl_accessibleBranchIds($user);
+        if ($assignedBranchId <= 0 || !in_array($assignedBranchId, $allowedBranchIds, true)) {
+            $ctx->json(['ok' => false, 'error' => 'Selling account is outside your branch scope'], 403);
+            return;
+        }
+
+        $pgId = $accountRow['price_group_id'] ?? null;
         $priceGroupId = $pgId !== false && $pgId !== null ? (int)$pgId : null;
     }
     if (dl_arePriceGroupsEnabled() && $priceGroupId === null) {
-        $priceGroupId = dl_defaultPriceGroupId();
+        $priceGroupId = $destType === 'branch' && $destId ? dl_branchPriceGroupId($destId) : dl_defaultPriceGroupId();
     }
 
     $ctx->db()->beginTransaction();
@@ -651,9 +593,13 @@ function apiCreateDelivery(array $params = []): void
         dl_auditLog('delivery_created', $originType === 'branch' ? $originId : null,
             'dl_deliveries', (string)$deliveryId, null,
             ['destination_type' => $destType, 'destination_id' => $destId, 'items' => count($items)]);
-        $ctx->json(['ok' => true, 'delivery_id' => $deliveryId, 'status' => 'draft']);
+        $response = ['ok' => true, 'delivery_id' => $deliveryId, 'status' => 'draft'];
+        dl_storeIdempotentResponse('create_delivery', $idempotencyKey, $response);
+        $ctx->json($response);
     } catch (\Throwable $e) {
-        $ctx->db()->rollBack();
+        if ($ctx->db()->inTransaction()) {
+            $ctx->db()->rollBack();
+        }
         $ctx->log('apiCreateDelivery: ' . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => 'Database error'], 500);
     }
@@ -730,7 +676,7 @@ function apiPostDelivery(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser();
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $deliveryId = (int)($input['delivery_id'] ?? 0);
     if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
@@ -749,9 +695,70 @@ function apiPostDelivery(array $params = []): void
             throw new \RuntimeException('Selling Accounts feature is disabled.');
         }
 
-        $ctx->db()->prepare(
-            'UPDATE dl_deliveries SET status = "posted", posted_by = :u, posted_at = NOW() WHERE id = :id'
-        )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
+        $priceGroupId = null;
+        if ((string)$row['destination_type'] === 'selling_account') {
+            $accountStmt = $ctx->db()->prepare(
+                'SELECT assigned_branch_id, price_group_id, is_active
+                   FROM dl_selling_accounts
+                  WHERE id = :id
+                  LIMIT 1'
+            );
+            $accountStmt->execute([':id' => (int)$row['destination_id']]);
+            $account = $accountStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            if (!$account || (int)($account['is_active'] ?? 0) !== 1) {
+                throw new \RuntimeException('Selling account not found.');
+            }
+
+            $assignedBranchId = (int)($account['assigned_branch_id'] ?? 0);
+            if ($assignedBranchId <= 0 || !in_array($assignedBranchId, dl_accessibleBranchIds($user), true)) {
+                throw new \RuntimeException('Selling account is outside your branch scope.');
+            }
+
+            $priceGroupId = $account['price_group_id'] !== null ? (int)$account['price_group_id'] : null;
+        } elseif ((string)$row['destination_type'] === 'branch' && (int)$row['destination_id'] > 0) {
+            $priceGroupId = dl_branchPriceGroupId((int)$row['destination_id']);
+        }
+        if ($priceGroupId === null && dl_arePriceGroupsEnabled()) {
+            $priceGroupId = dl_defaultPriceGroupId();
+        }
+
+        $itemStmt = $ctx->db()->prepare('SELECT id, product_id FROM dl_delivery_items WHERE delivery_id = :id');
+        $itemStmt->execute([':id' => $deliveryId]);
+        $itemUpdate = $ctx->db()->prepare(
+            'UPDATE dl_delivery_items
+                SET price_snapshot = :price_snapshot,
+                    price_group_id = :price_group_id
+              WHERE id = :id'
+        );
+        foreach ($itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $item) {
+            $freshPrice = dl_resolveProductPrice((int)$item['product_id'], $priceGroupId, (string)$row['delivery_date']);
+            $itemUpdate->execute([
+                ':price_snapshot' => $freshPrice,
+                ':price_group_id' => $priceGroupId,
+                ':id' => (int)$item['id'],
+            ]);
+        }
+
+        $postStmt = $ctx->db()->prepare(
+            'UPDATE dl_deliveries
+                SET status = "posted", posted_by = :u, posted_at = NOW()
+              WHERE id = :id
+                AND status = "draft"
+                AND NOT EXISTS (
+                    SELECT 1
+                      FROM dl_branch_receivings br
+                     WHERE br.delivery_id = :receiving_delivery_id
+                       AND br.status <> "voided"
+                )'
+        );
+        $postStmt->execute([
+            ':u' => $userId > 0 ? $userId : null,
+            ':id' => $deliveryId,
+            ':receiving_delivery_id' => $deliveryId,
+        ]);
+        if ($postStmt->rowCount() !== 1) {
+            throw new \RuntimeException('Delivery cannot be posted because it is no longer draft or already has an active receiving.');
+        }
 
         if ($row['destination_type'] === 'selling_account') {
             dl_postDeliveryToSellingAccount($deliveryId);
