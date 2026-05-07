@@ -40,6 +40,91 @@ function dlAppName(): string
     return $name !== '' ? $name : 'Daily Ledger';
 }
 
+function dl_areSellingAccountsEnabled(): bool
+{
+    $settings = dlModuleSettings();
+    return dl_settingToBool($settings['selling_accounts_enabled'] ?? false);
+}
+
+function dl_arePriceGroupsEnabled(): bool
+{
+    $settings = dlModuleSettings();
+    return dl_settingToBool($settings['price_groups_enabled'] ?? true);
+}
+
+function dl_defaultPriceGroupId(): ?int
+{
+    $ctx = module();
+    if (!$ctx) {
+        return null;
+    }
+
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached ?: null;
+    }
+
+    $row = $ctx->db()->query('SELECT id FROM dl_price_groups WHERE is_default = 1 AND is_active = 1 LIMIT 1')
+        ->fetch(PDO::FETCH_ASSOC);
+    $cached = $row ? (int)$row['id'] : 0;
+    return $cached ?: null;
+}
+
+function dl_branchPriceGroupId(int $branchId): ?int
+{
+    $ctx = module();
+    if (!$ctx || $branchId <= 0) {
+        return dl_defaultPriceGroupId();
+    }
+
+    static $cache = [];
+    if (array_key_exists($branchId, $cache)) {
+        return $cache[$branchId];
+    }
+
+    $stmt = $ctx->db()->prepare('SELECT price_group_id FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $branchId]);
+    $value = $stmt->fetchColumn();
+    $cache[$branchId] = ($value !== false && $value !== null) ? (int)$value : dl_defaultPriceGroupId();
+    return $cache[$branchId];
+}
+
+function dl_resolveBranchProductPrice(int $branchId, int $productId, ?string $atDate = null): float
+{
+    return dl_resolveProductPrice($productId, dl_branchPriceGroupId($branchId), $atDate);
+}
+
+function dl_resolveProductPrice(int $productId, ?int $priceGroupId = null, ?string $atDate = null): float
+{
+    $ctx = module();
+    if (!$ctx) {
+        return 0.0;
+    }
+
+    $atDate = $atDate ?: date('Y-m-d');
+    $priceGroupId = $priceGroupId ?: dl_defaultPriceGroupId();
+
+    if (dl_arePriceGroupsEnabled() && $priceGroupId !== null) {
+        $stmt = $ctx->db()->prepare(
+            'SELECT selling_price FROM dl_product_prices
+              WHERE product_id = :p AND price_group_id = :g AND is_active = 1
+                AND effective_from <= :d1
+                AND (effective_to IS NULL OR effective_to >= :d2)
+              ORDER BY effective_from DESC
+              LIMIT 1'
+        );
+        $stmt->execute([':p' => $productId, ':g' => $priceGroupId, ':d1' => $atDate, ':d2' => $atDate]);
+        $price = $stmt->fetchColumn();
+        if ($price !== false && $price !== null) {
+            return (float)$price;
+        }
+    }
+
+    $stmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :p');
+    $stmt->execute([':p' => $productId]);
+    return (float)($stmt->fetchColumn() ?: 0.0);
+}
+
 function dlRender(string $template, array $context = []): string
 {
     if (!array_key_exists('app_name', $context)) {
