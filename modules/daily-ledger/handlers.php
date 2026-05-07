@@ -276,14 +276,37 @@ function dlSettingsDefaults(): array
     return $defaults;
 }
 
-function dlModuleSettings(): array
+function dlModuleSettings(bool $refresh = false): array
 {
     static $cache = null;
-    if ($cache !== null) {
+    if (!$refresh && $cache !== null) {
         return $cache;
     }
     $cache = array_merge(dlSettingsDefaults(), getModuleSettings('daily-ledger'));
     return $cache;
+}
+
+function dlPersistModuleSettings(array $settings): bool
+{
+    if ($settings === []) {
+        return true;
+    }
+
+    saveModuleSettings('daily-ledger', $settings);
+    $fresh = dlModuleSettings(true);
+
+    foreach ($settings as $key => $expected) {
+        if (!array_key_exists($key, $fresh)) {
+            return false;
+        }
+
+        $actual = $fresh[$key];
+        if (json_encode($actual, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !== json_encode($expected, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 function dl_rolePermissions(): array
@@ -3900,6 +3923,61 @@ function handleAdminSettings(array $params = []): void
         'selling_accounts_enabled' => $featureSettings['selling_accounts_enabled'],
         'price_groups_enabled' => $featureSettings['price_groups_enabled'],
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
+        'logo_url' => dlLogoUrl(),
+        'favicon_url' => dlFaviconUrl(),
+    ]);
+}
+
+function apiUploadBrandingAsset(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    $user = dlCurrentUser(['admin']);
+
+    $assetType = strtolower(trim((string)($_POST['asset_type'] ?? '')));
+    $file = kernelUploadedFile('asset_file');
+    if (!is_array($file)) {
+        $ctx->json(['ok' => false, 'error' => 'Upload a branding image first.'], 422);
+        return;
+    }
+
+    try {
+        $upload = dlUploadBrandAsset($assetType, $file);
+    } catch (InvalidArgumentException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    } catch (Throwable $e) {
+        write_log('daily-ledger branding upload failed', 'error', [
+            'asset_type' => $assetType,
+            'message' => $e->getMessage(),
+        ]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to upload branding asset.'], 500);
+        return;
+    }
+
+    $settingKey = $assetType === 'favicon' ? 'favicon_url' : 'logo_url';
+    if (!dlPersistModuleSettings([$settingKey => $upload['asset_url']])) {
+        $ctx->json(['ok' => false, 'error' => 'Branding asset uploaded but could not be persisted to settings.'], 500);
+        return;
+    }
+
+    dl_auditLog('upload_branding_asset', null, 'module_settings', 'daily-ledger', null, [
+        'asset_type' => $assetType,
+        'asset_url' => $upload['asset_url'],
+        'uploaded_by_role' => (string)($user['role'] ?? ''),
+    ]);
+
+    $ctx->json([
+        'ok' => true,
+        'asset_type' => $assetType,
+        'asset_url' => $upload['asset_url'],
+        'message' => ucfirst($assetType) . ' uploaded.',
     ]);
 }
 
@@ -3992,9 +4070,21 @@ function apiSaveRolePermissions(array $params = []): void
 
     $appNameInput = trim((string)($input['app_name'] ?? ''));
     $appName = $appNameInput !== '' ? mb_substr($appNameInput, 0, 80) : 'Daily Ledger';
+    try {
+        $logoUrl = dlNormalizeBrandAssetUrl($input['logo_url'] ?? '', 'Logo URL');
+        $faviconUrl = dlNormalizeBrandAssetUrl($input['favicon_url'] ?? '', 'Favicon URL');
+    } catch (InvalidArgumentException $e) {
+        $ctx->json([
+            'ok' => false,
+            'error' => $e->getMessage(),
+        ], 422);
+        return;
+    }
 
-    saveModuleSettings('daily-ledger', [
+    $settingsToSave = [
         'app_name' => $appName,
+        'logo_url' => $logoUrl,
+        'favicon_url' => $faviconUrl,
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled ? '1' : '0',
         'close_of_day_time' => $closeOfDayTime,
@@ -4004,7 +4094,15 @@ function apiSaveRolePermissions(array $params = []): void
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled ? '1' : '0',
         'selling_accounts_enabled' => $sellingAccountsEnabled ? '1' : '0',
         'price_groups_enabled' => $priceGroupsEnabled ? '1' : '0',
-    ]);
+    ];
+
+    if (!dlPersistModuleSettings($settingsToSave)) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'Failed to persist Daily Ledger settings.',
+        ], 500);
+        return;
+    }
 
     dl_auditLog('update_role_permissions', null, 'module_settings', 'daily-ledger', null, [
         'role_permissions' => $permissions,
@@ -4012,6 +4110,8 @@ function apiSaveRolePermissions(array $params = []): void
         'close_of_day_time' => $closeOfDayTime,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
+        'logo_url' => $logoUrl,
+        'favicon_url' => $faviconUrl,
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
         'selling_accounts_enabled' => $sellingAccountsEnabled,
@@ -4023,6 +4123,9 @@ function apiSaveRolePermissions(array $params = []): void
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Settings updated', 'type' => 'success']]));
     $ctx->json([
         'ok' => true,
+        'app_name' => $appName,
+        'logo_url' => $logoUrl,
+        'favicon_url' => $faviconUrl,
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled,
         'close_of_day_time' => $closeOfDayTime,
