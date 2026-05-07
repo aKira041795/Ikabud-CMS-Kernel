@@ -1630,7 +1630,11 @@ function kernelEnsureDirectory(string $path, int $mode = 0775): bool
         return true;
     }
 
-    return @mkdir($path, $mode, true);
+    if (@mkdir($path, $mode, true)) {
+        return true;
+    }
+
+    return is_dir($path);
 }
 
 function kernelDeletePath(string $path): bool
