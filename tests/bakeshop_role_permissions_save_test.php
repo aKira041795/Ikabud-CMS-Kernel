@@ -52,11 +52,15 @@ try {
     $decoded = json_decode((string)($stored['role_permissions'] ?? ''), true);
     btRoleSave('saved permissions persist as json', is_array($decoded), (string)($stored['role_permissions'] ?? 'null'));
     btRoleSave('stored supervisor permissions match normalized result', ($decoded['supervisor'] ?? null) === ($saved['supervisor'] ?? null), json_encode($decoded, JSON_UNESCAPED_SLASHES));
+    $effective = bakeshopRolePermissions();
+    btRoleSave('cached role permissions reflect saved supervisor removal', !bakeshopRoleHasPermission('supervisor', 'bakeshop.manage'), json_encode($effective, JSON_UNESCAPED_SLASHES));
 
     $savedUnknown = bakeshopSaveRolePermissions([
         'supervisor' => ['bakeshop.read', 'bakeshop.unknown', ''],
     ]);
     btRoleSave('unknown permissions are removed on save', !in_array('bakeshop.unknown', $savedUnknown['supervisor'] ?? [], true), json_encode($savedUnknown, JSON_UNESCAPED_SLASHES));
+    $effectiveUnknown = bakeshopRolePermissions();
+    btRoleSave('role permission cache invalidates after second save', ($effectiveUnknown['supervisor'] ?? []) === ($savedUnknown['supervisor'] ?? []), json_encode($effectiveUnknown, JSON_UNESCAPED_SLASHES));
 } finally {
     saveModuleSettings('bakeshop', [
         'role_permissions' => $originalRolePermissions,

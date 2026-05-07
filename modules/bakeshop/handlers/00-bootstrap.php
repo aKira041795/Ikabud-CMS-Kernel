@@ -98,7 +98,32 @@ function bakeshopNormalizeRolePermissionsInput(mixed $raw): array
 function bakeshopRolePermissions(): array
 {
     $settings = bakeshopSettings();
-    return bakeshopNormalizeRolePermissionsInput($settings['role_permissions'] ?? null);
+    $raw = $settings['role_permissions'] ?? null;
+    $cacheInstance = 'bakeshop_role_permissions_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string)(app()->tenant()->current() ?? 'global'));
+    $rawKey = is_scalar($raw) || $raw === null
+        ? (string)$raw
+        : json_encode($raw, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $cacheKey = 'role_permissions_' . md5($rawKey);
+
+    try {
+        $cached = app()->cache()->get($cacheInstance, $cacheKey);
+        if (is_array($cached)
+            && array_key_exists('admin', $cached)
+            && array_key_exists('supervisor', $cached)) {
+            unset($cached['_cache_expires_at']);
+            return $cached;
+        }
+    } catch (Throwable $ignored) {
+    }
+
+    $normalized = bakeshopNormalizeRolePermissionsInput($raw);
+
+    try {
+        app()->cache()->set($cacheInstance, $cacheKey, $normalized, 300);
+    } catch (Throwable $ignored) {
+    }
+
+    return $normalized;
 }
 
 function bakeshopSaveRolePermissions(mixed $raw): array
@@ -109,6 +134,12 @@ function bakeshopSaveRolePermissions(mixed $raw): array
     saveModuleSettings('bakeshop', [
         'role_permissions' => json_encode($normalized, JSON_UNESCAPED_SLASHES),
     ]);
+
+    try {
+        $cacheInstance = 'bakeshop_role_permissions_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string)(app()->tenant()->current() ?? 'global'));
+        app()->cache()->clear($cacheInstance);
+    } catch (Throwable $ignored) {
+    }
 
     bakeshopAudit(
         'bakeshop.settings.role_permissions.updated',
@@ -138,6 +169,30 @@ function bakeshopCurrentUser(?string $permission = null, array $roles = ['admin'
 
     if (!bakeshopIsModuleUser($user)) {
         throw new DomainException('Forbidden');
+    }
+
+    $userId = (int)($user['id'] ?? 0);
+    $record = bakeshopAuthenticatedUserRecord($userId);
+    if (!is_array($record) || (int)($record['is_active'] ?? 0) !== 1) {
+        bakeshopRejectStaleSession();
+    }
+
+    if (bakeshopSupportsTokenVersion() && array_key_exists('token_version', $user)) {
+        $sessionTokenVersion = (int)($user['token_version'] ?? 0);
+        $currentTokenVersion = (int)($record['token_version'] ?? 0);
+        if ($sessionTokenVersion !== $currentTokenVersion) {
+            bakeshopRejectStaleSession();
+        }
+    }
+
+    $user['id'] = (int)($record['id'] ?? $userId);
+    $user['username'] = (string)($record['username'] ?? ($user['username'] ?? ''));
+    $user['email'] = (string)($record['email'] ?? ($user['email'] ?? ''));
+    $user['full_name'] = (string)($record['full_name'] ?? ($user['full_name'] ?? ''));
+    $user['name'] = (string)($record['full_name'] ?? ($user['name'] ?? $user['username'] ?? ''));
+    $user['role'] = (string)($record['role'] ?? ($user['role'] ?? ''));
+    if (bakeshopSupportsTokenVersion()) {
+        $user['token_version'] = (int)($record['token_version'] ?? ($user['token_version'] ?? 0));
     }
 
     $role = (string)($user['role'] ?? '');

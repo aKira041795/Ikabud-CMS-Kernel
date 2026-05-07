@@ -551,6 +551,32 @@ function bakeshopDeliveriesDelete(array $input): array
     return $delivery;
 }
 
+function bakeshopDeliveriesDeleteBatch(array $input): array
+{
+    $ids = bakeshopCatalogNormalizeDeleteIds($input['ids'] ?? null);
+    $db = bakeshopDb();
+    $deleted = [];
+
+    $db->beginTransaction();
+    try {
+        foreach ($ids as $id) {
+            $deleted[] = bakeshopDeliveriesDelete(['id' => $id]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    return [
+        'ids' => $ids,
+        'items' => $deleted,
+        'deleted_count' => count($deleted),
+    ];
+}
+
 function bakeshopApiBranchesIndex(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
@@ -567,7 +593,7 @@ function bakeshopApiBranchesStore(array $params = []): void
         $input = bakeshopInput();
         $isUpdate = ($input['id'] ?? null) !== null && (string)$input['id'] !== '';
         $item = bakeshopDeliveriesCreateBranch($input);
-        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
+        bakeshopJsonMutationOk(['item' => $item], ['branches', 'deliveries', 'production', 'usage'], $isUpdate ? 200 : 201);
     });
 }
 
@@ -579,7 +605,7 @@ function bakeshopApiBranchesStatusUpdate(array $params = []): void
         $id = bakeshopCatalogRequirePositiveInt($params['id'] ?? null, 'id');
         $input = (array)bakeshopInput();
         $item = bakeshopBranchSetActive($id, $input['is_active'] ?? null);
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['branches', 'deliveries', 'production', 'usage']);
     });
 }
 
@@ -597,7 +623,7 @@ function bakeshopApiDeliveriesStore(array $params = []): void
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopDeliveriesCreate(bakeshopInput());
-        bakeshopJsonOk(['item' => $item], 201);
+        bakeshopJsonMutationOk(['item' => $item], ['deliveries', 'usage'], 201);
     });
 }
 
@@ -607,6 +633,16 @@ function bakeshopApiDeliveriesDelete(array $params = []): void
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopDeliveriesDelete(bakeshopInput());
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['deliveries', 'usage']);
+    });
+}
+
+function bakeshopApiDeliveriesBatchDelete(array $params = []): void
+{
+    bakeshopResponseGuard(static function (): void {
+        bakeshopEnforceCsrf();
+        bakeshopCurrentUser('bakeshop.manage');
+        $result = bakeshopDeliveriesDeleteBatch((array)bakeshopInput());
+        bakeshopJsonMutationOk($result, ['deliveries', 'usage']);
     });
 }

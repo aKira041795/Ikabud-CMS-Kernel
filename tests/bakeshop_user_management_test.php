@@ -156,7 +156,7 @@ try {
     ob_start();
     bakeshopPageUsers();
     $usersHtml = (string)ob_get_clean();
-    btUser('users page renders staff heading', str_contains($usersHtml, 'Active Staff'));
+    btUser('users page renders staff heading', str_contains($usersHtml, 'Staff Accounts') && str_contains($usersHtml, 'Active Accounts'));
     btUser('users page renders created supervisor', str_contains($usersHtml, 'Updated Bakeshop Supervisor'));
     btUser('users page renders bootstrap handoff checklist', str_contains($usersHtml, 'Bootstrap Admin Handoff') && str_contains($usersHtml, 'Secure the bootstrap password'));
     btUser('users page explains bootstrap password setup requirement when needed', str_contains(bakeshopRender('pages/users.disyl', bakeshopPageContext($actor, 'users', [
@@ -236,9 +236,46 @@ try {
     btUser('own password change updates module auth', is_array($reAuth) && ($reAuth['source'] ?? '') === 'bakeshop', json_encode($reAuth, JSON_UNESCAPED_SLASHES));
     btUser('re-auth payload includes bumped token version', is_array($reAuth) && (int)(($reAuth['user']['token_version'] ?? 0)) === 2, json_encode($reAuth, JSON_UNESCAPED_SLASHES));
 
+    app()->setUser([
+        'id' => $supervisorId,
+        'sub' => 'bakeshop:' . $supervisorId,
+        'username' => 'test-bakeshop-supervisor',
+        'role' => 'supervisor',
+        'source' => 'bakeshop',
+        'email' => 'updated-bakeshop-supervisor@example.test',
+        'token_version' => 1,
+    ]);
+    try {
+        bakeshopCurrentUser('bakeshop.read');
+        btUser('stale session is rejected after password change', false, 'Expected DomainException for stale token version.');
+    } catch (DomainException $e) {
+        btUser('stale session is rejected after password change', str_contains($e->getMessage(), 'Session expired'), $e->getMessage());
+    }
+
     bakeshopUserDeactivate($supervisorId, $actor);
     $tokenVersionAfterDeactivate = bakeshopUserTokenVersion($supervisorId);
     btUser('deactivation bumps token version', $tokenVersionAfterDeactivate === 3, (string)$tokenVersionAfterDeactivate);
+    $inactiveAuth = bakeshop_cap_kernel_auth_authenticate_1([
+        'username' => '@bakeshop:test-bakeshop-supervisor',
+        'password' => 'supervisor9012',
+    ]);
+    btUser('deactivated user cannot authenticate again', $inactiveAuth === null, json_encode($inactiveAuth, JSON_UNESCAPED_SLASHES));
+
+    app()->setUser([
+        'id' => $supervisorId,
+        'sub' => 'bakeshop:' . $supervisorId,
+        'username' => 'test-bakeshop-supervisor',
+        'role' => 'supervisor',
+        'source' => 'bakeshop',
+        'email' => 'updated-bakeshop-supervisor@example.test',
+        'token_version' => 2,
+    ]);
+    try {
+        bakeshopCurrentUser('bakeshop.read');
+        btUser('deactivated session is rejected on current user lookup', false, 'Expected DomainException for inactive session.');
+    } catch (DomainException $e) {
+        btUser('deactivated session is rejected on current user lookup', str_contains($e->getMessage(), 'Session expired'), $e->getMessage());
+    }
 
     $passwordRateLimit = bakeshopConsumePasswordChangeRateLimit($supervisorId);
     btUser('password change rate limit helper is available', is_array($passwordRateLimit) && array_key_exists('limited', $passwordRateLimit), json_encode($passwordRateLimit, JSON_UNESCAPED_SLASHES));
