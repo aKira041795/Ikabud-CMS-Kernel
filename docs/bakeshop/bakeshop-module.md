@@ -12,6 +12,8 @@
 
 The Bakeshop module is a stand-alone supervisor workspace for bakery operations: branches, units, ingredients, products + recipes, deliveries, production runs, and per-branch ingredient usage reporting. It runs inside the Ikabud Kernel as a tenant-scoped module — all `bakeshop_*` tables live in the tenant's own database (no `tenant_id` columns).
 
+For operator-facing documentation, see the [Bakeshop Workspace User Guide](./workspace-user-guide.md).
+
 It is **module-owned auth**: the module has its own `bakeshop_users` table, its own JWT cookie (`bakeshop_token`), and registers itself as a `kernel.auth.authenticate@1` provider. Bakeshop tenants are entry-module-scoped — when [tenantEntryModuleIdForTenant()](src/helpers/module-manager.php) resolves to `bakeshop`, the kernel home redirect lands authenticated users at `/admin/bakeshop`.
 
 Licensing: Bakeshop is part of Ikabud's **Enterprise Edition** and is covered by the [Ikabud Commercial License](../../LICENSE-COMMERCIAL) for production use. See [LICENSING.md](../../LICENSING.md) for the repository-wide boundary.
