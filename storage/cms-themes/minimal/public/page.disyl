@@ -5,6 +5,7 @@
 {/block}
 
 {block content}
+{cache key='cms:page:' + content.slug|default:'_' + ':' + content.updated_at|default:'0' ttl=300 tags=['cms:content:item','cms:content:list','cms:menu','cms:settings']}
 <article>
     <header class="mb-10">
         <h1 class="text-3xl font-bold leading-tight" style="font-family: system-ui, sans-serif;">{content.title}</h1>
@@ -14,4 +15,5 @@
         {content_html | raw}
     </div>
 </article>
+{/cache}
 {/block}

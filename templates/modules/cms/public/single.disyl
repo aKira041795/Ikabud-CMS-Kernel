@@ -6,6 +6,7 @@
 {/block}
 
 {block content}
+{cache key='cms:single:' + post.slug|default:'_' + ':' + post.updated_at|default:'0' ttl=300 tags=['cms:content:item','cms:content:list','cms:menu','cms:settings']}
 {if builder_enabled}
 <article class="w-full {builder_page_settings.container_class}">
     {post_html | raw}
@@ -38,4 +39,5 @@
     </div>
 </article>
 {/if}
+{/cache}
 {/block}

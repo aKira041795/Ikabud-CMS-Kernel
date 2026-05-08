@@ -5,6 +5,7 @@
 {/block}
 
 {block content}
+{cache key='cms:single:' + post.slug|default:'_' + ':' + post.updated_at|default:'0' ttl=300 tags=['cms:content:item','cms:content:list','cms:menu','cms:settings']}
 <article>
     <header class="mb-10">
         <h1 class="text-3xl font-bold leading-tight mb-4" style="font-family: system-ui, sans-serif;">{post.title}</h1>
@@ -29,4 +30,5 @@
         </a>
     </div>
 </article>
+{/cache}
 {/block}
