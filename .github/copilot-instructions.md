@@ -81,6 +81,9 @@ Use LeanCTX tools when available:
 - Prefer ctx_shell for git, test, grep, composer, npm, and CLI commands.
 - Avoid loading entire large files unless necessary.
 
+Contextual reviews:
+- Use LeanCTX. Inspect only the module routes, helpers, handlers, module.json, and related tests. Do not read unrelated modules. Propose the smallest safe fix first.
+
 Architecture rules:
 - Do not bypass the kernel boundary.
 - Do not let modules call the kernel directly when hooks/capabilities/events should be used.
