@@ -485,6 +485,10 @@ switch ($handler) {
         kernelHandlePageSuperadminPerf();
         exit;
 
+    case 'pageSuperadminCache':
+        kernelHandlePageSuperadminCache();
+        exit;
+
     case 'pageKernelIntegrations':
         kernelHandlePageKernelIntegrations();
         exit;
@@ -508,6 +512,14 @@ switch ($handler) {
 
     case 'apiSuperadminPerf':
         kernelHandleApiSuperadminPerf();
+        exit;
+
+    case 'apiSuperadminCache':
+        kernelHandleApiSuperadminCache();
+        exit;
+
+    case 'apiSuperadminCacheFlush':
+        kernelHandleApiSuperadminCacheFlush();
         exit;
 
     case 'apiSuperadminUpdateModuleCatalog':

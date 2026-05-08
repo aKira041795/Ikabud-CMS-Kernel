@@ -1308,3 +1308,188 @@ if (!function_exists('kernelHandleApiSuperadminToggleModule')) {
     exit;
     }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// CACHE OBSERVABILITY (kernel superadmin)
+//
+// Surfaces per-instance cache stats so kernel admins can see the impact of
+// fragment / page caches without ssh-grepping. Read-only by default; flush
+// actions are explicit POST endpoints.
+// ════════════════════════════════════════════════════════════════════════
+
+if (!function_exists('kernelHandleApiSuperadminCache')) {
+    function kernelHandleApiSuperadminCache(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        header('Cache-Control: no-store');
+
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            return;
+        }
+
+        echo json_encode(kernelBuildCacheObservabilitySnapshot());
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminCacheFlush')) {
+    function kernelHandleApiSuperadminCacheFlush(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        header('Cache-Control: no-store');
+
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            return;
+        }
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['ok' => false, 'error' => 'POST required']);
+            return;
+        }
+
+        $body = json_decode((string)file_get_contents('php://input'), true);
+        if (!is_array($body)) { $body = []; }
+
+        $target = (string)($body['target'] ?? '');     // 'instance' | 'all' | 'fragments'
+        $instanceId = trim((string)($body['instance_id'] ?? ''));
+
+        $cleared = 0;
+        try {
+            switch ($target) {
+                case 'instance':
+                    if ($instanceId === '') {
+                        http_response_code(422);
+                        echo json_encode(['ok' => false, 'error' => 'instance_id required']);
+                        return;
+                    }
+                    if (!preg_match('/^[A-Za-z0-9_\-\.]+$/', $instanceId)) {
+                        http_response_code(422);
+                        echo json_encode(['ok' => false, 'error' => 'invalid instance_id']);
+                        return;
+                    }
+                    $cleared = (int)app()->cache()->clear($instanceId);
+                    break;
+
+                case 'all':
+                    $result = app()->cache()->clearAll();
+                    $cleared = is_array($result) ? array_sum(array_map('intval', $result)) : (int)$result;
+                    break;
+
+                case 'fragments':
+                    // DiSyL fragment store flush (per-tenant scope = current tenant).
+                    if (class_exists(\Ikabud\Kernel\DiSyL\Cache\FragmentStore::class)) {
+                        $tenantId = (string)(app()->tenant()->current() ?? '_global');
+                        (new \Ikabud\Kernel\DiSyL\Cache\FragmentStore())->flushAll($tenantId);
+                    }
+                    $cleared = -1; // sentinel: flushAll doesn't return a count
+                    break;
+
+                default:
+                    http_response_code(422);
+                    echo json_encode(['ok' => false, 'error' => 'Unknown target']);
+                    return;
+            }
+        } catch (\Throwable $e) {
+            write_log('superadmin cache flush failed: ' . $e->getMessage(), 'error', [
+                'target' => $target, 'instance_id' => $instanceId,
+            ]);
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Flush failed']);
+            return;
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'target' => $target,
+            'instance_id' => $instanceId !== '' ? $instanceId : null,
+            'cleared' => $cleared,
+        ]);
+    }
+}
+
+if (!function_exists('kernelBuildCacheObservabilitySnapshot')) {
+    /**
+     * Build a JSON-serialisable snapshot of cache state for the dashboard.
+     *
+     * @return array<string,mixed>
+     */
+    function kernelBuildCacheObservabilitySnapshot(): array
+    {
+        $cache = app()->cache();
+        $stats = [];
+        try { $stats = $cache->getStats(); } catch (\Throwable $e) { $stats = []; }
+
+        $instances = [];
+        try { $instances = $cache->listInstances(); } catch (\Throwable $e) { $instances = []; }
+
+        $instanceRows = [];
+        foreach ($instances as $id => $info) {
+            $info = is_array($info) ? $info : [];
+            // Count tag-index files (granular invalidation tags actually written).
+            $tagCount = 0;
+            $instanceDir = STORAGE_PATH . '/cache/' . $id;
+            if (is_dir($instanceDir)) {
+                $tagFiles = glob($instanceDir . '/.tag_*.idx') ?: [];
+                $tagCount = count($tagFiles);
+            }
+            $instanceRows[] = [
+                'id'           => (string)$id,
+                'files'        => (int)($info['files'] ?? 0),
+                'size_bytes'   => (int)($info['size_bytes'] ?? 0),
+                'size_mb'      => (float)($info['size_mb'] ?? 0),
+                'tag_count'    => $tagCount,
+            ];
+        }
+        usort($instanceRows, static fn($a, $b) => $b['size_bytes'] <=> $a['size_bytes']);
+
+        // Fragment store (DiSyL 4.3) — file-backed, per-tenant scope.
+        $fragments = ['files' => 0, 'size_bytes' => 0, 'tenants' => 0, 'enabled' => false];
+        $fragRoot = STORAGE_PATH . '/cache/disyl-fragments';
+        if (is_dir($fragRoot)) {
+            $fragments['enabled'] = true;
+            $tenantDirs = glob($fragRoot . '/*', GLOB_ONLYDIR) ?: [];
+            $fragments['tenants'] = count($tenantDirs);
+            foreach ($tenantDirs as $td) {
+                $files = glob($td . '/*') ?: [];
+                foreach ($files as $f) {
+                    if (is_file($f)) {
+                        $fragments['files']++;
+                        $fragments['size_bytes'] += (int)@filesize($f);
+                    }
+                }
+            }
+            $fragments['size_mb'] = round($fragments['size_bytes'] / 1024 / 1024, 2);
+        }
+
+        return [
+            'ok'        => true,
+            'timestamp' => date('c'),
+            'global'    => [
+                'hits'             => (int)($stats['hits'] ?? 0),
+                'misses'           => (int)($stats['misses'] ?? 0),
+                'bypasses'         => (int)($stats['bypasses'] ?? 0),
+                'errors'           => (int)($stats['errors'] ?? 0),
+                'hit_rate'         => (string)($stats['hit_rate'] ?? '0%'),
+                'cached_files'     => (int)($stats['cached_files'] ?? 0),
+                'active_files'     => (int)($stats['active_files'] ?? 0),
+                'expired_files'    => (int)($stats['expired_files'] ?? 0),
+                'total_size_mb'    => (float)($stats['total_size_mb'] ?? 0),
+                'max_size_mb'      => (int)($stats['max_size_mb'] ?? 0),
+                'apcu_available'   => (bool)($stats['apcu_available'] ?? false),
+                'apcu_entries'     => (int)($stats['apcu_entries'] ?? 0),
+                'apcu_memory_mb'   => isset($stats['apcu_memory_bytes'])
+                    ? round(((int)$stats['apcu_memory_bytes']) / 1024 / 1024, 2) : 0.0,
+            ],
+            'instances' => $instanceRows,
+            'fragments' => $fragments,
+        ];
+    }
+}

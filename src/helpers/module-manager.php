@@ -2223,6 +2223,7 @@ function getModuleNavItems(?string $role = null, ?array $user = null): array
         return [
             ['label' => 'Feature Settings', 'url' => '/superadmin/settings', 'icon' => 'settings', 'module' => '_kernel', 'target' => null],
             ['label' => 'Performance',       'url' => '/superadmin/perf',     'icon' => 'chart',    'module' => '_kernel', 'target' => '_self'],
+            ['label' => 'Cache',             'url' => '/superadmin/cache',    'icon' => 'database', 'module' => '_kernel', 'target' => '_self'],
             ['label' => 'Integrations',      'url' => '/kernel/integrations', 'icon' => 'git-merge', 'module' => '_kernel', 'target' => '_self'],
             ['label' => 'Profile',           'url' => '/admin/profile',       'icon' => 'user',     'module' => '_kernel', 'target' => null],
         ];
