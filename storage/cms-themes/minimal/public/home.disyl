@@ -1,6 +1,7 @@
 {extends "_cms_active_theme/layouts/public.disyl"}
 
 {block content}
+{cache key='cms:home:posts:p' + page_num|default:'1' ttl=120 tags=['cms:content:list','cms:menu','cms:settings']}
 <div class="mb-12">
     <h1 class="text-2xl font-bold" style="font-family: system-ui, sans-serif;">Archive</h1>
 </div>
@@ -39,4 +40,5 @@
     {/if}
 </div>
 {/if}
+{/cache}
 {/block}

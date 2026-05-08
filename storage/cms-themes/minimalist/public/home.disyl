@@ -1,6 +1,7 @@
 {extends "_cms_active_theme/layouts/public.disyl"}
 
 {block content}
+{cache key='cms:home:posts:p' + page_num|default:'1' ttl=120 tags=['cms:content:list','cms:menu','cms:settings']}
 <section class="home-hero">
     <div class="hero-content">
         <h1>{site_title|default:gui.app_name|default:"Welcome"}</h1>
@@ -26,4 +27,5 @@
     <p>No posts available yet.</p>
     {/if}
 </section>
+{/cache}
 {/block}
