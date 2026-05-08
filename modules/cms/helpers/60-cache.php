@@ -158,6 +158,33 @@ function cmsCacheInvalidateContent(array $content): int
 }
 
 /**
+ * Invalidate the cached HTML of CMS entity-list pages for a given type.
+ *
+ * Public seam used by other modules (e.g. ecommerce) to flush rendered
+ * listings when their underlying records change. Respects boundary: callers
+ * never touch cms_* tags directly.
+ *
+ * @param string   $type        Content type slug (e.g. 'product', 'post').
+ * @param int|null $categoryId  Optional: scope to a category.
+ * @param int|null $storeId     Optional: scope to a store.
+ * @return int Number of cache entries invalidated.
+ */
+function cmsCacheInvalidateEntityList(string $type, ?int $categoryId = null, ?int $storeId = null): int
+{
+    $type = trim($type);
+    if ($type === '') return 0;
+
+    $tags = ['cms:entity_list:' . $type];
+    if ($categoryId !== null && $categoryId > 0) {
+        $tags[] = 'cms:entity_list:' . $type . ':cat:' . $categoryId;
+    }
+    if ($storeId !== null && $storeId > 0) {
+        $tags[] = 'cms:entity_list:' . $type . ':store:' . $storeId;
+    }
+    return cmsCacheInvalidateByTags($tags);
+}
+
+/**
  * Send ETag and Last-Modified headers for a cached response.
  * Returns true if the client has a fresh copy (304 can be sent).
  */

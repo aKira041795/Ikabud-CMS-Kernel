@@ -163,6 +163,11 @@ function ecCacheInvalidateProduct(int $productId, ?string $slug = null): int
     if (function_exists('pageCacheInvalidateModule')) {
         $count += pageCacheInvalidateModule('ecommerce');
     }
+    // Cross-boundary: rendered CMS entity-list HTML lists products too.
+    // Use the public CMS seam so we never touch cms_* tags directly.
+    if (function_exists('cmsCacheInvalidateEntityList')) {
+        $count += cmsCacheInvalidateEntityList('product');
+    }
     return $count;
 }
 
@@ -178,6 +183,10 @@ function ecCacheInvalidateCategory(int $categoryId = 0): int
     $count = ecCacheInvalidateByTags($tags);
     if (function_exists('pageCacheInvalidateModule')) {
         $count += pageCacheInvalidateModule('ecommerce');
+    }
+    // Cross-boundary: rendered CMS entity-list HTML may filter by this category.
+    if (function_exists('cmsCacheInvalidateEntityList')) {
+        $count += cmsCacheInvalidateEntityList('product', $categoryId > 0 ? $categoryId : null);
     }
     return $count;
 }

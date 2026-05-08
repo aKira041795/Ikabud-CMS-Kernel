@@ -1858,11 +1858,21 @@ function cmsPublicEntityList(array $params = []): void
 
         $updatedAt = date('Y-m-d H:i:s');
         $etag = md5($html);
+        // Granular tags so cross-module invalidation can target this listing
+        // narrowly. The ecommerce module calls cmsCacheInvalidateEntityList()
+        // from ecCacheInvalidateProduct/Category to flush only what changed.
+        $listTags = ['cms:type:' . $type, 'cms:entity_list:' . $type];
+        if ($categoryId > 0) {
+            $listTags[] = 'cms:entity_list:' . $type . ':cat:' . $categoryId;
+        }
+        if ($storeId > 0) {
+            $listTags[] = 'cms:entity_list:' . $type . ':store:' . $storeId;
+        }
         cmsCacheSet($cacheKey, [
             'html'       => $html,
             'etag'       => $etag,
             'updated_at' => $updatedAt,
-        ], ['cms:type:' . $type]);
+        ], $listTags);
 
         cmsSendCacheHeaders($etag, $updatedAt);
         cmsPublicRespond($html);
