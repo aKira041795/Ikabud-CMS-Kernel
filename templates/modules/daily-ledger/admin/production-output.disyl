@@ -50,8 +50,8 @@
     </a>
     <a href="{base_url}/admin/deliveries" class="rounded-lg border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 hover:bg-slate-100">
         <div class="text-xs font-semibold uppercase tracking-wide text-slate-600">Bridge</div>
-        <div class="mt-1 text-sm font-semibold text-slate-900">2. Deliveries</div>
-        <p class="mt-1 text-xs leading-5 text-slate-700">Confirm the DR leg in the middle. This is the handoff between output upstream and withdrawal downstream.</p>
+        <div class="mt-1 text-sm font-semibold text-slate-900">2. Transfer Records</div>
+        <p class="mt-1 text-xs leading-5 text-slate-700">Check or fix the DR record in the middle so the next branch step follows the same document.</p>
     </a>
     <a href="{base_url}/admin/production" class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 hover:border-indigo-300 hover:bg-indigo-100">
         <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Downstream</div>

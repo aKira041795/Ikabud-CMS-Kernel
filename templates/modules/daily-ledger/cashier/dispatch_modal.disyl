@@ -17,23 +17,37 @@
                  class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-2xl sm:p-6">
 
                 <div>
-                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="dispatch-modal-title">New Dispatch</h3>
-                    <p class="text-sm text-gray-500 mb-4">Create a posted branch dispatch using the paper DR as the source of truth. This reduces the source branch withdrawal and makes the delivery available for Receive Delivery on the destination branch.</p>
+                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="dispatch-modal-title">Send to Another Branch</h3>
+                    <p class="text-sm text-gray-500 mb-4">Use this when this branch is sending stock out. The paper DR stays the source of truth so the receiving branch can match the same transfer.</p>
                     <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900">
-                        Quick rule: this is for <span class="font-semibold">sending stock out</span> to another branch. Encode the DR exactly as written on paper so the destination cashier can receive the same document.
+                        Quick rule: this is only for <span class="font-semibold">sending stock out</span> to another branch. Enter the DR exactly as written on paper so the receiving branch can find the same record.
+                    </div>
+                    <div class="mb-4 grid gap-2 sm:grid-cols-3">
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div class="font-semibold text-gray-900">Step 1</div>
+                            <div class="mt-1">Enter the date sent and the paper DR number.</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div class="font-semibold text-gray-900">Step 2</div>
+                            <div class="mt-1">Choose the branch that will receive the stock.</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div class="font-semibold text-gray-900">Step 3</div>
+                            <div class="mt-1">List only the items that actually left this branch.</div>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Dispatch Date *</label>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Date Sent *</label>
                             <input type="date" x-model="form.delivery_date" class="form-input mt-0 w-full">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR # <span class="text-rose-500">*</span></label>
-                            <input type="text" x-model="form.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full">
+                            <input type="text" x-model="form.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-emerald-300 bg-emerald-50 font-mono text-base font-semibold uppercase tracking-[0.18em]">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Deliver To <span class="text-rose-500">*</span></label>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Receiving Branch <span class="text-rose-500">*</span></label>
                             <select x-model="form.target_branch_id" class="form-input mt-0 w-full">
                                 <option value="">-- Select branch --</option>
                                 {foreach all_branches as b}
@@ -80,14 +94,15 @@
                             </tbody>
                         </table>
                     </div>
+                    <p class="mb-4 text-xs text-gray-500">Tip: If one item stayed behind, leave it out here. The receiving branch should see only what truly left your branch.</p>
 
-                    <button type="button" @click="addEmptyLine()" class="btn btn-outline w-full justify-center mb-4">+ Add Product</button>
+                    <button type="button" @click="addEmptyLine()" class="btn btn-outline w-full justify-center mb-4">+ Add Item</button>
                     <p x-show="errorMsg" x-text="errorMsg" class="text-sm text-rose-600 mb-2"></p>
                 </div>
 
                 <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse border-t border-gray-200 pt-4">
                     <button type="button" @click="saveChanges()" class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto" x-bind:disabled="saving">
-                        <span x-text="saving ? 'Saving...' : 'Save Dispatch'"></span>
+                        <span x-text="saving ? 'Saving...' : 'Save Transfer Out'"></span>
                     </button>
                     <button type="button" @click="closeModal()" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto" x-bind:disabled="saving">Cancel</button>
                 </div>
@@ -139,7 +154,7 @@ function dispatchModal() {
         validate() {
             this.errorMsg = '';
             if (!this.form.delivery_date) {
-                this.errorMsg = 'Dispatch date is required.';
+                this.errorMsg = 'Date sent is required.';
                 return false;
             }
             if (!this.form.dr_number || String(this.form.dr_number).trim() === '') {
@@ -147,7 +162,7 @@ function dispatchModal() {
                 return false;
             }
             if (!this.form.target_branch_id) {
-                this.errorMsg = 'Destination branch is required.';
+                this.errorMsg = 'Receiving branch is required.';
                 return false;
             }
             var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
@@ -186,7 +201,7 @@ function dispatchModal() {
             .then(function(data) {
                 this.saving = false;
                 if (data && data.ok) {
-                    showToast('Dispatch saved', 'success');
+                    showToast('Transfer out saved', 'success');
                     this.closeModal();
                     var body = document.getElementById('ledger-body');
                     if (body && window.htmx) {

@@ -1,4 +1,4 @@
-<!-- Receive Delivery Modal -->
+<!-- Receive Stock Modal -->
 <div x-data="receiveModal()"
      x-cloak
      x-on:open-receive-modal.window="openModal()"
@@ -17,49 +17,134 @@
                  class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-3xl sm:p-6">
 
                 <div>
-                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="receive-modal-title">Incoming Deliveries</h3>
-                    <p class="text-sm text-gray-500 mb-4">Accept a delivery to add the received quantity to today's <span class="font-semibold">Addt'l</span> column.</p>
+                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="receive-modal-title">Receive Stock</h3>
+                    <p class="text-sm text-gray-500 mb-4">Use this when stock is arriving into this branch. Receiving adds the accepted quantity to today's <span class="font-semibold">Addt'l</span> column.</p>
                     <div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700">
-                        Two cases live here: <span class="font-semibold">receive an already-encoded dispatch</span>, or if the truck arrived first, <span class="font-semibold">capture the paper DR and receive it immediately</span>. Use the second path only when no pending system delivery exists yet.
+                        Two simple options live here: <span class="font-semibold">receive an already encoded transfer</span>, or if the truck arrived first, <span class="font-semibold">enter the paper DR and receive it now</span>. Use the second option only when no pending system record exists yet.
+                    </div>
+                    <div class="mb-4 grid gap-2 sm:grid-cols-2">
+                        <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 text-xs text-indigo-900">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white">1</span>
+                                <span class="font-semibold">Search the DR first</span>
+                            </div>
+                            <p class="mt-2 leading-5">If the transfer is already in the system, receive it from the list below.</p>
+                        </div>
+                        {if formal_delivery_enabled}
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[11px] font-semibold text-white">2</span>
+                                <span class="font-semibold">Use Paper DR only if nothing appears</span>
+                            </div>
+                            <p class="mt-2 leading-5">Open the Paper DR entry only when the truck arrived first and no system record exists yet.</p>
+                        </div>
+                        {/if}
                     </div>
 
                     <template x-if="loading">
-                        <div class="py-8 text-center text-sm text-gray-500">Loading deliveries...</div>
+                        <div class="py-8 text-center text-sm text-gray-500">Loading transfers...</div>
                     </template>
 
                     <template x-if="!loading && deliveries.length === 0">
-                        <div class="py-8 text-center text-sm text-gray-500">No pending deliveries for this branch.</div>
+                        <div class="py-8 text-center text-sm text-gray-500">No pending transfers for this branch.</div>
                     </template>
 
                     <template x-if="!loading && deliveries.length > 0 && filteredDeliveries.length === 0 && !drFilter.trim()">
-                        <div class="py-8 text-center text-sm text-gray-500">No pending deliveries for this branch.</div>
+                        <div class="py-8 text-center text-sm text-gray-500">No pending transfers for this branch.</div>
                     </template>
 
                     <template x-if="errorMsg">
                         <div class="mb-3 rounded-md bg-rose-50 p-3 text-sm text-rose-700" x-text="errorMsg"></div>
                     </template>
 
+                    <!-- DR# search: cashier types the number from the paper DR -->
+                    <div class="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+                           <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Step 1: Receive an already encoded transfer</div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Find by Paper DR Number</label>
+                        <input type="text"
+                               x-model="drFilter"
+                               placeholder="Enter the paper DR number"
+                               class="w-full rounded-md border-2 border-indigo-300 bg-indigo-50 px-3 py-2.5 font-mono text-base font-semibold uppercase tracking-[0.18em] text-indigo-950 placeholder:text-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder-indigo-400 focus:border-indigo-500 focus:ring-indigo-500"
+                               autocomplete="off">
+                        <template x-if="drFilter.trim() && filteredDeliveries.length === 0 && !loading">
+                            <p class="mt-1 text-xs text-rose-600">No pending transfer was found for DR# "<span x-text="drFilter.trim()"></span>". Check the number and try again, or clear to browse all.</p>
+                        </template>
+                        <p class="mt-2 text-[11px] leading-5 text-gray-500">If the correct DR shows up below, use <span class="font-semibold text-gray-700">Receive Now</span>. Only use the Paper DR entry when nothing appears here.</p>
+                    </div>
+
+                    <div class="space-y-3 max-h-[60vh] overflow-y-auto">
+                        <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
+                            <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <div>
+                                        <div class="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 font-mono text-sm font-semibold tracking-[0.18em] text-white shadow-sm" x-text="g.dr_number || 'NO DR'"></div>
+                                        <div class="text-xs text-gray-500">
+                                            From <span class="font-medium" x-text="g.origin_branch_name"></span>
+                                            &middot; <span x-text="g.ledger_date"></span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <template x-if="isPartial(g)">
+                                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
+                                        </template>
+                                        <button type="button"
+                                                class="btn btn-primary"
+                                                x-bind:disabled="busyKey === g.group_key"
+                                                @click="acceptGroup(g)">
+                                            <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Receive Now'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <table class="w-full text-sm">
+                                    <thead class="text-xs uppercase text-gray-500">
+                                        <tr>
+                                            <th class="text-left py-1">Product</th>
+                                            <th class="text-right py-1 pr-2">Sent</th>
+                                            <th class="text-right py-1">Received</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="it in g.items" :key="it.id">
+                                            <tr class="border-t border-gray-100">
+                                                <td class="py-1 text-gray-800" x-text="it.product_name"></td>
+                                                <td class="py-1 text-right pr-2 text-gray-500" x-text="it.quantity"></td>
+                                                <td class="py-1 text-right">
+                                                    <input type="number"
+                                                           class="w-20 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                           :min="0"
+                                                           :max="it.quantity"
+                                                           :value="receivedQty(g, it)"
+                                                           @input="setReceivedQty(g, it, $event.target.value)">
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+                    </div>
+
                     {if formal_delivery_enabled}
-                    <div class="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                    <div class="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <div class="text-sm font-semibold text-indigo-900">Truck arrived first? Receive by Paper DR</div>
-                                <p class="mt-1 text-xs text-indigo-800">Use this when the truck already arrived but the dispatch was not encoded in the system. The paper DR number remains the source of truth.</p>
+                                <div class="text-sm font-semibold text-indigo-900">Step 2: Nothing found? Use the Paper DR</div>
+                                <p class="mt-1 text-xs text-indigo-800">Use this only when the truck already arrived but the transfer was not encoded in the system yet. The paper DR remains the source of truth.</p>
                             </div>
-                            <button type="button" class="btn btn-outline" @click="paperOpen = !paperOpen" x-text="paperOpen ? 'Hide Paper DR Form' : 'Open Paper DR Form'"></button>
+                            <button type="button" class="btn btn-outline" @click="paperOpen = !paperOpen" x-text="paperOpen ? 'Hide Paper DR Entry' : 'Open Paper DR Entry'"></button>
                         </div>
 
                         <div class="mt-3 space-y-3" x-show="paperOpen" x-cloak>
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                                 <div>
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Source Type</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Where stock came from</label>
                                     <select x-model="paperForm.origin_type" class="form-input mt-0 w-full">
                                         <option value="commissary">Commissary</option>
                                         <option value="branch">Branch</option>
                                     </select>
                                 </div>
                                 <div x-show="paperForm.origin_type === 'branch'">
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Source Branch</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Sending branch</label>
                                     <select x-model="paperForm.origin_id" class="form-input mt-0 w-full">
                                         <option value="">-- Select branch --</option>
                                         {foreach all_branches as b}
@@ -81,16 +166,16 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Delivery Date</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Date sent</label>
                                     <input type="date" x-model="paperForm.delivery_date" class="form-input mt-0 w-full">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Receive Date</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Date received</label>
                                     <input type="date" x-model="paperForm.receive_date" class="form-input mt-0 w-full">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Paper DR #</label>
-                                    <input type="text" x-model="paperForm.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full">
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Paper DR Number</label>
+                                    <input type="text" x-model="paperForm.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-indigo-300 bg-white font-mono text-base font-semibold uppercase tracking-[0.18em]">
                                 </div>
                             </div>
 
@@ -124,83 +209,15 @@
                                         </template>
                                     </tbody>
                                 </table>
-                                <button type="button" class="btn btn-outline w-full justify-center mt-3" @click="addPaperItem()">+ Add Product</button>
+                                <button type="button" class="btn btn-outline w-full justify-center mt-3" @click="addPaperItem()">+ Add Item</button>
                             </div>
 
                             <div class="flex justify-end">
-                                <button type="button" class="btn btn-primary" x-bind:disabled="paperSaving" @click="submitPaperDelivery()" x-text="paperSaving ? 'Receiving...' : 'Capture and Receive Paper DR'"></button>
+                                <button type="button" class="btn btn-primary" x-bind:disabled="paperSaving" @click="submitPaperDelivery()" x-text="paperSaving ? 'Receiving...' : 'Save and Receive Paper DR'"></button>
                             </div>
                         </div>
                     </div>
                     {/if}
-
-                    <!-- DR# search: cashier types the number from the paper DR -->
-                    <div class="mb-3">
-                           <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Receive An Encoded Delivery</div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Find by DR#</label>
-                        <input type="text"
-                               x-model="drFilter"
-                               placeholder="Type the DR number from the paper slip if it was already dispatched"
-                               class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                               autocomplete="off">
-                        <template x-if="drFilter.trim() && filteredDeliveries.length === 0 && !loading">
-                            <p class="mt-1 text-xs text-rose-600">No pending delivery found for DR# "<span x-text="drFilter.trim()"></span>". Check the number and try again, or clear to browse all.</p>
-                        </template>
-                    </div>
-
-                    <div class="space-y-3 max-h-[60vh] overflow-y-auto">
-                        <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
-                            <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                    <div>
-                                        <div class="text-sm font-semibold text-gray-900">
-                                            DR# <span x-text="g.dr_number || '(no DR)'"></span>
-                                        </div>
-                                        <div class="text-xs text-gray-500">
-                                            From <span class="font-medium" x-text="g.origin_branch_name"></span>
-                                            &middot; <span x-text="g.ledger_date"></span>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <template x-if="isPartial(g)">
-                                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
-                                        </template>
-                                        <button type="button"
-                                                class="btn btn-primary"
-                                                x-bind:disabled="busyKey === g.group_key"
-                                                @click="acceptGroup(g)">
-                                            <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Accept'"></span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <table class="w-full text-sm">
-                                    <thead class="text-xs uppercase text-gray-500">
-                                        <tr>
-                                            <th class="text-left py-1">Product</th>
-                                            <th class="text-right py-1 pr-2">Sent</th>
-                                            <th class="text-right py-1">Received</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <template x-for="it in g.items" :key="it.id">
-                                            <tr class="border-t border-gray-100">
-                                                <td class="py-1 text-gray-800" x-text="it.product_name"></td>
-                                                <td class="py-1 text-right pr-2 text-gray-500" x-text="it.quantity"></td>
-                                                <td class="py-1 text-right">
-                                                    <input type="number"
-                                                           class="w-20 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                           :min="0"
-                                                           :max="it.quantity"
-                                                           :value="receivedQty(g, it)"
-                                                           @input="setReceivedQty(g, it, $event.target.value)">
-                                                </td>
-                                            </tr>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </template>
-                    </div>
                 </div>
 
                 <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">

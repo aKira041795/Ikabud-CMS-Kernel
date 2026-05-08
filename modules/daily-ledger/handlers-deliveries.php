@@ -502,6 +502,8 @@ function apiCreateDelivery(array $params = []): void
     $originId   = isset($input['origin_id']) ? (int)$input['origin_id'] : null;
     $destType   = (string)($input['destination_type'] ?? '');
     $destId     = isset($input['destination_id']) ? (int)$input['destination_id'] : null;
+    $workflowMode = trim((string)($input['workflow_mode'] ?? ''));
+    $recoveryReason = trim((string)($input['recovery_reason'] ?? ''));
     $drNumber   = trim((string)($input['dr_number'] ?? '')) ?: null;
     $delivDate  = (string)($input['delivery_date'] ?? date('Y-m-d'));
     $remarks    = trim((string)($input['remarks'] ?? '')) ?: null;
@@ -525,9 +527,22 @@ function apiCreateDelivery(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled for branch deliveries.'], 403);
         return;
     }
+    if ($destType === 'branch' && $workflowMode !== 'exception_recovery') {
+        $ctx->json(['ok' => false, 'error' => 'Branch deliveries should normally be encoded from Send to Branch and Receive Stock. Use this admin page only for recovery or special cases.'], 422);
+        return;
+    }
+    if ($destType === 'branch' && $recoveryReason === '') {
+        $ctx->json(['ok' => false, 'error' => 'Explain why this branch delivery is being recorded here so the recovery trail stays clear.'], 422);
+        return;
+    }
     if ($destType === 'selling_account' && !dl_areSellingAccountsEnabled()) {
         $ctx->json(['ok' => false, 'error' => 'Selling Accounts feature is disabled.'], 403);
         return;
+    }
+    if ($destType === 'branch') {
+        $remarks = $remarks !== null && $remarks !== ''
+            ? 'Admin recovery reason: ' . $recoveryReason . "\n" . $remarks
+            : 'Admin recovery reason: ' . $recoveryReason;
     }
 
     $priceGroupId = null;
@@ -592,7 +607,13 @@ function apiCreateDelivery(array $params = []): void
         $ctx->db()->commit();
         dl_auditLog('delivery_created', $originType === 'branch' ? $originId : null,
             'dl_deliveries', (string)$deliveryId, null,
-            ['destination_type' => $destType, 'destination_id' => $destId, 'items' => count($items)]);
+            [
+                'destination_type' => $destType,
+                'destination_id' => $destId,
+                'items' => count($items),
+                'workflow_mode' => $workflowMode !== '' ? $workflowMode : 'direct_record',
+                'recovery_reason' => $recoveryReason !== '' ? $recoveryReason : null,
+            ]);
         $response = ['ok' => true, 'delivery_id' => $deliveryId, 'status' => 'draft'];
         dl_storeIdempotentResponse('create_delivery', $idempotencyKey, $response);
         $ctx->json($response);
@@ -1847,7 +1868,7 @@ function handleAdminDeliveries(array $params = []): void
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
 
     echo dlRender('modules/daily-ledger/admin/deliveries.disyl', array_merge(dl_layoutFlags(), [
-        'page_title'   => 'Deliveries',
+        'page_title'   => 'Transfer Records',
         'user_name'    => $userName,
         'user_role'    => $role,
         'current_page' => 'deliveries',
