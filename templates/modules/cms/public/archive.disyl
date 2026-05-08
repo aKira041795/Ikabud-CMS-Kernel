@@ -1,6 +1,7 @@
 {extends "modules/cms/layouts/public.disyl"}
 
 {block content}
+{cache key='cms:archive:' + archive_type|default:'_' + ':' + archive_slug|default:archive_name|default:'_' + ':p' + page_num|default:'1' ttl=180 tags=['cms:content:list','cms:taxonomy','cms:menu','cms:settings']}
 <div class="text-center mb-8">
     <p class="text-xs font-semibold uppercase tracking-wider text-sky-600 mb-1">{archive_type}</p>
     <h1 class="text-3xl font-bold text-gray-900">{archive_name}</h1>
@@ -48,4 +49,5 @@
     {/if}
 </div>
 {/if}
+{/cache}
 {/block}

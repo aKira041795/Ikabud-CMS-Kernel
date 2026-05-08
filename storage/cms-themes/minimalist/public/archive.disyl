@@ -1,6 +1,7 @@
 {extends "_cms_active_theme/layouts/public.disyl"}
 
 {block content}
+{cache key='cms:archive:' + archive_type|default:'_' + ':' + archive_slug|default:archive_name|default:'_' + ':p' + page_num|default:'1' ttl=180 tags=['cms:content:list','cms:taxonomy','cms:menu','cms:settings']}
 <div class="archive-shell">
     <div class="archive-meta">{archive_type}</div>
     <h1>{archive_name}</h1>
@@ -34,4 +35,5 @@
     </nav>
     {/if}
 </div>
+{/cache}
 {/block}

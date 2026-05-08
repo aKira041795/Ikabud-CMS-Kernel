@@ -77,12 +77,22 @@ function cmsRuntimeTenantId(): int
 // Public render surface (home.disyl, etc.) wraps content in {cache tags=[...]}.
 // Invalidate those tags whenever editor-controlled state changes so cached
 // fragments are refreshed on the next request.
-foreach (['cms.content.created','cms.content.updated','cms.content.deleted','cms.content.published','cms.content.bulk'] as $__cmsCacheEvt) {
-    app()->events()->listen($__cmsCacheEvt, static function (array $payload = []) {
+foreach ([
+    'cms.content.created' => ['cms:content:list','cms:content:item'],
+    'cms.content.updated' => ['cms:content:list','cms:content:item'],
+    'cms.content.deleted' => ['cms:content:list','cms:content:item'],
+    'cms.content.published' => ['cms:content:list','cms:content:item'],
+    'cms.content.bulk' => ['cms:content:list','cms:content:item'],
+    'cms.builder.document.saved' => ['cms:content:item','cms:content:list'],
+    'cms.builder.document.published' => ['cms:content:item','cms:content:list'],
+    'cms.builder.document.restored' => ['cms:content:item','cms:content:list'],
+    'cms.settings.updated' => ['cms:settings','cms:menu'],
+] as $__cmsCacheEvt => $__cmsCacheTags) {
+    app()->events()->listen($__cmsCacheEvt, static function (array $payload = []) use ($__cmsCacheTags) {
         try {
             $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
             app()->templates()->fragmentStore()->invalidate(
-                ['cms:content:list'],
+                $__cmsCacheTags,
                 $tenantId > 0 ? (string)$tenantId : '_global'
             );
         } catch (\Throwable $e) {
