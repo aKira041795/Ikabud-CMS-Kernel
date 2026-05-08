@@ -662,116 +662,48 @@ if (!function_exists('kernelHandlePageSuperadminCache')) {
             ? kernelBuildCacheObservabilitySnapshot()
             : ['ok' => false, 'global' => [], 'instances' => [], 'fragments' => []];
 
-        $baseUrl = external_base_url();
-        $host = $_SERVER['HTTP_HOST'] ?? '';
-        $jsSnap = htmlspecialchars(json_encode($snap, JSON_UNESCAPED_SLASHES) ?: '{}', ENT_QUOTES);
-
-        header('Content-Type: text/html; charset=utf-8');
-        header('Cache-Control: no-store');
-
         $g = is_array($snap['global'] ?? null) ? $snap['global'] : [];
         $instances = is_array($snap['instances'] ?? null) ? $snap['instances'] : [];
         $frag = is_array($snap['fragments'] ?? null) ? $snap['fragments'] : [];
 
-        echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">';
-        echo '<meta name="viewport" content="width=device-width,initial-scale=1">';
-        echo '<title>Cache Observability &mdash; ' . htmlspecialchars((string)$host) . '</title>';
-        echo '<script src="https://cdn.tailwindcss.com"></script>';
-        echo '</head><body class="bg-slate-100 min-h-screen font-sans">';
-        echo '<div class="max-w-5xl mx-auto py-10 px-4">';
-
-        echo '<div class="flex items-center justify-between mb-6">';
-        echo '<div><h1 class="text-2xl font-bold text-slate-800">Cache Observability</h1>';
-        echo '<p class="text-sm text-slate-500 mt-1">' . htmlspecialchars((string)$host)
-            . ' &mdash; ' . htmlspecialchars((string)($snap['timestamp'] ?? '')) . '</p></div>';
-        echo '<a href="' . htmlspecialchars($baseUrl) . '/superadmin/settings" class="text-sm text-sky-600 hover:underline">&larr; Back</a>';
-        echo '</div>';
-
-        // Global summary tiles
-        echo '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">';
         $tiles = [
-            ['Hit rate',       (string)($g['hit_rate'] ?? '0%'), 'sky'],
-            ['Hits',           number_format((int)($g['hits'] ?? 0)), 'emerald'],
-            ['Misses',         number_format((int)($g['misses'] ?? 0)), 'amber'],
-            ['Bypasses',       number_format((int)($g['bypasses'] ?? 0)), 'slate'],
-            ['Active files',   number_format((int)($g['active_files'] ?? 0)), 'sky'],
-            ['Expired files',  number_format((int)($g['expired_files'] ?? 0)), 'amber'],
-            ['Disk used',      number_format((float)($g['total_size_mb'] ?? 0), 2) . ' / ' . (int)($g['max_size_mb'] ?? 0) . ' MB', 'slate'],
-            ['APCu',           ((bool)($g['apcu_available'] ?? false) ? (number_format((int)($g['apcu_entries'] ?? 0)) . ' entries') : 'off'), 'slate'],
+            ['label' => 'Hit rate',      'value' => (string)($g['hit_rate'] ?? '0%'),                           'color' => 'sky'],
+            ['label' => 'Hits',          'value' => number_format((int)($g['hits'] ?? 0)),                       'color' => 'emerald'],
+            ['label' => 'Misses',        'value' => number_format((int)($g['misses'] ?? 0)),                     'color' => 'amber'],
+            ['label' => 'Bypasses',      'value' => number_format((int)($g['bypasses'] ?? 0)),                   'color' => 'slate'],
+            ['label' => 'Active files',  'value' => number_format((int)($g['active_files'] ?? 0)),               'color' => 'sky'],
+            ['label' => 'Expired files', 'value' => number_format((int)($g['expired_files'] ?? 0)),              'color' => 'amber'],
+            ['label' => 'Disk used',     'value' => number_format((float)($g['total_size_mb'] ?? 0), 2) . ' / ' . (int)($g['max_size_mb'] ?? 0) . ' MB', 'color' => 'slate'],
+            ['label' => 'APCu',          'value' => ((bool)($g['apcu_available'] ?? false) ? (number_format((int)($g['apcu_entries'] ?? 0)) . ' entries') : 'off'), 'color' => 'slate'],
         ];
-        foreach ($tiles as [$label, $value, $color]) {
-            echo '<div class="bg-white rounded-xl shadow p-4">';
-            echo '<div class="text-xs text-slate-500 uppercase tracking-wide">' . htmlspecialchars($label) . '</div>';
-            echo '<div class="mt-1 text-lg font-semibold text-' . $color . '-700">' . htmlspecialchars($value) . '</div>';
-            echo '</div>';
+
+        // Pre-format instance numbers for the template.
+        $instancesFmt = [];
+        foreach ($instances as $row) {
+            $instancesFmt[] = [
+                'id' => (string)($row['id'] ?? ''),
+                'files' => number_format((int)($row['files'] ?? 0)),
+                'size_mb' => number_format((float)($row['size_mb'] ?? 0), 2),
+                'tag_count' => number_format((int)($row['tag_count'] ?? 0)),
+            ];
         }
-        echo '</div>';
 
-        // Per-instance table
-        echo '<div class="bg-white rounded-xl shadow overflow-hidden mb-6">';
-        echo '<div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">';
-        echo '<h2 class="text-sm font-semibold text-slate-700">Cache Instances</h2>';
-        echo '<button onclick="superadminCacheFlushAll()" class="text-xs px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700">Flush All</button>';
-        echo '</div>';
-        echo '<table class="w-full text-sm">';
-        echo '<thead class="bg-slate-50 text-slate-600"><tr>';
-        echo '<th class="text-left px-4 py-2">Instance</th>';
-        echo '<th class="text-right px-4 py-2">Files</th>';
-        echo '<th class="text-right px-4 py-2">Size (MB)</th>';
-        echo '<th class="text-right px-4 py-2">Tags</th>';
-        echo '<th class="text-right px-4 py-2">Action</th>';
-        echo '</tr></thead><tbody>';
-        if (empty($instances)) {
-            echo '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">No cache instances yet.</td></tr>';
-        } else {
-            foreach ($instances as $row) {
-                $id = (string)($row['id'] ?? '');
-                echo '<tr class="border-t border-slate-100">';
-                echo '<td class="px-4 py-2 font-mono text-slate-800">' . htmlspecialchars($id) . '</td>';
-                echo '<td class="px-4 py-2 text-right">' . number_format((int)($row['files'] ?? 0)) . '</td>';
-                echo '<td class="px-4 py-2 text-right">' . number_format((float)($row['size_mb'] ?? 0), 2) . '</td>';
-                echo '<td class="px-4 py-2 text-right">' . number_format((int)($row['tag_count'] ?? 0)) . '</td>';
-                echo '<td class="px-4 py-2 text-right">';
-                echo '<button onclick="superadminCacheFlushInstance(' . htmlspecialchars(json_encode($id) ?: '""') . ')" class="text-xs px-2 py-1 rounded bg-slate-700 text-white hover:bg-slate-900">Flush</button>';
-                echo '</td></tr>';
-            }
-        }
-        echo '</tbody></table></div>';
+        $fragCtx = [
+            'enabled' => !empty($frag['enabled']),
+            'status_label' => !empty($frag['enabled']) ? 'enabled' : 'disabled',
+            'tenants' => (int)($frag['tenants'] ?? 0),
+            'files' => number_format((int)($frag['files'] ?? 0)),
+            'size_mb' => number_format((float)($frag['size_mb'] ?? 0), 2),
+        ];
 
-        // Fragment store panel
-        echo '<div class="bg-white rounded-xl shadow overflow-hidden">';
-        echo '<div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">';
-        echo '<h2 class="text-sm font-semibold text-slate-700">DiSyL 4.3 Fragment Cache</h2>';
-        echo '<button onclick="superadminCacheFlushFragments()" class="text-xs px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700">Flush Fragments (current tenant)</button>';
-        echo '</div>';
-        echo '<div class="grid grid-cols-3 gap-3 p-4 text-sm">';
-        echo '<div><div class="text-xs text-slate-500 uppercase">Status</div><div class="mt-1 font-semibold ' . (!empty($frag['enabled']) ? 'text-emerald-700' : 'text-slate-500') . '">' . (!empty($frag['enabled']) ? 'enabled' : 'disabled') . '</div></div>';
-        echo '<div><div class="text-xs text-slate-500 uppercase">Tenants with fragments</div><div class="mt-1 font-semibold">' . (int)($frag['tenants'] ?? 0) . '</div></div>';
-        echo '<div><div class="text-xs text-slate-500 uppercase">Files / Size</div><div class="mt-1 font-semibold">' . number_format((int)($frag['files'] ?? 0)) . ' / ' . number_format((float)($frag['size_mb'] ?? 0), 2) . ' MB</div></div>';
-        echo '</div></div>';
-
-        // Snapshot data + JS
-        echo '<script>';
-        echo 'window.SUPERADMIN_CACHE_SNAPSHOT = ' . json_encode($snap, JSON_UNESCAPED_SLASHES) . ';';
-        echo <<<'JS'
-async function superadminCacheFlush(payload, confirmMsg) {
-    if (confirmMsg && !confirm(confirmMsg)) return;
-    try {
-        const res = await fetch('/api/v1/superadmin/cache/flush', {
-            method: 'POST', credentials: 'same-origin',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.ok) { alert('Flush failed: ' + (data.error || res.status)); return; }
-        location.reload();
-    } catch (e) { alert('Flush error: ' + e.message); }
-}
-function superadminCacheFlushAll() { superadminCacheFlush({target: 'all'}, 'Flush ALL cache instances?'); }
-function superadminCacheFlushInstance(id) { superadminCacheFlush({target: 'instance', instance_id: id}, 'Flush instance "' + id + '"?'); }
-function superadminCacheFlushFragments() { superadminCacheFlush({target: 'fragments'}, 'Flush DiSyL fragment cache for current tenant?'); }
-JS;
-        echo '</script>';
-        echo '</div></body></html>';
+        header('Cache-Control: no-store');
+        echo app()->render('pages/superadmin-cache.disyl', [
+            'page_title' => 'Cache Observability',
+            'snap' => $snap,
+            'tiles' => $tiles,
+            'instances' => $instancesFmt,
+            'frag' => $fragCtx,
+        ]);
     }
 }
+
