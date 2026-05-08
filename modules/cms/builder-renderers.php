@@ -86,6 +86,7 @@ function cmsBuilderWidgetRenderers(): array
         'code_block'      => 'cmsRenderWidget_code_block',
         'audio'           => 'cmsRenderWidget_audio',
         'html_embed'      => 'cmsRenderWidget_html_embed',
+        'ai_block'        => 'cmsRenderWidget_ai_block',
     ];
 
     // Allow modules to extend/override widget renderers via kernel Hooks (filter).
@@ -2733,4 +2734,53 @@ function cmsRenderWidget_html_embed(array $props, array $style, array $attrs, st
 function cmsRenderWidget_default(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . ($children !== '' ? $children : cmsBuilderEsc(cmsBuilderNodeContent($props))) . '</div>';
+}
+
+/**
+ * AI Text Block — frozen-output widget.
+ *
+ * Author-time: PropertiesPanel composes a prompt and clicks "Generate", which
+ * calls POST /api/v1/cms/builder/ai/generate. The result is captured into
+ * props.content so public render is a static string lookup with zero AI
+ * calls. The author can re-generate any time; an indicator warns when the
+ * prompt has changed but content has not been refreshed.
+ *
+ * Public render: outputs props.content as plain text inside a <div>. The
+ * content is escaped so we never trust LLM output as raw HTML.
+ */
+function cmsRenderWidget_ai_block(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $content = (string)($props['content'] ?? '');
+    if ($content === '') {
+        // Empty placeholder — visible only inside the editor preview.
+        $isEditor = !empty($context['is_editor_preview']);
+        if ($isEditor) {
+            return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style)
+                . ' data-ai-block-empty="1" style="padding:16px;border:1px dashed #cbd5e1;color:#64748b;font-size:13px;text-align:center;border-radius:8px;">'
+                . 'AI Text Block — no content yet. Open Properties → AI to generate.'
+                . '</div>';
+        }
+        return '';
+    }
+
+    // Convert paragraph breaks (LLMs return \n\n separators) into <p> blocks
+    // while escaping the text so injection is impossible.
+    $paragraphs = preg_split('/\n{2,}/', trim($content)) ?: [];
+    $html = '';
+    foreach ($paragraphs as $p) {
+        $p = trim($p);
+        if ($p === '') {
+            continue;
+        }
+        // Preserve single newlines as <br> within a paragraph.
+        $html .= '<p>' . nl2br(cmsBuilderEsc($p)) . '</p>';
+    }
+    if ($html === '') {
+        $html = '<p>' . nl2br(cmsBuilderEsc($content)) . '</p>';
+    }
+
+    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style)
+        . ' data-ai-block="1" data-ai-generated-at="' . cmsBuilderEsc((string)($props['generated_at'] ?? '')) . '">'
+        . $html
+        . '</div>';
 }

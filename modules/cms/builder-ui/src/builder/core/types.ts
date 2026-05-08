@@ -84,7 +84,8 @@ export type CMSComponentType =
   | 'stat_card'
   | 'contact_card'
   | 'audio'
-  | 'html_embed';
+  | 'html_embed'
+  | 'ai_block';
 
 // Admin Theme Builder additional components (template-focused)
 export type ThemeComponentType =

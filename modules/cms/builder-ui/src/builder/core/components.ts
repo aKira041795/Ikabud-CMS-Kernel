@@ -1426,6 +1426,38 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     allowedParents: null,
     isLeaf: true,
   },
+  {
+    type: 'ai_block',
+    name: 'AI Text Block',
+    icon: 'Sparkles',
+    category: 'content',
+    description: 'AI-generated text block. Compose a prompt, click Generate, and the result is captured into the block. Re-generate any time.',
+    defaultProps: {
+      // Author-time prompt (composed in PropertiesPanel).
+      prompt: 'Write a short marketing intro paragraph for our homepage hero. Keep it under 60 words.',
+      // Provider tier preference (passed to ai.text.generate@1).
+      preferred_tier: 'free',
+      max_tokens: 320,
+      temperature: 0.5,
+      // Frozen output captured at author-time. This is what gets rendered publicly.
+      // Empty by default; populated by the Generate button.
+      content: '',
+      // Hash of the prompt at the time content was generated. Lets the panel
+      // warn the author if the prompt has been edited but not re-generated.
+      generated_prompt_hash: '',
+      // ISO timestamp of last successful generation (for the editor indicator).
+      generated_at: '',
+    },
+    defaultStyle: {
+      width: '100%',
+      padding: '16px 0',
+      lineHeight: '1.6',
+      color: '#1f2937',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
 ];
 
 // =============================================================================

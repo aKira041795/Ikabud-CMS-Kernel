@@ -136,6 +136,7 @@ return [
         '/api/v1/cms/builder/reusable-sections/{id}/delete' => 'cms:cmsApiBuilderReusableDelete',
         '/api/v1/cms/builder/templates' => 'cms:cmsApiBuilderTemplateSave',
         '/api/v1/cms/builder/templates/{id}/delete' => 'cms:cmsApiBuilderTemplateDelete',
+        '/api/v1/cms/builder/ai/generate' => 'cms:cmsApiBuilderAiGenerate',
         '/api/v1/cms/content/{id}/trash'  => 'cms:cmsApiContentTrash',
         '/api/v1/cms/content/{id}/publish'=> 'cms:cmsApiContentPublish',
         '/api/v1/cms/content/{id}/restore'=> 'cms:cmsApiContentRestore',

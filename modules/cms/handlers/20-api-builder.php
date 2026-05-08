@@ -1086,3 +1086,100 @@ function cmsApiBuilderTemplateDelete(array $params = []): void
 // ═══════════════════════════════════════════════════════════════════════
 // CONTENT TYPE REGISTRY API
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// AI BLOCK GENERATION API (page builder ai_block widget)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/v1/cms/builder/ai/generate
+ *
+ * Body: {
+ *   prompt: string,           // author-composed prompt template
+ *   max_tokens?: int (32..2000, default 320),
+ *   temperature?: float (0..1, default 0.5),
+ *   preferred_tier?: 'free'|'paid' (default 'free')
+ * }
+ *
+ * Response: {
+ *   ok: bool,
+ *   content: string,          // generated text (paragraphs separated by \n\n)
+ *   prompt_hash: string,      // sha1 of the prompt sent (for the editor's
+ *                             //   "prompt changed since last generation" hint)
+ *   generated_at: string      // ISO 8601 UTC timestamp
+ * }
+ *
+ * Capability: ai.generate (matches existing cmsApiContentAiSummary pattern).
+ * Provider: kernel ai.text.generate@1 capability (declared in module.json).
+ */
+function cmsApiBuilderAiGenerate(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('ai.summary');
+
+    $body = json_decode(file_get_contents('php://input') ?: '[]', true);
+    if (!is_array($body)) {
+        $body = [];
+    }
+
+    $prompt = trim((string)($body['prompt'] ?? ''));
+    if ($prompt === '') {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Prompt is required']);
+        exit;
+    }
+    if (strlen($prompt) > 4000) {
+        $prompt = substr($prompt, 0, 4000);
+    }
+
+    $maxTokens = (int)($body['max_tokens'] ?? 320);
+    $maxTokens = max(32, min(2000, $maxTokens));
+
+    $temperature = (float)($body['temperature'] ?? 0.5);
+    if ($temperature < 0.0) { $temperature = 0.0; }
+    if ($temperature > 1.0) { $temperature = 1.0; }
+
+    $tier = (string)($body['preferred_tier'] ?? 'free');
+    if (!in_array($tier, ['free', 'paid'], true)) {
+        $tier = 'free';
+    }
+
+    try {
+        $res = app()->cap()->call('ai.text.generate@1', [
+            'messages' => [
+                ['role' => 'system', 'content' => 'You write concise, clean prose for a CMS page-builder block. Output plain text only — no Markdown, no HTML tags. Separate paragraphs with a blank line.'],
+                ['role' => 'user', 'content' => $prompt],
+            ],
+            'temperature' => $temperature,
+            'json' => false,
+            'timeout_ms' => 25000,
+            'max_tokens' => $maxTokens,
+            'preferred_tier' => $tier,
+        ], ['caller_module' => 'cms', 'caller_user' => $user, 'timeout_ms' => 25000]);
+
+        if (empty($res['ok'])) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => (string)($res['error'] ?? 'AI provider error')]);
+            exit;
+        }
+
+        $content = trim((string)($res['content'] ?? ''));
+        // Defensive: strip any HTML the model might have leaked through despite the system prompt.
+        $content = strip_tags($content);
+
+        echo json_encode([
+            'ok'           => true,
+            'content'      => $content,
+            'prompt_hash'  => sha1($prompt),
+            'generated_at' => gmdate('c'),
+        ]);
+        exit;
+    } catch (Throwable $e) {
+        write_log('cms ai_block generate failed: ' . $e->getMessage(), 'error', [
+            'user_id' => (int)($user['id'] ?? 0),
+        ]);
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'AI capability call failed']);
+        exit;
+    }
+}

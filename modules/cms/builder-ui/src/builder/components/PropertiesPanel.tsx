@@ -59,6 +59,7 @@ import {
   Layers,
   Volume2,
   Zap,
+  Sparkles,
 } from 'lucide-react';
 import { Editor } from '@tinymce/tinymce-react';
 import { DiSyLNode, NodeProps, NodeStyle } from '../core/types';
@@ -726,6 +727,158 @@ const PostSelector: React.FC<PostSelectorProps> = ({ value, onChange, contentTyp
 
 type TabType = 'content' | 'style' | 'advanced';
 type StyleViewport = 'desktop' | 'tablet' | 'mobile';
+
+// ════════════════════════════════════════════════════════════════════════
+// AiBlockPanel
+// Inline editor for the ai_block widget. Author writes a prompt and clicks
+// Generate; the server proxies to ai.text.generate@1 and the resulting text
+// is captured into props.content. Public render is then a static text
+// lookup with zero AI calls. Re-generation is allowed any time; a stale
+// indicator highlights when the prompt has changed since last generation.
+// ════════════════════════════════════════════════════════════════════════
+type AiBlockPanelProps = {
+  node: DiSyLNode;
+  onPropChange: (key: string, value: unknown) => void;
+};
+
+async function sha1Hex(input: string): Promise<string> {
+  const buf = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-1', buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+const AiBlockPanel: React.FC<AiBlockPanelProps> = ({ node, onPropChange }) => {
+  const prompt = (node.props.prompt as string) || '';
+  const content = (node.props.content as string) || '';
+  const generatedAt = (node.props.generated_at as string) || '';
+  const generatedHash = (node.props.generated_prompt_hash as string) || '';
+  const tier = (node.props.preferred_tier as string) || 'free';
+  const maxTokens = Number(node.props.max_tokens ?? 320);
+  const temperature = Number(node.props.temperature ?? 0.5);
+
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [currentHash, setCurrentHash] = React.useState<string>('');
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!prompt) { setCurrentHash(''); return; }
+    sha1Hex(prompt).then((h) => { if (!cancelled) setCurrentHash(h); });
+    return () => { cancelled = true; };
+  }, [prompt]);
+
+  const isStale = content !== '' && generatedHash !== '' && currentHash !== '' && currentHash !== generatedHash;
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) { setError('Prompt is required'); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/v1/cms/builder/ai/generate', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          max_tokens: maxTokens,
+          temperature,
+          preferred_tier: tier,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setError(String(data?.error || `HTTP ${res.status}`));
+        return;
+      }
+      onPropChange('content', String(data.content || ''));
+      onPropChange('generated_at', String(data.generated_at || ''));
+      onPropChange('generated_prompt_hash', String(data.prompt_hash || ''));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <CollapsibleSection title="AI Prompt" icon={<Sparkles className="w-3 h-3" />} defaultOpen>
+        <TextAreaInput
+          label="Prompt"
+          value={prompt}
+          onChange={(v) => onPropChange('prompt', v)}
+          placeholder="Describe the text you want generated..."
+          rows={6}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <SelectInput
+            label="Tier"
+            value={tier}
+            onChange={(v) => onPropChange('preferred_tier', v)}
+            options={[
+              { value: 'free', label: 'Free' },
+              { value: 'paid', label: 'Paid' },
+            ]}
+          />
+          <TextInput
+            label="Max Tokens"
+            type="number"
+            value={String(maxTokens)}
+            onChange={(v) => onPropChange('max_tokens', Math.max(32, Math.min(2000, parseInt(v, 10) || 320)))}
+          />
+        </div>
+        <TextInput
+          label="Temperature (0–1)"
+          type="number"
+          value={String(temperature)}
+          onChange={(v) => {
+            const n = parseFloat(v);
+            const clamped = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
+            onPropChange('temperature', clamped);
+          }}
+        />
+        <button
+          onClick={handleGenerate}
+          disabled={busy || !prompt.trim()}
+          className="w-full px-3 py-2 text-xs font-medium rounded bg-[#0078d4] hover:bg-[#0a86e0] disabled:bg-[#3c3c3c] disabled:text-white/40 text-white transition-colors flex items-center justify-center gap-2"
+        >
+          <Sparkles className="w-3 h-3" />
+          {busy ? 'Generating...' : (content ? 'Re-generate' : 'Generate')}
+        </button>
+        {error && (
+          <div className="mt-2 p-2 bg-red-900/20 border border-red-700/40 rounded text-[10px] text-red-400/90 leading-relaxed">
+            {error}
+          </div>
+        )}
+        {isStale && (
+          <div className="mt-2 p-2 bg-yellow-900/20 border border-yellow-700/40 rounded text-[10px] text-yellow-400/80 leading-relaxed">
+            Prompt edited since last generation. Click Re-generate to refresh the captured content.
+          </div>
+        )}
+        {generatedAt && (
+          <div className="mt-2 text-[10px] text-white/40">
+            Last generated: {new Date(generatedAt).toLocaleString()}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Generated Content" icon={<Code className="w-3 h-3" />}>
+        <TextAreaInput
+          label="Captured Text (editable)"
+          value={content}
+          onChange={(v) => onPropChange('content', v)}
+          placeholder="Generate, or edit the captured text directly..."
+          rows={8}
+        />
+        <div className="p-2 bg-blue-900/20 border border-blue-700/40 rounded text-[10px] text-blue-400/80 leading-relaxed">
+          Public pages render this captured text — no AI is called at request time. Edits here are kept until you Re-generate.
+        </div>
+      </CollapsibleSection>
+    </>
+  );
+};
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   node,
@@ -3559,6 +3712,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             HTML is rendered as-is. Scripts will not run in the editor preview but will execute on the published page.
           </div>
         </CollapsibleSection>
+      )}
+
+      {/* AI Text Block — frozen-output: prompt is composed here, generated text
+          is captured into props.content so public render is static (no LLM
+          calls at request time). Uses POST /api/v1/cms/builder/ai/generate. */}
+      {node.type === 'ai_block' && (
+        <AiBlockPanel node={node} onPropChange={handlePropChange} />
       )}
 
       {/* Countdown */}
