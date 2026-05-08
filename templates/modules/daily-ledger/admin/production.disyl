@@ -42,6 +42,24 @@
     <button type="button" class="btn btn-outline print-hide" onclick="printProductionLedger()">Print</button>
 </div>
 
+<div class="mb-6 grid gap-3 lg:grid-cols-3">
+    <a href="{base_url}/admin/production-output" class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 hover:border-emerald-300 hover:bg-emerald-100">
+        <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Upstream</div>
+        <div class="mt-1 text-sm font-semibold text-emerald-900">1. Production Output</div>
+        <p class="mt-1 text-xs leading-5 text-emerald-800">Start upstream with output so the branch flow and DR are already established before withdrawal.</p>
+    </a>
+    <a href="{base_url}/admin/deliveries" class="rounded-lg border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 hover:bg-slate-100">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-600">Bridge</div>
+        <div class="mt-1 text-sm font-semibold text-slate-900">2. Transfer Records</div>
+        <p class="mt-1 text-xs leading-5 text-slate-700">Check or fix the DR record in the middle so the downstream branch step has the same DR context.</p>
+    </a>
+    <a href="{base_url}/admin/production" class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 ring-1 ring-inset ring-indigo-200">
+        <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Downstream</div>
+        <div class="mt-1 text-sm font-semibold text-indigo-900">3. Production Withdrawal</div>
+        <p class="mt-1 text-xs leading-5 text-indigo-800">This is the downstream step. Encode branch withdrawal only after output upstream and delivery handoff are already aligned.</p>
+    </a>
+</div>
+
 {if can_production_output}
 <div class="card mb-6">
     <div class="card-header">
@@ -71,15 +89,12 @@
                 <input type="date" id="wd-ledger-date" class="form-input" value="{ledger_date}">
             </div>
             <div class="form-group mb-0">
-                <label class="form-label">Flow Mode</label>
-                <select id="wd-flow-mode" class="form-input">
-                    <option value="production" selected>Production</option>
-                    <option value="legacy">Legacy</option>
-                </select>
-            </div>
-            <div class="form-group mb-0">
                 <label class="form-label">Reason</label>
                 <input type="text" id="wd-reason" class="form-input" placeholder="Optional withdrawal note">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Delivery Receipt #</label>
+                <input type="text" id="wd-dr-number" class="form-input" placeholder="Required and must match an existing branch delivery DR">
             </div>
         </div>
 
@@ -199,13 +214,14 @@
                     <th>Product</th>
                     <th>Flow</th>
                     <th class="text-right">Qty</th>
+                    <th>DR #</th>
                     <th>Reason</th>
                     <th>Actor</th>
                 </tr>
             </thead>
             <tbody>
                 {if movement_rows | count == 0}
-                <tr><td colspan="10" class="px-4 py-10 text-center text-sm text-gray-500">No production movement history in selected range.</td></tr>
+                <tr><td colspan="11" class="px-4 py-10 text-center text-sm text-gray-500">No production movement history in selected range.</td></tr>
                 {/if}
                 {foreach movement_rows as row}
                 <tr data-movement-type="{row.movement_type}">
@@ -226,6 +242,7 @@
                     <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
                     <td>{row.flow_mode}</td>
                     <td class="text-right font-semibold">{row.quantity}</td>
+                    <td class="text-sm text-muted">{row.dr_number | default:'—'}</td>
                     <td class="text-sm text-muted">{row.override_reason}</td>
                     <td class="text-sm text-muted">
                         <div>{row.created_by_role}</div>
@@ -233,7 +250,14 @@
                         <button
                             type="button"
                             class="btn btn-sm btn-outline mt-2 print-hide"
-                            onclick="openOverrideModal({row.id}, {row.destination_branch_id}, {row.product_id}, '{row.ledger_date}', {row.quantity}, '{row.flow_mode}')"
+                            data-movement-id="{row.id}"
+                            data-branch-id="{row.destination_branch_id}"
+                            data-product-id="{row.product_id}"
+                            data-ledger-date="{row.ledger_date}"
+                            data-quantity="{row.quantity}"
+                            data-flow-mode="{row.flow_mode}"
+                            data-dr-number="{row.dr_number | default:''}"
+                            onclick="openOverrideModalFromButton(this)"
                         >
                             Override
                         </button>
@@ -255,6 +279,7 @@
         <input type="hidden" id="ov-product-id">
         <input type="hidden" id="ov-ledger-date">
         <input type="hidden" id="ov-flow-mode">
+        <input type="hidden" id="ov-dr-number">
 
         <div class="form-group">
             <label class="form-label">Original Quantity</label>
@@ -308,8 +333,9 @@
         if (!btn) return;
         var branchId   = parseInt((document.getElementById('wd-branch-id')   || {}).value || '0', 10) || 0;
         var ledgerDate = (document.getElementById('wd-ledger-date') || {}).value || '';
-        var flowMode   = (document.getElementById('wd-flow-mode')   || {}).value || 'production';
+        var flowMode   = 'production';
         var reason     = ((document.getElementById('wd-reason')     || {}).value || '').trim();
+        var drNumber   = ((document.getElementById('wd-dr-number')  || {}).value || '').trim();
 
         if (!branchId)   { showToast('Select a branch first', 'error'); return; }
         if (!ledgerDate) { showToast('Ledger date is required', 'error'); return; }
@@ -333,7 +359,8 @@
                 ledger_date: ledgerDate,
                 quantity: qty,
                 flow_mode: flowMode,
-                override_reason: reason,
+                dr_number: drNumber,
+                reason: reason,
                 client_op_id: 'wd-' + now + '-' + pid + '-' + (idx++)
             });
         });
@@ -387,15 +414,16 @@
         var printedAt = new Date().toLocaleString();
         var htmlRows = rows.map(function(row) {
             var cells = row.querySelectorAll('td');
-            if (!cells || cells.length < 9) return '';
+            if (!cells || cells.length < 11) return '';
             return '<tr>' +
                 '<td>' + cells[0].textContent.trim() + '</td>' +
                 '<td>' + cells[1].textContent.trim() + '</td>' +
                 '<td>' + cells[3].textContent.trim() + '</td>' +
                 '<td>' + cells[4].textContent.trim() + '</td>' +
-                '<td style="text-align:right;">' + cells[6].textContent.trim() + '</td>' +
-                '<td>' + cells[7].textContent.trim() + '</td>' +
+                '<td style="text-align:right;">' + cells[7].textContent.trim() + '</td>' +
                 '<td>' + cells[8].textContent.trim() + '</td>' +
+                '<td>' + cells[9].textContent.trim() + '</td>' +
+                '<td>' + cells[10].textContent.trim() + '</td>' +
                 '</tr>';
         }).join('');
 
@@ -416,7 +444,7 @@
             '<div class="meta">Prepared By: {user_name} ({user_role})</div>' +
             '<div class="meta">Printed At: ' + printedAt + '</div>' +
             '<table><thead><tr>' +
-            '<th>Created</th><th>Date</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>Reason</th><th>Actor</th>' +
+            '<th>Created</th><th>Date</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>DR #</th><th>Reason</th><th>Actor</th>' +
             '</tr></thead><tbody>' + htmlRows + '</tbody></table>' +
             '</body></html>';
 
@@ -432,12 +460,26 @@
         w.print();
     }
 
-    function openOverrideModal(movementId, branchId, productId, ledgerDate, quantity, flowMode) {
+    function openOverrideModalFromButton(button) {
+        if (!button) return;
+        openOverrideModal(
+            parseInt(button.getAttribute('data-movement-id') || '0', 10) || 0,
+            parseInt(button.getAttribute('data-branch-id') || '0', 10) || 0,
+            parseInt(button.getAttribute('data-product-id') || '0', 10) || 0,
+            button.getAttribute('data-ledger-date') || '',
+            parseInt(button.getAttribute('data-quantity') || '0', 10) || 0,
+            button.getAttribute('data-flow-mode') || 'production',
+            button.getAttribute('data-dr-number') || ''
+        );
+    }
+
+    function openOverrideModal(movementId, branchId, productId, ledgerDate, quantity, flowMode, drNumber) {
         document.getElementById('ov-movement-id').value = movementId;
         document.getElementById('ov-branch-id').value = branchId;
         document.getElementById('ov-product-id').value = productId;
         document.getElementById('ov-ledger-date').value = ledgerDate;
         document.getElementById('ov-flow-mode').value = flowMode || 'production';
+        document.getElementById('ov-dr-number').value = drNumber || '';
         document.getElementById('ov-original-qty').value = quantity;
         document.getElementById('ov-corrected-qty').value = quantity;
         document.getElementById('ov-reason').value = '';
@@ -456,6 +498,7 @@
         var productId = parseInt(document.getElementById('ov-product-id').value, 10) || 0;
         var ledgerDate = document.getElementById('ov-ledger-date').value || '';
         var flowMode = document.getElementById('ov-flow-mode').value || 'production';
+        var drNumber = (document.getElementById('ov-dr-number').value || '').trim();
         var correctedQty = parseInt(document.getElementById('ov-corrected-qty').value, 10) || 0;
         var reason = (document.getElementById('ov-reason').value || '').trim();
 
@@ -482,6 +525,7 @@
             ledger_date: ledgerDate,
             quantity: correctedQty,
             flow_mode: flowMode,
+            dr_number: drNumber,
             reason: reason,
             client_op_id: 'ovr-rev-' + movementId + '-' + Date.now()
         };
@@ -508,6 +552,7 @@
                 ledger_date: ledgerDate,
                 quantity: correctedQty,
                 flow_mode: flowMode,
+                dr_number: drNumber,
                 reason: reason,
                 client_op_id: 'ovr-new-' + movementId + '-' + Date.now()
             };

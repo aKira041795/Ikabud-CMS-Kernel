@@ -22,7 +22,7 @@ Contributor workflow and refactor guardrails are documented in:
 |-------|-----------|
 | Runtime | PHP 8.2+ |
 | Database | MySQL 8+ (per-tenant isolation) |
-| Rendering Runtime | DiSyL v4.0 — layouts, blocks, components, hydration, 40+ filters, and reactive client blocks |
+| Rendering Runtime | DiSyL v4.6 — layouts, blocks, components, hydration, 40+ filters, reactive client blocks, sandbox + capability scoping (4.4), async runtime `{parallel}/{await}/{suspense}` (4.5), federation + AI primitives (4.6) |
 | Frontend | HTMX 1.9 + Alpine.js (server-first), React/Vite (page builder UI) |
 | Auth | JWT HS256 (cookie-based, httpOnly, secure) |
 | CSS | Tailwind CSS |

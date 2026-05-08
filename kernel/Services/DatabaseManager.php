@@ -29,6 +29,23 @@ class DatabaseManager
     private ?int $controlDbLastVerified = null;
     /** @var array<int, array{pdo: PDO, last_used: float, last_verified: int}> */
     private array $tenantDbPool = [];
+    /** @var array<string, int> */
+    private array $runtimeCounters = [
+        'primary_connects' => 0,
+        'primary_validations' => 0,
+        'primary_reconnects' => 0,
+        'control_connects' => 0,
+        'control_validations' => 0,
+        'control_reconnects' => 0,
+        'tenant_connects' => 0,
+        'tenant_pool_hits' => 0,
+        'tenant_pool_validations' => 0,
+        'tenant_pool_evictions' => 0,
+        'tenant_config_static_hits' => 0,
+        'tenant_config_apcu_hits' => 0,
+        'tenant_config_queries' => 0,
+        'tenant_reconnects' => 0,
+    ];
 
     /**
      * @param array<string,mixed>  $config               Full app config array.
@@ -64,6 +81,108 @@ class DatabaseManager
             $dbName,
             $dbConfig['charset'] ?? 'utf8mb4'
         );
+    }
+
+    private function incrementCounter(string $key): void
+    {
+        if (!array_key_exists($key, $this->runtimeCounters)) {
+            $this->runtimeCounters[$key] = 0;
+        }
+
+        $this->runtimeCounters[$key]++;
+    }
+
+    private function connectionTimeoutSeconds(array $dbConfig): int
+    {
+        $configured = $dbConfig['timeout_seconds'] ?? ($dbConfig['options'][PDO::ATTR_TIMEOUT] ?? null);
+        $timeout = is_numeric($configured) ? (int) $configured : 0;
+
+        return max(0, $timeout);
+    }
+
+    private function connectionPersistent(array $dbConfig): bool
+    {
+        if (array_key_exists('persistent', $dbConfig)) {
+            return (bool) $dbConfig['persistent'];
+        }
+
+        return (bool) ($dbConfig['options'][PDO::ATTR_PERSISTENT] ?? false);
+    }
+
+    /** @return array{enabled: bool, ca: string, cert: string, key: string, verify_server_cert: bool} */
+    private function connectionSslConfig(array $dbConfig): array
+    {
+        $ssl = is_array($dbConfig['ssl'] ?? null) ? $dbConfig['ssl'] : [];
+
+        return [
+            'enabled' => (bool) ($ssl['enabled'] ?? false),
+            'ca' => trim((string) ($ssl['ca'] ?? '')),
+            'cert' => trim((string) ($ssl['cert'] ?? '')),
+            'key' => trim((string) ($ssl['key'] ?? '')),
+            'verify_server_cert' => (bool) ($ssl['verify_server_cert'] ?? true),
+        ];
+    }
+
+    /** @return array<int, mixed> */
+    private function normalizedPdoOptions(array $dbConfig): array
+    {
+        $options = is_array($dbConfig['options'] ?? null) ? $dbConfig['options'] : [];
+        $charset = (string) ($dbConfig['charset'] ?? 'utf8mb4');
+        $collation = (string) ($dbConfig['collation'] ?? 'utf8mb4_unicode_ci');
+
+        $options[PDO::ATTR_ERRMODE] = PDO::ERRMODE_EXCEPTION;
+        $options[PDO::ATTR_DEFAULT_FETCH_MODE] = PDO::FETCH_ASSOC;
+        $options[PDO::ATTR_EMULATE_PREPARES] = false;
+        $options[PDO::ATTR_STRINGIFY_FETCHES] = false;
+        $options[PDO::ATTR_PERSISTENT] = $this->connectionPersistent($dbConfig);
+
+        $timeoutSeconds = $this->connectionTimeoutSeconds($dbConfig);
+        if ($timeoutSeconds > 0) {
+            $options[PDO::ATTR_TIMEOUT] = $timeoutSeconds;
+        }
+
+        if (($dbConfig['driver'] ?? 'mysql') === 'mysql' && defined('PDO::MYSQL_ATTR_INIT_COMMAND')) {
+            $options[constant('PDO::MYSQL_ATTR_INIT_COMMAND')] = "SET NAMES '" . $charset . "' COLLATE '" . $collation . "'";
+        }
+
+        $ssl = $this->connectionSslConfig($dbConfig);
+        if (($dbConfig['driver'] ?? 'mysql') === 'mysql' && $ssl['enabled']) {
+            if ($ssl['ca'] !== '' && defined('PDO::MYSQL_ATTR_SSL_CA')) {
+                $options[constant('PDO::MYSQL_ATTR_SSL_CA')] = $ssl['ca'];
+            }
+            if ($ssl['cert'] !== '' && defined('PDO::MYSQL_ATTR_SSL_CERT')) {
+                $options[constant('PDO::MYSQL_ATTR_SSL_CERT')] = $ssl['cert'];
+            }
+            if ($ssl['key'] !== '' && defined('PDO::MYSQL_ATTR_SSL_KEY')) {
+                $options[constant('PDO::MYSQL_ATTR_SSL_KEY')] = $ssl['key'];
+            }
+            if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
+                $options[constant('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')] = $ssl['verify_server_cert'];
+            }
+        }
+
+        return $options;
+    }
+
+    /** @return array<string, mixed> */
+    private function connectionPolicySnapshot(array $dbConfig): array
+    {
+        $ssl = $this->connectionSslConfig($dbConfig);
+        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && (bool) ini_get('apc.enabled');
+
+        return [
+            'timeout_seconds' => $this->connectionTimeoutSeconds($dbConfig),
+            'persistent' => $this->connectionPersistent($dbConfig),
+            'emulate_prepares' => false,
+            'stringify_fetches' => false,
+            'encrypted_tenant_passwords_enforced' => filter_var($_ENV['ENFORCE_ENCRYPTED_DB_PASS'] ?? 'false', FILTER_VALIDATE_BOOLEAN),
+            'tenant_config_cache_backend' => $apcuEnabled ? 'apcu+memory' : 'memory',
+            'tenant_config_cache_ttl_seconds' => $this->tenantDbConnectionCacheTtl(),
+            'ssl_enabled' => $ssl['enabled'],
+            'ssl_verify_server_cert' => $ssl['enabled'] ? $ssl['verify_server_cert'] : false,
+            'ssl_has_ca' => $ssl['ca'] !== '',
+            'idle_validation_seconds' => $this->dbIdleValidationSeconds(),
+        ];
     }
 
     // ── Pool lifecycle helpers ────────────────────────────────────────────────
@@ -151,6 +270,7 @@ class DatabaseManager
     private function fetchTenantDbConnectionRow(int $tenantId): ?array
     {
         if (array_key_exists($tenantId, self::$tenantDbConnectionRowCache)) {
+            $this->incrementCounter('tenant_config_static_hits');
             return self::$tenantDbConnectionRowCache[$tenantId];
         }
 
@@ -159,11 +279,14 @@ class DatabaseManager
         if ($apcuEnabled) {
             $cached = apcu_fetch($apcuKey, $success);
             if ($success) {
+                $this->incrementCounter('tenant_config_apcu_hits');
                 $row = is_array($cached) ? $cached : null;
                 self::$tenantDbConnectionRowCache[$tenantId] = $row;
                 return $row;
             }
         }
+
+        $this->incrementCounter('tenant_config_queries');
 
         $stmt = $this->controlDb()->prepare(
             'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
@@ -189,11 +312,13 @@ class DatabaseManager
             return null;
         }
 
+        $this->incrementCounter('tenant_pool_hits');
         $pdo = $entry['pdo'];
         if (!$pdo->inTransaction() && $this->shouldValidateConnection((int)($entry['last_verified'] ?? 0))) {
             try {
                 $pdo->query('SELECT 1');
                 $this->tenantDbPool[$tenantId]['last_verified'] = time();
+                $this->incrementCounter('tenant_pool_validations');
             } catch (\Throwable $e) {
                 unset($this->tenantDbPool[$tenantId]);
                 ($this->logger)(
@@ -230,6 +355,7 @@ class DatabaseManager
         }
 
         if ($oldestTenantId !== null) {
+            $this->incrementCounter('tenant_pool_evictions');
             unset($this->tenantDbPool[$oldestTenantId]);
         }
     }
@@ -295,6 +421,7 @@ class DatabaseManager
             try {
                 $this->db->query('SELECT 1');
                 $this->dbLastVerified = time();
+                $this->incrementCounter('primary_validations');
                 return $this->db;
             } catch (\Throwable $e) {
                 ($this->logger)('Primary DB validation failed: ' . $e->getMessage(), 'warning', [
@@ -316,12 +443,7 @@ class DatabaseManager
 
             $dsn = $this->buildDsn($dbConfig);
             $pdoClass = '\\Ikabud\\Kernel\\Database\\KernelPDO';
-            $pdoOptions = $dbConfig['options'] ?? [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
-            ];
+            $pdoOptions = $this->normalizedPdoOptions($dbConfig);
 
             // On shared hosting (e.g. Bluehost) max_user_connections can be hit
             // briefly under traffic spikes.  Retry up to 3 times with a short
@@ -337,6 +459,7 @@ class DatabaseManager
                         $dbConfig['password'] ?? '',
                         $pdoOptions
                     );
+                    $this->incrementCounter('primary_connects');
                     $this->dbTenantTarget = $tenantTarget;
                     $this->dbLastVerified = time();
                     break; // success
@@ -377,6 +500,7 @@ class DatabaseManager
             try {
                 $this->controlDb->query('SELECT 1');
                 $this->controlDbLastVerified = time();
+                $this->incrementCounter('control_validations');
                 return $this->controlDb;
             } catch (\Throwable $e) {
                 ($this->logger)('Control DB validation failed: ' . $e->getMessage(), 'warning', [
@@ -396,13 +520,9 @@ class DatabaseManager
                 $dsn,
                 $dbConfig['username'] ?? '',
                 $dbConfig['password'] ?? '',
-                $dbConfig['options'] ?? [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false,
-                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
-                ]
+                $this->normalizedPdoOptions($dbConfig)
             );
+            $this->incrementCounter('control_connects');
             $this->controlDbLastVerified = time();
         }
 
@@ -440,16 +560,14 @@ class DatabaseManager
                 'charset' => (string)($row['db_charset'] ?? 'utf8mb4'),
             ];
 
+            $dbConfig = array_merge($this->config['database'] ?? [], $dbConfig);
+
             $dsn = $this->buildDsn($dbConfig);
-            $options = $this->config['database']['options'] ?? [
-                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-                \PDO::ATTR_EMULATE_PREPARES => false,
-                \PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
-            ];
+            $options = $this->normalizedPdoOptions($dbConfig);
 
             $pdoClass = '\\Ikabud\\Kernel\\Database\\KernelPDO';
             $pdo = new $pdoClass($dsn, $dbConfig['username'], $dbConfig['password'], $options);
+            $this->incrementCounter('tenant_connects');
             $this->trimTenantDbPool($tenantId);
             $this->tenantDbPool[$tenantId] = [
                 'pdo' => $pdo,
@@ -471,6 +589,7 @@ class DatabaseManager
 
     public function reconnectDb(): PDO
     {
+        $this->incrementCounter('primary_reconnects');
         $this->db = null;
         $this->dbTenantTarget = null;
         $this->dbLastVerified = null;
@@ -479,6 +598,7 @@ class DatabaseManager
 
     public function reconnectControlDb(): PDO
     {
+        $this->incrementCounter('control_reconnects');
         $this->controlDb = null;
         $this->controlDbLastVerified = null;
         return $this->controlDb();
@@ -486,6 +606,7 @@ class DatabaseManager
 
     public function reconnectDbForTenant(int $tenantId): ?PDO
     {
+        $this->incrementCounter('tenant_reconnects');
         $currentTid = ($this->currentTenantId)();
         if (PHP_SAPI !== 'cli' && $currentTid !== null && (int)$currentTid === $tenantId) {
             $this->db = null;
@@ -508,6 +629,29 @@ class DatabaseManager
             'active' => count($this->tenantDbPool),
             'max' => $this->tenantDbPoolMax(),
             'tenant_ids' => array_values(array_map('intval', array_keys($this->tenantDbPool))),
+        ];
+    }
+
+    public function runtimeSnapshot(): array
+    {
+        $requestTenantId = ($this->resolveRequestTenant)();
+        $primaryPolicy = $this->connectionPolicySnapshot($this->config['database'] ?? []);
+        $controlPolicy = $this->connectionPolicySnapshot($this->config['control_database'] ?? ($this->config['database'] ?? []));
+
+        return [
+            'request_tenant_id' => $requestTenantId,
+            'primary_request_target' => $requestTenantId !== null && (int) $requestTenantId > 0 ? 'tenant' : 'primary',
+            'primary_connection_target' => $this->dbTenantTarget !== null ? 'tenant' : 'primary',
+            'tenant_pool' => $this->tenantDbPoolStats(),
+            'tenant_config_cache' => [
+                'backend' => $primaryPolicy['tenant_config_cache_backend'],
+                'ttl_seconds' => $this->tenantDbConnectionCacheTtl(),
+                'static_entries' => count(self::$tenantDbConnectionRowCache),
+            ],
+            'policy' => $primaryPolicy,
+            'primary_policy' => $primaryPolicy,
+            'control_policy' => $controlPolicy,
+            'counters' => $this->runtimeCounters,
         ];
     }
 }

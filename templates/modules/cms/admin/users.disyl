@@ -44,13 +44,13 @@
                     <td class="px-5 py-3.5 text-xs text-slate-500 hidden md:table-cell">{u.email}</td>
                     <td class="px-5 py-3.5">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold
-                            {if u.role == 'superadmin'}bg-pink-50 text-pink-700
+                            {if u.role == 'superadmin'}bg-amber-50 text-amber-700
                             {else}{if u.role == 'administrator'}bg-violet-50 text-violet-700
                             {else}{if u.role == 'editor'}bg-sky-50 text-sky-700
                             {else}{if u.role == 'author'}bg-emerald-50 text-emerald-700
                             {else}{if u.role == 'contributor'}bg-amber-50 text-amber-700
                             {else}{if u.role == 'customer'}bg-orange-50 text-orange-700
-                            {else}bg-slate-100 text-slate-500{/if}{/if}{/if}{/if}{/if}{/if}">{u.role}</span>
+                            {else}bg-slate-100 text-slate-500{/if}{/if}{/if}{/if}{/if}{/if}">{if u.role == 'superadmin'}Legacy Super Admin{else}{u.role}{/if}</span>
                     </td>
                     <td class="px-5 py-3.5">
                         {if u.is_active == 1}
@@ -119,7 +119,6 @@
                             <option value="author">Author</option>
                             <option value="editor">Editor</option>
                             <option value="administrator">Administrator</option>
-                            <option value="superadmin">Super Admin</option>
                         </select>
                     </div>
                 </div>
@@ -155,7 +154,6 @@
                             <option value="author">Author</option>
                             <option value="editor">Editor</option>
                             <option value="administrator">Administrator</option>
-                            <option value="superadmin">Super Admin</option>
                         </select>
                     </div>
                     <div>

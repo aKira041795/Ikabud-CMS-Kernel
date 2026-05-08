@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class BinaryOpNode extends AbstractNode
+final class BinaryOpNode extends AbstractNode
 {
     private AbstractNode $left;
     private AbstractNode $right;

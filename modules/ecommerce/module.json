@@ -60,7 +60,12 @@
         "ec_marketplace_product_vendors",
         "ec_pos_terminals",
         "ec_pos_cash_drawers",
-        "ec_pos_payments"
+        "ec_pos_payments",
+        "ec_webhook_events"
+    ],
+    "co_owns_tables": [
+        "cms_content_types",
+        "cms_password_resets"
     ],
     "reads_tables": [
         "cms_content",

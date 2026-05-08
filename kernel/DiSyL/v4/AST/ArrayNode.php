@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class ArrayNode extends AbstractNode
+final class ArrayNode extends AbstractNode
 {
     /** @var AbstractNode[] */
     private array $elements;

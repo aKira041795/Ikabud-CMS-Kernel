@@ -19,16 +19,20 @@
  *   'kernel.csrf_token'      (filter)  — provide CSRF token string
  *   'kernel.csrf_field'      (filter)  — provide CSRF hidden input HTML
  *   'kernel.render_context'  (filter)  — modify the global render context before template compilation
+ *   'kernel.database.query.before' (filter)  — inspect/modify SQL + params before execution (KernelPDO)
  *   'kernel.boot'            (action)  — fired after kernel boot completes
  *   'kernel.shutdown'        (action)  — fired at shutdown
- * 
+ *
+ * Related events fired via EventBus (not Hooks):
+ *   'kernel.database.query.after'   — emitted after each query with timing + row count
+ *
  * @package Ikabud\Kernel
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 namespace Ikabud\Kernel;
 
-class Hooks
+final class Hooks
 {
     private static ?Hooks $instance = null;
 

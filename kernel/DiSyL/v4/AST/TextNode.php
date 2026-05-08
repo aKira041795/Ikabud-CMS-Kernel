@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class TextNode extends AbstractNode
+final class TextNode extends AbstractNode
 {
     private string $content;
 

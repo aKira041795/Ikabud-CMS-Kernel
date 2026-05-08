@@ -67,3 +67,32 @@
   2. Ecommerce storefront media tests covering featured image, gallery fallback, and placeholder fallback.
   3. CMS entity-list product-card image tests for the `/ecommerce/shop` rendering path.
 - Treat `/ecommerce/shop` as a CMS entity-list integration path first and an ecommerce template path second when choosing where to test storefront card behavior.
+
+# Project Instructions
+
+This repository is a modular PHP application kernel with strict module boundaries.
+
+Before editing, understand the affected module, its manifest, owned tables, capabilities, routes, helpers, handlers, migrations, and tests.
+
+Use LeanCTX tools when available:
+- Prefer ctx_tree before exploring folders.
+- Prefer ctx_search before broad file reads.
+- Prefer ctx_read in map/signatures/auto mode before reading full files.
+- Prefer ctx_shell for git, test, grep, composer, npm, and CLI commands.
+- Avoid loading entire large files unless necessary.
+
+Architecture rules:
+- Do not bypass the kernel boundary.
+- Do not let modules call the kernel directly when hooks/capabilities/events should be used.
+- Respect module-owned database tables.
+- Use tenant-safe access patterns.
+- Keep rendering behind DiSyL/kernel render contracts.
+- Preserve existing hooks, events, capabilities, and route conventions.
+- Add or update tests when changing kernel, module, or DiSyL behavior.
+
+When modifying code:
+1. Identify the smallest affected area.
+2. Inspect related contracts first.
+3. Propose the change.
+4. Apply minimal edits.
+5. Run targeted tests or explain why not run.

@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4;
 
-class RenderContext
+final class RenderContext
 {
     /** @var array<string, mixed>[] Variable scope stack */
     private array $scopes = [];

@@ -22,7 +22,8 @@
         .prose img.aligncenter, .prose .aligncenter img { display: block; margin-left: auto; margin-right: auto; }
         .cms-lightbox-image { cursor: zoom-in; }
         .cms-lightbox-image:focus-visible { outline: 3px solid var(--color-primary, #0ea5e9); outline-offset: 4px; }
-        .cms-lightbox-backdrop { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: clamp(1rem, 4vw, 2rem); background: rgba(15, 23, 42, 0.92); cursor: zoom-out; backdrop-filter: blur(6px); }
+        .cms-lightbox-backdrop { position: fixed; inset: 0; z-index: 99999; background: rgba(15, 23, 42, 0.92); cursor: zoom-out; backdrop-filter: blur(6px); }
+        .cms-lightbox-stage { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: clamp(1rem, 4vw, 2rem); box-sizing: border-box; }
         .cms-lightbox-figure { position: relative; width: min(100%, 1100px); max-height: 100%; margin: 0; cursor: default; }
         .cms-lightbox-figure img { display: block; max-width: 100%; max-height: calc(100vh - 7rem); margin: 0 auto; object-fit: contain; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.45); }
         .cms-lightbox-hover-hint { position: fixed; z-index: 99998; padding: 0.4rem 0.7rem; border-radius: 999px; background: rgba(15, 23, 42, 0.88); color: #fff; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em; pointer-events: none; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22); white-space: nowrap; transform: translateY(0); transition: opacity 0.14s ease, transform 0.14s ease; }
@@ -187,6 +188,7 @@
         previousBodyOverflow: '',
         previousDocumentOverflow: '',
         previousActiveElement: null,
+        lightboxBackdropStyle: '',
         hoverHintVisible: false,
         hoverHintText: 'Zoom to enlarge',
         hoverHintStyle: '',
@@ -254,6 +256,33 @@
         syncEligibleImages() {
             document.querySelectorAll(this.eligibleSelector).forEach((img) => this.decorateImage(img));
         },
+        resolveEventImage(event) {
+            const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+            for (const node of path) {
+                if (node instanceof HTMLImageElement) {
+                    return node;
+                }
+                if (node instanceof HTMLPictureElement) {
+                    const nestedImage = node.querySelector('img');
+                    if (nestedImage instanceof HTMLImageElement) {
+                        return nestedImage;
+                    }
+                }
+            }
+
+            const target = event.target;
+            if (target instanceof HTMLImageElement) {
+                return target;
+            }
+            if (target instanceof HTMLPictureElement) {
+                const nestedImage = target.querySelector('img');
+                if (nestedImage instanceof HTMLImageElement) {
+                    return nestedImage;
+                }
+            }
+
+            return null;
+        },
         updateHoverHintPosition(img) {
             const rect = img.getBoundingClientRect();
             const hintWidth = 144;
@@ -273,12 +302,19 @@
             this.hoverHintVisible = false;
             this.hoverHintStyle = '';
         },
+        syncLightboxViewport() {
+            const viewport = window.visualViewport || null;
+            const top = Math.round(window.scrollY + (viewport ? viewport.offsetTop : 0));
+            const height = Math.round(viewport ? viewport.height : window.innerHeight);
+            this.lightboxBackdropStyle = 'top:' + top + 'px; bottom:auto; height:' + height + 'px;';
+        },
         openFromImage(img) {
             if (!this.isEligibleImage(img)) {
                 return;
             }
 
             this.hideHoverHint();
+            this.syncLightboxViewport();
             this.lightboxModalSrc = (img.currentSrc || img.src || '').trim();
             this.lightboxModalAlt = (img.getAttribute('alt') || '').trim();
             this.lightboxModalCaption = this.resolveCaption(img);
@@ -298,6 +334,7 @@
             this.lightboxModalSrc = null;
             this.lightboxModalAlt = '';
             this.lightboxModalCaption = '';
+            this.lightboxBackdropStyle = '';
             document.body.style.overflow = this.previousBodyOverflow;
             document.documentElement.style.overflow = this.previousDocumentOverflow;
 
@@ -320,7 +357,7 @@
             window.addEventListener('load', syncEligibleImages, { once: true });
 
             window.addEventListener('click', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -333,7 +370,7 @@
                 if (event.key !== 'Enter' && event.key !== ' ') {
                     return;
                 }
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -343,7 +380,7 @@
             });
 
             window.addEventListener('mouseover', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -352,7 +389,7 @@
             });
 
             window.addEventListener('mousemove', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -361,7 +398,7 @@
             });
 
             window.addEventListener('mouseout', (event) => {
-                const img = event.target instanceof HTMLImageElement ? event.target : null;
+                const img = this.resolveEventImage(event);
                 if (!img || !this.isEligibleImage(img)) {
                     return;
                 }
@@ -370,18 +407,26 @@
             });
 
             window.addEventListener('scroll', () => this.hideHoverHint(), { passive: true });
+            window.addEventListener('resize', () => {
+                if (this.lightboxModalSrc) {
+                    this.syncLightboxViewport();
+                }
+            }, { passive: true });
         }
     }">
-        <template x-teleport="body">
-            <div x-show="hoverHintVisible && !lightboxModalSrc"
-                 class="cms-lightbox-hover-hint"
-                 style="display: none;"
-                 x-transition.opacity.duration.100ms
-                 :style="hoverHintStyle"
-                 x-text="hoverHintText"></div>
+           <template x-teleport="body">
+              <div x-show="hoverHintVisible && !lightboxModalSrc"
+                  class="cms-lightbox-hover-hint"
+                  style="display: none;"
+                  x-transition.opacity.duration.100ms
+                  :style="hoverHintStyle"
+                  x-text="hoverHintText"></div>
+           </template>
+           <template x-teleport="body">
             <div x-show="lightboxModalSrc"
                  class="cms-lightbox-backdrop"
                  style="display: none;"
+                  :style="lightboxBackdropStyle"
                  x-transition.opacity.duration.200ms
                  @click="closeLightbox()"
                  @keydown.escape.window="closeLightbox()"
@@ -389,6 +434,7 @@
                  aria-modal="true"
                  :aria-label="lightboxModalAlt || 'Expanded image preview'">
 
+                 <div class="cms-lightbox-stage">
                  <figure class="cms-lightbox-figure" @click.stop>
                      <button x-ref="lightboxClose" type="button" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem; color: rgba(255,255,255,0.7); background: transparent; border: none; cursor: pointer; z-index: 10;" @click="closeLightbox()" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.7)'" aria-label="Close image preview">
                          <svg style="width: 2rem; height: 2rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -397,6 +443,7 @@
                      <img :src="lightboxModalSrc" :alt="lightboxModalAlt" @click.stop style="cursor: default; transition: transform 0.2s;" :style="lightboxModalSrc ? 'transform: scale(1);' : 'transform: scale(0.95);'" />
                      <figcaption x-show="lightboxModalCaption" class="cms-lightbox-caption" x-text="lightboxModalCaption"></figcaption>
                  </figure>
+                 </div>
             </div>
         </template>
     </div>

@@ -202,10 +202,20 @@ function bakeshopCatalogListProducts(): array
             p.created_at,
             p.updated_at,
             u.code AS default_yield_unit_code,
-            COUNT(r.id) AS recipe_item_count
+            COUNT(r.id) AS recipe_item_count,
+                COALESCE(pr.production_reference_count, 0) AS production_reference_count,
+            CASE
+                     WHEN COALESCE(pr.production_reference_count, 0) = 0 THEN 1
+                ELSE 0
+            END AS can_delete
          FROM bakeshop_products p
          LEFT JOIN bakeshop_units u ON u.id = p.default_yield_unit_id
          LEFT JOIN bakeshop_product_recipe r ON r.product_id = p.id
+            LEFT JOIN (
+                SELECT product_id, COUNT(*) AS production_reference_count
+                FROM bakeshop_production_runs
+                GROUP BY product_id
+            ) pr ON pr.product_id = p.id
          GROUP BY
             p.id,
             p.sku,
@@ -216,7 +226,8 @@ function bakeshopCatalogListProducts(): array
             p.is_active,
             p.created_at,
             p.updated_at,
-            u.code
+            u.code,
+            pr.production_reference_count
          ORDER BY p.name ASC'
     );
 }
@@ -234,11 +245,115 @@ function bakeshopCatalogListIngredients(): array
             i.updated_at,
             u.code AS default_unit_code,
             u.name AS default_unit_name,
-            u.dimension AS unit_dimension
+            u.dimension AS unit_dimension,
+            COALESCE(recipe_refs.recipe_reference_count, 0) AS recipe_reference_count,
+            COALESCE(delivery_refs.delivery_reference_count, 0) AS delivery_reference_count,
+            COALESCE(production_refs.production_reference_count, 0) AS production_reference_count,
+            COALESCE(usage_refs.usage_reference_count, 0) AS usage_reference_count,
+            CASE
+                WHEN (
+                    COALESCE(recipe_refs.recipe_reference_count, 0) +
+                    COALESCE(delivery_refs.delivery_reference_count, 0) +
+                    COALESCE(production_refs.production_reference_count, 0) +
+                    COALESCE(usage_refs.usage_reference_count, 0)
+                ) = 0 THEN 1
+                ELSE 0
+            END AS can_delete
          FROM bakeshop_ingredients i
          INNER JOIN bakeshop_units u ON u.id = i.default_unit_id
+         LEFT JOIN (
+            SELECT ingredient_id, COUNT(*) AS recipe_reference_count
+            FROM bakeshop_product_recipe
+            GROUP BY ingredient_id
+         ) recipe_refs ON recipe_refs.ingredient_id = i.id
+         LEFT JOIN (
+            SELECT ingredient_id, COUNT(*) AS delivery_reference_count
+            FROM bakeshop_delivery_items
+            GROUP BY ingredient_id
+         ) delivery_refs ON delivery_refs.ingredient_id = i.id
+         LEFT JOIN (
+            SELECT ingredient_id, COUNT(*) AS production_reference_count
+            FROM bakeshop_production_items
+            GROUP BY ingredient_id
+         ) production_refs ON production_refs.ingredient_id = i.id
+         LEFT JOIN (
+            SELECT ingredient_id, COUNT(*) AS usage_reference_count
+            FROM bakeshop_ingredient_usage
+            GROUP BY ingredient_id
+         ) usage_refs ON usage_refs.ingredient_id = i.id
          ORDER BY i.name ASC'
     );
+}
+
+function bakeshopCatalogNormalizeDeleteIds(mixed $value, string $field = 'ids'): array
+{
+    if (!is_array($value)) {
+        throw new InvalidArgumentException('Select at least one record to delete.');
+    }
+
+    $ids = [];
+    foreach ($value as $candidate) {
+        $id = bakeshopCatalogRequirePositiveInt($candidate, $field);
+        $ids[$id] = $id;
+    }
+
+    if ($ids === []) {
+        throw new InvalidArgumentException('Select at least one record to delete.');
+    }
+
+    return array_values($ids);
+}
+
+function bakeshopCatalogDeleteProductsBatch(array $input): array
+{
+    $ids = bakeshopCatalogNormalizeDeleteIds($input['ids'] ?? null);
+    $db = bakeshopDb();
+    $deleted = [];
+
+    $db->beginTransaction();
+    try {
+        foreach ($ids as $id) {
+            $deleted[] = bakeshopCatalogDeleteProduct(['id' => $id]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    return [
+        'ids' => $ids,
+        'items' => $deleted,
+        'deleted_count' => count($deleted),
+    ];
+}
+
+function bakeshopCatalogDeleteIngredientsBatch(array $input): array
+{
+    $ids = bakeshopCatalogNormalizeDeleteIds($input['ids'] ?? null);
+    $db = bakeshopDb();
+    $deleted = [];
+
+    $db->beginTransaction();
+    try {
+        foreach ($ids as $id) {
+            $deleted[] = bakeshopCatalogDeleteIngredient(['id' => $id]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    return [
+        'ids' => $ids,
+        'items' => $deleted,
+        'deleted_count' => count($deleted),
+    ];
 }
 
 function bakeshopCatalogListRecipes(): array
@@ -862,7 +977,7 @@ function bakeshopApiUnitsStore(array $params = []): void
         bakeshopCurrentUser('bakeshop.manage');
         $isUpdate = (bakeshopInput('id') ?? null) !== null && (string)bakeshopInput('id') !== '';
         $item = bakeshopCatalogSaveUnit(bakeshopInput());
-        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
+        bakeshopJsonMutationOk(['item' => $item], ['units', 'products', 'ingredients', 'recipes'], $isUpdate ? 200 : 201);
     });
 }
 
@@ -898,7 +1013,7 @@ function bakeshopApiProductsStore(array $params = []): void
         $input = bakeshopInput();
         $isUpdate = ($input['id'] ?? null) !== null && (string)$input['id'] !== '';
         $item = bakeshopCatalogSaveProduct($input);
-        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
+        bakeshopJsonMutationOk(['item' => $item], ['products', 'recipes', 'production'], $isUpdate ? 200 : 201);
     });
 }
 
@@ -910,7 +1025,7 @@ function bakeshopApiProductsStatusUpdate(array $params = []): void
         $id = bakeshopCatalogRequirePositiveInt($params['id'] ?? null, 'id');
         $input = (array)bakeshopInput();
         $item = bakeshopCatalogSetProductActive($id, $input['is_active'] ?? null);
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['products', 'recipes', 'production']);
     });
 }
 
@@ -922,7 +1037,7 @@ function bakeshopApiIngredientsStore(array $params = []): void
         $input = bakeshopInput();
         $isUpdate = ($input['id'] ?? null) !== null && (string)$input['id'] !== '';
         $item = bakeshopCatalogSaveIngredient($input);
-        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
+        bakeshopJsonMutationOk(['item' => $item], ['ingredients', 'recipes', 'deliveries', 'usage'], $isUpdate ? 200 : 201);
     });
 }
 
@@ -934,7 +1049,7 @@ function bakeshopApiIngredientsStatusUpdate(array $params = []): void
         $id = bakeshopCatalogRequirePositiveInt($params['id'] ?? null, 'id');
         $input = (array)bakeshopInput();
         $item = bakeshopCatalogSetIngredientActive($id, $input['is_active'] ?? null);
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['ingredients', 'recipes', 'deliveries', 'usage']);
     });
 }
 
@@ -944,7 +1059,7 @@ function bakeshopApiRecipesStore(array $params = []): void
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopCatalogSaveRecipe(bakeshopInput());
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['recipes', 'products']);
     });
 }
 
@@ -954,7 +1069,7 @@ function bakeshopApiRecipesDelete(array $params = []): void
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopCatalogDeleteRecipe(bakeshopInput());
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['recipes', 'products']);
     });
 }
 
@@ -964,7 +1079,17 @@ function bakeshopApiProductsDelete(array $params = []): void
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopCatalogDeleteProduct(bakeshopInput());
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['products', 'recipes', 'production']);
+    });
+}
+
+function bakeshopApiProductsBatchDelete(array $params = []): void
+{
+    bakeshopResponseGuard(static function (): void {
+        bakeshopEnforceCsrf();
+        bakeshopCurrentUser('bakeshop.manage');
+        $result = bakeshopCatalogDeleteProductsBatch((array)bakeshopInput());
+        bakeshopJsonMutationOk($result, ['products', 'recipes', 'production']);
     });
 }
 
@@ -974,6 +1099,16 @@ function bakeshopApiIngredientsDelete(array $params = []): void
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopCatalogDeleteIngredient(bakeshopInput());
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['ingredients', 'recipes', 'deliveries', 'usage']);
+    });
+}
+
+function bakeshopApiIngredientsBatchDelete(array $params = []): void
+{
+    bakeshopResponseGuard(static function (): void {
+        bakeshopEnforceCsrf();
+        bakeshopCurrentUser('bakeshop.manage');
+        $result = bakeshopCatalogDeleteIngredientsBatch((array)bakeshopInput());
+        bakeshopJsonMutationOk($result, ['ingredients', 'recipes', 'deliveries', 'usage']);
     });
 }

@@ -151,6 +151,13 @@ DB_PORT=3306
 DB_DATABASE=your_database
 DB_USERNAME=your_user
 DB_PASSWORD=your_password
+DB_TIMEOUT_SECONDS=5
+DB_PERSISTENT=false
+DB_SSL_ENABLED=false
+DB_SSL_CA=
+DB_SSL_CERT=
+DB_SSL_KEY=
+DB_SSL_VERIFY_SERVER_CERT=true
 
 JWT_SECRET=your-random-64-char-secret
 JWT_EXPIRATION=14400
@@ -163,6 +170,13 @@ CONTROL_DB_PORT=3306
 CONTROL_DB_DATABASE=control_db
 CONTROL_DB_USERNAME=control_user
 CONTROL_DB_PASSWORD=control_pass
+CONTROL_DB_TIMEOUT_SECONDS=5
+CONTROL_DB_PERSISTENT=false
+CONTROL_DB_SSL_ENABLED=false
+CONTROL_DB_SSL_CA=
+CONTROL_DB_SSL_CERT=
+CONTROL_DB_SSL_KEY=
+CONTROL_DB_SSL_VERIFY_SERVER_CERT=true
 CONTROL_DB_ENC_KEY=your-encryption-key
 ```
 
@@ -171,6 +185,8 @@ Notes:
 - `APP_COOKIE_NAME` is derived automatically from `APP_URL` when it is not set.
 - If the app is intentionally served from a real URL subpath, include that path in `APP_URL`.
 - If a shared-hosting root domain rewrites into a subfolder install, keep `APP_URL` host-only and use `SetEnv IKABUD_BASE_PATH /` in the domain root `.htaccess` instead.
+- `DB_TIMEOUT_SECONDS` and `CONTROL_DB_TIMEOUT_SECONDS` feed the kernel DB manager's centralized PDO timeout policy for primary, control, and tenant connections.
+- Enable `*_DB_SSL_ENABLED=true` only after the CA or client certificate paths are present on disk; keep `*_DB_SSL_VERIFY_SERVER_CERT=true` in production.
 - AI and SMS provider credentials are managed by their modules and are not required in the base `.env`.
 
 ### 4. Set Permissions

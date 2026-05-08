@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class ControlNode extends AbstractNode
+final class ControlNode extends AbstractNode
 {
     private string $tag;
     private array $attributes;

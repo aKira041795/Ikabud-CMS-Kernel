@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS cms_media (
     CONSTRAINT fk_cms_media_uploader FOREIGN KEY (uploaded_by) REFERENCES cms_users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Seed a default superadmin (password: admin123)
+-- Seed a default administrator (password: admin123)
 INSERT INTO cms_users (username, email, password_hash, display_name, role, is_active)
-VALUES ('cmsadmin', 'admin@cms.local', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'CMS Admin', 'superadmin', 1)
+VALUES ('cmsadmin', 'admin@cms.local', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'CMS Admin', 'administrator', 1)
 ON DUPLICATE KEY UPDATE updated_at = NOW();

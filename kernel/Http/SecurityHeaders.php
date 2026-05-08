@@ -11,7 +11,7 @@
 
 namespace Ikabud\Kernel\Http;
 
-class SecurityHeaders
+final class SecurityHeaders
 {
     /** @var array Static file extensions to skip */
     private const STATIC_EXTENSIONS = [

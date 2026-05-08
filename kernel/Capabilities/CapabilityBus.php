@@ -177,6 +177,7 @@ final class CapabilityBus implements CapabilityBusContract
 
         $caller = $this->resolveCaller($options);
         $settings = $this->resolveOptions($options, $capabilityId);
+        $callOptions = array_merge($settings, $options);
 
         $providers = $this->registry->providers($capabilityId);
         if (empty($providers)) {
@@ -199,9 +200,9 @@ final class CapabilityBus implements CapabilityBusContract
 
         try {
             $result = match ($mode) {
-                'pipeline' => $this->callPipeline($capabilityId, $payload, $providers, $settings),
-                'fanout' => $this->callFanout($capabilityId, $payload, $providers, $strict, $settings),
-                'first' => $this->callFirst($capabilityId, $payload, $providers, $settings),
+                'pipeline' => $this->callPipeline($capabilityId, $payload, $providers, $callOptions),
+                'fanout' => $this->callFanout($capabilityId, $payload, $providers, $strict, $callOptions),
+                'first' => $this->callFirst($capabilityId, $payload, $providers, $callOptions),
                 default => throw new CapabilityException("Unknown capability call mode: {$mode}"),
             };
 

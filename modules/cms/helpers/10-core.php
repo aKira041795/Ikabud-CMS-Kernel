@@ -2,10 +2,37 @@
 
 declare(strict_types=1);
 
+function cmsNormalizeRole(string $role): string
+{
+    $role = trim($role);
+    return $role === 'superadmin' ? 'administrator' : $role;
+}
+
+function cmsNormalizeUserContext(?array $user): ?array
+{
+    if (!is_array($user)) {
+        return $user;
+    }
+
+    if ((string)($user['source'] ?? '') !== 'cms') {
+        return $user;
+    }
+
+    $role = trim((string)($user['role'] ?? ''));
+    $normalizedRole = cmsNormalizeRole($role);
+    if ($normalizedRole === $role) {
+        return $user;
+    }
+
+    $user['legacy_role'] = $role;
+    $user['role'] = $normalizedRole;
+    return $user;
+}
+
 function cmsRoleAtLeast(string $role, string $minimum): bool
 {
-    $roleLevel = CMS_ROLES[$role] ?? 0;
-    $minLevel  = CMS_ROLES[$minimum] ?? 999;
+    $roleLevel = CMS_ROLES[cmsNormalizeRole($role)] ?? 0;
+    $minLevel  = CMS_ROLES[cmsNormalizeRole($minimum)] ?? 999;
     return $roleLevel >= $minLevel;
 }
 
@@ -37,7 +64,7 @@ function cmsCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 
 function cmsCtxUser(): ?array
 {
-    return cmsCtx()->user();
+    return cmsNormalizeUserContext(cmsCtx()->user());
 }
 
 function cmsInput(?string $key = null, mixed $default = null): mixed
@@ -136,29 +163,86 @@ function cmsRequireRole(string $minimum = 'subscriber'): array
 }
 
 /**
+ * Check if the current user can access any content item without author scoping.
+ */
+
+function cmsCanAccessAnyContent(array $user): bool
+{
+    $role   = (string)($user['role'] ?? '');
+    $source = (string)($user['source'] ?? '');
+
+    if ($source === 'kernel' && $role === 'admin') {
+        return true;
+    }
+
+    if ($source !== 'cms') {
+        return false;
+    }
+
+    return cmsRoleAtLeast($role, 'editor');
+}
+
+function cmsCapabilityCallerUser(): ?array
+{
+    $ctx = function_exists('capability_call_context') ? capability_call_context() : null;
+    if (!is_array($ctx) && is_array($GLOBALS['_capability_call_context'] ?? null)) {
+        $ctx = $GLOBALS['_capability_call_context'];
+    }
+    if (is_array($ctx) && is_array($ctx['user'] ?? null)) {
+        return $ctx['user'];
+    }
+
+    $user = function_exists('app') ? app()->user() : null;
+    return is_array($user) ? $user : null;
+}
+
+/**
+ * Returns the author scope for content queries.
+ * Non-editor CMS users are restricted to their own authored content.
+ */
+
+function cmsScopedContentAuthorId(array $user): ?int
+{
+    $source = (string)($user['source'] ?? '');
+
+    if (cmsCanAccessAnyContent($user)) {
+        return null;
+    }
+
+    return $source === 'cms' ? (int)($user['id'] ?? 0) : 0;
+}
+
+/**
+ * Check if the current user can read a specific content item.
+ * Contributors/authors can only read their own content in admin/API flows.
+ */
+
+function cmsCanReadContent(array $user, array $content): bool
+{
+    $source = (string)($user['source'] ?? '');
+
+    if (cmsCanAccessAnyContent($user)) {
+        return true;
+    }
+
+    if ($source !== 'cms') {
+        return false;
+    }
+
+    $userId   = (int)($user['id'] ?? 0);
+    $authorId = (int)($content['author_id'] ?? 0);
+
+    return $userId > 0 && $userId === $authorId;
+}
+
+/**
  * Check if the current user can edit a specific content item.
  * Contributors/authors can only edit their own content.
  */
 
 function cmsCanEditContent(array $user, array $content): bool
 {
-    $role   = (string)($user['role'] ?? '');
-    $source = (string)($user['source'] ?? '');
-
-    // Kernel admin = full access
-    if ($source === 'kernel' && $role === 'admin') {
-        return true;
-    }
-
-    // Editor+ can edit anything
-    if (cmsRoleAtLeast($role, 'editor')) {
-        return true;
-    }
-
-    // Author/contributor can only edit own content
-    $userId    = (int)($user['id'] ?? 0);
-    $authorId  = (int)($content['author_id'] ?? 0);
-    return $userId > 0 && $userId === $authorId;
+    return cmsCanReadContent($user, $content);
 }
 
 /**

@@ -1,5 +1,0 @@
-<?php
-
-declare(strict_types=1);
-
-require_once __DIR__ . '/handlers/10-wordpress-importer.php';

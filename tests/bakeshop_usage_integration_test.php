@@ -58,6 +58,8 @@ $deliveryId = 0;
 $futureDeliveryId = 0;
 $runId = 0;
 $voidedRunId = 0;
+$guardOverrideProductId = 0;
+$guardOverrideRunId = 0;
 
 try {
     $kgUnitId = (int)($db->query("SELECT id FROM bakeshop_units WHERE code = 'kg' LIMIT 1")->fetchColumn() ?: 0);
@@ -83,6 +85,17 @@ try {
     ]);
     $productId = (int)($product['id'] ?? 0);
     btUsage('product created', $productId > 0, json_encode($product, JSON_UNESCAPED_SLASHES));
+
+    $guardOverrideProduct = bakeshopCatalogCreateProduct([
+        'name' => 'Guard Override Product ' . $suffix,
+        'sku' => 'PRD-GUARD-' . $suffix,
+        'category' => 'Test',
+        'default_yield_qty' => 1,
+        'default_yield_unit_id' => $kgUnitId,
+    ]);
+    $guardOverrideProductId = (int)($guardOverrideProduct['id'] ?? 0);
+    btUsage('guard override product created', $guardOverrideProductId > 0, json_encode($guardOverrideProduct, JSON_UNESCAPED_SLASHES));
+    $db->prepare('UPDATE bakeshop_products SET default_yield_qty = 0 WHERE id = ?')->execute([$guardOverrideProductId]);
 
     $flour = bakeshopCatalogCreateIngredient([
         'name' => 'Flour ' . $suffix,
@@ -166,6 +179,33 @@ try {
     btUsage('production snapshot scales flour to 2.0000 kg', abs((float)($snapshotFlour['qty_used'] ?? 0) - 2.0) < 0.0001, json_encode($snapshotFlour, JSON_UNESCAPED_SLASHES));
     btUsage('production snapshot scales sugar to 1000.0000 g', abs((float)($snapshotSugar['qty_used'] ?? 0) - 1000.0) < 0.0001, json_encode($snapshotSugar, JSON_UNESCAPED_SLASHES));
 
+    try {
+        bakeshopProductionCreate([
+            'branch_id' => $branchId,
+            'product_id' => $guardOverrideProductId,
+            'produced_at' => '2026-04-26 10:15:00',
+            'qty_produced' => 5,
+            'produced_by' => 'Baker',
+            'notes' => 'Guard should block this run',
+        ]);
+        btUsage('production guard blocks test-only product without override', false, 'Expected InvalidArgumentException was not thrown.');
+    } catch (InvalidArgumentException $e) {
+        btUsage('production guard blocks test-only product without override', str_contains($e->getMessage(), 'default_yield_qty must be greater than zero') || str_contains($e->getMessage(), 'no recipe lines yet'), $e->getMessage());
+    }
+
+    $guardOverrideRun = bakeshopProductionCreate([
+        'branch_id' => $branchId,
+        'product_id' => $guardOverrideProductId,
+        'produced_at' => '2026-04-26 10:20:00',
+        'qty_produced' => 5,
+        'produced_by' => 'Baker',
+        'notes' => 'Guard override test run',
+        'relax_guards' => true,
+    ]);
+    $guardOverrideRunId = (int)($guardOverrideRun['id'] ?? 0);
+    btUsage('production guard override creates test run', $guardOverrideRunId > 0, json_encode($guardOverrideRun, JSON_UNESCAPED_SLASHES));
+    btUsage('production guard override skips snapshot items', count((array)($guardOverrideRun['items'] ?? [])) === 0, json_encode($guardOverrideRun['items'] ?? [], JSON_UNESCAPED_SLASHES));
+
     $updatedRun = bakeshopProductionUpdate([
         'id' => $runId,
         'produced_at' => '2026-04-26 10:30:00',
@@ -228,45 +268,69 @@ try {
         'from_date' => '2026-04-26',
         'to_date' => '2026-04-26',
     ]);
+    $formattedUsageRows = bakeshopUsageFormatRows($usageRows);
     btUsage('usage view returned rows', count($usageRows) >= 2, json_encode($usageRows, JSON_UNESCAPED_SLASHES));
 
     $flourUsage = btUsageFindRow($usageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     $sugarUsage = btUsageFindRow($usageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
+    $formattedFlourUsage = btUsageFindRow($formattedUsageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
+    $formattedSugarUsage = btUsageFindRow($formattedUsageRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
 
     btUsage('flour delivered base qty equals 5.0000', abs((float)($flourUsage['delivered_qty_base'] ?? 0) - 5.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
     btUsage('flour consumed base qty equals 2.0000 after void exclusion', abs((float)($flourUsage['consumed_qty_base'] ?? 0) - 2.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
     btUsage('flour variance base qty equals 3.0000', abs((float)($flourUsage['variance_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($flourUsage, JSON_UNESCAPED_SLASHES));
+    btUsage('formatted flour usage exposes kg base unit', (string)($formattedFlourUsage['unit_code'] ?? '') === 'kg', json_encode($formattedFlourUsage, JSON_UNESCAPED_SLASHES));
 
     btUsage('sugar delivered base qty normalizes 2000 g to 2.0000 kg-base', abs((float)($sugarUsage['delivered_qty_base'] ?? 0) - 2.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
     btUsage('sugar consumed base qty normalizes 1000 g to 1.0000 kg-base after void exclusion', abs((float)($sugarUsage['consumed_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
     btUsage('sugar variance base qty equals 1.0000', abs((float)($sugarUsage['variance_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarUsage, JSON_UNESCAPED_SLASHES));
+    btUsage('formatted sugar usage exposes kg base unit', (string)($formattedSugarUsage['unit_code'] ?? '') === 'kg', json_encode($formattedSugarUsage, JSON_UNESCAPED_SLASHES));
 
     $totals = bakeshopUsageTotals($usageRows);
     btUsage('usage totals aggregate delivered base qty', abs((float)($totals['delivered_qty_base'] ?? 0) - 7.0) < 0.0001, json_encode($totals, JSON_UNESCAPED_SLASHES));
     btUsage('usage totals aggregate consumed base qty', abs((float)($totals['consumed_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($totals, JSON_UNESCAPED_SLASHES));
     btUsage('usage totals aggregate variance base qty', abs((float)($totals['variance_qty_base'] ?? 0) - 4.0) < 0.0001, json_encode($totals, JSON_UNESCAPED_SLASHES));
+    btUsage('usage totals display carries base unit label', (string)($totals['delivered_display'] ?? '') === '7.00 kg', json_encode($totals, JSON_UNESCAPED_SLASHES));
+
+    $mixedUsageTotals = bakeshopUsageTotals([
+        ['dimension' => 'mass', 'delivered_qty_base' => 2.0, 'consumed_qty_base' => 1.0, 'variance_qty_base' => 1.0],
+        ['dimension' => 'volume', 'delivered_qty_base' => 3.0, 'consumed_qty_base' => 1.5, 'variance_qty_base' => 1.5],
+    ]);
+    btUsage('mixed usage totals display separates unit breakdowns', (string)($mixedUsageTotals['delivered_display'] ?? '') === '2.00 kg, 3.00 L' && (string)($mixedUsageTotals['variance_display'] ?? '') === '1.00 kg, 1.50 L', json_encode($mixedUsageTotals, JSON_UNESCAPED_SLASHES));
 
     $inventoryRows = bakeshopInventorySnapshotRows([
         'branch_id' => $branchId,
         'to_date' => '2026-04-26',
     ]);
+    $formattedInventoryRows = bakeshopInventorySnapshotFormatRows($inventoryRows);
     btUsage('inventory snapshot returned rows', count($inventoryRows) >= 2, json_encode($inventoryRows, JSON_UNESCAPED_SLASHES));
 
     $flourInventory = btUsageFindRow($inventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     $sugarInventory = btUsageFindRow($inventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
+    $formattedFlourInventory = btUsageFindRow($formattedInventoryRows, static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     btUsage('flour inventory as of selected end date equals 3.0000', abs((float)($flourInventory['on_hand_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($flourInventory, JSON_UNESCAPED_SLASHES));
     btUsage('sugar inventory as of selected end date equals 1.0000', abs((float)($sugarInventory['on_hand_qty_base'] ?? 0) - 1.0) < 0.0001, json_encode($sugarInventory, JSON_UNESCAPED_SLASHES));
+    btUsage('formatted inventory rows expose kg base unit', (string)($formattedFlourInventory['unit_code'] ?? '') === 'kg', json_encode($formattedFlourInventory, JSON_UNESCAPED_SLASHES));
 
     $inventoryTotals = bakeshopInventorySnapshotTotals($inventoryRows);
     btUsage('inventory snapshot totals aggregate on-hand base qty', abs((float)($inventoryTotals['on_hand_qty_base'] ?? 0) - 4.0) < 0.0001, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
     btUsage('inventory snapshot totals count tracked ingredient lines', (int)($inventoryTotals['item_count'] ?? 0) === 2, json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
+    btUsage('inventory snapshot totals display carries base unit label', (string)($inventoryTotals['on_hand_display'] ?? '') === '4.00 kg', json_encode($inventoryTotals, JSON_UNESCAPED_SLASHES));
+
+    $mixedInventoryTotals = bakeshopInventorySnapshotTotals([
+        ['dimension' => 'mass', 'on_hand_qty_base' => 4.0],
+        ['dimension' => 'volume', 'on_hand_qty_base' => 1.25],
+    ]);
+    btUsage('mixed inventory totals display separates unit breakdowns', (string)($mixedInventoryTotals['on_hand_display'] ?? '') === '4.00 kg, 1.25 L', json_encode($mixedInventoryTotals, JSON_UNESCAPED_SLASHES));
 
     $factualSummary = bakeshopUsageFactualSummary([
         'branch_id' => $branchId,
         'from_date' => '2026-04-26',
         'to_date' => '2026-04-26',
     ]);
-    btUsage('factual summary excludes voided production runs', (int)($factualSummary['production_run_count'] ?? 0) === 1, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+    btUsage('factual summary excludes voided production runs and includes override test run', (int)($factualSummary['production_run_count'] ?? 0) === 2, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+    btUsage('factual summary consumption ignores override runs without snapshot items', abs((float)($factualSummary['consumed_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+    btUsage('factual summary on-hand display carries base unit label', (string)($factualSummary['inventory_on_hand_display'] ?? '') === '4.00 kg', json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
 
     $currentInventoryRows = bakeshopInventorySnapshotRows([
         'branch_id' => $branchId,
@@ -279,6 +343,11 @@ try {
     if ($voidedRunId > 0) {
         $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$voidedRunId]);
         $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$voidedRunId]);
+    }
+
+    if ($guardOverrideRunId > 0) {
+        $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$guardOverrideRunId]);
+        $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$guardOverrideRunId]);
     }
 
     if ($runId > 0) {
@@ -299,6 +368,11 @@ try {
     if ($productId > 0) {
         $db->prepare('DELETE FROM bakeshop_product_recipe WHERE product_id = ?')->execute([$productId]);
         $db->prepare('DELETE FROM bakeshop_products WHERE id = ?')->execute([$productId]);
+    }
+
+    if ($guardOverrideProductId > 0) {
+        $db->prepare('DELETE FROM bakeshop_product_recipe WHERE product_id = ?')->execute([$guardOverrideProductId]);
+        $db->prepare('DELETE FROM bakeshop_products WHERE id = ?')->execute([$guardOverrideProductId]);
     }
 
     if ($sugarId > 0) {

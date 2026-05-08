@@ -13,7 +13,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4;
 
-class FunctionRegistry
+final class FunctionRegistry
 {
     /** @var array<string, callable> */
     private static array $functions = [];

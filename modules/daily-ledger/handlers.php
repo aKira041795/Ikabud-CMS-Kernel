@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/handlers-deliveries.php';
 
 /**
  * Daily Ledger Module — Handlers
@@ -12,7 +13,6 @@ require_once __DIR__ . '/helpers.php';
  */
 
 // ─── Helpers ───────────────────────────────────────────────────────────
-
 function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType = null, ?string $entityId = null, $oldData = null, $newData = null, ?string $reason = null): void
 {
     $ctx = module();
@@ -25,6 +25,100 @@ function dl_auditLog(string $action, ?int $branchId = null, ?string $entityType 
     } catch (\Throwable $e) {
         // Non-fatal
     }
+}
+
+function dl_refreshTokenCacheKey(string $refreshToken): string
+{
+    return 'refresh_token:' . hash('sha256', $refreshToken);
+}
+
+function dl_registerRefreshToken(string $refreshToken, ?int $ttl = null): void
+{
+    if ($refreshToken === '') {
+        return;
+    }
+
+    app()->cache()->set('daily-ledger', dl_refreshTokenCacheKey($refreshToken), ['active' => true], $ttl ?? (30 * 86400));
+}
+
+function dl_isRefreshTokenActive(string $refreshToken): bool
+{
+    if ($refreshToken === '') {
+        return false;
+    }
+
+    $cached = app()->cache()->get('daily-ledger', dl_refreshTokenCacheKey($refreshToken));
+    if (!is_array($cached)) {
+        return true;
+    }
+
+    return !empty($cached['active']);
+}
+
+function dl_revokeRefreshToken(string $refreshToken): void
+{
+    if ($refreshToken === '') {
+        return;
+    }
+
+    app()->cache()->set('daily-ledger', dl_refreshTokenCacheKey($refreshToken), ['active' => false], 30 * 86400);
+}
+
+function dl_idempotencyCacheKey(string $scope, string $idempotencyKey): string
+{
+    return 'idempotency:' . $scope . ':' . hash('sha256', $idempotencyKey);
+}
+
+function dl_loadIdempotentResponse(string $scope, string $idempotencyKey): ?array
+{
+    $idempotencyKey = trim($idempotencyKey);
+    if ($idempotencyKey === '') {
+        return null;
+    }
+
+    $cached = app()->cache()->get('daily-ledger', dl_idempotencyCacheKey($scope, $idempotencyKey));
+    if (!is_array($cached) || !is_array($cached['response'] ?? null)) {
+        return null;
+    }
+
+    return $cached['response'];
+}
+
+function dl_storeIdempotentResponse(string $scope, string $idempotencyKey, array $response, int $ttl = 600): void
+{
+    $idempotencyKey = trim($idempotencyKey);
+    if ($idempotencyKey === '') {
+        return;
+    }
+
+    app()->cache()->set('daily-ledger', dl_idempotencyCacheKey($scope, $idempotencyKey), ['response' => $response], $ttl);
+}
+
+function dl_lockDayStatusRow($db, int $branchId, string $date): string
+{
+    $ensureStmt = $db->prepare(
+        'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status)
+         VALUES (:bid, :d, "open")
+         ON DUPLICATE KEY UPDATE branch_id = branch_id'
+    );
+    $ensureStmt->execute([':bid' => $branchId, ':d' => $date]);
+
+    $lockStmt = $db->prepare(
+        'SELECT status
+           FROM dl_ledger_day_status
+          WHERE branch_id = :bid AND ledger_date = :d
+          LIMIT 1
+          FOR UPDATE'
+    );
+    $lockStmt->execute([':bid' => $branchId, ':d' => $date]);
+    $status = (string)($lockStmt->fetchColumn() ?: 'open');
+    return $status === 'closed' ? 'closed' : 'open';
+}
+
+function dl_allowedColumn(string $field, array $map): ?string
+{
+    $column = $map[$field] ?? null;
+    return is_string($column) && $column !== '' ? $column : null;
 }
 
 function dl_generateAuthTokens(array $payload): array
@@ -40,6 +134,7 @@ function dl_generateAuthTokens(array $payload): array
         30 * 86400
     );
     $refreshToken = $refreshJwt->generate($refreshPayload);
+    dl_registerRefreshToken($refreshToken, 30 * 86400);
 
     return [
         'token' => $accessToken,
@@ -65,6 +160,9 @@ function dl_verifyRefreshToken(string $refreshToken): ?array
     }
 
     if (($payload['source'] ?? '') !== 'daily-ledger' || ($payload['token_type'] ?? '') !== 'refresh') {
+        return null;
+    }
+    if (!dl_isRefreshTokenActive($refreshToken)) {
         return null;
     }
 
@@ -178,14 +276,37 @@ function dlSettingsDefaults(): array
     return $defaults;
 }
 
-function dlModuleSettings(): array
+function dlModuleSettings(bool $refresh = false): array
 {
     static $cache = null;
-    if ($cache !== null) {
+    if (!$refresh && $cache !== null) {
         return $cache;
     }
     $cache = array_merge(dlSettingsDefaults(), getModuleSettings('daily-ledger'));
     return $cache;
+}
+
+function dlPersistModuleSettings(array $settings): bool
+{
+    if ($settings === []) {
+        return true;
+    }
+
+    saveModuleSettings('daily-ledger', $settings);
+    $fresh = dlModuleSettings(true);
+
+    foreach ($settings as $key => $expected) {
+        if (!array_key_exists($key, $fresh)) {
+            return false;
+        }
+
+        $actual = $fresh[$key];
+        if (json_encode($actual, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !== json_encode($expected, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 function dl_rolePermissions(): array
@@ -244,12 +365,20 @@ function dl_isKernelAdmin(array $user): bool
     return (($user['source'] ?? '') === 'kernel' && in_array($user['role'] ?? '', ['admin', 'superadmin'], true));
 }
 
+function dl_canManageFeatureActivation(array $user): bool
+{
+    return in_array((string)($user['role'] ?? ''), ['admin', 'superadmin'], true);
+}
+
 function dl_featureSettings(): array
 {
     $settings = dlModuleSettings();
 
     return [
         'production_output_enabled' => dl_settingToBool($settings['production_output_enabled'] ?? false),
+        'formal_delivery_workflow_enabled' => dl_settingToBool($settings['formal_delivery_workflow_enabled'] ?? false),
+        'selling_accounts_enabled' => dl_settingToBool($settings['selling_accounts_enabled'] ?? false),
+        'price_groups_enabled' => dl_settingToBool($settings['price_groups_enabled'] ?? true),
     ];
 }
 
@@ -709,9 +838,7 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
     $select->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $ledgerDate]);
     $row = $select->fetch(PDO::FETCH_ASSOC) ?: null;
 
-    $priceStmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :pid');
-    $priceStmt->execute([':pid' => $productId]);
-    $price = (float)($priceStmt->fetchColumn() ?: 0.0);
+    $price = dl_resolveBranchProductPrice($branchId, $productId, $ledgerDate);
 
     if (!$row) {
         if ($delta < 0) {
@@ -796,7 +923,11 @@ function dl_processProductionMovement(array $user, string $movementType, array $
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (int)($input['quantity'] ?? 0);
     $ledgerDate = (string)($input['ledger_date'] ?? dl_businessDate());
-    $reason = trim((string)($input['reason'] ?? ''));
+    $reason = trim((string)($input['reason'] ?? $input['override_reason'] ?? ''));
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
+    if ($drNumber !== '') {
+        $drNumber = substr($drNumber, 0, 120);
+    }
 
     if ($destinationBranchId <= 0 || $productId <= 0 || $quantity <= 0 || $ledgerDate === '') {
         throw new \RuntimeException('destination_branch_id, product_id, quantity, and ledger_date are required.');
@@ -805,6 +936,13 @@ function dl_processProductionMovement(array $user, string $movementType, array $
     $allowedBranchIds = dl_accessibleBranchIds($user);
     if (!in_array($destinationBranchId, $allowedBranchIds, true)) {
         throw new \RuntimeException('Destination branch is not allowed for this user.');
+    }
+
+    $branchStmt = $ctx->db()->prepare('SELECT id, is_active FROM dl_branches WHERE id = :id LIMIT 1');
+    $branchStmt->execute([':id' => $destinationBranchId]);
+    $destinationBranch = $branchStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$destinationBranch || (int)($destinationBranch['is_active'] ?? 0) !== 1) {
+        throw new \RuntimeException('Destination branch no longer exists or is inactive. Refresh the page and choose a current branch.');
     }
 
     dl_maybeAutoCloseBranchDay($destinationBranchId, $actorId);
@@ -816,6 +954,39 @@ function dl_processProductionMovement(array $user, string $movementType, array $
 
     $referenceMovementId = null;
     $delta = $quantity;
+    $formalDeliveryEnabled = dl_isFormalDeliveryEnabled();
+    if ($formalDeliveryEnabled && $movementType === 'withdrawal' && $flowMode === 'production') {
+        if ($drNumber === '') {
+            throw new \RuntimeException('Delivery Receipt number is required for production withdrawal when formal delivery workflow is enabled.');
+        }
+
+        $deliveryStmt = $ctx->db()->prepare(
+            'SELECT d.id
+               FROM dl_deliveries d
+               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+              WHERE d.destination_type = :destination_type
+                AND d.destination_id = :destination_id
+                AND d.dr_number = :dr_number
+                AND d.status <> "voided"
+                AND di.product_id = :product_id
+              ORDER BY d.id DESC
+              LIMIT 1'
+        );
+        $deliveryStmt->execute([
+            ':destination_type' => 'branch',
+            ':destination_id' => $destinationBranchId,
+            ':dr_number' => $drNumber,
+            ':product_id' => $productId,
+        ]);
+        if (!$deliveryStmt->fetchColumn()) {
+            throw new \RuntimeException('Production withdrawal requires a matching branch delivery for the same DR before the downstream step can be encoded.');
+        }
+    }
+
+    $shouldAutoCreateFormalDelivery = $movementType === 'output'
+        && $referenceMovementId === null
+        && $formalDeliveryEnabled
+        && $drNumber !== '';
     if ($movementType === 'reverse') {
         if ($reason === '') {
             throw new \RuntimeException('Reverse requires an override reason.');
@@ -829,7 +1000,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
 
         if ($refId > 0) {
             $refStmt = $ctx->db()->prepare(
-                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, flow_mode, movement_type
+                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, flow_mode, movement_type, dr_number
                  FROM dl_production_movements
                  WHERE id = :id AND movement_type IN ('withdrawal','output')
                  LIMIT 1"
@@ -837,7 +1008,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
             $refStmt->execute([':id' => $refId]);
         } else {
             $refStmt = $ctx->db()->prepare(
-                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, flow_mode, movement_type
+                "SELECT id, destination_branch_id, product_id, quantity, ledger_date, flow_mode, movement_type, dr_number
                  FROM dl_production_movements
                  WHERE movement_uuid = :uuid AND movement_type IN ('withdrawal','output')
                  LIMIT 1"
@@ -856,6 +1027,9 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         $quantity = (int)$ref['quantity'];
         $ledgerDate = (string)$ref['ledger_date'];
         $flowMode = (string)$ref['flow_mode'];
+        if ($drNumber === '') {
+            $drNumber = trim((string)($ref['dr_number'] ?? ''));
+        }
 
         if (!in_array($destinationBranchId, $allowedBranchIds, true)) {
             throw new \RuntimeException('You cannot reverse a movement outside your branch scope.');
@@ -886,12 +1060,12 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         $ins = $ctx->db()->prepare(
             'INSERT INTO dl_production_movements (
                 movement_uuid, client_op_id, movement_type, flow_mode,
-                destination_branch_id, product_id, ledger_date, quantity,
+                     destination_branch_id, product_id, ledger_date, quantity, dr_number,
                 override_reason, reference_movement_id, source_payload,
                 created_by_id, created_by_role
              ) VALUES (
                 :uuid, :coid, :mtype, :fmode,
-                :bid, :pid, :ldate, :qty,
+                     :bid, :pid, :ldate, :qty, :dr,
                 :reason, :refid, :payload,
                 :uid, :role
              )'
@@ -905,6 +1079,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
             ':pid' => $productId,
             ':ldate' => $ledgerDate,
             ':qty' => $quantity,
+            ':dr' => $drNumber !== '' ? $drNumber : null,
             ':reason' => $reason !== '' ? $reason : null,
             ':refid' => $referenceMovementId,
             ':payload' => json_encode($input, JSON_UNESCAPED_SLASHES),
@@ -912,6 +1087,20 @@ function dl_processProductionMovement(array $user, string $movementType, array $
             ':role' => $role !== '' ? $role : 'unknown',
         ]);
         $movementId = (int)$ctx->db()->lastInsertId();
+
+        $autoDeliveryId = null;
+        if ($shouldAutoCreateFormalDelivery) {
+            $autoDeliveryId = dl_upsertCommissaryOutputDeliveryItem(
+                $ctx->db(),
+                $destinationBranchId,
+                $productId,
+                $ledgerDate,
+                $quantity,
+                $drNumber,
+                $actorId,
+                $movementId
+            );
+        }
 
         dl_auditLog(
             'production_' . $movementType,
@@ -926,6 +1115,7 @@ function dl_processProductionMovement(array $user, string $movementType, array $
                 'product_id' => $productId,
                 'ledger_date' => $ledgerDate,
                 'quantity' => $quantity,
+                'dr_number' => $drNumber,
                 'reference_movement_id' => $referenceMovementId,
                 'reason' => $reason,
                 'resulting_' . $ledgerColumn => (int)($ledgerState[$ledgerColumn] ?? 0),
@@ -944,6 +1134,8 @@ function dl_processProductionMovement(array $user, string $movementType, array $
             'product_id' => $productId,
             'ledger_date' => $ledgerDate,
             'quantity' => $quantity,
+            'dr_number' => $drNumber,
+            'delivery_id' => $autoDeliveryId,
             'resulting_' . $ledgerColumn => (int)($ledgerState[$ledgerColumn] ?? 0),
             'ledger_column' => $ledgerColumn,
             'duplicate' => false,
@@ -954,6 +1146,129 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         }
         throw $e;
     }
+}
+
+function dl_upsertCommissaryOutputDeliveryItem(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $branchId,
+    int $productId,
+    string $deliveryDate,
+    int $quantity,
+    string $drNumber,
+    int $actorId,
+    int $movementId
+): int {
+    if ($branchId <= 0 || $productId <= 0 || $quantity <= 0 || trim($drNumber) === '') {
+        throw new \RuntimeException('Formal production output delivery requires branch, product, quantity, and DR number.');
+    }
+
+    $existingPaper = dl_findPaperCapturedCommissaryDelivery($db, $branchId, $deliveryDate, $drNumber);
+    if ($existingPaper) {
+        $deliveryId = (int)$existingPaper['id'];
+        if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
+            throw new \RuntimeException('Matching paper DR delivery already has a receiving. Encode the source in Usage/Commissary instead of creating another delivery from Production Output.');
+        }
+
+        $itemStmt = $db->prepare(
+            'SELECT id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery_id AND product_id = :product_id LIMIT 1'
+        );
+        $itemStmt->execute([':delivery_id' => $deliveryId, ':product_id' => $productId]);
+        $existingItem = $itemStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($existingItem) {
+            $newQty = (int)$existingItem['quantity'] + $quantity;
+            $db->prepare('UPDATE dl_delivery_items SET quantity = :quantity WHERE id = :id')
+                ->execute([':quantity' => $newQty, ':id' => (int)$existingItem['id']]);
+        } else {
+            $priceGroupId = dl_defaultPriceGroupId();
+            $db->prepare(
+                'INSERT INTO dl_delivery_items
+                    (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+                 VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+            )->execute([
+                ':delivery_id' => $deliveryId,
+                ':product_id' => $productId,
+                ':quantity' => $quantity,
+                ':unit' => 'pcs',
+                ':unit_cost_snapshot' => 0,
+                ':price_snapshot' => dl_resolveProductPrice($productId, $priceGroupId, $deliveryDate),
+                ':price_group_id' => $priceGroupId,
+                ':remarks' => 'production_output_movement:' . $movementId,
+            ]);
+        }
+
+        dl_auditLog('update_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
+            'dr_number' => $drNumber,
+            'source' => 'production_output',
+            'movement_id' => $movementId,
+            'product_id' => $productId,
+            'quantity_added' => $quantity,
+        ]);
+
+        return $deliveryId;
+    }
+
+    $existingAuto = dl_findAutoCommissaryDelivery($db, $branchId, $deliveryDate, $drNumber);
+    $priceGroupId = dl_defaultPriceGroupId();
+    if ($existingAuto) {
+        $deliveryId = (int)$existingAuto['id'];
+        if (dl_deliveryHasActiveReceivings($db, $deliveryId)) {
+            throw new \RuntimeException('Delivery already has a receiving. Void the receiving first before changing production output for this DR.');
+        }
+    } else {
+        $stmt = $db->prepare(
+            'INSERT INTO dl_deliveries
+                (origin_type, origin_id, destination_type, destination_id, dr_number,
+                 delivery_date, status, created_by, posted_by, posted_at, remarks)
+             VALUES (:origin_type, NULL, :destination_type, :destination_id, :dr_number,
+                     :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks)'
+        );
+        $stmt->execute([
+            ':origin_type' => 'commissary',
+            ':destination_type' => 'branch',
+            ':destination_id' => $branchId,
+            ':dr_number' => $drNumber,
+            ':delivery_date' => $deliveryDate,
+            ':created_by' => $actorId > 0 ? $actorId : null,
+            ':posted_by' => $actorId > 0 ? $actorId : null,
+            ':remarks' => dl_autoCommissaryDeliveryRemark(),
+        ]);
+        $deliveryId = (int)$db->lastInsertId();
+
+        dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
+            'dr_number' => $drNumber,
+            'status' => 'posted',
+            'source' => 'production_output',
+            'movement_id' => $movementId,
+        ]);
+    }
+
+    $itemStmt = $db->prepare(
+        'SELECT id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery_id AND product_id = :product_id LIMIT 1'
+    );
+    $itemStmt->execute([':delivery_id' => $deliveryId, ':product_id' => $productId]);
+    $existingItem = $itemStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($existingItem) {
+        $newQty = (int)$existingItem['quantity'] + $quantity;
+        $db->prepare('UPDATE dl_delivery_items SET quantity = :quantity WHERE id = :id')
+            ->execute([':quantity' => $newQty, ':id' => (int)$existingItem['id']]);
+    } else {
+        $db->prepare(
+            'INSERT INTO dl_delivery_items
+                (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+             VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+        )->execute([
+            ':delivery_id' => $deliveryId,
+            ':product_id' => $productId,
+            ':quantity' => $quantity,
+            ':unit' => 'pcs',
+            ':unit_cost_snapshot' => 0,
+            ':price_snapshot' => dl_resolveProductPrice($productId, $priceGroupId, $deliveryDate),
+            ':price_group_id' => $priceGroupId,
+            ':remarks' => 'production_output_movement:' . $movementId,
+        ]);
+    }
+
+    return $deliveryId;
 }
 
 function dl_recomputeSales(int $branchId, int $productId, string $date, int $userId): void
@@ -1171,7 +1486,7 @@ function pageDailyLedgerLogin(): void
         if ($role === 'cashier') {
             $redir = '/daily-ledger/ledger';
         } elseif ($role === 'production_in_charge') {
-            $redir = '/daily-ledger/admin/production';
+            $redir = '/daily-ledger/admin/production-output';
         } else {
             $redir = '/daily-ledger/admin/dashboard';
         }
@@ -1253,7 +1568,7 @@ function dailyLedgerAuthLogin(): void
     if ($role === 'cashier') {
         $redirect = '/daily-ledger/ledger';
     } elseif ($role === 'production_in_charge') {
-        $redirect = '/daily-ledger/admin/production';
+        $redirect = '/daily-ledger/admin/production-output';
     } else {
         $redirect = '/daily-ledger/admin/dashboard';
     }
@@ -1286,6 +1601,7 @@ function dailyLedgerAuthRefresh(): void
         return;
     }
 
+    dl_revokeRefreshToken($refreshToken);
     $tokens = dl_generateAuthTokens($payload);
     dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
 
@@ -1341,6 +1657,40 @@ function handleCashierLedger(array $params = []): void
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
+    $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Pending incoming deliveries (count of distinct DR groups for this branch)
+    // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
+    $incomingCount = 0;
+    if ($branchId) {
+        $incStmt = $ctx->db()->prepare(
+            "SELECT COUNT(DISTINCT COALESCE(dr_number, CONCAT('o:', branch_id, ':', ledger_date)))
+             FROM dl_cashier_withdrawals
+             WHERE target_branch_id = :bid
+               AND withdrawal_type = 'delivery'
+               AND received_at IS NULL"
+        );
+        $incStmt->execute([':bid' => $branchId]);
+        $incomingCount = (int)$incStmt->fetchColumn();
+
+        if (dl_isFormalDeliveryEnabled()) {
+            $formalIncStmt = $ctx->db()->prepare(
+                "SELECT COUNT(*)
+                 FROM dl_deliveries d
+                 WHERE d.destination_type = 'branch'
+                   AND d.destination_id = :bid
+                   AND d.status = 'posted'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM dl_branch_receivings br
+                       WHERE br.delivery_id = d.id AND br.status <> 'voided'
+                   )"
+            );
+            $formalIncStmt->execute([':bid' => $branchId]);
+            $incomingCount += (int)$formalIncStmt->fetchColumn();
+        }
+    }
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
@@ -1363,6 +1713,9 @@ function handleCashierLedger(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
+        'incoming_count' => $incomingCount,
+        'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
     ]);
 }
 
@@ -1489,6 +1842,712 @@ function apiGetLedgerDayStatus(array $params = []): void
     ]);
 }
 
+
+function apiGetCashierWithdrawals(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser();
+    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    $productId = isset($_GET['product_id']) ? (int)$_GET['product_id'] : 0;
+    $date = $_GET['date'] ?? date('Y-m-d');
+    
+    if (!$productId || !$branchId) {
+        $ctx->json(['ok' => false, 'error' => 'Missing product or branch']);
+        return;
+    }
+    
+    $stmt = $ctx->db()->prepare('SELECT id, withdrawal_type, dr_number, target_branch_id, quantity FROM dl_cashier_withdrawals WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d');
+    $stmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $ctx->json(['ok' => true, 'withdrawals' => $rows]);
+}
+
+function apiSaveCashierWithdrawals(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser();
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $date = $input['date'] ?? date('Y-m-d');
+    $header = (array)($input['header'] ?? []);
+    $lines = (array)($input['lines'] ?? []);
+
+    if (!$branchId) {
+        $ctx->json(['ok' => false, 'error' => 'Missing branch']);
+        return;
+    }
+
+    $type = (string)($header['withdrawal_type'] ?? 'charge');
+    if (!in_array($type, ['charge', 'pullout'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type']);
+        return;
+    }
+    $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
+    $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
+    $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
+    $allowedReasons = ['spoilage','staff_meal','sampling','testing','promo','donation','damage','manual_adjustment','other'];
+    if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
+        return;
+    }
+    if (in_array($type, ['charge','pullout'], true) && $reasonCode === null) {
+        $reasonCode = 'manual_adjustment';
+    }
+
+    // Filter to valid product+qty pairs
+    $validLines = [];
+    foreach ($lines as $l) {
+        $pid = isset($l['product_id']) ? (int)$l['product_id'] : 0;
+        $qty = isset($l['quantity']) ? max(0, (int)$l['quantity']) : 0;
+        if ($pid > 0 && $qty > 0) {
+            $validLines[] = ['product_id' => $pid, 'quantity' => $qty];
+        }
+    }
+    if (count($validLines) === 0) {
+        $ctx->json(['ok' => false, 'error' => 'Add at least one product with a quantity greater than 0.']);
+        return;
+    }
+
+    $role = (string)($user['role'] ?? '');
+    $dayStatus = dl_getDayStatus($branchId, $date);
+    if ($role === 'cashier' && $date !== dl_businessDate()) {
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
+    if ($dayStatus === 'closed' && $role === 'cashier') {
+        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+        return;
+    }
+
+    $userId = (int)($user['sub'] ?? 0);
+    $totals = [];
+
+    $ctx->db()->beginTransaction();
+    try {
+        $stmtIns = $ctx->db()->prepare(
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, dr_number, target_branch_id, quantity, encoded_by)
+             VALUES (:bid, :pid, :d, :typ, :rc, :dr, :tbid, :qty, :uid)'
+        );
+        $stmtSum = $ctx->db()->prepare(
+            'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+        );
+        $stmtCheck = $ctx->db()->prepare(
+            'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
+        );
+        $stmtUpd = $ctx->db()->prepare(
+            'UPDATE dl_daily_ledger SET withdraw = :wdr, updated_by = :uid
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+        );
+        $stmtInit = $ctx->db()->prepare(
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, withdraw, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :prc, :wdr, :uid_enc, :uid_upd)'
+        );
+
+        foreach ($validLines as $line) {
+            $pid = $line['product_id'];
+            $qty = $line['quantity'];
+
+            $stmtIns->execute([
+                ':bid' => $branchId,
+                ':pid' => $pid,
+                ':d' => $date,
+                ':typ' => $type,
+                ':rc' => $reasonCode,
+                ':dr' => $drNumber,
+                ':tbid' => $targetBranchId,
+                ':qty' => $qty,
+                ':uid' => $userId,
+            ]);
+
+            $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+            $newTotal = (int)$stmtSum->fetchColumn();
+
+            $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+            if ($stmtCheck->fetch()) {
+                $stmtUpd->execute([
+                    ':wdr' => $newTotal,
+                    ':uid' => $userId,
+                    ':bid' => $branchId,
+                    ':pid' => $pid,
+                    ':d' => $date,
+                ]);
+            } else {
+                $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
+                $stmtInit->execute([
+                    ':bid' => $branchId,
+                    ':pid' => $pid,
+                    ':d' => $date,
+                    ':prc' => $price,
+                    ':wdr' => $newTotal,
+                    ':uid_enc' => $userId,
+                    ':uid_upd' => $userId,
+                ]);
+            }
+
+            $totals[] = ['product_id' => $pid, 'total' => $newTotal];
+        }
+
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'totals' => $totals]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->log('apiSaveCashierWithdrawals error: ' . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => 'Database error']);
+    }
+}
+
+function apiCreateCashierDispatch(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser();
+    if (!dl_isFormalDeliveryEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled for branch deliveries.'], 403);
+        return;
+    }
+
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $originBranchId = dl_resolveLedgerBranchId($user, $input);
+    $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
+    $targetBranchId = (int)($input['target_branch_id'] ?? 0);
+    $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
+    $role = (string)($user['role'] ?? '');
+    $actorId = dl_getActorUserId($user);
+
+    if ($originBranchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing source branch.'], 422);
+        return;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid delivery date.'], 422);
+        return;
+    }
+    if ($drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
+        return;
+    }
+    if ($targetBranchId <= 0 || $targetBranchId === $originBranchId) {
+        $ctx->json(['ok' => false, 'error' => 'A different destination branch is required.'], 422);
+        return;
+    }
+    if ($items === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one item is required.'], 422);
+        return;
+    }
+
+    $dayStatus = dl_getDayStatus($originBranchId, $deliveryDate);
+    if ($role === 'cashier' && $deliveryDate !== dl_businessDate()) {
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
+    if ($dayStatus === 'closed' && !dl_roleHasPermission($role, 'ledger.override')) {
+        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+        return;
+    }
+
+    $dupStmt = $ctx->db()->prepare(
+        'SELECT id, status
+           FROM dl_deliveries
+          WHERE origin_type = :origin_type
+            AND origin_id = :origin_id
+            AND destination_type = :destination_type
+            AND destination_id = :destination_id
+            AND dr_number = :dr_number
+            AND status <> "voided"
+          ORDER BY id DESC
+          LIMIT 1'
+    );
+    $dupStmt->execute([
+        ':origin_type' => 'branch',
+        ':origin_id' => $originBranchId,
+        ':destination_type' => 'branch',
+        ':destination_id' => $targetBranchId,
+        ':dr_number' => $drNumber,
+    ]);
+    $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($dup) {
+        $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Stock on the destination branch.'], 422);
+        return;
+    }
+
+    $priceGroupId = dl_defaultPriceGroupId();
+
+    $ctx->db()->beginTransaction();
+    try {
+        $ins = $ctx->db()->prepare(
+            'INSERT INTO dl_deliveries
+                (origin_type, origin_id, destination_type, destination_id, dr_number,
+                 delivery_date, status, created_by, posted_by, posted_at, remarks)
+             VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :posted_by, NOW(), :remarks)'
+        );
+        $ins->execute([
+            ':ot' => 'branch',
+            ':oid' => $originBranchId,
+            ':dt' => 'branch',
+            ':did' => $targetBranchId,
+            ':dr' => $drNumber,
+            ':dd' => $deliveryDate,
+            ':created_by' => $actorId ?: null,
+            ':posted_by' => $actorId ?: null,
+            ':remarks' => dl_cashierDispatchRemark(),
+        ]);
+        $deliveryId = (int)$ctx->db()->lastInsertId();
+
+        $itemStmt = $ctx->db()->prepare(
+            'INSERT INTO dl_delivery_items
+                (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+             VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+        );
+        foreach ($items as $item) {
+            $itemStmt->execute([
+                ':delivery_id' => $deliveryId,
+                ':product_id' => $item['product_id'],
+                ':quantity' => $item['quantity'],
+                ':unit' => $item['unit'],
+                ':unit_cost_snapshot' => $item['unit_cost_snapshot'],
+                ':price_snapshot' => dl_resolveProductPrice((int)$item['product_id'], $priceGroupId, $deliveryDate),
+                ':price_group_id' => $priceGroupId,
+                ':remarks' => $item['remarks'],
+            ]);
+            dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
+        }
+
+        $ctx->db()->commit();
+        dl_auditLog('create_delivery', $originBranchId, 'dl_deliveries', (string)$deliveryId, null, [
+            'destination_type' => 'branch',
+            'destination_id' => $targetBranchId,
+            'items' => count($items),
+            'dr_number' => $drNumber,
+            'status' => 'posted',
+            'source' => 'cashier_dispatch',
+        ]);
+        $ctx->json(['ok' => true, 'delivery_id' => $deliveryId]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
+    }
+}
+
+function apiGetIncomingDeliveries(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser();
+    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    if (!$branchId) { $ctx->json(['ok' => true, 'deliveries' => []]); return; }
+
+    $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
+
+    $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.quantity, cw.branch_id AS origin_branch_id,
+                   ob.name AS origin_branch_name, cw.product_id, p.name AS product_name
+            FROM dl_cashier_withdrawals cw
+            INNER JOIN dl_branches ob ON ob.id = cw.branch_id
+            INNER JOIN dl_products p ON p.id = cw.product_id
+            WHERE cw.target_branch_id = :bid
+              AND cw.withdrawal_type = \'delivery\'
+              AND cw.received_at IS NULL'
+        . ($drFilter !== '' ? ' AND cw.dr_number = :dr_filter' : '')
+        . ' ORDER BY cw.ledger_date DESC, cw.dr_number, cw.id';
+    $stmt = $ctx->db()->prepare($sql);
+    $bind = [':bid' => $branchId];
+    if ($drFilter !== '') $bind[':dr_filter'] = $drFilter;
+    $stmt->execute($bind);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Group by DR# (or by origin branch + date if DR# is null)
+    $groups = [];
+    foreach ($rows as $r) {
+        $key = ($r['dr_number'] !== null && $r['dr_number'] !== '')
+            ? 'dr:' . $r['dr_number'] . ':' . $r['origin_branch_id']
+            : 'orig:' . $r['origin_branch_id'] . ':' . $r['ledger_date'];
+        if (!isset($groups[$key])) {
+            $groups[$key] = [
+                'group_key' => $key,
+                'dr_number' => $r['dr_number'],
+                'origin_branch_id' => (int)$r['origin_branch_id'],
+                'origin_branch_name' => $r['origin_branch_name'],
+                'ledger_date' => $r['ledger_date'],
+                'items' => [],
+                'ids' => [],
+                'delivery_ids' => [],
+            ];
+        }
+        $groups[$key]['items'][] = [
+            'id' => (int)$r['id'],
+            'product_id' => (int)$r['product_id'],
+            'product_name' => $r['product_name'],
+            'quantity' => (int)$r['quantity'],
+        ];
+        $groups[$key]['ids'][] = (int)$r['id'];
+    }
+
+    if (dl_isFormalDeliveryEnabled()) {
+        $formalSql = 'SELECT d.id AS delivery_id, d.dr_number, d.delivery_date,
+                             d.origin_id AS origin_branch_id,
+                             CASE
+                                 WHEN d.origin_type = "commissary" THEN "Commissary"
+                                 ELSE COALESCE(ob.name, d.origin_type)
+                             END AS origin_branch_name,
+                             di.product_id, p.name AS product_name, di.quantity
+                      FROM dl_deliveries d
+                      INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                      INNER JOIN dl_products p ON p.id = di.product_id
+                      LEFT JOIN dl_branches ob ON ob.id = d.origin_id
+                      WHERE d.destination_type = "branch"
+                        AND d.destination_id = :bid
+                        AND d.status = "posted"
+                        AND NOT EXISTS (
+                            SELECT 1 FROM dl_branch_receivings br
+                            WHERE br.delivery_id = d.id AND br.status <> "voided"
+                        )'
+            . ($drFilter !== '' ? ' AND d.dr_number = :dr_filter' : '')
+            . ' ORDER BY d.delivery_date DESC, d.dr_number, d.id';
+        $formalBind = [':bid' => $branchId];
+        if ($drFilter !== '') $formalBind[':dr_filter'] = $drFilter;
+        $formalStmt = $ctx->db()->prepare($formalSql);
+        $formalStmt->execute($formalBind);
+        foreach ($formalStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $key = 'delivery:' . (int)$row['delivery_id'];
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'group_key' => $key,
+                    'dr_number' => $row['dr_number'],
+                    'origin_branch_id' => $row['origin_branch_id'] !== null ? (int)$row['origin_branch_id'] : 0,
+                    'origin_branch_name' => $row['origin_branch_name'],
+                    'ledger_date' => $row['delivery_date'],
+                    'items' => [],
+                    'ids' => [],
+                    'delivery_ids' => [(int)$row['delivery_id']],
+                ];
+            }
+            $groups[$key]['items'][] = [
+                'id' => (int)$row['delivery_id'],
+                'product_id' => (int)$row['product_id'],
+                'product_name' => $row['product_name'],
+                'quantity' => (int)$row['quantity'],
+            ];
+        }
+    }
+
+    $deliveries = array_values($groups);
+    usort($deliveries, static function (array $left, array $right): int {
+        $dateCmp = strcmp((string)($right['ledger_date'] ?? ''), (string)($left['ledger_date'] ?? ''));
+        if ($dateCmp !== 0) {
+            return $dateCmp;
+        }
+        return strcmp((string)($left['group_key'] ?? ''), (string)($right['group_key'] ?? ''));
+    });
+
+    $ctx->json(['ok' => true, 'deliveries' => $deliveries]);
+}
+
+function apiReceiveDelivery(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser();
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $ids = array_values(array_filter(array_map('intval', (array)($input['withdrawal_ids'] ?? []))));
+    $deliveryIds = array_values(array_filter(array_map('intval', (array)($input['delivery_ids'] ?? []))));
+
+    if (!$branchId || (count($ids) === 0 && count($deliveryIds) === 0)) {
+        $ctx->json(['ok' => false, 'error' => 'Missing fields']);
+        return;
+    }
+
+    $userId = (int)($user['sub'] ?? 0);
+    $receiveDate = dl_businessDate();
+
+    if (count($deliveryIds) > 0) {
+        // Optional per-product partial quantities: { delivery_id => { product_id => qty } }
+        $partialQtysMap = (array)($input['partial_qtys'] ?? []);
+        $ctx->db()->beginTransaction();
+        try {
+            $receivedCount = 0;
+            foreach ($deliveryIds as $deliveryId) {
+                $partialQtys = isset($partialQtysMap[$deliveryId])
+                    ? array_map('intval', (array)$partialQtysMap[$deliveryId])
+                    : null;
+                $rcvId = dl_acceptFormalDelivery($ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $partialQtys);
+                if ($rcvId > 0) {
+                    $receivedCount++;
+                }
+            }
+            $ctx->db()->commit();
+            $ctx->json(['ok' => true, 'received_count' => $receivedCount, 'receive_date' => $receiveDate]);
+            return;
+        } catch (\Throwable $e) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
+            return;
+        }
+    }
+
+    // Optional per-item received qty for informal transfers: { withdrawal_id => received_qty }
+    $informalPartialQtys = (array)($input['informal_partial_qtys'] ?? []);
+
+    // Make sure all ids are deliveries targeting this branch and not yet received.
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $check = $ctx->db()->prepare(
+        "SELECT id, product_id, quantity FROM dl_cashier_withdrawals
+         WHERE id IN ($placeholders) AND target_branch_id = ? AND withdrawal_type = 'delivery' AND received_at IS NULL"
+    );
+    $check->execute(array_merge($ids, [$branchId]));
+    $rows = $check->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if (count($rows) === 0) {
+        $ctx->json(['ok' => false, 'error' => 'Nothing to receive']);
+        return;
+    }
+
+    // Resolve received qty per row (partial or full)
+    $rowReceivedQtys = [];
+    foreach ($rows as $r) {
+        $rid = (int)$r['id'];
+        $sentQty = (int)$r['quantity'];
+        $rQty = isset($informalPartialQtys[(string)$rid])
+            ? max(0, min((int)$informalPartialQtys[(string)$rid], $sentQty))
+            : $sentQty;
+        $rowReceivedQtys[$rid] = $rQty;
+    }
+
+    $ctx->db()->beginTransaction();
+    try {
+        // Sum received pcs per product (using actual received qty, not sent qty)
+        $perProduct = [];
+        foreach ($rows as $r) {
+            $pid = (int)$r['product_id'];
+            $perProduct[$pid] = ($perProduct[$pid] ?? 0) + $rowReceivedQtys[(int)$r['id']];
+        }
+
+        // Mark each row received, storing the actual received_qty
+        $markIndiv = $ctx->db()->prepare(
+            "UPDATE dl_cashier_withdrawals
+             SET received_at = NOW(), received_by = ?, received_ledger_date = ?, received_qty = ?
+             WHERE id = ?"
+        );
+        $foundIds = [];
+        foreach ($rows as $r) {
+            $rid = (int)$r['id'];
+            $markIndiv->execute([$userId, $receiveDate, $rowReceivedQtys[$rid], $rid]);
+            $foundIds[] = $rid;
+        }
+
+        // Apply to dl_daily_ledger.addtl for receive date
+        $stmtCheck = $ctx->db()->prepare(
+            'SELECT id, addtl FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
+        );
+        $stmtUpd = $ctx->db()->prepare(
+            'UPDATE dl_daily_ledger SET addtl = :addtl, updated_by = :uid
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+        );
+        $stmtInit = $ctx->db()->prepare(
+            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, addtl, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :prc, :addtl, :uid_enc, :uid_upd)'
+        );
+
+        foreach ($perProduct as $pid => $qty) {
+            $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate]);
+            $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            if ($existing) {
+                $newAddtl = (int)$existing['addtl'] + (int)$qty;
+                $stmtUpd->execute([':addtl' => $newAddtl, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate]);
+            } else {
+                $price = dl_resolveBranchProductPrice($branchId, (int)$pid, $receiveDate);
+                $stmtInit->execute([
+                    ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate,
+                    ':prc' => $price, ':addtl' => (int)$qty,
+                    ':uid_enc' => $userId, ':uid_upd' => $userId,
+                ]);
+            }
+        }
+
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'received_count' => count($foundIds), 'receive_date' => $receiveDate]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->log('apiReceiveDelivery error: ' . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => 'Database error']);
+    }
+}
+
+function apiReceivePaperDelivery(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser();
+    if (!dl_isFormalDeliveryEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled for branch deliveries.'], 403);
+        return;
+    }
+
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $destinationBranchId = dl_resolveLedgerBranchId($user, $input);
+    $originType = (string)($input['origin_type'] ?? 'commissary');
+    $originId = isset($input['origin_id']) && $input['origin_id'] !== '' ? (int)$input['origin_id'] : null;
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
+    $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
+    $receiveDate = (string)($input['receive_date'] ?? dl_businessDate());
+    $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
+    $userId = (int)($user['sub'] ?? 0);
+    $actorId = dl_getActorUserId($user);
+    $role = (string)($user['role'] ?? '');
+    $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
+
+    if ($destinationBranchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing destination branch.'], 422);
+        return;
+    }
+    if (!in_array($originType, ['branch', 'commissary'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid origin type.'], 422);
+        return;
+    }
+    if ($originType === 'branch' && (($originId ?? 0) <= 0 || $originId === $destinationBranchId)) {
+        $ctx->json(['ok' => false, 'error' => 'A different source branch is required.'], 422);
+        return;
+    }
+    if ($drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
+        return;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $receiveDate)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid date.'], 422);
+        return;
+    }
+    if ($items === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one item is required.'], 422);
+        return;
+    }
+
+    $businessDate = dl_businessDate();
+    if ($role === 'cashier' && $receiveDate !== $businessDate) {
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
+    if ($originType === 'branch' && !$isAdminUser && $deliveryDate !== $businessDate) {
+        $ctx->json(['ok' => false, 'error' => 'Admin required for late branch paper DR capture'], 403);
+        return;
+    }
+
+    $receiveDayStatus = dl_getDayStatus($destinationBranchId, $receiveDate);
+    if ($receiveDayStatus === 'closed' && !dl_roleHasPermission($role, 'ledger.override')) {
+        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+        return;
+    }
+    if ($originType === 'branch' && $originId !== null) {
+        $originDayStatus = dl_getDayStatus((int)$originId, $deliveryDate);
+        if ($originDayStatus === 'closed' && !$isAdminUser) {
+            $ctx->json(['ok' => false, 'error' => 'Admin required for closed source-branch paper DR capture'], 403);
+            return;
+        }
+    }
+
+    $findStmt = $ctx->db()->prepare(
+        'SELECT id, status
+           FROM dl_deliveries
+          WHERE destination_type = :destination_type
+            AND destination_id = :destination_id
+            AND dr_number = :dr_number
+            AND status <> "voided"
+          ORDER BY id DESC
+          LIMIT 1'
+    );
+    $findStmt->execute([
+        ':destination_type' => 'branch',
+        ':destination_id' => $destinationBranchId,
+        ':dr_number' => $drNumber,
+    ]);
+    $existing = $findStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    $ctx->db()->beginTransaction();
+    try {
+        if ($existing && dl_deliveryHasActiveReceivings($ctx->db(), (int)$existing['id'])) {
+            throw new \RuntimeException('This paper DR was already received.');
+        }
+
+        $deliveryId = $existing ? (int)$existing['id'] : 0;
+        if (!$existing) {
+            $priceGroupId = dl_defaultPriceGroupId();
+            $ins = $ctx->db()->prepare(
+                'INSERT INTO dl_deliveries
+                    (origin_type, origin_id, destination_type, destination_id, dr_number,
+                     delivery_date, status, created_by, posted_by, posted_at, remarks, provenance_status)
+                 VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :created_by, :posted_by, NOW(), :remarks, :provenance_status)'
+            );
+            $ins->execute([
+                ':ot' => $originType,
+                ':oid' => $originId,
+                ':dt' => 'branch',
+                ':did' => $destinationBranchId,
+                ':dr' => $drNumber,
+                ':dd' => $deliveryDate,
+                ':created_by' => $userId ?: null,
+                ':posted_by' => $userId ?: null,
+                ':remarks' => dl_paperDrCaptureRemark(),
+                ':provenance_status' => 'paper_dr_pending',
+            ]);
+            $deliveryId = (int)$ctx->db()->lastInsertId();
+
+            $itemStmt = $ctx->db()->prepare(
+                'INSERT INTO dl_delivery_items
+                    (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+                 VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+            );
+            foreach ($items as $item) {
+                $itemStmt->execute([
+                    ':delivery_id' => $deliveryId,
+                    ':product_id' => $item['product_id'],
+                    ':quantity' => $item['quantity'],
+                    ':unit' => $item['unit'],
+                    ':unit_cost_snapshot' => $item['unit_cost_snapshot'],
+                    ':price_snapshot' => dl_resolveProductPrice((int)$item['product_id'], $priceGroupId, $deliveryDate),
+                    ':price_group_id' => $priceGroupId,
+                    ':remarks' => $item['remarks'],
+                ]);
+                if ($originType === 'branch' && $originId !== null) {
+                    dl_applyLedgerDelta((int)$originId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
+                }
+            }
+
+            dl_auditLog('create_delivery', $originType === 'branch' ? (int)$originId : null, 'dl_deliveries', (string)$deliveryId, null, [
+                'destination_type' => 'branch',
+                'destination_id' => $destinationBranchId,
+                'items' => count($items),
+                'dr_number' => $drNumber,
+                'status' => 'posted',
+                'source' => 'captured_from_paper_dr',
+            ]);
+        } elseif ((string)$existing['status'] === 'draft') {
+            $ctx->db()->prepare(
+                'UPDATE dl_deliveries SET status = "posted", posted_by = :u, posted_at = NOW() WHERE id = :id'
+            )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
+        }
+
+        $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $userId, $receiveDate, null);
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId]);
+    } catch (\Throwable $e) {
+        $ctx->db()->rollBack();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
+    }
+}
+
 function apiSaveLedgerField(array $params = []): void
 {
     $ctx = module();
@@ -1508,21 +2567,7 @@ function apiSaveLedgerField(array $params = []): void
     $field     = (string)($input['field'] ?? '');
     $value     = (int)($input['value'] ?? 0);
     $date      = (string)($input['date'] ?? dl_businessDate());
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId    = dl_getActorUserId($user);
     if ($userId <= 0) {
         write_log('daily-ledger save auth required', 'error', [
             'path' => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
@@ -1548,15 +2593,22 @@ function apiSaveLedgerField(array $params = []): void
     }
 
     // Validate field name and value
-    $allowed = ['beg_bal', 'addtl', 'withdraw', 'bal_end', 'sales'];
-    if (!in_array($field, $allowed, true) || !$branchId || !$productId) {
+    $fieldMap = [
+        'beg_bal' => 'beg_bal',
+        'addtl' => 'addtl',
+        'withdraw' => 'withdraw',
+        'bal_end' => 'bal_end',
+        'sales' => 'sales',
+    ];
+    $column = dl_allowedColumn($field, $fieldMap);
+    if ($column === null || !$branchId || !$productId) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
         return;
     }
-    if ($value < 0) {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Value cannot be negative', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Value cannot be negative'], 422);
+    if ($value < 0 || $value > 999999999) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Value out of bounds', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Value out of bounds'], 422);
         return;
     }
 
@@ -1596,89 +2648,42 @@ function apiSaveLedgerField(array $params = []): void
         }
     }
 
-    // Check day status — soft lock: cashier can't edit closed days
-    $dayStatus = dl_getDayStatus($branchId, $date);
     if ($role === 'cashier' && $date !== dl_businessDate()) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
         return;
     }
-    if ($dayStatus === 'closed' && $role === 'cashier') {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
-        return;
-    }
-
-    // Get current price snapshot
-    $priceStmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :pid');
-    $priceStmt->execute([':pid' => $productId]);
-    $currentPrice = (float)($priceStmt->fetchColumn() ?: 0);
-
-    // Upsert the ledger row.
-    // Note: ON DUPLICATE KEY requires a UNIQUE index on (branch_id, product_id, ledger_date).
-    $sql = "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, {$field}, encoded_by, updated_by)
-            VALUES (:bid, :pid, :d, :price, :val, :uid, :uid2)
-            ON DUPLICATE KEY UPDATE {$field} = :val2, updated_by = :uid3, updated_at = CURRENT_TIMESTAMP";
 
     try {
-        // Get old value for audit
+        $ctx->db()->beginTransaction();
+        $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
+        if ($dayStatus === 'closed' && $role === 'cashier') {
+            throw new RuntimeException('Day is closed');
+        }
+
+        $currentPrice = dl_resolveBranchProductPrice($branchId, $productId, $date);
         $oldStmt = $ctx->db()->prepare(
-            "SELECT {$field} FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d"
+            "SELECT {$column} AS current_value FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d LIMIT 1 FOR UPDATE"
         );
         $oldStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
         $oldVal = $oldStmt->fetchColumn();
 
-        $stmt = $ctx->db()->prepare($sql);
-        try {
-            $stmt->execute([
-                ':bid'   => $branchId,
-                ':pid'   => $productId,
-                ':d'     => $date,
-                ':price' => $currentPrice,
-                ':val'   => $value,
-                ':uid'   => $userId,
-                ':uid2'  => $userId,
-                ':val2'  => $value,
-                ':uid3'  => $userId,
-            ]);
-        } catch (\Throwable $e2) {
-            // Fallback for environments missing the expected UNIQUE index.
-            $ctx->db()->beginTransaction();
-            try {
-                $existsStmt = $ctx->db()->prepare(
-                    'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d LIMIT 1'
-                );
-                $existsStmt->execute([':bid' => $branchId, ':pid' => $productId, ':d' => $date]);
-                $existingId = (int)($existsStmt->fetchColumn() ?: 0);
-
-                if ($existingId > 0) {
-                    $updateStmt = $ctx->db()->prepare(
-                        "UPDATE dl_daily_ledger
-                         SET {$field} = :val, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
-                         WHERE id = :id"
-                    );
-                    $updateStmt->execute([':val' => $value, ':uid' => $userId, ':id' => $existingId]);
-                } else {
-                    $insertStmt = $ctx->db()->prepare(
-                        "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, {$field}, encoded_by, updated_by)
-                         VALUES (:bid, :pid, :d, :price, :val, :uid, :uid2)"
-                    );
-                    $insertStmt->execute([
-                        ':bid' => $branchId,
-                        ':pid' => $productId,
-                        ':d' => $date,
-                        ':price' => $currentPrice,
-                        ':val' => $value,
-                        ':uid' => $userId,
-                        ':uid2' => $userId,
-                    ]);
-                }
-                $ctx->db()->commit();
-            } catch (\Throwable $e3) {
-                $ctx->db()->rollBack();
-                throw $e3;
-            }
-        }
+        $stmt = $ctx->db()->prepare(
+            "INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, {$column}, encoded_by, updated_by)
+             VALUES (:bid, :pid, :d, :price, :val, :uid, :uid2)
+             ON DUPLICATE KEY UPDATE {$column} = :val2, updated_by = :uid3, updated_at = CURRENT_TIMESTAMP"
+        );
+        $stmt->execute([
+            ':bid'   => $branchId,
+            ':pid'   => $productId,
+            ':d'     => $date,
+            ':price' => $currentPrice,
+            ':val'   => $value,
+            ':uid'   => $userId,
+            ':uid2'  => $userId,
+            ':val2'  => $value,
+            ':uid3'  => $userId,
+        ]);
 
         // Silent variance computation when beg_bal changes
         if ($field === 'beg_bal') {
@@ -1700,9 +2705,19 @@ function apiSaveLedgerField(array $params = []): void
             [$field => $value]
         );
 
+        $ctx->db()->commit();
+
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'field' => $field, 'value' => $value]);
     } catch (\Throwable $e) {
+        if ($ctx->db()->inTransaction()) {
+            $ctx->db()->rollBack();
+        }
+        if ($e instanceof RuntimeException && $e->getMessage() === 'Day is closed') {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+            return;
+        }
         $ctx->log('apiSaveLedgerField failed: ' . $e->getMessage(), 'error', [
             'branch_id'  => $branchId,
             'product_id' => $productId,
@@ -1732,6 +2747,15 @@ function apiSaveLedgerBatch(array $params = []): void
     $input = $ctx->input();
     $date = (string)($input['date'] ?? dl_businessDate());
     $rows = $input['rows'] ?? null;
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+
+    if ($idempotencyKey !== '') {
+        $cachedResponse = dl_loadIdempotentResponse('ledger_batch', $idempotencyKey);
+        if (is_array($cachedResponse)) {
+            $ctx->json($cachedResponse);
+            return;
+        }
+    }
 
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
@@ -1753,9 +2777,7 @@ function apiSaveLedgerBatch(array $params = []): void
         return;
     }
 
-    // Check day status — cashier cannot edit closed days
-    $dayStatus = dl_getDayStatus($branchId, $date);
-    $isReadOnly = ($role === 'cashier' && ($date > dl_businessDate() || $dayStatus === 'closed'));
+    $isReadOnly = ($role === 'cashier' && $date > dl_businessDate());
 
     // Validate payload and normalize
     $normalized = [];
@@ -1773,8 +2795,8 @@ function apiSaveLedgerBatch(array $params = []): void
         $with = (int)($r['withdraw'] ?? 0);
         $end = (int)($r['bal_end'] ?? 0);
 
-        if ($beg < 0 || $add < 0 || $with < 0 || $end < 0) {
-            $ctx->json(['ok' => false, 'error' => 'Values cannot be negative'], 422);
+        if ($beg < 0 || $add < 0 || $with < 0 || $end < 0 || $beg > 999999999 || $add > 999999999 || $with > 999999999 || $end > 999999999) {
+            $ctx->json(['ok' => false, 'error' => 'Values are out of bounds'], 422);
             return;
         }
 
@@ -1794,6 +2816,7 @@ function apiSaveLedgerBatch(array $params = []): void
     }
 
     try {
+        $dayStatus = dl_getDayStatus($branchId, $date);
         if (!$isReadOnly) {
             // For cashier: identify production-locked columns per product before entering the transaction
             $productionLocks = [];
@@ -1819,8 +2842,11 @@ function apiSaveLedgerBatch(array $params = []): void
             }
 
             $ctx->db()->beginTransaction();
+            $dayStatus = dl_lockDayStatusRow($ctx->db(), $branchId, $date);
+            if ($role === 'cashier' && $dayStatus === 'closed') {
+                throw new RuntimeException('Day is closed');
+            }
 
-        $priceStmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :pid');
         $selectOld = $ctx->db()->prepare(
             'SELECT beg_bal, addtl, withdraw, bal_end FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
         );
@@ -1843,8 +2869,7 @@ function apiSaveLedgerBatch(array $params = []): void
             $selectOld->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
             $old = $selectOld->fetch(PDO::FETCH_ASSOC) ?: null;
 
-            $priceStmt->execute([':pid' => $pid]);
-            $currentPrice = (float)($priceStmt->fetchColumn() ?: 0);
+            $currentPrice = dl_resolveBranchProductPrice($branchId, $pid, $date);
 
             // Preserve production-set values: cashier cannot override addtl/withdraw locked by a movement
             $addtlVal    = (int)$r['addtl'];
@@ -1936,19 +2961,27 @@ function apiSaveLedgerBatch(array $params = []): void
         $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Saved', 'type' => 'success']]));
-        $ctx->json([
+        $response = [
             'ok' => true,
             'branch_id' => $branchId,
             'date' => $date,
             'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
             'day_status' => $dayStatus,
-        ]);
+        ];
+        dl_storeIdempotentResponse('ledger_batch', $idempotencyKey, $response);
+        $ctx->json($response);
     } catch (\Throwable $e) {
         try {
             if ($ctx->db()->inTransaction()) {
                 $ctx->db()->rollBack();
             }
         } catch (\Throwable $ignored) {
+        }
+
+        if ($e instanceof RuntimeException && $e->getMessage() === 'Day is closed') {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day is closed', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Day is closed'], 403);
+            return;
         }
 
         $ctx->log('apiSaveLedgerBatch failed: ' . $e->getMessage(), 'error', [
@@ -2074,7 +3107,7 @@ function apiProductionMovements(array $params = []): void
         "SELECT pm.id, pm.movement_uuid, pm.client_op_id, pm.movement_type, pm.flow_mode,
                 pm.destination_branch_id, b.code AS destination_code, b.name AS destination_name,
                 pm.product_id, p.name AS product_name, p.sku,
-                pm.ledger_date, pm.quantity, pm.override_reason,
+            pm.ledger_date, pm.quantity, pm.dr_number, pm.override_reason,
                 pm.reference_movement_id, pm.created_by_id, pm.created_by_role, pm.created_at
          FROM dl_production_movements pm
          INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
@@ -2179,6 +3212,14 @@ function apiProductionSyncBatch(array $params = []): void
     $outputEnabled = dl_isFeatureEnabled('production_output_enabled');
     $input = $ctx->input();
     $operations = $input['operations'] ?? [];
+    $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+    if ($idempotencyKey !== '') {
+        $cachedResponse = dl_loadIdempotentResponse('production_sync_batch', $idempotencyKey);
+        if (is_array($cachedResponse)) {
+            $ctx->json($cachedResponse);
+            return;
+        }
+    }
     if (!is_array($operations) || count($operations) === 0) {
         $ctx->json(['ok' => false, 'error' => 'operations[] is required'], 422);
         return;
@@ -2215,7 +3256,7 @@ function apiProductionSyncBatch(array $params = []): void
         }
     }
 
-    $ctx->json([
+    $response = [
         'ok' => true,
         'summary' => [
             'total' => count($results),
@@ -2223,7 +3264,9 @@ function apiProductionSyncBatch(array $params = []): void
             'failed' => count($results) - $okCount,
         ],
         'results' => $results,
-    ]);
+    ];
+    dl_storeIdempotentResponse('production_sync_batch', $idempotencyKey, $response);
+    $ctx->json($response);
 }
 
 function apiCloseDay(array $params = []): void
@@ -2240,21 +3283,7 @@ function apiCloseDay(array $params = []): void
     $input = $ctx->input();
     $branchId = dl_resolveLedgerBranchId($user, $input);
     $date     = (string)($input['date'] ?? dl_businessDate());
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
@@ -2311,21 +3340,7 @@ function apiReopenDay(array $params = []): void
     $input = $ctx->input();
     $branchId = (int)($input['branch_id'] ?? 0);
     $date     = (string)($input['date'] ?? '');
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Auth required', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Auth required'], 401);
@@ -2422,6 +3437,8 @@ function handleAdminDashboard(array $params = []): void
 
     $totalUnitsToday = 0;
     $totalAmountToday = 0.0;
+    $totalSellingAccountsToday = 0.0;
+    $sellingAccountsEnabled = function_exists('dl_areSellingAccountsEnabled') && dl_areSellingAccountsEnabled();
     $branchCards = [];
     foreach ($branches as $br) {
         $bid = (int)$br['id'];
@@ -2429,18 +3446,33 @@ function handleAdminDashboard(array $params = []): void
         $units  = $ts ? (int)$ts['total_units'] : 0;
         $amount = $ts ? (float)$ts['total_amount'] : 0.0;
         $status = $dayStatuses[$bid] ?? 'none';
+        $saTotal = 0.0;
+        if ($sellingAccountsEnabled && function_exists('dl_branchConsolidatedSummary')) {
+            try {
+                $sum = dl_branchConsolidatedSummary($bid, $today);
+                $saTotal = (float)($sum['selling_accounts_total'] ?? 0);
+            } catch (\Throwable $e) {
+                $saTotal = 0.0;
+            }
+        }
         $totalUnitsToday  += $units;
         $totalAmountToday += $amount;
+        $totalSellingAccountsToday += $saTotal;
         $branchCards[] = [
             'name'   => $br['name'],
             'units'  => $units,
             'amount' => $amount,
             'status' => $status,
+            'selling_accounts_total' => $saTotal,
+            'consolidated_total' => $amount + $saTotal,
         ];
     }
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/dashboard.disyl', [
         'page_title'            => 'Dashboard',
@@ -2456,6 +3488,8 @@ function handleAdminDashboard(array $params = []): void
         'recent_activity'       => $recentActivity,
         'total_units_today'     => $totalUnitsToday,
         'total_amount_today'    => $totalAmountToday,
+        'total_selling_accounts_today' => $totalSellingAccountsToday,
+        'selling_accounts_enabled' => $sellingAccountsEnabled,
         'business_date_label'   => $clockLabel['business_date'],
         'close_of_day_time'     => $clockLabel['close_of_day_time'],
         'auto_close_enabled'    => $clockLabel['auto_close_enabled'],
@@ -2486,6 +3520,18 @@ function handleAdminSales(array $params = []): void
     $actionFilterMap = [
         'output' => ['production_output'],
         'withdrawal' => ['production_withdrawal'],
+        'delivery' => [
+            'create_delivery',
+            'delivery_created',
+            'update_delivery',
+            'delivery_posted',
+            'delivery_voided',
+            'create_receiving',
+            'receiving_created',
+            'receiving_posted',
+            'receiving_voided',
+            'review_delivery_provenance',
+        ],
         'product' => ['create_product', 'update_product'],
         'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
         'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
@@ -2499,6 +3545,7 @@ function handleAdminSales(array $params = []): void
         ['value' => '', 'label' => 'All Activities'],
         ['value' => 'output', 'label' => 'Output'],
         ['value' => 'withdrawal', 'label' => 'Withdrawal'],
+        ['value' => 'delivery', 'label' => 'Delivery'],
         ['value' => 'ledger', 'label' => 'Ledger'],
         ['value' => 'commissary', 'label' => 'Commissary'],
         ['value' => 'product', 'label' => 'Product'],
@@ -2544,6 +3591,9 @@ function handleAdminSales(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/sales.disyl', [
         'page_title'   => 'Sales Summary',
@@ -2565,6 +3615,7 @@ function handleAdminSales(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
     ]);
 }
 
@@ -2618,6 +3669,7 @@ function handleAdminProduction(array $params = []): void
         $moveSql =
             "SELECT pm.id, pm.destination_branch_id, pm.product_id,
                     pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
+                    pm.dr_number,
                     pm.override_reason, pm.created_at,
                     b.name AS destination_name, b.code AS destination_code,
                     COALESCE(b.area, '') AS destination_area,
@@ -2651,6 +3703,9 @@ function handleAdminProduction(array $params = []): void
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canProductionOverride = dl_roleHasPermission($role, 'production.override');
     $featureSettings = dl_featureSettings();
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/production.disyl', [
         'page_title' => 'Production Withdrawal',
@@ -2674,6 +3729,7 @@ function handleAdminProduction(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
     ]);
 }
 
@@ -2724,33 +3780,72 @@ function handleAdminProductionOutput(array $params = []): void
                 $productRowsBread[] = $p;
             }
         }
-        $moveSql =
-            "SELECT pm.id, pm.destination_branch_id, pm.product_id,
-                    pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
-                    pm.override_reason, pm.created_at,
-                    b.name AS destination_name, b.code AS destination_code,
-                    COALESCE(b.area, '') AS destination_area,
-                    p.name AS product_name, p.sku,
-                    pm.created_by_role,
-                    EXISTS(
-                        SELECT 1
-                        FROM dl_production_movements r
-                        WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
-                    ) AS has_reverse
-             FROM dl_production_movements pm
-             INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
-             INNER JOIN dl_products p ON p.id = pm.product_id
-             WHERE pm.destination_branch_id IN ({$placeholders})
-               AND pm.ledger_date BETWEEN ? AND ?
-               AND (pm.movement_type = 'output'
-                    OR (pm.movement_type = 'reverse' AND pm.reference_movement_id IN (
-                        SELECT id FROM dl_production_movements WHERE movement_type = 'output'
-                    )))
-             ORDER BY pm.created_at DESC
-             LIMIT 200";
+                $moveSql =
+                        "SELECT CONCAT('movement:', pm.id) AS row_key,
+                                        pm.id, pm.destination_branch_id, pm.product_id,
+                                        pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
+                                        pm.dr_number,
+                                        pm.override_reason, pm.created_at,
+                                        b.name AS destination_name, b.code AS destination_code,
+                                        COALESCE(b.area, '') AS destination_area,
+                                        p.name AS product_name, p.sku,
+                                        pm.created_by_role,
+                                        EXISTS(
+                                                SELECT 1
+                                                FROM dl_production_movements r
+                                                WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
+                                        ) AS has_reverse,
+                                        0 AS is_paper_dr_capture
+                         FROM dl_production_movements pm
+                         INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
+                         INNER JOIN dl_products p ON p.id = pm.product_id
+                         WHERE pm.destination_branch_id IN ({$placeholders})
+                             AND pm.ledger_date BETWEEN ? AND ?
+                             AND (pm.movement_type = 'output'
+                                        OR (pm.movement_type = 'reverse' AND pm.reference_movement_id IN (
+                                                SELECT id FROM dl_production_movements WHERE movement_type = 'output'
+                                        )))
+
+                         UNION ALL
+
+                         SELECT CONCAT('paper-dr:', d.id, ':', di.id) AS row_key,
+                                        d.id, d.destination_id AS destination_branch_id, di.product_id,
+                                        'paper_dr_capture' AS movement_type,
+                                        'commissary' AS flow_mode,
+                                        d.delivery_date AS ledger_date,
+                                        di.quantity,
+                                        d.dr_number,
+                                        'Captured from paper DR' AS override_reason,
+                                        d.created_at,
+                                        b.name AS destination_name, b.code AS destination_code,
+                                        COALESCE(b.area, '') AS destination_area,
+                                        p.name AS product_name, p.sku,
+                                        COALESCE(u.role, 'paper_dr') AS created_by_role,
+                                        0 AS has_reverse,
+                                        1 AS is_paper_dr_capture
+                         FROM dl_deliveries d
+                         INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                         INNER JOIN dl_branches b ON b.id = d.destination_id
+                         INNER JOIN dl_products p ON p.id = di.product_id
+                         LEFT JOIN dl_users u ON u.id = d.created_by
+                         WHERE d.origin_type = 'commissary'
+                             AND d.destination_type = 'branch'
+                             AND d.destination_id IN ({$placeholders})
+                             AND d.delivery_date BETWEEN ? AND ?
+                             AND d.remarks = ?
+                             AND d.status <> 'voided'
+
+                         ORDER BY created_at DESC
+                         LIMIT 200";
         $bind = $allowedBranchIds;
         $bind[] = $dateFrom;
         $bind[] = $dateTo;
+        foreach ($allowedBranchIds as $branchId) {
+            $bind[] = $branchId;
+        }
+        $bind[] = $dateFrom;
+        $bind[] = $dateTo;
+        $bind[] = dl_paperDrCaptureRemark();
         $moveStmt = $ctx->db()->prepare($moveSql);
         $moveStmt->execute($bind);
         $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -2759,6 +3854,9 @@ function handleAdminProductionOutput(array $params = []): void
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $featureSettings = dl_featureSettings();
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     echo dlRender('modules/daily-ledger/admin/production-output.disyl', [
         'page_title' => 'Production Output',
@@ -2781,6 +3879,7 @@ function handleAdminProductionOutput(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
     ]);
 }
 
@@ -2794,7 +3893,7 @@ function handleAdminSettings(array $params = []): void
     }
 
     $user = dlCurrentUser(['admin']);
-    $isKernelAdmin = dl_isKernelAdmin($user);
+    $canManageFeatureActivation = dl_canManageFeatureActivation($user);
     $permissions = dl_rolePermissions();
     $closeOfDaySettings = dl_closeOfDaySettings();
     $featureSettings = dl_featureSettings();
@@ -2818,9 +3917,67 @@ function handleAdminSettings(array $params = []): void
         'operating_region' => $closeOfDaySettings['operating_region'],
         'operating_timezone_choices' => dl_operatingTimezoneChoices($closeOfDaySettings['operating_timezone']),
         'operating_region_choices' => dl_operatingRegionChoices($closeOfDaySettings['operating_region']),
-        'is_kernel_admin' => $isKernelAdmin,
+        'can_manage_feature_activation' => $canManageFeatureActivation,
         'production_output_enabled' => $featureSettings['production_output_enabled'],
+        'formal_delivery_workflow_enabled' => $featureSettings['formal_delivery_workflow_enabled'],
+        'selling_accounts_enabled' => $featureSettings['selling_accounts_enabled'],
+        'price_groups_enabled' => $featureSettings['price_groups_enabled'],
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
+        'logo_url' => dlLogoUrl(),
+        'favicon_url' => dlFaviconUrl(),
+    ]);
+}
+
+function apiUploadBrandingAsset(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    $user = dlCurrentUser(['admin']);
+
+    $assetType = strtolower(trim((string)($_POST['asset_type'] ?? '')));
+    $file = kernelUploadedFile('asset_file');
+    if (!is_array($file)) {
+        $ctx->json(['ok' => false, 'error' => 'Upload a branding image first.'], 422);
+        return;
+    }
+
+    try {
+        $upload = dlUploadBrandAsset($assetType, $file);
+    } catch (InvalidArgumentException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    } catch (Throwable $e) {
+        write_log('daily-ledger branding upload failed', 'error', [
+            'asset_type' => $assetType,
+            'message' => $e->getMessage(),
+        ]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to upload branding asset.'], 500);
+        return;
+    }
+
+    $settingKey = $assetType === 'favicon' ? 'favicon_url' : 'logo_url';
+    if (!dlPersistModuleSettings([$settingKey => $upload['asset_url']])) {
+        $ctx->json(['ok' => false, 'error' => 'Branding asset uploaded but could not be persisted to settings.'], 500);
+        return;
+    }
+
+    dl_auditLog('upload_branding_asset', null, 'module_settings', 'daily-ledger', null, [
+        'asset_type' => $assetType,
+        'asset_url' => $upload['asset_url'],
+        'uploaded_by_role' => (string)($user['role'] ?? ''),
+    ]);
+
+    $ctx->json([
+        'ok' => true,
+        'asset_type' => $assetType,
+        'asset_url' => $upload['asset_url'],
+        'message' => ucfirst($assetType) . ' uploaded.',
     ]);
 }
 
@@ -2834,6 +3991,7 @@ function apiSaveRolePermissions(array $params = []): void
     }
 
     $user = dlCurrentUser(['admin']);
+    $canManageFeatureActivation = dl_canManageFeatureActivation($user);
     $isKernelAdmin = dl_isKernelAdmin($user);
     $input = $ctx->input();
 
@@ -2870,17 +4028,37 @@ function apiSaveRolePermissions(array $params = []): void
     $operatingRegion = dl_normalizeRegion($input['operating_region'] ?? '');
     $featureSettings = dl_featureSettings();
     $productionOutputEnabled = $featureSettings['production_output_enabled'];
+    $formalDeliveryEnabled = $featureSettings['formal_delivery_workflow_enabled'];
+    $sellingAccountsEnabled = $featureSettings['selling_accounts_enabled'];
+    $priceGroupsEnabled = $featureSettings['price_groups_enabled'];
 
     if (array_key_exists('production_output_enabled', $input)) {
-        if (!$isKernelAdmin) {
+        if (!$canManageFeatureActivation) {
             $ctx->json([
                 'ok' => false,
-                'error' => 'Only Kernel Admin or Superadmin can change feature activation.',
+                'error' => 'Only Admin or Superadmin can change feature activation.',
             ], 403);
             return;
         }
         $productionOutputEnabled = $toBool($input['production_output_enabled']);
     }
+    foreach ([
+        'formal_delivery_workflow_enabled' => &$formalDeliveryEnabled,
+        'selling_accounts_enabled' => &$sellingAccountsEnabled,
+        'price_groups_enabled' => &$priceGroupsEnabled,
+    ] as $key => &$ref) {
+        if (array_key_exists($key, $input)) {
+            if (!$canManageFeatureActivation) {
+                $ctx->json([
+                    'ok' => false,
+                    'error' => 'Only Admin or Superadmin can change feature activation.',
+                ], 403);
+                return;
+            }
+            $ref = $toBool($input[$key]);
+        }
+    }
+    unset($ref);
 
     if ($autoCloseEnabled && !dl_isAllowedAutoCloseTime($closeOfDayTime)) {
         $ctx->json([
@@ -2892,16 +4070,39 @@ function apiSaveRolePermissions(array $params = []): void
 
     $appNameInput = trim((string)($input['app_name'] ?? ''));
     $appName = $appNameInput !== '' ? mb_substr($appNameInput, 0, 80) : 'Daily Ledger';
+    try {
+        $logoUrl = dlNormalizeBrandAssetUrl($input['logo_url'] ?? '', 'Logo URL');
+        $faviconUrl = dlNormalizeBrandAssetUrl($input['favicon_url'] ?? '', 'Favicon URL');
+    } catch (InvalidArgumentException $e) {
+        $ctx->json([
+            'ok' => false,
+            'error' => $e->getMessage(),
+        ], 422);
+        return;
+    }
 
-    saveModuleSettings('daily-ledger', [
+    $settingsToSave = [
         'app_name' => $appName,
+        'logo_url' => $logoUrl,
+        'favicon_url' => $faviconUrl,
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled ? '1' : '0',
         'close_of_day_time' => $closeOfDayTime,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled ? '1' : '0',
-    ]);
+        'formal_delivery_workflow_enabled' => $formalDeliveryEnabled ? '1' : '0',
+        'selling_accounts_enabled' => $sellingAccountsEnabled ? '1' : '0',
+        'price_groups_enabled' => $priceGroupsEnabled ? '1' : '0',
+    ];
+
+    if (!dlPersistModuleSettings($settingsToSave)) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'Failed to persist Daily Ledger settings.',
+        ], 500);
+        return;
+    }
 
     dl_auditLog('update_role_permissions', null, 'module_settings', 'daily-ledger', null, [
         'role_permissions' => $permissions,
@@ -2909,7 +4110,12 @@ function apiSaveRolePermissions(array $params = []): void
         'close_of_day_time' => $closeOfDayTime,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
+        'logo_url' => $logoUrl,
+        'favicon_url' => $faviconUrl,
         'production_output_enabled' => $productionOutputEnabled,
+        'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
+        'selling_accounts_enabled' => $sellingAccountsEnabled,
+        'price_groups_enabled' => $priceGroupsEnabled,
         'is_kernel_admin' => $isKernelAdmin,
         'updated_by_role' => (string)($user['role'] ?? ''),
     ]);
@@ -2917,12 +4123,18 @@ function apiSaveRolePermissions(array $params = []): void
     header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Settings updated', 'type' => 'success']]));
     $ctx->json([
         'ok' => true,
+        'app_name' => $appName,
+        'logo_url' => $logoUrl,
+        'favicon_url' => $faviconUrl,
         'role_permissions' => $permissions,
         'auto_close_enabled' => $autoCloseEnabled,
         'close_of_day_time' => $closeOfDayTime,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled,
+        'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
+        'selling_accounts_enabled' => $sellingAccountsEnabled,
+        'price_groups_enabled' => $priceGroupsEnabled,
     ]);
 }
 
@@ -3007,6 +4219,7 @@ function handleAdminActivity(array $params = []): void
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
     $actionFilter = trim((string)($input['action_filter'] ?? ''));
     $search   = trim((string)($input['q'] ?? ''));
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
 
     $actionFilterMap = [
         'output' => ['production_output'],
@@ -3085,6 +4298,11 @@ function handleAdminActivity(array $params = []): void
         $sql .= ' AND (a.action LIKE :q OR b.name LIKE :q2)';
         $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
     }
+    if ($drNumber !== '') {
+        $sql .= ' AND (a.new_data LIKE :drq OR a.old_data LIKE :drq2)';
+        $bind[':drq'] = "%{$drNumber}%";
+        $bind[':drq2'] = "%{$drNumber}%";
+    }
 
     $sql .= ' ORDER BY a.created_at DESC LIMIT 500';
 
@@ -3100,8 +4318,13 @@ function handleAdminActivity(array $params = []): void
         'raw_material_id' => 'Material',
         'destination_branch_id' => 'Destination Branch',
         'branch_id' => 'Branch',
+        'dr_number' => 'DR Number',
         'ledger_date' => 'Ledger Date',
         'flow_mode' => 'Flow',
+        'review_action' => 'Check Action',
+        'reviewed_by_role' => 'Checked By Role',
+        'provenance_status' => 'Paper DR Check Status',
+        'provenance_review_note' => 'Check Note',
         'yield_qty' => 'Yield',
         'kilo_qty' => 'Kilo',
         'egg_qty' => 'Egg',
@@ -3115,11 +4338,26 @@ function handleAdminActivity(array $params = []): void
         'batch_input_qty' => 'Batch Kilo Qty',
         'batch_egg_qty' => 'Batch Egg Qty',
     ];
-    $skipKeys = ['movement_uuid', 'reference_movement_id', 'client_op_id', 'source_payload'];
-    $priorityKeys = ['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id', 'ledger_date', 'quantity', 'yield_qty', 'kilo_qty', 'egg_qty', 'flow_mode', 'status', 'role', 'reason', 'resulting_addtl'];
+    $skipKeys = ['movement_uuid', 'reference_movement_id', 'client_op_id', 'source_payload', 'role_permissions'];
+    $priorityKeys = ['name', 'full_name', 'username', 'product_id', 'material_id', 'raw_material_id', 'destination_branch_id', 'branch_id', 'dr_number', 'ledger_date', 'quantity', 'yield_qty', 'kilo_qty', 'egg_qty', 'flow_mode', 'status', 'role', 'reason', 'resulting_addtl'];
 
     $formatFieldLabel = static function (string $key) use ($fieldLabels): string {
         return $fieldLabels[$key] ?? ucwords(str_replace('_', ' ', $key));
+    };
+
+    $formatRolePermissions = static function ($value): string {
+        if (!is_array($value) || $value === []) {
+            return 'None';
+        }
+        $parts = [];
+        foreach ($value as $roleName => $caps) {
+            $label = ucwords(str_replace('_', ' ', (string)$roleName));
+            $capList = is_array($caps) && count($caps) > 0
+                ? implode(', ', array_map(static fn($c) => str_replace('.', ': ', (string)$c), $caps))
+                : 'no permissions';
+            $parts[] = $label . ' — ' . $capList;
+        }
+        return implode('; ', $parts);
     };
 
     $formatValue = static function (string $key, $value) use ($productLookup, $materialLookup, $branchLookup): string {
@@ -3148,7 +4386,23 @@ function handleAdminActivity(array $params = []): void
         if ($key === 'is_active') {
             return (int)$value === 1 ? 'Yes' : 'No';
         }
-        if (in_array($key, ['role', 'flow_mode', 'status', 'primary_input_type'], true)) {
+        if ($key === 'provenance_status') {
+            return match (trim((string)$value)) {
+                'paper_dr_pending' => 'Needs Check',
+                'accepted' => 'Verified',
+                'discrepant' => 'Discrepancy',
+                default => trim((string)$value) === '' ? 'None' : ucwords(str_replace('_', ' ', trim((string)$value))),
+            };
+        }
+        if ($key === 'review_action') {
+            return match (trim((string)$value)) {
+                'accepted' => 'Verified',
+                'discrepant' => 'Flagged Discrepancy',
+                'reopen' => 'Reopened Check',
+                default => trim((string)$value) === '' ? 'None' : ucwords(str_replace('_', ' ', trim((string)$value))),
+            };
+        }
+        if (in_array($key, ['role', 'flow_mode', 'status', 'primary_input_type', 'reviewed_by_role'], true)) {
             $text = trim((string)$value);
             return $text === '' ? 'None' : ucwords(str_replace('_', ' ', $text));
         }
@@ -3206,9 +4460,21 @@ function handleAdminActivity(array $params = []): void
         return '';
     };
 
-    $buildDetailItems = static function (array $payload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue): array {
+    $buildDetailItems = static function (array $payload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue, $formatRolePermissions): array {
         $items = [];
         $seen = [];
+
+        // Expand role_permissions into per-role detail rows before the generic loop
+        if (isset($payload['role_permissions']) && is_array($payload['role_permissions'])) {
+            foreach ($payload['role_permissions'] as $roleName => $caps) {
+                $label = ucwords(str_replace('_', ' ', (string)$roleName));
+                $capList = is_array($caps) && count($caps) > 0
+                    ? implode(', ', array_map(static fn($c) => str_replace('.', ': ', (string)$c), $caps))
+                    : 'no permissions';
+                $items[] = ['label' => $label, 'value' => $capList];
+            }
+            $seen['role_permissions'] = true;
+        }
 
         foreach ($priorityKeys as $key) {
             if (!array_key_exists($key, $payload) || in_array($key, $skipKeys, true)) {
@@ -3236,7 +4502,7 @@ function handleAdminActivity(array $params = []): void
         return array_slice($items, 0, 8);
     };
 
-    $buildChangeItems = static function (array $oldPayload, array $newPayload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue): array {
+    $buildChangeItems = static function (array $oldPayload, array $newPayload) use ($priorityKeys, $skipKeys, $formatFieldLabel, $formatValue, $formatRolePermissions): array {
         if ($oldPayload === []) {
             return [];
         }
@@ -3256,6 +4522,18 @@ function handleAdminActivity(array $params = []): void
         $items = [];
         foreach ($keys as $key) {
             if (in_array($key, $skipKeys, true)) {
+                // role_permissions skipped from generic loop — handle separately so from/to is readable
+                if ($key === 'role_permissions') {
+                    $oldEncoded = json_encode($oldPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    $newEncoded = json_encode($newPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    if ($oldEncoded !== $newEncoded) {
+                        $items[] = [
+                            'label' => 'Role Permissions',
+                            'from' => array_key_exists($key, $oldPayload) ? $formatRolePermissions($oldPayload[$key]) : 'None',
+                            'to'   => array_key_exists($key, $newPayload) ? $formatRolePermissions($newPayload[$key]) : 'None',
+                        ];
+                    }
+                }
                 continue;
             }
             $oldEncoded = json_encode($oldPayload[$key] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -3277,6 +4555,8 @@ function handleAdminActivity(array $params = []): void
         'product' => 'product',
         'user' => 'user',
         'branch' => 'branch',
+        'dl_deliveries' => 'delivery',
+        'dl_branch_receivings' => 'receiving',
         'dl_production_movements' => 'production movement',
         'dl_production_runs' => 'production run',
         'dl_commissary_ledger' => 'commissary material',
@@ -3340,6 +4620,48 @@ function handleAdminActivity(array $params = []): void
                 $summary = 'Saved commissary material count';
                 $badgeLabel = 'Material';
                 $badgeClasses = 'bg-sky-50 text-sky-800 ring-sky-200';
+                break;
+            case 'create_delivery':
+            case 'delivery_created':
+                $summary = 'Created delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'update_delivery':
+                $summary = 'Updated delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+                break;
+            case 'delivery_posted':
+                $summary = 'Posted delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'delivery_voided':
+                $summary = 'Voided delivery';
+                $badgeLabel = 'Delivery';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'create_receiving':
+            case 'receiving_created':
+                $summary = 'Created receiving';
+                $badgeLabel = 'Receiving';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'receiving_posted':
+                $summary = 'Posted receiving';
+                $badgeLabel = 'Receiving';
+                $badgeClasses = 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+                break;
+            case 'receiving_voided':
+                $summary = 'Voided receiving';
+                $badgeLabel = 'Receiving';
+                $badgeClasses = 'bg-rose-50 text-rose-800 ring-rose-200';
+                break;
+            case 'review_delivery_provenance':
+                $summary = 'Updated paper DR check';
+                $badgeLabel = 'Paper DR';
+                $badgeClasses = 'bg-indigo-50 text-indigo-800 ring-indigo-200';
                 break;
             case 'variance_status':
                 $summary = 'Updated variance status';
@@ -3473,6 +4795,7 @@ function handleAdminActivity(array $params = []): void
                 (string)$row['action'],
                 (string)($row['branch_name'] ?? ''),
                 (string)$row['created_at'],
+                (string)($newPayload['dr_number'] ?? ''),
                 (string)($newPayload['ledger_date'] ?? ''),
             ]);
 
@@ -3485,6 +4808,7 @@ function handleAdminActivity(array $params = []): void
                 $summaryPayload = [
                     'ledger_date' => $newPayload['ledger_date'] ?? null,
                     'destination_branch_id' => $newPayload['destination_branch_id'] ?? null,
+                    'dr_number' => $newPayload['dr_number'] ?? null,
                     'flow_mode' => $newPayload['flow_mode'] ?? null,
                     'quantity' => 0,
                     'products' => 0,
@@ -3544,6 +4868,7 @@ function handleAdminActivity(array $params = []): void
         'action_filter_options' => $actionFilterOptions,
         'branches' => $branches,
         'search' => $search,
+        'dr_number' => $drNumber,
     ]);
 }
 
@@ -3715,21 +5040,7 @@ function apiCreateProduct(array $params = []): void
     }
 
     $sku = dl_generateSku();
-    $userId = 0;
-    if (isset($user['id']) && is_numeric($user['id'])) {
-        $userId = (int)$user['id'];
-        if ($userId <= 0) {
-            $userId = 0;
-        }
-    }
-    if ($userId <= 0) {
-        $sub = (string)($user['sub'] ?? '');
-        if ($sub !== '' && preg_match('/^(?:admin|supervisor|cashier):(\d+)$/', $sub, $m)) {
-            $userId = (int)$m[1];
-        } elseif (is_numeric($sub)) {
-            $userId = (int)$sub;
-        }
-    }
+    $userId = dl_getActorUserId($user);
 
     // dl_product_price_history.changed_by has an FK to kernel users.id.
     // Daily-ledger JWTs intentionally use id=0; use NULL when we don't have a kernel actor id.
@@ -3751,11 +5062,17 @@ function apiCreateProduct(array $params = []): void
         )->execute([':pid' => $productId, ':price' => $price, ':uid' => $kernelActorUserId]);
 
         // Assign to all active branches by default
-        $brStmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1');
-        foreach ($brStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $br) {
+        $branches = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($branches !== []) {
+            $values = [];
+            $params = [':pid' => $productId];
+            foreach ($branches as $index => $br) {
+                $values[] = "(:bid_{$index}, :pid)";
+                $params[":bid_{$index}"] = (int)$br['id'];
+            }
             $ctx->db()->prepare(
-                'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES (:bid, :pid)'
-            )->execute([':bid' => (int)$br['id'], ':pid' => $productId]);
+                'INSERT IGNORE INTO dl_branch_products (branch_id, product_id) VALUES ' . implode(', ', $values)
+            )->execute($params);
         }
 
         dl_auditLog('create_product', null, 'product', (string)$productId, null, [
@@ -3905,12 +5222,23 @@ function handleAdminBranches(array $params = []): void
     $user = dlCurrentUser(['admin']);
     $input = $ctx->input();
     $search = trim((string)($input['q'] ?? ''));
+    $selectedPriceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== ''
+        ? (int)$input['price_group_id'] : 0;
 
-    $sql = 'SELECT b.*,
+    $sql = 'SELECT b.*, pg.name AS price_group_name,
+                ac.code AS assigned_commissary_code,
+                ac.name AS assigned_commissary_name,
                 (SELECT COUNT(*) FROM dl_user_branches ub INNER JOIN dl_users u ON u.id = ub.user_id WHERE ub.branch_id = b.id AND u.role = \'cashier\' AND u.is_active = 1 AND u.deleted_at IS NULL) AS user_count,
                 (SELECT COUNT(*) FROM dl_branch_products bp WHERE bp.branch_id = b.id AND bp.is_active = 1) AS product_count
-            FROM dl_branches b WHERE 1=1';
+            FROM dl_branches b
+            LEFT JOIN dl_price_groups pg ON pg.id = b.price_group_id
+            LEFT JOIN dl_branches ac ON ac.id = b.assigned_commissary_id
+            WHERE 1=1';
     $bind = [];
+    if ($selectedPriceGroupId > 0) {
+        $sql .= ' AND b.price_group_id = :price_group_id';
+        $bind[':price_group_id'] = $selectedPriceGroupId;
+    }
     if ($search !== '') {
         $sql .= ' AND (b.name LIKE :q OR b.code LIKE :q2 OR b.address LIKE :q3)';
         $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%"; $bind[':q3'] = "%{$search}%";
@@ -3919,6 +5247,19 @@ function handleAdminBranches(array $params = []): void
     $stmt = $ctx->db()->prepare($sql);
     $stmt->execute($bind);
     $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Commissary candidates for the supply-mode picker (any active branch flagged as commissary).
+    $commStmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name');
+    $commissaries = $commStmt ? ($commStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    $priceGroupsStmt = $ctx->db()->query('SELECT id, name, type, is_default FROM dl_price_groups WHERE is_active = 1 ORDER BY is_default DESC, name');
+    $priceGroups = $priceGroupsStmt ? ($priceGroupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    $selectedPriceGroupName = null;
+    foreach ($priceGroups as $priceGroup) {
+        if ((int)($priceGroup['id'] ?? 0) === $selectedPriceGroupId) {
+            $selectedPriceGroupName = (string)($priceGroup['name'] ?? '');
+            break;
+        }
+    }
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -3930,7 +5271,11 @@ function handleAdminBranches(array $params = []): void
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'branches' => $branches,
+        'commissaries' => $commissaries,
+        'price_groups' => $priceGroups,
         'search' => $search,
+        'selected_price_group_id' => $selectedPriceGroupId,
+        'selected_price_group_name' => $selectedPriceGroupName,
     ]);
 }
 
@@ -3950,6 +5295,15 @@ function apiCreateBranch(array $params = []): void
     $name    = trim((string)($input['name'] ?? ''));
     $address = trim((string)($input['address'] ?? ''));
     $area    = trim((string)($input['area'] ?? ''));
+    $supplyMode = (string)($input['default_supply_mode'] ?? 'self_managed');
+    if (!in_array($supplyMode, ['commissary_supplied','self_managed','hybrid'], true)) {
+        $supplyMode = 'self_managed';
+    }
+    $assignedCommissaryId = isset($input['assigned_commissary_id']) && $input['assigned_commissary_id'] !== ''
+        ? (int)$input['assigned_commissary_id'] : null;
+    $priceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== ''
+        ? (int)$input['price_group_id'] : null;
+    $isCommissary = !empty($input['is_commissary']) ? 1 : 0;
 
     if ($code === '' || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Code and name are required', 'type' => 'error']]));
@@ -3957,10 +5311,27 @@ function apiCreateBranch(array $params = []): void
         return;
     }
 
+    if ($assignedCommissaryId !== null) {
+        $commStmt = $ctx->db()->prepare(
+            'SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1'
+        );
+        $commStmt->execute([':id' => $assignedCommissaryId]);
+        if (!$commStmt->fetchColumn()) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Assigned commissary must be an active branch marked as a commissary', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Assigned commissary must be an active branch marked as a commissary'], 422);
+            return;
+        }
+    }
+
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_branches (code, name, address, area) VALUES (:code, :name, :addr, :area)'
-        )->execute([':code' => $code, ':name' => $name, ':addr' => $address, ':area' => $area !== '' ? $area : null]);
+            'INSERT INTO dl_branches (code, name, address, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary)
+             VALUES (:code, :name, :addr, :area, :mode, :ac, :pg, :ic)'
+        )->execute([
+            ':code' => $code, ':name' => $name, ':addr' => $address,
+            ':area' => $area !== '' ? $area : null,
+            ':mode' => $supplyMode, ':ac' => $assignedCommissaryId, ':pg' => $priceGroupId, ':ic' => $isCommissary,
+        ]);
 
         $branchId = (int)$ctx->db()->lastInsertId();
 
@@ -3972,7 +5343,13 @@ function apiCreateBranch(array $params = []): void
             )->execute([':bid' => $branchId, ':pid' => (int)$p['id']]);
         }
 
-        dl_auditLog('create_branch', $branchId, 'branch', (string)$branchId, null, ['code' => $code, 'name' => $name, 'area' => $area]);
+        dl_auditLog('create_branch', $branchId, 'branch', (string)$branchId, null, [
+            'code' => $code, 'name' => $name, 'area' => $area,
+            'default_supply_mode' => $supplyMode,
+            'assigned_commissary_id' => $assignedCommissaryId,
+            'price_group_id' => $priceGroupId,
+            'is_commissary' => $isCommissary,
+        ]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch created', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'branch_id' => $branchId]);
@@ -3999,6 +5376,14 @@ function apiUpdateBranch(array $params = []): void
     $address  = trim((string)($input['address'] ?? ''));
     $area     = trim((string)($input['area'] ?? ''));
     $isActive = (int)($input['is_active'] ?? 1);
+    $supplyMode = (string)($input['default_supply_mode'] ?? '');
+    $assignedCommissaryId = isset($input['assigned_commissary_id']) && $input['assigned_commissary_id'] !== ''
+        ? (int)$input['assigned_commissary_id'] : null;
+    $priceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== ''
+        ? (int)$input['price_group_id'] : null;
+    $isCommissary = array_key_exists('is_commissary', $input)
+        ? (!empty($input['is_commissary']) ? 1 : 0)
+        : null;
 
     if (!$branchId || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
@@ -4006,11 +5391,58 @@ function apiUpdateBranch(array $params = []): void
         return;
     }
 
-    try {
-        $ctx->db()->prepare(
-            'UPDATE dl_branches SET name = :name, address = :addr, area = :area, is_active = :active WHERE id = :id'
-        )->execute([':name' => $name, ':addr' => $address, ':area' => $area !== '' ? $area : null, ':active' => $isActive, ':id' => $branchId]);
+    if ($assignedCommissaryId !== null && $assignedCommissaryId === $branchId) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'A branch cannot be assigned to itself as a commissary', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'A branch cannot be assigned to itself as a commissary'], 422);
+        return;
+    }
 
+    if ($assignedCommissaryId !== null) {
+        $commStmt = $ctx->db()->prepare(
+            'SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1'
+        );
+        $commStmt->execute([':id' => $assignedCommissaryId]);
+        if (!$commStmt->fetchColumn()) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Assigned commissary must be an active branch marked as a commissary', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Assigned commissary must be an active branch marked as a commissary'], 422);
+            return;
+        }
+    }
+
+    try {
+        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary FROM dl_branches WHERE id = :id');
+        $beforeStmt->execute([':id' => $branchId]);
+        $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $sets = ['name = :name', 'address = :addr', 'area = :area', 'is_active = :active'];
+        $bind = [':name' => $name, ':addr' => $address, ':area' => $area !== '' ? $area : null, ':active' => $isActive, ':id' => $branchId];
+        if (in_array($supplyMode, ['commissary_supplied','self_managed','hybrid'], true)) {
+            $sets[] = 'default_supply_mode = :mode';
+            $bind[':mode'] = $supplyMode;
+        }
+        if ($assignedCommissaryId !== null || array_key_exists('assigned_commissary_id', $input)) {
+            $sets[] = 'assigned_commissary_id = :ac';
+            $bind[':ac'] = $assignedCommissaryId;
+        }
+        if ($priceGroupId !== null || array_key_exists('price_group_id', $input)) {
+            $sets[] = 'price_group_id = :pg';
+            $bind[':pg'] = $priceGroupId;
+        }
+        if ($isCommissary !== null) {
+            $sets[] = 'is_commissary = :ic';
+            $bind[':ic'] = $isCommissary;
+        }
+        $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
+
+        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary FROM dl_branches WHERE id = :id');
+        $afterStmt->execute([':id' => $branchId]);
+        $after = $afterStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        if (($before['default_supply_mode'] ?? null) !== ($after['default_supply_mode'] ?? null)
+            || ($before['assigned_commissary_id'] ?? null) !== ($after['assigned_commissary_id'] ?? null)
+            || ($before['price_group_id'] ?? null) !== ($after['price_group_id'] ?? null)) {
+            dl_auditLog('branch_supply_mode_changed', $branchId, 'dl_branches', (string)$branchId, $before, $after);
+        }
         dl_auditLog('update_branch', $branchId, 'branch', (string)$branchId);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch updated', 'type' => 'success']]));
@@ -4691,26 +6123,8 @@ function apiProductsImportCsv(): void
 // Daily Ledger — Commissary / Production Runs
 // ─────────────────────────────────────────────────────────────────────────
 
-function handleAdminCommissary(): void
+function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, array $user, string $rawDate, int $requestedBranchId = 0): array
 {
-    $ctx = module();
-    if (!$ctx) {
-        http_response_code(500);
-        return;
-    }
-
-    $user = dlCurrentUser(['admin', 'supervisor']);
-    $db = $ctx->db();
-
-    $input = $ctx->input();
-    $rawDate = (string)($input['date'] ?? '');
-    if ($rawDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
-        $rawDate = date('Y-m-d');
-    }
-
-    $requestedBranchId = (int)($input['branch_id'] ?? 0);
-
-    // Load available products for the dropdown
     $productsStmt = $db->query("SELECT id, name, product_category, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label FROM dl_products ORDER BY product_category ASC, sort_order ASC, name ASC");
     $products = $productsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -4747,8 +6161,26 @@ function handleAdminCommissary(): void
         );
         $defaultBranchStmt->execute([':date' => $rawDate]);
         $defaultBranchId = (int)($defaultBranchStmt->fetchColumn() ?: 0);
+        $paperBranchId = 0;
+        if ($defaultBranchId <= 0 || !in_array($defaultBranchId, $availableBranchIds, true)) {
+            $paperDefaultStmt = $db->prepare(
+                "SELECT destination_id
+                 FROM dl_deliveries
+                 WHERE delivery_date = :date
+                   AND origin_type = 'commissary'
+                   AND destination_type = 'branch'
+                   AND remarks = :remarks
+                   AND status <> 'voided'
+                 ORDER BY id ASC
+                 LIMIT 1"
+            );
+            $paperDefaultStmt->execute([':date' => $rawDate, ':remarks' => dl_paperDrCaptureRemark()]);
+            $paperBranchId = (int)($paperDefaultStmt->fetchColumn() ?: 0);
+        }
         if ($defaultBranchId > 0 && in_array($defaultBranchId, $availableBranchIds, true)) {
             $selectedBranchId = $defaultBranchId;
+        } elseif ($paperBranchId > 0 && in_array($paperBranchId, $availableBranchIds, true)) {
+            $selectedBranchId = $paperBranchId;
         } elseif ($availableBranchIds !== []) {
             $selectedBranchId = $availableBranchIds[0];
         }
@@ -4773,6 +6205,44 @@ function handleAdminCommissary(): void
         $runsStmt->execute([':date' => $rawDate]);
     }
     $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $paperCaptureItems = [];
+    if ($selectedBranchId > 0) {
+        $paperStmt = $db->prepare(
+            "SELECT d.id AS delivery_id, d.dr_number, d.delivery_date, d.created_at,
+                    di.product_id, di.quantity,
+                    COALESCE(u.username, '') AS created_by_name
+             FROM dl_deliveries d
+             INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+             LEFT JOIN dl_users u ON u.id = d.created_by
+             WHERE d.delivery_date = :date
+               AND d.origin_type = 'commissary'
+               AND d.destination_type = 'branch'
+               AND d.destination_id = :branch
+               AND d.remarks = :remarks
+               AND d.status <> 'voided'
+             ORDER BY d.id DESC, di.id ASC"
+        );
+        $paperStmt->execute([
+            ':date' => $rawDate,
+            ':branch' => $selectedBranchId,
+            ':remarks' => dl_paperDrCaptureRemark(),
+        ]);
+        $paperCaptureItems = $paperStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $paperCaptureMap = [];
+    $paperDrNumber = '';
+    foreach ($paperCaptureItems as $paperItem) {
+        $productId = (int)($paperItem['product_id'] ?? 0);
+        $quantity = (int)($paperItem['quantity'] ?? 0);
+        if ($productId > 0 && $quantity > 0) {
+            $paperCaptureMap[$productId] = ($paperCaptureMap[$productId] ?? 0) + $quantity;
+        }
+        if ($paperDrNumber === '' && trim((string)($paperItem['dr_number'] ?? '')) !== '') {
+            $paperDrNumber = trim((string)$paperItem['dr_number']);
+        }
+    }
 
     // Map selected-branch runs by product_id so we can associate them 1:1 on the spreadsheet
     $runMap = [];
@@ -4835,11 +6305,17 @@ function handleAdminCommissary(): void
     }
     $globalBaker = '';
     $globalBranch = $selectedBranchId;
+    $globalDrNumber = '';
     foreach ($runs as $r) {
         if ($r['baker_name'] !== '') {
             $globalBaker = (string)$r['baker_name'];
-            break;
         }
+        if ($globalDrNumber === '' && trim((string)($r['dr_number'] ?? '')) !== '') {
+            $globalDrNumber = trim((string)$r['dr_number']);
+        }
+    }
+    if ($globalDrNumber === '' && $paperDrNumber !== '') {
+        $globalDrNumber = $paperDrNumber;
     }
 
     // Load net production output movements for the date (scoped to accessible branches).
@@ -4871,25 +6347,248 @@ function handleAdminCommissary(): void
         }
     }
 
-    echo dlRender('modules/daily-ledger/admin/commissary.disyl', [
-        'page_title'        => 'Commissary',
+    $paperPrefillStmt = null;
+    if (count($accessibleBranchIds) > 0) {
+        $paperPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+        $paperPrefillStmt = $db->prepare(
+            "SELECT d.destination_id AS branch_id, di.product_id, SUM(di.quantity) AS net_qty
+             FROM dl_deliveries d
+             INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+             WHERE d.delivery_date = ?
+               AND d.origin_type = 'commissary'
+               AND d.destination_type = 'branch'
+               AND d.destination_id IN ({$paperPlaceholders})
+               AND d.remarks = ?
+               AND d.status <> 'voided'
+             GROUP BY d.destination_id, di.product_id
+             HAVING net_qty > 0"
+        );
+        $paperPrefillStmt->execute(array_merge([$rawDate], $accessibleBranchIds, [dl_paperDrCaptureRemark()]));
+        foreach ($paperPrefillStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $bid = (int)$row['branch_id'];
+            $pid = (int)$row['product_id'];
+            if (!isset($outputByBranch[$bid])) {
+                $outputByBranch[$bid] = [];
+            }
+            $existingQty = (int)($outputByBranch[$bid][$pid] ?? 0);
+            $paperQty = (int)$row['net_qty'];
+            if ($paperQty > $existingQty) {
+                $outputByBranch[$bid][$pid] = $paperQty;
+            }
+        }
+    }
+
+    return [
+        'date' => $rawDate,
+        'products' => $products,
+        'branches' => $branches,
         'global_baker_name' => $globalBaker,
-        'global_branch_id'  => $globalBranch,
-        'branches'          => $branches,
+        'global_branch_id' => $globalBranch,
+        'global_dr_number' => $globalDrNumber,
+        'product_rows_bread' => $productRowsBread,
+        'product_rows_cake' => $productRowsCake,
+        'materials' => $commissaryRows,
+        'output_by_branch' => $outputByBranch,
+        'paper_capture_product_map' => $paperCaptureMap,
+        'paper_capture_dr_number' => $paperDrNumber,
+    ];
+}
+
+function handleAdminUsage(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $input = $ctx->input();
+    $rawDate = (string)($input['date'] ?? '');
+    if ($rawDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
+        $rawDate = date('Y-m-d');
+    }
+    $requestedBranchId = (int)($input['branch_id'] ?? 0);
+
+    $pageData = dl_buildUsagePageData($ctx->db(), $user, $rawDate, $requestedBranchId);
+
+    echo dlRender('modules/daily-ledger/admin/usage.disyl', [
+        'page_title' => 'Usage',
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),
-        'current_page'=> 'commissary',
-        'user'        => $user,
-        'user_name'   => $user['full_name'] ?? $user['username'] ?? 'User',
-        'user_role'   => $user['role'] ?? 'unknown',
-        'date'        => $rawDate,
-        'products'    => $products,
-        'product_rows_bread'=> $productRowsBread,
-        'product_rows_cake' => $productRowsCake,
-        'materials'   => $commissaryRows,
-        'output_by_branch' => $outputByBranch,
-    ]);}
+        'current_page' => 'usage',
+        'user' => $user,
+        'user_name' => $user['full_name'] ?? $user['username'] ?? 'User',
+        'user_role' => $user['role'] ?? 'unknown',
+    ] + $pageData);
+}
+
+function handleAdminCommissary(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor']);
+    $db = $ctx->db();
+    $input = $ctx->input();
+    $rawDate = (string)($input['date'] ?? '');
+    if ($rawDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate)) {
+        $rawDate = date('Y-m-d');
+    }
+
+    $requestedBranchId = (int)($input['branch_id'] ?? 0);
+    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $availableBranchIds = array_map('intval', array_column($branches, 'id'));
+    $selectedBranchId = $requestedBranchId > 0 && in_array($requestedBranchId, $availableBranchIds, true)
+        ? $requestedBranchId
+        : 0;
+
+    $yieldSql = "SELECT pr.id, pr.ledger_date, pr.product_id, p.name AS product_name,
+                        pr.destination_branch_id, COALESCE(b.name, 'Commissary Stock') AS branch_name,
+                        pr.baker_name, pr.dr_number, pr.yield_qty
+                 FROM dl_production_runs pr
+                 INNER JOIN dl_products p ON p.id = pr.product_id
+                 LEFT JOIN dl_branches b ON b.id = pr.destination_branch_id
+                 WHERE pr.ledger_date = :date
+                   AND pr.destination_branch_id IS NOT NULL
+                   AND pr.yield_qty > 0";
+    $yieldBind = [':date' => $rawDate];
+    if ($selectedBranchId > 0) {
+        $yieldSql .= ' AND pr.destination_branch_id = :branch';
+        $yieldBind[':branch'] = $selectedBranchId;
+    }
+    $yieldSql .= ' ORDER BY branch_name ASC, product_name ASC, pr.id DESC';
+    $yieldStmt = $db->prepare($yieldSql);
+    $yieldStmt->execute($yieldBind);
+    $branchYieldRows = $yieldStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $directDispatchSql = "SELECT pm.id, pm.ledger_date AS movement_date, pm.destination_branch_id AS branch_id,
+                                 b.name AS branch_name, pm.product_id, p.name AS product_name,
+                                 pm.dr_number, pm.quantity, 'direct-output' AS source_type,
+                                 'Direct Output' AS source_label
+                          FROM dl_production_movements pm
+                          INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
+                          INNER JOIN dl_products p ON p.id = pm.product_id
+                          WHERE pm.ledger_date = :date
+                            AND pm.movement_type = 'output'
+                            AND pm.flow_mode = 'commissary'
+                            AND NOT EXISTS (
+                                SELECT 1 FROM dl_production_movements r
+                                WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
+                            )";
+    $dispatchBind = [':date' => $rawDate];
+    if ($selectedBranchId > 0) {
+        $directDispatchSql .= ' AND pm.destination_branch_id = :branch';
+        $dispatchBind[':branch'] = $selectedBranchId;
+    }
+    $directDispatchSql .= ' ORDER BY branch_name ASC, product_name ASC, pm.id DESC';
+    $directDispatchStmt = $db->prepare($directDispatchSql);
+    $directDispatchStmt->execute($dispatchBind);
+    $deliveryRows = $directDispatchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $formalSql = "SELECT d.id, d.delivery_date AS movement_date, d.destination_id AS branch_id,
+                         b.name AS branch_name, di.product_id, p.name AS product_name,
+                         d.dr_number, di.quantity, 'formal-delivery' AS source_type,
+                         CONCAT('Formal Delivery (', d.status, ')') AS source_label
+                  FROM dl_deliveries d
+                  INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                  INNER JOIN dl_branches b ON b.id = d.destination_id
+                  INNER JOIN dl_products p ON p.id = di.product_id
+                  WHERE d.origin_type = 'commissary'
+                    AND d.destination_type = 'branch'
+                    AND d.status <> 'voided'
+                    AND d.delivery_date = :date";
+    $formalBind = [':date' => $rawDate];
+    if ($selectedBranchId > 0) {
+        $formalSql .= ' AND d.destination_id = :branch';
+        $formalBind[':branch'] = $selectedBranchId;
+    }
+    $formalSql .= ' ORDER BY branch_name ASC, product_name ASC, d.id DESC';
+    $formalStmt = $db->prepare($formalSql);
+    $formalStmt->execute($formalBind);
+    $deliveryRows = array_merge($deliveryRows, $formalStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    usort($deliveryRows, static function (array $left, array $right): int {
+        $dateCmp = strcmp((string)($right['movement_date'] ?? ''), (string)($left['movement_date'] ?? ''));
+        if ($dateCmp !== 0) {
+            return $dateCmp;
+        }
+        $branchCmp = strcmp((string)($left['branch_name'] ?? ''), (string)($right['branch_name'] ?? ''));
+        if ($branchCmp !== 0) {
+            return $branchCmp;
+        }
+        return strcmp((string)($left['product_name'] ?? ''), (string)($right['product_name'] ?? ''));
+    });
+
+    $balanceStmt = $db->prepare(
+        "SELECT p.id AS product_id,
+                p.name AS product_name,
+                COALESCE(prod.produced_qty, 0) AS produced_qty,
+                COALESCE(dispatch.dispatched_qty, 0) AS dispatched_qty,
+                COALESCE(prod.produced_qty, 0) - COALESCE(dispatch.dispatched_qty, 0) AS remaining_qty
+         FROM dl_products p
+         LEFT JOIN (
+             SELECT pr.product_id, SUM(pr.yield_qty) AS produced_qty
+             FROM dl_production_runs pr
+             WHERE pr.destination_branch_id IS NULL
+               AND pr.ledger_date <= :as_of_date
+             GROUP BY pr.product_id
+         ) AS prod ON prod.product_id = p.id
+         LEFT JOIN (
+             SELECT di.product_id, SUM(di.quantity) AS dispatched_qty
+             FROM dl_deliveries d
+             INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+             WHERE d.origin_type = 'commissary'
+                             AND d.status = 'posted'
+               AND d.delivery_date <= :as_of_dispatch_date
+             GROUP BY di.product_id
+         ) AS dispatch ON dispatch.product_id = p.id
+         WHERE COALESCE(prod.produced_qty, 0) > 0 OR COALESCE(dispatch.dispatched_qty, 0) > 0
+         ORDER BY p.name ASC"
+    );
+    $balanceStmt->execute([
+        ':as_of_date' => $rawDate,
+        ':as_of_dispatch_date' => $rawDate,
+    ]);
+    $stockRows = $balanceStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $summary = [
+        'branch_yield_total' => 0,
+        'branch_dispatch_total' => 0,
+        'commissary_remaining_total' => 0,
+    ];
+    foreach ($branchYieldRows as $row) {
+        $summary['branch_yield_total'] += (int)($row['yield_qty'] ?? 0);
+    }
+    foreach ($deliveryRows as $row) {
+        $summary['branch_dispatch_total'] += (int)($row['quantity'] ?? 0);
+    }
+    foreach ($stockRows as $row) {
+        $summary['commissary_remaining_total'] += (int)($row['remaining_qty'] ?? 0);
+    }
+
+    echo dlRender('modules/daily-ledger/admin/commissary.disyl', [
+        'page_title' => 'Commissary',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'csrf_token' => app()->csrfToken(),
+        'current_page' => 'commissary',
+        'user' => $user,
+        'user_name' => $user['full_name'] ?? $user['username'] ?? 'User',
+        'user_role' => $user['role'] ?? 'unknown',
+        'date' => $rawDate,
+        'branches' => $branches,
+        'branch_id' => $selectedBranchId,
+        'branch_yield_rows' => $branchYieldRows,
+        'delivery_rows' => $deliveryRows,
+        'stock_rows' => $stockRows,
+        'summary' => $summary,
+    ]);
+}
 
 function apiSaveProductionRun(): void
 {
@@ -4919,6 +6618,10 @@ function apiSaveProductionRun(): void
     }
     $yieldQty      = (int)($input['yield_qty'] ?? 0);
     $destBranchId  = (int)($input['destination_branch_id'] ?? 0);
+    $drNumber      = trim((string)($input['dr_number'] ?? ''));
+    if ($drNumber !== '') {
+        $drNumber = substr($drNumber, 0, 120);
+    }
 
     if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $productId <= 0) {
         $ctx->json(['ok' => false, 'error' => 'Missing or invalid date or product'], 400);
@@ -4932,7 +6635,7 @@ function apiSaveProductionRun(): void
 
         if ($destBranchId > 0) {
             $stmt = $db->prepare(
-                "SELECT id, commissary_movement_id
+                "SELECT id, commissary_movement_id, destination_branch_id, dr_number
                  FROM dl_production_runs
                  WHERE ledger_date = :d AND product_id = :p AND destination_branch_id = :dest
                  LIMIT 1"
@@ -4940,7 +6643,7 @@ function apiSaveProductionRun(): void
             $stmt->execute([':d' => $date, ':p' => $productId, ':dest' => $destBranchId]);
         } else {
             $stmt = $db->prepare(
-                "SELECT id, commissary_movement_id
+                "SELECT id, commissary_movement_id, destination_branch_id, dr_number
                  FROM dl_production_runs
                  WHERE ledger_date = :d AND product_id = :p AND destination_branch_id IS NULL
                  LIMIT 1"
@@ -4948,6 +6651,13 @@ function apiSaveProductionRun(): void
             $stmt->execute([':d' => $date, ':p' => $productId]);
         }
         $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+        $previousDestBranchId = $existing ? (int)($existing['destination_branch_id'] ?? 0) : 0;
+        $previousDrNumber = $existing ? trim((string)($existing['dr_number'] ?? '')) : '';
+        $formalDeliveryEnabled = dl_isFormalDeliveryEnabled();
+
+        if ($formalDeliveryEnabled && $destBranchId > 0 && $yieldQty > 0 && $drNumber === '') {
+            throw new RuntimeException('Delivery Receipt number is required for branch-directed commissary output.');
+        }
 
         if ($bakerName === '' && $yieldQty <= 0 && $inputQty <= 0) {
             if ($existing) {
@@ -4956,7 +6666,7 @@ function apiSaveProductionRun(): void
         } elseif ($existing) {
             $stmt = $db->prepare(
                 "UPDATE dl_production_runs
-                 SET baker_name = :baker, primary_input_qty = :iqty, primary_input_type = :itype, yield_qty = :yqty, destination_branch_id = :dest, recorded_by = :actor
+                 SET baker_name = :baker, primary_input_qty = :iqty, primary_input_type = :itype, yield_qty = :yqty, dr_number = :dr, destination_branch_id = :dest, recorded_by = :actor
                  WHERE id = :id"
             );
             $stmt->execute([
@@ -4964,14 +6674,15 @@ function apiSaveProductionRun(): void
                 ':iqty'  => $inputQty,
                 ':itype' => $inputType,
                 ':yqty'  => $yieldQty,
+                ':dr'    => $drNumber !== '' ? $drNumber : null,
                 ':dest'  => $destBranchId > 0 ? $destBranchId : null,
                 ':actor' => $actorId > 0 ? $actorId : null,
                 ':id'    => $existing['id'],
             ]);
         } else {
             $stmt = $db->prepare(
-                "INSERT INTO dl_production_runs (ledger_date, product_id, baker_name, run_type, primary_input_qty, primary_input_type, yield_qty, destination_branch_id, recorded_by)
-                 VALUES (:date, :pid, :baker, :type, :iqty, :itype, :yqty, :dest, :actor)"
+                "INSERT INTO dl_production_runs (ledger_date, product_id, baker_name, run_type, primary_input_qty, primary_input_type, yield_qty, dr_number, destination_branch_id, recorded_by)
+                 VALUES (:date, :pid, :baker, :type, :iqty, :itype, :yqty, :dr, :dest, :actor)"
             );
             $stmt->execute([
                 ':date'  => $date,
@@ -4981,6 +6692,7 @@ function apiSaveProductionRun(): void
                 ':iqty'  => $inputQty,
                 ':itype' => $inputType,
                 ':yqty'  => $yieldQty,
+                ':dr'    => $drNumber !== '' ? $drNumber : null,
                 ':dest'  => $destBranchId > 0 ? $destBranchId : null,
                 ':actor' => $actorId > 0 ? $actorId : null,
             ]);
@@ -5017,7 +6729,7 @@ function apiSaveProductionRun(): void
 
             if (!$alreadyReversed) {
                 $priorMoveStmt = $db->prepare(
-                    'SELECT destination_branch_id, quantity, ledger_date FROM dl_production_movements WHERE id = :id LIMIT 1'
+                    'SELECT destination_branch_id, quantity, ledger_date, dr_number FROM dl_production_movements WHERE id = :id LIMIT 1'
                 );
                 $priorMoveStmt->execute([':id' => $priorBridgeId]);
                 $priorMove = $priorMoveStmt->fetch(PDO::FETCH_ASSOC);
@@ -5026,15 +6738,52 @@ function apiSaveProductionRun(): void
                     $priorBranch = (int)$priorMove['destination_branch_id'];
                     $priorQty    = (int)$priorMove['quantity'];
                     $priorDate   = (string)$priorMove['ledger_date'];
+                    $priorDrNumber = trim((string)($priorMove['dr_number'] ?? ''));
 
-                    $sameValues = !$isRunDeleted
+                    $sameQuantities = !$isRunDeleted
                         && $priorBranch === $destBranchId
                         && $priorQty    === $yieldQty
                         && $priorDate   === $date
                         && $destBranchId > 0
                         && $yieldQty    > 0;
 
-                    if (!$sameValues) {
+                    if ($formalDeliveryEnabled) {
+                        dl_applyLedgerDelta($priorBranch, $productId, $priorDate, -$priorQty, $actorId, 'addtl');
+
+                        $revUuid = dl_generateMovementUuid();
+                        $db->prepare(
+                            "INSERT INTO dl_production_movements
+                                (movement_uuid, movement_type, flow_mode,
+                                 destination_branch_id, product_id, ledger_date, quantity, dr_number,
+                                 override_reason, reference_movement_id, source_payload,
+                                 created_by_id, created_by_role)
+                             VALUES
+                                (:uuid, 'reverse', 'commissary',
+                                 :bid, :pid, :ldate, :qty, :dr,
+                                 'commissary-formal-delivery', :refid, :payload,
+                                 :uid, :role)"
+                        )->execute([
+                            ':uuid'    => $revUuid,
+                            ':bid'     => $priorBranch,
+                            ':pid'     => $productId,
+                            ':ldate'   => $priorDate,
+                            ':qty'     => $priorQty,
+                            ':dr'      => $priorDrNumber !== '' ? $priorDrNumber : null,
+                            ':refid'   => $priorBridgeId,
+                            ':payload' => json_encode(['commissary_bridge' => true, 'auto_reverse' => true, 'formal_delivery_enabled' => true], JSON_UNESCAPED_SLASHES),
+                            ':uid'     => $actorId > 0 ? $actorId : null,
+                            ':role'    => $role !== '' ? $role : 'unknown',
+                        ]);
+                    } elseif ($sameQuantities && $priorDrNumber !== $drNumber) {
+                        $db->prepare(
+                            'UPDATE dl_production_movements SET dr_number = :dr, source_payload = :payload WHERE id = :id'
+                        )->execute([
+                            ':dr' => $drNumber !== '' ? $drNumber : null,
+                            ':payload' => json_encode(['commissary_bridge' => true, 'dr_number' => $drNumber !== '' ? $drNumber : null], JSON_UNESCAPED_SLASHES),
+                            ':id' => $priorBridgeId,
+                        ]);
+                        $newBridgeId = $priorBridgeId;
+                    } elseif (!$sameQuantities) {
                         // Undo the prior ledger delta
                         dl_applyLedgerDelta($priorBranch, $productId, $priorDate, -$priorQty, $actorId, 'addtl');
 
@@ -5043,12 +6792,12 @@ function apiSaveProductionRun(): void
                         $db->prepare(
                             "INSERT INTO dl_production_movements
                                 (movement_uuid, movement_type, flow_mode,
-                                 destination_branch_id, product_id, ledger_date, quantity,
+                                 destination_branch_id, product_id, ledger_date, quantity, dr_number,
                                  override_reason, reference_movement_id, source_payload,
                                  created_by_id, created_by_role)
                              VALUES
                                 (:uuid, 'reverse', 'commissary',
-                                 :bid, :pid, :ldate, :qty,
+                                 :bid, :pid, :ldate, :qty, :dr,
                                  'commissary-bridge-update', :refid, :payload,
                                  :uid, :role)"
                         )->execute([
@@ -5057,8 +6806,9 @@ function apiSaveProductionRun(): void
                             ':pid'     => $productId,
                             ':ldate'   => $priorDate,
                             ':qty'     => $priorQty,
+                            ':dr'      => $priorDrNumber !== '' ? $priorDrNumber : null,
                             ':refid'   => $priorBridgeId,
-                            ':payload' => json_encode(['commissary_bridge' => true, 'auto_reverse' => true]),
+                            ':payload' => json_encode(['commissary_bridge' => true, 'auto_reverse' => true, 'dr_number' => $priorDrNumber !== '' ? $priorDrNumber : null], JSON_UNESCAPED_SLASHES),
                             ':uid'     => $actorId > 0 ? $actorId : null,
                             ':role'    => $role !== '' ? $role : 'unknown',
                         ]);
@@ -5072,18 +6822,18 @@ function apiSaveProductionRun(): void
         }
 
         // Create a new bridge movement when the run has a destination + yield
-        if ($newBridgeId === null && !$isRunDeleted && $destBranchId > 0 && $yieldQty > 0) {
+        if (!$formalDeliveryEnabled && $newBridgeId === null && !$isRunDeleted && $destBranchId > 0 && $yieldQty > 0) {
             dl_applyLedgerDelta($destBranchId, $productId, $date, $yieldQty, $actorId, 'addtl');
 
             $newMoveUuid = dl_generateMovementUuid();
             $db->prepare(
                 "INSERT INTO dl_production_movements
                     (movement_uuid, movement_type, flow_mode,
-                     destination_branch_id, product_id, ledger_date, quantity,
+                     destination_branch_id, product_id, ledger_date, quantity, dr_number,
                      source_payload, created_by_id, created_by_role)
                  VALUES
                     (:uuid, 'output', 'commissary',
-                     :bid, :pid, :ldate, :qty,
+                     :bid, :pid, :ldate, :qty, :dr,
                      :payload, :uid, :role)"
             )->execute([
                 ':uuid'    => $newMoveUuid,
@@ -5091,7 +6841,8 @@ function apiSaveProductionRun(): void
                 ':pid'     => $productId,
                 ':ldate'   => $date,
                 ':qty'     => $yieldQty,
-                ':payload' => json_encode(['commissary_bridge' => true]),
+                ':dr'      => $drNumber !== '' ? $drNumber : null,
+                ':payload' => json_encode(['commissary_bridge' => true, 'dr_number' => $drNumber !== '' ? $drNumber : null], JSON_UNESCAPED_SLASHES),
                 ':uid'     => $actorId > 0 ? $actorId : null,
                 ':role'    => $role !== '' ? $role : 'unknown',
             ]);
@@ -5099,6 +6850,21 @@ function apiSaveProductionRun(): void
         }
 
         // Persist the bridge movement id back onto the run (NULL when run deleted / keep-in-commissary)
+        if ($formalDeliveryEnabled) {
+            $syncKeys = [];
+            if ($previousDestBranchId > 0 && $previousDrNumber !== '') {
+                $syncKeys[] = $previousDestBranchId . '|' . $date . '|' . $previousDrNumber;
+            }
+            if (!$isRunDeleted && $destBranchId > 0 && $drNumber !== '') {
+                $syncKeys[] = $destBranchId . '|' . $date . '|' . $drNumber;
+            }
+            foreach (array_values(array_unique($syncKeys)) as $syncKey) {
+                [$syncBranchId, $syncDate, $syncDrNumber] = explode('|', $syncKey, 3);
+                dl_syncAutoCommissaryDeliveryFromRuns($db, $syncDate, (int)$syncBranchId, $syncDrNumber, $actorId);
+            }
+            $newBridgeId = null;
+        }
+
         if ($runId > 0 && !$isRunDeleted) {
             $db->prepare("UPDATE dl_production_runs SET commissary_movement_id = :mid WHERE id = :id")
                ->execute([':mid' => $newBridgeId, ':id' => $runId]);
@@ -5114,14 +6880,21 @@ function apiSaveProductionRun(): void
             'input_qty'   => $inputQty,
             'input_type'  => $inputType,
             'yield_qty'   => $yieldQty,
+            'dr_number'   => $drNumber,
             'dest_branch' => $destBranchId,
         ]);
 
         $ctx->json(['ok' => true]);
 
     } catch (Throwable $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         write_log("apiSaveProductionRun error: " . $e->getMessage(), 'error');
+        if ($e instanceof RuntimeException) {
+            $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+            return;
+        }
         $ctx->json(['ok' => false, 'error' => 'Database error executing transaction'], 500);
     }}
 
@@ -5141,9 +6914,20 @@ function apiSaveCommissaryMaterial(): void
     $materialId = (int)($input['material_id'] ?? 0);
     $field      = (string)($input['field'] ?? '');
     $val        = (float)($input['value'] ?? 0);
+    $fieldMap = [
+        'beg_bal' => 'beg_bal',
+        'delivery_qty' => 'delivery_qty',
+        'used_qty' => 'used_qty',
+        'actual_end_bal' => 'actual_end_bal',
+    ];
+    $column = dl_allowedColumn($field, $fieldMap);
 
-    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $materialId <= 0 || !in_array($field, ['beg_bal', 'delivery_qty', 'used_qty', 'actual_end_bal'], true)) {
+    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $materialId <= 0 || $column === null) {
         $ctx->json(['ok' => false, 'error' => 'Invalid data'], 400);
+        return;
+    }
+    if ($val < 0 || $val > 999999.999) {
+        $ctx->json(['ok' => false, 'error' => 'Value out of bounds'], 422);
         return;
     }
 
@@ -5151,9 +6935,9 @@ function apiSaveCommissaryMaterial(): void
 
     try {
         $stmt = $db->prepare(
-            "INSERT INTO dl_commissary_ledger (ledger_date, raw_material_id, $field, recorded_by)
+            "INSERT INTO dl_commissary_ledger (ledger_date, raw_material_id, {$column}, recorded_by)
              VALUES (:date, :mid, :val, :actor)
-             ON DUPLICATE KEY UPDATE $field = :val, recorded_by = :actor"
+             ON DUPLICATE KEY UPDATE {$column} = :val, recorded_by = :actor"
         );
         $stmt->execute([
             ':date' => $date,
@@ -5162,6 +6946,16 @@ function apiSaveCommissaryMaterial(): void
             ':actor'=> $actorId > 0 ? $actorId : null,
         ]);
 
+        // Read back the full row so the UI can update variance inline (no page reload needed)
+        $rowStmt = $db->prepare(
+            "SELECT beg_bal, delivery_qty, used_qty, actual_end_bal, calc_variance
+             FROM dl_commissary_ledger
+             WHERE ledger_date = :date AND raw_material_id = :mid
+             LIMIT 1"
+        );
+        $rowStmt->execute([':date' => $date, ':mid' => $materialId]);
+        $updatedRow = $rowStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
         dl_auditLog('save_commissary_material', null, 'dl_commissary_ledger', "{$date}-{$materialId}", null, [
             'date'        => $date,
             'material_id' => $materialId,
@@ -5169,7 +6963,7 @@ function apiSaveCommissaryMaterial(): void
             'value'       => $val,
         ]);
 
-        $ctx->json(['ok' => true]);
+        $ctx->json(['ok' => true, 'row' => $updatedRow]);
     } catch (Throwable $e) {
         write_log("apiSaveCommissaryMaterial error: " . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => 'Save failed'], 500);
@@ -5187,6 +6981,9 @@ function apiDailyLedgerMe(array $params = []): void
 
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin', 'production_in_charge']);
     $allowedBranchIds = dl_accessibleBranchIds($user);
+        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     $clockLabel = dl_operatingClockLabel();
     $branches = [];
 
@@ -5217,6 +7014,7 @@ function apiDailyLedgerMe(array $params = []): void
             'close_of_day_time' => $clockLabel['close_of_day_time'],
             'operating_timezone' => $clockLabel['operating_timezone'],
             'operating_region' => $clockLabel['operating_region'],
+        'all_branches' => $allBranches,
         ],
     ]);
 }

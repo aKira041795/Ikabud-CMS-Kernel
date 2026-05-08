@@ -108,6 +108,19 @@
 
                     <aside class="cms-entity-summary native-canonical-view__summary">
                         <div class="native-storefront-panel native-canonical-view__summary-panel">
+                            {if entity_view_context.panel_title or entity_view_context.panel_copy}
+                            <div class="native-stack" style="margin-bottom:1rem; gap:0.75rem;">
+                                <div>
+                                    {if entity_view_context.panel_title}<h2 class="native-panel-title" style="margin:0;">{entity_view_context.panel_title}</h2>{/if}
+                                    {if entity_view_context.panel_copy}<p class="native-panel-copy">{entity_view_context.panel_copy}</p>{/if}
+                                </div>
+                                <div class="native-stack" style="gap:0.5rem;">
+                                    {foreach entity_view_context.panel_facts as fact}
+                                    <div class="native-key-value"><strong>{fact.label}</strong><span class="native-muted">{fact.value}</span></div>
+                                    {/foreach}
+                                </div>
+                            </div>
+                            {/if}
                             {include "modules/cms/public/blocks/entity-summary.block.disyl"}
                         </div>
                     </aside>
@@ -148,12 +161,38 @@
 
                 {if capabilities.pricing or capabilities.inventory or capabilities.booking or capabilities.inquiry}
                 <div class="native-storefront-panel native-canonical-view__summary-panel native-canonical-view__summary-panel--stack">
+                    {if entity_view_context.panel_title or entity_view_context.panel_copy}
+                    <div class="native-stack" style="margin-bottom:1rem; gap:0.75rem;">
+                        <div>
+                            {if entity_view_context.panel_title}<h2 class="native-panel-title" style="margin:0;">{entity_view_context.panel_title}</h2>{/if}
+                            {if entity_view_context.panel_copy}<p class="native-panel-copy">{entity_view_context.panel_copy}</p>{/if}
+                        </div>
+                        <div class="native-stack" style="gap:0.5rem;">
+                            {foreach entity_view_context.panel_facts as fact}
+                            <div class="native-key-value"><strong>{fact.label}</strong><span class="native-muted">{fact.value}</span></div>
+                            {/foreach}
+                        </div>
+                    </div>
+                    {/if}
                     {include "modules/cms/public/blocks/entity-summary.block.disyl"}
                 </div>
                 {/if}
             {else}
                 {if capabilities.pricing or capabilities.inventory or capabilities.booking or capabilities.inquiry}
                 <div class="native-storefront-panel native-canonical-view__summary-panel native-canonical-view__summary-panel--stack">
+                    {if entity_view_context.panel_title or entity_view_context.panel_copy}
+                    <div class="native-stack" style="margin-bottom:1rem; gap:0.75rem;">
+                        <div>
+                            {if entity_view_context.panel_title}<h2 class="native-panel-title" style="margin:0;">{entity_view_context.panel_title}</h2>{/if}
+                            {if entity_view_context.panel_copy}<p class="native-panel-copy">{entity_view_context.panel_copy}</p>{/if}
+                        </div>
+                        <div class="native-stack" style="gap:0.5rem;">
+                            {foreach entity_view_context.panel_facts as fact}
+                            <div class="native-key-value"><strong>{fact.label}</strong><span class="native-muted">{fact.value}</span></div>
+                            {/foreach}
+                        </div>
+                    </div>
+                    {/if}
                     {include "modules/cms/public/blocks/entity-summary.block.disyl"}
                 </div>
                 {/if}

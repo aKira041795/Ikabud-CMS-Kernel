@@ -1,0 +1,615 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+<style>
+    .price-groups-card__header {
+        padding: 1rem 1.25rem 0;
+    }
+    .price-groups-card__body {
+        padding: 0 1.25rem 1.25rem;
+    }
+    .price-groups-list {
+        margin-top: .75rem;
+    }
+    .price-groups-list-item {
+        padding: .875rem .875rem;
+        border-radius: 6px;
+    }
+    .price-groups-editor {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgb(229 231 235);
+    }
+    .price-groups-assignment-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .75rem;
+        margin-top: 1rem;
+    }
+    .price-groups-assignment-panel {
+        border: 1px solid rgb(229 231 235);
+        border-radius: 6px;
+        background: rgb(248 250 252);
+        padding: .875rem;
+    }
+    .price-groups-assignment-title {
+        font-size: .75rem;
+        font-weight: 700;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: rgb(75 85 99);
+    }
+    .price-groups-assignment-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: .625rem;
+    }
+    .price-groups-assignment-link {
+        font-size: .75rem;
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: 0;
+        color: rgb(79 70 229);
+    }
+    .price-groups-assignment-link:hover {
+        text-decoration: underline;
+    }
+    .price-groups-assignment-hint {
+        margin-top: .625rem;
+        font-size: .75rem;
+        line-height: 1.25rem;
+        color: rgb(107 114 128);
+    }
+    .price-groups-assignment-list {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+    .price-groups-assignment-pill {
+        border-radius: 4px;
+        background: rgb(255 255 255);
+        padding: .55rem .75rem;
+        font-size: .875rem;
+        line-height: 1.25rem;
+        color: rgb(55 65 81);
+        box-shadow: inset 0 0 0 1px rgb(229 231 235);
+    }
+    .price-groups-assignment-pill--link {
+        display: block;
+        transition: box-shadow .15s ease, background-color .15s ease, color .15s ease;
+    }
+    .price-groups-assignment-pill--link:hover {
+        background: rgb(238 242 255);
+        color: rgb(67 56 202);
+        box-shadow: inset 0 0 0 1px rgb(165 180 252);
+    }
+    .price-groups-assignment-empty {
+        border-radius: 6px;
+        background: rgb(255 255 255);
+        padding: .875rem;
+        box-shadow: inset 0 0 0 1px rgb(229 231 235);
+    }
+    .price-groups-assignment-empty-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        background: rgb(224 231 255);
+        color: rgb(67 56 202);
+        padding: .2rem .55rem;
+        font-size: .6875rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    .price-groups-assignment-empty-copy {
+        margin-top: .5rem;
+        font-size: .875rem;
+        line-height: 1.5rem;
+        color: rgb(107 114 128);
+    }
+    .price-groups-assignment-toggle {
+        margin-top: .25rem;
+        align-self: flex-start;
+        font-size: .75rem;
+        font-weight: 600;
+        color: rgb(79 70 229);
+    }
+    .price-groups-assignment-toggle:hover {
+        text-decoration: underline;
+    }
+    .price-groups-table-shell {
+        padding: 0 1.25rem 1.25rem;
+    }
+    .price-groups-selection-summary {
+        position: sticky;
+        top: 1rem;
+        z-index: 10;
+        margin-bottom: 1rem;
+        border: 1px solid rgb(199 210 254);
+        border-radius: 8px;
+        background: rgba(238, 242, 255, 0.96);
+        padding: .875rem 1rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+        backdrop-filter: blur(6px);
+    }
+    .price-groups-selection-kicker {
+        font-size: .6875rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: rgb(79 70 229);
+    }
+    .price-groups-selection-name {
+        margin-top: .25rem;
+        font-size: .95rem;
+        font-weight: 700;
+        color: rgb(17 24 39);
+    }
+    .price-groups-selection-subtitle {
+        margin-top: .25rem;
+        font-size: .75rem;
+        color: rgb(107 114 128);
+    }
+    .price-groups-selection-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .625rem;
+        margin-top: .875rem;
+    }
+    .price-groups-selection-metric {
+        border-radius: 6px;
+        background: rgb(255 255 255);
+        padding: .65rem .75rem;
+        box-shadow: inset 0 0 0 1px rgb(224 231 255);
+    }
+    .price-groups-selection-metric-label {
+        font-size: .6875rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: rgb(99 102 241);
+    }
+    .price-groups-selection-metric-value {
+        margin-top: .25rem;
+        font-size: .95rem;
+        font-weight: 700;
+        color: rgb(31 41 55);
+    }
+    .price-groups-table-footer {
+        padding: 1rem 1.25rem 1.25rem;
+    }
+    @media (max-width: 767px) {
+        .price-groups-assignment-grid {
+            grid-template-columns: 1fr;
+        }
+        .price-groups-selection-metrics {
+            grid-template-columns: 1fr;
+        }
+        .price-groups-card__header,
+        .price-groups-card__body,
+        .price-groups-table-shell,
+        .price-groups-table-footer {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+    }
+</style>
+{/block}
+
+{block content}
+<div x-data="priceGroupsPage()" x-init="init()">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Price Groups</h2>
+            <p class="text-sm text-gray-500">
+                Define separate selling-price ladders for branches, malls, resellers, kiosks, events, etc.
+                Apply per-product overrides on top of the default group.
+            </p>
+        </div>
+        <button class="btn btn-primary" @click="openCreate()">+ New Price Group</button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="card">
+            <div class="price-groups-card__header">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <h3 class="text-sm font-semibold">Groups</h3>
+                    <span class="text-xs text-gray-500 text-right" x-text="selectedGroup ? 'Editing selected group below' : 'Closed by default. Click Edit to open.' "></span>
+                </div>
+            </div>
+            <div class="price-groups-card__body">
+                <ul class="divide-y divide-gray-100 price-groups-list">
+                    <template x-for="group in groups" :key="group.id">
+                    <li class="price-groups-list-item flex items-start justify-between gap-3 hover:bg-gray-50"
+                        :class="selectedGroup === group.id ? 'bg-indigo-50' : ''">
+                        <div class="min-w-0 pr-2">
+                            <div class="font-medium text-sm text-gray-900" x-text="group.name"></div>
+                            <div class="text-xs text-gray-500 mt-0.5">
+                                <span x-text="group.type"></span><span x-show="group.is_default"> · default</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-2 leading-5">
+                                <span x-text="group.branch_count + ' branch' + (group.branch_count === 1 ? '' : 'es')"></span>
+                                <span> · </span>
+                                <span x-text="group.selling_account_count + ' selling account' + (group.selling_account_count === 1 ? '' : 's')"></span>
+                            </div>
+                        </div>
+                        <div class="text-right flex shrink-0 items-center gap-3 pt-1">
+                            <div class="text-xs font-medium" :class="group.is_active ? 'text-emerald-700' : 'text-gray-500'" x-text="group.is_active ? 'Active' : 'Inactive'"></div>
+                            <button class="text-xs text-indigo-600 hover:underline" @click="openEdit(group.id)">Edit</button>
+                        </div>
+                    </li>
+                    </template>
+                </ul>
+
+                <div class="price-groups-editor" x-show="selectedGroup" x-cloak>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3">Edit Price Group</h4>
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input class="form-input" type="text" x-model="editGroup.name">
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div class="form-group mb-0">
+                        <label class="form-label">Type</label>
+                        <input class="form-input bg-gray-50" type="text" x-model="editGroup.type" readonly>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="inline-flex items-center gap-2 text-sm mt-8">
+                            <input type="checkbox" x-model="editGroup.is_active">
+                            Active
+                        </label>
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-gray-500">
+                    Assigned to <span class="font-semibold text-gray-700" x-text="editGroup.branch_count || 0"></span>
+                    active <span x-text="(editGroup.branch_count || 0) === 1 ? 'branch' : 'branches'"></span>
+                    and <span class="font-semibold text-gray-700" x-text="editGroup.selling_account_count || 0"></span>
+                    active <span x-text="(editGroup.selling_account_count || 0) === 1 ? 'selling account' : 'selling accounts'"></span>.
+                </p>
+                <div class="price-groups-assignment-grid">
+                    <div class="price-groups-assignment-panel">
+                        <div class="price-groups-assignment-heading">
+                            <div class="price-groups-assignment-title">Assigned Branches</div>
+                            <a class="price-groups-assignment-link" :href="manageAssignmentsUrl('branches')">Manage</a>
+                        </div>
+                        <template x-if="(editGroup.branch_assignments || []).length === 0">
+                            <div class="price-groups-assignment-empty">
+                                <div class="price-groups-assignment-empty-badge">0 Active Branches</div>
+                                <p class="price-groups-assignment-empty-copy">No active branches are currently assigned to this price group.</p>
+                            </div>
+                        </template>
+                        <div class="price-groups-assignment-list" x-show="(editGroup.branch_assignments || []).length > 0">
+                            <template x-for="item in visibleAssignments('branch')" :key="'branch:' + item.url">
+                                <a class="price-groups-assignment-pill price-groups-assignment-pill--link" :href="item.url" x-text="item.label"></a>
+                            </template>
+                            <button type="button" class="price-groups-assignment-toggle" x-show="hiddenAssignmentCount('branch') > 0 || isAssignmentExpanded('branch')" @click="toggleAssignment('branch')" x-text="assignmentToggleLabel('branch')"></button>
+                        </div>
+                        <p class="price-groups-assignment-hint">Branch price-group ownership is managed from the Branches admin screen.</p>
+                    </div>
+                    <div class="price-groups-assignment-panel">
+                        <div class="price-groups-assignment-heading">
+                            <div class="price-groups-assignment-title">Selling Accounts</div>
+                            <a class="price-groups-assignment-link" :href="manageAssignmentsUrl('selling-accounts')">Manage</a>
+                        </div>
+                        <template x-if="(editGroup.selling_account_assignments || []).length === 0">
+                            <div class="price-groups-assignment-empty">
+                                <div class="price-groups-assignment-empty-badge">0 Active Accounts</div>
+                                <p class="price-groups-assignment-empty-copy">No active selling accounts are currently assigned to this price group.</p>
+                            </div>
+                        </template>
+                        <div class="price-groups-assignment-list" x-show="(editGroup.selling_account_assignments || []).length > 0">
+                            <template x-for="item in visibleAssignments('account')" :key="'account:' + item.url">
+                                <a class="price-groups-assignment-pill price-groups-assignment-pill--link" :href="item.url" x-text="item.label"></a>
+                            </template>
+                            <button type="button" class="price-groups-assignment-toggle" x-show="hiddenAssignmentCount('account') > 0 || isAssignmentExpanded('account')" @click="toggleAssignment('account')" x-text="assignmentToggleLabel('account')"></button>
+                        </div>
+                        <p class="price-groups-assignment-hint">Selling-account price-group ownership is managed from the Selling Accounts screen.</p>
+                    </div>
+                </div>
+                <p class="mt-2 text-xs text-gray-500" x-show="editGroup.is_default">Default groups stay selectable, but prices still fall back to current product price when no override exists.</p>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button class="btn btn-outline" @click="closeEditor()">Close</button>
+                    <button class="btn btn-primary" @click="submitEdit()" :disabled="savingGroup" x-text="savingGroup ? 'Saving…' : 'Save Price Group'"></button>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div class="card lg:col-span-2">
+            <div class="price-groups-card__header">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <h3 class="text-sm font-semibold">Product Prices</h3>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-500" x-text="selectedGroup ? 'Set prices for the selected group, then save all changes together.' : 'Closed by default. Click Edit on a group to open prices.'"></div>
+                        <div class="text-xs text-amber-700 mt-1" x-show="dirtyCount > 0" x-text="dirtyCount + ' unsaved price change' + (dirtyCount === 1 ? '' : 's')"></div>
+                    </div>
+                </div>
+            </div>
+            <div x-show="selectedGroup" class="price-groups-table-shell">
+                <div class="price-groups-selection-summary" x-cloak>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <div class="price-groups-selection-kicker">Selected Price Group</div>
+                            <div class="price-groups-selection-name" x-text="editGroup.name || 'Unnamed price group'"></div>
+                            <div class="price-groups-selection-subtitle">
+                                <span x-text="editGroup.type || 'group'"></span><span x-show="editGroup.is_default"> · default</span>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200" x-show="editGroup.is_active">Active</span>
+                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-200" x-show="!editGroup.is_active">Inactive</span>
+                        </div>
+                    </div>
+                    <div class="price-groups-selection-metrics">
+                        <div class="price-groups-selection-metric">
+                            <div class="price-groups-selection-metric-label">Branches</div>
+                            <div class="price-groups-selection-metric-value" x-text="editGroup.branch_count || 0"></div>
+                        </div>
+                        <div class="price-groups-selection-metric">
+                            <div class="price-groups-selection-metric-label">Selling Accounts</div>
+                            <div class="price-groups-selection-metric-value" x-text="editGroup.selling_account_count || 0"></div>
+                        </div>
+                        <div class="price-groups-selection-metric">
+                            <div class="price-groups-selection-metric-label">Unsaved Prices</div>
+                            <div class="price-groups-selection-metric-value" x-text="dirtyCount"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-right">Price</th>
+                                <th>Effective From</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {foreach products as p}
+                            <tr>
+                                <td>
+                                    <div class="font-medium text-sm">{p.name}</div>
+                                    <div class="text-xs text-gray-500">{p.sku}</div>
+                                </td>
+                                <td class="text-right">
+                                    <input class="form-input w-28 text-right" type="number" step="0.01" min="0"
+                                           x-model.number="prices[{p.id}]"
+                                           @input="markDirty({p.id})">
+                                </td>
+                                <td>
+                                    <input class="form-input" type="date" x-model="effectiveFrom">
+                                </td>
+                            </tr>
+                            {/foreach}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div x-show="selectedGroup" class="price-groups-table-footer mt-0 flex items-center justify-between" x-cloak>
+                <p class="text-sm text-gray-500">Saving applies the current effective date to all changed prices in this group.</p>
+                <div class="flex items-center gap-2">
+                    <button class="btn btn-outline" @click="closeEditor()">Close</button>
+                    <button class="btn btn-primary" @click="saveAllPrices()" :disabled="savingPrices || dirtyCount === 0" x-text="savingPrices ? 'Saving Prices…' : 'Save All Prices'"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div class="modal" :class="{ 'show': createOpen }" x-show="createOpen" x-cloak>
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold mb-3">New Price Group</h3>
+            <div class="form-group">
+                <label class="form-label">Name *</label>
+                <input class="form-input" type="text" x-model="newGroup.name" placeholder="e.g. Mall Branches">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Type</label>
+                <select class="form-input" x-model="newGroup.type">
+                    <option value="branch">Branch</option>
+                    <option value="mall">Mall</option>
+                    <option value="reseller">Reseller</option>
+                    <option value="event">Event</option>
+                    <option value="wholesale">Wholesale</option>
+                    <option value="kiosk">Kiosk</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" @click="createOpen = false">Cancel</button>
+                <button class="btn btn-primary" @click="submitCreate()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+function priceGroupsPage() {
+    return {
+        groups: [
+            {foreach price_groups as g}
+            { id: {g.id}, name: {g.name | json}, type: {g.type | json}, is_default: {if g.is_default}true{else}false{/if}, is_active: {if g.is_active}true{else}false{/if}, branch_count: {g.branch_count | default:0}, selling_account_count: {g.selling_account_count | default:0}, branch_assignments: {g.branch_assignments_json | raw}, selling_account_assignments: {g.selling_account_assignments_json | raw} },
+            {/foreach}
+        ],
+        selectedGroup: null,
+        prices: {},
+        dirtyPrices: {},
+        effectiveFrom: new Date().toISOString().slice(0, 10),
+        createOpen: false,
+        savingGroup: false,
+        savingPrices: false,
+        baseUrl: '{base_url}',
+        assignmentPreviewLimit: 4,
+        expandedAssignments: { branch: false, account: false },
+        newGroup: { name: '', type: 'other' },
+        editGroup: { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, selling_account_count: 0, branch_assignments: [], selling_account_assignments: [] },
+
+        get dirtyCount() {
+            return Object.keys(this.dirtyPrices).length;
+        },
+        manageAssignmentsUrl(section) {
+            const suffix = section === 'selling-accounts' ? '/admin/selling-accounts' : '/admin/branches';
+            if (!this.editGroup.id) {
+                return this.baseUrl + suffix;
+            }
+            return this.baseUrl + suffix + '?price_group_id=' + encodeURIComponent(String(this.editGroup.id));
+        },
+        assignmentSource(kind) {
+            return kind === 'account'
+                ? (this.editGroup.selling_account_assignments || [])
+                : (this.editGroup.branch_assignments || []);
+        },
+        isAssignmentExpanded(kind) {
+            return !!this.expandedAssignments[kind];
+        },
+        hiddenAssignmentCount(kind) {
+            const items = this.assignmentSource(kind);
+            return Math.max(0, items.length - this.assignmentPreviewLimit);
+        },
+        visibleAssignments(kind) {
+            const items = this.assignmentSource(kind);
+            return this.isAssignmentExpanded(kind) ? items : items.slice(0, this.assignmentPreviewLimit);
+        },
+        assignmentToggleLabel(kind) {
+            if (this.isAssignmentExpanded(kind)) {
+                return 'Show less';
+            }
+            const hidden = this.hiddenAssignmentCount(kind);
+            if (hidden <= 0) {
+                return '';
+            }
+            const noun = kind === 'account'
+                ? (hidden === 1 ? 'selling account' : 'selling accounts')
+                : (hidden === 1 ? 'branch' : 'branches');
+            return 'Show ' + hidden + ' more ' + noun;
+        },
+        toggleAssignment(kind) {
+            this.expandedAssignments[kind] = !this.expandedAssignments[kind];
+        },
+        init() {},
+        openEdit(id) {
+            this.selectedGroup = id;
+            this.prices = {};
+            this.dirtyPrices = {};
+            this.expandedAssignments = { branch: false, account: false };
+            const group = this.groups.find(function(item) { return item.id === id; });
+            this.editGroup = group
+                ? { id: group.id, name: group.name || '', type: group.type || '', is_default: !!group.is_default, is_active: !!group.is_active, branch_count: group.branch_count || 0, selling_account_count: group.selling_account_count || 0, branch_assignments: group.branch_assignments || [], selling_account_assignments: group.selling_account_assignments || [] }
+                : { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, selling_account_count: 0, branch_assignments: [], selling_account_assignments: [] };
+            fetch('{base_url}/api/v1/product-prices?price_group_id=' + id)
+                .then(r => r.json())
+                .then(j => {
+                    if (!j || !j.ok) return;
+                    j.prices.forEach(p => { this.prices[p.product_id] = parseFloat(p.selling_price); });
+                });
+        },
+        closeEditor() {
+            this.selectedGroup = null;
+            this.prices = {};
+            this.dirtyPrices = {};
+            this.expandedAssignments = { branch: false, account: false };
+            this.editGroup = { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, selling_account_count: 0, branch_assignments: [], selling_account_assignments: [] };
+        },
+        markDirty(productId) {
+            this.dirtyPrices[String(productId)] = true;
+        },
+        saveAllPrices() {
+            if (!this.selectedGroup) return;
+            const dirtyIds = Object.keys(this.dirtyPrices);
+            if (dirtyIds.length === 0) return;
+
+            const payloads = [];
+            for (const rawId of dirtyIds) {
+                const productId = parseInt(rawId, 10);
+                const price = this.prices[productId];
+                if (price == null || price === '' || isNaN(price) || Number(price) < 0) {
+                    alert('Enter a valid price for all modified rows before saving.');
+                    return;
+                }
+                payloads.push({
+                    product_id: productId,
+                    price_group_id: this.selectedGroup,
+                    selling_price: Number(price),
+                    effective_from: this.effectiveFrom
+                });
+            }
+
+            this.savingPrices = true;
+            Promise.all(payloads.map(function(payload) {
+                return fetch('{base_url}/api/v1/admin/product-prices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(function(r) { return r.json(); });
+            }))
+            .then((results) => {
+                const failed = results.find(function(result) { return !result || !result.ok; });
+                if (failed) {
+                    throw new Error(failed.error || 'Failed to save prices');
+                }
+                this.dirtyPrices = {};
+            })
+            .catch((err) => {
+                alert(err.message || 'Failed to save prices');
+            })
+            .finally(() => {
+                this.savingPrices = false;
+            });
+        },
+        openCreate() { this.newGroup = { name: '', type: 'other' }; this.createOpen = true; },
+        submitCreate() {
+            if (!this.newGroup.name.trim()) { alert('Name required'); return; }
+            fetch('{base_url}/api/v1/admin/price-groups', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.newGroup)
+            })
+            .then(r => r.json())
+            .then(j => { if (j && j.ok) location.reload(); else alert((j && j.error) || 'Failed'); });
+        },
+        submitEdit() {
+            if (!this.editGroup.id || !this.editGroup.name.trim()) { alert('Name required'); return; }
+            this.savingGroup = true;
+            fetch('{base_url}/api/v1/admin/price-groups/update', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: this.editGroup.id,
+                    name: this.editGroup.name,
+                    is_active: this.editGroup.is_active ? 1 : 0
+                })
+            })
+            .then(r => r.json())
+            .then((j) => {
+                if (!j || !j.ok) {
+                    throw new Error((j && j.error) || 'Failed');
+                }
+                this.groups = this.groups.map((group) => {
+                    if (group.id !== this.editGroup.id) {
+                        return group;
+                    }
+                    return {
+                        id: group.id,
+                        name: this.editGroup.name,
+                        type: group.type,
+                        is_default: group.is_default,
+                        is_active: !!this.editGroup.is_active,
+                        branch_count: group.branch_count || 0,
+                        selling_account_count: group.selling_account_count || 0,
+                        branch_assignments: group.branch_assignments || [],
+                        selling_account_assignments: group.selling_account_assignments || []
+                    };
+                });
+            })
+            .catch((err) => {
+                alert(err.message || 'Failed');
+            })
+            .finally(() => {
+                this.savingGroup = false;
+            });
+        }
+    };
+}
+</script>
+{/block}

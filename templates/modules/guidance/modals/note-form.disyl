@@ -35,11 +35,8 @@
                             <div class="guidance-modal-grid guidance-modal-grid--3">
                                 <div>
                                     <label>Session Type</label>
-                                    {ikb_select name="session_type"}
-                                        <option value="scheduled">Scheduled</option>
-                                        <option value="walk-in">Walk-in</option>
-                                        <option value="follow-up">Follow-up</option>
-                                        <option value="referral">Referral</option>
+                                    {ikb_select name="session_type" id="note-session-type-select" data-selected-type="{session_type | default:'' | esc_attr}"}
+                                        <option value="">Loading session types...</option>
                                     {/ikb_select}
                                 </div>
                                 <div>
@@ -100,3 +97,51 @@
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    var typeSelect = document.getElementById('note-session-type-select');
+    if (!typeSelect) return;
+
+    var selectedType = (typeSelect.getAttribute('data-selected-type') || '').trim();
+
+    fetch(APP_BASE + '/api/appointment-types')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (!data.success || !data.data) {
+                throw new Error('Failed to load session types');
+            }
+
+            typeSelect.innerHTML = '<option value="">Select session type...</option>';
+            var hasSelected = false;
+            data.data.forEach(function(type) {
+                var option = document.createElement('option');
+                option.value = type.name;
+                option.textContent = type.name;
+                if (type.name === selectedType) {
+                    option.selected = true;
+                    hasSelected = true;
+                }
+                typeSelect.appendChild(option);
+            });
+
+            if (selectedType !== '' && !hasSelected) {
+                var fallback = document.createElement('option');
+                fallback.value = selectedType;
+                fallback.textContent = selectedType;
+                fallback.selected = true;
+                typeSelect.appendChild(fallback);
+            }
+        })
+        .catch(function() {
+            typeSelect.innerHTML = '<option value="">Failed to load session types</option>';
+            if (selectedType !== '') {
+                var fallback = document.createElement('option');
+                fallback.value = selectedType;
+                fallback.textContent = selectedType;
+                fallback.selected = true;
+                typeSelect.appendChild(fallback);
+            }
+        });
+})();
+</script>

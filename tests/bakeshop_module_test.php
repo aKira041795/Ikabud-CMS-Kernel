@@ -154,6 +154,17 @@ try {
             'is_active' => 1,
             'created_at' => '2026-04-27 00:00:00',
         ]],
+        'active_users' => [[
+            'id' => 5,
+            'username' => 'focususer',
+            'email' => 'focus@example.test',
+            'phone' => '',
+            'full_name' => 'Focus User',
+            'role' => 'supervisor',
+            'is_active' => 1,
+            'created_at' => '2026-04-27 00:00:00',
+        ]],
+        'inactive_users' => [],
     ]));
     bt('users template exposes focus user card target', str_contains($userFocusHtml, 'data-user-card-id="5"'));
     bt('users template reads focus_user_id query param', str_contains($userFocusHtml, "searchParams.get('focus_user_id')"));
@@ -176,6 +187,35 @@ bt('reset password template exists', is_file($templateBase . '/reset-password.di
 $layoutBase = BASE_PATH . '/templates/modules/bakeshop/layouts';
 bt('bakeshop app layout exists', is_file($layoutBase . '/app.disyl'));
 bt('bakeshop print layout exists', is_file($layoutBase . '/print.disyl'));
+
+try {
+    $printSummaryHtml = bakeshopRender('pages/print-summary.disyl', [
+        'page_title' => 'Printable Bakeshop Summary',
+        'brand_settings' => bakeshopBrandSettings(),
+        'filters' => ['branch_id' => null, 'from_date' => null, 'to_date' => null, 'supplier' => null, 'ingredient_ids' => []],
+        'branch_filter_options' => [],
+        'supplier_options' => [],
+        'ingredient_options' => [],
+        'branch_scope_label' => 'All branches with activity',
+        'supplier_scope_label' => 'All suppliers',
+        'ingredient_scope_label' => 'All ingredients',
+        'branches' => [],
+        'summary_groups' => [],
+        'factual_summary' => ['ingredient_count' => 0, 'delivery_item_count' => 0, 'production_run_count' => 0, 'inventory_on_hand_qty_base' => '0.00'],
+        'display_from_date' => null,
+        'display_to_date' => null,
+        'usage_decimal_places' => 2,
+        'print_template_label' => 'Standard Template',
+        'output_summary_label' => 'Rounded to 2 decimal places',
+    ]);
+    bt('print summary template exposes filter controls', str_contains($printSummaryHtml, 'name="branch_id"') && str_contains($printSummaryHtml, 'name="supplier"') && str_contains($printSummaryHtml, 'name="ingredient_ids[]"') && str_contains($printSummaryHtml, 'Apply Filters'));
+    bt('print summary template supports live scoped filter refresh', str_contains($printSummaryHtml, '/api/v1/bakeshop/usage') && str_contains($printSummaryHtml, 'print-filter-status') && str_contains($printSummaryHtml, 'print-ingredient-modal'));
+    bt('print summary template exposes all-branches reset flow', str_contains($printSummaryHtml, 'All branches') && str_contains($printSummaryHtml, '/admin/bakeshop/print'));
+} catch (Throwable $e) {
+    bt('print summary template exposes filter controls', false, $e->getMessage());
+    bt('print summary template supports live scoped filter refresh', false, $e->getMessage());
+    bt('print summary template exposes all-branches reset flow', false, $e->getMessage());
+}
 
 try {
     $loginHtml = app()->render('pages/login.disyl', bakeshopLoginPageContext());
@@ -213,16 +253,31 @@ try {
     bt('supervisor template reads focus_kind query param', str_contains($shellHtml, "searchParams.get('focus_kind')"));
     bt('supervisor template reuses edit helpers for focused rows', str_contains($shellHtml, 'openFocusedEditor(kind, match)'));
     bt('supervisor template exposes focus notes for edit forms', str_contains($shellHtml, 'branch-focus-note') && str_contains($shellHtml, 'product-focus-note') && str_contains($shellHtml, 'recipe-focus-note'));
+    bt('supervisor template defines shared two-decimal display helper', str_contains($shellHtml, 'function displayTwoDecimalQuantity(value, fallback = \'0.00\')'));
+    bt('supervisor template defines shared detail list helper', str_contains($shellHtml, 'function renderDetailList(items, renderItem, emptyMessage = \'No detail loaded.\')'));
     bt('supervisor template sets history review note when opening focused editor', str_contains($shellHtml, "Reviewing this product from activity history."));
     bt('supervisor template frames deliveries as daily branch receiving', str_contains($shellHtml, 'Saving posts one daily branch receipt and includes only ingredients with a quantity greater than zero.'));
+    bt('supervisor template exposes product multi-delete controls', str_contains($shellHtml, 'products-delete-selected') && str_contains($shellHtml, 'products-select-all'));
+    bt('supervisor template separates active and archived products', str_contains($shellHtml, 'products-view-active') && str_contains($shellHtml, 'products-view-archived') && str_contains($shellHtml, 'No archived products yet.'));
+    bt('supervisor template exposes ingredient multi-delete controls', str_contains($shellHtml, 'ingredients-delete-selected') && str_contains($shellHtml, 'ingredients-select-all') && str_contains($shellHtml, 'Delete Selected'));
+    bt('supervisor template separates active and archived ingredients', str_contains($shellHtml, 'ingredients-view-active') && str_contains($shellHtml, 'ingredients-view-archived') && str_contains($shellHtml, 'No archived ingredients yet.'));
+    bt('supervisor template exposes delivery multi-delete controls', str_contains($shellHtml, 'deliveries-delete-selected') && str_contains($shellHtml, 'deliveries-select-all'));
+    bt('supervisor template separates daily receiving and saved receipts', str_contains($shellHtml, 'data-delivery-section-tab="receive"') && str_contains($shellHtml, 'data-delivery-section-tab="saved"') && str_contains($shellHtml, 'Daily Receiving') && str_contains($shellHtml, 'Saved Receipts'));
+    bt('supervisor template exposes saved receipt detail toggle', str_contains($shellHtml, 'data-action="toggle-delivery-detail"') && str_contains($shellHtml, 'View Details') && str_contains($shellHtml, 'renderDeliveryDetail(row)'));
+    bt('supervisor template previews bulk delete targets before confirmation', str_contains($shellHtml, 'bakeshop-delete-confirm') && str_contains($shellHtml, 'confirmBulkDelete({'));
+    bt('supervisor template guides in-use products toward archive instead of delete', str_contains($shellHtml, 'Products already used in saved batches can be archived but not deleted.') && str_contains($shellHtml, 'Used by ') && str_contains($shellHtml, 'saved batch'));
+    bt('supervisor template guides in-use ingredients toward archive instead of delete', str_contains($shellHtml, 'In use, archive instead') && str_contains($shellHtml, 'Ingredients already in use can be archived but not deleted.'));
+    bt('supervisor template forces cache-safe reloads after list mutations', str_contains($shellHtml, 'await loadIngredients(true);') && str_contains($shellHtml, 'await loadProducts(true);') && str_contains($shellHtml, 'await loadDeliveries(true);') && str_contains($shellHtml, 'deleteIngredientsByIds') && str_contains($shellHtml, 'deleteProductsByIds') && str_contains($shellHtml, 'deleteDeliveriesByIds'));
+    bt('supervisor template merges summary and usage report scope', str_contains($shellHtml, 'branch_id: fromUsage.branch_id || fromSummary.branch_id') && str_contains($shellHtml, 'const scope = currentReportScope();') && str_contains($shellHtml, 'const fromSummary = {'));
     bt('supervisor template exposes delivery CSV import controls', str_contains($shellHtml, 'delivery-csv-file') && str_contains($shellHtml, 'Download CSV Template'));
     bt('supervisor template lists a daily ingredient delivery sheet', str_contains($shellHtml, 'Every ingredient is listed below in its default unit.') && str_contains($shellHtml, 'cost_basis'));
     bt('supervisor template frames usage as inventory movement', str_contains($shellHtml, 'Read the inventory movement view: received deliveries minus recipe-based production consumption'));
     bt('supervisor template exposes factual summary usage counters', str_contains($shellHtml, 'usage-factual-ingredients') && str_contains($shellHtml, 'usage-factual-deliveries') && str_contains($shellHtml, 'usage-factual-runs'));
     bt('supervisor template exposes as-of-date inventory panel', str_contains($shellHtml, 'Ingredient Inventory As Of Scope End'));
     bt('supervisor template explains end-date inventory snapshot scope', str_contains($shellHtml, 'The branch filter always applies, and if only a from date is set it is used as the as-of date.'));
-    bt('supervisor template exposes production void flow', str_contains($shellHtml, 'production/void') && str_contains($shellHtml, 'Void this production run and exclude its snapshot lines from usage and inventory?') && str_contains($shellHtml, 'void-production'));
-    bt('supervisor template exposes production metadata edit flow', str_contains($shellHtml, 'Update Production Metadata') && str_contains($shellHtml, 'Editing production metadata only.') && str_contains($shellHtml, 'edit-production'));
+    bt('supervisor template uses inline autosave qty entry for production products', str_contains($shellHtml, 'data-production-qty-input') && str_contains($shellHtml, 'Choose the branch, finished time, and who made it.') && str_contains($shellHtml, '<th>Amount Made</th>') && str_contains($shellHtml, 'function normalizeOptionalTwoDecimalQuantity(value)') && str_contains($shellHtml, 'Saving entry...') && str_contains($shellHtml, 'Blank = no production') && str_contains($shellHtml, 'Add ingredients for this item first.') && str_contains($shellHtml, 'Testing Override: Off') && str_contains($shellHtml, 'relax_guards') && str_contains($shellHtml, 'Saved Entries') && str_contains($shellHtml, 'Last Saved Entry'));
+    bt('supervisor template exposes production void flow', str_contains($shellHtml, 'production/void') && str_contains($shellHtml, 'Void this saved entry and remove its ingredient use from usage and inventory?') && str_contains($shellHtml, 'void-production'));
+    bt('supervisor template exposes production entry review flow', str_contains($shellHtml, 'Update Saved Entry') && str_contains($shellHtml, 'Reviewing a saved entry.') && str_contains($shellHtml, 'edit-production'));
 } catch (Throwable $e) {
     bt('supervisor template renders in bakeshop shell', false, $e->getMessage());
 }
@@ -278,6 +333,8 @@ bt('catalog handlers exist', is_file($catalogHandlersPath));
 $catalogHandlerCode = (string) file_get_contents($catalogHandlersPath);
 bt('catalog handlers no longer use not implemented placeholders', !str_contains($catalogHandlerCode, 'bakeshopNotImplemented'));
 bt('catalog handlers expose units index', str_contains($catalogHandlerCode, 'function bakeshopApiUnitsIndex'));
+bt('catalog handlers expose product delete eligibility metadata', str_contains($catalogHandlerCode, 'production_reference_count') && str_contains($catalogHandlerCode, 'AS can_delete'));
+bt('catalog handlers expose ingredient delete eligibility metadata', str_contains($catalogHandlerCode, 'AS can_delete') && str_contains($catalogHandlerCode, 'recipe_reference_count'));
 
 $deliveryHandlersPath = BASE_PATH . '/modules/bakeshop/handlers/30-api-deliveries.php';
 bt('delivery handlers exist', is_file($deliveryHandlersPath));

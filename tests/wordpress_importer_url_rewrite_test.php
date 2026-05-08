@@ -10,7 +10,7 @@ declare(strict_types=1);
 require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
-require_once __DIR__ . '/../modules/wordpress-importer/handlers/10-wordpress-importer.php';
+require_once __DIR__ . '/../packages/cms-wordpress-importer/handlers/10-wordpress-importer.php';
 
 $pass = 0;
 $fail = 0;

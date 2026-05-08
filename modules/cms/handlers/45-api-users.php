@@ -12,7 +12,7 @@ function cmsApiUserCreate(array $params = []): void
     $email       = trim((string)($input['email'] ?? ''));
     $password    = (string)($input['password'] ?? '');
     $displayName = trim((string)($input['display_name'] ?? ''));
-    $role        = trim((string)($input['role'] ?? 'subscriber'));
+    $role        = cmsNormalizeRole((string)($input['role'] ?? 'subscriber'));
 
     if ($username === '' || $email === '' || $password === '') {
         http_response_code(422);
@@ -26,18 +26,17 @@ function cmsApiUserCreate(array $params = []): void
         exit;
     }
 
-    $validRoles = array_keys(CMS_ROLES);
+    $validRoles = array_values(array_filter(array_keys(CMS_ROLES), static fn(string $value): bool => $value !== 'superadmin'));
     if (!in_array($role, $validRoles, true)) {
         $role = 'subscriber';
     }
 
-    // Only superadmin can create superadmin/administrator
-    $currentRole = (string)($user['role'] ?? '');
+    $currentRole = cmsNormalizeRole((string)($user['role'] ?? ''));
     $source = (string)($user['source'] ?? '');
-    if (in_array($role, ['superadmin', 'administrator'], true)) {
-        if ($source === 'cms' && $currentRole !== 'superadmin') {
+    if ($role === 'administrator') {
+        if ($source === 'cms' && !cmsRoleAtLeast($currentRole, 'administrator')) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Only superadmin can create admin users']);
+            echo json_encode(['ok' => false, 'error' => 'Only administrators can create admin users']);
             exit;
         }
     }
@@ -85,11 +84,21 @@ function cmsApiUserUpdate(array $params = []): void
     $fields = [];
     $bind   = [':id' => $id];
 
-    foreach (['display_name', 'email', 'role', 'bio'] as $f) {
+    foreach (['display_name', 'email', 'bio'] as $f) {
         if (array_key_exists($f, $input)) {
             $fields[] = "{$f} = :{$f}";
             $bind[":{$f}"] = trim((string)$input[$f]);
         }
+    }
+    if (array_key_exists('role', $input)) {
+        $role = cmsNormalizeRole((string)$input['role']);
+        $validRoles = array_values(array_filter(array_keys(CMS_ROLES), static fn(string $value): bool => $value !== 'superadmin'));
+        if (!in_array($role, $validRoles, true)) {
+            $role = 'subscriber';
+        }
+
+        $fields[] = 'role = :role';
+        $bind[':role'] = $role;
     }
     if (array_key_exists('is_active', $input)) {
         $fields[] = 'is_active = :active';

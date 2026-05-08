@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class ExpressionNode extends AbstractNode
+final class ExpressionNode extends AbstractNode
 {
     private AbstractNode $expression;
     private ?FilterChain $filters;

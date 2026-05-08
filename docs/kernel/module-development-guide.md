@@ -579,6 +579,49 @@ DiSyL is not just a string templating layer. It is the kernel's native rendering
 | `{variable \| count}` | Filter: count array items |
 | `{variable \| number_format}` | Filter: format number |
 
+### DiSyL 4.x Capabilities (kernel ≥ 4.0)
+
+Module templates can use the full DiSyL 4.x stack. None of these are mandatory; the basic syntax above remains the default. Use them when they fit.
+
+| Tag (since) | Purpose | Capability gate | Notes for module authors |
+|-------------|---------|-----------------|--------------------------|
+| `{match expr}…{/match}` (4.1) | Pattern matching with arms | — | Avoids long if/elseif chains for entity-type / status switches. |
+| `{trans key='…' fallback='…'}` (4.1) | i18n lookup | — | Resolves against the kernel locale catalog; safe to use in any module template. |
+| `{cache key='…' ttl=N tags=[…]}` (4.3) | Fragment cache | `cache.invalidate` (for inline `{invalidate 'tag'}`) | Use module-id-prefixed keys (e.g. `mymod:list:{user.id}`). Tags should be module-scoped. |
+| `{experiment name='…' variant='control,treat'}` (4.3) | Deterministic A/B bucketing | `experiment` | Bucketing seeded by `tenantId + subjectId + name` — deterministic across SSR. |
+| `{sandbox deny=[…] policy='strict'}…{/sandbox}` (4.4) | Per-region capability scoping | — | Use around any module region that interpolates third-party HTML. |
+| `{trusted}…{/trusted}` (4.4) | Re-allow caps inside a trusted child | — | NO-OP if any ancestor is `{untrusted}` — cannot re-elevate. |
+| `{untrusted}…{/untrusted}` (4.4) | Drop all caps + force strict | — | Wrap any module region rendering user-supplied content (bios, comments, imported HTML, email previews). One-way trapdoor. |
+| `{parallel}…{/parallel}` (4.5) | Group child `{await}` blocks | — | Source-order output preserved. Concurrency cap = 64 per render. |
+| `{await let=x src=p}…{loading}…{catch let=err}…{/await}` (4.5) | Bind a Promise into a region with loading/error arms | `network` (when `src` is a fetch) | `src` accepts any value; if it's a `Promise` it resolves; otherwise it's used directly. Modules pass Promises via render context today. |
+| `{suspense fallback='…'}…{/suspense}` (4.5) | Catch errors from descendant `{await}` | — | Renders the `fallback` expression when any descendant throws. |
+| `{federated_query name='…'}{remote service='…' query='…' let=v fallback=…}…{aggregate let=out}…{/aggregate}{/federated_query}` (4.6) | Compose data from multiple services | `federation` | Module must register resolvers via `$engine->setServiceRegistry($r)`. `policy='all-or-nothing'` opts out of partial-failure tolerance. Denied inside `{untrusted}`. |
+| `{ai_generate model='…' max_tokens=N let=x}prompt body{/ai_generate}` / `{ai_query …}` / `{ai_complete …}` (4.6) | Pinned-model AI calls under policy | `ai` | `model=` required and pinned. `let=` captures into `$engine->aiBindings()`. Without `let=`, scalar response is emitted inline (HTML-escaped). Set env `KERNEL_AI_DISABLED=1` to kill all calls platform-wide. |
+
+**Hardening defaults a module template should reach for first:**
+
+```disyl
+{! Wrap any user/email/imported HTML region in {untrusted} — !}
+{! it drops raw.html, network, ai, federation, cache.invalidate, experiment !}
+{untrusted}
+  {comment.body | raw}
+{/untrusted}
+
+{! Cache an expensive list with module-prefixed key + tag !}
+{cache key='notes:list:' + user.id ttl=60 tags=['notes:user:' + user.id]}
+  {foreach notes as n}<li>{n.title}</li>{/foreach}
+{/cache}
+
+{! Compose data from two internal services with graceful fallback !}
+{federated_query name='notes-and-author'}
+  {remote service='notes' query=note.id let=note}
+  {remote service='profiles' query=note.author_id let=author fallback={display:'Unknown'}}
+  {aggregate let=out}<h2>{note.title}</h2><small>by {author.display}</small>{/aggregate}
+{/federated_query}
+```
+
+**What changes in 4.6.1 / 4.5.1 / 4.4.1:** the public template surface is the contract. Performance (true Fibers concurrency for `{parallel}`) and ops surface (DB-backed AI audit, PII redaction, per-tenant cost ceilings) ship in point releases without changing the markup above. See [release-notes-2026-05-08-kernel-4.4.md](../releases/release-notes-2026-05-08-kernel-4.4.md), [-4.5.md](../releases/release-notes-2026-05-08-kernel-4.5.md), [-4.6.md](../releases/release-notes-2026-05-08-kernel-4.6.md) for full per-release scope.
+
 ### HTMX Integration
 
 The base layout uses `hx-boost="true"` on `<body>`, so all links are boosted by default. For HTMX-powered interactions:

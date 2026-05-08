@@ -42,6 +42,8 @@ The next roadmap focuses on strengthening five platform qualities:
 
 ## Phase 1 — Deterministic Capability Runtime
 
+**Status:** ✅ **COMPLETED** in kernel 3.1.0 — see [release-notes-2026-04-01-kernel-hardening.md](../releases/release-notes-2026-04-01-kernel-hardening.md).
+
 ### Outcome
 
 Capabilities behave like true kernel-managed contracts.
@@ -71,6 +73,8 @@ Capabilities behave like true kernel-managed contracts.
 
 ## Phase 2 — Event and Trigger Governance
 
+**Status:** ✅ **COMPLETED** in kernel 3.1.0 — see [release-notes-2026-04-01-kernel-hardening.md](../releases/release-notes-2026-04-01-kernel-hardening.md).
+
 ### Outcome
 
 Event-driven automation becomes contract-aware, inspectable, and safer to operate.
@@ -99,6 +103,8 @@ Event-driven automation becomes contract-aware, inspectable, and safer to operat
 
 ## Phase 3 — Module Graph and Dependency Intelligence
 
+**Status:** ✅ **COMPLETED** in kernel 3.1.0 — see [release-notes-2026-04-01-kernel-hardening.md](../releases/release-notes-2026-04-01-kernel-hardening.md).
+
 ### Outcome
 
 Ikabud can explain how modules depend on each other.
@@ -124,6 +130,8 @@ Ikabud can explain how modules depend on each other.
 - disabling a module has predictable, visible impact analysis
 
 ## Phase 4 — Platform Observability and Operator Tooling
+
+**Status:** ✅ **COMPLETED** (4A + 4B) in kernel 3.1.0 — see [release-notes-2026-04-01-kernel-hardening.md](../releases/release-notes-2026-04-01-kernel-hardening.md) and [release-notes-2026-04-16-disyl-performance.md](../releases/release-notes-2026-04-16-disyl-performance.md).
 
 ### Outcome
 
@@ -151,6 +159,8 @@ Ikabud becomes operationally inspectable as a platform, not just as source code.
 
 ## Phase 5 — Workflow Runtime Maturation
 
+**Status:** 🟡 **PARTIAL** — `WorkflowRuntime` and capability policy ship in kernel 3.2.0. The formal definition model, replay tooling, and execution-history UI are deferred but now have a published plan: [workflow-runtime-plan.md](workflow-runtime-plan.md) (kernel 4.0.0). See also [WorkflowRuntime](../../kernel/WorkflowRuntime.php).
+
 ### Outcome
 
 Workflows become a first-class reusable runtime primitive.
@@ -177,6 +187,14 @@ Workflows become a first-class reusable runtime primitive.
 
 ## Phase 6 — Developer Platform Experience
 
+**Status:** 🟡 **PARTIAL** — in kernel 3.2.0:
+- Module scaffolder shipped: [scripts/scaffold-module.php](../../scripts/scaffold-module.php) (extended in 4.0.0 with `--with=capability,event,migration` flags)
+- Manifest guard expanded: [scripts/guard-module-manifests.php](../../scripts/guard-module-manifests.php) now checks routes-file existence, owns_tables collisions (errors in 4.0.0), `co_owns_tables` reconciliation, and semver shape.
+- Primitive-selection guide shipped: [choosing-the-right-primitive.md](choosing-the-right-primitive.md)
+- Co-owned-tables convention introduced: [co-owned-tables.md](co-owned-tables.md) (4.0.0)
+
+Remaining: contract-aware CLI helpers (e.g., `ikabud capability:list`, `ikabud trigger:trace`), expanded scaffold templates (capability provider, event listener, migration).
+
 ### Outcome
 
 Building an Ikabud-native module becomes faster and safer.
@@ -202,6 +220,8 @@ Building an Ikabud-native module becomes faster and safer.
 
 ## Phase 7 — Productization Layer
 
+**Status:** 🔴 **DEFERRED** — multi-quarter initiative. Requires UI surface (capability marketplace), visual automation builder (significant frontend work), and edition/distribution strategy decisions. Track separately when product direction is set.
+
 ### Outcome
 
 Ikabud becomes a more obvious platform product, not only a strong internal architecture.
@@ -223,6 +243,32 @@ Ikabud becomes a more obvious platform product, not only a strong internal archi
 
 - product-layer features build on stable kernel truth rather than side systems
 - new ecosystem features do not weaken contract discipline or kernel authority
+
+## Parallel Track — DiSyL Rendering Runtime (4.x line)
+
+**Status:** ✅ **COMPLETED** through kernel 4.6.0 (codename `atlas`).
+
+The DiSyL rendering language was matured into a complete UI runtime in parallel with the platform-governance phases above. Each minor release carried an honest scope statement; deferred items are tracked as point releases (4.4.1 / 4.5.1 / 4.6.1).
+
+| Release | What it adds | Release notes |
+|---------|--------------|---------------|
+| 4.0 | Single-pass control structure processor | (kernel bump) |
+| 4.1 | `{match}` pattern matching, `{trans}` i18n | [4.1](../releases/release-notes-2026-05-08-kernel-4.1.md) |
+| 4.2 | Type system v1 + `scripts/disyl-typecheck.php` | [4.2](../releases/release-notes-2026-05-08-kernel-4.2.md) |
+| 4.3 | `{cache}` fragment store, `{experiment}` deterministic A/B | [4.3](../releases/release-notes-2026-05-08-kernel-4.3.md) |
+| 4.4 | Sandbox + capability scoping (`{sandbox}/{trusted}/{untrusted}`) | [4.4](../releases/release-notes-2026-05-08-kernel-4.4.md) |
+| 4.5 | Async runtime (`{parallel}/{await}/{suspense}`) | [4.5](../releases/release-notes-2026-05-08-kernel-4.5.md) |
+| 4.6 | Federation (`{federated_query}/{remote}/{aggregate}`) + AI primitives (`{ai_generate}/{ai_query}/{ai_complete}`) | [4.6](../releases/release-notes-2026-05-08-kernel-4.6.md) |
+
+Test coverage: **184 DiSyL assertions, 0 failures.** Module-author summary lives in the [DiSyL 4.x Capabilities table in the module guide](module-development-guide.md#disyl-4x-capabilities-kernel--40).
+
+### Deferred (point releases)
+
+- **4.4.1** — DB-backed sandbox audit table; AST-level annotation; auto-wrapping render boundaries; per-tenant capability profiles.
+- **4.5.1** — Fibers-based concurrent execution; `curl_multi` parallel HTTP I/O; chunked streaming protocol with `<template id="disyl-slot-N">` replacement; `fetch()` template function; per-await `timeout=` enforcement.
+- **4.6.1** — `cache_ttl=` integration on AI tags; PII redaction; DB-backed `disyl_ai_calls` audit table; per-tenant DB-backed cost ceilings; JSON-Schema validation on `ai_query`; `ai_optimize`; `config/federation.php` loader; service auth-token resolution; `let=` scope propagation.
+
+The 4.x template surface is the contract module authors code against. Point releases swap in performance and ops surface without changing the markup.
 
 ## Recommended Execution Order
 

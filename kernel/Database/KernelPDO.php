@@ -22,20 +22,46 @@ final class KernelPDO extends PDO
 
     /**
      * Typed escalation counter — replaces the open string-based
-     * '_kernel_db_unguarded' request-context flag. Only kernel-internal
-     * code (IntegrationBridge, module-manager helpers) should call these
-     * methods. Modules cannot reach the static class directly without
+     * '_kernel_db_unguarded' request-context flag (removed in 4.0.0). Only
+     * kernel-internal code (IntegrationBridge, module-manager helpers) should
+     * call these methods. Modules cannot reach the static class directly without
      * importing the kernel namespace, which module isolation discourages.
      */
     private static int $escalationDepth = 0;
 
+    private static function isDirectModuleCaller(): bool
+    {
+        $modulesRoot = defined('BASE_PATH') ? (rtrim((string)BASE_PATH, '/') . '/modules/') : null;
+        if ($modulesRoot === null) {
+            return false;
+        }
+
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+        $callerFile = $trace[1]['file'] ?? null;
+
+        return is_string($callerFile) && str_starts_with($callerFile, $modulesRoot);
+    }
+
     public static function kernelEscalationEnter(): void
     {
+        if (self::isDirectModuleCaller()) {
+            if (function_exists('write_log')) {
+                \write_log('Blocked direct module DB escalation request', 'warning', [
+                    'trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4),
+                ]);
+            }
+            return;
+        }
+
         self::$escalationDepth++;
     }
 
     public static function kernelEscalationLeave(): void
     {
+        if (self::isDirectModuleCaller()) {
+            return;
+        }
+
         self::$escalationDepth = max(0, self::$escalationDepth - 1);
     }
 
@@ -95,20 +121,9 @@ final class KernelPDO extends PDO
     {
         // Kernel infrastructure may temporarily suppress enforcement for its own
         // cross-cutting DB operations (e.g. tenant_module_settings CRUD).
-        // Use the typed static counter instead of the open string-based flag.
+        // Use the typed static counter; the legacy '_kernel_db_unguarded'
+        // request-context flag was removed in kernel 4.0.0.
         if (self::isKernelEscalated()) {
-            return;
-        }
-
-        // Legacy flag support: honour the old flag if still present so that
-        // any call-sites not yet migrated continue to work.  Remove once all
-        // callers have been updated to kernelEscalationEnter/Leave.
-        if ((bool)\kernel_request_context_get('_kernel_db_unguarded', false)) {
-            \write_log(
-                'Deprecated: _kernel_db_unguarded flag used — migrate to KernelPDO::kernelEscalationEnter/Leave',
-                'warning',
-                ['trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)]
-            );
             return;
         }
 

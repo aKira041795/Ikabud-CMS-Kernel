@@ -321,6 +321,67 @@ function request_id(): string
     return $generated;
 }
 
+/**
+ * Kernel-level flash message helpers (kernel 4.0.0+).
+ *
+ * Replaces ad-hoc per-module $_SESSION['*_message'] writers with a single
+ * namespaced bag at $_SESSION['_kernel_flash'][$key]. Modules and handlers
+ * should prefer these helpers over reaching into $_SESSION directly.
+ *
+ * Usage:
+ *   kernel_flash('cms.settings', 'success', 'Saved.');
+ *   $msg = kernel_consume_flash('cms.settings'); // ['type'=>'success','text'=>'Saved.'] or null
+ */
+function kernel_flash(string $key, string $type, string $text, array $extra = []): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    if ($key === '') {
+        return;
+    }
+    if (!isset($_SESSION['_kernel_flash']) || !is_array($_SESSION['_kernel_flash'])) {
+        $_SESSION['_kernel_flash'] = [];
+    }
+    $_SESSION['_kernel_flash'][$key] = array_merge(['type' => $type, 'text' => $text], $extra);
+}
+
+/**
+ * Read-and-clear a flash message previously stored via kernel_flash().
+ *
+ * @return array<string,mixed>|null
+ */
+function kernel_consume_flash(string $key): ?array
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return null;
+    }
+    $bag = $_SESSION['_kernel_flash'] ?? null;
+    if (!is_array($bag) || !isset($bag[$key]) || !is_array($bag[$key])) {
+        return null;
+    }
+    $msg = $bag[$key];
+    unset($_SESSION['_kernel_flash'][$key]);
+    if (empty($_SESSION['_kernel_flash'])) {
+        unset($_SESSION['_kernel_flash']);
+    }
+    return $msg;
+}
+
+/**
+ * Peek at a flash without consuming it (rarely needed).
+ *
+ * @return array<string,mixed>|null
+ */
+function kernel_peek_flash(string $key): ?array
+{
+    $bag = $_SESSION['_kernel_flash'] ?? null;
+    if (!is_array($bag) || !isset($bag[$key]) || !is_array($bag[$key])) {
+        return null;
+    }
+    return $bag[$key];
+}
+
 function is_https(): bool
 {
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
@@ -937,27 +998,32 @@ function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts
     $action = 'login';
 
     try {
-        $db = app()->db();
-        $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $db = app()->db();
+            $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
 
-        $db->prepare(
-            'INSERT INTO rate_limits (identifier, action, attempts, window_start)
-             VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE
-                 attempts = IF(window_start >= :cutoff, attempts + 1, 1),
-                 window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
-        )->execute([
-            ':id' => $identifier,
-            ':action' => $action,
-            ':cutoff' => $cutoff,
-            ':cutoff2' => $cutoff,
-        ]);
+            $db->prepare(
+                'INSERT INTO rate_limits (identifier, action, attempts, window_start)
+                 VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
+                 ON DUPLICATE KEY UPDATE
+                     attempts = IF(window_start >= :cutoff, attempts + 1, 1),
+                     window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
+            )->execute([
+                ':id' => $identifier,
+                ':action' => $action,
+                ':cutoff' => $cutoff,
+                ':cutoff2' => $cutoff,
+            ]);
 
-        $statement = $db->prepare(
-            'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
-        );
-        $statement->execute([':id' => $identifier, ':action' => $action]);
-        $row = $statement->fetch(PDO::FETCH_ASSOC);
+            $statement = $db->prepare(
+                'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
+            );
+            $statement->execute([':id' => $identifier, ':action' => $action]);
+            $row = $statement->fetch(PDO::FETCH_ASSOC);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
 
         if (is_array($row) && ($row['window_start'] ?? '') >= $cutoff && (int)($row['attempts'] ?? 0) > $maxAttempts) {
             $retryAfter = max(1, $windowSeconds - (time() - strtotime((string)$row['window_start'])));
@@ -1004,6 +1070,40 @@ function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts
         'window_seconds' => $windowSeconds,
         'enforced' => true,
     ];
+}
+
+function kernelActiveProductIntegrationMode(bool $refresh = false): string
+{
+    if (!$refresh) {
+        $cached = kernel_request_context_get('_kernel_active_product_integration_mode', null);
+        if (is_string($cached)) {
+            return $cached;
+        }
+    }
+
+    try {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            $stmt = app()->db()->prepare(
+                "SELECT integration_mode
+                 FROM kernel_integrations
+                 WHERE is_active = 1
+                   AND integration_mode IN ('wms_authoritative_products', 'ecommerce_authoritative_products')
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT 1"
+            );
+            $stmt->execute();
+            $mode = trim((string)($stmt->fetchColumn() ?: ''));
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+        }
+    } catch (Throwable $e) {
+        $mode = '';
+    }
+
+    kernel_request_context_set('_kernel_active_product_integration_mode', $mode);
+
+    return $mode;
 }
 
 function kernelEmitLoginRateLimitJson(array $rateLimit, string $message = 'Too many login attempts. Try again later.'): void
@@ -1591,7 +1691,11 @@ function kernelEnsureDirectory(string $path, int $mode = 0775): bool
         return true;
     }
 
-    return @mkdir($path, $mode, true);
+    if (@mkdir($path, $mode, true)) {
+        return true;
+    }
+
+    return is_dir($path);
 }
 
 function kernelDeletePath(string $path): bool

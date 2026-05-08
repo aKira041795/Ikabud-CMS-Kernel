@@ -4,10 +4,13 @@
     "version": "1.0.0",
     "description": "Cross-module search index with capability API and event-driven indexing.",
     "author": "Noah C. Omamalin",
-    "owns_tables": [
+    "owns_tables": [],
+    "co_owns_tables": [
         "kernel_search_index"
     ],
-    "reads_tables": ["cms_content"],
+    "reads_tables": [
+        "cms_content"
+    ],
     "migrations": [
         "database/migrations/001_kernel_search_index.sql"
     ],
@@ -26,10 +29,18 @@
                         "q"
                     ],
                     "properties": {
-                        "q": { "type": "string" },
-                        "limit": { "type": "integer" },
-                        "offset": { "type": "integer" },
-                        "module": { "type": "string" }
+                        "q": {
+                            "type": "string"
+                        },
+                        "limit": {
+                            "type": "integer"
+                        },
+                        "offset": {
+                            "type": "integer"
+                        },
+                        "module": {
+                            "type": "string"
+                        }
                     }
                 }
             },
@@ -47,13 +58,30 @@
                         "entity_id"
                     ],
                     "properties": {
-                        "module": { "type": "string" },
-                        "entity_type": { "type": "string" },
-                        "entity_id": { "type": "string" },
-                        "title": { "type": "string" },
-                        "excerpt": { "type": "string" },
-                        "search_text": { "type": "string" },
-                        "json_metadata": { "type": ["object", "string"] }
+                        "module": {
+                            "type": "string"
+                        },
+                        "entity_type": {
+                            "type": "string"
+                        },
+                        "entity_id": {
+                            "type": "string"
+                        },
+                        "title": {
+                            "type": "string"
+                        },
+                        "excerpt": {
+                            "type": "string"
+                        },
+                        "search_text": {
+                            "type": "string"
+                        },
+                        "json_metadata": {
+                            "type": [
+                                "object",
+                                "string"
+                            ]
+                        }
                     }
                 }
             },
@@ -71,9 +99,15 @@
                         "entity_id"
                     ],
                     "properties": {
-                        "module": { "type": "string" },
-                        "entity_type": { "type": "string" },
-                        "entity_id": { "type": "string" }
+                        "module": {
+                            "type": "string"
+                        },
+                        "entity_type": {
+                            "type": "string"
+                        },
+                        "entity_id": {
+                            "type": "string"
+                        }
                     }
                 }
             }

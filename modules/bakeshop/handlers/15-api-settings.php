@@ -33,6 +33,8 @@ function bakeshopSaveDisplaySettings(array $input): array
         'print_template' => $printTemplate,
     ]);
 
+    bakeshopClearBrandSettingsCache();
+
     return [
         'store_name' => $storeName,
         'store_description' => $storeDescription,

@@ -146,110 +146,25 @@ class Grammar
         return in_array($platform, self::getPlatforms(), true);
     }
     
-    // ========== v11: Pattern Matching Keywords (PLANNED — not yet implemented in TemplateEngine) ==========
-    public const PATTERN_KEYWORDS = [
-        'match', 'when', 'endmatch', 'endwhen',
-        'case', 'default', 'guard', 'if',
-    ];
-    
-    // ========== v11: Async Keywords (PLANNED — not yet implemented in TemplateEngine) ==========
-    public const ASYNC_KEYWORDS = [
-        'await', 'endawait', 'loading', 'catch',
-        'parallel', 'endparallel', 'fetch', 'then',
-        'suspense', 'endsuspense', 'fallback',
-    ];
-    
-    // ========== v11: i18n Keywords (PLANNED — not yet implemented in TemplateEngine) ==========
-    public const I18N_KEYWORDS = [
-        'trans', 'endtrans', 'plural', 'context',
-    ];
+    // ========== v11+ PLANNED keywords ==========
+    // Moved to kernel/DiSyL/Grammar/Planned.php in 4.0.0. Use
+    // \Ikabud\Kernel\DiSyL\Grammar\Planned::* directly.
     
     // ========== v11: All Keywords ==========
     public static function getAllKeywords(): array
     {
-        return array_merge(
-            self::PATTERN_KEYWORDS,
-            self::ASYNC_KEYWORDS,
-            self::I18N_KEYWORDS
-        );
+        return Grammar\Planned::getAllV11Keywords();
     }
     
-    // ========== v11: Type Operators ==========
-    public const TYPE_OPERATORS = [
-        '|' => 'union',
-        '&' => 'intersection',
-        '?' => 'optional',
-        '!' => 'non_null',
-        '...' => 'spread',
-        'extends' => 'constraint',
-        'infer' => 'infer',
-        'keyof' => 'keyof',
-        'typeof' => 'typeof',
-        'readonly' => 'readonly',
-    ];
-    
-    // ========== v11: Built-in Utility Types ==========
-    public const UTILITY_TYPES = [
-        'Partial',      // Make all properties optional
-        'Required',     // Make all properties required
-        'Readonly',     // Make all properties readonly
-        'Pick',         // Pick subset of properties
-        'Omit',         // Omit subset of properties
-        'Record',       // Create object type with keys and values
-        'Exclude',      // Exclude types from union
-        'Extract',      // Extract types from union
-        'NonNullable',  // Remove null and undefined
-        'ReturnType',   // Get return type of function
-        'Parameters',   // Get parameter types of function
-        'Awaited',      // Unwrap Promise type
-    ];
-    
-    // ========== v11.1: Experimentation Keywords (PLANNED — not yet implemented) ==========
-    public const EXPERIMENT_KEYWORDS = [
-        'experiment',
-        'variant',
-        'endexperiment',
-        'convert',
-    ];
-    
-    // ========== v11.1: Cache Keywords (PLANNED — not yet implemented) ==========
-    public const CACHE_KEYWORDS = [
-        'cache',
-        'endcache',
-        'depends_on',
-        'invalidate',
-        'ttl',
-    ];
-    
-    // ========== v11.1: Security Keywords (PLANNED — not yet implemented) ==========
-    public const SECURITY_KEYWORDS = [
-        'sandbox',
-        'endsandbox',
-        'trusted',
-        'untrusted',
-    ];
-    
-    // ========== v11.1: Federation Keywords (PLANNED — not yet implemented) ==========
-    public const FEDERATION_KEYWORDS = [
-        'federated_query',
-        'remote',
-        'aggregate',
-    ];
-    
-    // ========== v11.1: AI Keywords (PLANNED — not yet implemented) ==========
-    public const AI_KEYWORDS = [
-        'ai_generate',
-        'ai_query',
-        'ai_complete',
-        'ai_optimize',
-    ];
+    // ========== Active Type Operators (none) ==========
+    // v11 type operators are PLANNED — see Grammar\Planned::TYPE_OPERATORS.
     
     /**
-     * Check if a type is a utility type
+     * @deprecated 4.0.0 use \Ikabud\Kernel\DiSyL\Grammar\Planned::isUtilityType()
      */
     public static function isUtilityType(string $type): bool
     {
-        return in_array($type, self::UTILITY_TYPES, true);
+        return Grammar\Planned::isUtilityType($type);
     }
     
     /**
@@ -279,12 +194,6 @@ class Grammar
      */
     public static function getV11Keywords(): array
     {
-        return array_merge(
-            self::EXPERIMENT_KEYWORDS,
-            self::CACHE_KEYWORDS,
-            self::SECURITY_KEYWORDS,
-            self::FEDERATION_KEYWORDS,
-            self::AI_KEYWORDS
-        );
+        return Grammar\Planned::getAllV11_1Keywords();
     }
 }

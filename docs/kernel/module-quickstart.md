@@ -410,6 +410,15 @@ In ~30 minutes you created a module with:
 - **Structured templates** — DiSyL with inheritance, loops, conditionals
 - **Automated test** — verifies manifest, discovery, capabilities, helpers
 
+> **Want more?** DiSyL 4.x adds pattern matching (`{match}`), i18n (`{trans}`),
+> fragment cache (`{cache}`), A/B experiments (`{experiment}`), capability
+> sandboxing (`{untrusted}`/`{sandbox}`/`{trusted}`), an async runtime
+> (`{parallel}`/`{await}`/`{suspense}`), federation
+> (`{federated_query}`/`{remote}`/`{aggregate}`), and pinned AI primitives
+> (`{ai_generate}`/`{ai_query}`/`{ai_complete}`). See the **DiSyL 4.x
+> Capabilities** table in
+> [module-development-guide.md](module-development-guide.md#disyl-4x-capabilities-kernel--40).
+
 ---
 
 ## CLI Cheat Sheet

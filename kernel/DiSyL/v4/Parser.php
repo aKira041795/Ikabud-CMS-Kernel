@@ -28,7 +28,7 @@ use Ikabud\Kernel\DiSyL\v4\AST\SlotNode;
 use Ikabud\Kernel\DiSyL\v4\AST\TextNode;
 use Ikabud\Kernel\DiSyL\v4\AST\UnaryOpNode;
 
-class Parser
+final class Parser
 {
     private string $source;
     private string $name;

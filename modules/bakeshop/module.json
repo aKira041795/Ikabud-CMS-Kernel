@@ -1,7 +1,7 @@
 {
     "id": "bakeshop",
     "name": "Bakeshop Operations",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "Stand-alone bakeshop supervisor operations for products, recipes, deliveries, production, and usage reporting.",
     "author": "Ikabud Kernel Team",
     "owns_tables": [

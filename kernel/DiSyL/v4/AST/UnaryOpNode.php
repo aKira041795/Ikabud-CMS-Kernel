@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class UnaryOpNode extends AbstractNode
+final class UnaryOpNode extends AbstractNode
 {
     private AbstractNode $operand;
     private string $operator;

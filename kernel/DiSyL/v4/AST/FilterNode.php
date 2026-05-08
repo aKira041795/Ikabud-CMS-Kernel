@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class FilterNode
+final class FilterNode
 {
     private string $name;
     private array $arguments;

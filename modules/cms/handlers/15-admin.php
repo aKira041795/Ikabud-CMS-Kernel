@@ -314,11 +314,11 @@ function cmsAdminContentList(array $params = []): void
         }
     }
 
-    $role   = (string)($user['role'] ?? '');
-    $source = (string)($user['source'] ?? '');
-    if ($source === 'cms' && !cmsRoleAtLeast($role, 'editor')) {
+    $role = (string)($user['role'] ?? '');
+    $scopedAuthorId = cmsScopedContentAuthorId($user);
+    if ($scopedAuthorId !== null) {
         $where[] = 'c.author_id = :uid';
-        $bind[':uid'] = (int)($user['id'] ?? 0);
+        $bind[':uid'] = $scopedAuthorId;
     }
 
     $db = cmsDb();

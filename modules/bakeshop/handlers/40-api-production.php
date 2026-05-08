@@ -115,6 +115,8 @@ function bakeshopProductionCreate(array $input): array
     $branchId = bakeshopCatalogRequirePositiveInt($input['branch_id'] ?? null, 'branch_id');
     $productId = bakeshopCatalogRequirePositiveInt($input['product_id'] ?? null, 'product_id');
     $qtyProduced = bakeshopCatalogRequirePositiveDecimal($input['qty_produced'] ?? null, 'qty_produced');
+    $relaxGuards = bakeshopAllowProductionGuardOverride()
+        && filter_var($input['relax_guards'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
     bakeshopCatalogAssertRecordExists('bakeshop_branches', $branchId);
     bakeshopCatalogAssertRecordExists('bakeshop_products', $productId);
@@ -137,8 +139,13 @@ function bakeshopProductionCreate(array $input): array
     }
 
     $defaultYieldQty = (float)($product['default_yield_qty'] ?? 0);
+    $shouldSkipSnapshot = false;
     if ($defaultYieldQty <= 0) {
+        if ($relaxGuards) {
+            $shouldSkipSnapshot = true;
+        } else {
         throw new InvalidArgumentException('Product default_yield_qty must be greater than zero before production can be recorded.');
+        }
     }
 
     $recipeItems = bakeshopCatalogFetchAll(
@@ -146,10 +153,14 @@ function bakeshopProductionCreate(array $input): array
         [':product_id' => $productId]
     );
     if ($recipeItems === []) {
-        throw new InvalidArgumentException('This product has no recipe lines yet.');
+        if ($relaxGuards) {
+            $shouldSkipSnapshot = true;
+        } else {
+            throw new InvalidArgumentException('This product has no recipe lines yet.');
+        }
     }
 
-    $scale = ((float)$qtyProduced) / $defaultYieldQty;
+    $scale = $shouldSkipSnapshot ? 0.0 : ((float)$qtyProduced) / $defaultYieldQty;
     $db = bakeshopDb();
     $db->beginTransaction();
 
@@ -173,14 +184,16 @@ function bakeshopProductionCreate(array $input): array
              VALUES (:run_id, :ingredient_id, :qty_used, :unit_id)'
         );
 
-        foreach ($recipeItems as $recipeItem) {
-            $qtyUsed = number_format(((float)$recipeItem['qty']) * $scale, 4, '.', '');
-            $itemStmt->execute([
-                ':run_id' => $runId,
-                ':ingredient_id' => (int)$recipeItem['ingredient_id'],
-                ':qty_used' => $qtyUsed,
-                ':unit_id' => (int)$recipeItem['unit_id'],
-            ]);
+        if (!$shouldSkipSnapshot) {
+            foreach ($recipeItems as $recipeItem) {
+                $qtyUsed = number_format(((float)$recipeItem['qty']) * $scale, 4, '.', '');
+                $itemStmt->execute([
+                    ':run_id' => $runId,
+                    ':ingredient_id' => (int)$recipeItem['ingredient_id'],
+                    ':qty_used' => $qtyUsed,
+                    ':unit_id' => (int)$recipeItem['unit_id'],
+                ]);
+            }
         }
 
         $db->commit();
@@ -223,7 +236,7 @@ function bakeshopProductionCreate(array $input): array
         'branch_id' => $branchId,
         'product_id' => $productId,
         'qty_produced' => (float)$qtyProduced,
-        'item_count' => count($recipeItems),
+        'item_count' => $shouldSkipSnapshot ? 0 : count($recipeItems),
     ]);
 
     bakeshopAudit('bakeshop.production.created', $branchId, 'bakeshop_production_runs', (string)$runId, null, $run);
@@ -382,7 +395,7 @@ function bakeshopApiProductionStore(array $params = []): void
         $input = bakeshopInput();
         $isUpdate = (($input['id'] ?? null) !== null && trim((string)$input['id']) !== '');
         $item = $isUpdate ? bakeshopProductionUpdate($input) : bakeshopProductionCreate($input);
-        bakeshopJsonOk(['item' => $item], $isUpdate ? 200 : 201);
+        bakeshopJsonMutationOk(['item' => $item], ['production', 'usage'], $isUpdate ? 200 : 201);
     });
 }
 
@@ -392,7 +405,7 @@ function bakeshopApiProductionVoid(array $params = []): void
         bakeshopEnforceCsrf();
         $user = bakeshopCurrentUser('bakeshop.manage');
         $item = bakeshopProductionVoid(bakeshopInput(), $user);
-        bakeshopJsonOk(['item' => $item]);
+        bakeshopJsonMutationOk(['item' => $item], ['production', 'usage']);
     });
 }
 

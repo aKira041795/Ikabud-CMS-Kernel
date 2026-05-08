@@ -1,0 +1,54 @@
+{!-- Case Severity Settings --}
+
+<div class="space-y-4">
+    <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-5 text-sm text-gray-700">
+        <p class="font-medium text-gray-900">Risk levels are fixed for reporting and database compatibility.</p>
+        <p class="mt-1 text-xs text-gray-500">You can choose which built-in levels appear in case forms, control their display order, and set the default selection for newly created cases.</p>
+    </div>
+
+    <form hx-put="{base_url}/api/case-severity-levels" hx-swap="none" class="space-y-4">
+        <div class="space-y-3">
+            {foreach severity_levels as severity}
+            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_120px_140px] gap-4 items-center">
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" name="enabled_levels[]" value="{severity.value | esc_attr}" {if severity.is_enabled}checked{/if}
+                               class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <p class="text-sm font-semibold text-gray-900">{severity.label | esc_html}</p>
+                                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-500">{severity.value | esc_html}</span>
+                                {if severity.in_use_count > 0}
+                                <span class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">{severity.in_use_count} case{if severity.in_use_count != 1}s{/if}</span>
+                                {/if}
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Uncheck this to hide it from case create and edit forms. Existing records keep their saved severity.</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Sort Order</label>
+                        <input type="number" name="sort_order[{severity.value | esc_attr}]" value="{severity.sort_order}" min="1"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Default</label>
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="radio" name="default_value" value="{severity.value | esc_attr}" {if severity.is_default}checked{/if}
+                                   class="border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <span>Use by default</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            {/foreach}
+        </div>
+
+        <div class="flex justify-end">
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition">
+                <i class="fas fa-save mr-2"></i> Save Changes
+            </button>
+        </div>
+    </form>
+</div>

@@ -78,6 +78,11 @@
             </div>
             <div class="text-right">
                 <div class="text-sm font-semibold text-gray-900">{if card.amount > 0}PHP {card.amount | number_format:2}{/if}{if card.amount == 0}—{/if}</div>
+                {if selling_accounts_enabled}
+                <div class="text-xs text-indigo-600 mt-0.5" title="Selling accounts gross sales today">
+                    {if card.selling_accounts_total > 0}+ PHP {card.selling_accounts_total | number_format:2} accounts{/if}
+                </div>
+                {/if}
                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
                     {if card.status == 'open'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
                     {if card.status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}

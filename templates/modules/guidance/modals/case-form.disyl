@@ -201,7 +201,7 @@
                         <i class="fas fa-clipboard-list mr-2 text-indigo-500"></i> Case Details
                     </h3>
 
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Session Date *</label>
                             <input type="date" name="session_date" required
@@ -213,15 +213,53 @@
                             <select name="student_status"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                                 <option value="">Select status...</option>
-                                <option value="Active" {if case.student_status == 'Active'}selected{/if}>Active</option>
-                                <option value="At Risk" {if case.student_status == 'At Risk'}selected{/if}>At Risk</option>
-                                <option value="On Leave" {if case.student_status == 'On Leave'}selected{/if}>On Leave</option>
-                                <option value="Transferred" {if case.student_status == 'Transferred'}selected{/if}>Transferred</option>
-                                <option value="Dropped" {if case.student_status == 'Dropped'}selected{/if}>Dropped</option>
-                                <option value="Graduated" {if case.student_status == 'Graduated'}selected{/if}>Graduated</option>
+                                {foreach student_statuses as student_status}
+                                <option value="{student_status | esc_attr}" {if case.student_status == student_status}selected{/if}>{student_status | esc_html}</option>
+                                {/foreach}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Severity / Risk Level *</label>
+                            <select name="severity" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <option value="">Select risk level...</option>
+                                {foreach severity_levels as severity_level}
+                                <option value="{severity_level.value | esc_attr}" {if case.severity == severity_level.value or (!case.severity and severity_default == severity_level.value)}selected{/if}>{severity_level.label | esc_html}</option>
+                                {/foreach}
                             </select>
                         </div>
                     </div>
+
+                    {if !case.id && !source_appointment.id}
+                    <div class="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <h4 class="text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                            <i class="fas fa-calendar-check mr-2 text-indigo-500"></i> Schedule Initial Session
+                        </h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Session Type *</label>
+                                <select id="case-appt-type" name="appointment_type_id" required
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">Loading session types...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Appointment Date *</label>
+                                <input type="date" id="case-appt-date" name="appointment_date" required min="{today}"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Available Time Slots *</label>
+                            <div id="case-slots-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                                <div class="sm:col-span-2 lg:col-span-4 text-center py-4 text-gray-500 text-sm">
+                                    <i class="fas fa-calendar mr-2"></i> Select a date to view available slots
+                                </div>
+                            </div>
+                            <input type="hidden" id="case-appt-time" name="appointment_time" required>
+                        </div>
+                    </div>
+                    {/if}
 
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Categories</label>
@@ -428,7 +466,7 @@
                     </div>
 
                     <div>
-                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-red-200 bg-red-50 px-3 py-2">
                             <input type="checkbox" name="is_urgent" value="1" {if case.is_urgent}checked{/if}
                                    class="rounded border-gray-300 text-red-600 focus:ring-red-500">
                             <span class="font-medium text-red-700"><i class="fas fa-exclamation-triangle mr-1"></i> Mark as Urgent</span>

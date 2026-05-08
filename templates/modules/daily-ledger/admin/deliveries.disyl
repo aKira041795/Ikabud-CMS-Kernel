@@ -1,0 +1,559 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block content}
+<div x-data="deliveriesPage()" x-init="init()">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Transfer Records</h2>
+            <p class="text-sm text-gray-500">
+                Use this page to review DR records and fix missing entries. For normal branch-to-branch work, branch staff should use <span class="font-semibold text-gray-700">Send to Branch</span> and <span class="font-semibold text-gray-700">Receive Stock</span>.
+                {if !formal_delivery_enabled}
+                <span class="block mt-1 text-amber-700">Formal Delivery Workflow is currently disabled in Settings &rarr; Feature Activation. Posting will be blocked.</span>
+                {/if}
+            </p>
+        </div>
+        {if can_review_delivery_provenance}
+        <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+            Paper DR reviews stay here. Production In Charge may verify them; admin and supervisor may also mark a problem or reopen the review.
+        </div>
+        {/if}
+    </div>
+
+    <div class="mb-6 grid gap-3 lg:grid-cols-3">
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Normal branch transfer</div>
+            <div class="mt-1 text-sm font-semibold text-emerald-900">Source branch sends, destination branch receives</div>
+            <p class="mt-1 text-xs leading-5 text-emerald-800">For everyday branch transfers, staff should use <span class="font-semibold">Send to Branch</span> on the source branch and <span class="font-semibold">Receive Stock</span> on the destination branch.</p>
+        </div>
+        <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 ring-1 ring-inset ring-indigo-200">
+            <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Truck arrived first</div>
+            <div class="mt-1 text-sm font-semibold text-indigo-900">Destination branch uses the paper DR</div>
+            <p class="mt-1 text-xs leading-5 text-indigo-800">If the truck arrived before staff encoded the dispatch, the destination branch should use the paper DR option inside <span class="font-semibold">Receive Stock</span>.</p>
+        </div>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div class="text-xs font-semibold uppercase tracking-wide text-amber-700">Admin recovery only</div>
+            <div class="mt-1 text-sm font-semibold text-amber-900">Use this page only for missed or special cases</div>
+            <p class="mt-1 text-xs leading-5 text-amber-800">Record a delivery here only when the normal branch steps were missed, the day is already closed, or the destination is not a branch.</p>
+            {if can_create_delivery_docs}
+            <button class="btn btn-outline mt-4 w-full justify-center" @click="openCreate()">Open Missing Delivery Form</button>
+            <p class="mt-2 text-[11px] text-amber-800">Opens a modal so the recovery form stays in view.</p>
+            {/if}
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                <select x-model="filter.status" @change="reload()" class="form-input mt-0 w-full">
+                    <option value="">All</option>
+                    <option value="draft">Draft</option>
+                    <option value="posted">Sent / Waiting</option>
+                    <option value="received">Received</option>
+                    <option value="voided">Cancelled</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Destination Type</label>
+                <select x-model="filter.destination_type" @change="reload()" class="form-input mt-0 w-full">
+                    <option value="">All</option>
+                    <option value="branch">Branch</option>
+                    <option value="selling_account">Selling Account</option>
+                    <option value="own_account">Own Account</option>
+                    <option value="reseller">Reseller</option>
+                    <option value="customer">Customer</option>
+                    <option value="event">Event</option>
+                    <option value="wastage">Wastage</option>
+                    <option value="internal_use">Internal Use</option>
+                    <option value="adjustment">Adjustment</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR Review</label>
+                <select x-model="filter.provenance_status" @change="reload()" class="form-input mt-0 w-full">
+                    <option value="">All</option>
+                    <option value="paper_dr_pending">Needs Check</option>
+                    <option value="accepted">Verified</option>
+                    <option value="discrepant">Discrepancy</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button class="btn btn-outline" @click="reload()">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="text-left">Record / DR #</th>
+                        <th class="text-left">Date</th>
+                        <th class="text-left">Origin</th>
+                        <th class="text-left">Destination</th>
+                        <th class="text-left">Status</th>
+                        <th class="text-left">Created On</th>
+                        <th class="text-right"></th>
+                    </tr>
+                </thead>
+                <template x-if="loadError">
+                    <tbody>
+                        <tr>
+                            <td colspan="7" class="text-center text-sm text-rose-600 py-4" x-text="loadError"></td>
+                        </tr>
+                    </tbody>
+                </template>
+                <template x-for="d in rows" :key="d.id">
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="font-mono text-sm text-gray-500">#<span x-text="d.id"></span></div>
+                                <div class="mt-1 inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 font-mono text-sm font-semibold tracking-[0.18em] text-white shadow-sm"
+                                     x-text="d.dr_number || 'NO DR'"></div>
+                                <template x-if="d.is_paper_dr_exception == 1">
+                                    <div class="mt-1 inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Paper DR Exception</div>
+                                </template>
+                                <template x-if="d.provenance_reviewer_name">
+                                    <div class="mt-1 text-[11px] text-gray-500">Verified by <span x-text="d.provenance_reviewer_name"></span></div>
+                                </template>
+                            </td>
+                            <td x-text="d.delivery_date"></td>
+                            <td x-text="d.origin_label"></td>
+                            <td x-text="d.destination_label"></td>
+                            <td>
+                                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+                                      :class="{
+                                          'bg-gray-50 text-gray-700 ring-gray-200': d.status === 'draft',
+                                          'bg-emerald-50 text-emerald-700 ring-emerald-200': d.status === 'posted' || d.status === 'received',
+                                          'bg-rose-50 text-rose-700 ring-rose-200': d.status === 'voided'
+                                      }"
+                                      x-text="d.status === 'draft' ? 'Draft' : (d.status === 'posted' ? 'Sent / Waiting' : (d.status === 'received' ? 'Received' : 'Cancelled'))"></span>
+                                <template x-if="d.is_paper_dr_exception == 1">
+                                    <span class="ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset"
+                                          :class="{
+                                              'bg-amber-50 text-amber-700 ring-amber-200': d.provenance_status === 'paper_dr_pending',
+                                              'bg-emerald-50 text-emerald-700 ring-emerald-200': d.provenance_status === 'accepted',
+                                              'bg-rose-50 text-rose-700 ring-rose-200': d.provenance_status === 'discrepant'
+                                          }"
+                                          x-text="d.provenance_status === 'paper_dr_pending' ? 'needs check' : (d.provenance_status === 'accepted' ? 'verified' : 'discrepancy')"></span>
+                                </template>
+                                <template x-if="receivingHasVariance(d.id)">
+                                    <span class="ml-1 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200" title="Receiving variance detected">⚠</span>
+                                </template>
+                            </td>
+                            <td class="text-xs text-gray-500" x-text="d.created_at"></td>
+                            <td class="text-right">
+                                <template x-if="d.status === 'draft' && {if can_create_delivery_docs}true{else}false{/if}">
+                                    <span>
+                                        <button class="btn btn-sm btn-primary" @click="postDelivery(d.id)" :disabled="!{if formal_delivery_enabled}true{else}false{/if}">Finalize</button>
+                                        <button class="btn btn-sm btn-outline" @click="voidDelivery(d.id)">Cancel</button>
+                                    </span>
+                                </template>
+                                <template x-if="d.is_paper_dr_exception == 1 && d.provenance_status === 'paper_dr_pending' && {if can_review_delivery_provenance}true{else}false{/if}">
+                                    <span class="inline-flex gap-2">
+                                        <button class="btn btn-sm btn-primary" @click="reviewProvenance(d.id, 'accepted')">Mark Verified</button>
+                                        {if can_mark_delivery_discrepant}
+                                        <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'discrepant')">Mark Problem</button>
+                                        {/if}
+                                    </span>
+                                </template>
+                                <template x-if="d.is_paper_dr_exception == 1 && d.provenance_status !== 'paper_dr_pending' && {if can_mark_delivery_discrepant}true{else}false{/if}">
+                                    <button class="btn btn-sm btn-outline" @click="reviewProvenance(d.id, 'reopen')">Reopen Review</button>
+                                </template>
+                                <template x-if="d.status === 'received'">
+                                    <button class="btn btn-sm btn-outline" @click="toggleReceiving(d.id)"
+                                            x-text="expandedId === d.id ? 'Hide' : 'View Receipt'"></button>
+                                </template>
+                            </td>
+                        </tr>
+                        <tr x-show="expandedId === d.id" class="bg-gray-50">
+                            <td colspan="7" class="p-0">
+                                <div class="px-4 py-3">
+                                    <template x-if="receivingCache[d.id] && receivingCache[d.id].loading">
+                                        <p class="text-xs text-gray-500 py-2">Loading receipt details…</p>
+                                    </template>
+                                    <template x-if="receivingCache[d.id] && !receivingCache[d.id].loading && !receivingCache[d.id].receiving">
+                                        <p class="text-xs text-gray-500 py-2">No receipt record found for this transfer.</p>
+                                    </template>
+                                    <template x-if="receivingCache[d.id] && !receivingCache[d.id].loading && receivingCache[d.id].receiving">
+                                        <div>
+                                            <div class="flex items-center gap-3 mb-2">
+                                                <span class="text-xs font-semibold text-gray-700">Receipt Details</span>
+                                                <span class="text-xs text-gray-500">Date: <span x-text="receivingCache[d.id].receiving.received_ledger_date"></span></span>
+                                                <span class="text-xs text-gray-500" x-show="receivingCache[d.id].receiving.received_by_name">By: <span x-text="receivingCache[d.id].receiving.received_by_name"></span></span>
+                                            </div>
+                                            <table class="w-full text-sm">
+                                                <thead class="text-xs text-gray-500 uppercase border-b border-gray-200">
+                                                    <tr>
+                                                        <th class="text-left py-1">Product</th>
+                                                        <th class="text-right py-1 pr-3">Sent</th>
+                                                        <th class="text-right py-1 pr-3">Received</th>
+                                                        <th class="text-right py-1">Variance</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <template x-for="it in receivingCache[d.id].items" :key="it.product_name">
+                                                        <tr class="border-t border-gray-100"
+                                                            :class="{ 'bg-rose-50': it.variance !== 0 }">
+                                                            <td class="py-1" x-text="it.product_name"></td>
+                                                            <td class="py-1 text-right pr-3 text-gray-500" x-text="it.sent_qty"></td>
+                                                            <td class="py-1 text-right pr-3" x-text="it.received_qty"></td>
+                                                            <td class="py-1 text-right font-semibold"
+                                                                :class="{ 'text-rose-600': it.variance !== 0, 'text-gray-400': it.variance === 0 }"
+                                                                x-text="it.variance > 0 ? '+' + it.variance : it.variance"></td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </template>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </template>
+                <template x-if="rows.length === 0 && !loadError">
+                    <tbody>
+                        <tr>
+                            <td colspan="7" class="text-center text-sm text-gray-500 py-8">No transfer records match these filters.</td>
+                        </tr>
+                    </tbody>
+                </template>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div class="modal-overlay" :class="{ 'show': createOpen }" x-show="createOpen" x-cloak @keydown.escape.window="createOpen = false">
+        <div class="modal w-full max-w-3xl max-h-[90vh] overflow-y-auto" @click.away="createOpen = false">
+            <div class="mb-3 flex items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-lg font-semibold">Record Missing / Special Delivery</h3>
+                    <p class="mt-1 text-xs text-gray-500">This opens as a recovery modal so you can stay on the records view while encoding the missing DR.</p>
+                </div>
+                <div class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Recovery only</div>
+            </div>
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-900">
+                Use this screen only for <span class="font-semibold">admin recovery</span> or for deliveries that do <span class="font-semibold">not</span> go to another branch. If this is a normal branch transfer, stop and use <span class="font-semibold">Send to Branch</span> and <span class="font-semibold">Receive Stock</span> instead.
+            </div>
+            <div class="mb-4 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs text-emerald-900">
+                    <div class="font-semibold">Use this form when:</div>
+                    <ul class="mt-2 space-y-1 leading-5">
+                        <li>- the branch transfer was missed and needs admin recovery</li>
+                        <li>- the day is already closed</li>
+                        <li>- the destination is not another branch</li>
+                    </ul>
+                </div>
+                <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-xs text-rose-900">
+                    <div class="font-semibold">Do not use this form when:</div>
+                    <ul class="mt-2 space-y-1 leading-5">
+                        <li>- the source branch can still use Send to Branch</li>
+                        <li>- the destination branch can still use Receive Stock</li>
+                        <li>- you only need to verify a Paper DR review</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="form-label">Where stock came from *</label>
+                    <select class="form-input" x-model="form.origin_type">
+                        <option value="commissary">Commissary</option>
+                        <option value="branch">Branch</option>
+                        <option value="supplier">Supplier</option>
+                        <option value="manual">Manual</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Source branch / commissary</label>
+                    <select class="form-input" x-model="form.origin_id">
+                        <option value="">— None —</option>
+                        {foreach branches as b}
+                        <option value="{b.id}">{b.code} — {b.name}{if b.is_commissary} (commissary){/if}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Where stock is going *</label>
+                    <select class="form-input" x-model="form.destination_type">
+                        <option value="branch">Branch</option>
+                        <option value="selling_account">Selling Account</option>
+                        <option value="own_account">Own Account</option>
+                        <option value="reseller">Reseller</option>
+                        <option value="customer">Customer</option>
+                        <option value="event">Event</option>
+                        <option value="wastage">Wastage</option>
+                        <option value="internal_use">Internal Use</option>
+                        <option value="adjustment">Adjustment</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Choose destination</label>
+                    <select class="form-input" x-model="form.destination_id" x-show="form.destination_type === 'branch'">
+                        <option value="">— Select branch —</option>
+                        {foreach branches as b}
+                        <option value="{b.id}">{b.code} — {b.name}</option>
+                        {/foreach}
+                    </select>
+                    <select class="form-input" x-model="form.destination_id" x-show="form.destination_type === 'selling_account'">
+                        <option value="">— Select selling account —</option>
+                        {foreach selling_accounts as a}
+                        <option value="{a.id}">{a.name}</option>
+                        {/foreach}
+                    </select>
+                    <input class="form-input" type="number" x-model="form.destination_id" placeholder="ID (optional)"
+                           x-show="form.destination_type !== 'branch' && form.destination_type !== 'selling_account'">
+                </div>
+                <div>
+                    <label class="form-label">Paper DR Number</label>
+                    <input class="form-input border-amber-300 bg-amber-50 font-mono text-base font-semibold uppercase tracking-[0.18em]" type="text" x-model="form.dr_number" placeholder="DR-YYYY-####">
+                    <p class="mt-1 text-[11px] text-amber-700">Enter the DR exactly as written on paper.</p>
+                </div>
+                <div>
+                    <label class="form-label">Date on DR *</label>
+                    <input class="form-input" type="date" x-model="form.delivery_date">
+                </div>
+            </div>
+            <div class="form-group" x-show="form.destination_type === 'branch'">
+                <label class="form-label">Why is this being recorded here instead of Send to Branch / Receive Stock? *</label>
+                <textarea class="form-input" rows="2" x-model="form.recovery_reason" placeholder="Example: Truck arrived first, source branch forgot to encode the transfer, or the day is already closed."></textarea>
+                <p class="mt-1 text-xs text-amber-700">This note is required for branch deliveries so the recovery trail stays clear.</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <textarea class="form-input" rows="2" x-model="form.remarks" placeholder="Optional notes such as driver name or special handling details."></textarea>
+            </div>
+
+            <div class="border-t border-gray-200 pt-3 mb-3">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-sm font-semibold">Items</h4>
+                    <button class="btn btn-sm btn-outline" @click="addItem()">+ Add Item</button>
+                </div>
+                <div class="space-y-2">
+                    <template x-for="(it, idx) in form.items" :key="idx">
+                        <div class="grid grid-cols-12 gap-2 items-end">
+                            <div class="col-span-6">
+                                <label class="text-xs text-gray-600">Product</label>
+                                <select class="form-input mt-0" x-model="it.product_id">
+                                    <option value="">— Select —</option>
+                                    {foreach products as p}
+                                    <option value="{p.id}">{p.name}</option>
+                                    {/foreach}
+                                </select>
+                            </div>
+                            <div class="col-span-3">
+                                <label class="text-xs text-gray-600">Qty</label>
+                                <input class="form-input mt-0" type="number" min="1" x-model.number="it.quantity">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="text-xs text-gray-600">Unit</label>
+                                <input class="form-input mt-0" type="text" x-model="it.unit" placeholder="pc">
+                            </div>
+                            <div class="col-span-1 flex justify-end">
+                                <button class="btn btn-sm btn-outline" @click="form.items.splice(idx, 1)">×</button>
+                            </div>
+                        </div>
+                    </template>
+                    <p x-show="form.items.length === 0" class="text-xs text-gray-500">No items yet. Click "+ Add Item".</p>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-outline" @click="createOpen = false">Cancel</button>
+                <button class="btn btn-primary" @click="submit()" :disabled="saving" x-text="saving ? 'Saving…' : 'Save as Draft Record'"></button>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+function deliveriesPage() {
+    return {
+        rows: [],
+        loadError: '',
+        filter: { status: '', destination_type: '', provenance_status: '' },
+        createOpen: false,
+        saving: false,
+        expandedId: null,
+        receivingCache: {},
+        form: {
+            origin_type: 'commissary',
+            origin_id: '',
+            destination_type: 'branch',
+            destination_id: '',
+            dr_number: '',
+            delivery_date: new Date().toISOString().slice(0, 10),
+            remarks: '',
+            items: []
+        },
+        init() { this.reload(); },
+        reload() {
+            const qs = new URLSearchParams();
+            if (this.filter.status) qs.set('status', this.filter.status);
+            if (this.filter.destination_type) qs.set('destination_type', this.filter.destination_type);
+            if (this.filter.provenance_status) qs.set('provenance_status', this.filter.provenance_status);
+            this.loadError = '';
+            fetch('{base_url}/api/v1/deliveries?' + qs.toString(), {
+                credentials: 'same-origin',
+                headers: {
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                }
+            })
+                .then(r => r.json())
+                .then(j => {
+                    this.rows = (j && j.ok) ? j.deliveries : [];
+                    if (!j || !j.ok) {
+                        this.loadError = (j && j.error) ? j.error : 'Failed to load deliveries.';
+                    }
+                })
+                .catch(() => {
+                    this.rows = [];
+                    this.loadError = 'Failed to load deliveries.';
+                });
+        },
+        openCreate() {
+            this.form = {
+                origin_type: 'commissary', origin_id: '',
+                destination_type: 'branch', destination_id: '',
+                dr_number: '', delivery_date: new Date().toISOString().slice(0, 10),
+                recovery_reason: '', remarks: '', items: [{ product_id: '', quantity: 1, unit: 'pc' }]
+            };
+            this.createOpen = true;
+        },
+        addItem() { this.form.items.push({ product_id: '', quantity: 1, unit: 'pc' }); },
+        submit() {
+            const items = this.form.items
+                .filter(it => it.product_id && it.quantity > 0)
+                .map(it => ({ product_id: parseInt(it.product_id, 10), quantity: parseInt(it.quantity, 10), unit: it.unit || 'pc' }));
+            if (items.length === 0) { alert('Add at least one item'); return; }
+            if (this.form.destination_type === 'branch' && !String(this.form.recovery_reason || '').trim()) {
+                alert('Explain why this branch transfer is being recorded here. For normal transfers, use Send to Branch and Receive Stock.');
+                return;
+            }
+            this.saving = true;
+            fetch('{base_url}/api/v1/deliveries/create', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify({
+                    origin_type: this.form.origin_type,
+                    origin_id: this.form.origin_id ? parseInt(this.form.origin_id, 10) : null,
+                    destination_type: this.form.destination_type,
+                    destination_id: this.form.destination_id ? parseInt(this.form.destination_id, 10) : null,
+                    dr_number: this.form.dr_number || null,
+                    delivery_date: this.form.delivery_date,
+                    workflow_mode: this.form.destination_type === 'branch' ? 'exception_recovery' : 'direct_record',
+                    recovery_reason: this.form.destination_type === 'branch' ? (this.form.recovery_reason || null) : null,
+                    remarks: this.form.remarks || null,
+                    items: items
+                })
+            })
+            .then(r => r.json())
+            .then(j => {
+                this.saving = false;
+                if (j && j.ok) { this.createOpen = false; this.reload(); }
+                else { alert((j && j.error) || 'Failed to create delivery'); }
+            })
+            .catch(() => { this.saving = false; alert('Network error'); });
+        },
+        postDelivery(id) {
+            if (!confirm('Post this record now? Make sure the DR details and items are final.')) return;
+            fetch('{base_url}/api/v1/deliveries/post', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify({ delivery_id: id })
+            })
+            .then(r => r.json())
+            .then(j => { if (j && j.ok) this.reload(); else alert((j && j.error) || 'Failed'); });
+        },
+        voidDelivery(id) {
+            if (!confirm('Void this delivery?')) return;
+            fetch('{base_url}/api/v1/deliveries/void', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify({ delivery_id: id })
+            })
+            .then(r => r.json())
+            .then(j => { if (j && j.ok) this.reload(); else alert((j && j.error) || 'Failed'); });
+        },
+        reviewProvenance(id, action) {
+            let note = '';
+            if (action === 'discrepant') {
+                note = prompt('Enter a discrepancy note for this paper DR check:') || '';
+                if (!note.trim()) return;
+            }
+            if (action === 'accepted') {
+                note = prompt('Optional verification note:') || '';
+            }
+            if (action === 'reopen') {
+                if (!confirm('Reopen the paper DR check for this delivery?')) return;
+            }
+            fetch('{base_url}/api/v1/deliveries/review-provenance', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify({ delivery_id: id, action: action, note: note || null })
+            })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.ok) {
+                    this.reload();
+                } else {
+                    alert((j && j.error) || 'Failed to update paper DR check');
+                }
+            });
+        },
+        toggleReceiving(id) {
+            if (this.expandedId === id) { this.expandedId = null; return; }
+            this.expandedId = id;
+            if (!this.receivingCache[id]) {
+                this.receivingCache[id] = { loading: true, receiving: null, items: [] };
+                fetch('{base_url}/api/v1/deliveries/receiving-detail?delivery_id=' + id, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                    }
+                })
+                    .then(r => r.json())
+                    .then(j => {
+                        this.receivingCache[id] = {
+                            loading: false,
+                            receiving: (j && j.ok) ? (j.receiving || null) : null,
+                            items: (j && j.ok) ? (j.items || []) : []
+                        };
+                    })
+                    .catch(() => {
+                        this.receivingCache[id] = { loading: false, receiving: null, items: [] };
+                    });
+            }
+        },
+        receivingHasVariance(id) {
+            var cache = this.receivingCache[id];
+            if (!cache || !cache.items) return false;
+            return cache.items.some(function(it) { return it.variance !== 0; });
+        }
+    };
+}
+</script>
+{/block}

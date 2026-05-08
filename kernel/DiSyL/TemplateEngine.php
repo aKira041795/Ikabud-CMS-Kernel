@@ -50,6 +50,28 @@ class TemplateEngine
     private array $globals = [];
     private array $errors = [];
 
+    /** DiSyL 4.3 — fragment cache + experiments (lazy-instantiated). */
+    private ?\Ikabud\Kernel\DiSyL\Cache\FragmentStore $fragmentStore = null;
+    private ?\Ikabud\Kernel\DiSyL\Experiments\Bucketer $bucketer = null;
+    private ?string $tenantId = null;
+    private ?string $subjectId = null;
+    private ?string $requestId = null;
+
+    /** DiSyL 4.4 — sandbox runtime (lazy-instantiated). */
+    private ?\Ikabud\Kernel\DiSyL\Security\Sandbox $sandbox = null;
+
+    /** DiSyL 4.5 — async runtime (lazy-instantiated). */
+    private ?\Ikabud\Kernel\DiSyL\Async\HttpClient $httpClient = null;
+
+    /** DiSyL 4.6 — federation registry (lazy). */
+    private ?\Ikabud\Kernel\DiSyL\Federation\ServiceRegistry $serviceRegistry = null;
+
+    /** DiSyL 4.6 — AI provider (lazy = EchoAiProvider). */
+    private ?\Ikabud\Kernel\DiSyL\AI\AiProvider $aiProvider = null;
+
+    /** DiSyL 4.6 — AI policy (lazy). */
+    private ?\Ikabud\Kernel\DiSyL\AI\Policy $aiPolicy = null;
+
     /** @var string|null Template path being rendered (set during top-level render) */
     private ?string $currentTemplatePath = null;
 
@@ -1028,7 +1050,10 @@ class TemplateEngine
     private function removeComments(string $content): string
     {
         $content = preg_replace('/\{!--.*?--\}/s', '', $content);
-        return preg_replace('/\{\*.*?\*\}/s', '', $content);
+        $content = preg_replace('/\{\*.*?\*\}/s', '', $content);
+        // DiSyL 4.2: {types}...{/types} blocks are compile-time only; never render.
+        $content = preg_replace('/\{types\s*\}.*?\{\/types\s*\}/s', '', $content);
+        return $content;
     }
     
     /**
@@ -1248,16 +1273,45 @@ class TemplateEngine
             return $content;
         }
 
+        // DiSyL 4.3 — inline self-closing tags ({invalidate ...}, {convert ...}).
+        if (str_contains($content, '{invalidate') || str_contains($content, '{convert')) {
+            // 4.4: must run AFTER structure pass so that {untrusted}{invalidate}{/untrusted}
+            // pushes the sandbox frame before the inline tag is processed (the recursive
+            // compile() inside the structure body re-enters this method with the frame active).
+            $hasInline = true;
+        } else {
+            $hasInline = false;
+        }
+
         if (
-            !str_contains($content, '{if')
+            !$hasInline
+            && !str_contains($content, '{if')
             && !str_contains($content, '{for')
             && !str_contains($content, '{foreach')
             && !str_contains($content, '{each')
+            && !str_contains($content, '{match')
+            && !str_contains($content, '{trans')
+            && !str_contains($content, '{cache')
+            && !str_contains($content, '{experiment')
+            && !str_contains($content, '{sandbox')
+            && !str_contains($content, '{trusted')
+            && !str_contains($content, '{untrusted')
+            && !str_contains($content, '{parallel')
+            && !str_contains($content, '{await')
+            && !str_contains($content, '{suspense')
+            && !str_contains($content, '{federated_query')
+            && !str_contains($content, '{ai_generate')
+            && !str_contains($content, '{ai_query')
+            && !str_contains($content, '{ai_complete')
         ) {
             return $content;
         }
 
-        return $this->processControlStructuresSinglePass($content, $context);
+        $content = $this->processControlStructuresSinglePass($content, $context);
+        if ($hasInline && (str_contains($content, '{invalidate') || str_contains($content, '{convert'))) {
+            $content = $this->processInlineSideEffectTags($content, $context);
+        }
+        return $content;
     }
 
     /**
@@ -1277,7 +1331,7 @@ class TemplateEngine
         $result = '';
         $offset = 0;
         $len = strlen($content);
-        $allTypes = ['for', 'foreach', 'each', 'if'];
+        $allTypes = ['for', 'foreach', 'each', 'if', 'match', 'trans', 'cache', 'experiment', 'sandbox', 'trusted', 'untrusted', 'parallel', 'await', 'suspense', 'federated_query', 'ai_generate', 'ai_query', 'ai_complete'];
 
         while ($offset < $len) {
             $tag = $this->findNextOpeningControlTag($content, $offset, $allTypes);
@@ -1322,7 +1376,19 @@ class TemplateEngine
             'for'     => $this->evaluateForBody($tag['expr'], $innerContent, $context),
             'foreach' => $this->evaluateForeachBody($tag['expr'], $innerContent, $context),
             'each'    => $this->evaluateEachBody($tag['expr'], $innerContent, $context),
-            default   => '',
+            'match'      => $this->evaluateMatchBody($tag['expr'], $innerContent, $context),
+            'trans'      => $this->evaluateTransBody($tag['expr'], $innerContent, $context),
+            'cache'      => $this->evaluateCacheBody($tag['expr'], $innerContent, $context),
+            'experiment' => $this->evaluateExperimentBody($tag['expr'], $innerContent, $context),
+            'sandbox'    => $this->evaluateSandboxBody($tag['expr'], $innerContent, $context, 'sandbox'),
+            'trusted'    => $this->evaluateSandboxBody($tag['expr'], $innerContent, $context, 'trusted'),
+            'untrusted'  => $this->evaluateSandboxBody($tag['expr'], $innerContent, $context, 'untrusted'),
+            'parallel'   => $this->evaluateParallelBody($tag['expr'], $innerContent, $context),
+            'await'      => $this->evaluateAwaitBody($tag['expr'], $innerContent, $context),
+            'suspense'   => $this->evaluateSuspenseBody($tag['expr'], $innerContent, $context),
+            'federated_query' => $this->evaluateFederatedQueryBody($tag['expr'], $innerContent, $context),
+            'ai_generate', 'ai_query', 'ai_complete' => $this->evaluateAiBody($tag['type'], $tag['expr'], $innerContent, $context),
+            default      => '',
         };
     }
 
@@ -1351,10 +1417,1310 @@ class TemplateEngine
             || str_contains($chosenContent, '{for')
             || str_contains($chosenContent, '{foreach')
             || str_contains($chosenContent, '{each')
+            || str_contains($chosenContent, '{match')
         ) {
             return $this->processControlStructuresSinglePass($chosenContent, $context);
         }
         return $chosenContent;
+    }
+
+    /**
+     * Evaluate a {match expr}{when ...}...{default}...{/match} body.
+     *
+     * Walks arms in source order. The first arm whose pattern list contains
+     * the subject value (and whose optional `guard` predicate is truthy) wins.
+     * Falls back to the {default} arm if present.
+     *
+     * Pattern syntax (4.1):
+     *   {when 'literal', 42, true, null, _}
+     *   {when 'paid' guard refund.partial}
+     *
+     * Wildcard `_` always matches. Guard reuses evaluateCondition().
+     *
+     * In strict mode, an unmatched value with no default emits a single
+     * `disyl.match.unmatched` log line.
+     */
+    private function evaluateMatchBody(string $subjectExpr, string $innerContent, array $context): string
+    {
+        $subjectValue = $this->resolveValue(trim($subjectExpr), $context);
+        $arms = $this->parseMatchArms($innerContent);
+
+        $chosenContent = null;
+        foreach ($arms as $arm) {
+            if ($arm['type'] === 'default') {
+                continue;
+            }
+            if (!$this->matchAnyPattern($subjectValue, $arm['patterns'], $context)) {
+                continue;
+            }
+            if ($arm['guard'] !== '' && !$this->evaluateCondition($arm['guard'], $context)) {
+                continue;
+            }
+            $chosenContent = $arm['content'];
+            break;
+        }
+
+        if ($chosenContent === null) {
+            foreach ($arms as $arm) {
+                if ($arm['type'] === 'default') {
+                    $chosenContent = $arm['content'];
+                    break;
+                }
+            }
+        }
+
+        if ($chosenContent === null) {
+            if ($this->strictMode ?? false) {
+                $this->logError('disyl.match.unmatched: no arm matched and no {default} provided');
+            }
+            return '';
+        }
+
+        if (
+            str_contains($chosenContent, '{if')
+            || str_contains($chosenContent, '{for')
+            || str_contains($chosenContent, '{foreach')
+            || str_contains($chosenContent, '{each')
+            || str_contains($chosenContent, '{match')
+        ) {
+            return $this->processControlStructuresSinglePass($chosenContent, $context);
+        }
+        return $chosenContent;
+    }
+
+    /**
+     * Parse {match} body into ordered arms.
+     *
+     * @return list<array{type:string,patterns:list<string>,guard:string,content:string}>
+     */
+    private function parseMatchArms(string $content): array
+    {
+        $arms = [];
+        $len = strlen($content);
+        $offset = 0;
+        $current = null;
+        $defaultSeen = false;
+
+        while ($offset < $len) {
+            $tagPos = strpos($content, '{', $offset);
+            if ($tagPos === false) {
+                if ($current !== null) {
+                    $current['content'] .= substr($content, $offset);
+                }
+                break;
+            }
+
+            // Skip nested {match}/{if}/{for}/etc — only top-level {when}/{default} are arms here.
+            $nested = $this->readOpeningControlTagAt($content, $tagPos, ['if', 'for', 'foreach', 'each', 'match']);
+            if ($nested !== null) {
+                $afterOpen = $nested['pos'] + $nested['len'];
+                $closePos = $this->findMatchingClose($content, $afterOpen, $nested['type']);
+                if ($closePos === false) {
+                    if ($current !== null) {
+                        $current['content'] .= substr($content, $offset);
+                    }
+                    break;
+                }
+                $closeLen = strlen('{/' . $nested['type'] . '}');
+                $chunkEnd = $closePos + $closeLen;
+                if ($current !== null) {
+                    $current['content'] .= substr($content, $offset, $chunkEnd - $offset);
+                }
+                $offset = $chunkEnd;
+                continue;
+            }
+
+            $tagEnd = strpos($content, '}', $tagPos + 1);
+            if ($tagEnd === false) {
+                if ($current !== null) {
+                    $current['content'] .= substr($content, $offset);
+                }
+                break;
+            }
+
+            $rawTag = substr($content, $tagPos + 1, $tagEnd - $tagPos - 1);
+            $rawTagTrimmed = ltrim($rawTag);
+
+            $isWhen = str_starts_with($rawTagTrimmed, 'when ') || $rawTagTrimmed === 'when';
+            $isDefault = $rawTagTrimmed === 'default';
+
+            if (!$isWhen && !$isDefault) {
+                if ($current !== null) {
+                    $current['content'] .= substr($content, $offset, ($tagEnd + 1) - $offset);
+                }
+                $offset = $tagEnd + 1;
+                continue;
+            }
+
+            // Flush any text before this arm tag into the current arm body.
+            if ($current !== null && $tagPos > $offset) {
+                $current['content'] .= substr($content, $offset, $tagPos - $offset);
+            }
+
+            // Close out current arm.
+            if ($current !== null) {
+                $arms[] = $current;
+                $current = null;
+            }
+
+            if ($isDefault) {
+                if ($defaultSeen) {
+                    $this->logError('DISYL_MATCH_DUP_DEFAULT: more than one {default} in {match}');
+                }
+                $defaultSeen = true;
+                $current = ['type' => 'default', 'patterns' => [], 'guard' => '', 'content' => ''];
+            } else {
+                $body = trim(substr($rawTagTrimmed, 4)); // strip "when"
+                $guard = '';
+                $guardPos = $this->findUnquotedToken($body, ' guard ');
+                if ($guardPos !== false) {
+                    $guard = trim(substr($body, $guardPos + strlen(' guard ')));
+                    $body = trim(substr($body, 0, $guardPos));
+                }
+                $patterns = $this->splitMatchPatterns($body);
+                $current = ['type' => 'when', 'patterns' => $patterns, 'guard' => $guard, 'content' => ''];
+            }
+
+            $offset = $tagEnd + 1;
+        }
+
+        if ($current !== null) {
+            $arms[] = $current;
+        }
+        return $arms;
+    }
+
+    /**
+     * Split a {when ...} pattern list on commas not inside quotes.
+     *
+     * @return list<string>
+     */
+    private function splitMatchPatterns(string $list): array
+    {
+        $list = trim($list);
+        if ($list === '') {
+            return [];
+        }
+        $parts = [];
+        $buf = '';
+        $len = strlen($list);
+        $inSingle = false;
+        $inDouble = false;
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $list[$i];
+            if ($ch === "\\" && $i + 1 < $len) {
+                $buf .= $ch . $list[$i + 1];
+                $i++;
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) {
+                $inSingle = !$inSingle;
+                $buf .= $ch;
+                continue;
+            }
+            if ($ch === '"' && !$inSingle) {
+                $inDouble = !$inDouble;
+                $buf .= $ch;
+                continue;
+            }
+            if ($ch === ',' && !$inSingle && !$inDouble) {
+                $parts[] = trim($buf);
+                $buf = '';
+                continue;
+            }
+            $buf .= $ch;
+        }
+        $tail = trim($buf);
+        if ($tail !== '') {
+            $parts[] = $tail;
+        }
+        return $parts;
+    }
+
+    /**
+     * Locate `$needle` in `$haystack` ignoring matches that fall inside single
+     * or double quotes. Returns false when not found. Used to find the ` guard `
+     * separator inside a {when ...} clause without splitting on a literal.
+     */
+    private function findUnquotedToken(string $haystack, string $needle): int|false
+    {
+        $needleLen = strlen($needle);
+        $len = strlen($haystack);
+        $inSingle = false;
+        $inDouble = false;
+        for ($i = 0; $i + $needleLen <= $len; $i++) {
+            $ch = $haystack[$i];
+            if ($ch === "\\" && $i + 1 < $len) {
+                $i++;
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) {
+                $inSingle = !$inSingle;
+                continue;
+            }
+            if ($ch === '"' && !$inSingle) {
+                $inDouble = !$inDouble;
+                continue;
+            }
+            if (!$inSingle && !$inDouble && substr_compare($haystack, $needle, $i, $needleLen) === 0) {
+                return $i;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Test the subject value against a list of {when} patterns.
+     *
+     * Each pattern is a literal (`'str'`, `"str"`, integer, float, `true`,
+     * `false`, `null`), the wildcard `_`, or any other identifier expression
+     * which is resolved against the context and compared via loose equality.
+     *
+     * @param list<string> $patterns
+     */
+    private function matchAnyPattern(mixed $subject, array $patterns, array $context): bool
+    {
+        foreach ($patterns as $pat) {
+            $pat = trim($pat);
+            if ($pat === '') {
+                continue;
+            }
+            if ($pat === '_') {
+                return true;
+            }
+            // String literal
+            $patLen = strlen($pat);
+            if ($patLen >= 2 && (
+                ($pat[0] === "'" && $pat[$patLen - 1] === "'") ||
+                ($pat[0] === '"' && $pat[$patLen - 1] === '"')
+            )) {
+                $literal = substr($pat, 1, -1);
+                if (is_string($subject) && $subject === $literal) {
+                    return true;
+                }
+                continue;
+            }
+            // Boolean / null
+            $lower = strtolower($pat);
+            if ($lower === 'true') {
+                if ($subject === true) {
+                    return true;
+                }
+                continue;
+            }
+            if ($lower === 'false') {
+                if ($subject === false) {
+                    return true;
+                }
+                continue;
+            }
+            if ($lower === 'null') {
+                if ($subject === null) {
+                    return true;
+                }
+                continue;
+            }
+            // Numeric literal
+            if (is_numeric($pat)) {
+                if ((is_int($subject) || is_float($subject) || is_string($subject))
+                    && (string)$subject === (string)(0 + $pat + 0)) {
+                    return true;
+                }
+                if (is_numeric($subject) && (float)$subject === (float)$pat) {
+                    return true;
+                }
+                continue;
+            }
+            // Identifier / dotted path → resolve from context, loose-compare.
+            $resolved = $this->resolveValue($pat, $context);
+            if ($subject == $resolved) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Evaluate a {trans 'key' [plural=EXPR] [context='STR']}...{/trans} body.
+     *
+     * Behavior:
+     *   - Static key required (errors otherwise).
+     *   - When `plural` is absent: looks up the catalog `value`, falling back
+     *     to the inline body text when the key is missing.
+     *   - When `plural` is present: evaluates the expression, picks a CLDR
+     *     plural arm via {@see Catalog::pluralCategory()}, looks up that arm
+     *     in the catalog, and falls back to the matching {when} arm body
+     *     when the catalog entry is missing.
+     *   - Both branches interpolate `%(name)s` placeholders from the engine
+     *     context (top-level scalar keys + the plural value as `count`).
+     */
+    private function evaluateTransBody(string $expr, string $innerContent, array $context): string
+    {
+        $parsed = $this->parseTransAttributes($expr);
+        if ($parsed === null) {
+            $this->logError('DISYL_TRANS_DYNAMIC_KEY: {trans} requires a static string key as first argument');
+            return $this->compile($innerContent, $context);
+        }
+        [$key, $contextTag, $pluralExpr] = [$parsed['key'], $parsed['context'], $parsed['plural']];
+
+        $tenantId = (string) ($context['_tenant_id'] ?? $context['tenant_id'] ?? '');
+        $locale   = (string) ($context['_locale']    ?? $context['locale']    ?? 'en');
+        $i18nRoot = (string) ($context['_i18n_root'] ?? (defined('STORAGE_PATH')
+            ? rtrim(STORAGE_PATH, '/') . '/i18n'
+            : (defined('BASE_PATH') ? rtrim(BASE_PATH, '/') . '/storage/i18n' : 'storage/i18n')));
+
+        $vars = $this->collectTransVars($context);
+
+        if ($pluralExpr === null) {
+            $translated = \Ikabud\Kernel\DiSyL\i18n\Catalog::translate(
+                $i18nRoot,
+                $tenantId,
+                $locale,
+                $key,
+                $contextTag,
+                $vars,
+                null
+            );
+            if ($translated !== null) {
+                return $translated;
+            }
+            // Fallback: render inline body so {var} interpolation still works.
+            return $this->compile($innerContent, $context);
+        }
+
+        // Plural mode: resolve count, pick arm, look up catalog or fall back to {when} body.
+        $countRaw = $this->resolveValue($pluralExpr, $context);
+        $count = is_numeric($countRaw) ? (0 + $countRaw) : 0;
+        $arm = \Ikabud\Kernel\DiSyL\i18n\Catalog::pluralCategory($locale, $count);
+        $vars['count'] = (string) $count;
+
+        $translated = \Ikabud\Kernel\DiSyL\i18n\Catalog::translate(
+            $i18nRoot,
+            $tenantId,
+            $locale,
+            $key,
+            $contextTag,
+            $vars,
+            $arm
+        );
+        if ($translated !== null) {
+            return $translated;
+        }
+
+        // Fallback to inline {when} arm body.
+        $arms = $this->parseMatchArms($innerContent);
+        $chosen = null;
+        foreach ($arms as $a) {
+            if ($a['type'] !== 'when') {
+                continue;
+            }
+            foreach ($a['patterns'] as $p) {
+                $name = trim($p, " \t'\"");
+                if ($name === $arm) {
+                    $chosen = $a['content'];
+                    break 2;
+                }
+            }
+        }
+        if ($chosen === null) {
+            // Try 'other' as a final fallback.
+            foreach ($arms as $a) {
+                if ($a['type'] !== 'when') {
+                    continue;
+                }
+                foreach ($a['patterns'] as $p) {
+                    if (trim($p, " \t'\"") === 'other') {
+                        $chosen = $a['content'];
+                        break 2;
+                    }
+                }
+            }
+        }
+        if ($chosen === null) {
+            $this->logError('DISYL_TRANS_PLURAL_NO_ARM: no matching plural arm for "' . $arm . '"');
+            return '';
+        }
+        return $this->compile($chosen, $context);
+    }
+
+    /**
+     * Parse a {trans} opening-tag expression of the form:
+     *   'key' [plural=EXPR] [context='STR']
+     *
+     * Returns null if the key is dynamic (anything other than a single
+     * literal string in single or double quotes).
+     *
+     * @return array{key:string, context:?string, plural:?string}|null
+     */
+    private function parseTransAttributes(string $expr): ?array
+    {
+        $expr = trim($expr);
+        if ($expr === '') {
+            return null;
+        }
+        // Extract leading quoted key (consume up to the matching closing quote
+        // of the same kind, respecting backslash escapes).
+        $quote = $expr[0];
+        if ($quote !== "'" && $quote !== '"') {
+            return null;
+        }
+        $len = strlen($expr);
+        $end = -1;
+        for ($i = 1; $i < $len; $i++) {
+            $ch = $expr[$i];
+            if ($ch === "\\" && $i + 1 < $len) {
+                $i++;
+                continue;
+            }
+            if ($ch === $quote) {
+                $end = $i;
+                break;
+            }
+        }
+        if ($end < 0) {
+            return null;
+        }
+        $key = substr($expr, 1, $end - 1);
+        $rest = trim(substr($expr, $end + 1));
+
+        $plural = null;
+        $contextTag = null;
+
+        // Tokenise remaining attrs as `name=value` pairs.
+        while ($rest !== '') {
+            if (!preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*/', $rest, $m)) {
+                break;
+            }
+            $name = $m[1];
+            $rest = substr($rest, strlen($m[0]));
+            if ($rest === '') {
+                break;
+            }
+            // Value: quoted string (matching close-quote scan) or bareword.
+            if ($rest[0] === "'" || $rest[0] === '"') {
+                $vq = $rest[0];
+                $vlen = strlen($rest);
+                $vend = -1;
+                for ($j = 1; $j < $vlen; $j++) {
+                    $vc = $rest[$j];
+                    if ($vc === "\\" && $j + 1 < $vlen) {
+                        $j++;
+                        continue;
+                    }
+                    if ($vc === $vq) {
+                        $vend = $j;
+                        break;
+                    }
+                }
+                if ($vend < 0) {
+                    break;
+                }
+                $value = substr($rest, 1, $vend - 1);
+                $rest = ltrim(substr($rest, $vend + 1));
+            } else {
+                if (preg_match('/^(\S+)/', $rest, $vm)) {
+                    $value = $vm[1];
+                    $rest = ltrim(substr($rest, strlen($vm[0])));
+                } else {
+                    break;
+                }
+            }
+            if ($name === 'plural') {
+                $plural = $value;
+            } elseif ($name === 'context') {
+                $contextTag = $value;
+            }
+        }
+
+        return ['key' => $key, 'context' => $contextTag, 'plural' => $plural];
+    }
+
+    // ----------------------------------------------------------------- 4.3 --
+
+    /** Inject a custom fragment cache (test seam). */
+    public function setFragmentStore(\Ikabud\Kernel\DiSyL\Cache\FragmentStore $store): void
+    {
+        $this->fragmentStore = $store;
+    }
+
+    /** Inject a custom bucketer (test seam). */
+    public function setBucketer(\Ikabud\Kernel\DiSyL\Experiments\Bucketer $bucketer): void
+    {
+        $this->bucketer = $bucketer;
+    }
+
+    /** Tenant id used for cache key namespacing. */
+    public function setTenantId(?string $tenantId): void { $this->tenantId = $tenantId; }
+
+    /** Subject id used for sticky bucketing. */
+    public function setSubjectId(?string $subjectId): void { $this->subjectId = $subjectId; }
+
+    /** Request id used for exposure dedupe. */
+    public function setRequestId(?string $requestId): void { $this->requestId = $requestId; }
+
+    public function fragmentStore(): \Ikabud\Kernel\DiSyL\Cache\FragmentStore
+    {
+        if ($this->fragmentStore === null) {
+            require_once __DIR__ . '/Cache/FragmentStore.php';
+            $this->fragmentStore = new \Ikabud\Kernel\DiSyL\Cache\FragmentStore();
+        }
+        return $this->fragmentStore;
+    }
+
+    private function bucketer(): \Ikabud\Kernel\DiSyL\Experiments\Bucketer
+    {
+        if ($this->bucketer === null) {
+            require_once __DIR__ . '/Experiments/Bucketer.php';
+            $this->bucketer = new \Ikabud\Kernel\DiSyL\Experiments\Bucketer();
+        }
+        return $this->bucketer;
+    }
+
+    /**
+     * Process inline self-closing tags: {invalidate 'tag', 'tag2'} and
+     * {convert 'experiment-id' goal='goal-name'}. Both produce no output.
+     */
+    private function processInlineSideEffectTags(string $content, array $context): string
+    {
+        $content = preg_replace_callback('/\{invalidate\s+([^}]+)\}/', function (array $m) use ($context): string {
+            if (!$this->sandbox()->require('cache.invalidate', '{invalidate}', $m[0])) return '';
+            $tags = $this->splitInlineArgs($m[1], $context);
+            if ($tags !== []) {
+                $this->fragmentStore()->invalidate($tags, $this->tenantId ?? '_global');
+            }
+            return '';
+        }, $content) ?? $content;
+
+        $content = preg_replace_callback('/\{convert\s+([^}]+)\}/', function (array $m) use ($context): string {
+            if (!$this->sandbox()->require('experiment', '{convert}', $m[0])) return '';
+            $expr = trim($m[1]);
+            $expId = $this->parseFirstQuoted($expr, $rest);
+            if ($expId === null) return '';
+            $goal = null;
+            if (preg_match('/goal\s*=\s*([\'"])(.*?)\1/', $rest, $gm)) {
+                $goal = $gm[2];
+            }
+            if ($goal === null) return '';
+            $subject = $this->subjectId ?? '_anon';
+            $this->bucketer()->convert($expId, $subject, $goal);
+            return '';
+        }, $content) ?? $content;
+
+        return $content;
+    }
+
+    /**
+     * Evaluate a {cache key=… ttl=…}…{/cache} block. Renders the body on
+     * miss and stores it; serves stored body on hit. Honours {depends_on}
+     * tags found inside the body.
+     */
+    private function evaluateCacheBody(string $expr, string $innerContent, array $context): string
+    {
+        $attrs = $this->parseAttrPairs($expr, $context);
+        $key = $attrs['key'] ?? null;
+        $ttl = isset($attrs['ttl']) ? (int) $attrs['ttl'] : 0;
+        if (!is_string($key) || $key === '') {
+            $this->logError('DiSyL cache: missing key attribute');
+            return $this->compile($innerContent, $context);
+        }
+        if ($ttl < 0) {
+            $this->logError('DISYL_CACHE_INVALID_TTL: ttl must be >= 0');
+            return $this->compile($innerContent, $context);
+        }
+
+        // Extract {depends_on ...} declarations from the body.
+        $deps = [];
+        $bodyForRender = preg_replace_callback(
+            '/\{depends_on\s+([^}]+)\}/',
+            function (array $m) use (&$deps, $context): string {
+                foreach ($this->splitInlineArgs($m[1], $context) as $tag) $deps[] = $tag;
+                return '';
+            },
+            $innerContent
+        ) ?? $innerContent;
+
+        $store = $this->fragmentStore();
+        $tenant = $this->tenantId ?? '_global';
+        $hit = $store->tryGet($key, $deps, $tenant);
+        if ($hit !== null) return $hit;
+
+        $rendered = $this->compile($bodyForRender, $context);
+        $store->put($key, $rendered, $deps, $ttl, $tenant);
+        return $rendered;
+    }
+
+    /**
+     * Evaluate an {experiment 'id'}…{/experiment} block. Splits body by
+     * {variant 'name' weight=N} markers, picks a sticky variant for the
+     * current subject, and returns that variant's body (after recursive
+     * compilation).
+     */
+    private function evaluateExperimentBody(string $expr, string $innerContent, array $context): string
+    {
+        if (!$this->sandbox()->require('experiment', '{experiment}', $expr)) {
+            return '';
+        }
+        $expId = $this->parseFirstQuoted(trim($expr), $rest);
+        if ($expId === null) {
+            $this->logError('DiSyL experiment: missing id');
+            return '';
+        }
+        $variants = $this->parseVariantArms($innerContent);
+        if ($variants === []) {
+            $this->logError('DISYL_EXP_NO_VARIANTS for ' . $expId);
+            return '';
+        }
+        $weights = [];
+        $bodies = [];
+        foreach ($variants as $name => $v) {
+            if (isset($weights[$name])) {
+                $this->logError('DISYL_EXP_DUP_VARIANT: ' . $name);
+                continue;
+            }
+            $weights[$name] = $v['weight'];
+            $bodies[$name]  = $v['body'];
+        }
+        $subject = $this->subjectId ?? '_anon';
+        try {
+            $variant = $this->bucketer()->assign($expId, $subject, $weights);
+        } catch (\InvalidArgumentException $e) {
+            $this->logError('DiSyL experiment ' . $expId . ': ' . $e->getMessage());
+            $variant = array_key_first($bodies);
+        }
+        $this->bucketer()->expose($expId, $subject, $this->requestId ?? '_req', $variant);
+        $body = $bodies[$variant] ?? reset($bodies);
+        return $this->compile($body, $context);
+    }
+
+    /**
+     * Split an experiment body by {variant 'name' weight=N} markers.
+     *
+     * @return array<string, array{weight: int, body: string}>
+     */
+    private function parseVariantArms(string $content): array
+    {
+        $out = [];
+        if (!preg_match_all(
+            '/\{variant\s+([\'"])(.*?)\1(?:\s+weight\s*=\s*(\d+))?\s*\}/',
+            $content, $m, PREG_OFFSET_CAPTURE
+        )) {
+            return $out;
+        }
+        $count = count($m[0]);
+        for ($i = 0; $i < $count; $i++) {
+            $name = $m[2][$i][0];
+            $weight = isset($m[3][$i][0]) && $m[3][$i][0] !== '' ? (int) $m[3][$i][0] : 1;
+            $start = $m[0][$i][1] + strlen($m[0][$i][0]);
+            $end = ($i + 1 < $count) ? $m[0][$i + 1][1] : strlen($content);
+            $body = substr($content, $start, $end - $start);
+            $out[$name] = ['weight' => $weight, 'body' => $body];
+        }
+        return $out;
+    }
+
+    /**
+     * Parse a key=value attribute string. Values may be quoted strings or
+     * bare DiSyL expressions (evaluated against $context).
+     *
+     * @return array<string, mixed>
+     */
+    private function parseAttrPairs(string $expr, array $context): array
+    {
+        $out = [];
+        $rest = trim($expr);
+        while ($rest !== '' && preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*/', $rest, $m)) {
+            $name = $m[1];
+            $rest = substr($rest, strlen($m[0]));
+            if ($rest === '') break;
+            if ($rest[0] === "'" || $rest[0] === '"') {
+                $q = $rest[0];
+                $end = -1;
+                $len = strlen($rest);
+                for ($j = 1; $j < $len; $j++) {
+                    if ($rest[$j] === '\\' && $j + 1 < $len) { $j++; continue; }
+                    if ($rest[$j] === $q) { $end = $j; break; }
+                }
+                if ($end < 0) break;
+                $out[$name] = substr($rest, 1, $end - 1);
+                $rest = ltrim(substr($rest, $end + 1));
+            } else {
+                if (!preg_match('/^(\S+)/', $rest, $vm)) break;
+                $raw = $vm[1];
+                // Bracketed list literal: capture the full [...] before splitting
+                if ($raw !== '' && $raw[0] === '[') {
+                    $end = strpos($rest, ']');
+                    if ($end !== false) {
+                        $raw = substr($rest, 0, $end + 1);
+                    }
+                }
+                $rest = ltrim(substr($rest, strlen($raw)));
+                if ($raw !== '' && $raw[0] === '[') {
+                    $out[$name] = $raw; // hand to normalizeListAttr later
+                } elseif (is_numeric($raw)) {
+                    $out[$name] = $raw + 0;
+                } else {
+                    $val = $this->resolveValue($raw, $context);
+                    $out[$name] = $val;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Split a comma-separated argument list, evaluating each token (quoted
+     * literal or DiSyL expression) into a string.
+     *
+     * @return list<string>
+     */
+    private function splitInlineArgs(string $expr, array $context): array
+    {
+        $out = [];
+        $expr = trim($expr);
+        $len = strlen($expr);
+        $i = 0;
+        $buf = '';
+        while ($i < $len) {
+            $ch = $expr[$i];
+            if ($ch === ',') { $out[] = trim($buf); $buf = ''; $i++; continue; }
+            if ($ch === "'" || $ch === '"') {
+                $q = $ch; $buf .= $ch; $i++;
+                while ($i < $len && $expr[$i] !== $q) {
+                    if ($expr[$i] === '\\' && $i + 1 < $len) { $buf .= $expr[$i] . $expr[$i + 1]; $i += 2; continue; }
+                    $buf .= $expr[$i]; $i++;
+                }
+                if ($i < $len) { $buf .= $expr[$i]; $i++; }
+                continue;
+            }
+            $buf .= $ch; $i++;
+        }
+        if (trim($buf) !== '') $out[] = trim($buf);
+        $resolved = [];
+        foreach ($out as $token) {
+            if ($token === '') continue;
+            if (($token[0] === "'" || $token[0] === '"') && substr($token, -1) === $token[0]) {
+                $resolved[] = substr($token, 1, -1);
+            } else {
+                $val = $this->resolveValue($token, $context);
+                if (is_scalar($val)) $resolved[] = (string) $val;
+            }
+        }
+        return $resolved;
+    }
+
+    /**
+     * Pull the leading quoted token off an expression; remainder via $rest.
+     */
+    private function parseFirstQuoted(string $expr, ?string &$rest = null): ?string
+    {
+        $rest = '';
+        if ($expr === '') return null;
+        $q = $expr[0];
+        if ($q !== "'" && $q !== '"') return null;
+        $len = strlen($expr);
+        for ($i = 1; $i < $len; $i++) {
+            if ($expr[$i] === '\\' && $i + 1 < $len) { $i++; continue; }
+            if ($expr[$i] === $q) {
+                $rest = ltrim(substr($expr, $i + 1));
+                return substr($expr, 1, $i - 1);
+            }
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------------- /4.3 --
+
+    // ------------------------------------------------------------------ 4.4 --
+
+    /** Inject a custom sandbox (test seam). */
+    public function setSandbox(\Ikabud\Kernel\DiSyL\Security\Sandbox $sb): void
+    {
+        $this->sandbox = $sb;
+    }
+
+    public function sandbox(): \Ikabud\Kernel\DiSyL\Security\Sandbox
+    {
+        if ($this->sandbox === null) {
+            require_once __DIR__ . '/Security/Sandbox.php';
+            $this->sandbox = new \Ikabud\Kernel\DiSyL\Security\Sandbox();
+        }
+        return $this->sandbox;
+    }
+
+    /**
+     * Evaluate a {sandbox}/{trusted}/{untrusted} block. Pushes a new
+     * capability frame, renders the body, then pops. Catches
+     * SandboxViolation when not in strict mode and replaces the violating
+     * region with a comment marker.
+     */
+    private function evaluateSandboxBody(string $expr, string $innerContent, array $context, string $kind): string
+    {
+        $sb = $this->sandbox();
+        if ($kind === 'sandbox') {
+            $attrs = $this->parseAttrPairs($expr, $context);
+            $deny  = $this->normalizeListAttr($attrs['deny']  ?? null);
+            $allow = $this->normalizeListAttr($attrs['allow'] ?? null);
+            $policy = isset($attrs['policy']) ? (string) $attrs['policy'] : '';
+            $sb->pushSandbox($deny, $allow, $policy === 'strict');
+        } elseif ($kind === 'trusted') {
+            $sb->pushTrusted();
+        } else { // untrusted
+            $sb->pushUntrusted();
+        }
+        try {
+            return $this->compile($innerContent, $context);
+        } catch (\Ikabud\Kernel\DiSyL\Security\SandboxViolation $e) {
+            return '<!-- sandbox-violation: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . ' -->';
+        } finally {
+            $sb->pop();
+        }
+    }
+
+    /**
+     * Coerce an attribute that may be either a list ['a','b'] or a comma
+     * string into a list<string>.
+     *
+     * @return list<string>
+     */
+    private function normalizeListAttr(mixed $val): array
+    {
+        if ($val === null) return [];
+        if (is_array($val)) {
+            $out = [];
+            foreach ($val as $v) if (is_scalar($v)) $out[] = (string) $v;
+            return $out;
+        }
+        if (!is_string($val)) return [];
+        $val = trim($val);
+        if ($val === '') return [];
+        // Strip surrounding [] if present.
+        if ($val[0] === '[' && substr($val, -1) === ']') {
+            $val = substr($val, 1, -1);
+        }
+        $parts = preg_split("/\s*,\s*/", $val) ?: [];
+        $out = [];
+        foreach ($parts as $p) {
+            $p = trim($p, " \t\n'\"");
+            if ($p !== '') $out[] = $p;
+        }
+        return $out;
+    }
+
+    // ------------------------------------------------------------- /4.4 --
+
+    // ------------------------------------------------------------------ 4.5 --
+
+    /** Inject a custom HTTP client (test seam). */
+    public function setHttpClient(\Ikabud\Kernel\DiSyL\Async\HttpClient $c): void
+    {
+        $this->httpClient = $c;
+    }
+
+    public function httpClient(): \Ikabud\Kernel\DiSyL\Async\HttpClient
+    {
+        if ($this->httpClient === null) {
+            require_once __DIR__ . '/Async/HttpClient.php';
+            require_once __DIR__ . '/Async/Promise.php';
+            $this->httpClient = new \Ikabud\Kernel\DiSyL\Async\HttpClient();
+        }
+        return $this->httpClient;
+    }
+
+    /**
+     * Evaluate {parallel}…{/parallel}: collect immediate child {await} blocks,
+     * resolve them concurrently (logically; sync backend in 4.5.0), then render
+     * each child's body in source order with its resolved value bound.
+     *
+     * Non-{await} content between awaits is rendered in source position.
+     */
+    private function evaluateParallelBody(string $expr, string $innerContent, array $context): string
+    {
+        // Capture deny/allow if expr present (parallel inherits parent caps by default).
+        $segments = $this->splitParallelChildren($innerContent);
+        $tasks = [];
+        $renderers = [];
+        foreach ($segments as $seg) {
+            if ($seg['type'] === 'static') {
+                $renderers[] = ['kind' => 'static', 'content' => $seg['content']];
+            } else { // 'await'
+                $idx = count($tasks);
+                $awaitInfo = $this->parseAwaitArms($seg['expr'], $seg['content']);
+                $tasks[] = $this->buildAwaitTask($awaitInfo, $context);
+                $renderers[] = ['kind' => 'await', 'taskIndex' => $idx, 'await' => $awaitInfo];
+            }
+        }
+        require_once __DIR__ . '/Async/Scheduler.php';
+        $sched = new \Ikabud\Kernel\DiSyL\Async\Scheduler();
+        foreach ($tasks as $factory) { $sched->add($factory); }
+        $results = $sched->run();
+
+        $out = '';
+        foreach ($renderers as $r) {
+            if ($r['kind'] === 'static') {
+                $out .= $this->compile($r['content'], $context);
+            } else {
+                $out .= $this->renderAwaitResult($r['await'], $results[$r['taskIndex']] ?? ['error' => new \RuntimeException('no result')], $context);
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Evaluate a standalone {await ...}…{/await} block (sequential).
+     */
+    private function evaluateAwaitBody(string $expr, string $innerContent, array $context): string
+    {
+        $info = $this->parseAwaitArms($expr, $innerContent);
+        $task = $this->buildAwaitTask($info, $context);
+        require_once __DIR__ . '/Async/Scheduler.php';
+        $sched = new \Ikabud\Kernel\DiSyL\Async\Scheduler();
+        $sched->add($task);
+        $results = $sched->run();
+        return $this->renderAwaitResult($info, $results[0] ?? ['error' => new \RuntimeException('no result')], $context);
+    }
+
+    /**
+     * Evaluate {suspense fallback=...}…{/suspense}: render the body; on any
+     * exception bubbled out of {await}/{parallel} descendants, swap to the
+     * fallback expression.
+     */
+    private function evaluateSuspenseBody(string $expr, string $innerContent, array $context): string
+    {
+        $attrs = $this->parseAttrPairs($expr, $context);
+        $fallback = isset($attrs['fallback']) ? (string) $attrs['fallback'] : '';
+        try {
+            return $this->compile($innerContent, $context);
+        } catch (\Throwable $e) {
+            return $fallback !== '' ? $this->compile($fallback, $context) : '';
+        }
+    }
+
+    /**
+     * Split a {parallel} body into static segments and {await} child blocks.
+     *
+     * @return list<array{type:string, content:string, expr?:string}>
+     */
+    private function splitParallelChildren(string $body): array
+    {
+        $segments = [];
+        $offset = 0;
+        $len = strlen($body);
+        while ($offset < $len) {
+            $tag = $this->findNextOpeningControlTag($body, $offset, ['await']);
+            if ($tag === null) {
+                $rest = substr($body, $offset);
+                if ($rest !== '') $segments[] = ['type' => 'static', 'content' => $rest];
+                break;
+            }
+            if ($tag['pos'] > $offset) {
+                $segments[] = ['type' => 'static', 'content' => substr($body, $offset, $tag['pos'] - $offset)];
+            }
+            $contentStart = $tag['pos'] + $tag['len'];
+            $closePos = $this->findMatchingClose($body, $contentStart, 'await');
+            if ($closePos === false) {
+                $offset = $contentStart;
+                continue;
+            }
+            $inner = substr($body, $contentStart, $closePos - $contentStart);
+            $segments[] = ['type' => 'await', 'expr' => $tag['expr'], 'content' => $inner];
+            $offset = $closePos + strlen('{/await}');
+        }
+        return $segments;
+    }
+
+    /**
+     * Parse an {await} body into success / loading / catch arms.
+     *
+     * @return array{expr:string, body:string, loading:?string, catch:?string, catchLet:?string}
+     */
+    private function parseAwaitArms(string $expr, string $innerContent): array
+    {
+        $loading = null; $catch = null; $catchLet = null;
+        $body = $innerContent;
+        // Split on {loading} and {catch ...} markers (single-token separators inside the await body).
+        if (preg_match('/\{loading\}/', $body)) {
+            $parts = preg_split('/\{loading\}/', $body, 2);
+            $body = $parts[0];
+            $rest = $parts[1] ?? '';
+            if (preg_match('/\{catch(?:\s+let=(\w+))?\}/', $rest, $cm, PREG_OFFSET_CAPTURE)) {
+                $loading = substr($rest, 0, (int)$cm[0][1]);
+                $catchLet = $cm[1][1] ?? null;
+                $catchLet = is_array($cm[1] ?? null) ? ($cm[1][0] ?: null) : null;
+                $catch = substr($rest, (int)$cm[0][1] + strlen($cm[0][0]));
+            } else {
+                $loading = $rest;
+            }
+        } elseif (preg_match('/\{catch(?:\s+let=(\w+))?\}/', $body, $cm, PREG_OFFSET_CAPTURE)) {
+            $catchLet = is_array($cm[1] ?? null) ? ($cm[1][0] ?: null) : null;
+            $catch = substr($body, (int)$cm[0][1] + strlen($cm[0][0]));
+            $body = substr($body, 0, (int)$cm[0][1]);
+        }
+        return ['expr' => $expr, 'body' => $body, 'loading' => $loading, 'catch' => $catch, 'catchLet' => $catchLet];
+    }
+
+    /**
+     * Build a deferred Promise factory from an {await ...} attribute string.
+     *
+     * @return callable(): \Ikabud\Kernel\DiSyL\Async\Promise
+     */
+    private function buildAwaitTask(array $info, array $context): callable
+    {
+        $let = $this->extractLetIdentifier($info['expr']);
+        $attrs = $this->parseAttrPairs($info['expr'], $context);
+        $src = $attrs['src'] ?? null;
+        if ($let === '') {
+            return static fn () => \Ikabud\Kernel\DiSyL\Async\Promise::rejected(new \RuntimeException('DISYL_AWAIT_NO_LET'));
+        }
+        if ($src === null) {
+            return static fn () => \Ikabud\Kernel\DiSyL\Async\Promise::rejected(new \RuntimeException('DISYL_AWAIT_NO_SRC'));
+        }
+        return function () use ($src) {
+            require_once __DIR__ . '/Async/Promise.php';
+            if ($src instanceof \Ikabud\Kernel\DiSyL\Async\Promise) return $src;
+            return \Ikabud\Kernel\DiSyL\Async\Promise::resolved($src);
+        };
+    }
+
+    /** Extract the bare identifier following `let=` in an attribute expression. */
+    private function extractLetIdentifier(string $expr): string
+    {
+        if (preg_match('/\blet\s*=\s*([A-Za-z_][A-Za-z0-9_]*)/', $expr, $m)) {
+            return $m[1];
+        }
+        return '';
+    }
+
+    /**
+     * Render the appropriate {await} arm based on settled result.
+     */
+    private function renderAwaitResult(array $info, array $result, array $context): string
+    {
+        $let = $this->extractLetIdentifier($info['expr']);
+        if ($let === '') $let = '_';
+        if (array_key_exists('value', $result)) {
+            $childCtx = $context;
+            $childCtx[$let] = $result['value'];
+            return $this->compile($info['body'], $childCtx);
+        }
+        // error
+        if ($info['catch'] !== null) {
+            $childCtx = $context;
+            if ($info['catchLet'] !== null) {
+                $childCtx[$info['catchLet']] = $result['error'];
+            }
+            return $this->compile($info['catch'], $childCtx);
+        }
+        return '';
+    }
+
+    // ------------------------------------------------------------- /4.5 --
+
+    // ------------------------------------------------------------------ 4.6 --
+
+    public function setServiceRegistry(\Ikabud\Kernel\DiSyL\Federation\ServiceRegistry $r): void { $this->serviceRegistry = $r; }
+
+    public function serviceRegistry(): \Ikabud\Kernel\DiSyL\Federation\ServiceRegistry
+    {
+        if ($this->serviceRegistry === null) {
+            require_once __DIR__ . '/Federation/ServiceRegistry.php';
+            $this->serviceRegistry = new \Ikabud\Kernel\DiSyL\Federation\ServiceRegistry();
+        }
+        return $this->serviceRegistry;
+    }
+
+    public function setAiProvider(\Ikabud\Kernel\DiSyL\AI\AiProvider $p): void { $this->aiProvider = $p; }
+
+    public function aiProvider(): \Ikabud\Kernel\DiSyL\AI\AiProvider
+    {
+        if ($this->aiProvider === null) {
+            require_once __DIR__ . '/AI/AiProvider.php';
+            require_once __DIR__ . '/AI/EchoAiProvider.php';
+            $this->aiProvider = new \Ikabud\Kernel\DiSyL\AI\EchoAiProvider();
+        }
+        return $this->aiProvider;
+    }
+
+    public function setAiPolicy(\Ikabud\Kernel\DiSyL\AI\Policy $p): void { $this->aiPolicy = $p; }
+
+    public function aiPolicy(): \Ikabud\Kernel\DiSyL\AI\Policy
+    {
+        if ($this->aiPolicy === null) {
+            require_once __DIR__ . '/AI/Policy.php';
+            $this->aiPolicy = new \Ikabud\Kernel\DiSyL\AI\Policy();
+        }
+        return $this->aiPolicy;
+    }
+
+    /**
+     * Evaluate {federated_query name='…' [policy='all-or-nothing']} block.
+     * Children are {remote service=… query=… let=… [fallback=…]} and an
+     * optional terminal {aggregate let=…} arm.
+     */
+    private function evaluateFederatedQueryBody(string $expr, string $innerContent, array $context): string
+    {
+        $sb = $this->sandbox();
+        if (!$sb->require('federation', '{federated_query}', $expr)) {
+            return '<!-- federation denied -->';
+        }
+        $attrs = $this->parseAttrPairs($expr, $context);
+        $policy = isset($attrs['policy']) ? (string) $attrs['policy'] : 'partial';
+
+        // Split body into list of remote child specs + optional aggregate.
+        $remotes = [];
+        $aggregate = null; // ['expr' => string, 'body' => string]
+        $offset = 0;
+        $len = strlen($innerContent);
+        while ($offset < $len) {
+            $tag = $this->findNextOpeningControlTag($innerContent, $offset, ['remote', 'aggregate']);
+            if ($tag === null) break;
+            if ($tag['type'] === 'remote') {
+                // {remote ...} is self-closing in our grammar (no body).
+                $remotes[] = $tag['expr'];
+                $offset = $tag['pos'] + $tag['len'];
+            } else { // aggregate has body
+                $contentStart = $tag['pos'] + $tag['len'];
+                $closePos = $this->findMatchingClose($innerContent, $contentStart, 'aggregate');
+                if ($closePos === false) { $offset = $contentStart; continue; }
+                $aggregate = ['expr' => $tag['expr'], 'body' => substr($innerContent, $contentStart, $closePos - $contentStart)];
+                $offset = $closePos + strlen('{/aggregate}');
+            }
+        }
+
+        $registry = $this->serviceRegistry();
+        $bound = [];
+        foreach ($remotes as $rexpr) {
+            $rattrs = $this->parseAttrPairs($rexpr, $context);
+            $service = (string) ($rattrs['service'] ?? '');
+            $query   = (string) ($rattrs['query']   ?? '');
+            $let     = $this->extractLetIdentifier($rexpr);
+            $fallback = $rattrs['fallback'] ?? null;
+            if ($let === '') continue;
+            try {
+                $bound[$let] = $registry->resolve($service, $query, $context);
+            } catch (\Throwable $e) {
+                if ($policy === 'all-or-nothing') {
+                    return '<!-- federation failed: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . ' -->';
+                }
+                $bound[$let] = $fallback;
+            }
+        }
+
+        if ($aggregate !== null) {
+            $aLet = $this->extractLetIdentifier($aggregate['expr']);
+            $childCtx = array_merge($context, $bound);
+            $rendered = $this->compile($aggregate['body'], $childCtx);
+            if ($aLet !== '') {
+                // expose aggregate body output too (uncommon but documented)
+                $childCtx[$aLet] = $rendered;
+            }
+            return $rendered;
+        }
+        // No aggregate: emit nothing (bound vars are render-local; consumer must use aggregate)
+        return '';
+    }
+
+    /**
+     * Evaluate {ai_generate}/{ai_query}/{ai_complete}.
+     * Body of {ai_generate} = the prompt template; {ai_query}/{ai_complete} use prompt= attr.
+     */
+    private function evaluateAiBody(string $kind, string $expr, string $innerContent, array $context): string
+    {
+        $sb = $this->sandbox();
+        if (!$sb->require('ai', '{' . $kind . '}', $expr)) {
+            return '<!-- ai denied: capability -->';
+        }
+        $policy = $this->aiPolicy();
+        if ($policy->isKilled()) {
+            return '<!-- ai disabled: KERNEL_AI_DISABLED -->';
+        }
+        $attrs = $this->parseAttrPairs($expr, $context);
+        $model = (string) ($attrs['model'] ?? '');
+        if ($model === '' || !$policy->allowsModel($model)) {
+            return '<!-- ai denied: model not allowed -->';
+        }
+        $maxTokens = isset($attrs['max_tokens']) ? (int) $attrs['max_tokens'] : 200;
+        $maxTokens = $policy->capMaxTokens($maxTokens);
+        if (!$policy->canAfford($model, $maxTokens)) {
+            return '<!-- ai denied: cost ceiling -->';
+        }
+
+        // Determine prompt source.
+        if ($kind === 'ai_generate') {
+            $prompt = trim($this->compile($innerContent, $context));
+        } else {
+            $prompt = (string) ($attrs['prompt'] ?? '');
+        }
+
+        $req = [
+            'model'      => $model,
+            'prompt'     => $prompt,
+            'max_tokens' => $maxTokens,
+            'temperature' => isset($attrs['temperature']) ? (float) $attrs['temperature'] : 0.0,
+        ];
+        try {
+            $resp = $this->aiProvider()->complete($req);
+        } catch (\Throwable $e) {
+            return '<!-- ai error: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . ' -->';
+        }
+        $policy->recordUsage($resp['model'] ?? $model, (int) ($resp['output_tokens'] ?? 0));
+        $value = $resp['text'] ?? '';
+
+        // For ai_query with schema, attempt JSON decode.
+        if ($kind === 'ai_query') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) $value = $decoded;
+        }
+
+        $let = $this->extractLetIdentifier($expr);
+        if ($let === '') {
+            // No binding: emit value directly (escaped scalar) or nothing for arrays.
+            if (is_scalar($value)) return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+            return '';
+        }
+        // ai_generate with let= and a body: body was the prompt; emit nothing,
+        // value is bound for downstream context — but our evaluator returns a
+        // string so we propagate via context-binding by emitting a sentinel and
+        // letting the caller use {let.var}. Instead, we stash in the engine's
+        // ad-hoc bind sink so the next compile pass sees it.
+        $this->aiLetSink[$let] = $value;
+        return '';
+    }
+
+    /** @var array<string, mixed> Per-render AI bindings (consumed by render loop). */
+    private array $aiLetSink = [];
+
+    /** Public accessor for tests to read AI bindings produced during render. */
+    public function aiBindings(): array { return $this->aiLetSink; }
+
+    public function clearAiBindings(): void { $this->aiLetSink = []; }
+
+    // ------------------------------------------------------------- /4.6 --
+
+    /**
+     * Flatten top-level scalar context entries into a placeholder var map for
+     * {trans} interpolation. Nested structures and non-scalars are skipped to
+     * keep the placeholder surface predictable for translators.
+     *
+     * @return array<string,string>
+     */
+    private function collectTransVars(array $context): array
+    {
+        $out = [];
+        foreach ($context as $k => $v) {
+            if (!is_string($k)) {
+                continue;
+            }
+            if (is_string($v) || is_int($v) || is_float($v) || is_bool($v) || $v === null) {
+                if ($v === null) {
+                    $out[$k] = '';
+                } elseif (is_bool($v)) {
+                    $out[$k] = $v ? 'true' : 'false';
+                } else {
+                    $out[$k] = (string) $v;
+                }
+            }
+        }
+        return $out;
     }
 
     /**
@@ -1573,6 +2939,17 @@ class TemplateEngine
 
             $whitespacePos = $pos + $keywordLen;
             $nextChar = $content[$whitespacePos] ?? '';
+            // Allow argless form {trusted}/{untrusted}/{parallel} (immediate '}')
+            if ($nextChar === '}' && ($type === 'trusted' || $type === 'untrusted' || $type === 'parallel')) {
+                $full = substr($content, $pos, $whitespacePos - $pos + 1);
+                return [
+                    'type' => $type,
+                    'expr' => '',
+                    'pos'  => $pos,
+                    'len'  => strlen($full),
+                    'full' => $full,
+                ];
+            }
             if ($nextChar === '' || !ctype_space($nextChar)) {
                 continue;
             }
@@ -1585,7 +2962,7 @@ class TemplateEngine
             $full = substr($content, $pos, $tagEnd - $pos + 1);
             $expr = trim(substr($content, $whitespacePos + 1, $tagEnd - $whitespacePos - 1));
 
-            if ($expr === '') {
+            if ($expr === '' && $type !== 'trusted' && $type !== 'untrusted' && $type !== 'parallel') {
                 continue;
             }
 
@@ -2293,6 +3670,11 @@ class TemplateEngine
 
                     $filterName = trim(explode(':', $filter, 2)[0]);
                     if ($filterName === 'raw') {
+                        if (!$this->sandbox()->require('raw.html', '| raw on ' . $varPath, (string) $value)) {
+                            // Denied: emit auto-escaped output instead.
+                            $hasRaw = false;
+                            continue;
+                        }
                         $hasRaw = true;
                         if ($this->strictMode) {
                             $this->logError("[strict] Raw filter used on variable: {$varPath}");

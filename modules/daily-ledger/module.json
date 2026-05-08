@@ -1,7 +1,7 @@
 {
     "id": "daily-ledger",
     "name": "Daily Ledger",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Daily sales report encoding system \u2014 digital mirror of paper ledger",
     "author": "Noah C. Omamalin",
     "auth_owned": {
@@ -37,7 +37,21 @@
         "dl_production_movements",
         "dl_raw_materials",
         "dl_commissary_ledger",
+        "dl_selling_account_ledger",
+        "dl_selling_account_day_status",
+        "dl_cashier_withdrawals",
+        "dl_deliveries",
+        "dl_delivery_items",
+        "dl_branch_receivings",
+        "dl_branch_receiving_items",
+        "dl_price_groups",
+        "dl_product_prices",
         "dl_production_runs",
+        "dl_branch_product_supply_rules",
+        "dl_selling_accounts",
+        "dl_delivery_variance_flags"
+    ],
+    "co_owns_tables": [
         "audit_logs"
     ],
     "reads_tables": [
@@ -63,7 +77,22 @@
         "database/migrations/016_add_batch_input_qty.sql",
         "database/migrations/017_add_batch_egg_qty.sql",
         "database/migrations/018_add_commissary_flow_mode.sql",
-        "database/migrations/019_audit_logs_actor_columns.sql"
+        "database/migrations/019_audit_logs_actor_columns.sql",
+        "database/migrations/020_cashier_withdrawals.sql",
+        "database/migrations/021_cashier_withdrawal_receive.sql",
+        "database/migrations/022_branch_supply_mode.sql",
+        "database/migrations/023_branch_product_supply_rules.sql",
+        "database/migrations/024_deliveries_and_receivings.sql",
+        "database/migrations/025_backfill_delivery_rows.sql",
+        "database/migrations/026_withdrawal_reasons.sql",
+        "database/migrations/027_price_groups.sql",
+        "database/migrations/028_selling_accounts.sql",
+        "database/migrations/029_selling_account_ledger.sql",
+        "database/migrations/030_branch_price_groups.sql",
+        "database/migrations/031_production_dr_numbers.sql",
+        "database/migrations/032_cashier_withdrawal_received_qty.sql",
+        "database/migrations/033_delivery_provenance_review.sql",
+        "database/migrations/034_add_delivery_status_indexes.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -107,11 +136,46 @@
             "description": "Display name shown on the login page and throughout the app."
         },
         {
+            "key": "logo_url",
+            "type": "text",
+            "label": "Logo URL",
+            "default": "",
+            "description": "Optional uploaded logo shown in the Daily Ledger sidebar and login screen."
+        },
+        {
+            "key": "favicon_url",
+            "type": "text",
+            "label": "Favicon URL",
+            "default": "",
+            "description": "Optional uploaded favicon used across Daily Ledger pages."
+        },
+        {
             "key": "production_output_enabled",
             "type": "checkbox",
             "label": "Enable Production Output",
             "default": "0",
             "description": "Show the Production Output page and allow production output entries to be recorded."
+        },
+        {
+            "key": "formal_delivery_workflow_enabled",
+            "type": "checkbox",
+            "label": "Enable Formal Delivery / Receiving Workflow",
+            "default": "0",
+            "description": "Switch deliveries and branch receipts onto the dl_deliveries / dl_branch_receivings tables with draft/posted/voided status. When off, the legacy cashier-withdrawal delivery flow continues to apply."
+        },
+        {
+            "key": "selling_accounts_enabled",
+            "type": "checkbox",
+            "label": "Enable Selling Accounts (Mall, Kiosk, Event Booth, etc.)",
+            "default": "0",
+            "description": "Expose selling-account ledgers, separate price groups, and consolidated branch summaries that include their assigned selling accounts."
+        },
+        {
+            "key": "price_groups_enabled",
+            "type": "checkbox",
+            "label": "Enable Channel Price Groups",
+            "default": "1",
+            "description": "Allow product prices to vary by channel (Regular Branch, Mall, Reseller, Event, etc.). Snapshots are recorded on every delivery and ledger entry."
         }
     ],
     "auth_cookie": "daily_ledger_token",
@@ -158,6 +222,16 @@
             ]
         },
         {
+            "label": "Usage",
+            "url": "/admin/usage",
+            "icon": "package",
+            "roles": [
+                "admin",
+                "supervisor",
+                "production_in_charge"
+            ]
+        },
+        {
             "label": "Production Withdrawal",
             "url": "/admin/production",
             "icon": "factory",
@@ -175,6 +249,15 @@
                 "admin",
                 "supervisor",
                 "production_in_charge"
+            ]
+        },
+        {
+            "label": "Commissary",
+            "url": "/admin/commissary",
+            "icon": "archive",
+            "roles": [
+                "admin",
+                "supervisor"
             ]
         },
         {

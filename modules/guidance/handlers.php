@@ -20,6 +20,65 @@ function guidanceGetSettingJson(string $key, array $default = []): array
 
 }
 
+function guidanceNotificationRuntimeSettings(): array
+{
+    $appointmentSettings = guidanceGetSettingJson('appointment_settings', []);
+    $legacySettings = guidanceGetSettingJson('notification_settings', []);
+
+    $defaultChannel = !empty($legacySettings['sms_enabled']) ? 'email_and_sms' : 'email_only';
+    $channel = trim((string)guidanceGetSetting(
+        'notification_channel',
+        (string)($appointmentSettings['notification_channel'] ?? $defaultChannel)
+    ));
+    if ($channel !== 'email_and_sms') {
+        $channel = 'email_only';
+    }
+
+    $defaultEmailEnabled = array_key_exists('email_enabled', $legacySettings)
+        ? (!empty($legacySettings['email_enabled']) ? '1' : '0')
+        : (array_key_exists('email_notifications', $appointmentSettings)
+            ? (!empty($appointmentSettings['email_notifications']) ? '1' : '0')
+            : '1');
+    $emailEnabledRaw = strtolower(trim((string)guidanceGetSetting('email_notifications', $defaultEmailEnabled)));
+    $emailEnabled = in_array($emailEnabledRaw, ['1', 'true', 'yes', 'on'], true);
+
+    $defaultReminderHours = array_key_exists('appointment_reminder_hours', $legacySettings)
+        ? (int)($legacySettings['appointment_reminder_hours'] ?? 24)
+        : (int)($appointmentSettings['reminder_hours_before'] ?? 24);
+    $reminderHours = max(0, (int)guidanceGetSetting('reminder_hours_before', (string)$defaultReminderHours));
+
+    return [
+        'notification_channel' => $channel,
+        'email_enabled' => $emailEnabled,
+        'email_notifications' => $emailEnabled ? '1' : '0',
+        'sms_enabled' => $channel === 'email_and_sms',
+        'reminder_hours_before' => $reminderHours,
+    ];
+}
+
+function guidanceSendNotificationEmail(string $email, string $subject, string $body, array $options = []): bool
+{
+    $email = trim($email);
+    $subject = trim($subject);
+    if ($email === '' || $subject === '' || trim($body) === '') {
+        return false;
+    }
+    if (!guidanceNotificationRuntimeSettings()['email_enabled'] || !function_exists('sendEmail')) {
+        return false;
+    }
+
+    return sendEmail($email, $subject, $body, $options);
+}
+
+function guidanceEmitAutomationEvent(string $event, array $payload = []): void
+{
+    $settings = guidanceNotificationRuntimeSettings();
+    $payload['notification_channel'] = (string)$settings['notification_channel'];
+    $payload['email_notifications'] = (string)$settings['email_notifications'];
+    $payload['sms_enabled'] = $settings['sms_enabled'] ? '1' : '0';
+    guidanceFireEvent($event, $payload);
+}
+
 function apiGuidanceCaseOptions(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
@@ -75,9 +134,40 @@ function guidanceAllowedCaseCategories(): array
     return ['general', 'academic', 'behavioral', 'emotional', 'family', 'peer', 'career', 'crisis', 'special_needs', 'substance', 'other'];
 }
 
-function guidanceAllowedCaseSeverityLevels(): array
+function guidanceDefaultCaseSeverityLevels(): array
 {
     return ['low', 'medium', 'high', 'critical'];
+}
+
+function guidanceAllowedCaseSeverityLevels(): array
+{
+    try {
+        $config = getCaseSeverityConfig(guidanceDb());
+        return $config['levels'];
+    } catch (Throwable $e) {
+        return guidanceDefaultCaseSeverityLevels();
+    }
+}
+
+function normalizeCaseSeverityValue(?string $value): string
+{
+    $value = strtolower(trim((string) $value));
+    if ($value === 'moderate') {
+        $value = 'medium';
+    }
+
+    return in_array($value, guidanceDefaultCaseSeverityLevels(), true) ? $value : '';
+}
+
+function guidanceCaseSeverityLabel(string $value): string
+{
+    return match (normalizeCaseSeverityValue($value)) {
+        'low' => 'Low Risk',
+        'medium' => 'Moderate Risk',
+        'high' => 'High Risk',
+        'critical' => 'Critical',
+        default => trim((string) $value),
+    };
 }
 
 function guidanceNormalizeCaseReferralSource(?string $value): string
@@ -140,9 +230,18 @@ function guidanceBuildCaseRecordPayload(array $input, int $counselorId, int $use
         $categoriesJson = null;
     }
 
-    $severity = strtolower(trim((string)($input['severity'] ?? 'medium')));
-    if (!in_array($severity, guidanceAllowedCaseSeverityLevels(), true)) {
-        $severity = 'medium';
+    try {
+        $severityConfig = getCaseSeverityConfig(guidanceDb());
+        $allowedSeverityLevels = $severityConfig['levels'];
+        $defaultSeverity = $severityConfig['default'] !== '' ? $severityConfig['default'] : 'medium';
+    } catch (Throwable $e) {
+        $allowedSeverityLevels = guidanceDefaultCaseSeverityLevels();
+        $defaultSeverity = 'medium';
+    }
+
+    $severity = normalizeCaseSeverityValue((string)($input['severity'] ?? $defaultSeverity));
+    if ($severity === '' || !in_array($severity, $allowedSeverityLevels, true)) {
+        $severity = $defaultSeverity;
     }
 
     $sessionDate = trim((string)($input['session_date'] ?? '')) ?: null;
@@ -183,7 +282,7 @@ function guidanceBuildCaseRecordPayload(array $input, int $counselorId, int $use
         'mse_judgment' => trim((string)($input['mse_judgment'] ?? '')) ?: null,
         'mse_notes' => trim((string)($input['mse_notes'] ?? '')) ?: null,
         'is_urgent' => !empty($input['is_urgent']) ? 1 : 0,
-        'is_confidential' => !empty($input['is_confidential']) ? 1 : 0,
+        'is_confidential' => 1,
         'parent_guardian_name' => trim((string)($input['parent_guardian_name'] ?? '')) ?: null,
         'parent_guardian_contact' => trim((string)($input['parent_guardian_contact'] ?? '')) ?: null,
         'emergency_contact_address' => trim((string)($input['emergency_contact_address'] ?? '')) ?: null,
@@ -282,7 +381,7 @@ function guidanceCreateCaseInitialAppointment(\Ikabud\Kernel\Contracts\DatabaseC
 
     $appointmentId = (int)$db->lastInsertId();
     $clientNumber = trim((string)($caseData['student_mobile'] ?? ''));
-    guidanceFireEvent('guidance.appointment.created', [
+    guidanceEmitAutomationEvent('guidance.appointment.created', [
         'to' => $clientNumber,
         'appointment_id' => $appointmentId,
         'date' => $date,
@@ -1019,6 +1118,10 @@ function apiGuidanceUpdateCase(array $params = []): void
         foreach ($allowedColumns as $column) {
             $shouldUpdate = array_key_exists($column, $input);
 
+            if ($column === 'is_confidential') {
+                $shouldUpdate = true;
+            }
+
             if (!$shouldUpdate && isset($enabledFieldMap[$column]) && (string)($enabledFieldMap[$column]['field_type'] ?? '') === 'checkbox') {
                 $shouldUpdate = true;
             }
@@ -1355,16 +1458,15 @@ function modalGuidanceAppointmentDetail(array $params = []): void
         $appt['student_name'] = $appt['case_student_name'];
     }
 
-    $canMarkOutcome = guidanceAppointmentScheduledAtReached(
-        (string)($appt['scheduled_date'] ?? ''),
-        (string)($appt['scheduled_time'] ?? '')
-    );
-
     echo guidanceRender('modules/guidance/modals/appointment-detail.disyl', [
         'appointment' => $appt,
         'case_notes' => [],
-        'can_mark_outcome' => $canMarkOutcome,
-        'outcome_locked_reason' => 'Complete and No Show become available once the scheduled date and time is reached.',
+        'can_mark_outcome' => guidanceAppointmentCanMarkOutcome(
+            (string)($appt['status'] ?? ''),
+            (string)($appt['scheduled_date'] ?? ''),
+            (string)($appt['scheduled_time'] ?? '')
+        ),
+        'outcome_locked_reason' => 'Complete and No Show become available for past appointments once the scheduled date and time is reached.',
         'base_url' => '/admin/guidance',
     ]);
 }
@@ -1388,6 +1490,16 @@ function guidanceAppointmentScheduledAtReached(string $date, string $time): bool
     }
 
     return $scheduledAt <= $now;
+}
+
+function guidanceAppointmentCanMarkOutcome(string $status, string $date, string $time): bool
+{
+    $status = strtolower(trim($status));
+    if (!in_array($status, ['pending', 'scheduled', 'confirmed'], true)) {
+        return false;
+    }
+
+    return guidanceAppointmentScheduledAtReached($date, $time);
 }
 
 function guidanceAppointmentConflict(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $counselorId, string $date, string $time, int $durationMinutes, int $excludeId = 0): bool
@@ -1417,6 +1529,17 @@ function guidanceNormalizeAppointmentTypeValue(?string $value): string
     return in_array($type, ['individual', 'group', 'parent', 'teacher', 'crisis', 'followup'], true)
         ? $type
         : 'individual';
+}
+
+function guidanceNormalizeNoteSessionType(?string $value, string $default = 'walk-in'): string
+{
+    $sessionType = trim((string)$value);
+    if ($sessionType !== '') {
+        return $sessionType;
+    }
+
+    $fallback = trim($default);
+    return $fallback !== '' ? $fallback : 'walk-in';
 }
 
 function apiGuidanceCreateAppointment(): void
@@ -1534,7 +1657,7 @@ function apiGuidanceCreateAppointment(): void
 
         $appointmentId = (int)$db->lastInsertId();
         $clientNumber = trim((string)($case['student_mobile'] ?? ''));
-        guidanceFireEvent('guidance.appointment.created', [
+        guidanceEmitAutomationEvent('guidance.appointment.created', [
             'to' => $clientNumber,
             'appointment_id' => $appointmentId,
             'date' => $date,
@@ -1777,7 +1900,7 @@ function apiGuidanceCompleteAppointment(array $params = []): void
         }
     }
 
-    $ok = guidanceSetAppointmentStatus($db, $id, 'completed', $userId, ['scheduled', 'confirmed']);
+    $ok = guidanceSetAppointmentStatus($db, $id, 'completed', $userId, ['pending', 'scheduled', 'confirmed']);
     if (!$ok) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid status transition', 'type' => 'error']]));
@@ -1810,7 +1933,7 @@ function apiGuidanceNoShowAppointment(array $params = []): void
         }
     }
 
-    $ok = guidanceSetAppointmentStatus($db, $id, 'no_show', $userId, ['scheduled', 'confirmed']);
+    $ok = guidanceSetAppointmentStatus($db, $id, 'no_show', $userId, ['pending', 'scheduled', 'confirmed']);
     if (!$ok) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid status transition', 'type' => 'error']]));
@@ -2973,7 +3096,7 @@ function guidanceCreatePublicBookingRecord(array $payload): int
     guidanceQueueCounselorNotification($db, (int)($payload['counselor_id'] ?? 0), $appointmentId, $payload);
     guidanceSendStudentBookingConfirmation($db, $appointmentId, $payload);
 
-    guidanceFireEvent('guidance.booking.created', [
+    guidanceEmitAutomationEvent('guidance.booking.created', [
         'to' => (string)($payload['student_phone'] ?? ''),
         'appointment_id' => $appointmentId,
         'student_name' => (string)($payload['student_name'] ?? ''),
@@ -3035,8 +3158,12 @@ function guidanceQueueCounselorNotification(\Ikabud\Kernel\Contracts\DatabaseCon
             . '<strong>Time:</strong> ' . htmlspecialchars(date('g:i A', strtotime((string)($payload['scheduled_time'] ?? '00:00')))) . '<br>'
             . '<strong>Purpose:</strong> ' . htmlspecialchars((string)($payload['purpose'] ?? '')) . '</p>'
             . '<p>Please log in to the Guidance system to approve or decline this request.</p>';
+        if (!function_exists('buildEmailTemplate')) {
+            return;
+        }
+
         $body = buildEmailTemplate('New Appointment Request', $content);
-        sendEmail($email, 'New Appointment Request from ' . (string)($payload['student_name'] ?? 'Student'), $body);
+        guidanceSendNotificationEmail($email, 'New Appointment Request from ' . (string)($payload['student_name'] ?? 'Student'), $body);
     } catch (Throwable $e) {
         app()->log('Booking: failed to send counselor email: ' . $e->getMessage(), 'error');
     }
@@ -3081,7 +3208,7 @@ function guidanceRenderEmailTemplateHtml(string $text): string
 function guidanceSendAppointmentTemplateEmail(string $templateKey, string $email, array $variables): bool
 {
     $email = trim($email);
-    if ($email === '' || !function_exists('sendEmail') || !function_exists('buildEmailTemplate')) {
+    if ($email === '' || !function_exists('buildEmailTemplate')) {
         return false;
     }
 
@@ -3098,7 +3225,7 @@ function guidanceSendAppointmentTemplateEmail(string $templateKey, string $email
         return false;
     }
 
-    return sendEmail($email, $subject, buildEmailTemplate($subject, $bodyHtml));
+    return guidanceSendNotificationEmail($email, $subject, buildEmailTemplate($subject, $bodyHtml));
 }
 
 function guidanceSendStudentBookingConfirmation(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $appointmentId, array $payload): void
@@ -3122,24 +3249,146 @@ function guidanceSendStudentBookingConfirmation(\Ikabud\Kernel\Contracts\Databas
     }
 }
 
+function guidanceAppointmentsDueForReminder(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?DateTimeInterface $now = null, int $limit = 100): array
+{
+    $settings = guidanceNotificationRuntimeSettings();
+    if (!$settings['email_enabled'] || $settings['reminder_hours_before'] < 1) {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+    $nowAt = $now instanceof DateTimeInterface
+        ? DateTimeImmutable::createFromInterface($now)
+        : new DateTimeImmutable('now');
+    $windowEnd = $nowAt->modify('+' . (int)$settings['reminder_hours_before'] . ' hours');
+
+    try {
+        $stmt = $db->prepare(
+            "SELECT id, student_name, student_email, student_phone, scheduled_date, scheduled_time, duration_minutes, location, status\n"
+            . "FROM gm_appointments\n"
+            . "WHERE status IN ('confirmed', 'scheduled', 'rescheduled')\n"
+            . "AND reminder_sent_at IS NULL\n"
+            . "AND TIMESTAMP(scheduled_date, scheduled_time) > ?\n"
+            . "AND TIMESTAMP(scheduled_date, scheduled_time) <= ?\n"
+            . "ORDER BY scheduled_date ASC, scheduled_time ASC\n"
+            . 'LIMIT ' . $limit
+        );
+        $stmt->execute([
+            $nowAt->format('Y-m-d H:i:s'),
+            $windowEnd->format('Y-m-d H:i:s'),
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        app()->log('Appointments reminder due query error: ' . $e->getMessage(), 'error');
+        return [];
+    }
+}
+
+function guidanceSendAppointmentReminder(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $appointmentId, ?DateTimeInterface $now = null): bool
+{
+    if ($appointmentId < 1) {
+        return false;
+    }
+
+    $dueIds = array_map(static fn(array $row): int => (int)($row['id'] ?? 0), guidanceAppointmentsDueForReminder($db, $now, 500));
+    if (!in_array($appointmentId, $dueIds, true)) {
+        return false;
+    }
+
+    try {
+        $stmt = $db->prepare(
+            "SELECT id, student_name, student_email, scheduled_date, scheduled_time, duration_minutes, location\n"
+            . 'FROM gm_appointments WHERE id = ? LIMIT 1'
+        );
+        $stmt->execute([$appointmentId]);
+        $appointment = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($appointment)) {
+            return false;
+        }
+
+        $email = trim((string)($appointment['student_email'] ?? ''));
+        if ($email === '') {
+            return false;
+        }
+
+        $studentName = trim((string)($appointment['student_name'] ?? 'Student'));
+        $scheduledDate = date('F j, Y', strtotime((string)($appointment['scheduled_date'] ?? date('Y-m-d'))));
+        $scheduledTime = date('g:i A', strtotime((string)($appointment['scheduled_time'] ?? '00:00')));
+        $location = trim((string)($appointment['location'] ?? '')) !== ''
+            ? (string)$appointment['location']
+            : 'Guidance Office';
+
+        $content = '<p>This is a reminder that you have an upcoming appointment.</p>'
+            . '<p><strong>Date:</strong> ' . htmlspecialchars($scheduledDate, ENT_QUOTES, 'UTF-8') . '<br>'
+            . '<strong>Time:</strong> ' . htmlspecialchars($scheduledTime, ENT_QUOTES, 'UTF-8') . '<br>'
+            . '<strong>Location:</strong> ' . htmlspecialchars($location, ENT_QUOTES, 'UTF-8') . '</p>'
+            . '<p>If you need to reschedule, please contact the Guidance Office as soon as possible.</p>';
+        $body = function_exists('buildEmailTemplate')
+            ? buildEmailTemplate('Appointment Reminder', $content)
+            : $content;
+
+        if (!guidanceSendNotificationEmail($email, 'Appointment Reminder for ' . $studentName, $body)) {
+            return false;
+        }
+
+        $db->prepare('UPDATE gm_appointments SET reminder_sent_at = NOW(), updated_at = NOW() WHERE id = ? AND reminder_sent_at IS NULL')
+            ->execute([$appointmentId]);
+        return true;
+    } catch (Throwable $e) {
+        app()->log('Appointments reminder send error: ' . $e->getMessage(), 'error');
+        return false;
+    }
+}
+
+function guidanceProcessAppointmentReminders(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?DateTimeInterface $now = null, int $limit = 100): array
+{
+    $due = guidanceAppointmentsDueForReminder($db, $now, $limit);
+    $sent = 0;
+    $failed = 0;
+
+    foreach ($due as $appointment) {
+        $appointmentId = (int)($appointment['id'] ?? 0);
+        if ($appointmentId < 1) {
+            continue;
+        }
+
+        if (guidanceSendAppointmentReminder($db, $appointmentId, $now)) {
+            $sent++;
+        } else {
+            $failed++;
+        }
+    }
+
+    return ['due' => count($due), 'sent' => $sent, 'failed' => $failed];
+}
+
 function guidancePublicBookingSuccessPayload(array $payload, int $appointmentId): array
 {
     $rawDate = (string)($payload['scheduled_date'] ?? '');
     $rawTime = (string)($payload['scheduled_time'] ?? '');
     $scheduledDateFmt = $rawDate !== '' ? date('F j, Y', strtotime($rawDate)) : '';
     $scheduledTimeFmt = $rawTime !== '' ? date('g:i A', strtotime($rawTime)) : '';
+    $notificationSettings = guidanceNotificationRuntimeSettings();
+    $studentEmail = (string)($payload['student_email'] ?? '');
+    $confirmationNotice = $notificationSettings['email_enabled']
+        ? ('A confirmation email will be sent to ' . $studentEmail . ' once your appointment is approved.')
+        : 'Your request has been submitted for review. Guidance staff will confirm the appointment once it is approved.';
+    $message = $notificationSettings['email_enabled']
+        ? 'Appointment request submitted! You will receive a confirmation email once approved.'
+        : 'Appointment request submitted! Guidance staff will review it and confirm the appointment once approved.';
 
     return [
         'ok' => true,
         'success' => true,
         'appointment_id' => $appointmentId,
-        'message' => 'Appointment request submitted! You will receive a confirmation email once approved.',
+        'message' => $message,
         'html' => guidanceRender('modules/guidance/partials/booking-success.disyl', [
             'appointment_id' => $appointmentId,
             'student_name' => (string)($payload['student_name'] ?? ''),
             'scheduled_date' => $scheduledDateFmt,
             'scheduled_time' => $scheduledTimeFmt,
-            'student_email' => (string)($payload['student_email'] ?? ''),
+            'student_email' => $studentEmail,
+            'confirmation_notice' => $confirmationNotice,
             'base_url' => '/guidance',
         ]),
     ];
@@ -3437,6 +3686,7 @@ function pageGuidanceCaseNew(): void
     $counselors       = [];
     $colleges         = [];
     $appointmentTypes = [];
+    $severityConfig   = guidanceGetCaseSeverityOptionsForForm($db);
 
     if ($role !== 'counselor') {
         try {
@@ -3472,6 +3722,8 @@ function pageGuidanceCaseNew(): void
             'counselors'       => $counselors,
             'colleges'         => $colleges,
             'appointment_types' => $appointmentTypes,
+            'severity_levels'  => $severityConfig['options'],
+            'severity_default' => $severityConfig['default'],
             'user_role'        => $role,
             'is_admin'         => $role !== 'counselor',
             'today'            => date('Y-m-d'),
@@ -4127,9 +4379,24 @@ function modalGuidanceCaseNoteNew(array $params = []): void
         return;
     }
 
-    $sessionType = (string)guidanceInput('session_type', 'walk-in');
-    if (!in_array($sessionType, ['walk-in', 'follow-up', 'referred'], true)) {
-        $sessionType = 'walk-in';
+    $appointmentId = max(0, (int)guidanceInput('appointment_id', 0));
+    $sessionType = guidanceNormalizeNoteSessionType((string)guidanceInput('session_type', ''));
+    if ($sessionType === 'walk-in' && trim((string)guidanceInput('session_type', '')) === '' && $appointmentId > 0) {
+        try {
+            $appointmentStmt = $db->prepare(
+                'SELECT COALESCE(at.name, a.appointment_type, "") AS session_type '
+                . 'FROM gm_appointments a '
+                . 'LEFT JOIN gm_appointment_types at ON a.appointment_type_id = at.id '
+                . 'WHERE a.id = ? AND a.case_id = ? LIMIT 1'
+            );
+            $appointmentStmt->execute([$appointmentId, $caseId]);
+            $appointmentSessionType = trim((string)($appointmentStmt->fetchColumn() ?: ''));
+            if ($appointmentSessionType !== '') {
+                $sessionType = $appointmentSessionType;
+            }
+        } catch (Throwable $e) {
+            // Keep the safe fallback when the linked appointment cannot be resolved.
+        }
     }
 
     $sessionDate = (string)guidanceInput('session_date', date('Y-m-d'));
@@ -4137,7 +4404,6 @@ function modalGuidanceCaseNoteNew(array $params = []): void
         $sessionDate = date('Y-m-d');
     }
 
-    $appointmentId = max(0, (int)guidanceInput('appointment_id', 0));
     $followupRequired = !empty(guidanceInput('followup_required', 0));
 
     echo guidanceRender('modules/guidance/modals/note-form.disyl', [
@@ -4251,9 +4517,7 @@ function apiGuidanceCaseNoteUpdate(array $params = []): void
         return;
     }
 
-    $sessionType = in_array($input['session_type'] ?? '', ['walk-in', 'follow-up', 'referred', 'scheduled', 'referral'], true)
-        ? $input['session_type']
-        : 'walk-in';
+    $sessionType = guidanceNormalizeNoteSessionType((string)($input['session_type'] ?? 'walk-in'));
     $riskLevel = in_array($input['risk_level'] ?? '', ['none', 'low', 'moderate', 'high', 'critical'], true)
         ? $input['risk_level']
         : 'none';
@@ -5130,7 +5394,7 @@ function apiGuidanceCreateCaseNote(array $params = []): void
             (($input['appointment_id'] ?? '') !== '' ? (int)$input['appointment_id'] : null),
             $userId,
             (string)($input['note_type'] ?? 'session'),
-            (string)($input['session_type'] ?? 'walk-in'),
+            guidanceNormalizeNoteSessionType((string)($input['session_type'] ?? 'walk-in')),
             (string)($input['session_date'] ?? ($input['note_date'] ?? date('Y-m-d'))),
             (($input['session_duration_minutes'] ?? '') !== '' ? (int)$input['session_duration_minutes'] : null),
             $noteContent,
@@ -5231,6 +5495,15 @@ function modalGuidanceCaseNew(): void
         $colleges = [];
     }
 
+    $studentStatusConfig = guidanceGetStudentStatusOptionsForForm($db, (string)($casePrefill['student_status'] ?? ''));
+    if (empty($casePrefill['student_status']) && $studentStatusConfig['default'] !== '') {
+        $casePrefill['student_status'] = $studentStatusConfig['default'];
+    }
+    $severityConfig = guidanceGetCaseSeverityOptionsForForm($db, (string)($casePrefill['severity'] ?? ''));
+    if (empty($casePrefill['severity']) && $severityConfig['default'] !== '') {
+        $casePrefill['severity'] = $severityConfig['default'];
+    }
+
     echo guidanceRender('modules/guidance/modals/case-form.disyl', [
         'case' => $casePrefill,
         'today' => date('Y-m-d'),
@@ -5239,6 +5512,9 @@ function modalGuidanceCaseNew(): void
         'user_id' => $userId,
         'counselors' => $counselors,
         'colleges' => $colleges,
+        'student_statuses' => $studentStatusConfig['statuses'],
+        'severity_levels' => $severityConfig['options'],
+        'severity_default' => $severityConfig['default'],
         'case_categories_json' => '[]',
         'dynamic_fields_html' => guidanceRenderFormFields('case', $casePrefill, ['colleges' => $colleges]),
         'source_appointment' => $sourceAppointment ?? [],
@@ -5325,6 +5601,9 @@ function modalGuidanceCaseEdit(array $params = []): void
         $colleges = [];
     }
 
+    $studentStatusConfig = guidanceGetStudentStatusOptionsForForm($db, (string)($case['student_status'] ?? ''));
+    $severityConfig = guidanceGetCaseSeverityOptionsForForm($db, (string)($case['severity'] ?? ''));
+
     echo guidanceRender('modules/guidance/modals/case-form.disyl', [
         'case' => $case,
         'today' => date('Y-m-d'),
@@ -5333,6 +5612,9 @@ function modalGuidanceCaseEdit(array $params = []): void
         'user_id' => $userId,
         'counselors' => $counselors,
         'colleges' => $colleges,
+        'student_statuses' => $studentStatusConfig['statuses'],
+        'severity_levels' => $severityConfig['options'],
+        'severity_default' => $severityConfig['default'],
         'case_categories_json' => (function() use ($case): string {
             $raw = $case['categories'] ?? null;
             if (is_string($raw) && trim($raw) !== '') {
@@ -5665,11 +5947,12 @@ function apiGuidanceAppointments(): void
         foreach ($appointments as &$appt) {
             $appt['status_key'] = strtolower(trim((string)($appt['status_key'] ?? ($appt['status'] ?? ''))));
             $appt['counselor_name'] = trim((string)($appt['counselor_first'] ?? '') . ' ' . (string)($appt['counselor_last'] ?? ''));
-            $appt['can_mark_outcome'] = guidanceAppointmentScheduledAtReached(
+            $appt['can_mark_outcome'] = guidanceAppointmentCanMarkOutcome(
+                (string)($appt['status_key'] ?? ''),
                 (string)($appt['scheduled_date'] ?? ''),
                 (string)($appt['scheduled_time'] ?? '')
             );
-            $appt['outcome_locked_reason'] = 'Available once the scheduled date and time has been reached.';
+            $appt['outcome_locked_reason'] = 'Available for past appointments once the scheduled date and time has been reached.';
 
             if (($appt['scheduled_date'] ?? '') === $today) {
                 $appt['date_label'] = 'Today';
@@ -9766,6 +10049,179 @@ function guidanceSettingsDefaults(): array
     return $defaults;
 }
 
+function guidanceResolvedAppointmentSettings(array $settings = []): array
+{
+    $resolved = guidanceGetSettingJson('appointment_settings', []);
+    if (!is_array($resolved)) {
+        $resolved = [];
+    }
+
+    $slotMinutes = (int)($settings['appointment_slot_minutes'] ?? 0);
+    if ($slotMinutes > 0) {
+        $resolved['default_duration_minutes'] = $slotMinutes;
+    }
+
+    $maxPerDay = (int)($settings['max_appointments_per_day'] ?? 0);
+    if ($maxPerDay > 0) {
+        $resolved['max_appointments_per_day'] = $maxPerDay;
+    }
+
+    $workingHoursStart = trim((string)($settings['working_hours_start'] ?? ''));
+    if ($workingHoursStart !== '') {
+        $resolved['working_hours_start'] = $workingHoursStart;
+    }
+
+    $workingHoursEnd = trim((string)($settings['working_hours_end'] ?? ''));
+    if ($workingHoursEnd !== '') {
+        $resolved['working_hours_end'] = $workingHoursEnd;
+    }
+
+    $reminderHours = (int)($settings['reminder_hours_before'] ?? 0);
+    if ($reminderHours >= 0) {
+        $resolved['reminder_hours_before'] = $reminderHours;
+    }
+
+    $notificationChannel = trim((string)($settings['notification_channel'] ?? ''));
+    if ($notificationChannel !== '') {
+        $resolved['notification_channel'] = $notificationChannel;
+    }
+
+    if (array_key_exists('email_notifications', $settings)) {
+        $resolved['email_notifications'] = !empty($settings['email_notifications']) ? '1' : '0';
+    }
+
+    return $resolved;
+}
+
+function guidanceHydratePageSettings(array $settings, array $storedSettings = []): array
+{
+    $appointmentSettings = guidanceGetSettingJson('appointment_settings', []);
+    $workingHours = guidanceGetSettingJson('working_hours', []);
+    $legacyNotificationSettings = guidanceGetSettingJson('notification_settings', []);
+    if (!is_array($appointmentSettings)) {
+        $appointmentSettings = [];
+    }
+    if (!is_array($workingHours)) {
+        $workingHours = [];
+    }
+    if (!is_array($legacyNotificationSettings)) {
+        $legacyNotificationSettings = [];
+    }
+
+    if (array_key_exists('appointment_slot_minutes', $storedSettings)) {
+        $appointmentSettings['default_duration_minutes'] = (int)($storedSettings['appointment_slot_minutes'] ?? 0);
+    }
+    if (array_key_exists('max_appointments_per_day', $storedSettings)) {
+        $appointmentSettings['max_appointments_per_day'] = (int)($storedSettings['max_appointments_per_day'] ?? 0);
+    }
+    if (array_key_exists('working_hours_start', $storedSettings)) {
+        $appointmentSettings['working_hours_start'] = (string)($storedSettings['working_hours_start'] ?? '');
+    }
+    if (array_key_exists('working_hours_end', $storedSettings)) {
+        $appointmentSettings['working_hours_end'] = (string)($storedSettings['working_hours_end'] ?? '');
+    }
+    if (array_key_exists('notification_channel', $storedSettings)) {
+        $appointmentSettings['notification_channel'] = (string)($storedSettings['notification_channel'] ?? '');
+    }
+    if (array_key_exists('email_notifications', $storedSettings)) {
+        $appointmentSettings['email_notifications'] = (string)($storedSettings['email_notifications'] ?? '0');
+    }
+    if (array_key_exists('reminder_hours_before', $storedSettings)) {
+        $appointmentSettings['reminder_hours_before'] = (int)($storedSettings['reminder_hours_before'] ?? 0);
+    }
+
+    $defaults = guidanceSettingsDefaults();
+    $globalWeekdayHours = null;
+    foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $weekday) {
+        if (is_array($workingHours[$weekday] ?? null)) {
+            $globalWeekdayHours = $workingHours[$weekday];
+            break;
+        }
+    }
+
+    if (!isset($settings['appointment_slot_minutes']) && isset($appointmentSettings['default_duration_minutes'])) {
+        $settings['appointment_slot_minutes'] = (string)((int)$appointmentSettings['default_duration_minutes']);
+    }
+    if (!isset($settings['max_appointments_per_day']) && isset($appointmentSettings['max_appointments_per_day'])) {
+        $settings['max_appointments_per_day'] = (string)((int)$appointmentSettings['max_appointments_per_day']);
+    }
+    if (!isset($settings['working_hours_start']) && is_array($globalWeekdayHours) && isset($globalWeekdayHours['start'])) {
+        $settings['working_hours_start'] = (string)$globalWeekdayHours['start'];
+    } elseif (!isset($settings['working_hours_start']) && isset($appointmentSettings['working_hours_start'])) {
+        $settings['working_hours_start'] = (string)$appointmentSettings['working_hours_start'];
+    }
+    if (!isset($settings['working_hours_end']) && is_array($globalWeekdayHours) && isset($globalWeekdayHours['end'])) {
+        $settings['working_hours_end'] = (string)$globalWeekdayHours['end'];
+    } elseif (!isset($settings['working_hours_end']) && isset($appointmentSettings['working_hours_end'])) {
+        $settings['working_hours_end'] = (string)$appointmentSettings['working_hours_end'];
+    }
+    if (!isset($settings['notification_channel']) && isset($appointmentSettings['notification_channel'])) {
+        $settings['notification_channel'] = (string)$appointmentSettings['notification_channel'];
+    } elseif (!isset($settings['notification_channel']) && array_key_exists('sms_enabled', $legacyNotificationSettings)) {
+        $settings['notification_channel'] = !empty($legacyNotificationSettings['sms_enabled']) ? 'email_and_sms' : 'email_only';
+    }
+    if ((!isset($settings['email_notifications']) || (string)($settings['email_notifications'] ?? '') === (string)($defaults['email_notifications'] ?? '')) && isset($appointmentSettings['email_notifications'])) {
+        $settings['email_notifications'] = (string)$appointmentSettings['email_notifications'];
+    } elseif ((!isset($settings['email_notifications']) || (string)($settings['email_notifications'] ?? '') === (string)($defaults['email_notifications'] ?? '')) && array_key_exists('email_enabled', $legacyNotificationSettings)) {
+        $settings['email_notifications'] = !empty($legacyNotificationSettings['email_enabled']) ? '1' : '0';
+    }
+    if ((!isset($settings['reminder_hours_before']) || (string)($settings['reminder_hours_before'] ?? '') === (string)($defaults['reminder_hours_before'] ?? '')) && isset($appointmentSettings['reminder_hours_before'])) {
+        $settings['reminder_hours_before'] = (string)((int)$appointmentSettings['reminder_hours_before']);
+    } elseif ((!isset($settings['reminder_hours_before']) || (string)($settings['reminder_hours_before'] ?? '') === (string)($defaults['reminder_hours_before'] ?? '')) && array_key_exists('appointment_reminder_hours', $legacyNotificationSettings)) {
+        $settings['reminder_hours_before'] = (string)((int)($legacyNotificationSettings['appointment_reminder_hours'] ?? 24));
+    }
+
+    $settings['appointment_slot_minutes'] = (string)($settings['appointment_slot_minutes'] ?? '30');
+    $settings['max_appointments_per_day'] = (string)($settings['max_appointments_per_day'] ?? '0');
+    $settings['working_hours_start'] = (string)($settings['working_hours_start'] ?? '08:00');
+    $settings['working_hours_end'] = (string)($settings['working_hours_end'] ?? '17:00');
+    $settings['notification_channel'] = (string)($settings['notification_channel'] ?? 'email_only');
+    $settings['email_notifications'] = (string)($settings['email_notifications'] ?? '1');
+    $settings['retention_active_years'] = (string)($settings['retention_active_years'] ?? '7');
+    $settings['retention_closed_years'] = (string)($settings['retention_closed_years'] ?? '5');
+    $settings['reminder_hours_before'] = (string)($settings['reminder_hours_before'] ?? '24');
+    $settings['app_country'] = (string)($settings['app_country'] ?? 'PH');
+    $settings['app_region'] = (string)($settings['app_region'] ?? 'Manila');
+    $settings['app_timezone'] = (string)($settings['app_timezone'] ?? 'Asia/Manila');
+    $settings['ai_provider'] = (string)($settings['ai_provider'] ?? '');
+    $settings['ai_api_key'] = (string)($settings['ai_api_key'] ?? '');
+    $settings['ai_model'] = (string)($settings['ai_model'] ?? '');
+    $settings['license_public_key_pem'] = (string)($settings['license_public_key_pem'] ?? '');
+
+    return $settings;
+}
+
+function guidanceSettingsPersistableInput(array $input): array
+{
+    $persistable = $input;
+    $persistable['appointment_settings'] = guidanceResolvedAppointmentSettings($input);
+    $persistable['notification_settings'] = array_merge(
+        guidanceGetSettingJson('notification_settings', []),
+        [
+            'email_enabled' => !empty($input['email_notifications']),
+            'sms_enabled' => trim((string)($input['notification_channel'] ?? 'email_only')) === 'email_and_sms',
+            'appointment_reminder_hours' => max(0, (int)($input['reminder_hours_before'] ?? 24)),
+        ]
+    );
+
+    $workingHoursStart = trim((string)($input['working_hours_start'] ?? ''));
+    $workingHoursEnd = trim((string)($input['working_hours_end'] ?? ''));
+    if ($workingHoursStart !== '' && $workingHoursEnd !== '') {
+        $weekdayHours = ['start' => $workingHoursStart, 'end' => $workingHoursEnd];
+        $persistable['working_hours'] = [
+            'monday' => $weekdayHours,
+            'tuesday' => $weekdayHours,
+            'wednesday' => $weekdayHours,
+            'thursday' => $weekdayHours,
+            'friday' => $weekdayHours,
+            'saturday' => null,
+            'sunday' => null,
+        ];
+    }
+
+    return $persistable;
+}
+
 function guidanceGetAllSettings(): array
 {
     $db = guidanceDb();
@@ -9798,6 +10254,8 @@ function guidanceGetAllSettings(): array
         $settings = [];
     }
 
+    $storedSettings = $settings;
+
     $defaults = guidanceSettingsDefaults();
     foreach ($defaults as $k => $v) {
         if (!array_key_exists($k, $settings)) {
@@ -9805,7 +10263,7 @@ function guidanceGetAllSettings(): array
         }
     }
 
-    return $settings;
+    return guidanceHydratePageSettings($settings, $storedSettings);
 }
 
 function apiGuidanceGetSettings(): void
@@ -9818,6 +10276,7 @@ function apiGuidanceGetSettings(): void
 function apiGuidanceUpdateSettings(): void
 {
     $user = guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $input = guidanceInput();
     if (!is_array($input) || empty($input)) {
         if (guidanceIsHtmx()) {
@@ -9833,6 +10292,7 @@ function apiGuidanceUpdateSettings(): void
 
     $db = guidanceDb();
     try {
+        $input = guidanceSettingsPersistableInput($input);
         $stmt = $db->prepare(
             "INSERT INTO gm_settings (setting_key, setting_value, setting_type, updated_by, updated_at)\n"
             . "VALUES (?, ?, ?, ?, NOW())\n"
@@ -9959,6 +10419,7 @@ function apiGuidanceCreateAppointmentType(): void
 {
     guidanceRequireStaff(['admin']);
     guidanceRequirePro();
+    app()->csrfEnforce();
 
     $db = guidanceDb();
     $input = guidanceInput();
@@ -10025,6 +10486,7 @@ function apiGuidanceUpdateAppointmentType(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
     guidanceRequirePro();
+    app()->csrfEnforce();
 
     $db = guidanceDb();
     $input = guidanceInput();
@@ -10112,6 +10574,7 @@ function apiGuidanceDeleteAppointmentType(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
     guidanceRequirePro();
+    app()->csrfEnforce();
 
     $db = guidanceDb();
     $id = (int) ($params['id'] ?? 0);
@@ -10153,6 +10616,283 @@ function studentStatusError(string $message, int $status = 400): void
 
     app()->json(['error' => $message], $status);
     exit;
+}
+
+function caseSeverityError(string $message, int $status = 400): void
+{
+    if (guidanceIsHtmx()) {
+        http_response_code($status);
+        header('HX-Reswap: none');
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $message, 'type' => 'error']]));
+        echo '';
+        exit;
+    }
+
+    app()->json(['error' => $message], $status);
+    exit;
+}
+
+function ensureCaseSeverityField(\Ikabud\Kernel\Contracts\DatabaseContract $db): array
+{
+    $stmt = $db->prepare('SELECT * FROM gm_form_fields WHERE form_type = ? AND field_name = ? LIMIT 1');
+    $stmt->execute(['case', 'severity']);
+    $field = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($field) {
+        return $field;
+    }
+
+    $defaults = guidanceDefaultCaseSeverityLevels();
+    $nextSort = (int) $db->query("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM gm_form_fields WHERE form_type = 'case'")->fetchColumn();
+
+    $insert = $db->prepare(
+        'INSERT INTO gm_form_fields (
+            form_type, field_name, field_label, field_type, field_group,
+            field_options, placeholder, default_value, is_required, is_enabled,
+            is_system, sort_order, grid_column
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $insert->execute([
+        'case',
+        'severity',
+        'Severity',
+        'select',
+        'Case Details',
+        json_encode($defaults, JSON_UNESCAPED_UNICODE),
+        null,
+        'medium',
+        0,
+        1,
+        1,
+        max(1, $nextSort),
+        'half',
+    ]);
+
+    $stmt->execute(['case', 'severity']);
+    $field = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$field) {
+        throw new RuntimeException('Failed to initialize case severity field');
+    }
+
+    return $field;
+}
+
+function getCaseSeverityConfig(\Ikabud\Kernel\Contracts\DatabaseContract $db): array
+{
+    $field = ensureCaseSeverityField($db);
+    $configured = [];
+    if (!empty($field['field_options'])) {
+        $decoded = json_decode((string) $field['field_options'], true);
+        $source = is_array($decoded) ? $decoded : explode(',', (string) $field['field_options']);
+        foreach ($source as $option) {
+            $normalized = normalizeCaseSeverityValue((string) $option);
+            if ($normalized !== '' && !in_array($normalized, $configured, true)) {
+                $configured[] = $normalized;
+            }
+        }
+    }
+
+    if ($configured === []) {
+        $configured = guidanceDefaultCaseSeverityLevels();
+    }
+
+    $default = normalizeCaseSeverityValue((string) ($field['default_value'] ?? ''));
+    if ($default === '' || !in_array($default, $configured, true)) {
+        $default = $configured[0] ?? 'medium';
+    }
+
+    $usageCounts = [];
+    try {
+        $usageStmt = $db->query(
+            "SELECT severity, COUNT(*) AS severity_count
+             FROM gm_cases
+             WHERE severity IS NOT NULL AND TRIM(severity) != ''
+             GROUP BY severity"
+        );
+        foreach ($usageStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $severity = normalizeCaseSeverityValue((string) ($row['severity'] ?? ''));
+            if ($severity !== '') {
+                $usageCounts[$severity] = (int) ($row['severity_count'] ?? 0);
+            }
+        }
+    } catch (Throwable $e) {
+        $usageCounts = [];
+    }
+
+    $orderedValues = $configured;
+    foreach (guidanceDefaultCaseSeverityLevels() as $severity) {
+        if (!in_array($severity, $orderedValues, true)) {
+            $orderedValues[] = $severity;
+        }
+    }
+
+    $items = [];
+    foreach ($orderedValues as $index => $severity) {
+        $items[] = [
+            'value' => $severity,
+            'label' => guidanceCaseSeverityLabel($severity),
+            'sort_order' => $index + 1,
+            'is_enabled' => in_array($severity, $configured, true),
+            'is_default' => $severity === $default,
+            'in_use_count' => (int) ($usageCounts[$severity] ?? 0),
+        ];
+    }
+
+    return [
+        'field' => $field,
+        'levels' => $configured,
+        'default' => $default,
+        'items' => $items,
+    ];
+}
+
+function guidanceGetCaseSeverityOptionsForForm(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?string $currentValue = null): array
+{
+    try {
+        $config = getCaseSeverityConfig($db);
+        $levels = $config['levels'];
+        $default = $config['default'];
+    } catch (Throwable $e) {
+        $levels = guidanceDefaultCaseSeverityLevels();
+        $default = 'medium';
+    }
+
+    $currentValue = normalizeCaseSeverityValue($currentValue);
+    if ($currentValue !== '' && !in_array($currentValue, $levels, true)) {
+        $levels[] = $currentValue;
+    }
+
+    $options = [];
+    foreach ($levels as $level) {
+        $options[] = [
+            'value' => $level,
+            'label' => guidanceCaseSeverityLabel($level),
+        ];
+    }
+
+    return [
+        'levels' => $levels,
+        'default' => $default,
+        'options' => $options,
+    ];
+}
+
+function saveCaseSeverityConfig(\Ikabud\Kernel\Contracts\DatabaseContract $db, array $field, array $levels, ?string $defaultValue): array
+{
+    $normalized = [];
+    foreach ($levels as $level) {
+        $value = normalizeCaseSeverityValue((string) $level);
+        if ($value !== '' && !in_array($value, $normalized, true)) {
+            $normalized[] = $value;
+        }
+    }
+
+    if ($normalized === []) {
+        caseSeverityError('At least one severity level must remain enabled', 400);
+    }
+
+    $defaultValue = normalizeCaseSeverityValue((string) $defaultValue);
+    if ($defaultValue === '' || !in_array($defaultValue, $normalized, true)) {
+        $defaultValue = $normalized[0];
+    }
+
+    $stmt = $db->prepare('UPDATE gm_form_fields SET field_options = ?, default_value = ?, is_enabled = 1 WHERE id = ?');
+    $stmt->execute([
+        json_encode($normalized, JSON_UNESCAPED_UNICODE),
+        $defaultValue,
+        $field['id'],
+    ]);
+
+    return [
+        'levels' => $normalized,
+        'default' => $defaultValue,
+    ];
+}
+
+function apiGuidanceListCaseSeverityLevels(): void
+{
+    guidanceRequireStaff(['admin']);
+    $db = guidanceDb();
+    $context = (string) guidanceInput('context', '');
+
+    try {
+        $config = getCaseSeverityConfig($db);
+    } catch (Throwable $e) {
+        app()->log('Case severity list error: ' . $e->getMessage(), 'error');
+        caseSeverityError('Failed to load case severity settings', 500);
+    }
+
+    if (guidanceIsHtmx() && $context === 'settings') {
+        echo guidanceRender('modules/guidance/partials/case-severity-settings.disyl', [
+            'severity_levels' => $config['items'],
+            'default_severity' => $config['default'],
+        ]);
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => true, 'data' => $config['items'], 'default' => $config['default']], JSON_UNESCAPED_SLASHES);
+}
+
+function apiGuidanceUpdateCaseSeverityLevels(): void
+{
+    guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
+    $db = guidanceDb();
+    $input = guidanceInput();
+
+    if (!is_array($input)) {
+        caseSeverityError('Invalid request payload', 400);
+    }
+
+    $enabledInput = $input['enabled_levels'] ?? [];
+    if (!is_array($enabledInput)) {
+        $enabledInput = $enabledInput === '' ? [] : [$enabledInput];
+    }
+
+    $sortOrders = is_array($input['sort_order'] ?? null) ? $input['sort_order'] : [];
+    $enabled = [];
+    foreach ($enabledInput as $level) {
+        $normalized = normalizeCaseSeverityValue((string) $level);
+        if ($normalized !== '' && !in_array($normalized, $enabled, true)) {
+            $enabled[] = $normalized;
+        }
+    }
+
+    usort($enabled, static function (string $left, string $right) use ($sortOrders): int {
+        $leftSort = max(1, (int) ($sortOrders[$left] ?? PHP_INT_MAX));
+        $rightSort = max(1, (int) ($sortOrders[$right] ?? PHP_INT_MAX));
+        if ($leftSort === $rightSort) {
+            return array_search($left, guidanceDefaultCaseSeverityLevels(), true) <=> array_search($right, guidanceDefaultCaseSeverityLevels(), true);
+        }
+
+        return $leftSort <=> $rightSort;
+    });
+
+    try {
+        $config = getCaseSeverityConfig($db);
+        $db->beginTransaction();
+        saveCaseSeverityConfig($db, $config['field'], $enabled, (string) ($input['default_value'] ?? ''));
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        app()->log('Case severity update error: ' . $e->getMessage(), 'error');
+        caseSeverityError('Failed to update case severity settings', 500);
+    }
+
+    if (guidanceIsHtmx()) {
+        header('HX-Trigger: ' . json_encode([
+            'showToast' => ['message' => 'Case severity settings updated', 'type' => 'success'],
+            'refreshCaseSeverityLevels' => true,
+        ]));
+        echo '';
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => true], JSON_UNESCAPED_SLASHES);
 }
 
 function studentStatusDefaultOptions(): array
@@ -10311,6 +11051,28 @@ function getStudentStatusConfig(\Ikabud\Kernel\Contracts\DatabaseContract $db): 
     ];
 }
 
+function guidanceGetStudentStatusOptionsForForm(\Ikabud\Kernel\Contracts\DatabaseContract $db, ?string $currentValue = null): array
+{
+    try {
+        $config = getStudentStatusConfig($db);
+        $statuses = $config['statuses'];
+        $default = $config['default'];
+    } catch (Throwable $e) {
+        $statuses = studentStatusDefaultOptions();
+        $default = $statuses[0] ?? '';
+    }
+
+    $currentValue = normalizeStudentStatusLabel((string)$currentValue);
+    if ($currentValue !== '' && !in_array($currentValue, $statuses, true)) {
+        $statuses[] = $currentValue;
+    }
+
+    return [
+        'statuses' => $statuses,
+        'default' => $default,
+    ];
+}
+
 function studentStatusOptionExists(array $statuses, string $label, ?int $excludeIndex = null): bool
 {
     $normalized = function_exists('mb_strtolower')
@@ -10403,6 +11165,7 @@ function apiGuidanceListStudentStatuses(): void
 function apiGuidanceCreateStudentStatus(): void
 {
     guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $db = guidanceDb();
     $input = guidanceInput();
     if (!is_array($input)) {
@@ -10455,6 +11218,7 @@ function apiGuidanceCreateStudentStatus(): void
 function apiGuidanceUpdateStudentStatus(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $db = guidanceDb();
     $input = guidanceInput();
     $index = (int) ($params['id'] ?? -1);
@@ -10528,6 +11292,7 @@ function apiGuidanceUpdateStudentStatus(array $params = []): void
 function apiGuidanceDeleteStudentStatus(array $params = []): void
 {
     guidanceRequireStaff(['admin']);
+    app()->csrfEnforce();
     $db = guidanceDb();
     $index = (int) ($params['id'] ?? -1);
 

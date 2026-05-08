@@ -42,6 +42,20 @@
                 {include "modules/cms/public/blocks/progress.block.disyl"}
             {/if}
 
+            {if entity_view_context.panel_title or entity_view_context.panel_copy}
+            <div class="poc-stack" style="gap:0.75rem; margin-bottom:1rem;">
+                <div>
+                    {if entity_view_context.panel_title}<h2 class="poc-section-title" style="margin:0;">{entity_view_context.panel_title}</h2>{/if}
+                    {if entity_view_context.panel_copy}<p class="poc-copy" style="margin-top:0.35rem;">{entity_view_context.panel_copy}</p>{/if}
+                </div>
+                <div class="poc-stack" style="gap:0.45rem;">
+                    {foreach entity_view_context.panel_facts as fact}
+                    <div class="poc-inline-meta"><strong>{fact.label}</strong><span>{fact.value}</span></div>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
+
             {if capabilities.pricing}
                 {if pricing_block_html}{pricing_block_html | raw}{else}{include "modules/cms/public/blocks/pricing.block.disyl"}{/if}
             {/if}
@@ -102,6 +116,20 @@
 
         {if capabilities.progress_tracking}
             {include "modules/cms/public/blocks/progress.block.disyl"}
+        {/if}
+
+        {if entity_view_context.panel_title or entity_view_context.panel_copy}
+        <div class="poc-stack" style="gap:0.75rem; margin-bottom:1rem;">
+            <div>
+                {if entity_view_context.panel_title}<h2 class="poc-section-title" style="margin:0;">{entity_view_context.panel_title}</h2>{/if}
+                {if entity_view_context.panel_copy}<p class="poc-copy" style="margin-top:0.35rem;">{entity_view_context.panel_copy}</p>{/if}
+            </div>
+            <div class="poc-stack" style="gap:0.45rem;">
+                {foreach entity_view_context.panel_facts as fact}
+                <div class="poc-inline-meta"><strong>{fact.label}</strong><span>{fact.value}</span></div>
+                {/foreach}
+            </div>
+        </div>
         {/if}
 
         {if capabilities.pricing}

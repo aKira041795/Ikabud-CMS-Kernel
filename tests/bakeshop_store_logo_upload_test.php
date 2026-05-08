@@ -35,12 +35,19 @@ function btLogo(string $label, bool $ok, string $detail = ''): void
 echo "\n=== BAKESHOP STORE LOGO UPLOAD TEST ===\n\n";
 
 $tmpPath = tempnam(sys_get_temp_dir(), 'bakeshop-logo-');
+$secondTmpPath = tempnam(sys_get_temp_dir(), 'bakeshop-logo-');
+$quotaTmpPath = tempnam(sys_get_temp_dir(), 'bakeshop-logo-');
 $uploadedAbsolutePath = '';
+$quotaFillerPath = '';
 $sourceWidth = 0;
 $sourceHeight = 0;
+$originalRemoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
 
 try {
     if ($tmpPath === false) {
+        throw new RuntimeException('Unable to create the temporary logo test file.');
+    }
+    if ($secondTmpPath === false || $quotaTmpPath === false) {
         throw new RuntimeException('Unable to create the temporary logo test file.');
     }
 
@@ -60,8 +67,24 @@ try {
             throw new RuntimeException('Unable to create the temporary logo test file.');
         }
         file_put_contents($tmpPath, $png);
+        file_put_contents($secondTmpPath, $png);
+        file_put_contents($quotaTmpPath, $png);
         $sourceWidth = 1;
         $sourceHeight = 1;
+    }
+
+    if (extension_loaded('gd')) {
+        copy($tmpPath, $secondTmpPath);
+        copy($tmpPath, $quotaTmpPath);
+    }
+
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.' . (string)random_int(10, 200);
+
+    try {
+        bakeshopStoreLogoUpload([]);
+        btLogo('failed upload does not consume the rate limit window', false, 'Expected InvalidArgumentException.');
+    } catch (InvalidArgumentException $e) {
+        btLogo('failed upload returns the expected validation error', str_contains(strtolower($e->getMessage()), 'upload a logo image first'), $e->getMessage());
     }
 
     $result = bakeshopStoreLogoUpload([
@@ -70,6 +93,8 @@ try {
         'error' => UPLOAD_ERR_OK,
         'size' => (int)filesize($tmpPath),
     ]);
+
+    btLogo('failed upload does not consume the rate limit window', ($result['store_logo_url'] ?? '') !== '', json_encode($result, JSON_UNESCAPED_SLASHES));
 
     $uploadedAbsolutePath = (string)($result['absolute_path'] ?? '');
     btLogo('logo upload returns public url', ($result['store_logo_url'] ?? '') !== '', json_encode($result, JSON_UNESCAPED_SLASHES));
@@ -82,12 +107,68 @@ try {
     } else {
         btLogo('logo upload preserves small dimensions without GD', (int)($result['width'] ?? 0) === $sourceWidth && (int)($result['height'] ?? 0) === $sourceHeight, json_encode($result, JSON_UNESCAPED_SLASHES));
     }
+
+    try {
+        bakeshopStoreLogoUpload([
+            'name' => 'store-logo-second.png',
+            'tmp_name' => $secondTmpPath,
+            'error' => UPLOAD_ERR_OK,
+            'size' => (int)filesize($secondTmpPath),
+        ]);
+        btLogo('logo upload rate limit rejects rapid second upload', false, 'Expected InvalidArgumentException.');
+    } catch (InvalidArgumentException $e) {
+        btLogo('logo upload rate limit rejects rapid second upload', str_contains(strtolower($e->getMessage()), 'one change per minute'), $e->getMessage());
+    }
+
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.' . (string)random_int(201, 240);
+    $quotaRoots = bakeshopStoreLogoStorageRoots();
+    $quotaBase = $quotaRoots[0] ?? '';
+    if ($quotaBase === '') {
+        throw new RuntimeException('Unable to resolve the logo storage path for quota testing.');
+    }
+    $quotaFillerPath = rtrim($quotaBase, '/') . '/quota-test.bin';
+    kernelEnsureDirectory(dirname($quotaFillerPath));
+    $currentUsage = bakeshopStoreLogoCurrentUsageBytes();
+    $quotaBytes = bakeshopStoreLogoTenantQuotaBytes();
+    $fillerBytes = max(1, $quotaBytes - $currentUsage);
+    $quotaHandle = fopen($quotaFillerPath, 'c+');
+    if ($quotaHandle === false) {
+        throw new RuntimeException('Unable to prepare quota filler file.');
+    }
+    ftruncate($quotaHandle, $fillerBytes);
+    fclose($quotaHandle);
+
+    try {
+        bakeshopStoreLogoUpload([
+            'name' => 'store-logo-quota.png',
+            'tmp_name' => $quotaTmpPath,
+            'error' => UPLOAD_ERR_OK,
+            'size' => (int)filesize($quotaTmpPath),
+        ]);
+        btLogo('logo upload quota rejects oversized tenant usage', false, 'Expected InvalidArgumentException.');
+    } catch (InvalidArgumentException $e) {
+        btLogo('logo upload quota rejects oversized tenant usage', str_contains(strtolower($e->getMessage()), 'quota'), $e->getMessage());
+    }
 } finally {
     if ($tmpPath !== false && is_file($tmpPath)) {
         @unlink($tmpPath);
     }
+    if ($secondTmpPath !== false && is_file($secondTmpPath)) {
+        @unlink($secondTmpPath);
+    }
+    if ($quotaTmpPath !== false && is_file($quotaTmpPath)) {
+        @unlink($quotaTmpPath);
+    }
     if ($uploadedAbsolutePath !== '' && is_file($uploadedAbsolutePath)) {
         @unlink($uploadedAbsolutePath);
+    }
+    if ($quotaFillerPath !== '' && is_file($quotaFillerPath)) {
+        @unlink($quotaFillerPath);
+    }
+    if ($originalRemoteAddr !== null) {
+        $_SERVER['REMOTE_ADDR'] = $originalRemoteAddr;
+    } else {
+        unset($_SERVER['REMOTE_ADDR']);
     }
 }
 

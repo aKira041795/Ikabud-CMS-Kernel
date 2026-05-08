@@ -41,9 +41,11 @@ namespace Ikabud\Kernel;
 class TenantResolver
 {
     private static ?TenantResolver $instance = null;
+    /** @var array<string, array{value: array<string,mixed>|null, expires_at: int}> */
     private static array $controlHostCache = [];
     private static array $controlHostCacheMetrics = [
         'memory_hits' => 0,
+        'memory_expired' => 0,
         'apcu_hits' => 0,
         'db_hits' => 0,
         'misses' => 0,
@@ -162,8 +164,14 @@ class TenantResolver
         }
 
         if (array_key_exists($host, self::$controlHostCache)) {
-            self::$controlHostCacheMetrics['memory_hits']++;
-            return self::$controlHostCache[$host];
+            $entry = self::$controlHostCache[$host];
+            if (is_array($entry) && isset($entry['expires_at']) && $entry['expires_at'] > time()) {
+                self::$controlHostCacheMetrics['memory_hits']++;
+                return $entry['value'];
+            }
+            // Expired — fall through to refresh.
+            self::$controlHostCacheMetrics['memory_expired']++;
+            unset(self::$controlHostCache[$host]);
         }
 
         $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
@@ -172,8 +180,12 @@ class TenantResolver
             $cached = apcu_fetch($apcuKey, $success);
             if ($success) {
                 self::$controlHostCacheMetrics['apcu_hits']++;
-                self::$controlHostCache[$host] = is_array($cached) ? $cached : null;
-                return self::$controlHostCache[$host];
+                $value = is_array($cached) ? $cached : null;
+                self::$controlHostCache[$host] = [
+                    'value' => $value,
+                    'expires_at' => time() + max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30)),
+                ];
+                return $value;
             }
         }
 
@@ -199,7 +211,10 @@ class TenantResolver
             self::$controlHostCacheMetrics['errors']++;
         }
 
-        self::$controlHostCache[$host] = $result;
+        self::$controlHostCache[$host] = [
+            'value' => $result,
+            'expires_at' => time() + max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30)),
+        ];
 
         if ($apcuEnabled) {
             $ttl = max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30));

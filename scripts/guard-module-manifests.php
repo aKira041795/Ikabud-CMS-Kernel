@@ -113,7 +113,12 @@ foreach ($entries as $entry) {
         if ($capabilityId === '') {
             continue;
         }
-        if (isset($exposedCapabilities[$capabilityId]) && $exposedCapabilities[$capabilityId] !== $entry) {
+        // Pipeline-mode capabilities are intentionally multi-provider; skip duplicate-warning.
+        $modes = is_array($expose) && isset($expose['modes']) && is_array($expose['modes'])
+            ? array_map('strval', $expose['modes'])
+            : [];
+        $isPipeline = in_array('pipeline', $modes, true);
+        if (isset($exposedCapabilities[$capabilityId]) && $exposedCapabilities[$capabilityId] !== $entry && !$isPipeline) {
             $warnings++;
             if (!$jsonOutput) {
                 fwrite(
@@ -123,6 +128,63 @@ foreach ($entries as $entry) {
             }
         }
         $exposedCapabilities[$capabilityId] = $entry;
+    }
+
+    // Phase 6 additions: routes file existence + owns_tables collision detection
+    $routesFile = isset($manifest['routes']) ? (string)$manifest['routes'] : '';
+    if ($routesFile !== '') {
+        $routesPath = $modulePath . '/' . ltrim($routesFile, '/');
+        if (!is_file($routesPath)) {
+            $errors[] = "[ERROR] {$entry}: routes_file_missing - declared routes file '{$routesFile}' not found";
+            $results[] = [
+                'module' => $entry,
+                'ok' => false,
+                'error_code' => 'routes_file_missing',
+                'error' => "declared routes file '{$routesFile}' not found",
+            ];
+            continue;
+        }
+    }
+
+    $ownsTables = is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [];
+    $coOwnsTables = is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [];
+    if (!isset($GLOBALS['__guard_owned_tables'])) {
+        $GLOBALS['__guard_owned_tables'] = [];
+    }
+    if (!isset($GLOBALS['__guard_co_owned_tables'])) {
+        $GLOBALS['__guard_co_owned_tables'] = [];
+    }
+    foreach ($ownsTables as $table) {
+        $tableName = is_string($table) ? trim($table) : '';
+        if ($tableName === '') {
+            continue;
+        }
+        if (isset($GLOBALS['__guard_owned_tables'][$tableName]) && $GLOBALS['__guard_owned_tables'][$tableName] !== $entry) {
+            $other = $GLOBALS['__guard_owned_tables'][$tableName];
+            $line = "[ERROR] {$entry}: table '{$tableName}' already declared owned by {$other}; declare 'co_owns_tables' instead for non-canonical co-ownership";
+            $errors[] = $line;
+        } else {
+            $GLOBALS['__guard_owned_tables'][$tableName] = $entry;
+        }
+    }
+    foreach ($coOwnsTables as $table) {
+        $tableName = is_string($table) ? trim($table) : '';
+        if ($tableName === '') {
+            continue;
+        }
+        if (!isset($GLOBALS['__guard_owned_tables'][$tableName])) {
+            // Co-owner without canonical owner — defer until end (canonical may load later).
+            // Tracking only; final reconciliation happens after the discovery loop.
+        }
+        $GLOBALS['__guard_co_owned_tables'][$tableName][] = $entry;
+    }
+
+    $version = (string)($manifest['version'] ?? '');
+    if ($version === '' || !preg_match('/^\d+\.\d+\.\d+(-[A-Za-z0-9.]+)?$/', $version)) {
+        $warnings++;
+        if (!$jsonOutput) {
+            fwrite(STDOUT, "[WARN]  {$entry}: non-semver version '{$version}'\n");
+        }
     }
 
     $results[] = [

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title | default:'Bakeshop Operations'}</title>
+    {if brand_settings.store_logo_url}<link rel="icon" href="{brand_settings.store_logo_url}">{else}<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cpath d='M7 22c0-5 4-8 9-8s9 3 9 8H7zm9-9a4 4 0 100-8 4 4 0 000 8z' fill='%23fff'/%3E%3C/svg%3E">{/if}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -200,6 +201,32 @@
             opacity: 0.82;
         }
 
+        .bakeshop-nav-submenu {
+            display: grid;
+            gap: 4px;
+            padding-left: 12px;
+        }
+
+        .bakeshop-nav-submenu a {
+            padding: 9px 12px;
+            border-radius: 12px;
+            font-size: 0.84rem;
+            color: rgba(255, 247, 237, 0.82);
+            border-color: transparent;
+        }
+
+        .bakeshop-nav-submenu a:hover {
+            transform: none;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .bakeshop-nav-submenu a.active {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(147, 197, 253, 0.18);
+            color: var(--sidebar-text-strong);
+            box-shadow: none;
+        }
+
         .bakeshop-sidebar-card {
             margin-top: auto;
             border-radius: var(--radius-card);
@@ -229,9 +256,9 @@
         }
 
         .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: start;
             gap: 18px;
             padding: 22px 28px 16px;
         }
@@ -240,7 +267,6 @@
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            gap: 12px;
             width: fit-content;
         }
 
@@ -260,6 +286,7 @@
         .bakeshop-title-stack {
             display: grid;
             gap: 6px;
+            min-width: 0;
         }
 
         .bakeshop-kicker {
@@ -291,12 +318,20 @@
             box-shadow: var(--shadow-sm);
             display: grid;
             gap: 4px;
-            min-width: 220px;
+            width: fit-content;
+            max-width: min(100%, 32rem);
+            min-width: min(220px, 100%);
+            justify-self: end;
         }
 
         .bakeshop-user-card strong { font-size: 0.96rem; }
         .bakeshop-user-card span,
         .bakeshop-user-card small { color: var(--text-muted); }
+        .bakeshop-user-card strong,
+        .bakeshop-user-card span,
+        .bakeshop-user-card small {
+            overflow-wrap: anywhere;
+        }
         .bakeshop-user-role {
             display: inline-flex;
             align-items: center;
@@ -352,6 +387,94 @@
             border: 1px solid rgba(219, 234, 254, 0.16);
             color: var(--sidebar-text-strong);
             font-size: 0.8rem;
+        }
+
+        .bakeshop-onboarding-checklist {
+            display: grid;
+            gap: 12px;
+        }
+
+        .bakeshop-onboarding-step {
+            display: grid;
+            gap: 10px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(180, 83, 9, 0.16);
+            background: rgba(255, 255, 255, 0.82);
+        }
+
+        .bakeshop-onboarding-step.current {
+            border-color: rgba(217, 119, 6, 0.42);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+        }
+
+        .bakeshop-onboarding-step.done {
+            border-color: rgba(22, 101, 52, 0.18);
+            background: rgba(240, 253, 244, 0.82);
+        }
+
+        .bakeshop-onboarding-step-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .bakeshop-onboarding-step h4 {
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .bakeshop-onboarding-step p {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .bakeshop-step-status {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .bakeshop-step-status.done {
+            background: rgba(22, 101, 52, 0.12);
+            color: #166534;
+        }
+
+        .bakeshop-step-status.current {
+            background: rgba(217, 119, 6, 0.12);
+            color: #b45309;
+        }
+
+        .bakeshop-step-status.pending {
+            background: rgba(71, 85, 105, 0.12);
+            color: #475569;
+        }
+
+        .bakeshop-step-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+            gap: 8px;
+            padding: 9px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(180, 83, 9, 0.2);
+            background: #ffffff;
+            color: #92400e;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .bakeshop-step-action:hover {
+            background: #fff7ed;
         }
 
         .bakeshop-sidebar-link {
@@ -428,13 +551,14 @@
                 padding-top: 18px;
                 flex-direction: column;
                 align-items: flex-start;
+                grid-template-columns: 1fr;
             }
 
             .bakeshop-topbar-actions {
                 position: sticky;
                 top: 0;
                 z-index: 30;
-                justify-content: space-between;
+                justify-content: flex-start;
                 width: 100%;
                 padding: 10px 0 6px;
                 background: linear-gradient(180deg, rgba(238, 245, 255, 0.98) 0%, rgba(238, 245, 255, 0.92) 78%, rgba(238, 245, 255, 0) 100%);
@@ -483,53 +607,27 @@
             <nav class="bakeshop-nav">
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Daily Work</div>
-                    <a href="{base_url}/admin/bakeshop" class="{if current_page == 'dashboard'}active{/if}">
+                    <a href="{base_url}{workspace_overview_url}" class="{if in_workspace}active{/if}">
                         <span class="bakeshop-nav-title">
-                            <strong>Operations Dashboard</strong>
-                            <span>Branches, recipes, deliveries, and production</span>
+                            <strong>Operations Workspace</strong>
+                            <span>Overview plus focused views for branches, products, ingredients, deliveries, production, and usage</span>
                         </span>
                     </a>
-                    <a href="{base_url}/admin/bakeshop/branches" class="{if current_page == 'branches'}active{/if}">
-                        <span class="bakeshop-nav-title">
-                            <strong>Branch Setup</strong>
-                            <span>Store locations and reporting branches</span>
-                        </span>
-                    </a>
-                    <a href="{base_url}/admin/bakeshop/catalog" class="{if current_page == 'catalog'}active{/if}">
-                        <span class="bakeshop-nav-title">
-                            <strong>Products and Recipes</strong>
-                            <span>Catalog, ingredients, and recipe lines</span>
-                        </span>
-                    </a>
-                    <a href="{base_url}/admin/bakeshop/ingredients" class="{if current_page == 'ingredients'}active{/if}">
-                        <span class="bakeshop-nav-title">
-                            <strong>Ingredients</strong>
-                            <span>Raw materials and stock units</span>
-                        </span>
-                    </a>
-                    <a href="{base_url}/admin/bakeshop/deliveries" class="{if current_page == 'deliveries'}active{/if}">
-                        <span class="bakeshop-nav-title">
-                            <strong>Ingredient Deliveries</strong>
-                            <span>Incoming stock by branch</span>
-                        </span>
-                    </a>
-                    <a href="{base_url}/admin/bakeshop/production" class="{if current_page == 'production'}active{/if}">
-                        <span class="bakeshop-nav-title">
-                            <strong>Production Runs</strong>
-                            <span>Finished goods and recipe output</span>
-                        </span>
-                    </a>
-                    <a href="{base_url}/admin/bakeshop/usage" class="{if current_page == 'usage'}active{/if}">
-                        <span class="bakeshop-nav-title">
-                            <strong>Usage Summary</strong>
-                            <span>Delivered versus consumed ingredients</span>
-                        </span>
-                    </a>
+                    {if in_workspace && workspace_submenu_routes}
+                    <div class="bakeshop-nav-submenu" aria-label="Focused work areas">
+                        <a href="{base_url}{workspace_submenu_routes.branches}" class="{if workspace_nav_current_tab == 'branches'}active{/if}"{if workspace_nav_current_tab == 'branches'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="branches" data-server-active="{if workspace_nav_current_tab == 'branches'}true{else}false{/if}">Branches</a>
+                        <a href="{base_url}{workspace_submenu_routes.catalog}" class="{if workspace_nav_current_tab == 'catalog'}active{/if}"{if workspace_nav_current_tab == 'catalog'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="catalog" data-server-active="{if workspace_nav_current_tab == 'catalog'}true{else}false{/if}">Products</a>
+                        <a href="{base_url}{workspace_submenu_routes.ingredients}" class="{if workspace_nav_current_tab == 'ingredients'}active{/if}"{if workspace_nav_current_tab == 'ingredients'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="ingredients" data-server-active="{if workspace_nav_current_tab == 'ingredients'}true{else}false{/if}">Ingredients</a>
+                        <a href="{base_url}{workspace_submenu_routes.deliveries}" class="{if workspace_nav_current_tab == 'deliveries'}active{/if}"{if workspace_nav_current_tab == 'deliveries'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="deliveries" data-server-active="{if workspace_nav_current_tab == 'deliveries'}true{else}false{/if}">Ingredient Deliveries</a>
+                        <a href="{base_url}{workspace_submenu_routes.production}" class="{if workspace_nav_current_tab == 'production'}active{/if}"{if workspace_nav_current_tab == 'production'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="production" data-server-active="{if workspace_nav_current_tab == 'production'}true{else}false{/if}">Production Runs</a>
+                        <a href="{base_url}{workspace_submenu_routes.usage}" class="{if workspace_nav_current_tab == 'usage'}active{/if}"{if workspace_nav_current_tab == 'usage'} aria-current="page"{/if} data-workspace-submenu="true" data-tab-target="usage" data-server-active="{if workspace_nav_current_tab == 'usage'}true{else}false{/if}">Usage Summary</a>
+                    </div>
+                    {/if}
                 </div>
 
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Reports</div>
-                    <a href="{base_url}/admin/bakeshop/print" target="_blank" rel="noopener">
+                    <a href="{base_url}{workspace_print_url}" target="_blank" rel="noopener">
                         <span class="bakeshop-nav-title">
                             <strong>Print Summary</strong>
                             <span>Open the clean branch usage report</span>
@@ -540,7 +638,7 @@
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Administration</div>
                     {if can_view_history}
-                    <a href="{base_url}/admin/bakeshop/history" class="{if current_page == 'history'}active{/if}">
+                    <a href="{base_url}{workspace_history_url}" class="{if current_page == 'history'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Activity History</strong>
                             <span>Changes to staff, settings, and operations</span>
@@ -548,7 +646,7 @@
                     </a>
                     {/if}
                     {if can_manage_users}
-                    <a href="{base_url}/admin/bakeshop/users" class="{if current_page == 'users'}active{/if}">
+                    <a href="{base_url}{workspace_users_url}" class="{if current_page == 'users'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Staff</strong>
                             <span>Admins, supervisors, onboarding</span>
@@ -556,7 +654,7 @@
                     </a>
                     {/if}
                     {if can_manage_settings}
-                    <a href="{base_url}/admin/bakeshop/settings" class="{if current_page == 'settings'}active{/if}">
+                    <a href="{base_url}{workspace_settings_url}" class="{if current_page == 'settings'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>Settings</strong>
                             <span>Access rules and module defaults</span>
@@ -567,7 +665,7 @@
 
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Account</div>
-                    <a href="{base_url}/admin/bakeshop/account" class="{if current_page == 'account'}active{/if}">
+                    <a href="{base_url}{workspace_account_url}" class="{if current_page == 'account'}active{/if}">
                         <span class="bakeshop-nav-title">
                             <strong>My Account</strong>
                             <span>Password and account details</span>
@@ -578,9 +676,9 @@
 
             <div class="bakeshop-sidebar-card">
                 <h2>Recommended Order</h2>
-                <p>Start with branches and recipes, then stay inside the operations dashboard for deliveries, production, and usage review.</p>
+                <p>Open the operations workspace once, then move across the tabs in order: branches, ingredients, products, deliveries, production, and usage review.</p>
                 {if bootstrap_onboarding.required}
-                <div class="bakeshop-shell-note">Bootstrap admin handoff is still active.</div>
+                <div class="bakeshop-shell-note">Bootstrap admin handoff is active: {bootstrap_onboarding_guide.completed_count}/{bootstrap_onboarding_guide.total_count} steps finished.</div>
                 {/if}
             </div>
         </aside>
@@ -592,8 +690,8 @@
                 </div>
                 <div class="bakeshop-title-stack">
                     <span class="bakeshop-kicker">Bakeshop Module</span>
-                    <h2>{page_title | default:'Bakeshop Operations'}</h2>
-                    <p>{page_intro | default:'Module-owned workspace UI. This shell no longer inherits the kernel admin navigation.'}</p>
+                    <h2 id="bakeshop-page-title">{page_title | default:'Bakeshop Operations'}</h2>
+                    <p id="bakeshop-page-intro">{page_intro | default:'Module-owned workspace UI. This shell no longer inherits the kernel admin navigation.'}</p>
                 </div>
 
                 <div class="bakeshop-topbar-user-tools">
@@ -616,6 +714,35 @@
             </main>
         </div>
     </div>
+    {if in_workspace && workspace_submenu_routes}
+    <script>
+    (() => {
+        const submenuLinks = Array.from(document.querySelectorAll('[data-workspace-submenu="true"]'));
+        if (!submenuLinks.length) {
+            return;
+        }
+
+        function syncWorkspaceSubmenu() {
+            const hash = window.location.hash.replace(/^#/, '');
+            submenuLinks.forEach((link) => {
+                const serverActive = link.getAttribute('data-server-active') === 'true';
+                const shouldBeActive = hash !== ''
+                    ? link.getAttribute('data-tab-target') === hash
+                    : serverActive;
+                link.classList.toggle('active', shouldBeActive);
+                if (shouldBeActive) {
+                    link.setAttribute('aria-current', 'page');
+                } else {
+                    link.removeAttribute('aria-current');
+                }
+            });
+        }
+
+        syncWorkspaceSubmenu();
+        window.addEventListener('hashchange', syncWorkspaceSubmenu);
+    })();
+    </script>
+    {/if}
     {block scripts}{/block}
 </body>
 </html>

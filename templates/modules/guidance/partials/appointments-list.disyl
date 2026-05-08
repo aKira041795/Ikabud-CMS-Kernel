@@ -122,7 +122,7 @@
 
         {!-- Action Buttons --}
         <div class="flex items-center gap-1 flex-shrink-0 opacity-70 group-hover:opacity-100 transition">
-            {if row.status_key == 'pending'}
+            {if row.status_key == 'pending' and !row.can_mark_outcome}
             <button hx-post="{base_url}/api/appointments/{row.id}/approve"
                     hx-confirm="Approve this appointment?"
                     hx-target="#appointments-list" hx-swap="innerHTML"
@@ -136,7 +136,7 @@
                 <i class="fas fa-times text-xs"></i>
             </button>
 
-            {elseif row.status_key == 'scheduled' or row.status_key == 'confirmed'}
+            {elseif row.status_key == 'pending' or row.status_key == 'scheduled' or row.status_key == 'confirmed'}
             <button hx-get="{base_url}/pages/appointments/{row.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
                     class="p-1.5 bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-100 transition" title="View/Edit">
                 <i class="fas fa-pen text-xs"></i>

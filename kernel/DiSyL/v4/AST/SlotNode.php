@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class SlotNode extends AbstractNode
+final class SlotNode extends AbstractNode
 {
     private string $name;
     private ?DocumentNode $body;

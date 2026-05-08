@@ -650,9 +650,10 @@ function cmsPublicCategoryArchive(array $params = []): void
 
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                u.display_name AS author_name
+                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
+         LEFT JOIN cms_media m ON m.id = c.featured_image_id
          INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id = ?
          WHERE c.type = 'post' AND c.deleted_at IS NULL AND {$vis}
          ORDER BY c.published_at DESC
@@ -661,6 +662,12 @@ function cmsPublicCategoryArchive(array $params = []): void
     $stmt->execute([(int)$category['id']]);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $posts = cmsProcessPostExcerpts($posts);
+    foreach ($posts as &$postRow) {
+        if (!empty($postRow['featured_image'])) {
+            $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
+        }
+    }
+    unset($postRow);
 
     $countStmt = $db->prepare(
         "SELECT COUNT(*) FROM cms_content c
@@ -783,9 +790,10 @@ function cmsPublicTagArchive(array $params = []): void
 
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                u.display_name AS author_name
+                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
+         LEFT JOIN cms_media m ON m.id = c.featured_image_id
          INNER JOIN cms_content_tags ct ON ct.content_id = c.id AND ct.tag_id = ?
          WHERE c.type = 'post' AND c.deleted_at IS NULL AND {$vis}
          ORDER BY c.published_at DESC
@@ -794,6 +802,12 @@ function cmsPublicTagArchive(array $params = []): void
     $stmt->execute([(int)$tag['id']]);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $posts = cmsProcessPostExcerpts($posts);
+    foreach ($posts as &$postRow) {
+        if (!empty($postRow['featured_image'])) {
+            $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
+        }
+    }
+    unset($postRow);
 
     $countStmt = $db->prepare(
         "SELECT COUNT(*) FROM cms_content c
@@ -883,9 +897,10 @@ function cmsPublicSearch(array $params = []): void
 
         $stmt = $db->prepare(
             "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                    u.display_name AS author_name
+                    c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
              FROM cms_content c
              LEFT JOIN cms_users u ON u.id = c.author_id
+             LEFT JOIN cms_media m ON m.id = c.featured_image_id
              WHERE c.deleted_at IS NULL AND {$vis}
              AND (c.title LIKE ? OR c.body LIKE ? OR c.excerpt LIKE ?)
              ORDER BY c.published_at DESC
@@ -895,6 +910,12 @@ function cmsPublicSearch(array $params = []): void
         $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
     $posts = cmsProcessPostExcerpts($posts);
+    foreach ($posts as &$postRow) {
+        if (!empty($postRow['featured_image'])) {
+            $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
+        }
+    }
+    unset($postRow);
 
     $totalPages = max(1, (int)ceil(max($total, 1) / $perPage));
     $baseUrl = cmsPublicCanonicalBaseUrl();
@@ -2148,6 +2169,191 @@ function cmsPublicCanonicalContentTypeLabel(string $type, array $entity = []): s
     };
 }
 
+function cmsPublicCanonicalHumanLabel(string $value, array $labels = []): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    if (array_key_exists($value, $labels)) {
+        return (string)$labels[$value];
+    }
+
+    return ucwords(str_replace(['-', '_'], ' ', $value));
+}
+
+function cmsPublicCanonicalPluralLabel(string $label, int $count): string
+{
+    if ($count === 1) {
+        return $label;
+    }
+
+    return match ($label) {
+        'Category' => 'Categories',
+        default => str_ends_with($label, 's') ? $label : ($label . 's'),
+    };
+}
+
+function cmsPublicCanonicalListPresentationContext(
+    string $publicRenderOrigin,
+    string $publicRouteKind,
+    string $publicPresentationMode,
+    string $defaultType,
+    array $listContext = [],
+    array $options = [],
+    array $templateContext = []
+): array {
+    $contentTypeLabel = cmsPublicCanonicalContentTypeLabel($defaultType);
+    $resultCount = (int)($listContext['result_count'] ?? 0);
+    $panelTitle = match (true) {
+        $publicRenderOrigin !== 'cms' => 'Catalog Snapshot',
+        $publicRouteKind === 'blog-home' => 'Blog Snapshot',
+        $publicRouteKind === 'category' => 'Category Snapshot',
+        $publicRouteKind === 'tag' => 'Tag Snapshot',
+        $publicRouteKind === 'search' => 'Search Snapshot',
+        $publicRouteKind === 'archive' => 'Archive Snapshot',
+        default => $contentTypeLabel . ' Snapshot',
+    };
+
+    $contextLabel = '';
+    $contextValue = '';
+    $contentNoun = $publicRenderOrigin === 'cms' && $defaultType === 'post'
+        ? 'Article'
+        : ($publicRenderOrigin === 'ecommerce' && $defaultType === 'product' ? 'Product' : $contentTypeLabel);
+    $pluralContentNoun = cmsPublicCanonicalPluralLabel($contentNoun, $resultCount);
+    if ($publicRouteKind === 'category') {
+        $contextLabel = 'Category';
+        $contextValue = trim((string)($templateContext['archive_name'] ?? $listContext['category_name'] ?? ''));
+    } elseif ($publicRouteKind === 'tag') {
+        $contextLabel = 'Tag';
+        $contextValue = trim((string)($templateContext['archive_name'] ?? ''));
+    } elseif ($publicRouteKind === 'search') {
+        $contextLabel = 'Query';
+        $contextValue = trim((string)($templateContext['query'] ?? $listContext['search'] ?? ''));
+    } elseif (!empty($listContext['category_name'])) {
+        $contextLabel = 'Category';
+        $contextValue = trim((string)$listContext['category_name']);
+    }
+
+    $copyText = match (true) {
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'blog-home' => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . ' from the blog.',
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'category' && $contextValue !== '' => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . ' in ' . $contextValue . '.',
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'tag' && $contextValue !== '' => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . ' tagged ' . $contextValue . '.',
+        $publicRenderOrigin === 'cms' && $publicRouteKind === 'search' && $contextValue !== '' => 'Browse ' . $resultCount . ' matching result' . ($resultCount === 1 ? '' : 's') . ' for "' . $contextValue . '".',
+        $publicRenderOrigin === 'ecommerce' && $contextLabel === 'Category' && $contextValue !== '' => 'Browse ' . $resultCount . ' available ' . strtolower($pluralContentNoun) . ' in ' . $contextValue . '.',
+        $publicRenderOrigin === 'ecommerce' && $contextLabel === 'Query' && $contextValue !== '' => 'Browse ' . $resultCount . ' matching ' . strtolower($pluralContentNoun) . ' for "' . $contextValue . '".',
+        $publicRenderOrigin === 'ecommerce' => 'Browse ' . $resultCount . ' available ' . strtolower($pluralContentNoun) . ' in this catalog.',
+        default => 'Browse ' . $resultCount . ' published ' . strtolower($pluralContentNoun) . '.',
+    };
+
+    $panelFacts = [];
+    $panelFacts[] = [
+        'label' => $publicRenderOrigin === 'cms' ? 'Published' : 'Available',
+        'value' => $resultCount . ' ' . strtolower($pluralContentNoun),
+    ];
+    if ($contextValue !== '') {
+        $panelFacts[] = [
+            'label' => $contextLabel,
+            'value' => $contextValue,
+        ];
+    } elseif ($publicRenderOrigin === 'cms') {
+        $panelFacts[] = [
+            'label' => 'Focus',
+            'value' => match ($publicRouteKind) {
+                'blog-home' => 'Latest articles',
+                'archive' => 'Archived content',
+                default => $contentTypeLabel . ' updates',
+            },
+        ];
+    } else {
+        $panelFacts[] = [
+            'label' => 'Browse',
+            'value' => match ($defaultType) {
+                'product' => 'Product catalog',
+                default => $contentTypeLabel . ' collection',
+            },
+        ];
+    }
+
+    return [
+        'panel_title' => $panelTitle,
+        'panel_copy' => $copyText,
+        'context_label' => $contextLabel,
+        'context_value' => $contextValue,
+        'panel_facts' => $panelFacts,
+    ];
+}
+
+function cmsPublicCanonicalEntityPresentationContext(
+    string $publicRenderOrigin,
+    string $publicRouteKind,
+    string $publicPresentationMode,
+    string $type,
+    array $entity = [],
+    array $entityTaxonomies = []
+): array {
+    $contentTypeLabel = cmsPublicCanonicalContentTypeLabel($type, $entity);
+    $excerpt = trim((string)($entity['excerpt'] ?? ''));
+    $copyText = $excerpt !== ''
+        ? $excerpt
+        : ($publicRenderOrigin === 'cms'
+            ? ('Explore this ' . strtolower($contentTypeLabel) . ' and its latest details.')
+            : ('Review this ' . strtolower($contentTypeLabel) . ' and its key details.'));
+
+    $panelTitle = match (true) {
+        $publicRouteKind === 'front-page' => 'Front Page Snapshot',
+        $publicRenderOrigin === 'cms' && $type === 'page' => 'Page Snapshot',
+        $publicRenderOrigin === 'cms' && $type === 'post' => 'Post Snapshot',
+        default => $contentTypeLabel . ' Snapshot',
+    };
+
+    $contextLabel = '';
+    $contextValue = '';
+    $taxonomyCategories = is_array($entityTaxonomies['categories'] ?? null) ? $entityTaxonomies['categories'] : [];
+    if ($taxonomyCategories !== []) {
+        $firstCategory = $taxonomyCategories[0] ?? [];
+        $contextLabel = 'Category';
+        $contextValue = trim((string)($firstCategory['name'] ?? ''));
+    } elseif (is_array($entity['categories'] ?? null) && ($entity['categories'][0] ?? null)) {
+        $firstCategory = $entity['categories'][0];
+        if (is_array($firstCategory)) {
+            $contextLabel = 'Category';
+            $contextValue = trim((string)($firstCategory['name'] ?? ''));
+        }
+    } elseif (!empty($entity['author_name'])) {
+        $contextLabel = 'Author';
+        $contextValue = trim((string)$entity['author_name']);
+    }
+
+    $panelFacts = [
+        [
+            'label' => 'Type',
+            'value' => $contentTypeLabel,
+        ],
+    ];
+    if ($contextValue !== '') {
+        $panelFacts[] = [
+            'label' => $contextLabel,
+            'value' => $contextValue,
+        ];
+    }
+    if (!empty($entity['published_at_display']) || !empty($entity['published_at'])) {
+        $panelFacts[] = [
+            'label' => 'Published',
+            'value' => (string)($entity['published_at_display'] ?? $entity['published_at']),
+        ];
+    }
+
+    return [
+        'panel_title' => $panelTitle,
+        'panel_copy' => $copyText,
+        'context_label' => $contextLabel,
+        'context_value' => $contextValue,
+        'panel_facts' => $panelFacts,
+    ];
+}
+
 function cmsPublicCanonicalEntityUrl(array $entity, string $defaultType = ''): string
 {
     $type = trim((string)($entity['type'] ?? $defaultType));
@@ -2297,6 +2503,17 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
         : cmsPublicCanonicalEntityTaxonomies($entityId, $type);
     $hasEntityCategories = !empty($entityTaxonomies['categories']) && is_array($entityTaxonomies['categories']);
     $hasEntityTags = !empty($entityTaxonomies['tags']) && is_array($entityTaxonomies['tags']);
+    $viewSettings = array_merge(
+        cmsPublicCanonicalEntityPresentationContext(
+            $publicRenderOrigin,
+            $publicRouteKind,
+            $publicPresentationMode,
+            $type,
+            $entity,
+            $entityTaxonomies
+        ),
+        $viewSettings
+    );
 
     $entityRenderContext = [
         'content_type' => $type,
@@ -2572,6 +2789,18 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
         $listContext
     ): string {
         $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
+        $listContext = array_merge(
+            $listContext,
+            cmsPublicCanonicalListPresentationContext(
+                $publicRenderOrigin,
+                $publicRouteKind,
+                $publicPresentationMode,
+                $defaultType,
+                $listContext,
+                $options,
+                $templateContext
+            )
+        );
         if (
             !array_key_exists('storefront', $templateContext)
             && $publicRenderOrigin === 'ecommerce'

@@ -603,25 +603,30 @@ function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = n
     $results = [];
 
     try {
-        // Batch-load all applied migrations in one query instead of per-module SELECTs
-        $allApplied = tenantAllAppliedMigrations($db);
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+        try {
+            // Batch-load all applied migrations in one query instead of per-module SELECTs
+            $allApplied = tenantAllAppliedMigrations($db);
 
-        $kernelApplied = tenantSyncKernelMigrations($db, $allApplied);
-        if ($kernelApplied !== []) {
-            $results['_kernel'] = $kernelApplied;
-        }
+            $kernelApplied = tenantSyncKernelMigrations($db, $allApplied);
+            if ($kernelApplied !== []) {
+                $results['_kernel'] = $kernelApplied;
+            }
 
-        foreach ($plannedModules as $moduleId) {
-            $manifest = $allModules[$moduleId] ?? null;
-            if (!is_array($manifest)) {
-                continue;
+            foreach ($plannedModules as $moduleId) {
+                $manifest = $allModules[$moduleId] ?? null;
+                if (!is_array($manifest)) {
+                    continue;
+                }
+                $executed = tenantSyncModuleMigrations($db, $moduleId, $manifest, $allApplied);
+                $seeded = tenantSyncModuleSeeds($db, $moduleId, $manifest, $allApplied);
+                $applied = array_merge($executed, $seeded);
+                if ($applied !== []) {
+                    $results[$moduleId] = $applied;
+                }
             }
-            $executed = tenantSyncModuleMigrations($db, $moduleId, $manifest, $allApplied);
-            $seeded = tenantSyncModuleSeeds($db, $moduleId, $manifest, $allApplied);
-            $applied = array_merge($executed, $seeded);
-            if ($applied !== []) {
-                $results[$moduleId] = $applied;
-            }
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
         }
 
         return [

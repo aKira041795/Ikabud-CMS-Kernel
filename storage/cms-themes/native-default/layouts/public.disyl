@@ -18,6 +18,14 @@
         .prose img[style*="float: left"], .prose img[style*="float:left"], .prose img.alignleft { float: left; margin: 0 1rem 0 0; max-width: 50%; }
         .prose img[style*="float: right"], .prose img[style*="float:right"], .prose img.alignright { float: right; margin: 0 0 0 1rem; max-width: 50%; }
         .prose img.aligncenter { display: block; margin-left: auto; margin-right: auto; }
+        .cms-lightbox-image { cursor: zoom-in; }
+        .cms-lightbox-image:focus-visible { outline: 3px solid var(--color-primary, #0ea5e9); outline-offset: 4px; }
+        .cms-lightbox-backdrop { position: fixed; inset: 0; z-index: 99999; background: rgba(15, 23, 42, 0.94); cursor: zoom-out; backdrop-filter: blur(8px); }
+        .cms-lightbox-stage { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: clamp(0.75rem, 3vw, 1.5rem); box-sizing: border-box; }
+        .cms-lightbox-figure { position: relative; width: min(100%, 1200px); max-height: 100%; margin: 0; cursor: default; }
+        .cms-lightbox-figure img { display: block; max-width: 100%; max-height: calc(100vh - 5rem); margin: 0 auto; object-fit: contain; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.45); }
+        .cms-lightbox-hover-hint { position: fixed; z-index: 99998; padding: 0.4rem 0.7rem; border-radius: 999px; background: rgba(15, 23, 42, 0.88); color: #fff; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em; pointer-events: none; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22); white-space: nowrap; transform: translateY(0); transition: opacity 0.14s ease, transform 0.14s ease; }
+        .cms-lightbox-caption { margin-top: 0.75rem; color: rgba(255,255,255,0.84); text-align: center; font-size: 0.95rem; line-height: 1.5; }
         .prose blockquote { border-left: 4px solid var(--color-primary); padding: 0.5rem 1rem; margin: 1rem 0; background: var(--color-light-bg); border-radius: 0 0.5rem 0.5rem 0; }
         .prose pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.875rem; }
         .prose code { background: var(--color-light-bg); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; }
@@ -233,46 +241,267 @@
     {if body_end_code}{body_end_code|raw}{/if}
         <div x-data="{
         lightboxModalSrc: null,
-        init() {
-            // Apply cursor-zoom-in to all eligible images
-            const attachCursors = () => {
-                document.querySelectorAll('.prose img').forEach(img => {
-                    if (!img.closest('a')) {
-                        img.style.cursor = 'zoom-in';
-                    }
-                });
-            };
-            
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', attachCursors);
-            } else {
-                attachCursors();
+        lightboxModalAlt: '',
+        lightboxModalCaption: '',
+        previousBodyOverflow: '',
+        previousDocumentOverflow: '',
+        previousActiveElement: null,
+        lightboxBackdropStyle: '',
+        hoverHintVisible: false,
+        hoverHintText: 'Zoom to enlarge',
+        hoverHintStyle: '',
+        eligibleSelector: '.prose img, [data-cms-lightbox=true]',
+        isEligibleImage(img) {
+            if (!(img instanceof HTMLImageElement)) {
+                return false;
+            }
+            if (img.dataset.cmsLightbox === 'false') {
+                return false;
+            }
+            if (img.closest('a, button, .not-prose')) {
+                return false;
+            }
+            const closestRoleButton = img.closest('[role=button]');
+            if (closestRoleButton && closestRoleButton !== img) {
+                return false;
+            }
+            if (!img.closest('.prose, [data-cms-lightbox=true]')) {
+                return false;
             }
 
-            // Delegate click events globally
-            window.addEventListener('click', (e) => {
-                if (e.target.tagName !== 'IMG') return;
-                if (!e.target.closest('.prose')) return;
-                if (e.target.closest('a')) return; // Skip if it's already a link
+            const renderedWidth = Math.round(img.getBoundingClientRect().width || img.width || 0);
+            const naturalWidth = Math.round(img.naturalWidth || 0);
+            const naturalHeight = Math.round(img.naturalHeight || 0);
+            if (Math.max(renderedWidth, naturalWidth) < 120) {
+                return false;
+            }
+            if (naturalWidth > 0 && naturalHeight > 0 && naturalWidth * naturalHeight < 20000) {
+                return false;
+            }
 
-                this.lightboxModalSrc = e.target.src;
+            return (img.currentSrc || img.src || '').trim() !== '';
+        },
+        resolveCaption(img) {
+            const figure = img.closest('figure');
+            if (figure) {
+                const figcaption = figure.querySelector('figcaption');
+                if (figcaption && figcaption.textContent) {
+                    return figcaption.textContent.trim();
+                }
+            }
+            return (img.getAttribute('title') || img.getAttribute('alt') || '').trim();
+        },
+        decorateImage(img) {
+            if (!this.isEligibleImage(img)) {
+                img.classList.remove('cms-lightbox-image');
+                if (img.dataset.cmsLightboxDecorated === 'true') {
+                    img.removeAttribute('tabindex');
+                    img.removeAttribute('role');
+                    img.removeAttribute('aria-haspopup');
+                    delete img.dataset.cmsLightboxDecorated;
+                }
+                return;
+            }
+
+            img.classList.add('cms-lightbox-image');
+            if (!img.hasAttribute('tabindex')) {
+                img.setAttribute('tabindex', '0');
+            }
+            img.setAttribute('role', 'button');
+            img.setAttribute('aria-haspopup', 'dialog');
+            img.dataset.cmsLightboxDecorated = 'true';
+        },
+        syncEligibleImages() {
+            document.querySelectorAll(this.eligibleSelector).forEach((img) => this.decorateImage(img));
+        },
+        resolveEventImage(event) {
+            const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+            for (const node of path) {
+                if (node instanceof HTMLImageElement) {
+                    return node;
+                }
+                if (node instanceof HTMLPictureElement) {
+                    const nestedImage = node.querySelector('img');
+                    if (nestedImage instanceof HTMLImageElement) {
+                        return nestedImage;
+                    }
+                }
+            }
+
+            const target = event.target;
+            if (target instanceof HTMLImageElement) {
+                return target;
+            }
+            if (target instanceof HTMLPictureElement) {
+                const nestedImage = target.querySelector('img');
+                if (nestedImage instanceof HTMLImageElement) {
+                    return nestedImage;
+                }
+            }
+
+            return null;
+        },
+        updateHoverHintPosition(img) {
+            const rect = img.getBoundingClientRect();
+            const hintWidth = 144;
+            const left = Math.max(12, Math.min(window.innerWidth - hintWidth - 12, rect.left + (rect.width / 2) - (hintWidth / 2)));
+            const top = Math.max(12, rect.bottom - 42);
+            this.hoverHintStyle = 'left:' + Math.round(left) + 'px;top:' + Math.round(top) + 'px;';
+        },
+        showHoverHint(img) {
+            if (this.lightboxModalSrc || !this.isEligibleImage(img)) {
+                return;
+            }
+
+            this.updateHoverHintPosition(img);
+            this.hoverHintVisible = true;
+        },
+        hideHoverHint() {
+            this.hoverHintVisible = false;
+            this.hoverHintStyle = '';
+        },
+        syncLightboxViewport() {
+            const viewport = window.visualViewport || null;
+            const top = Math.round(window.scrollY + (viewport ? viewport.offsetTop : 0));
+            const height = Math.round(viewport ? viewport.height : window.innerHeight);
+            this.lightboxBackdropStyle = 'top:' + top + 'px; bottom:auto; height:' + height + 'px;';
+        },
+        openFromImage(img) {
+            if (!this.isEligibleImage(img)) {
+                return;
+            }
+
+            this.hideHoverHint();
+            this.syncLightboxViewport();
+            this.lightboxModalSrc = (img.currentSrc || img.src || '').trim();
+            this.lightboxModalAlt = (img.getAttribute('alt') || '').trim();
+            this.lightboxModalCaption = this.resolveCaption(img);
+            this.previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            this.previousBodyOverflow = document.body.style.overflow || '';
+            this.previousDocumentOverflow = document.documentElement.style.overflow || '';
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+
+            this.$nextTick(() => {
+                if (this.$refs.lightboxClose instanceof HTMLElement) {
+                    this.$refs.lightboxClose.focus();
+                }
             });
+        },
+        closeLightbox() {
+            this.lightboxModalSrc = null;
+            this.lightboxModalAlt = '';
+            this.lightboxModalCaption = '';
+            this.lightboxBackdropStyle = '';
+            document.body.style.overflow = this.previousBodyOverflow;
+            document.documentElement.style.overflow = this.previousDocumentOverflow;
+
+            const activeElement = this.previousActiveElement;
+            this.previousActiveElement = null;
+            this.$nextTick(() => {
+                if (activeElement instanceof HTMLElement) {
+                    activeElement.focus();
+                }
+            });
+        },
+        init() {
+            const syncEligibleImages = () => this.syncEligibleImages();
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', syncEligibleImages, { once: true });
+            } else {
+                syncEligibleImages();
+            }
+            window.addEventListener('load', syncEligibleImages, { once: true });
+
+            window.addEventListener('click', (event) => {
+                const img = this.resolveEventImage(event);
+                if (!img || !this.isEligibleImage(img)) {
+                    return;
+                }
+
+                event.preventDefault();
+                this.openFromImage(img);
+            });
+
+            window.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+                const img = this.resolveEventImage(event);
+                if (!img || !this.isEligibleImage(img)) {
+                    return;
+                }
+
+                event.preventDefault();
+                this.openFromImage(img);
+            });
+
+            window.addEventListener('mouseover', (event) => {
+                const img = this.resolveEventImage(event);
+                if (!img || !this.isEligibleImage(img)) {
+                    return;
+                }
+
+                this.showHoverHint(img);
+            });
+
+            window.addEventListener('mousemove', (event) => {
+                const img = this.resolveEventImage(event);
+                if (!img || !this.isEligibleImage(img)) {
+                    return;
+                }
+
+                this.showHoverHint(img);
+            });
+
+            window.addEventListener('mouseout', (event) => {
+                const img = this.resolveEventImage(event);
+                if (!img || !this.isEligibleImage(img)) {
+                    return;
+                }
+
+                this.hideHoverHint();
+            });
+
+            window.addEventListener('scroll', () => this.hideHoverHint(), { passive: true });
+            window.addEventListener('resize', () => {
+                if (this.lightboxModalSrc) {
+                    this.syncLightboxViewport();
+                }
+            }, { passive: true });
         }
     }">
-        <template x-teleport="body">
+           <template x-teleport="body">
+              <div x-show="hoverHintVisible && !lightboxModalSrc"
+                  class="cms-lightbox-hover-hint"
+                  style="display: none;"
+                  x-transition.opacity.duration.100ms
+                  :style="hoverHintStyle"
+                  x-text="hoverHintText"></div>
+           </template>
+           <template x-teleport="body">
             <div x-show="lightboxModalSrc" 
-                 style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99999; background: rgba(0,0,0,0.9); cursor: zoom-out;"
+                 class="cms-lightbox-backdrop"
+                 style="display: none;"
+                  :style="lightboxBackdropStyle"
                  x-transition.opacity.duration.200ms
-                 @click="lightboxModalSrc = null"
-                 @keydown.escape.window="lightboxModalSrc = null">
-                 
-                 <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 2rem; box-sizing: border-box;">
-                     <button type="button" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem; color: rgba(255,255,255,0.7); background: transparent; border: none; cursor: pointer; z-index: 10;" @click="lightboxModalSrc = null" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">
+                 @click="closeLightbox()"
+                 @keydown.escape.window="closeLightbox()"
+                 role="dialog"
+                 aria-modal="true"
+                 :aria-label="lightboxModalAlt || 'Expanded image preview'">
+
+                     <div class="cms-lightbox-stage">
+                     <figure class="cms-lightbox-figure" @click.stop>
+                     <button x-ref="lightboxClose" type="button" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem; color: rgba(255,255,255,0.7); background: transparent; border: none; cursor: pointer; z-index: 10;" @click="closeLightbox()" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.7)'" aria-label="Close image preview">
                          <svg style="width: 2rem; height: 2rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                      </button>
 
-                     <img :src="lightboxModalSrc" @click.stop style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0.25rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); cursor: default; transition: transform 0.2s;" :style="lightboxModalSrc ? 'transform: scale(1);' : 'transform: scale(0.95);'" />
-                 </div>
+                     <img :src="lightboxModalSrc" :alt="lightboxModalAlt" @click.stop style="cursor: default; transition: transform 0.2s;" :style="lightboxModalSrc ? 'transform: scale(1);' : 'transform: scale(0.95);'" />
+                     <figcaption x-show="lightboxModalCaption" class="cms-lightbox-caption" x-text="lightboxModalCaption"></figcaption>
+                 </figure>
+                     </div>
             </div>
         </template>
     </div>

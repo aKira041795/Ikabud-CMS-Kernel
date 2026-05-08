@@ -1,0 +1,223 @@
+<!-- Dispatch Modal -->
+<div x-data="dispatchModal()"
+     x-cloak
+     x-on:open-dispatch-modal.window="openModal()"
+     class="relative z-50" aria-labelledby="dispatch-modal-title" role="dialog" aria-modal="true" x-show="isOpen">
+    <div x-show="isOpen" x-transition.opacity class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div x-show="isOpen"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 @click.away="closeModal()"
+                 class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-2xl sm:p-6">
+
+                <div>
+                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="dispatch-modal-title">Send to Another Branch</h3>
+                    <p class="text-sm text-gray-500 mb-4">Use this when this branch is sending stock out. The paper DR stays the source of truth so the receiving branch can match the same transfer.</p>
+                    <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900">
+                        Quick rule: this is only for <span class="font-semibold">sending stock out</span> to another branch. Enter the DR exactly as written on paper so the receiving branch can find the same record.
+                    </div>
+                    <div class="mb-4 grid gap-2 sm:grid-cols-3">
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div class="font-semibold text-gray-900">Step 1</div>
+                            <div class="mt-1">Enter the date sent and the paper DR number.</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div class="font-semibold text-gray-900">Step 2</div>
+                            <div class="mt-1">Choose the branch that will receive the stock.</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div class="font-semibold text-gray-900">Step 3</div>
+                            <div class="mt-1">List only the items that actually left this branch.</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Date Sent *</label>
+                            <input type="date" x-model="form.delivery_date" class="form-input mt-0 w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Paper DR # <span class="text-rose-500">*</span></label>
+                            <input type="text" x-model="form.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-emerald-300 bg-emerald-50 font-mono text-base font-semibold uppercase tracking-[0.18em]">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Receiving Branch <span class="text-rose-500">*</span></label>
+                            <select x-model="form.target_branch_id" class="form-input mt-0 w-full">
+                                <option value="">-- Select branch --</option>
+                                {foreach all_branches as b}
+                                {if b.id != branch_id}
+                                <option value="{b.id}">{b.code} — {b.name}</option>
+                                {/if}
+                                {/foreach}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 bg-gray-50 rounded-lg p-3">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-200">
+                                    <th class="py-2 text-left font-medium text-gray-700">Product</th>
+                                    <th class="py-2 text-right font-medium text-gray-700 w-24">Pcs</th>
+                                    <th class="py-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(line, idx) in lines" :key="idx">
+                                    <tr class="border-b border-gray-100">
+                                        <td class="py-2 pr-2">
+                                            <select x-model="line.product_id" class="form-input mt-0 py-1 px-2 w-full">
+                                                <option value="">-- Select Product --</option>
+                                                <template x-for="p in products" :key="p.id">
+                                                    <option :value="p.id" x-text="p.name"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+                                        <td class="py-2 pr-2">
+                                            <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                        </td>
+                                        <td class="py-2 text-right">
+                                            <button type="button" @click="lines.splice(idx, 1)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" x-show="lines.length > 1">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="mb-4 text-xs text-gray-500">Tip: If one item stayed behind, leave it out here. The receiving branch should see only what truly left your branch.</p>
+
+                    <button type="button" @click="addEmptyLine()" class="btn btn-outline w-full justify-center mb-4">+ Add Item</button>
+                    <p x-show="errorMsg" x-text="errorMsg" class="text-sm text-rose-600 mb-2"></p>
+                </div>
+
+                <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse border-t border-gray-200 pt-4">
+                    <button type="button" @click="saveChanges()" class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto" x-bind:disabled="saving">
+                        <span x-text="saving ? 'Saving...' : 'Save Transfer Out'"></span>
+                    </button>
+                    <button type="button" @click="closeModal()" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto" x-bind:disabled="saving">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+window.openDispatchModal = function() {
+    window.dispatchEvent(new CustomEvent('open-dispatch-modal', { detail: {} }));
+};
+
+function dispatchModal() {
+    return {
+        isOpen: false,
+        saving: false,
+        errorMsg: '',
+        form: { delivery_date: '', dr_number: '', target_branch_id: '' },
+        lines: [],
+        products: [],
+
+        openModal() {
+            this.errorMsg = '';
+            this.form = { delivery_date: LEDGER_DATE, dr_number: '', target_branch_id: '' };
+            this.lines = [{ product_id: '', quantity: '' }];
+            this.loadProducts();
+            this.isOpen = true;
+        },
+
+        closeModal() { this.isOpen = false; },
+
+        addEmptyLine() { this.lines.push({ product_id: '', quantity: '' }); },
+
+        loadProducts() {
+            this.products = [];
+            var rows = document.querySelectorAll('tr[data-product-id]');
+            var seen = {};
+            rows.forEach(function(r) {
+                var pid = r.getAttribute('data-product-id');
+                var nm = (r.querySelector('.product-name') || {}).textContent || '';
+                if (pid && !seen[pid]) {
+                    seen[pid] = true;
+                    this.products.push({ id: pid, name: nm.trim() });
+                }
+            }.bind(this));
+        },
+
+        validate() {
+            this.errorMsg = '';
+            if (!this.form.delivery_date) {
+                this.errorMsg = 'Date sent is required.';
+                return false;
+            }
+            if (!this.form.dr_number || String(this.form.dr_number).trim() === '') {
+                this.errorMsg = 'Paper DR number is required.';
+                return false;
+            }
+            if (!this.form.target_branch_id) {
+                this.errorMsg = 'Receiving branch is required.';
+                return false;
+            }
+            var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
+            if (validLines.length === 0) {
+                this.errorMsg = 'Add at least one product with a quantity greater than 0.';
+                return false;
+            }
+            return true;
+        },
+
+        saveChanges() {
+            if (!this.validate()) return;
+            this.saving = true;
+
+            var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
+            var payload = {
+                branch_id: BRANCH_ID,
+                delivery_date: this.form.delivery_date,
+                dr_number: this.form.dr_number,
+                target_branch_id: parseInt(this.form.target_branch_id, 10),
+                items: validLines.map(function(l) {
+                    return { product_id: parseInt(l.product_id, 10), quantity: parseInt(l.quantity, 10), unit: 'pcs' };
+                })
+            };
+
+            fetch(BASE + '/api/v1/cashier/ledger/dispatch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                this.saving = false;
+                if (data && data.ok) {
+                    showToast('Transfer out saved', 'success');
+                    this.closeModal();
+                    var body = document.getElementById('ledger-body');
+                    if (body && window.htmx) {
+                        window.htmx.trigger(body, 'load');
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    this.errorMsg = (data && data.error) || 'Failed to save dispatch.';
+                }
+            }.bind(this))
+            .catch(function() {
+                this.saving = false;
+                this.errorMsg = 'Network error while saving dispatch.';
+            }.bind(this));
+        }
+    };
+}
+</script>

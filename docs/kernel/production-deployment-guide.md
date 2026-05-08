@@ -58,12 +58,26 @@ DB_PORT=3306
 DB_DATABASE=ikabud
 DB_USERNAME=ikabud_user
 DB_PASSWORD=<strong-password>
+DB_TIMEOUT_SECONDS=5
+DB_PERSISTENT=false
+DB_SSL_ENABLED=false
+DB_SSL_CA=
+DB_SSL_CERT=
+DB_SSL_KEY=
+DB_SSL_VERIFY_SERVER_CERT=true
 
 # Control plane database (multi-tenant)
 CONTROL_DB_HOST=127.0.0.1
 CONTROL_DB_DATABASE=ikabud_control
 CONTROL_DB_USERNAME=ikabud_control_user
 CONTROL_DB_PASSWORD=<strong-password>
+CONTROL_DB_TIMEOUT_SECONDS=5
+CONTROL_DB_PERSISTENT=false
+CONTROL_DB_SSL_ENABLED=false
+CONTROL_DB_SSL_CA=
+CONTROL_DB_SSL_CERT=
+CONTROL_DB_SSL_KEY=
+CONTROL_DB_SSL_VERIFY_SERVER_CERT=true
 
 # Cache
 CACHE_DIR=storage/cache
@@ -77,6 +91,8 @@ LOG_LEVEL=warning
 ```bash
 php -r "echo bin2hex(random_bytes(32));"
 ```
+
+Set `DB_TIMEOUT_SECONDS` and `CONTROL_DB_TIMEOUT_SECONDS` explicitly during production rollout so the kernel DB manager does not inherit an arbitrary host default. If MySQL transport security is required, enable the matching `*_DB_SSL_*` values together and keep server-certificate verification enabled.
 
 ## Web Server Configuration
 
