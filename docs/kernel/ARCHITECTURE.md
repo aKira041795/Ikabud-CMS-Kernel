@@ -403,6 +403,7 @@ Relevant helpers in `src/helpers/module-manager.php`:
 - **Hydration islands** — SSR-first interactive regions that can hydrate on load, idle, visible, media, or interaction
 - **Compiled + interpreted execution** — Templates can run through the compiler pipeline or the interpreted renderer depending on environment and feature path
 - **Compiled cache** — Render artifacts are compiled to PHP and cached in `storage/cache/`
+- **DiSyL 4.x extensions** — `{match}` pattern matching and `{trans}` i18n (4.1); progressive type system (4.2); `{cache}` fragment store with tag invalidation and `{experiment}` deterministic A/B bucketing (4.3); `{sandbox}/{trusted}/{untrusted}` capability scoping with `raw.html`, `network`, `ai`, `federation`, `cache.invalidate`, `experiment` gates (4.4); `{parallel}/{await}/{suspense}` async runtime with `{loading}/{catch}` arms (4.5); `{federated_query}/{remote}/{aggregate}` multi-service composition and `{ai_generate}/{ai_query}/{ai_complete}` policy-gated AI primitives (4.6). See [module-development-guide.md](module-development-guide.md#disyl-4x-capabilities-kernel--40) for the module-author summary.
 
 ---
 
