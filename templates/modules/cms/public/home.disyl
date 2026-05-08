@@ -1,6 +1,7 @@
 {extends "modules/cms/layouts/public.disyl"}
 
 {block content}
+{cache key='cms:home:posts:p' + page_num|default:'1' ttl=120 tags=['cms:content:list','cms:menu','cms:settings']}
 <div class="text-center mb-8">
     <h1 class="text-3xl font-bold text-gray-900">Blog</h1>
     <p class="text-gray-500 mt-1">Latest posts and updates</p>
@@ -50,4 +51,5 @@
     {/if}
 </div>
 {/if}
+{/cache}
 {/block}

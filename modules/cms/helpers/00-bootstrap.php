@@ -72,3 +72,24 @@ function cmsRuntimeTenantId(): int
 /**
  * Check if a CMS role has at least the given minimum level.
  */
+
+// ── DiSyL 4.3 fragment-cache invalidation ───────────────────────────
+// Public render surface (home.disyl, etc.) wraps content in {cache tags=[...]}.
+// Invalidate those tags whenever editor-controlled state changes so cached
+// fragments are refreshed on the next request.
+foreach (['cms.content.created','cms.content.updated','cms.content.deleted','cms.content.published','cms.content.bulk'] as $__cmsCacheEvt) {
+    app()->events()->listen($__cmsCacheEvt, static function (array $payload = []) {
+        try {
+            $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
+            app()->templates()->fragmentStore()->invalidate(
+                ['cms:content:list'],
+                $tenantId > 0 ? (string)$tenantId : '_global'
+            );
+        } catch (\Throwable $e) {
+            // Best-effort; never break the write path on cache failure.
+            if (function_exists('write_log')) {
+                write_log('cms cache invalidate failed: ' . $e->getMessage(), 'warning');
+            }
+        }
+    }, 100, 'cms');
+}

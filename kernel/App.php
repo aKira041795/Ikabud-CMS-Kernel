@@ -1029,6 +1029,11 @@ final class App
 
         $renderContext = \kernelStripInternalRenderTraceContext($context);
         try {
+            // DiSyL 4.3+: tenant-partition the fragment cache so {cache} blocks
+            // and dependency tags do not leak across tenants. Safe no-op when
+            // multi-tenant is disabled (current() returns null → '_global').
+            $currentTenant = $this->tenant()->current();
+            $this->templates()->setTenantId($currentTenant === null ? null : (string)$currentTenant);
             $output = $this->templates()->render($template, $renderContext);
         } catch (\Throwable $e) {
             $this->logRenderFailure($template, $context, $e);
