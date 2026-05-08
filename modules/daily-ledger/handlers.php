@@ -2081,7 +2081,7 @@ function apiCreateCashierDispatch(array $params = []): void
     ]);
     $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($dup) {
-        $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Delivery on the destination branch.'], 422);
+        $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Stock on the destination branch.'], 422);
         return;
     }
 
