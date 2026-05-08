@@ -37,20 +37,22 @@
         "dl_production_movements",
         "dl_raw_materials",
         "dl_commissary_ledger",
-        "dl_production_runs",
-        "audit_logs",
+        "dl_selling_account_ledger",
+        "dl_selling_account_day_status",
         "dl_cashier_withdrawals",
-        "dl_branch_product_supply_rules",
         "dl_deliveries",
         "dl_delivery_items",
         "dl_branch_receivings",
         "dl_branch_receiving_items",
-        "dl_delivery_variance_flags",
         "dl_price_groups",
         "dl_product_prices",
+        "dl_production_runs",
+        "dl_branch_product_supply_rules",
         "dl_selling_accounts",
-        "dl_selling_account_ledger",
-        "dl_selling_account_day_status"
+        "dl_delivery_variance_flags"
+    ],
+    "co_owns_tables": [
+        "audit_logs"
     ],
     "reads_tables": [
         "rate_limits",

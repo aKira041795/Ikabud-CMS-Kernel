@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class IncludeNode extends AbstractNode
+final class IncludeNode extends AbstractNode
 {
     private string $template;
     private array $variables;

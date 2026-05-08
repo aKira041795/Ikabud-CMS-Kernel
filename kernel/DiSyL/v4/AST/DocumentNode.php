@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class DocumentNode extends AbstractNode
+final class DocumentNode extends AbstractNode
 {
     /** @var AbstractNode[] */
     private array $children;

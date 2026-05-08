@@ -321,6 +321,67 @@ function request_id(): string
     return $generated;
 }
 
+/**
+ * Kernel-level flash message helpers (kernel 4.0.0+).
+ *
+ * Replaces ad-hoc per-module $_SESSION['*_message'] writers with a single
+ * namespaced bag at $_SESSION['_kernel_flash'][$key]. Modules and handlers
+ * should prefer these helpers over reaching into $_SESSION directly.
+ *
+ * Usage:
+ *   kernel_flash('cms.settings', 'success', 'Saved.');
+ *   $msg = kernel_consume_flash('cms.settings'); // ['type'=>'success','text'=>'Saved.'] or null
+ */
+function kernel_flash(string $key, string $type, string $text, array $extra = []): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    if ($key === '') {
+        return;
+    }
+    if (!isset($_SESSION['_kernel_flash']) || !is_array($_SESSION['_kernel_flash'])) {
+        $_SESSION['_kernel_flash'] = [];
+    }
+    $_SESSION['_kernel_flash'][$key] = array_merge(['type' => $type, 'text' => $text], $extra);
+}
+
+/**
+ * Read-and-clear a flash message previously stored via kernel_flash().
+ *
+ * @return array<string,mixed>|null
+ */
+function kernel_consume_flash(string $key): ?array
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return null;
+    }
+    $bag = $_SESSION['_kernel_flash'] ?? null;
+    if (!is_array($bag) || !isset($bag[$key]) || !is_array($bag[$key])) {
+        return null;
+    }
+    $msg = $bag[$key];
+    unset($_SESSION['_kernel_flash'][$key]);
+    if (empty($_SESSION['_kernel_flash'])) {
+        unset($_SESSION['_kernel_flash']);
+    }
+    return $msg;
+}
+
+/**
+ * Peek at a flash without consuming it (rarely needed).
+ *
+ * @return array<string,mixed>|null
+ */
+function kernel_peek_flash(string $key): ?array
+{
+    $bag = $_SESSION['_kernel_flash'] ?? null;
+    if (!is_array($bag) || !isset($bag[$key]) || !is_array($bag[$key])) {
+        return null;
+    }
+    return $bag[$key];
+}
+
 function is_https(): bool
 {
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {

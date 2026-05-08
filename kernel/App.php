@@ -10,7 +10,7 @@
  * Modules register hook listeners during their bootstrap phase.
  * 
  * @package Ikabud\Kernel
- * @version 3.0.0
+ * @version 4.0.0
  */
 
 namespace Ikabud\Kernel;
@@ -29,7 +29,7 @@ use Ikabud\Kernel\DiSyL\TemplateEngine;
 use Ikabud\Kernel\DiSyL\Reactive\HTMXRequest;
 use PDO;
 
-class App
+final class App
 {
     private static ?App $instance = null;
 
@@ -71,8 +71,8 @@ class App
     private ?string $cachedAppUrl = null;
     private ?string $cachedBaseUrl = null;
     
-    public const KERNEL_VERSION = '3.1.0';
-    public const KERNEL_CODENAME = 'clarity';
+    public const KERNEL_VERSION = '4.6.0';
+    public const KERNEL_CODENAME = 'atlas';
 
     /** @var int Maximum JSON input size in bytes (2 MB) */
     private const MAX_INPUT_SIZE = 2 * 1024 * 1024;

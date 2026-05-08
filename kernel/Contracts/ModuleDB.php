@@ -47,11 +47,14 @@ class ModuleDB implements DatabaseContract
         'information_schema', 'performance_schema', 'mysql', 'sys',
     ];
 
-    public function __construct(PDO $pdo, string $moduleId, array $ownsTables, array $readsTables)
+    public function __construct(PDO $pdo, string $moduleId, array $ownsTables, array $readsTables, array $coOwnsTables = [])
     {
         $this->pdo = $pdo;
         $this->moduleId = $moduleId;
-        $this->ownsTables = array_map('strtolower', $ownsTables);
+        // Co-owned tables get the same full-CRUD treatment as owned tables; the
+        // distinction is purely about manifest provenance / collision tracking.
+        $merged = array_merge($ownsTables, $coOwnsTables);
+        $this->ownsTables = array_map('strtolower', $merged);
         $this->readsTables = array_map('strtolower', $readsTables);
     }
 
@@ -60,7 +63,7 @@ class ModuleDB implements DatabaseContract
      */
     public static function unrestricted(PDO $pdo): self
     {
-        $instance = new self($pdo, '_kernel', [], []);
+        $instance = new self($pdo, '_kernel', [], [], []);
         $instance->unrestricted = true;
         return $instance;
     }

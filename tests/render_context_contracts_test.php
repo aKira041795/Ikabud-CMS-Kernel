@@ -38,7 +38,6 @@ $moduleIds = [
     'daily-ledger',
     'anti-spam',
     'ticketing',
-    'wordpress-importer',
 ];
 
 foreach ($moduleIds as $moduleId) {
@@ -47,6 +46,16 @@ foreach ($moduleIds as $moduleId) {
     if (isset($modules[$moduleId]) && is_array($modules[$moduleId])) {
         loadModuleHelpers($modules[$moduleId]);
     }
+}
+
+// wordpress-importer is now a distributable package (installed on demand) — load directly from packages/.
+$wpiPackagePath = dirname(__DIR__) . '/packages/cms-wordpress-importer';
+t('wordpress-importer package present', is_dir($wpiPackagePath) && is_file($wpiPackagePath . '/module.json'));
+if (is_file($wpiPackagePath . '/handlers/10-wordpress-importer.php')) {
+    require_once $wpiPackagePath . '/handlers/10-wordpress-importer.php';
+}
+if (is_file($wpiPackagePath . '/helpers.php')) {
+    require_once $wpiPackagePath . '/helpers.php';
 }
 
 $contracts = kernelRegisteredRenderContextContracts();

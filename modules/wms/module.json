@@ -43,11 +43,13 @@
         "wms_production_orders",
         "wms_production_materials",
         "wms_task_exceptions",
-        "audit_logs",
-        "rate_limits",
         "wms_configs",
         "wms_purchase_orders",
         "wms_purchase_order_items"
+    ],
+    "co_owns_tables": [
+        "audit_logs",
+        "rate_limits"
     ],
     "reads_tables": [
         "users"

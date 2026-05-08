@@ -12,7 +12,13 @@ if (!function_exists('cmsHasEnabledWordpressImporter')) {
 if (!function_exists('cmsWordpressImporterModulePath')) {
     function cmsWordpressImporterModulePath(): string
     {
-        return rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)), '/') . '/modules/wordpress-importer';
+        $base = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)), '/');
+        // Prefer installed module path; fall back to canonical package source (post-3.2 dedup).
+        $installed = $base . '/modules/wordpress-importer';
+        if (is_dir($installed)) {
+            return $installed;
+        }
+        return $base . '/packages/cms-wordpress-importer';
     }
 }
 

@@ -1914,6 +1914,7 @@ function buildModuleContext(string $moduleId, array $manifest): \Ikabud\Kernel\C
 {
     // Determine table ownership
     $ownsTables = $manifest['owns_tables'] ?? null;
+    $coOwnsTables = is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [];
     $readsTables = $manifest['reads_tables'] ?? [];
 
     if ($ownsTables === null) {
@@ -1937,7 +1938,8 @@ function buildModuleContext(string $moduleId, array $manifest): \Ikabud\Kernel\C
         app()->db(),
         $moduleId,
         $ownsTables,
-        $readsTables
+        $readsTables,
+        $coOwnsTables
     );
 
     $manifest['_settings'] = getModuleSettings($moduleId);
@@ -2416,7 +2418,7 @@ function validateModuleManifest(string $path): array
         return null;
     };
 
-    foreach (['owns_tables', 'reads_tables', 'requires_tables'] as $tableField) {
+    foreach (['owns_tables', 'co_owns_tables', 'reads_tables', 'requires_tables'] as $tableField) {
         $tableValidation = $validateTableList($manifest[$tableField] ?? null, $tableField);
         if (is_array($tableValidation) && empty($tableValidation['ok'])) {
             return $tableValidation;

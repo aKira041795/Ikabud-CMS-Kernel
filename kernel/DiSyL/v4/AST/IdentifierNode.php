@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class IdentifierNode extends AbstractNode
+final class IdentifierNode extends AbstractNode
 {
     private string $name;
 

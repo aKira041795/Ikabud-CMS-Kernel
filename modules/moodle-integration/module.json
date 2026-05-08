@@ -16,6 +16,13 @@
         "moodle_rate_limit",
         "moodle_sync_discrepancies"
     ],
+    "co_owns_tables": [
+        "cms_content",
+        "cms_content_meta",
+        "cms_menus",
+        "cms_menu_items",
+        "cms_menu_locations"
+    ],
     "reads_tables": [
         "users",
         "cms_users",

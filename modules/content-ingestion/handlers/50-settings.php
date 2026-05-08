@@ -112,7 +112,7 @@ function wpBridgeAdminSettings(array $params = []): void
 
         write_log('Bridge settings saved', 'info', ['source' => 'content-ingestion', 'user_id' => (int)($user['id'] ?? 0)]);
 
-        $_SESSION['bridge_message'] = ['type' => 'success', 'text' => 'Bridge settings saved.'];
+        kernel_flash('content-ingestion.bridge', 'success', 'Bridge settings saved.');
         header('Location: /cms/admin/bridge/settings');
         exit;
     }
@@ -127,8 +127,7 @@ function wpBridgeAdminSettings(array $params = []): void
     $ingestUrl     = $baseUrl . '/api/v1/bridge/ingest';
 
     // Flash message
-    $message = $_SESSION['bridge_message'] ?? null;
-    unset($_SESSION['bridge_message']);
+    $message = kernel_consume_flash('content-ingestion.bridge');
 
     echo cmsRender('modules/content-ingestion/admin/bridge-settings.disyl', array_merge(
         cmsAdminContext($user, 'wordpress_bridge', [

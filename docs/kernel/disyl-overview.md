@@ -75,6 +75,20 @@ DiSyL now spans both:
 
 The important architectural point is that both paths still belong to the same language/runtime model.
 
+### 6. DiSyL 4.x runtime additions (kernel ≥ 4.0)
+
+The 4.x line introduced six tag families that extend the rendering language with cross-cutting platform capabilities. They are part of the same single-pass parser and respect the same escape, cache, and sandbox contracts as the rest of DiSyL.
+
+- **4.0** — single-pass control structure processor; same surface, faster execution.
+- **4.1** — `{match}` pattern matching, `{trans}` i18n.
+- **4.2** — type system v1 (`scripts/disyl-typecheck.php`); progressive opt-in.
+- **4.3** — `{cache}` fragment store with tag invalidation; `{experiment}` deterministic A/B bucketing.
+- **4.4** — sandbox + capability scoping: `{sandbox}`/`{trusted}`/`{untrusted}`. Capabilities (`raw.html`, `cache.invalidate`, `experiment`, `network`, `ai`, `federation`) gate every dangerous template sink.
+- **4.5** — async runtime: `{parallel}`/`{await}`/`{suspense}` with `{loading}`/`{catch}` arms. Source-order deterministic. Sync execution today; Fibers concurrency in 4.5.1 with no template changes.
+- **4.6** — federation (`{federated_query}`/`{remote}`/`{aggregate}`) and pinned AI primitives (`{ai_generate}`/`{ai_query}`/`{ai_complete}`) under a unified Policy (kill switch, allowlist, cost ceiling, max_tokens cap).
+
+184 unit tests cover the 4.x surface end-to-end. See per-release notes under `docs/releases/` for honest-scope statements (what shipped, what's deferred to point releases) and the [DiSyL 4.x Capabilities table in the module guide](module-development-guide.md#disyl-4x-capabilities-kernel--40) for the module-author summary.
+
 ## Developer Advantage
 
 ### One rendering model across the platform

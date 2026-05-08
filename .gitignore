@@ -67,3 +67,10 @@ modules/cms/assets/uploads/test/
 
 # CMS installer ownership markers are runtime artifacts, not source
 modules/**/.cms-owned
+
+# Local agent/tool state
+.lean-ctx/
+
+# Runtime upload directories (per-tenant generated content)
+public/uploads/bakeshop/
+public/uploads/daily-ledger/

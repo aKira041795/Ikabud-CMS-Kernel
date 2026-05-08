@@ -23,7 +23,7 @@ require_once __DIR__ . '/../modules/cms/helpers.php';
 
 require_once __DIR__ . '/../modules/cms/handlers/35-api-content.php';
 
-require_once __DIR__ . '/../modules/wordpress-importer/handlers/10-wordpress-importer.php';
+require_once __DIR__ . '/../packages/cms-wordpress-importer/handlers/10-wordpress-importer.php';
 
 require_once __DIR__ . '/../modules/content-ingestion/helpers.php';
 require_once __DIR__ . '/../modules/content-ingestion/handlers/10-ingestion.php';

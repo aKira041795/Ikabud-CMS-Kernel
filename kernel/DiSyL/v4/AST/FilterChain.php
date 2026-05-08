@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class FilterChain
+final class FilterChain
 {
     /** @var FilterNode[] */
     private array $filters;

@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class PropertyAccessNode extends AbstractNode
+final class PropertyAccessNode extends AbstractNode
 {
     private AbstractNode $object;
     /** @var AbstractNode|string */

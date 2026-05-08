@@ -8,7 +8,7 @@ namespace Ikabud\Kernel;
  * Supports HS256 signing, token refresh, and token version validation
  * for invalidation on password change or account deactivation.
  */
-class JWT
+final class JWT
 {
     private string $secret;
     private string $algorithm;

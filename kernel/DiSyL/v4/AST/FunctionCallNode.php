@@ -8,7 +8,7 @@ namespace Ikabud\Kernel\DiSyL\v4\AST;
  * Only functions registered in FunctionRegistry are allowed at runtime;
  * unknown names evaluate to null rather than executing arbitrary PHP.
  */
-class FunctionCallNode extends AbstractNode
+final class FunctionCallNode extends AbstractNode
 {
     private string $name;
     /** @var AbstractNode[] */

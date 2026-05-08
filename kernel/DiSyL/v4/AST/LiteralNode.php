@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4\AST;
 
-class LiteralNode extends AbstractNode
+final class LiteralNode extends AbstractNode
 {
     private mixed $value;
 

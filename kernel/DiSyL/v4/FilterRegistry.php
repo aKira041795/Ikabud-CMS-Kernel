@@ -2,7 +2,7 @@
 
 namespace Ikabud\Kernel\DiSyL\v4;
 
-class FilterRegistry
+final class FilterRegistry
 {
     /** @var array<string, callable> */
     private array $filters = [];

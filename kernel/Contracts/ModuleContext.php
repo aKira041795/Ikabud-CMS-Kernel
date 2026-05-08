@@ -24,7 +24,7 @@ namespace Ikabud\Kernel\Contracts;
 use Ikabud\Kernel\App;
 use Ikabud\Kernel\Database\KernelPDO;
 
-class ModuleContext implements AuthContract, LogContract
+final class ModuleContext implements AuthContract, LogContract
 {
     private App $app;
     private string $moduleId;
