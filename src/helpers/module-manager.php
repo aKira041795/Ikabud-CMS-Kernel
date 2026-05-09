@@ -9,6 +9,33 @@ function modulesPath(): string
     return BASE_PATH . '/modules';
 }
 
+function modulePathForId(string $moduleId): ?string
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '') {
+        return null;
+    }
+
+    $modules = discoverModules();
+    if (!isset($modules[$moduleId])) {
+        return null;
+    }
+
+    $path = trim((string)($modules[$moduleId]['_path'] ?? ''));
+    return $path !== '' ? $path : null;
+}
+
+function moduleManifestPathForId(string $moduleId): ?string
+{
+    $modulePath = modulePathForId($moduleId);
+    if ($modulePath === null) {
+        return null;
+    }
+
+    $manifestPath = rtrim($modulePath, '/') . '/module.json';
+    return is_file($manifestPath) ? $manifestPath : null;
+}
+
 /**
  * Export a module's owned tables to a SQL file (INSERT statements) in storage/module-exports/.
  * Returns ['ok'=>true,'dir'=>'...','files'=>string[]] or ['ok'=>false,'error'=>'...']
@@ -113,7 +140,7 @@ function declaredModuleAuthCookieNames(): array
 
     $ttl = max(0, (int)($_ENV['MODULE_AUTH_COOKIE_CACHE_TTL'] ?? 300));
     if ($ttl > 0) {
-        $cached = app()->cache()->get('kernel_bootstrap', 'module_auth_cookies:v1');
+        $cached = app()->cache()->get('kernel_bootstrap', 'module_auth_cookies:v2');
         if (is_array($cached) && isset($cached['names']) && is_array($cached['names'])) {
             $names = array_values(array_filter($cached['names'], fn($name) => is_string($name) && $name !== ''));
             return $names;
@@ -126,20 +153,29 @@ function declaredModuleAuthCookieNames(): array
         return $names;
     }
 
-    foreach (scandir($dir) as $entry) {
-        if ($entry === '.' || $entry === '..') {
-            continue;
-        }
-        if (preg_match('/\.bak_\d{8}_\d{6}$/', $entry)) {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveCallbackFilterIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            static function (SplFileInfo $current): bool {
+                $name = $current->getFilename();
+                if ($name === '.' || $name === '..') {
+                    return false;
+                }
+                if ($current->isDir() && preg_match('/\.bak_\d{8}_\d{6}$/', $name)) {
+                    return false;
+                }
+                return true;
+            }
+        ),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getFilename() !== 'module.json') {
             continue;
         }
 
-        $manifestPath = $dir . '/' . $entry . '/module.json';
-        if (!is_file($manifestPath)) {
-            continue;
-        }
-
-        $manifest = json_decode((string)file_get_contents($manifestPath), true);
+        $manifest = json_decode((string)file_get_contents($file->getPathname()), true);
         if (!is_array($manifest)) {
             continue;
         }
@@ -152,7 +188,7 @@ function declaredModuleAuthCookieNames(): array
 
     sort($names);
     if ($ttl > 0) {
-        app()->cache()->set('kernel_bootstrap', 'module_auth_cookies:v1', ['names' => $names], $ttl);
+        app()->cache()->set('kernel_bootstrap', 'module_auth_cookies:v2', ['names' => $names], $ttl);
     }
     return $names;
 }
@@ -593,30 +629,51 @@ function discoverModules(): array
     }
 
     $result = [];
-    foreach (scandir($dir) as $entry) {
-        if ($entry === '.' || $entry === '..') {
+    $manifestPaths = [];
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveCallbackFilterIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            static function (SplFileInfo $current): bool {
+                $name = $current->getFilename();
+                if ($name === '.' || $name === '..') {
+                    return false;
+                }
+                if ($current->isDir() && preg_match('/\.bak_\d{8}_\d{6}$/', $name)) {
+                    return false;
+                }
+                return true;
+            }
+        ),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getFilename() !== 'module.json') {
             continue;
         }
+        $manifestPaths[] = $file->getPathname();
+    }
 
-        // Ignore installer-created backup directories (e.g. contact-form.bak_20260317_210719)
-        // so they do not shadow the live module directory by reusing the same manifest id.
-        if (preg_match('/\.bak_\d{8}_\d{6}$/', $entry)) {
-            continue;
-        }
+    sort($manifestPaths);
 
-        $manifestPath = $dir . '/' . $entry . '/module.json';
-        if (!is_file($manifestPath)) {
-            continue;
-        }
-
+    foreach ($manifestPaths as $manifestPath) {
         $manifest = json_decode((string) file_get_contents($manifestPath), true);
         if (!is_array($manifest) || empty($manifest['id'])) {
             continue;
         }
 
-        $manifest['_path'] = $dir . '/' . $entry;
-        $manifest['_enabled'] = isModuleEnabled($manifest['id']);
-        $result[$manifest['id']] = $manifest;
+        $moduleId = (string)$manifest['id'];
+        if (isset($result[$moduleId])) {
+            if (function_exists('write_log')) {
+                write_log('Duplicate module id discovered: ' . $moduleId . ' at ' . $manifestPath . ' (keeping first occurrence)', 'warning');
+            }
+            continue;
+        }
+
+        $manifest['_path'] = dirname($manifestPath);
+        $manifest['_enabled'] = isModuleEnabled($moduleId);
+        $result[$moduleId] = $manifest;
     }
 
     $GLOBALS['_kernel_discovered_modules'] = $result;
@@ -2457,8 +2514,14 @@ function validateModuleManifest(string $path): array
             if (array_key_exists('label', $item) && !is_string($item['label'])) {
                 return ['ok' => false, 'error' => "module.json nav[{$idx}].label must be a string", 'error_code' => 'manifest_invalid_nav'];
             }
+            if (array_key_exists('key', $item) && (!is_string($item['key']) || trim($item['key']) === '')) {
+                return ['ok' => false, 'error' => "module.json nav[{$idx}].key must be a non-empty string", 'error_code' => 'manifest_invalid_nav'];
+            }
             if (array_key_exists('url', $item) && !is_string($item['url'])) {
                 return ['ok' => false, 'error' => "module.json nav[{$idx}].url must be a string", 'error_code' => 'manifest_invalid_nav'];
+            }
+            if (array_key_exists('description', $item) && !is_string($item['description'])) {
+                return ['ok' => false, 'error' => "module.json nav[{$idx}].description must be a string", 'error_code' => 'manifest_invalid_nav'];
             }
             if (array_key_exists('roles', $item)) {
                 if (!is_array($item['roles'])) {
@@ -2468,6 +2531,19 @@ function validateModuleManifest(string $path): array
                     if (!is_string($role) || trim($role) === '') {
                         return ['ok' => false, 'error' => "module.json nav[{$idx}].roles must contain non-empty strings", 'error_code' => 'manifest_invalid_nav'];
                     }
+                }
+            }
+
+            $navUrl = trim((string)($item['url'] ?? ''));
+            if (str_starts_with($navUrl, '/admin/ehr')) {
+                if (!array_key_exists('key', $item) || trim((string)$item['key']) === '') {
+                    return ['ok' => false, 'error' => "module.json nav[{$idx}].key is required for /admin/ehr sidebar items", 'error_code' => 'manifest_invalid_nav'];
+                }
+                if (!array_key_exists('description', $item) || trim((string)$item['description']) === '') {
+                    return ['ok' => false, 'error' => "module.json nav[{$idx}].description is required for /admin/ehr sidebar items", 'error_code' => 'manifest_invalid_nav'];
+                }
+                if (!array_key_exists('roles', $item) || !is_array($item['roles']) || $item['roles'] === []) {
+                    return ['ok' => false, 'error' => "module.json nav[{$idx}].roles is required for /admin/ehr sidebar items", 'error_code' => 'manifest_invalid_nav'];
                 }
             }
         }
@@ -2837,7 +2913,7 @@ function installModuleFromZip(string $zipPath): array
  */
 function uninstallModule(string $moduleId, array $options = []): array
 {
-    $dir = modulesPath() . '/' . $moduleId;
+    $dir = modulePathForId($moduleId) ?? '';
     if (!is_dir($dir)) {
         return ['ok' => false, 'error' => 'Module not found'];
     }
@@ -2932,8 +3008,8 @@ function updateModuleCapabilityPolicy(string $moduleId, string $capabilityId, ar
         return ['ok' => false, 'error' => 'moduleId and capabilityId are required'];
     }
 
-    $manifestPath = modulesPath() . '/' . $moduleId . '/module.json';
-    if (!is_file($manifestPath)) {
+    $manifestPath = moduleManifestPathForId($moduleId);
+    if ($manifestPath === null) {
         return ['ok' => false, 'error' => 'Module manifest not found'];
     }
 
@@ -3037,8 +3113,8 @@ function updateModuleCapabilityDepends(string $moduleId, array $depends): array
         return ['ok' => false, 'error' => 'moduleId is required'];
     }
 
-    $manifestPath = modulesPath() . '/' . $moduleId . '/module.json';
-    if (!is_file($manifestPath)) {
+    $manifestPath = moduleManifestPathForId($moduleId);
+    if ($manifestPath === null) {
         return ['ok' => false, 'error' => 'Module manifest not found'];
     }
 

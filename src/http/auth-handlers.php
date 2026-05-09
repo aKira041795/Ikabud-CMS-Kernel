@@ -267,6 +267,13 @@ function kernelHandleAuthLogout(): void
 
     $cookieName = config('app.cookie_name', 'app_token');
     clearAuthCookie($cookieName);
+    $logoutSource = is_array($logoutUser) ? trim((string)($logoutUser['source'] ?? '')) : '';
+    if ($logoutSource !== '' && $logoutSource !== 'kernel') {
+        $enabledModules = getEnabledModules();
+        if (!empty($enabledModules[$logoutSource]['auth_cookie'])) {
+            clearAuthCookie((string)$enabledModules[$logoutSource]['auth_cookie']);
+        }
+    }
     app()->csrfRotate(true);
 
     // API clients get JSON instead of redirect
@@ -286,6 +293,379 @@ function kernelHandleAuthLogout(): void
     }
 
     app()->redirect('/login');
+}
+}
+
+if (!function_exists('kernelForgotPasswordRateLimitSnapshot')) {
+function kernelForgotPasswordRateLimitSnapshot(string $scope, string $value): array
+{
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+        $normalized = 'unknown';
+    }
+
+    $key = 'kernel_forgot_password:' . $scope . ':' . sha1($normalized);
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    if (!is_array($cached)) {
+        return ['key' => $key, 'count' => 0];
+    }
+
+    return [
+        'key' => $key,
+        'count' => max(0, (int)($cached['count'] ?? 0)),
+    ];
+}
+}
+
+if (!function_exists('kernelForgotPasswordRateLimitExceeded')) {
+function kernelForgotPasswordRateLimitExceeded(string $ip, string $identity): bool
+{
+    $policy = kernel_password_reset_policy();
+    $ipState = kernelForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown');
+    if ((int)$ipState['count'] >= (int)$policy['forgot_rate_limit_ip_max']) {
+        return true;
+    }
+
+    $identityState = kernelForgotPasswordRateLimitSnapshot('identity', $identity);
+    return (int)$identityState['count'] >= (int)$policy['forgot_rate_limit_identity_max'];
+}
+}
+
+if (!function_exists('kernelForgotPasswordRateLimitRecord')) {
+function kernelForgotPasswordRateLimitRecord(string $ip, string $identity): void
+{
+    $policy = kernel_password_reset_policy();
+    $entries = [
+        kernelForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown'),
+        kernelForgotPasswordRateLimitSnapshot('identity', $identity),
+    ];
+
+    foreach ($entries as $entry) {
+        app()->cache()->set(
+            'security_rate_limits',
+            (string)$entry['key'],
+            ['count' => ((int)($entry['count'] ?? 0)) + 1],
+            (int)$policy['forgot_rate_limit_window_seconds']
+        );
+    }
+}
+}
+
+if (!function_exists('kernelResetPasswordRateLimitSnapshot')) {
+function kernelResetPasswordRateLimitSnapshot(string $ip): array
+{
+    $key = 'kernel_reset_password:ip:' . sha1($ip !== '' ? $ip : 'unknown');
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    if (!is_array($cached)) {
+        return ['key' => $key, 'count' => 0];
+    }
+
+    return [
+        'key' => $key,
+        'count' => max(0, (int)($cached['count'] ?? 0)),
+    ];
+}
+}
+
+if (!function_exists('kernelResetPasswordRateLimitExceeded')) {
+function kernelResetPasswordRateLimitExceeded(string $ip): bool
+{
+    $policy = kernel_password_reset_policy();
+    $state = kernelResetPasswordRateLimitSnapshot($ip);
+    return (int)$state['count'] >= (int)$policy['reset_rate_limit_ip_max'];
+}
+}
+
+if (!function_exists('kernelResetPasswordRateLimitRecord')) {
+function kernelResetPasswordRateLimitRecord(string $ip): void
+{
+    $policy = kernel_password_reset_policy();
+    $state = kernelResetPasswordRateLimitSnapshot($ip);
+    app()->cache()->set(
+        'security_rate_limits',
+        (string)$state['key'],
+        ['count' => ((int)($state['count'] ?? 0)) + 1],
+        (int)$policy['reset_rate_limit_window_seconds']
+    );
+}
+}
+
+if (!function_exists('kernelAuthExperienceContext')) {
+function kernelAuthExperienceContext(array $overrides = []): array
+{
+    $context = function_exists('kernelResolveEntryModuleLoginContext')
+        ? kernelResolveEntryModuleLoginContext($overrides)
+        : array_merge(['page_title' => 'Sign In'], $overrides);
+
+    $brandText = trim((string)($context['login_brand_text'] ?? ''));
+    if ($brandText === '') {
+        $brandText = trim(strip_tags((string)($context['login_brand_html'] ?? '')));
+    }
+    if ($brandText === '' && is_array($context['gui'] ?? null)) {
+        $brandText = trim((string)($context['gui']['app_name'] ?? ''));
+    }
+    if ($brandText === '') {
+        $brandText = 'APPLICATION KERNEL OS';
+    }
+
+    $context['login_brand_text'] = $brandText;
+    $context['login_page_url'] = $context['login_page_url'] ?? (external_base_url() . '/login');
+    $context['forgot_password_endpoint'] = $context['forgot_password_endpoint'] ?? (external_base_url() . '/api/v1/auth/forgot-password');
+    $context['reset_password_endpoint'] = $context['reset_password_endpoint'] ?? (external_base_url() . '/api/v1/auth/reset-password');
+
+    return $context;
+}
+}
+
+if (!function_exists('kernelHandleAuthForgotPasswordPage')) {
+function kernelHandleAuthForgotPasswordPage(): void
+{
+    $entryModuleId = function_exists('kernelCurrentEntryModuleId')
+        ? kernelResolveEntryModuleAlias(kernelCurrentEntryModuleId())
+        : 'kernel';
+    if ($entryModuleId === 'ehr') {
+        app()->redirect('/ehr/forgot-password');
+        return;
+    }
+
+    $user = app()->user();
+    if (is_array($user)) {
+        $loginHome = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/';
+        app()->redirect($loginHome);
+        return;
+    }
+
+    echo app()->render('pages/forgot-password.disyl', kernelAuthExperienceContext([
+        'page_title' => 'Forgot Password',
+    ]));
+}
+}
+
+if (!function_exists('kernelHandleAuthResetPasswordPage')) {
+function kernelHandleAuthResetPasswordPage(): void
+{
+    $entryModuleId = function_exists('kernelCurrentEntryModuleId')
+        ? kernelResolveEntryModuleAlias(kernelCurrentEntryModuleId())
+        : 'kernel';
+    if ($entryModuleId === 'ehr') {
+        $target = '/ehr/reset-password';
+        $token = trim((string)($_GET['token'] ?? ''));
+        if ($token !== '') {
+            $target .= '?token=' . urlencode($token);
+        }
+        app()->redirect($target);
+        return;
+    }
+
+    $user = app()->user();
+    if (is_array($user)) {
+        $loginHome = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/';
+        app()->redirect($loginHome);
+        return;
+    }
+
+    $token = trim((string)($_GET['token'] ?? ''));
+    $tokenValid = false;
+    if ($token !== '' && preg_match('/^[a-f0-9]{64}$/', $token)) {
+        try {
+            $stmt = app()->db()->prepare(
+                'SELECT id FROM kernel_password_resets WHERE token_hash = :hash AND used_at IS NULL AND expires_at > NOW() LIMIT 1'
+            );
+            $stmt->execute([':hash' => hash('sha256', $token)]);
+            $tokenValid = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            $tokenValid = false;
+        }
+    }
+
+    echo app()->render('pages/reset-password.disyl', kernelAuthExperienceContext([
+        'page_title' => 'Reset Password',
+        'reset_token' => $token,
+        'token_valid' => $tokenValid,
+    ]));
+}
+}
+
+if (!function_exists('kernelHandleAuthForgotPassword')) {
+function kernelHandleAuthForgotPassword(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('X-Request-Id: ' . request_id());
+
+    $policy = kernel_password_reset_policy();
+    $ttlMinutes = max(1, (int)$policy['token_ttl_minutes']);
+    $input = app()->input();
+    $identity = trim((string)($input['identity'] ?? ''));
+    if ($identity === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Username or email is required.']);
+        exit;
+    }
+
+    $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if (kernelForgotPasswordRateLimitExceeded($requestIp, $identity)) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['forgot_rate_limit_message']]);
+        exit;
+    }
+    kernelForgotPasswordRateLimitRecord($requestIp, $identity);
+
+    try {
+        $db = app()->db();
+        $stmt = $db->prepare(
+            'SELECT id, username, email, full_name, token_version
+             FROM users
+             WHERE (username = :identity_username OR email = :identity_email) AND is_active = 1
+             LIMIT 1'
+        );
+        $stmt->execute([
+            ':identity_username' => $identity,
+            ':identity_email' => $identity,
+        ]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (is_array($user)) {
+            $rawToken = bin2hex(random_bytes(32));
+            $tokenHash = hash('sha256', $rawToken);
+
+            $clear = $db->prepare(
+                'UPDATE kernel_password_resets
+                 SET used_at = NOW()
+                 WHERE user_id = :user_id
+                   AND used_at IS NULL'
+            );
+            $clear->execute([':user_id' => (int)$user['id']]);
+
+            $insert = $db->prepare(
+                'INSERT INTO kernel_password_resets (user_id, token_hash, requester_ip, expires_at, created_at)
+                 VALUES (:user_id, :token_hash, :requester_ip, DATE_ADD(NOW(), INTERVAL ' . $ttlMinutes . ' MINUTE), NOW())'
+            );
+            $insert->execute([
+                ':user_id' => (int)$user['id'],
+                ':token_hash' => $tokenHash,
+                ':requester_ip' => $requestIp,
+            ]);
+
+            $email = trim((string)($user['email'] ?? ''));
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $context = kernelAuthExperienceContext();
+                $brandText = (string)($context['login_brand_text'] ?? 'APPLICATION KERNEL OS');
+                $name = trim((string)($user['full_name'] ?? $user['username'] ?? 'there'));
+                $resetUrl = external_base_url() . '/reset-password?token=' . urlencode($rawToken);
+                $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ',</p>'
+                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your ' . htmlspecialchars($brandText, ENT_QUOTES, 'UTF-8') . ' password.</p>'
+                    . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
+                $body = buildEmailTemplate('Reset Your ' . $brandText . ' Password', $content, 'Reset Password', $resetUrl);
+                $sent = sendEmail($email, $brandText . ' Password Reset', $body);
+                if (!$sent) {
+                    write_log('kernel forgot-password email dispatch failed for user_id=' . (string)$user['id'], 'error');
+                }
+            }
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'message' => (string)$policy['forgot_success_message'],
+        ]);
+        exit;
+    } catch (Throwable $e) {
+        write_log('kernel forgot-password failed: ' . $e->getMessage(), 'error');
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Unable to process request right now.']);
+        exit;
+    }
+}
+}
+
+if (!function_exists('kernelHandleAuthResetPassword')) {
+function kernelHandleAuthResetPassword(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('X-Request-Id: ' . request_id());
+
+    $policy = kernel_password_reset_policy();
+    $input = app()->input();
+    $token = trim((string)($input['token'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $confirmPassword = (string)($input['confirm_password'] ?? '');
+
+    if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['invalid_token_message']]);
+        exit;
+    }
+    if (strlen($password) < 8) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Password must be at least 8 characters.']);
+        exit;
+    }
+    if ($password !== $confirmPassword) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Passwords do not match.']);
+        exit;
+    }
+
+    $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if (kernelResetPasswordRateLimitExceeded($requestIp)) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['reset_rate_limit_message']]);
+        exit;
+    }
+    kernelResetPasswordRateLimitRecord($requestIp);
+
+    try {
+        $db = app()->db();
+        $stmt = $db->prepare(
+            'SELECT pr.id AS reset_id, pr.user_id
+             FROM kernel_password_resets pr
+             INNER JOIN users u ON u.id = pr.user_id
+             WHERE pr.token_hash = :token_hash
+               AND pr.used_at IS NULL
+               AND pr.expires_at > NOW()
+               AND u.is_active = 1
+             LIMIT 1'
+        );
+        $stmt->execute([':token_hash' => hash('sha256', $token)]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!is_array($row)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => (string)$policy['invalid_token_message']]);
+            exit;
+        }
+
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $updateUser = $db->prepare(
+            'UPDATE users
+             SET password_hash = :password_hash,
+                 token_version = COALESCE(token_version, 0) + 1
+             WHERE id = :user_id'
+        );
+        $updateUser->execute([
+            ':password_hash' => $passwordHash,
+            ':user_id' => (int)$row['user_id'],
+        ]);
+
+        $updateReset = $db->prepare(
+            'UPDATE kernel_password_resets
+             SET used_at = NOW()
+             WHERE user_id = :user_id
+               AND used_at IS NULL'
+        );
+        $updateReset->execute([':user_id' => (int)$row['user_id']]);
+
+        echo json_encode([
+            'ok' => true,
+            'message' => (string)$policy['reset_success_message'],
+            'redirect' => '/login',
+        ]);
+        exit;
+    } catch (Throwable $e) {
+        write_log('kernel reset-password failed: ' . $e->getMessage(), 'error');
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Unable to reset password right now.']);
+        exit;
+    }
 }
 }
 

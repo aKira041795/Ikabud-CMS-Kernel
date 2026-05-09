@@ -1,0 +1,34 @@
+{
+    "id": "audit",
+    "name": "Audit",
+    "version": "0.1.0",
+    "description": "EHR audit search over the canonical kernel audit log.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [],
+    "reads_tables": [
+        "audit_logs"
+    ],
+    "migrations": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.audit.search@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "ehr.audit.search@1": {
+                    "allow_callers": [
+                        "audit"
+                    ]
+                }
+            }
+        }
+    },
+    "events": []
+}

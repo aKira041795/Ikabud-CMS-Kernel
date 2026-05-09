@@ -152,8 +152,9 @@ final class ModuleContext implements AuthContract, LogContract
     // ── Rendering ────────────────────────────────────────────────────
 
     /**
-     * Render a template with the kernel's full context.
-     * Module templates are expected under templates/modules/{moduleId}/
+    * Render a template with the kernel's full context.
+    * Module templates are expected under templates/modules/{moduleId}/ or
+    * a contextual subfolder that mirrors the module path under modules/.
      */
     public function render(string $template, array $context = []): string
     {

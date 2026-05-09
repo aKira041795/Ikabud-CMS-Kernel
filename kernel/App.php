@@ -1119,6 +1119,57 @@ final class App
         $this->resolvingCurrentUser = true;
 
         try {
+            $resolveVerifiedUser = function (string $token): ?array {
+                try {
+                    $candidateUser = $this->jwt()->verify($token);
+
+                    // Multi-tenant JWT cross-validation: reject tokens issued for a
+                    // different tenant. Skipped when multi-tenancy is disabled.
+                    if ($candidateUser !== null && ($this->config['app']['multi_tenant']['enabled'] ?? false)) {
+                        $jwtTid = $candidateUser['tenant_id'] ?? null;
+                        $curTid = $this->tenant()->current();
+                        if ($jwtTid !== null && $curTid !== null && (int) $jwtTid !== $curTid) {
+                            return null;
+                        }
+                    }
+
+                    // token_version check: reject tokens issued before the last password change.
+                    // Applies to all authenticated sources (kernel + module users).
+                    if ($candidateUser !== null && isset($candidateUser['token_version'])) {
+                        $userId = (int)($candidateUser['id'] ?? 0);
+                        $source = $candidateUser['source'] ?? 'kernel';
+                        if ($userId > 0) {
+                            $userTable = $this->authTableMap[$source] ?? null;
+                            if ($userTable !== null) {
+                                try {
+                                    static $tokenVersionCache = [];
+                                    $cacheKey = $source . ':' . $userId;
+
+                                    if (!isset($tokenVersionCache[$cacheKey])) {
+                                        $stmt = $this->db()->prepare(
+                                            'SELECT COALESCE(token_version, 0) AS token_version FROM `' . $userTable . '` WHERE id = ? LIMIT 1'
+                                        );
+                                        $stmt->execute([$userId]);
+                                        $tvRow = $stmt->fetch(\PDO::FETCH_ASSOC);
+                                        $tokenVersionCache[$cacheKey] = is_array($tvRow) ? (int)$tvRow['token_version'] : 0;
+                                    }
+
+                                    if ($tokenVersionCache[$cacheKey] !== (int)$candidateUser['token_version']) {
+                                        return null;
+                                    }
+                                } catch (\Throwable $ignored) {
+                                    // Non-fatal: column may not exist yet (pre-migration). Continue.
+                                }
+                            }
+                        }
+                    }
+
+                    return $candidateUser;
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            };
+
             // Try cookies first (for page requests). The kernel has a default cookie_name,
             // but modules may also declare their own auth cookies. Resolve those directly
             // from manifests here to avoid hook/module-context recursion during bootstrap.
@@ -1133,81 +1184,28 @@ final class App
                 }
             }
 
-            $token = null;
             foreach ($cookieCandidates as $cName) {
                 $candidate = $_COOKIE[$cName] ?? null;
                 if (is_string($candidate) && $candidate !== '') {
-                    $token = $candidate;
-                    break;
+                    $resolvedUser = $resolveVerifiedUser($candidate);
+                    if ($resolvedUser !== null) {
+                        $this->currentUser = $resolvedUser;
+                        return $this->currentUser;
+                    }
                 }
             }
             
             // Then try Authorization header (for API requests)
-            if (!$token) {
-                $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-                if (preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches)) {
-                    $token = $matches[1];
+            $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+            if (preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches)) {
+                $resolvedUser = $resolveVerifiedUser($matches[1]);
+                if ($resolvedUser !== null) {
+                    $this->currentUser = $resolvedUser;
+                    return $this->currentUser;
                 }
             }
-            
-            if (!$token) {
-                return null;
-            }
-            
-            try {
-                $this->currentUser = $this->jwt()->verify($token);
 
-                // Multi-tenant JWT cross-validation: reject tokens issued for a
-                // different tenant.  Skipped when multi-tenancy is disabled.
-                if ($this->currentUser !== null && ($this->config['app']['multi_tenant']['enabled'] ?? false)) {
-                    $jwtTid = $this->currentUser['tenant_id'] ?? null;
-                    $curTid = $this->tenant()->current();
-                    if ($jwtTid !== null && $curTid !== null && (int) $jwtTid !== $curTid) {
-                        $this->currentUser = null;
-                        return null;
-                    }
-                }
-
-                // token_version check: reject tokens issued before the last password change.
-                // Applies to all authenticated sources (kernel + module users).
-                if ($this->currentUser !== null
-                    && isset($this->currentUser['token_version'])
-                ) {
-                    $userId = (int)($this->currentUser['id'] ?? 0);
-                    $source = $this->currentUser['source'] ?? 'kernel';
-                    if ($userId > 0) {
-                        // Map JWT source to the user table that holds token_version.
-                        $userTable = $this->authTableMap[$source] ?? null;
-                        if ($userTable !== null) {
-                            try {
-                                // Memoize token_version validation per request to avoid repeated queries
-                                static $tokenVersionCache = [];
-                                $cacheKey = $source . ':' . $userId;
-                                
-                                if (!isset($tokenVersionCache[$cacheKey])) {
-                                    $stmt = $this->db()->prepare(
-                                        'SELECT COALESCE(token_version, 0) AS token_version FROM `' . $userTable . '` WHERE id = ? LIMIT 1'
-                                    );
-                                    $stmt->execute([$userId]);
-                                    $tvRow = $stmt->fetch(\PDO::FETCH_ASSOC);
-                                    $tokenVersionCache[$cacheKey] = is_array($tvRow) ? (int)$tvRow['token_version'] : 0;
-                                }
-                                
-                                if ($tokenVersionCache[$cacheKey] !== (int)$this->currentUser['token_version']) {
-                                    $this->currentUser = null;
-                                    return null;
-                                }
-                            } catch (\Throwable $ignored) {
-                                // Non-fatal: column may not exist yet (pre-migration). Continue.
-                            }
-                        }
-                    }
-                }
-
-                return $this->currentUser;
-            } catch (\Throwable $e) {
-                return null;
-            }
+            return null;
         } finally {
             $this->resolvingCurrentUser = false;
         }

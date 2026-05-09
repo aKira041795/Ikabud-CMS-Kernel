@@ -1,0 +1,61 @@
+{
+    "id": "orders",
+    "name": "Orders",
+    "version": "0.1.0",
+    "description": "Encounter-linked clinical orders and order items for lab and service requests.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_orders",
+        "ehr_order_items"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.order.create@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.order.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.core.status.catalog@1",
+            "ehr.patient.view@1",
+            "ehr.encounter.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.order.create@1": {
+                    "allow_callers": [
+                        "orders",
+                        "clinical-notes"
+                    ]
+                },
+                "ehr.order.view@1": {
+                    "allow_callers": [
+                        "orders",
+                        "results",
+                        "clinical-notes",
+                        "documents"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        "ehr.order.created",
+        "ehr.order.canceled"
+    ]
+}

@@ -4340,6 +4340,11 @@ class TemplateEngine
             $template .= '.disyl';
         }
 
+        $moduleAliasPath = $this->resolveModuleTemplateAliasPath($template);
+        if ($moduleAliasPath !== null) {
+            return $moduleAliasPath;
+        }
+
         if (str_starts_with($template, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
             $resolvedPath = cmsResolveThemeTemplateAliasPath($template);
             if ($resolvedPath !== '') {
@@ -4370,6 +4375,55 @@ class TemplateEngine
         }
 
         return $candidate;
+    }
+
+    private function resolveModuleTemplateAliasPath(string $template): ?string
+    {
+        if (!str_starts_with($template, 'modules/') || !function_exists('modulePathForId') || !defined('BASE_PATH')) {
+            return null;
+        }
+
+        $parts = explode('/', $template, 3);
+        if (count($parts) < 3) {
+            return null;
+        }
+
+        $moduleId = trim((string)($parts[1] ?? ''));
+        $templateSuffix = ltrim((string)($parts[2] ?? ''), '/');
+        if ($moduleId === '' || $templateSuffix === '') {
+            return null;
+        }
+
+        $modulePath = modulePathForId($moduleId);
+        if (!is_string($modulePath) || $modulePath === '') {
+            return null;
+        }
+
+        $modulesRoot = rtrim((string)BASE_PATH, '/') . '/modules/';
+        $normalizedModulePath = $this->normalizePath($modulePath);
+        $normalizedModulesRoot = $this->normalizePath($modulesRoot);
+        if (!str_starts_with($normalizedModulePath, $normalizedModulesRoot)) {
+            return null;
+        }
+
+        $relativeModulePath = ltrim(substr($normalizedModulePath, strlen($normalizedModulesRoot)), '/');
+        if ($relativeModulePath === '') {
+            return null;
+        }
+
+        $candidate = $this->templateDir . '/modules/' . $relativeModulePath . '/' . $templateSuffix;
+        $normalizedCandidate = $this->normalizePath($candidate);
+        $normalizedTemplateDir = $this->normalizePath($this->templateDir);
+        if (!str_starts_with($normalizedCandidate, $normalizedTemplateDir . '/')) {
+            $this->logError("Path traversal attempt blocked: {$template}");
+            return '';
+        }
+
+        if (is_file($normalizedCandidate)) {
+            return $normalizedCandidate;
+        }
+
+        return null;
     }
 
     /**

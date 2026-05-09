@@ -36,7 +36,10 @@
 
 ## Project-specific conventions
 - Do not bypass module routing conventions; keep handler references as `module-id:functionName` in module route maps.
+- When a module lives in a contextual subfolder under `modules/`, mirror that relative path under `templates/modules/` and keep render aliases stable as `modules/<module-id>/...`.
 - Prefer existing helper/context APIs in CMS handlers (`cmsRequireRole`, `cmsRender`, `cmsDb`, etc.) instead of ad-hoc globals.
+- For module DB helpers, type them to `Ikabud\Kernel\Contracts\ModuleDB` rather than raw `PDO`; `module()->db()` returns the module DB contract and strict `PDO` return types can fail only at runtime.
+- Auth-owned or tenant entry modules must own their auth/admin shell. Their settings, recovery, and entry-admin pages must not depend on `cmsRender` / `cmsAdminContext` unless the module is explicitly a CMS extension rather than the tenant shell.
 - For builder changes, update source TS/TSX under [modules/cms/builder-ui/src](modules/cms/builder-ui/src), not generated bundles in `public/admin/assets`.
 - For node style/props behavior, preserve default-merge semantics used in [modules/cms/helpers.php](modules/cms/helpers.php) and [modules/cms/builder-ui/src/builder/components/NodeRenderer.tsx](modules/cms/builder-ui/src/builder/components/NodeRenderer.tsx).
 - Keep public rendering deterministic: changes to builder animation/style attrs must not create duplicate/conflicting HTML attributes.

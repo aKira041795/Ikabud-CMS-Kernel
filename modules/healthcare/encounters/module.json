@@ -1,0 +1,89 @@
+{
+    "id": "encounters",
+    "name": "Encounters",
+    "version": "0.1.0",
+    "description": "Encounter lifecycle and vitals services for the EHR domain.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_encounters",
+        "ehr_vitals"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.encounter.create@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.encounter.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.vitals.record@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.core.status.catalog@1",
+            "ehr.patient.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.encounter.create@1": {
+                    "allow_callers": [
+                        "encounters",
+                        "scheduling"
+                    ]
+                },
+                "ehr.encounter.view@1": {
+                    "allow_callers": [
+                        "encounters",
+                        "clinical-notes",
+                        "orders",
+                        "results",
+                        "prescriptions",
+                        "documents",
+                        "scheduling"
+                    ]
+                },
+                "ehr.vitals.record@1": {
+                    "allow_callers": [
+                        "encounters",
+                        "clinical-notes"
+                    ]
+                }
+            }
+        }
+    },
+    "nav": [
+        {
+            "key": "ehr_encounters",
+            "label": "Encounters",
+            "url": "/admin/ehr/encounters",
+            "icon": "clipboard-list",
+            "roles": [
+                "admin"
+            ],
+            "description": "Track active and completed visits"
+        }
+    ],
+    "events": [
+        "ehr.encounter.started",
+        "ehr.encounter.closed",
+        "ehr.vitals.recorded"
+    ]
+}

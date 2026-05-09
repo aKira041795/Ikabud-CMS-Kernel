@@ -170,16 +170,37 @@ class MigrationRunner
 
             $normalized = str_replace('\\', '/', rtrim($dir, '/'));
 
-            if (preg_match('#/modules/([^/]+)/#', $normalized, $m)) {
+            if (function_exists('\discoverModules')) {
+                foreach (\discoverModules() as $candidateId => $manifest) {
+                    $candidatePath = str_replace('\\', '/', rtrim((string)($manifest['_path'] ?? ''), '/'));
+                    if ($candidatePath !== '' && str_starts_with($normalized, $candidatePath . '/')) {
+                        $moduleExecuted = $this->migrate((string)$candidateId);
+                        foreach ($moduleExecuted as $migration) {
+                            $executed[] = $migration;
+                        }
+                        continue 2;
+                    }
+                }
+
+                if (preg_match('#/modules/(?:.+/)?([^/]+)/#', $normalized, $m)) {
+                    $moduleId = (string)($m[1] ?? '');
+                    if ($moduleId !== '') {
+                        $moduleExecuted = $this->migrate($moduleId);
+                        foreach ($moduleExecuted as $migration) {
+                            $executed[] = $migration;
+                        }
+                        continue;
+                    }
+                }
+            } elseif (preg_match('#/modules/(?:.+/)?([^/]+)/#', $normalized, $m)) {
                 $moduleId = (string)($m[1] ?? '');
-                if ($moduleId === '') {
+                if ($moduleId !== '') {
+                    $moduleExecuted = $this->migrate($moduleId);
+                    foreach ($moduleExecuted as $migration) {
+                        $executed[] = $migration;
+                    }
                     continue;
                 }
-                $moduleExecuted = $this->migrate($moduleId);
-                foreach ($moduleExecuted as $migration) {
-                    $executed[] = $migration;
-                }
-                continue;
             }
 
             throw new \RuntimeException(
@@ -211,14 +232,7 @@ class MigrationRunner
             return $results;
         }
 
-        foreach (scandir($this->modulesPath) as $entry) {
-            if ($entry === '.' || $entry === '..') continue;
-            $manifestPath = $this->modulesPath . '/' . $entry . '/module.json';
-            if (!is_file($manifestPath)) continue;
-
-            $manifest = json_decode((string) file_get_contents($manifestPath), true);
-            $moduleId = $manifest['id'] ?? $entry;
-
+        foreach ($this->discoverModuleIds() as $moduleId) {
             $moduleResult = $this->migrate($moduleId);
             if ($moduleResult) {
                 $results[$moduleId] = $moduleResult;
@@ -311,14 +325,7 @@ class MigrationRunner
 
         // Modules
         if (is_dir($this->modulesPath)) {
-            foreach (scandir($this->modulesPath) as $entry) {
-                if ($entry === '.' || $entry === '..') continue;
-                $manifestPath = $this->modulesPath . '/' . $entry . '/module.json';
-                if (!is_file($manifestPath)) continue;
-
-                $manifest = json_decode((string) file_get_contents($manifestPath), true);
-                $moduleId = $manifest['id'] ?? $entry;
-
+            foreach ($this->discoverModuleIds() as $moduleId) {
                 $modulePending = $this->getPending($moduleId);
                 if ($modulePending) {
                     $result[$moduleId] = array_map(fn($f) => is_array($f) ? basename((string)($f['path'] ?? '')) : '', $modulePending);
@@ -424,7 +431,8 @@ class MigrationRunner
         if ($moduleId === '_control') {
             return $this->controlMigrationsPath;
         }
-        return $this->modulesPath . '/' . $moduleId . '/migrations';
+        $modulePath = $this->resolveModulePath($moduleId);
+        return $modulePath . '/migrations';
     }
 
     /**
@@ -444,20 +452,21 @@ class MigrationRunner
 
         $sources = [];
 
-        $manifestPath = $this->modulesPath . '/' . $moduleId . '/module.json';
+        $modulePath = $this->resolveModulePath($moduleId);
+        $manifestPath = $modulePath . '/module.json';
         if (is_file($manifestPath)) {
             $manifest = json_decode((string) file_get_contents($manifestPath), true);
             if (is_array($manifest) && !empty($manifest['migrations']) && is_array($manifest['migrations'])) {
                 foreach ($manifest['migrations'] as $rel) {
                     $rel = ltrim((string) $rel, '/');
-                    $sources[] = ['type' => 'file', 'path' => $this->modulesPath . '/' . $moduleId . '/' . $rel];
+                    $sources[] = ['type' => 'file', 'path' => $modulePath . '/' . $rel];
                 }
             }
         }
 
         // Back-compat / conventional directories
-        $sources[] = ['type' => 'dir', 'path' => $this->modulesPath . '/' . $moduleId . '/migrations'];
-        $sources[] = ['type' => 'dir', 'path' => $this->modulesPath . '/' . $moduleId . '/database/migrations'];
+        $sources[] = ['type' => 'dir', 'path' => $modulePath . '/migrations'];
+        $sources[] = ['type' => 'dir', 'path' => $modulePath . '/database/migrations'];
 
         // Dedupe by path
         $seen = [];
@@ -469,6 +478,44 @@ class MigrationRunner
             $out[] = $s;
         }
         return $out;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function discoverModuleIds(): array
+    {
+        if (function_exists('\discoverModules')) {
+            return array_keys(\discoverModules());
+        }
+
+        $moduleIds = [];
+        foreach (scandir($this->modulesPath) as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $manifestPath = $this->modulesPath . '/' . $entry . '/module.json';
+            if (!is_file($manifestPath)) {
+                continue;
+            }
+
+            $manifest = json_decode((string) file_get_contents($manifestPath), true);
+            $moduleIds[] = (string)($manifest['id'] ?? $entry);
+        }
+
+        return $moduleIds;
+    }
+
+    private function resolveModulePath(string $moduleId): string
+    {
+        if (function_exists('\modulePathForId')) {
+            $resolved = \modulePathForId($moduleId);
+            if (is_string($resolved) && $resolved !== '') {
+                return $resolved;
+            }
+        }
+
+        return $this->modulesPath . '/' . $moduleId;
     }
 
     /**

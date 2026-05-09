@@ -1,0 +1,72 @@
+{
+    "id": "prescriptions",
+    "name": "Prescriptions",
+    "version": "0.1.0",
+    "description": "Encounter-linked prescription issuance and cancellation with patient and prescriber traceability.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_prescriptions"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.prescription.issue@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.prescription.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.prescription.cancel@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.core.status.catalog@1",
+            "ehr.patient.view@1",
+            "ehr.encounter.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.prescription.issue@1": {
+                    "allow_callers": [
+                        "prescriptions",
+                        "clinical-notes"
+                    ]
+                },
+                "ehr.prescription.view@1": {
+                    "allow_callers": [
+                        "prescriptions",
+                        "clinical-notes",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.prescription.cancel@1": {
+                    "allow_callers": [
+                        "prescriptions",
+                        "clinical-notes"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        "ehr.prescription.issued",
+        "ehr.prescription.canceled"
+    ]
+}

@@ -1,0 +1,118 @@
+{
+    "id": "privacy-consent",
+    "name": "Privacy Consent",
+    "version": "0.1.0",
+    "description": "Consent records and break-glass request logging for restricted EHR access workflows.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_consents",
+        "ehr_break_glass_events"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.consent.record@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.consent.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.consent.active@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.break_glass.request@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.break_glass.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.break_glass.active@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.patient.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.consent.record@1": {
+                    "allow_callers": [
+                        "privacy-consent",
+                        "documents",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.consent.view@1": {
+                    "allow_callers": [
+                        "privacy-consent",
+                        "documents",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.consent.active@1": {
+                    "allow_callers": [
+                        "privacy-consent",
+                        "documents",
+                        "clinical-notes",
+                        "results",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.break_glass.request@1": {
+                    "allow_callers": [
+                        "privacy-consent",
+                        "documents",
+                        "clinical-notes",
+                        "results"
+                    ]
+                },
+                "ehr.break_glass.view@1": {
+                    "allow_callers": [
+                        "privacy-consent",
+                        "documents"
+                    ]
+                },
+                "ehr.break_glass.active@1": {
+                    "allow_callers": [
+                        "privacy-consent",
+                        "documents",
+                        "clinical-notes",
+                        "results"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        "ehr.consent.recorded",
+        "ehr.break_glass.accessed"
+    ]
+}

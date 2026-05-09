@@ -1,0 +1,284 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="mx-auto max-w-5xl space-y-6">
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">EHR Settings</p>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Branding and Access</h1>
+                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Set the custom EHR name, upload the login logo and favicon, and manage the module-owned password reset experience used by the EHR entry tenant.</p>
+            </div>
+            <div class="flex flex-wrap gap-3 text-sm">
+                <a href="{login_url}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50">Open Login</a>
+                <a href="{forgot_password_url}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50">Open Forgot Password</a>
+            </div>
+        </div>
+    </section>
+
+    <div id="ehr-settings-banner" class="hidden rounded-2xl border px-4 py-3 text-sm font-medium"></div>
+
+    <section class="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+        <form id="ehr-settings-form" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+            <div class="grid gap-5 md:grid-cols-2">
+                <div class="md:col-span-2">
+                    <label for="ehr-app-name" class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Custom EHR Name</label>
+                    <input id="ehr-app-name" name="app_name" maxlength="120" value="{settings.app_name}" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                </div>
+                <div class="md:col-span-2">
+                    <label for="ehr-login-subtitle" class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Login Subtitle</label>
+                    <textarea id="ehr-login-subtitle" name="login_subtitle" rows="4" maxlength="280" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">{settings.login_subtitle}</textarea>
+                </div>
+            </div>
+
+            <input type="hidden" name="logo_url" value="{settings.logo_url}">
+            <input type="hidden" name="favicon_url" value="{settings.favicon_url}">
+
+            <div class="grid gap-6 md:grid-cols-2">
+                <div class="space-y-3 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Logo</p>
+                        <p class="mt-1 text-sm text-slate-600">Shown on the EHR login, forgot-password, and reset-password pages.</p>
+                    </div>
+                    <div id="ehr-logo-preview" class="flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-white text-3xl font-semibold text-teal-700">{if settings.logo_url}<img src="{settings.logo_url}" alt="{settings.app_name} logo" class="h-full w-full object-contain p-3">{else}{settings.brand_initial}{/if}</div>
+                    <input id="ehr-logo-file" type="file" accept="image/*" class="block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-teal-700">
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" id="ehr-logo-remove" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100" {if !settings.logo_url}hidden{/if}>Use Monogram</button>
+                    </div>
+                </div>
+
+                <div class="space-y-3 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Favicon</p>
+                        <p class="mt-1 text-sm text-slate-600">Used by the branded EHR auth pages in the browser tab and bookmarks.</p>
+                    </div>
+                    <div id="ehr-favicon-preview" class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white p-3">{if settings.favicon_url}<img src="{settings.favicon_url}" alt="{settings.app_name} favicon" class="h-full w-full object-contain">{else}<img src="{settings.resolved_favicon_url}" alt="Default EHR favicon" class="h-full w-full object-contain">{/if}</div>
+                    <input id="ehr-favicon-file" type="file" accept="image/*,.ico" class="block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-teal-700">
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" id="ehr-favicon-remove" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100" {if !settings.favicon_url}hidden{/if}>Use Default Favicon</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-5">
+                <p class="max-w-2xl text-sm leading-6 text-slate-600">The tenant keeps the kernel login page at <span class="font-semibold text-slate-900">/login</span>, while password recovery resolves into the EHR-owned reset flow behind <span class="font-semibold text-slate-900">/forgot-password</span> and <span class="font-semibold text-slate-900">/reset-password</span>.</p>
+                <button type="submit" id="ehr-settings-submit" class="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">Save EHR Settings</button>
+            </div>
+        </form>
+
+        <aside class="rounded-3xl border border-slate-200 bg-slate-950 p-6 text-slate-100 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Preview</p>
+            <div class="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div class="flex items-center gap-4">
+                    <div id="ehr-preview-mark" class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[22px] bg-white/10 text-2xl font-semibold text-teal-200">{if settings.logo_url}<img src="{settings.logo_url}" alt="{settings.app_name} logo" class="h-full w-full object-contain bg-white p-2">{else}{settings.brand_initial}{/if}</div>
+                    <div>
+                        <h2 id="ehr-preview-name" class="text-2xl font-semibold tracking-tight">{settings.app_name}</h2>
+                        <p id="ehr-preview-subtitle" class="mt-1 text-sm leading-6 text-slate-300">{settings.login_subtitle}</p>
+                    </div>
+                </div>
+                <div class="mt-6 rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
+                    <p class="font-semibold text-white">Reset password convention</p>
+                    <p class="mt-2">The EHR module owns its reset tokens and recovery endpoints. This branding is reused across sign-in, forgot-password, reset-password, and reset email copy.</p>
+                </div>
+            </div>
+        </aside>
+    </section>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(() => {
+    const form = document.getElementById('ehr-settings-form');
+    const banner = document.getElementById('ehr-settings-banner');
+    const submitButton = document.getElementById('ehr-settings-submit');
+    const appNameInput = document.getElementById('ehr-app-name');
+    const subtitleInput = document.getElementById('ehr-login-subtitle');
+    const logoUrlInput = form?.querySelector('[name="logo_url"]');
+    const faviconUrlInput = form?.querySelector('[name="favicon_url"]');
+    const logoFileInput = document.getElementById('ehr-logo-file');
+    const faviconFileInput = document.getElementById('ehr-favicon-file');
+    const logoPreview = document.getElementById('ehr-logo-preview');
+    const faviconPreview = document.getElementById('ehr-favicon-preview');
+    const previewMark = document.getElementById('ehr-preview-mark');
+    const previewName = document.getElementById('ehr-preview-name');
+    const previewSubtitle = document.getElementById('ehr-preview-subtitle');
+    const logoRemoveButton = document.getElementById('ehr-logo-remove');
+    const faviconRemoveButton = document.getElementById('ehr-favicon-remove');
+
+    function brandInitial(name) {
+        return String(name || 'EHR Suite')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part.charAt(0).toUpperCase())
+            .join('') || 'EH';
+    }
+
+    function showBanner(message, type = 'info') {
+        if (!banner) {
+            return;
+        }
+        banner.textContent = message;
+        banner.className = 'rounded-2xl border px-4 py-3 text-sm font-medium';
+        if (type === 'success') {
+            banner.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-700');
+        } else if (type === 'error') {
+            banner.classList.add('border-rose-200', 'bg-rose-50', 'text-rose-700');
+        } else {
+            banner.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
+        }
+        banner.classList.remove('hidden');
+    }
+
+    function renderBrandPreview() {
+        const name = appNameInput?.value?.trim() || 'EHR Suite';
+        const subtitle = subtitleInput?.value?.trim() || 'Clinical operations, records access, and compliance workflows in one secure workspace.';
+        const logoUrl = logoUrlInput?.value || '';
+        const faviconUrl = faviconUrlInput?.value || '';
+
+        if (previewName) {
+            previewName.textContent = name;
+        }
+        if (previewSubtitle) {
+            previewSubtitle.textContent = subtitle;
+        }
+
+        const markTargets = [logoPreview, previewMark];
+        markTargets.forEach((target) => {
+            if (!target) {
+                return;
+            }
+            target.replaceChildren();
+            if (logoUrl) {
+                const image = document.createElement('img');
+                image.src = logoUrl;
+                image.alt = name + ' logo';
+                image.className = target === logoPreview
+                    ? 'h-full w-full object-contain p-3'
+                    : 'h-full w-full object-contain bg-white p-2';
+                target.appendChild(image);
+            } else {
+                target.textContent = brandInitial(name);
+            }
+        });
+
+        if (logoRemoveButton) {
+            logoRemoveButton.hidden = !logoUrl;
+        }
+
+        if (faviconPreview) {
+            faviconPreview.replaceChildren();
+            const image = document.createElement('img');
+            image.src = faviconUrl || '{settings.resolved_favicon_url}';
+            image.alt = name + ' favicon';
+            image.className = 'h-full w-full object-contain';
+            faviconPreview.appendChild(image);
+        }
+        if (faviconRemoveButton) {
+            faviconRemoveButton.hidden = !faviconUrl;
+        }
+    }
+
+    async function uploadAsset(assetType, file) {
+        const body = new FormData();
+        body.append('asset_type', assetType);
+        body.append('asset_file', file);
+        const response = await fetch('{base_url}/api/v1/ehr/settings/branding-asset', {
+            method: 'POST',
+            body,
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || 'Branding asset upload failed.');
+        }
+        return payload;
+    }
+
+    form?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        submitButton.disabled = true;
+        submitButton.textContent = 'Saving...';
+
+        try {
+            let logoUrl = logoUrlInput?.value || '';
+            let faviconUrl = faviconUrlInput?.value || '';
+
+            const logoFile = logoFileInput?.files?.[0] || null;
+            if (logoFile) {
+                showBanner('Uploading EHR logo...');
+                const upload = await uploadAsset('logo', logoFile);
+                logoUrl = upload.asset_url || '';
+                if (logoUrlInput) {
+                    logoUrlInput.value = logoUrl;
+                }
+            }
+
+            const faviconFile = faviconFileInput?.files?.[0] || null;
+            if (faviconFile) {
+                showBanner('Uploading EHR favicon...');
+                const upload = await uploadAsset('favicon', faviconFile);
+                faviconUrl = upload.asset_url || '';
+                if (faviconUrlInput) {
+                    faviconUrlInput.value = faviconUrl;
+                }
+            }
+
+            const response = await fetch('{base_url}/api/v1/ehr/settings/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    app_name: appNameInput?.value || '',
+                    login_subtitle: subtitleInput?.value || '',
+                    logo_url: logoUrl,
+                    favicon_url: faviconUrl,
+                }),
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || 'Unable to save EHR settings.');
+            }
+
+            if (logoFileInput) {
+                logoFileInput.value = '';
+            }
+            if (faviconFileInput) {
+                faviconFileInput.value = '';
+            }
+            renderBrandPreview();
+            showBanner(payload.message || 'EHR settings updated.', 'success');
+        } catch (error) {
+            showBanner(error instanceof Error ? error.message : 'Unable to save EHR settings.', 'error');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Save EHR Settings';
+        }
+    });
+
+    logoRemoveButton?.addEventListener('click', () => {
+        if (logoUrlInput) {
+            logoUrlInput.value = '';
+        }
+        if (logoFileInput) {
+            logoFileInput.value = '';
+        }
+        renderBrandPreview();
+    });
+
+    faviconRemoveButton?.addEventListener('click', () => {
+        if (faviconUrlInput) {
+            faviconUrlInput.value = '';
+        }
+        if (faviconFileInput) {
+            faviconFileInput.value = '';
+        }
+        renderBrandPreview();
+    });
+
+    appNameInput?.addEventListener('input', renderBrandPreview);
+    subtitleInput?.addEventListener('input', renderBrandPreview);
+    renderBrandPreview();
+})();
+</script>
+{/block}

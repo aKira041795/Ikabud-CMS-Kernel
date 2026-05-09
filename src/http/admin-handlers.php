@@ -681,6 +681,66 @@ if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
             $skipped = [];
             $tDb = app()->dbForTenant($tenantId);
             if ($tDb !== null) {
+                foreach (kernelAuthOwnedModules() as $moduleId => $spec) {
+                    $usersTable = trim((string)($spec['users_table'] ?? ''));
+                    $emailColumn = trim((string)($spec['email_column'] ?? ''));
+                    $roleColumn = trim((string)($spec['role_column'] ?? 'role'));
+                    $idColumn = trim((string)($spec['id_column'] ?? 'id'));
+                    $activeColumn = trim((string)($spec['active_column'] ?? ''));
+                    $adminRoles = array_values(array_filter(array_map(static fn($role) => trim((string)$role), (array)($spec['admin_roles'] ?? []))));
+                    if ($usersTable === '' || $emailColumn === '' || in_array($usersTable, ['cms_users', 'gm_users', 'wms_users', 'users'], true) || $adminRoles === []) {
+                        continue;
+                    }
+
+                    try {
+                        $rolePlaceholders = [];
+                        $params = [];
+                        foreach ($adminRoles as $index => $adminRole) {
+                            $placeholder = ':role' . $index;
+                            $rolePlaceholders[] = $placeholder;
+                            $params[$placeholder] = $adminRole;
+                        }
+
+                        $sql = 'SELECT ' . $idColumn . ' AS row_id, ' . $emailColumn . ' AS row_email FROM ' . $usersTable
+                            . ' WHERE ' . $roleColumn . ' IN (' . implode(', ', $rolePlaceholders) . ')';
+                        if ($activeColumn !== '') {
+                            $sql .= ' AND ' . $activeColumn . ' = 1';
+                        }
+                        $sql .= ' ORDER BY ' . $idColumn . ' ASC LIMIT 1';
+
+                        $check = $tDb->prepare($sql);
+                        $check->execute($params);
+                        $admin = $check->fetch(PDO::FETCH_ASSOC);
+                        if ($admin) {
+                            if ((string)($admin['row_email'] ?? '') === $adminEmail) {
+                                $pushed[] = $usersTable;
+                            } else {
+                                $update = $tDb->prepare('UPDATE ' . $usersTable . ' SET ' . $emailColumn . ' = :email WHERE ' . $idColumn . ' = :id LIMIT 1');
+                                $update->execute([':email' => $adminEmail, ':id' => (int)($admin['row_id'] ?? 0)]);
+                                $pushed[] = $usersTable;
+                            }
+                        } else {
+                            $skipped[] = $usersTable . ':no_matching_row';
+                        }
+                    } catch (Throwable $ex) {
+                        $msg = $ex->getMessage();
+                        if (strpos($msg, '1062') !== false || stripos($msg, 'Duplicate entry') !== false) {
+                            adminViewCacheInvalidate(['admin:view:tenants']);
+                            echo json_encode(['ok' => false, 'error' => 'That email is already used by another account in this tenant auth module. Choose a different email or update the existing user directly.']);
+                            return;
+                        }
+                        if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                            write_log('apiTenantAdminEmailPush auth_owned failed: ' . $msg, 'error', [
+                                'tenant_id' => $tenantId,
+                                'module_id' => $moduleId,
+                                'users_table' => $usersTable,
+                                'request_id' => request_id(),
+                            ]);
+                        }
+                        $skipped[] = $usersTable;
+                    }
+                }
+
                 try {
                     $check = $tDb->prepare('SELECT id, email FROM cms_users WHERE role IN (:r1, :r2) ORDER BY id ASC LIMIT 1');
                     $check->execute([':r1' => 'superadmin', ':r2' => 'administrator']);

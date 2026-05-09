@@ -1,0 +1,34 @@
+{
+    "id": "billing-bridge",
+    "name": "Billing Bridge",
+    "version": "0.1.0",
+    "description": "Derived billing charge candidates generated from EHR event audit records.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [],
+    "reads_tables": [
+        "audit_logs"
+    ],
+    "migrations": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.billing.charge_candidates@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "ehr.billing.charge_candidates@1": {
+                    "allow_callers": [
+                        "billing-bridge"
+                    ]
+                }
+            }
+        }
+    },
+    "events": []
+}

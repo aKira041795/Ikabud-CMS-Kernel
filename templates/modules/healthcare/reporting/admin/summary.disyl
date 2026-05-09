@@ -1,0 +1,157 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">EHR Operational Reporting</h1>
+            <p class="mt-1 text-sm text-slate-500">Track appointment flow, encounter volume, result turnaround, and audit activity from one operational dashboard.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <div>
+                API endpoint: <span class="font-mono text-slate-700">{api_url}</span>
+            </div>
+            <a href="{csv_url}" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>
+        </div>
+    </div>
+
+    <form method="get" action="" class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Facility ID</label>
+                <input type="number" min="1" name="facility_id" value="{filters.facility_id}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Department ID</label>
+                <input type="number" min="1" name="department_id" value="{filters.department_id}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Date From</label>
+                <input type="date" name="date_from" value="{filters.date_from}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Date To</label>
+                <input type="date" name="date_to" value="{filters.date_to}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+            <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">Apply Filters</button>
+            <a href="{base_url}/admin/ehr/reports/summary" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</a>
+        </div>
+    </form>
+
+    {if !report_ok}
+    <div class="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div class="font-semibold">Summary report unavailable</div>
+        <div class="mt-1">{report_error}</div>
+    </div>
+    {else}
+    <div class="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Appointments</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.appointment_flow.total | default:0}</div>
+            <div class="mt-1 text-xs text-slate-500">Scheduled {report_summary.appointment_flow.by_status.scheduled | default:0} · Completed {report_summary.appointment_flow.by_status.completed | default:0}</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Encounters</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.encounter_volume.total | default:0}</div>
+            <div class="mt-1 text-xs text-slate-500">Open {report_summary.encounter_volume.open_count | default:0} · Completed {report_summary.encounter_volume.completed_count | default:0}</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Result Turnaround</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.turnaround_time.average_minutes | default:'--'}</div>
+            <div class="mt-1 text-xs text-slate-500">Average minutes across {report_summary.turnaround_time.released_count | default:0} released results</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Audit Events</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.user_activity.total_events | default:0}</div>
+            <div class="mt-1 text-xs text-slate-500">Top modules and actions in the selected window</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="border-b border-slate-100 px-5 py-4">
+                <h2 class="text-sm font-semibold text-slate-900">Appointment Flow</h2>
+            </div>
+            <div class="px-5 py-4">
+                {if report_summary.appointment_flow.by_status | count == 0}
+                <div class="text-sm text-slate-500">No appointment activity matched the current filters.</div>
+                {else}
+                <div class="space-y-3">
+                    {foreach report_summary.appointment_flow.by_status as status => count}
+                    <div class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm">
+                        <span class="font-medium capitalize text-slate-700">{status}</span>
+                        <span class="font-semibold text-slate-900">{count}</span>
+                    </div>
+                    {/foreach}
+                </div>
+                {/if}
+            </div>
+        </div>
+
+        <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="border-b border-slate-100 px-5 py-4">
+                <h2 class="text-sm font-semibold text-slate-900">Encounter Volume</h2>
+            </div>
+            <div class="px-5 py-4">
+                {if report_summary.encounter_volume.by_status | count == 0}
+                <div class="text-sm text-slate-500">No encounter activity matched the current filters.</div>
+                {else}
+                <div class="space-y-3">
+                    {foreach report_summary.encounter_volume.by_status as status => count}
+                    <div class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm">
+                        <span class="font-medium capitalize text-slate-700">{status}</span>
+                        <span class="font-semibold text-slate-900">{count}</span>
+                    </div>
+                    {/foreach}
+                </div>
+                {/if}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="border-b border-slate-100 px-5 py-4">
+                <h2 class="text-sm font-semibold text-slate-900">Top Modules</h2>
+            </div>
+            <div class="px-5 py-4">
+                {if report_summary.user_activity.top_modules | count == 0}
+                <div class="text-sm text-slate-500">No audit activity matched the current filters.</div>
+                {else}
+                <div class="space-y-3">
+                    {foreach report_summary.user_activity.top_modules as row}
+                    <div class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm">
+                        <span class="font-medium text-slate-700">{row.module}</span>
+                        <span class="font-semibold text-slate-900">{row.count}</span>
+                    </div>
+                    {/foreach}
+                </div>
+                {/if}
+            </div>
+        </div>
+
+        <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="border-b border-slate-100 px-5 py-4">
+                <h2 class="text-sm font-semibold text-slate-900">Top Actions</h2>
+            </div>
+            <div class="px-5 py-4">
+                {if report_summary.user_activity.top_actions | count == 0}
+                <div class="text-sm text-slate-500">No audit activity matched the current filters.</div>
+                {else}
+                <div class="space-y-3">
+                    {foreach report_summary.user_activity.top_actions as row}
+                    <div class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm">
+                        <span class="font-medium text-slate-700">{row.action}</span>
+                        <span class="font-semibold text-slate-900">{row.count}</span>
+                    </div>
+                    {/foreach}
+                </div>
+                {/if}
+            </div>
+        </div>
+    </div>
+    {/if}
+</div>
+{/block}

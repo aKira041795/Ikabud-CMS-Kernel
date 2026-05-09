@@ -155,7 +155,7 @@ Browser → Apache mod_rewrite → public/index.php
 
 ## Module System (`src/helpers/module-manager.php`)
 
-Modules are **manifest-driven**. Each module lives under `modules/{id}/` and declares its identity in `module.json`.
+Modules are **manifest-driven**. Each module lives under `modules/{id}/` or a contextual subfolder such as `modules/healthcare/{id}/` and declares its identity in `module.json`. Templates mirror that relative path under `templates/modules/`.
 
 ### Module Manifest (`module.json`)
 
@@ -177,7 +177,7 @@ Modules are **manifest-driven**. Each module lives under `modules/{id}/` and dec
 
 ### Discovery & Loading
 
-1. **Scan** `modules/` for directories containing `module.json`
+1. **Scan recursively** under `modules/` for directories containing `module.json`
 2. **Registry** persisted in `storage/modules.json` — tracks enabled/disabled state
 3. **Dependency check** — Validate all `capabilities.requires` are satisfied before loading
 4. **Route loading** — Each module's `routes.php` is merged into the global route map

@@ -1,0 +1,85 @@
+{
+    "id": "results",
+    "name": "Results",
+    "version": "0.1.0",
+    "description": "Verified and released clinical results linked to order items.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_lab_results"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql",
+        "database/migrations/002_add_restricted_flag.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.result.enter@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.result.verify@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.result.release@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.result.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.core.status.catalog@1",
+            "ehr.order.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.result.enter@1": {
+                    "allow_callers": [
+                        "results"
+                    ]
+                },
+                "ehr.result.verify@1": {
+                    "allow_callers": [
+                        "results"
+                    ]
+                },
+                "ehr.result.release@1": {
+                    "allow_callers": [
+                        "results"
+                    ]
+                },
+                "ehr.result.view@1": {
+                    "allow_callers": [
+                        "results",
+                        "clinical-notes",
+                        "patient-portal"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        "ehr.result.entered",
+        "ehr.result.viewed",
+        "ehr.result.access_denied",
+        "ehr.result.verified",
+        "ehr.result.released"
+    ]
+}

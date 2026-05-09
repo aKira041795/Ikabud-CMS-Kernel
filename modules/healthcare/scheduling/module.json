@@ -1,0 +1,81 @@
+{
+    "id": "scheduling",
+    "name": "Scheduling",
+    "version": "0.1.0",
+    "description": "Appointment and queue operations for the EHR domain.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_appointments"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.appointment.schedule@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.appointment.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.appointment.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.appointment.transition@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.core.status.catalog@1",
+            "ehr.patient.view@1",
+            "ehr.encounter.create@1",
+            "ehr.encounter.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.appointment.schedule@1": {
+                    "allow_callers": [
+                        "scheduling"
+                    ]
+                },
+                "ehr.appointment.view@1": {
+                    "allow_callers": [
+                        "scheduling"
+                    ]
+                },
+                "ehr.appointment.list@1": {
+                    "allow_callers": [
+                        "scheduling"
+                    ]
+                },
+                "ehr.appointment.transition@1": {
+                    "allow_callers": [
+                        "scheduling"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        "ehr.appointment.scheduled",
+        "ehr.appointment.updated"
+    ]
+}

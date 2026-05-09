@@ -1,0 +1,141 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">EHR Compliance Reporting</h1>
+            <p class="mt-1 text-sm text-slate-500">Review restricted-record activity, denied access attempts, print and export actions, and break-glass usage.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <div>
+                API endpoint: <span class="font-mono text-slate-700">{api_url}</span>
+            </div>
+            <a href="{csv_url}" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>
+        </div>
+    </div>
+
+    <form method="get" action="" class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Patient ID</label>
+                <input type="number" min="1" name="patient_id" value="{filters.patient_id}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Kernel Actor User ID</label>
+                <input type="number" min="1" name="actor_user_id" value="{filters.actor_user_id}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Module Actor User ID</label>
+                <input type="number" min="1" name="actor_module_user_id" value="{filters.actor_module_user_id}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Actor Source</label>
+                <input type="text" name="actor_source" value="{filters.actor_source}" placeholder="cms, kernel, patient-portal" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Date From</label>
+                <input type="date" name="date_from" value="{filters.date_from}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Date To</label>
+                <input type="date" name="date_to" value="{filters.date_to}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Limit</label>
+                <input type="number" min="1" max="200" name="limit" value="{filters.limit}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+            </div>
+            <input type="hidden" name="page" value="1">
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+            <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">Apply Filters</button>
+            <a href="{base_url}/admin/ehr/reports/compliance" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</a>
+        </div>
+    </form>
+
+    {if !report_ok}
+    <div class="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div class="font-semibold">Compliance report unavailable</div>
+        <div class="mt-1">{report_error}</div>
+    </div>
+    {else}
+    <div class="grid grid-cols-2 gap-4 xl:grid-cols-5">
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sensitive Events</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.total_sensitive_events | default:0}</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Denied Access</div>
+            <div class="mt-2 text-2xl font-bold text-rose-700">{report_summary.denied_access_events | default:0}</div>
+            <div class="mt-1 text-xs text-slate-500">View {report_summary.denied_view_events | default:0} · Print {report_summary.denied_print_events | default:0} · Export {report_summary.denied_export_events | default:0}</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Allowed Restricted Access</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.restricted_record_views | default:0}</div>
+            <div class="mt-1 text-xs text-slate-500">Docs {report_summary.restricted_document_views | default:0} · Notes {report_summary.restricted_note_views | default:0} · Results {report_summary.restricted_result_views | default:0}</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Print / Export</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.print_events | default:0} / {report_summary.export_events | default:0}</div>
+        </div>
+        <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Policy / Break-Glass</div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.restricted_policy_changes | default:0} / {report_summary.break_glass_events | default:0}</div>
+        </div>
+    </div>
+
+    <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 class="text-sm font-semibold text-slate-900">Compliance Events</h2>
+                <div class="text-xs text-slate-500">Page {pagination.page | default:1} of {pagination.total_pages | default:1} · {pagination.total | default:0} total events</div>
+            </div>
+        </div>
+        {if report_entries | count == 0}
+        <div class="px-5 py-10 text-center text-sm text-slate-500">No compliance events matched the current filters.</div>
+        {else}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50/80">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">When</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Category</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Action</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Patient</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Entity</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Details</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {foreach report_entries as entry}
+                    <tr>
+                        <td class="px-4 py-3 text-slate-600">{entry.created_at}</td>
+                        <td class="px-4 py-3"><span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{entry.category}</span></td>
+                        <td class="px-4 py-3 text-slate-800">{entry.action}</td>
+                        <td class="px-4 py-3 text-slate-600">{entry.patient_id}</td>
+                        <td class="px-4 py-3 text-slate-600">{entry.entity_type}#{entry.entity_id}</td>
+                        <td class="px-4 py-3 text-xs text-slate-500">
+                            {if entry.details.new_data.denial_reason}Reason: {entry.details.new_data.denial_reason}{/if}
+                            {if entry.details.new_data.attempted_action}{if entry.details.new_data.denial_reason}<br>{/if}Attempt: {entry.details.new_data.attempted_action}{/if}
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 text-sm">
+            <div class="text-slate-500">Showing up to {pagination.limit | default:50} events per page.</div>
+            <div class="flex items-center gap-2">
+                {if pagination.prev_url}
+                <a href="{pagination.prev_url}" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50">Previous</a>
+                {/if}
+                {if pagination.next_url}
+                <a href="{pagination.next_url}" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50">Next</a>
+                {/if}
+            </div>
+        </div>
+        {/if}
+    </div>
+    {/if}
+</div>
+{/block}

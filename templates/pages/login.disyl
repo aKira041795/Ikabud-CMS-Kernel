@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{page_title | default:'Sign In'} — {gui.app_name}</title>
+    {if login_favicon_url}<link rel="icon" href="{login_favicon_url}">{/if}
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     {if gui.font_url}<link href="{gui.font_url}" rel="stylesheet">{/if}
     <style>

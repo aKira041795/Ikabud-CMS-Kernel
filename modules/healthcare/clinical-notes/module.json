@@ -1,0 +1,89 @@
+{
+    "id": "clinical-notes",
+    "name": "Clinical Notes",
+    "version": "0.1.0",
+    "description": "Encounter-linked clinical notes with immutable version history, signing, and amendment workflows.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_notes",
+        "ehr_note_versions"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.note.create@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.note.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.note.sign@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.note.amend@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.core.status.catalog@1",
+            "ehr.patient.view@1",
+            "ehr.encounter.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.note.create@1": {
+                    "allow_callers": [
+                        "clinical-notes"
+                    ]
+                },
+                "ehr.note.view@1": {
+                    "allow_callers": [
+                        "clinical-notes",
+                        "orders",
+                        "results",
+                        "prescriptions",
+                        "documents",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.note.sign@1": {
+                    "allow_callers": [
+                        "clinical-notes"
+                    ]
+                },
+                "ehr.note.amend@1": {
+                    "allow_callers": [
+                        "clinical-notes"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        "ehr.note.created",
+        "ehr.note.viewed",
+        "ehr.note.access_denied",
+        "ehr.note.signed",
+        "ehr.note.amended"
+    ]
+}

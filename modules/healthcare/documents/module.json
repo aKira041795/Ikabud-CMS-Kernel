@@ -1,0 +1,108 @@
+{
+    "id": "documents",
+    "name": "Documents",
+    "version": "0.1.0",
+    "description": "Patient and encounter linked document metadata, access restrictions, and audit trail registration.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_documents",
+        "ehr_access_policies"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.document.upload@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.document.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.document.print@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.document.export@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.document.restrict@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.patient.view@1",
+            "ehr.encounter.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.document.upload@1": {
+                    "allow_callers": [
+                        "documents",
+                        "clinical-notes",
+                        "results"
+                    ]
+                },
+                "ehr.document.view@1": {
+                    "allow_callers": [
+                        "documents",
+                        "clinical-notes",
+                        "results",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.document.print@1": {
+                    "allow_callers": [
+                        "documents",
+                        "clinical-notes",
+                        "results",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.document.export@1": {
+                    "allow_callers": [
+                        "documents",
+                        "clinical-notes",
+                        "results",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.document.restrict@1": {
+                    "allow_callers": [
+                        "documents",
+                        "privacy-consent"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        "ehr.document.uploaded",
+        "ehr.document.viewed",
+        "ehr.document.access_denied",
+        "ehr.document.printed",
+        "ehr.document.exported",
+        "ehr.document.restricted"
+    ]
+}

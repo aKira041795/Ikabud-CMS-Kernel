@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title} — {brand_name}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top right, rgba(20, 184, 166, 0.10), transparent 28%),
+                radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.10), transparent 24%),
+                linear-gradient(180deg, #eff8ff 0%, #f8fafc 100%);
+            color: #0f172a;
+        }
+    </style>
+    {block head}{/block}
+</head>
+<body class="min-h-screen text-slate-900" x-data="{ mobileNavOpen: false }">
+    <div class="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside class="hidden border-r border-slate-200/80 bg-slate-950 text-slate-100 lg:flex lg:flex-col">
+            <div class="border-b border-white/10 px-6 py-6">
+                <div class="flex items-center gap-4">
+                    <div class="flex h-14 w-14 items-center justify-center rounded-3xl bg-teal-500/15 text-xl font-semibold text-teal-200">{brand_initial}</div>
+                    <div>
+                        <div class="text-xs uppercase tracking-[0.22em] text-teal-300">EHR Admin</div>
+                        <div class="mt-1 text-lg font-semibold text-white">{brand_name}</div>
+                    </div>
+                </div>
+            </div>
+            <nav class="flex-1 space-y-2 px-4 py-6">
+                {foreach nav_items as item}
+                <a href="{item.url}" class="block rounded-2xl border px-4 py-3 transition {if current_page == item.key}border-teal-400/40 bg-teal-400/10 text-white{else}border-transparent text-slate-300 hover:border-white/10 hover:bg-white/5 hover:text-white{/if}">
+                    <div class="text-sm font-semibold">{item.label}</div>
+                    <div class="mt-1 text-xs text-slate-400">{item.description}</div>
+                </a>
+                {/foreach}
+            </nav>
+            <div class="border-t border-white/10 px-6 py-5 text-sm">
+                <div class="font-semibold text-white">{user_display}</div>
+                <div class="mt-1 text-slate-400">{user_role}</div>
+                <form method="POST" action="{logout_url}" class="mt-4">
+                    {csrf_field | raw}
+                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-teal-400/40 hover:bg-teal-400/10 hover:text-white">
+                        Sign Out
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <div class="flex min-h-screen flex-col">
+            <header class="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur lg:px-8">
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 lg:hidden" @click="mobileNavOpen = !mobileNavOpen">☰</button>
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">EHR Workspace</div>
+                            <h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{page_title}</h1>
+                        </div>
+                    </div>
+                    <div class="hidden text-right lg:block">
+                        <div class="text-sm font-semibold text-slate-900">{user_display}</div>
+                        <div class="text-xs text-slate-500">{user_role}</div>
+                        <form method="POST" action="{logout_url}" class="mt-3">
+                            {csrf_field | raw}
+                            <button type="submit" class="text-sm font-semibold text-teal-700 transition hover:text-teal-900">Sign Out</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="mt-4 space-y-2 lg:hidden" x-show="mobileNavOpen" x-cloak>
+                    {foreach nav_items as item}
+                    <a href="{item.url}" class="block rounded-2xl border px-4 py-3 text-sm {if current_page == item.key}border-teal-300 bg-teal-50 text-teal-900{else}border-slate-200 bg-white text-slate-700{/if}">
+                        <div class="font-semibold">{item.label}</div>
+                        <div class="mt-1 text-xs text-slate-500">{item.description}</div>
+                    </a>
+                    {/foreach}
+                    <form method="POST" action="{logout_url}" class="pt-2">
+                        {csrf_field | raw}
+                        <button type="submit" class="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-teal-700">Sign Out</button>
+                    </form>
+                </div>
+            </header>
+            <main class="flex-1 px-4 py-6 lg:px-8 lg:py-8">
+                {block content}{/block}
+            </main>
+        </div>
+    </div>
+    {block scripts}{/block}
+</body>
+</html>

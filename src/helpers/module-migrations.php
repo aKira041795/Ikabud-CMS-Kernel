@@ -16,6 +16,7 @@ function tenantSafeKernelMigrationFiles(): array
         '015_users_token_version.sql' => BASE_PATH . '/database/migrations/015_users_token_version.sql',
         '017_audit_logs_actor_module.sql' => BASE_PATH . '/database/migrations/017_audit_logs_actor_module.sql',
         '018_audit_logs_actor_columns_ensure.sql' => BASE_PATH . '/database/migrations/018_audit_logs_actor_columns_ensure.sql',
+        '019_kernel_password_resets.sql' => BASE_PATH . '/database/migrations/019_kernel_password_resets.sql',
     ];
 
     $files = [];
@@ -26,6 +27,51 @@ function tenantSafeKernelMigrationFiles(): array
     }
 
     return $files;
+}
+
+function tenantProvisionEntryBundleModules(?string $entryModuleId): array
+{
+    $entryModuleId = trim((string)$entryModuleId);
+    if ($entryModuleId === '') {
+        return [];
+    }
+
+    $bundles = [
+        'ehr' => [
+            'ehr',
+            'ehr-core',
+            'patient-registry',
+            'encounters',
+            'clinical-notes',
+            'orders',
+            'results',
+            'prescriptions',
+            'documents',
+            'privacy-consent',
+            'scheduling',
+            'audit',
+            'reporting',
+            'billing-bridge',
+        ],
+        'ehr-core' => [
+            'ehr',
+            'ehr-core',
+            'patient-registry',
+            'encounters',
+            'clinical-notes',
+            'orders',
+            'results',
+            'prescriptions',
+            'documents',
+            'privacy-consent',
+            'scheduling',
+            'audit',
+            'reporting',
+            'billing-bridge',
+        ],
+    ];
+
+    return $bundles[$entryModuleId] ?? [$entryModuleId];
 }
 
 /**
@@ -83,8 +129,16 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
         }
     }
 
-    $selected = [$entryModuleId => true];
-    $queue = [$entryModuleId];
+    $selected = [];
+    $queue = [];
+    foreach (tenantProvisionEntryBundleModules($entryModuleId) as $seedModuleId) {
+        $seedModuleId = trim((string)$seedModuleId);
+        if ($seedModuleId === '' || !isset($enabled[$seedModuleId]) || isset($selected[$seedModuleId])) {
+            continue;
+        }
+        $selected[$seedModuleId] = true;
+        $queue[] = $seedModuleId;
+    }
 
     while (!empty($queue)) {
         $current = array_shift($queue);
@@ -137,23 +191,6 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
             }
         }
 
-        foreach ($enabled as $moduleId => $candidate) {
-            if (isset($selected[$moduleId])) {
-                continue;
-            }
-
-            $hooks = $candidate['hooks'] ?? [];
-            if (is_array($hooks)) {
-                foreach ($hooks as $hookName) {
-                    $hookName = trim((string)$hookName);
-                    if ($hookName !== '' && str_starts_with($hookName, $current . '.')) {
-                        $selected[$moduleId] = true;
-                        $queue[] = $moduleId;
-                        continue 2;
-                    }
-                }
-            }
-        }
     }
 
     if (isset($enabled['anti-spam']) && !isset($selected['anti-spam'])) {

@@ -1,0 +1,94 @@
+{
+    "id": "patient-registry",
+    "name": "Patient Registry",
+    "version": "0.1.0",
+    "description": "Canonical patient identity registry for the EHR domain.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_patients",
+        "ehr_patient_identifiers"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.patient.create@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.patient.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.patient.search@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.core.status.catalog@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.patient.create@1": {
+                    "allow_callers": [
+                        "patient-registry",
+                        "scheduling",
+                        "encounters"
+                    ]
+                },
+                "ehr.patient.view@1": {
+                    "allow_callers": [
+                        "patient-registry",
+                        "encounters",
+                        "clinical-notes",
+                        "orders",
+                        "results",
+                        "prescriptions",
+                        "documents",
+                        "privacy-consent",
+                        "scheduling",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.patient.search@1": {
+                    "allow_callers": [
+                        "patient-registry",
+                        "encounters",
+                        "scheduling",
+                        "patient-portal"
+                    ]
+                }
+            }
+        }
+    },
+    "nav": [
+        {
+            "key": "ehr_patient_registry",
+            "label": "Patients",
+            "url": "/admin/ehr/patients",
+            "icon": "users",
+            "roles": [
+                "admin"
+            ],
+            "description": "Search and review patient identities"
+        }
+    ],
+    "events": [
+        "ehr.patient.created",
+        "ehr.patient.updated",
+        "ehr.patient.merged"
+    ]
+}

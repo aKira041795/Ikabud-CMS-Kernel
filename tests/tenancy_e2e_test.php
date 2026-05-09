@@ -449,6 +449,10 @@ $expectedTenantKernelMigrations = [
     '012_kernel_trigger_execution_history.sql',
     '013_kernel_trigger_execution_history_module_idx.sql',
     '014_integration_modes.sql',
+    '015_users_token_version.sql',
+    '017_audit_logs_actor_module.sql',
+    '018_audit_logs_actor_columns_ensure.sql',
+    '019_kernel_password_resets.sql',
 ];
 ok($tenantKernelMigrations === $expectedTenantKernelMigrations, 'Tenant-safe kernel migrations include runtime and bridge kernel tables and exclude control-plane schema');
 
@@ -459,7 +463,8 @@ ok(in_array('users', $cmsProvisionPlan, true), 'CMS tenant plan includes users s
 ok(in_array('search', $cmsProvisionPlan, true), 'CMS tenant plan includes search shared module');
 ok(in_array('media', $cmsProvisionPlan, true), 'CMS tenant plan includes media shared module');
 ok(in_array('anti-spam', $cmsProvisionPlan, true), 'CMS tenant plan includes anti-spam shared module');
-ok(in_array('contact-form', $cmsProvisionPlan, true), 'CMS tenant plan includes contact-form hook module');
+ok(!in_array('contact-form', $cmsProvisionPlan, true), 'CMS tenant plan excludes contact-form hook module without explicit tenant provisioning');
+ok(!in_array('moodle-integration', $cmsProvisionPlan, true), 'CMS tenant plan excludes moodle-integration hook module without explicit tenant provisioning');
 ok(!in_array('daily-ledger', $cmsProvisionPlan, true), 'CMS tenant plan excludes daily-ledger module');
 ok(!in_array('guidance', $cmsProvisionPlan, true), 'CMS tenant plan excludes guidance module');
 ok(!in_array('ticketing', $cmsProvisionPlan, true), 'CMS tenant plan excludes ticketing module');

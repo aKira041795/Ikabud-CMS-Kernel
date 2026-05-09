@@ -1,0 +1,124 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Visit Operations</div>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Encounters</h1>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Review recent patient visits, current encounter status, and the latest recorded vitals for a selected visit.</p>
+            </div>
+            <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <span class="font-semibold text-slate-900">{result_count}</span> encounters in current view
+            </div>
+        </div>
+        <form method="GET" action="{base_url}/admin/ehr/encounters" class="mt-6 flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div class="min-w-[220px]">
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
+                <select name="status" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
+                    <option value="">All encounter statuses</option>
+                    <option value="open" {if status_filter == 'open'}selected{/if}>Open</option>
+                    <option value="completed" {if status_filter == 'completed'}selected{/if}>Completed</option>
+                    <option value="cancelled" {if status_filter == 'cancelled'}selected{/if}>Cancelled</option>
+                </select>
+            </div>
+            <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Filter Encounters</button>
+        </form>
+    </section>
+
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)]">
+        <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-6 py-4">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Recent Visits</h2>
+            </div>
+            <div class="divide-y divide-slate-100">
+                {if encounters}
+                    {foreach encounters as encounter}
+                    <a href="{base_url}/admin/ehr/encounters?encounter_id={encounter.id}{if status_filter}&status={status_filter}{/if}" class="block px-6 py-4 transition hover:bg-slate-50">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-base font-semibold text-slate-900">{if encounter.patient_summary}{encounter.patient_summary.last_name}, {encounter.patient_summary.first_name}{else}Unknown patient{/if}</div>
+                                <div class="mt-1 text-sm text-slate-600">Encounter UUID: {encounter.encounter_uuid}</div>
+                            </div>
+                            <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{encounter.status}</div>
+                        </div>
+                        <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+                            <div>
+                                <div class="text-xs uppercase tracking-wide text-slate-400">Type</div>
+                                <div class="mt-1 text-slate-900">{encounter.encounter_type}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs uppercase tracking-wide text-slate-400">Started</div>
+                                <div class="mt-1 text-slate-900">{encounter.start_at}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs uppercase tracking-wide text-slate-400">Reason</div>
+                                <div class="mt-1 text-slate-900">{if encounter.reason_for_visit}{encounter.reason_for_visit}{else}Not recorded{/if}</div>
+                            </div>
+                        </div>
+                    </a>
+                    {/foreach}
+                {else}
+                    <div class="px-6 py-12 text-center">
+                        <div class="text-base font-semibold text-slate-900">No encounters matched this filter.</div>
+                        <p class="mt-2 text-sm text-slate-600">Try a different status or start new encounters through scheduling and patient workflows.</p>
+                    </div>
+                {/if}
+            </div>
+        </section>
+
+        <aside class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Encounter Detail</h2>
+            {if selected_encounter}
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <div class="text-2xl font-semibold text-slate-900">{if selected_encounter.patient_summary}{selected_encounter.patient_summary.last_name}, {selected_encounter.patient_summary.first_name}{else}Unknown patient{/if}</div>
+                        <div class="mt-1 text-sm text-slate-600">Encounter UUID: {selected_encounter.encounter_uuid}</div>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                        <div class="rounded-2xl bg-slate-50 p-4">
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Status</div>
+                            <div class="mt-2 text-sm font-semibold text-slate-900">{selected_encounter.status}</div>
+                        </div>
+                        <div class="rounded-2xl bg-slate-50 p-4">
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Service Line</div>
+                            <div class="mt-2 text-sm font-semibold text-slate-900">{selected_encounter.service_line}</div>
+                        </div>
+                        <div class="rounded-2xl bg-slate-50 p-4">
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Started</div>
+                            <div class="mt-2 text-sm font-semibold text-slate-900">{selected_encounter.start_at}</div>
+                        </div>
+                        <div class="rounded-2xl bg-slate-50 p-4">
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Ended</div>
+                            <div class="mt-2 text-sm font-semibold text-slate-900">{if selected_encounter.end_at}{selected_encounter.end_at}{else}Still open{/if}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-slate-400">Latest Vitals</div>
+                        <div class="mt-3 space-y-3">
+                            {if selected_encounter.vitals}
+                                {foreach selected_encounter.vitals as vital}
+                                <div class="rounded-2xl border border-slate-200 p-4">
+                                    <div class="text-sm font-semibold text-slate-900">Captured {vital.captured_at}</div>
+                                    <div class="mt-2 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                                        <div>Temp: {if vital.temperature_c}{vital.temperature_c} C{else}--{/if}</div>
+                                        <div>Pulse: {if vital.pulse_bpm}{vital.pulse_bpm} bpm{else}--{/if}</div>
+                                        <div>BP: {if vital.systolic_bp}{vital.systolic_bp}/{vital.diastolic_bp}{else}--{/if}</div>
+                                        <div>SpO2: {if vital.spo2}{vital.spo2}%{else}--{/if}</div>
+                                    </div>
+                                </div>
+                                {/foreach}
+                            {else}
+                                <div class="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">No vitals have been recorded for this encounter yet.</div>
+                            {/if}
+                        </div>
+                    </div>
+                </div>
+            {else}
+                <div class="mt-4 rounded-2xl border border-dashed border-slate-200 p-6 text-sm leading-6 text-slate-600">Select an encounter from the list to inspect visit timing and recorded vitals.</div>
+            {/if}
+        </aside>
+    </div>
+</div>
+{/block}

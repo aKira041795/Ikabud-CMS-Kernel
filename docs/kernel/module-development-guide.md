@@ -22,6 +22,8 @@ Kernel (always running)          Modules (plug-in, auto-discovered)
 └────────────────────┘           └─────────────────────────┘
 ```
 
+Module directories may also live inside contextual subfolders such as `modules/healthcare/my-module/`. The kernel discovers modules recursively under `modules/`, and the module `id` must still match the leaf directory name that contains `module.json`.
+
 The kernel provides: routing, auth (JWT), DiSyL templates, PDO database, audit logging, HTMX support, and module management.
 
 Modules provide: routes, handlers, templates, and (optionally) database migrations.
@@ -32,7 +34,7 @@ Modules provide: routes, handlers, templates, and (optionally) database migratio
 
 ## Module Structure
 
-Every module lives in `modules/<module-id>/` and must contain at minimum a `module.json` manifest.
+Every module lives in `modules/<module-id>/` or in a contextual subfolder such as `modules/healthcare/<module-id>/` and must contain at minimum a `module.json` manifest. The module `id` must match the leaf directory name that contains `module.json`.
 
 ```
 modules/my-module/
@@ -40,16 +42,18 @@ modules/my-module/
 ├── routes.php           # REQUIRED — route definitions
 ├── handlers.php         # REQUIRED — handler functions
 ├── helpers.php          # Optional — auto-loaded globally when module is enabled
-├── templates/           # Optional — DiSyL templates
-│   └── modules/my-module/
-│       ├── pages/
-│       └── partials/
 ├── database/            # Optional — SQL migrations
 │   └── migrations/
 │       ├── 001_schema.sql
 │       └── 002_seed.sql
 └── assets/              # Optional — CSS, JS, images
+
+templates/modules/my-module/
+├── pages/
+└── partials/
 ```
+
+If the module is grouped under a contextual namespace, mirror that path in templates. Example: `modules/healthcare/my-module/` pairs with `templates/modules/healthcare/my-module/`.
 
 ### Maintainer Pointer (Large Module Organization)
 
@@ -141,10 +145,10 @@ function myModuleGlobalHelper(): string
 | `owns_tables` | string[] | Tables fully owned by the module (full CRUD). Used for ModuleDB enforcement. |
 | `reads_tables` | string[] | Tables the module may read (SELECT only). Used for ModuleDB enforcement. |
 | `migrations` | string[] | Paths to SQL migration files (relative to module dir). |
-| `auth_cookie` | string | Additional auth cookie name this module uses for page sessions. When set, the kernel will recognize this cookie for `app()->user()` so kernel layouts can render `user` and `nav_items` consistently. |
+| `auth_cookie` | string | Additional auth cookie name this module uses for page sessions. When set, the kernel will recognize this cookie for `app()->user()` so kernel layouts can render `user` and `nav_items` consistently. Auth/entry modules that set this should also expose a `<moduleId>LoginPageContext()` helper so tenant `/login` uses the module skin instead of drifting to the kernel default layout. |
 | `auth_owned` | object | Declares that this module owns its own users table. The kernel uses this for tenant provisioning (admin seeding) and the admin password-push recovery flow. See [Module-owned authentication (`auth_owned`)](#module-owned-authentication-auth_owned) below. |
 | `capabilities` | object | Capability contracts exposed and required by this module. |
-| `nav` | object[] | Navigation items injected into the top nav bar. |
+| `nav` | object[] | Navigation items injected into the top nav bar. For EHR workspace links under `/admin/ehr...`, each item must also include a stable `key`, a non-empty `description`, and explicit `roles`. |
 
 ### Table declaration rules
 
@@ -284,6 +288,7 @@ Consumers:
 2. Implement a `kernel.auth.authenticate@1` provider that reads from your `users_table` using the spec's columns.
 3. If you set `blocked_password_hashes`, make your auth provider reject those hashes early.
 4. (Optional) Set `requires_named_admin_on_provision: true` if your module must never be provisioned with auto-generated credentials.
+5. Define a module login context helper named `<moduleId>LoginPageContext()` in `helpers.php` so kernel `/login`, `/forgot-password`, and `/reset-password` render the module-branded layout whenever the tenant entry module points at your module.
 
 No kernel changes are required.
 
@@ -526,7 +531,7 @@ These variables are always available in templates:
 
 ## Templates (DiSyL)
 
-Templates use the DiSyL rendering runtime. Place them in `templates/modules/your-module/`.
+Templates use the DiSyL rendering runtime. Place them in `templates/modules/your-module/` or, for contextual module folders, mirror the module path such as `templates/modules/healthcare/your-module/`.
 
 DiSyL is not just a string templating layer. It is the kernel's native rendering language, so module templates can participate in layouts, blocks, components, slots, reactive client blocks, and other request-aware rendering features without introducing a separate view engine.
 
@@ -1120,7 +1125,7 @@ Each would follow the same structure: `module.json` + `routes.php` + `handlers.p
 - [ ] Create `modules/my-module/module.json` with `id`, `name`, `version`
 - [ ] Create `modules/my-module/routes.php` returning route array
 - [ ] Create `modules/my-module/handlers.php` with handler functions
-- [ ] Create templates in `templates/modules/my-module/`
+- [ ] Create templates in `templates/modules/my-module/` or mirror the contextual module path such as `templates/modules/healthcare/my-module/`
 - [ ] Add `nav` items to `module.json` for each role
 - [ ] Declare every runtime-touched table in `owns_tables` / `reads_tables`, including shared infrastructure tables
 - [ ] Use `app()->requireAnyRole(...)` in every handler

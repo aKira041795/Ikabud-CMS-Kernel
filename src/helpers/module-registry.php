@@ -43,19 +43,35 @@ function moduleRegistryRawModuleManifests(): array
     }
 
     $result = [];
-    foreach (scandir($dir) as $entry) {
-        if ($entry === '.' || $entry === '..') {
-            continue;
-        }
-        if (preg_match('/\.bak_\d{8}_\d{6}$/', $entry)) {
-            continue;
-        }
+    $manifestPaths = [];
 
-        $manifestPath = $dir . '/' . $entry . '/module.json';
-        if (!is_file($manifestPath)) {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveCallbackFilterIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            static function (SplFileInfo $current): bool {
+                $name = $current->getFilename();
+                if ($name === '.' || $name === '..') {
+                    return false;
+                }
+                if ($current->isDir() && preg_match('/\.bak_\d{8}_\d{6}$/', $name)) {
+                    return false;
+                }
+                return true;
+            }
+        ),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getFilename() !== 'module.json') {
             continue;
         }
+        $manifestPaths[] = $file->getPathname();
+    }
 
+    sort($manifestPaths);
+
+    foreach ($manifestPaths as $manifestPath) {
         $manifest = json_decode((string) file_get_contents($manifestPath), true);
         if (!is_array($manifest)) {
             continue;
@@ -65,8 +81,14 @@ function moduleRegistryRawModuleManifests(): array
         if ($moduleId === '') {
             continue;
         }
+        if (isset($result[$moduleId])) {
+            if (function_exists('write_log')) {
+                write_log('Duplicate module id discovered in registry scan: ' . $moduleId . ' at ' . $manifestPath . ' (keeping first occurrence)', 'warning');
+            }
+            continue;
+        }
 
-        $manifest['_path'] = $dir . '/' . $entry;
+        $manifest['_path'] = dirname($manifestPath);
         $result[$moduleId] = $manifest;
     }
 
@@ -354,6 +376,9 @@ function moduleRegistryDefaultEnabledState(string $moduleId, ?int $tenantId = nu
     }
 
     $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
+    if ($entryModuleId === $moduleId) {
+        return true;
+    }
     if ($entryModuleId === null || $entryModuleId === '' || !isset($allModules[$entryModuleId])) {
         return true;
     }
@@ -368,6 +393,10 @@ function isModuleEnabled(string $moduleId): bool
     if (moduleTenantSettingsModeEnabled()) {
         $tenantId = moduleTenantSettingsTenantId();
         if ($tenantId !== null) {
+            $entryModuleId = function_exists('tenantEntryModuleIdForTenant') ? trim((string) tenantEntryModuleIdForTenant($tenantId)) : '';
+            if ($entryModuleId !== '' && $moduleId === $entryModuleId) {
+                return true;
+            }
             $tenantSettings = readTenantModuleSettings($moduleId);
             if (array_key_exists('_module_enabled', $tenantSettings)) {
                 return (bool) $tenantSettings['_module_enabled'];
@@ -389,6 +418,11 @@ function isModuleEnabled(string $moduleId): bool
  */
 function isModuleEnabledForTenant(string $moduleId, int $tenantId): bool
 {
+    $entryModuleId = function_exists('tenantEntryModuleIdForTenant') ? trim((string) tenantEntryModuleIdForTenant($tenantId)) : '';
+    if ($entryModuleId !== '' && $moduleId === $entryModuleId) {
+        return true;
+    }
+
     $tenantSettings = readTenantModuleSettingsForTenant($moduleId, $tenantId);
     if (array_key_exists('_module_enabled', $tenantSettings)) {
         return (bool) $tenantSettings['_module_enabled'];

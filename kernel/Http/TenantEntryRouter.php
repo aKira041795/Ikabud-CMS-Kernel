@@ -106,7 +106,7 @@ class TenantEntryRouter
 
         // Check APCu for cross-process cache before expensive routes.php load
         $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
-        $apcuKey = 'ikabud:entry_landing:' . sha1($entry);
+        $apcuKey = 'ikabud:entry_landing:v3:' . sha1($entry);
         if ($apcuEnabled) {
             $cached = apcu_fetch($apcuKey, $success);
             if ($success && is_string($cached)) {
@@ -117,13 +117,21 @@ class TenantEntryRouter
 
         $entryRoot = '/' . $entry;
         $entryLogin = '/' . $entry . '/login';
-        $result = $entryRoot; // default
-
+        $result = '/login';
         // If the entry module declares an explicit root route, prefer it.
         // Otherwise prefer a conventional login route if it exists.
         try {
             if (defined('BASE_PATH')) {
-                $routesFile = rtrim((string)BASE_PATH, '/') . '/modules/' . $entry . '/routes.php';
+                $routesFile = '';
+                if (function_exists('modulePathForId')) {
+                    $modulePath = modulePathForId($entry);
+                    if (is_string($modulePath) && $modulePath !== '') {
+                        $routesFile = rtrim($modulePath, '/') . '/routes.php';
+                    }
+                }
+                if ($routesFile === '') {
+                    $routesFile = rtrim((string)BASE_PATH, '/') . '/modules/' . $entry . '/routes.php';
+                }
                 if (is_file($routesFile)) {
                     $routes = require $routesFile;
                     $get = is_array($routes) ? ($routes['GET'] ?? []) : [];

@@ -14,6 +14,53 @@ require_once __DIR__ . '/../src/helpers/fast-path-cache.php';
 // to ~5ms and eliminates DB connection pressure from static-asset requests.
 // Must come before require_once bootstrap.php below.
 (static function (): void {
+    $resolveModuleUploadsBase = static function (string $moduleId): ?string {
+        $moduleId = trim($moduleId);
+        if ($moduleId === '') {
+            return null;
+        }
+
+        static $cache = [];
+        if (array_key_exists($moduleId, $cache)) {
+            return $cache[$moduleId];
+        }
+
+        $modulesRoot = realpath(__DIR__ . '/../modules');
+        if ($modulesRoot === false) {
+            $cache[$moduleId] = null;
+            return null;
+        }
+
+        $topLevel = realpath($modulesRoot . '/' . $moduleId . '/assets/uploads');
+        if ($topLevel !== false) {
+            $cache[$moduleId] = $topLevel;
+            return $topLevel;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($modulesRoot, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo instanceof SplFileInfo || !$fileInfo->isDir() || $fileInfo->getFilename() !== $moduleId) {
+                continue;
+            }
+
+            $modulePath = $fileInfo->getPathname();
+            if (!is_file($modulePath . '/module.json')) {
+                continue;
+            }
+
+            $uploadsRoot = realpath($modulePath . '/assets/uploads');
+            $cache[$moduleId] = $uploadsRoot !== false ? $uploadsRoot : null;
+            return $cache[$moduleId];
+        }
+
+        $cache[$moduleId] = null;
+        return null;
+    };
+
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
         return;
     }
@@ -28,8 +75,8 @@ require_once __DIR__ . '/../src/helpers/fast-path-cache.php';
         http_response_code(404);
         exit;
     }
-    $base = realpath(__DIR__ . '/../modules/' . $modId . '/assets/uploads');
-    if ($base === false) {
+    $base = $resolveModuleUploadsBase($modId);
+    if (!is_string($base) || $base === '') {
         return; // module doesn't exist or has no uploads dir — fall through
     }
     $real = realpath($base . '/' . $rel);
@@ -202,9 +249,15 @@ if ($method === 'GET' && preg_match('#^/assets/modules/([a-zA-Z0-9\-]+)/(.+)$#',
         exit;
     }
 
-    $assetPath = BASE_PATH . '/modules/' . $modId . '/assets/' . $rel;
+    $modulePath = function_exists('modulePathForId') ? modulePathForId($modId) : null;
+    if (!is_string($modulePath) || $modulePath === '') {
+        http_response_code(404);
+        exit;
+    }
+
+    $assetPath = $modulePath . '/assets/' . $rel;
     $real = realpath($assetPath);
-    $root = realpath(BASE_PATH . '/modules/' . $modId . '/assets');
+    $root = realpath($modulePath . '/assets');
 
     if ($real === false || $root === false || !str_starts_with($real, $root) || !is_file($real)) {
         http_response_code(404);
@@ -546,6 +599,18 @@ switch ($handler) {
         exit;
     case 'authLogin':
         kernelHandleAuthLogin();
+        exit;
+    case 'authForgotPasswordPage':
+        kernelHandleAuthForgotPasswordPage();
+        exit;
+    case 'authResetPasswordPage':
+        kernelHandleAuthResetPasswordPage();
+        exit;
+    case 'authForgotPassword':
+        kernelHandleAuthForgotPassword();
+        exit;
+    case 'authResetPassword':
+        kernelHandleAuthResetPassword();
         exit;
     case 'authRefresh':
         kernelHandleAuthRefresh();

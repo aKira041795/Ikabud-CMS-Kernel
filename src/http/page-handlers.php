@@ -3,6 +3,57 @@
 declare(strict_types=1);
 
 if (!function_exists('kernelHandlePageLogin')) {
+    function kernelResolveEntryModuleAlias(string $entryModuleId): string
+    {
+        static $aliases = [
+            'ehr-core' => 'ehr',
+        ];
+
+        return $aliases[$entryModuleId] ?? $entryModuleId;
+    }
+
+    function kernelCurrentEntryModuleId(): string
+    {
+        $entryModuleId = 'kernel';
+        $loginTenantId = app()->tenant()->current();
+        if ($loginTenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
+            $resolvedEntryModuleId = tenantEntryModuleIdForTenant((int)$loginTenantId);
+            if (is_string($resolvedEntryModuleId) && $resolvedEntryModuleId !== '') {
+                $entryModuleId = $resolvedEntryModuleId;
+            }
+        }
+
+        return $entryModuleId;
+    }
+
+    function kernelResolveEntryModuleLoginContext(array $overrides = []): array
+    {
+        $entryModuleId = kernelResolveEntryModuleAlias(kernelCurrentEntryModuleId());
+        $defaultContext = array_merge([
+            'page_title' => 'Sign In',
+            'login_forgot_url' => external_base_url() . '/forgot-password',
+        ], $overrides);
+
+        if ($entryModuleId === 'kernel') {
+            return $defaultContext;
+        }
+
+        $enabledModules = getEnabledModules();
+        if (isset($enabledModules[$entryModuleId]) && is_array($enabledModules[$entryModuleId])) {
+            loadModuleHelpers($enabledModules[$entryModuleId]);
+        }
+
+        $contextFunction = preg_replace('/[^a-z0-9]+/i', '_', $entryModuleId) . 'LoginPageContext';
+        if (is_string($contextFunction) && function_exists($contextFunction)) {
+            $context = $contextFunction($overrides);
+            if (is_array($context)) {
+                return $context;
+            }
+        }
+
+        return $defaultContext;
+    }
+
     function kernelHandlePageLogin(): void
     {
         $loginStartedAt = microtime(true);
@@ -17,14 +68,8 @@ if (!function_exists('kernelHandlePageLogin')) {
             }
         }
 
-        $entryModuleId = 'kernel';
         $loginTenantId = app()->tenant()->current();
-        if ($loginTenantId !== null && function_exists('tenantEntryModuleIdForTenant')) {
-            $resolvedEntryModuleId = tenantEntryModuleIdForTenant((int)$loginTenantId);
-            if (is_string($resolvedEntryModuleId) && $resolvedEntryModuleId !== '') {
-                $entryModuleId = $resolvedEntryModuleId;
-            }
-        }
+        $entryModuleId = kernelCurrentEntryModuleId();
 
         if ($hasAuthHint) {
             $loginUser = app()->user();
@@ -42,18 +87,11 @@ if (!function_exists('kernelHandlePageLogin')) {
         }
 
         $ctxBuildStart = microtime(true);
-        $loginContext = [
-            'page_title' => 'Sign In',
-        ];
-        if ($entryModuleId === 'wms' && function_exists('wmsLoginPageContext')) {
-            $loginContext = wmsLoginPageContext();
-        } elseif ($entryModuleId === 'bakeshop' && function_exists('bakeshopLoginPageContext')) {
-            $loginContext = bakeshopLoginPageContext();
-        }
+        $loginContext = kernelResolveEntryModuleLoginContext();
         $ctxBuildMs = round((microtime(true) - $ctxBuildStart) * 1000, 2);
 
-        // Cache key includes entry module (login UI varies by entry point)
-        $cacheKey = 'kernel:login:html:' . $entryModuleId;
+        // Cache key includes tenant because module settings can customize the login UI.
+        $cacheKey = 'kernel:login:html:' . $entryModuleId . ':tenant:' . (string)($loginTenantId ?? 0);
 
         if (extension_loaded('apcu') && apcu_enabled()) {
             $cachedHtml = apcu_fetch($cacheKey);

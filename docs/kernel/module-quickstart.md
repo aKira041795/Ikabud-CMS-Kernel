@@ -21,6 +21,8 @@ For cross-module integration patterns, see [Cross-Module Interaction Playbook](c
 php ikabud make:module notes
 ```
 
+The scaffold currently creates a top-level module directory by default. If the module belongs to a contextual suite such as healthcare, move it after scaffolding so the filesystem paths mirror the suite layout: `modules/healthcare/notes/` and `templates/modules/healthcare/notes/`.
+
 Output:
 
 ```
@@ -52,6 +54,15 @@ This created:
 | `modules/notes/README.md` | Module documentation |
 | `templates/modules/notes/pages/home.disyl` | Admin page template |
 | `tests/notes_module_test.php` | Scaffold verification test |
+
+---
+
+For contextual suites, keep the render alias as `modules/notes/...` but mirror the real filesystem layout under the contextual folders after the move.
+
+Example:
+
+- `modules/healthcare/notes/`
+- `templates/modules/healthcare/notes/`
 
 ---
 

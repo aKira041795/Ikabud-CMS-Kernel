@@ -2,8 +2,9 @@
 <?php
 /**
  * Ikabud Kernel — CLI Tool
- * 
- * Commands:
+
+    $modulePath = modulePathForId('{$id}') ?? (BASE_PATH . '/modules/{$id}');
+    $manifestPath = $modulePath . '/module.json';
  *   php ikabud make:module <name>        Scaffold a new module
  *   php ikabud make:migration <mod> <n>  Create next numbered migration
  *   php ikabud make:handler <mod> <fn>   Add handler + route to module
@@ -1030,8 +1031,8 @@ switch ($command) {
                     $subModules = json_decode($srRow['val'], true);
                     if (is_array($subModules) && !empty($subModules)) {
                         foreach ($subModules as $sm) {
-                            $smDir = BASE_PATH . '/modules/' . $sm;
-                            $onDisk = is_dir($smDir) ? green('on disk') : red('MISSING from disk');
+                            $smDir = modulePathForId((string)$sm) ?? '';
+                            $onDisk = $smDir !== '' && is_dir($smDir) ? green('on disk') : red('MISSING from disk');
                             $verifyPass('CMS sub-module: ' . $sm . ' (' . $onDisk . ')');
                         }
                     } else {
@@ -1746,7 +1747,7 @@ switch ($command) {
             if (!$present) $validateFails++;
         }
         // id must match directory name
-        $idMatch = ($manifest['id'] ?? '') === $moduleId;
+        $idMatch = ($manifest['id'] ?? '') === $moduleId && basename($modPath) === $moduleId;
         out('    ' . ($idMatch ? green('✓') : red('✗')) . ' id matches directory' . ($idMatch ? '' : " — manifest id '{$manifest['id']}' ≠ directory '{$moduleId}'"));
         if (!$idMatch) $validateFails++;
         // owns_tables / reads_tables must be arrays
@@ -1764,6 +1765,9 @@ switch ($command) {
             out('    ' . red('✗') . ' invalid schema — ' . ($check['error'] ?? 'unknown'));
             $validateFails++;
         } else {
+            // Register capability providers using the same module boot path as runtime.
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+
             out('    ' . green('✓') . ' schema valid');
             $deps = $check['depends'] ?? [];
             $exposes = $check['exposes'] ?? [];
@@ -1881,6 +1885,30 @@ switch ($command) {
                 $migExists = is_file($migAbs);
                 out('    ' . ($migExists ? green('✓') : red('✗')) . ' ' . $migRel . ($migExists ? '' : ' — file missing'));
                 if (!$migExists) $validateFails++;
+            }
+        }
+        out('');
+
+        // ── 6. Auth / login layout contract ─────────────────────
+        out('  ' . bold('Auth Experience'));
+        $requiresModuleLoginContext = trim((string)($manifest['auth_cookie'] ?? '')) !== ''
+            || is_array($manifest['auth_owned'] ?? null);
+        if (!$requiresModuleLoginContext) {
+            out('    ' . dim('✓ no auth-owned login contract required'));
+        } else {
+            $helpersFile = $modPath . '/helpers.php';
+            if (is_file($helpersFile)) {
+                @include_once $helpersFile;
+            }
+
+            $loginContextFn = preg_replace('/[^a-z0-9]+/i', '_', $moduleId) . 'LoginPageContext';
+            $loginContextFn = is_string($loginContextFn) ? $loginContextFn : '';
+            $hasLoginContext = $loginContextFn !== '' && function_exists($loginContextFn);
+
+            out('    ' . ($hasLoginContext ? green('✓') : red('✗')) . ' module login context ' . cyan($loginContextFn)
+                . ($hasLoginContext ? '' : ' — missing; auth/entry modules must define their own login layout context to avoid falling back to the kernel default skin'));
+            if (!$hasLoginContext) {
+                $validateFails++;
             }
         }
         out('');
@@ -2130,7 +2158,7 @@ switch ($command) {
         // Table prefix: daily-ledger → dl_ (underscore-joined initials)
         $tablePrefix = $shortPrefix . '_';
 
-        $modulePath = BASE_PATH . '/modules/' . $id;
+        $modulePath = modulesPath() . '/' . $id;
         $templatePath = BASE_PATH . '/templates/modules/' . $id;
         $testPath = BASE_PATH . '/tests/' . str_replace('-', '_', $id) . '_module_test.php';
 
@@ -2447,7 +2475,7 @@ t('Capability declarations valid', !empty(\$capCheck['ok']), (\$capCheck['error'
 
 // ── 4. Routes ───────────────────────────────────────────────────────
 echo "\n── Routes ──\n";
-\$routesFile = BASE_PATH . '/modules/{$id}/routes.php';
+\$routesFile = $modulePath . '/routes.php';
 t('routes.php exists', is_file(\$routesFile));
 \$routes = require \$routesFile;
 t('routes.php returns array', is_array(\$routes));
@@ -2455,7 +2483,7 @@ t('GET routes defined', isset(\$routes['GET']) && is_array(\$routes['GET']));
 
 // ── 5. Helpers load ─────────────────────────────────────────────────
 echo "\n── Helpers ──\n";
-\$helpersFile = BASE_PATH . '/modules/{$id}/helpers.php';
+\$helpersFile = $modulePath . '/helpers.php';
 t('helpers.php exists', is_file(\$helpersFile));
 require_once \$helpersFile;
 t('{$shortPrefix}Ctx function exists', function_exists('{$shortPrefix}Ctx'));
@@ -2865,10 +2893,10 @@ MD;
                 continue;
             }
 
-            // Determine module id from path: modules/{id}/...
+            // Determine module id from path: modules/.../{id}/...
             $rel = str_replace(BASE_PATH . '/', '', $path);
             $moduleId = null;
-            if (preg_match('#^modules/([^/]+)/#', $rel, $mm)) {
+            if (preg_match('#^modules/(?:.+/)?([^/]+)/#', $rel, $mm)) {
                 $moduleId = $mm[1];
             }
 
@@ -3059,7 +3087,7 @@ MD;
             if (preg_match($firePattern, $content)) {
                 $rel = str_replace(BASE_PATH . '/', '', $path);
                 $mid = null;
-                if (preg_match('#^modules/([^/]+)/#', $rel, $mm)) {
+                if (preg_match('#^modules/(?:.+/)?([^/]+)/#', $rel, $mm)) {
                     $mid = $mm[1];
                 }
                 $codeEmitters[] = ['module' => $mid ?? 'unknown', 'file' => $rel];
@@ -3428,8 +3456,9 @@ MD;
             exit(1);
         }
 
-        $migrDir = BASE_PATH . '/modules/' . $moduleId . '/database/migrations';
-        if (!is_dir(BASE_PATH . '/modules/' . $moduleId)) {
+        $modDir = modulePathForId($moduleId) ?? '';
+        $migrDir = $modDir !== '' ? ($modDir . '/database/migrations') : '';
+        if ($modDir === '' || !is_dir($modDir)) {
             out(red("  ✗ Module '{$moduleId}' not found."));
             exit(1);
         }
@@ -3468,7 +3497,7 @@ SQL;
         file_put_contents($migrDir . '/' . $filename, $content);
 
         banner();
-        out('  ' . green('✓') . ' Created migration: ' . cyan("modules/{$moduleId}/database/migrations/{$filename}"));
+        out('  ' . green('✓') . ' Created migration: ' . cyan(str_replace(BASE_PATH . '/', '', $migrDir . '/' . $filename)));
         out('');
         out('  Next: edit the file, then run ' . cyan("php ikabud migrate {$moduleId}"));
         out('');
@@ -3488,8 +3517,8 @@ SQL;
             exit(1);
         }
 
-        $modDir = BASE_PATH . '/modules/' . $moduleId;
-        if (!is_dir($modDir)) {
+        $modDir = modulePathForId($moduleId) ?? '';
+        if ($modDir === '' || !is_dir($modDir)) {
             out(red("  ✗ Module '{$moduleId}' not found."));
             exit(1);
         }

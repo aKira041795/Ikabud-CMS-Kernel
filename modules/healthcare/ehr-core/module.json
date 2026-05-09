@@ -1,0 +1,82 @@
+{
+    "id": "ehr-core",
+    "name": "EHR Core",
+    "version": "0.1.0",
+    "description": "Shared EHR capability contracts, status catalogs, and cross-module helpers.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [],
+    "settings_fields": [
+        {
+            "key": "app_name",
+            "type": "text",
+            "label": "App Name",
+            "description": "Name shown on the EHR login, forgot-password, and reset-password pages."
+        },
+        {
+            "key": "login_subtitle",
+            "type": "textarea",
+            "label": "Login Subtitle",
+            "description": "Short support text shown below the EHR name on auth pages."
+        },
+        {
+            "key": "logo_url",
+            "type": "text",
+            "label": "Logo URL",
+            "description": "Optional uploaded logo shown on EHR auth pages."
+        },
+        {
+            "key": "favicon_url",
+            "type": "text",
+            "label": "Favicon URL",
+            "description": "Optional uploaded favicon used across EHR auth pages."
+        }
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.core.status.catalog@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "domain": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [
+            "kernel.auth.user@1",
+            "kernel.audit.record@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.core.status.catalog@1": {
+                    "allow_callers": [
+                        "ehr-core",
+                        "patient-registry",
+                        "encounters",
+                        "clinical-notes",
+                        "orders",
+                        "results",
+                        "prescriptions",
+                        "documents",
+                        "scheduling",
+                        "privacy-consent",
+                        "billing-bridge",
+                        "interoperability-bridge",
+                        "patient-portal"
+                    ]
+                }
+            }
+        }
+    },
+    "hooks": [],
+    "events": []
+}

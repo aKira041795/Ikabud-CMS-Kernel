@@ -1,0 +1,71 @@
+{
+    "id": "reporting",
+    "name": "Reporting",
+    "version": "0.1.0",
+    "description": "Operational EHR reporting over appointments, encounters, results, and audit activity.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [],
+    "reads_tables": [
+        "ehr_appointments",
+        "ehr_encounters",
+        "ehr_lab_results",
+        "audit_logs"
+    ],
+    "migrations": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.reporting.summary@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.reporting.compliance@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "ehr.reporting.summary@1": {
+                    "allow_callers": [
+                        "reporting"
+                    ]
+                },
+                "ehr.reporting.compliance@1": {
+                    "allow_callers": [
+                        "reporting"
+                    ]
+                }
+            }
+        }
+    },
+    "nav": [
+        {
+            "key": "ehr_reporting_summary",
+            "label": "Operations Report",
+            "url": "/admin/ehr/reports/summary",
+            "icon": "chart-bar",
+            "roles": [
+                "admin"
+            ],
+            "description": "Appointments, encounters, throughput"
+        },
+        {
+            "key": "ehr_reporting_compliance",
+            "label": "Compliance Report",
+            "url": "/admin/ehr/reports/compliance",
+            "icon": "shield-check",
+            "roles": [
+                "admin"
+            ],
+            "description": "Access, audit, and break-glass activity"
+        }
+    ],
+    "events": []
+}

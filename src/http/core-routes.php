@@ -9,6 +9,8 @@ if (!function_exists('kernelCoreRoutes')) {
             'GET' => [
                 '/' => 'pageHome',
                 '/login' => 'pageLogin',
+                '/forgot-password' => 'authForgotPasswordPage',
+                '/reset-password' => 'authResetPasswordPage',
                 '/auth/logout' => 'authLogout',
                 '/api/v1/auth/logout' => 'authLogout',
                 '/api/v1/health' => 'apiHealth',
@@ -45,6 +47,8 @@ if (!function_exists('kernelCoreRoutes')) {
             'POST' => [
                 '/auth/login' => 'authLogin',
                 '/api/v1/auth/login' => 'authLogin',
+                '/api/v1/auth/forgot-password' => 'authForgotPassword',
+                '/api/v1/auth/reset-password' => 'authResetPassword',
                 '/api/v1/auth/refresh' => 'authRefresh',
                 '/api/v1/kernel/integrations' => 'apiKernelIntegrations',
                 '/api/v1/admin/modules/install' => 'apiInstallModule',

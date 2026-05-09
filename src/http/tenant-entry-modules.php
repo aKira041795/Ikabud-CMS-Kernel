@@ -18,9 +18,15 @@ if (!function_exists('listTenantEntryModuleOptions')) {
                 continue;
             }
 
+            if ($moduleId === 'ehr-core') {
+                continue;
+            }
+
             $options[] = [
                 'id' => $moduleId,
-                'name' => (string)($module['name'] ?? $moduleId),
+                'name' => $moduleId === 'ehr'
+                    ? 'EHR Suite'
+                    : (string)($module['name'] ?? $moduleId),
                 'enabled' => !empty($module['_enabled']),
                 'loadable' => isset($enabled[$moduleId]),
             ];
@@ -40,6 +46,10 @@ if (!function_exists('normalizeTenantEntryModuleId')) {
         $entryModuleId = trim((string)$value);
         if ($entryModuleId === '') {
             return ['ok' => true, 'value' => null, 'error' => null];
+        }
+
+        if ($entryModuleId === 'ehr-core') {
+            $entryModuleId = 'ehr';
         }
 
         $optionsById = [];
