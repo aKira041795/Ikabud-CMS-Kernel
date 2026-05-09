@@ -320,17 +320,24 @@ function patient_registry_cap_ehr_patient_search_1(mixed $payload, string $resol
     $data = is_array($payload) ? $payload : [];
     $limit = max(1, min(50, (int)($data['limit'] ?? 20)));
     $q = trim((string)($data['q'] ?? ''));
-    $params = [':limit' => $limit];
+    $params = [];
     $sql = 'SELECT id, patient_uuid, first_name, last_name, birth_date, sex, status, primary_phone, email '
         . 'FROM ehr_patients';
 
     if ($q !== '') {
-        $sql .= ' WHERE first_name LIKE :q OR last_name LIKE :q OR patient_uuid LIKE :q OR primary_phone LIKE :q OR email LIKE :q';
-        $params[':q'] = '%' . $q . '%';
+        $like = '%' . $q . '%';
+        $sql .= ' WHERE first_name LIKE :q_first OR last_name LIKE :q_last OR patient_uuid LIKE :q_uuid OR primary_phone LIKE :q_phone OR email LIKE :q_email';
+        $params = [
+            ':q_first' => $like,
+            ':q_last' => $like,
+            ':q_uuid' => $like,
+            ':q_phone' => $like,
+            ':q_email' => $like,
+        ];
     }
 
     $sql .= ' ORDER BY last_name ASC, first_name ASC LIMIT ' . $limit;
-    $rows = prDb()->query($sql, $q !== '' ? $params : [])->fetchAll(\PDO::FETCH_ASSOC);
+    $rows = prDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
 
     return ['ok' => true, 'results' => is_array($rows) ? $rows : []];
 }
