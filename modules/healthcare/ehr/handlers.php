@@ -105,7 +105,7 @@ function ehrAuthLogin(array $params = []): void
     ehrSetAuthCookie($token, (int)config('app.jwt.expiration', 86400));
     app()->csrfRotate(true);
 
-    $redirect = kernelResolveAuthenticatedHomeRedirect($payload, true) ?? '/admin/ehr/settings';
+    $redirect = kernelResolveAuthenticatedHomeRedirect($payload, true) ?? '/admin/ehr';
     echo json_encode(['ok' => true, 'redirect' => $redirect]);
 }
 
@@ -298,6 +298,25 @@ function ehrSettingsPage(array $params = []): void
             ],
             'forgot_password_url' => ehrBaseUrl() . '/forgot-password',
             'login_url' => ehrBaseUrl() . '/login',
+        ]
+    ));
+}
+
+function ehrDashboardPage(array $params = []): void
+{
+    $user = ehrRequireAdmin();
+    $navItems = ehrAdminNavItems($user);
+    $navGroups = ehrDashboardNavGroups($navItems);
+
+    echo ehrRender('admin/dashboard.disyl', array_merge(
+        ehrAdminContext($user, 'ehr_dashboard', [
+            'page_title' => 'EHR Dashboard',
+        ]),
+        [
+            'workspace_nav_items' => $navGroups['workspace'],
+            'workspace_nav_groups' => $navGroups['workspace_groups'],
+            'admin_nav_items' => $navGroups['administration'],
+            'workspace_item_count' => count($navGroups['workspace']),
         ]
     ));
 }

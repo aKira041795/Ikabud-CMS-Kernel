@@ -74,6 +74,19 @@
             }
         }
     },
+    "nav": [
+        {
+            "key": "ehr_scheduling",
+            "label": "Appointments",
+            "url": "/admin/ehr/appointments",
+            "icon": "calendar",
+            "roles": [
+                "admin"
+            ],
+            "description": "Start the day with the appointment and queue worklist",
+            "order": 15
+        }
+    ],
     "events": [
         "ehr.appointment.scheduled",
         "ehr.appointment.updated"

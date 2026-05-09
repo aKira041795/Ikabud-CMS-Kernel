@@ -1,0 +1,70 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Front Door</div>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Appointments</h1>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Start the clinical day from the queue. Review upcoming appointments, current status, and visit reasons before encounters open.</p>
+            </div>
+            <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <span class="font-semibold text-slate-900">{result_count}</span> appointments in this worklist
+            </div>
+        </div>
+        <div class="mt-6 flex flex-wrap gap-3">
+            {if status_counts}
+                {foreach status_counts as row}
+                <div class="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">
+                    <span class="font-semibold text-slate-900">{row.total}</span> {row.status}
+                </div>
+                {/foreach}
+            {else}
+                <div class="rounded-full border border-dashed border-slate-200 px-4 py-2 text-sm text-slate-600">No appointment statuses recorded yet.</div>
+            {/if}
+        </div>
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Upcoming Queue</h2>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {if appointments}
+                {foreach appointments as appointment}
+                <div class="px-6 py-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <div class="text-base font-semibold text-slate-900">{if appointment.patient_summary}{appointment.patient_summary.last_name}, {appointment.patient_summary.first_name}{else}Unknown patient{/if}</div>
+                            <div class="mt-1 text-sm text-slate-600">Appointment UUID: {appointment.appointment_uuid}</div>
+                        </div>
+                        <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{appointment.status}</div>
+                    </div>
+                    <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-4">
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Type</div>
+                            <div class="mt-1 text-slate-900">{appointment.appointment_type}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Starts</div>
+                            <div class="mt-1 text-slate-900">{appointment.scheduled_start}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Ends</div>
+                            <div class="mt-1 text-slate-900">{if appointment.scheduled_end}{appointment.scheduled_end}{else}TBD{/if}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-slate-400">Reason</div>
+                            <div class="mt-1 text-slate-900">{if appointment.reason_for_visit}{appointment.reason_for_visit}{else}Not recorded{/if}</div>
+                        </div>
+                    </div>
+                </div>
+                {/foreach}
+            {else}
+                <div class="px-6 py-12 text-center text-sm text-slate-600">No appointments are scheduled yet.</div>
+            {/if}
+        </div>
+    </section>
+</div>
+{/block}

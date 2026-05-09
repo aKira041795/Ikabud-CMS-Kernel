@@ -8,6 +8,19 @@
         "ehr_orders",
         "ehr_order_items"
     ],
+    "nav": [
+        {
+            "key": "ehr_orders",
+            "label": "Orders",
+            "url": "/admin/ehr/orders",
+            "icon": "clipboard-check",
+            "roles": [
+                "admin"
+            ],
+            "description": "Track requested orders and downstream destinations",
+            "order": 50
+        }
+    ],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"

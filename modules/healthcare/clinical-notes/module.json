@@ -79,6 +79,19 @@
             }
         }
     },
+    "nav": [
+        {
+            "key": "ehr_clinical_notes",
+            "label": "Clinical Notes",
+            "url": "/admin/ehr/notes",
+            "icon": "document-text",
+            "roles": [
+                "admin"
+            ],
+            "description": "Review draft, signed, and amended clinical documentation",
+            "order": 40
+        }
+    ],
     "events": [
         "ehr.note.created",
         "ehr.note.viewed",

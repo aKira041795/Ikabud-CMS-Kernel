@@ -30,5 +30,18 @@
             }
         }
     },
+    "nav": [
+        {
+            "key": "ehr_audit",
+            "label": "Audit Trail",
+            "url": "/admin/ehr/audit",
+            "icon": "history",
+            "roles": [
+                "admin"
+            ],
+            "description": "Inspect the latest EHR access and workflow events",
+            "order": 100
+        }
+    ],
     "events": []
 }

@@ -7,6 +7,19 @@
     "owns_tables": [
         "ehr_prescriptions"
     ],
+    "nav": [
+        {
+            "key": "ehr_prescriptions",
+            "label": "Prescriptions",
+            "url": "/admin/ehr/prescriptions",
+            "icon": "pill",
+            "roles": [
+                "admin"
+            ],
+            "description": "Follow active and canceled medication orders",
+            "order": 70
+        }
+    ],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"

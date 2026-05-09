@@ -101,6 +101,7 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">When</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Category</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Action</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Module</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Patient</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Entity</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Details</th>
@@ -112,11 +113,14 @@
                         <td class="px-4 py-3 text-slate-600">{entry.created_at}</td>
                         <td class="px-4 py-3"><span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{entry.category}</span></td>
                         <td class="px-4 py-3 text-slate-800">{entry.action}</td>
+                        <td class="px-4 py-3 text-slate-600">{entry.module}</td>
                         <td class="px-4 py-3 text-slate-600">{entry.patient_id}</td>
                         <td class="px-4 py-3 text-slate-600">{entry.entity_type}#{entry.entity_id}</td>
                         <td class="px-4 py-3 text-xs text-slate-500">
+                            {if entry.actor_source}Source: {entry.actor_source}{/if}
+                            {if entry.actor_module_user_id}{if entry.actor_source}<br>{/if}Module User: {entry.actor_module_user_id}{/if}
                             {if entry.details.new_data.denial_reason}Reason: {entry.details.new_data.denial_reason}{/if}
-                            {if entry.details.new_data.attempted_action}{if entry.details.new_data.denial_reason}<br>{/if}Attempt: {entry.details.new_data.attempted_action}{/if}
+                            {if entry.details.new_data.attempted_action}{if entry.actor_source || entry.actor_module_user_id || entry.details.new_data.denial_reason}<br>{/if}Attempt: {entry.details.new_data.attempted_action}{/if}
                         </td>
                     </tr>
                     {/foreach}

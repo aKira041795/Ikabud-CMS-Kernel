@@ -86,6 +86,17 @@
     ],
     "nav": [
         {
+            "key": "ehr_dashboard",
+            "label": "Dashboard",
+            "url": "/admin/ehr",
+            "icon": "home",
+            "roles": [
+                "admin"
+            ],
+            "description": "Start here and open core EHR workflows",
+            "order": 10
+        },
+        {
             "key": "ehr_settings",
             "label": "Branding & Access",
             "url": "/admin/ehr/settings",
@@ -93,7 +104,8 @@
             "roles": [
                 "admin"
             ],
-            "description": "Identity, login, and recovery"
+            "description": "Identity, login, and recovery",
+            "order": 900
         }
     ],
     "hooks": [

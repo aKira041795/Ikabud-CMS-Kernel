@@ -60,6 +60,7 @@
                         "documents",
                         "privacy-consent",
                         "scheduling",
+                        "billing-bridge",
                         "patient-portal"
                     ]
                 },
@@ -83,7 +84,8 @@
             "roles": [
                 "admin"
             ],
-            "description": "Search and review patient identities"
+            "description": "Search and review patient identities",
+            "order": 20
         }
     ],
     "events": [

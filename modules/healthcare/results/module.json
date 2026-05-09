@@ -7,7 +7,10 @@
     "owns_tables": [
         "ehr_lab_results"
     ],
-    "reads_tables": [],
+    "reads_tables": [
+        "ehr_order_items",
+        "ehr_orders"
+    ],
     "migrations": [
         "database/migrations/001_initial.sql",
         "database/migrations/002_add_restricted_flag.sql"
@@ -75,6 +78,19 @@
             }
         }
     },
+    "nav": [
+        {
+            "key": "ehr_results",
+            "label": "Results",
+            "url": "/admin/ehr/results",
+            "icon": "beaker",
+            "roles": [
+                "admin"
+            ],
+            "description": "Monitor entered, verified, and released results",
+            "order": 60
+        }
+    ],
     "events": [
         "ehr.result.entered",
         "ehr.result.viewed",

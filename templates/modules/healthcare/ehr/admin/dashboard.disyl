@@ -1,0 +1,56 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-8">
+    <section class="rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-sm shadow-slate-200/40 lg:p-8">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Workspace Overview</div>
+                <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Start using the EHR</h2>
+                <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Open the workflows your team uses every day. The dashboard and sidebar are discovered from enabled EHR module manifests, so new workspace pages appear here without hardcoded menu links.</p>
+            </div>
+            <div class="rounded-3xl border border-teal-200 bg-teal-50 px-5 py-4 text-sm text-teal-900">
+                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Available Views</div>
+                <div class="mt-2 text-3xl font-semibold">{workspace_item_count}</div>
+            </div>
+        </div>
+    </section>
+
+    {foreach workspace_nav_groups as group}
+    <section>
+        <div class="mb-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">{group.title}</div>
+            <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{group.description}</h3>
+        </div>
+        <div class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            {foreach group.items as item}
+            <a href="{item.url}" class="group rounded-[28px] border border-slate-200 bg-white/90 p-6 shadow-sm shadow-slate-200/40 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-lg hover:shadow-teal-100/60">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-lg font-semibold text-slate-900">{item.label}</div>
+                        <div class="mt-3 text-sm leading-6 text-slate-600">{item.description}</div>
+                    </div>
+                    <div class="rounded-2xl bg-teal-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Open</div>
+                </div>
+            </a>
+            {/foreach}
+        </div>
+    </section>
+    {/foreach}
+
+    {if admin_nav_items}
+    <section class="rounded-[28px] border border-slate-200 bg-white/90 p-6 shadow-sm shadow-slate-200/40 lg:p-8">
+        <div class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Administration</div>
+        <div class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Branding and access controls</div>
+        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+            {foreach admin_nav_items as item}
+            <a href="{item.url}" class="rounded-3xl border border-slate-200 bg-slate-50/80 px-5 py-4 transition hover:border-teal-300 hover:bg-teal-50/80">
+                <div class="font-semibold text-slate-900">{item.label}</div>
+                <div class="mt-2 text-sm leading-6 text-slate-600">{item.description}</div>
+            </a>
+            {/foreach}
+        </div>
+    </section>
+    {/if}
+</div>
+{/block}

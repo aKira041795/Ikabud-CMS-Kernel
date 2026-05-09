@@ -30,5 +30,18 @@
             }
         }
     },
+    "nav": [
+        {
+            "key": "ehr_billing_bridge",
+            "label": "Billing Signals",
+            "url": "/admin/ehr/billing",
+            "icon": "receipt",
+            "roles": [
+                "admin"
+            ],
+            "description": "Review charge candidates emitted from clinical activity",
+            "order": 130
+        }
+    ],
     "events": []
 }

@@ -14,12 +14,24 @@
                 linear-gradient(180deg, #eff8ff 0%, #f8fafc 100%);
             color: #0f172a;
         }
+
+        .ehr-page-views [class*="rounded"] {
+            border-radius: 3px !important;
+        }
+
+        .ehr-page-views [class*="file:rounded"]::file-selector-button {
+            border-radius: 3px !important;
+        }
+
+        .ehr-shell-sidebar [class*="rounded"] {
+            border-radius: 3px !important;
+        }
     </style>
     {block head}{/block}
 </head>
 <body class="min-h-screen text-slate-900" x-data="{ mobileNavOpen: false }">
     <div class="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside class="hidden border-r border-slate-200/80 bg-slate-950 text-slate-100 lg:flex lg:flex-col">
+        <aside class="ehr-shell-sidebar hidden border-r border-slate-200/80 bg-slate-950 text-slate-100 lg:flex lg:flex-col">
             <div class="border-b border-white/10 px-6 py-6">
                 <div class="flex items-center gap-4">
                     <div class="flex h-14 w-14 items-center justify-center rounded-3xl bg-teal-500/15 text-xl font-semibold text-teal-200">{brand_initial}</div>
@@ -29,12 +41,17 @@
                     </div>
                 </div>
             </div>
-            <nav class="flex-1 space-y-2 px-4 py-6">
-                {foreach nav_items as item}
-                <a href="{item.url}" class="block rounded-2xl border px-4 py-3 transition {if current_page == item.key}border-teal-400/40 bg-teal-400/10 text-white{else}border-transparent text-slate-300 hover:border-white/10 hover:bg-white/5 hover:text-white{/if}">
-                    <div class="text-sm font-semibold">{item.label}</div>
-                    <div class="mt-1 text-xs text-slate-400">{item.description}</div>
-                </a>
+            <nav class="flex-1 space-y-5 px-4 py-6">
+                {foreach sidebar_nav_groups as group}
+                <section class="space-y-2">
+                    <div class="px-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{group.title}</div>
+                    {foreach group.items as item}
+                    <a href="{item.url}" class="block rounded-2xl border px-4 py-3 transition {if current_page == item.key}border-teal-400/40 bg-teal-400/10 text-white{else}border-transparent text-slate-300 hover:border-white/10 hover:bg-white/5 hover:text-white{/if}">
+                        <div class="text-sm font-semibold">{item.label}</div>
+                        <div class="mt-1 text-xs text-slate-400">{item.description}</div>
+                    </a>
+                    {/foreach}
+                </section>
                 {/foreach}
             </nav>
             <div class="border-t border-white/10 px-6 py-5 text-sm">
@@ -68,12 +85,17 @@
                         </form>
                     </div>
                 </div>
-                <div class="mt-4 space-y-2 lg:hidden" x-show="mobileNavOpen" x-cloak>
-                    {foreach nav_items as item}
-                    <a href="{item.url}" class="block rounded-2xl border px-4 py-3 text-sm {if current_page == item.key}border-teal-300 bg-teal-50 text-teal-900{else}border-slate-200 bg-white text-slate-700{/if}">
-                        <div class="font-semibold">{item.label}</div>
-                        <div class="mt-1 text-xs text-slate-500">{item.description}</div>
-                    </a>
+                <div class="ehr-shell-sidebar mt-4 space-y-4 lg:hidden" x-show="mobileNavOpen" x-cloak>
+                    {foreach sidebar_nav_groups as group}
+                    <section class="space-y-2">
+                        <div class="px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{group.title}</div>
+                        {foreach group.items as item}
+                        <a href="{item.url}" class="block rounded-2xl border px-4 py-3 text-sm {if current_page == item.key}border-teal-300 bg-teal-50 text-teal-900{else}border-slate-200 bg-white text-slate-700{/if}">
+                            <div class="font-semibold">{item.label}</div>
+                            <div class="mt-1 text-xs text-slate-500">{item.description}</div>
+                        </a>
+                        {/foreach}
+                    </section>
                     {/foreach}
                     <form method="POST" action="{logout_url}" class="pt-2">
                         {csrf_field | raw}
@@ -81,7 +103,7 @@
                     </form>
                 </div>
             </header>
-            <main class="flex-1 px-4 py-6 lg:px-8 lg:py-8">
+            <main class="ehr-page-views flex-1 px-4 py-6 lg:px-8 lg:py-8">
                 {block content}{/block}
             </main>
         </div>

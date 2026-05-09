@@ -13,7 +13,7 @@ if (function_exists('app') && method_exists(app(), 'hooks')) {
         }
 
         if (in_array((string)($user['role'] ?? ''), ['admin'], true)) {
-            return '/admin/ehr/settings';
+            return '/admin/ehr';
         }
 
         return $url;
@@ -480,11 +480,167 @@ function ehrAdminNavItems(array $user): array
                 'description' => $description,
                 'icon' => (string)($item['icon'] ?? 'box'),
                 'module' => $moduleId,
+                'order' => (int)($item['order'] ?? ($key === 'ehr_settings' ? 900 : 500)),
             ];
         }
     }
 
+    usort($items, static function (array $left, array $right): int {
+        $orderCompare = ((int)($left['order'] ?? 500)) <=> ((int)($right['order'] ?? 500));
+        if ($orderCompare !== 0) {
+            return $orderCompare;
+        }
+
+        return strcmp((string)($left['label'] ?? ''), (string)($right['label'] ?? ''));
+    });
+
     return $items;
+}
+
+function ehrDashboardNavGroups(array $navItems): array
+{
+    $workspace = [];
+    $administration = [];
+    $workspaceGroups = [];
+
+    $sidebarGroups = ehrSidebarNavGroups($navItems);
+    foreach ($sidebarGroups as $group) {
+        $groupKey = (string)($group['key'] ?? '');
+        $groupTitle = (string)($group['title'] ?? '');
+        $groupItems = is_array($group['items'] ?? null) ? array_values($group['items']) : [];
+
+        if ($groupKey === 'overview') {
+            continue;
+        }
+
+        if ($groupKey === 'administration') {
+            $administration = $groupItems;
+            continue;
+        }
+
+        $workspace = array_merge($workspace, $groupItems);
+        $workspaceGroups[] = [
+            'key' => $groupKey,
+            'title' => $groupTitle,
+            'description' => match ($groupKey) {
+                'patient_flow' => 'Coordinate appointments, patient identity, and active visits.',
+                'clinical_workspace' => 'Review notes, orders, results, prescriptions, and chart documents.',
+                default => 'Track consent, audit, reporting, and downstream billing signals.',
+            },
+            'items' => $groupItems,
+        ];
+    }
+
+    return [
+        'workspace' => $workspace,
+        'workspace_groups' => $workspaceGroups,
+        'administration' => $administration,
+    ];
+}
+
+function ehrSidebarNavGroups(array $navItems): array
+{
+    $groups = [
+        'overview' => [
+            'key' => 'overview',
+            'title' => 'Overview',
+            'items' => [],
+        ],
+        'patient_flow' => [
+            'key' => 'patient_flow',
+            'title' => 'Patient Flow',
+            'items' => [],
+        ],
+        'clinical_workspace' => [
+            'key' => 'clinical_workspace',
+            'title' => 'Clinical Workspace',
+            'items' => [],
+        ],
+        'governance_revenue' => [
+            'key' => 'governance_revenue',
+            'title' => 'Governance & Revenue',
+            'items' => [],
+        ],
+        'administration' => [
+            'key' => 'administration',
+            'title' => 'Administration',
+            'items' => [],
+        ],
+    ];
+
+    foreach ($navItems as $item) {
+        $key = (string)($item['key'] ?? '');
+        $groupKey = match ($key) {
+            'ehr_dashboard' => 'overview',
+            'ehr_scheduling', 'ehr_patient_registry', 'ehr_encounters' => 'patient_flow',
+            'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents' => 'clinical_workspace',
+            'ehr_settings' => 'administration',
+            default => 'governance_revenue',
+        };
+
+        $groups[$groupKey]['items'][] = $item;
+    }
+
+    return array_values(array_filter($groups, static fn(array $group): bool => !empty($group['items'])));
+}
+
+function ehrPatientSummary(int $patientId, string $callerModule = 'ehr'): ?array
+{
+    if ($patientId <= 0) {
+        return null;
+    }
+
+    $result = app()->cap()->call('ehr.patient.view@1', ['id' => $patientId], ['caller_module' => $callerModule]);
+    if (!is_array($result) || empty($result['ok']) || !is_array($result['patient'] ?? null)) {
+        return null;
+    }
+
+    $patient = $result['patient'];
+    return [
+        'id' => (int)($patient['id'] ?? 0),
+        'patient_uuid' => (string)($patient['patient_uuid'] ?? ''),
+        'first_name' => (string)($patient['first_name'] ?? ''),
+        'last_name' => (string)($patient['last_name'] ?? ''),
+        'birth_date' => (string)($patient['birth_date'] ?? ''),
+        'status' => (string)($patient['status'] ?? ''),
+    ];
+}
+
+function ehrEncounterSummary(int $encounterId, string $callerModule = 'ehr'): ?array
+{
+    if ($encounterId <= 0) {
+        return null;
+    }
+
+    $result = app()->cap()->call('ehr.encounter.view@1', ['id' => $encounterId], ['caller_module' => $callerModule]);
+    if (!is_array($result) || empty($result['ok']) || !is_array($result['encounter'] ?? null)) {
+        return null;
+    }
+
+    $encounter = $result['encounter'];
+    return [
+        'id' => (int)($encounter['id'] ?? 0),
+        'encounter_uuid' => (string)($encounter['encounter_uuid'] ?? ''),
+        'encounter_type' => (string)($encounter['encounter_type'] ?? ''),
+        'service_line' => (string)($encounter['service_line'] ?? ''),
+        'status' => (string)($encounter['status'] ?? ''),
+        'start_at' => (string)($encounter['start_at'] ?? ''),
+    ];
+}
+
+function ehrHydrateRecordSummaries(array $rows, string $callerModule, string $patientIdKey = 'patient_id', string $encounterIdKey = 'encounter_id'): array
+{
+    foreach ($rows as &$row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $row['patient_summary'] = ehrPatientSummary((int)($row[$patientIdKey] ?? 0), $callerModule);
+        $row['encounter_summary'] = ehrEncounterSummary((int)($row[$encounterIdKey] ?? 0), $callerModule);
+    }
+    unset($row);
+
+    return $rows;
 }
 
 function ehrAdminContext(array $user, string $currentPage, array $extra = []): array
@@ -501,6 +657,7 @@ function ehrAdminContext(array $user, string $currentPage, array $extra = []): a
         'csrf_token' => app()->csrfToken(),
         'csrf_field' => app()->csrfField(),
         'nav_items' => ehrAdminNavItems($user),
+        'sidebar_nav_groups' => ehrSidebarNavGroups(ehrAdminNavItems($user)),
         'user_display' => $displayName,
         'user_role' => ucfirst($role),
         'brand_name' => ehrAppName(),
@@ -528,7 +685,7 @@ function ehrRedirectAuthenticatedAuthUser(): bool
         return false;
     }
 
-    $home = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/admin/ehr/settings';
+    $home = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/admin/ehr';
     app()->redirect($home);
     return true;
 }

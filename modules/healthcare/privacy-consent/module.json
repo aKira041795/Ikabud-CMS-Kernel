@@ -8,6 +8,19 @@
         "ehr_consents",
         "ehr_break_glass_events"
     ],
+    "nav": [
+        {
+            "key": "ehr_privacy_consent",
+            "label": "Privacy & Consent",
+            "url": "/admin/ehr/privacy",
+            "icon": "shield-lock",
+            "roles": [
+                "admin"
+            ],
+            "description": "Review consents and active break-glass overrides",
+            "order": 90
+        }
+    ],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"

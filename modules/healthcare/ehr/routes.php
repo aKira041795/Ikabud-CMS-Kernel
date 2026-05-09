@@ -7,6 +7,7 @@ return [
         '/ehr/login' => 'ehr:ehrPageLogin',
         '/ehr/forgot-password' => 'ehr:ehrForgotPasswordPage',
         '/ehr/reset-password' => 'ehr:ehrResetPasswordPage',
+        '/admin/ehr' => 'ehr:ehrDashboardPage',
         '/admin/ehr/settings' => 'ehr:ehrSettingsPage',
     ],
     'POST' => [

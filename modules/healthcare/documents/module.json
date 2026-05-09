@@ -97,6 +97,19 @@
             }
         }
     },
+    "nav": [
+        {
+            "key": "ehr_documents",
+            "label": "Documents",
+            "url": "/admin/ehr/documents",
+            "icon": "folder",
+            "roles": [
+                "admin"
+            ],
+            "description": "Browse uploaded files and document access policies",
+            "order": 80
+        }
+    ],
     "events": [
         "ehr.document.uploaded",
         "ehr.document.viewed",

@@ -54,7 +54,8 @@
             "roles": [
                 "admin"
             ],
-            "description": "Appointments, encounters, throughput"
+            "description": "Appointments, encounters, throughput",
+            "order": 110
         },
         {
             "key": "ehr_reporting_compliance",
@@ -64,7 +65,8 @@
             "roles": [
                 "admin"
             ],
-            "description": "Access, audit, and break-glass activity"
+            "description": "Access, audit, and break-glass activity",
+            "order": 120
         }
     ],
     "events": []
