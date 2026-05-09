@@ -214,6 +214,59 @@ $createdOrder = orders_cap_ehr_order_create_1([
 $createdOrderId = is_array($createdOrder) ? (int)($createdOrder['order']['id'] ?? 0) : 0;
 et('order create capability succeeds', is_array($createdOrder) && !empty($createdOrder['ok']) && $createdOrderId > 0, json_encode($createdOrder));
 
+$healthcareDir = __DIR__ . '/../modules/healthcare';
+$manifestDepends = [];
+$manifestExposes = [];
+foreach (glob($healthcareDir . '/*/module.json') ?: [] as $manifestPath) {
+    $decoded = json_decode((string)file_get_contents($manifestPath), true);
+    if (!is_array($decoded)) {
+        continue;
+    }
+    $moduleId = (string)($decoded['id'] ?? basename(dirname($manifestPath)));
+    $depends = is_array($decoded['capabilities']['depends'] ?? null) ? $decoded['capabilities']['depends'] : [];
+    $exposes = [];
+    foreach (($decoded['capabilities']['exposes'] ?? []) as $exposed) {
+        if (is_array($exposed) && isset($exposed['id'])) {
+            $exposes[] = (string)$exposed['id'];
+        }
+    }
+    $manifestDepends[$moduleId] = array_values(array_unique(array_map('strval', $depends)));
+    $manifestExposes[$moduleId] = $exposes;
+}
+
+$callPattern = "/cap\\(\\)->call\\(\\s*'([^']+)'[^)]*'caller_module'\\s*=>\\s*'([^']+)'/s";
+$wiringDrift = [];
+foreach (glob($healthcareDir . '/*/{handlers,helpers}.php', GLOB_BRACE) ?: [] as $sourcePath) {
+    $contents = (string)file_get_contents($sourcePath);
+    if ($contents === '' || !preg_match_all($callPattern, $contents, $matches, PREG_SET_ORDER)) {
+        continue;
+    }
+    foreach ($matches as $match) {
+        $capId = $match[1];
+        $caller = $match[2];
+        if (!isset($manifestDepends[$caller])) {
+            continue;
+        }
+        if (in_array($capId, $manifestExposes[$caller] ?? [], true)) {
+            continue;
+        }
+        if (in_array($capId, $manifestDepends[$caller], true)) {
+            continue;
+        }
+        $wiringDrift[] = $caller . ' -> ' . $capId . ' (' . basename(dirname($sourcePath)) . '/' . basename($sourcePath) . ')';
+    }
+}
+et('healthcare capability calls match manifest depends', $wiringDrift === [], implode('; ', $wiringDrift));
+
+foreach ($manifestDepends as $moduleId => $deps) {
+    $exposes = $manifestExposes[$moduleId] ?? [];
+    foreach ($deps as $dep) {
+        if (in_array($dep, $exposes, true)) {
+            $wiringDrift[] = $moduleId . ' depends on its own exposed capability ' . $dep;
+        }
+    }
+}
+
 $tenantEnabledModuleIds = array_keys(getEnabledModules());
 et('ehr tenant enabled modules include entry shell', in_array('ehr', $tenantEnabledModuleIds, true), json_encode($tenantEnabledModuleIds));
 

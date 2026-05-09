@@ -53,6 +53,7 @@
             "kernel.audit.record@1",
             "ehr.core.status.catalog@1",
             "ehr.patient.view@1",
+            "ehr.patient.search@1",
             "ehr.encounter.create@1",
             "ehr.encounter.view@1"
         ],
