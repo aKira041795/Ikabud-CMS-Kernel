@@ -16,7 +16,16 @@ require_once modulePathForId('ehr') . '/helpers.php';
 require_once modulePathForId('ehr') . '/handlers.php';
 require_once modulePathForId('encounters') . '/helpers.php';
 require_once modulePathForId('patient-registry') . '/helpers.php';
+require_once modulePathForId('scheduling') . '/helpers.php';
+require_once modulePathForId('orders') . '/helpers.php';
 require_once modulePathForId('reporting') . '/helpers.php';
+
+loadModuleRoutes([
+    'GET' => [],
+    'POST' => [],
+    'PUT' => [],
+    'DELETE' => [],
+]);
 
 $pass = 0;
 $fail = 0;
@@ -146,6 +155,64 @@ $ehrAdminUser = [
     'role' => 'admin',
     'source' => 'ehr',
 ];
+
+$crudSeed = 'ehrtest_' . bin2hex(random_bytes(4));
+$createdPatient = patient_registry_cap_ehr_patient_create_1([
+    'first_name' => 'Create',
+    'last_name' => 'Coverage-' . $crudSeed,
+    'birth_date' => '1988-05-09',
+    'sex' => 'female',
+    'status' => 'active',
+    'primary_phone' => '09175550000',
+    'email' => $crudSeed . '@example.test',
+    'identifiers' => [[
+        'type' => 'MRN',
+        'value' => strtoupper($crudSeed),
+        'issuing_authority' => 'EHR TEST',
+        'is_primary' => true,
+        'status' => 'active',
+    ]],
+], 'ehr.patient.create@1', 'patient-registry');
+$createdPatientId = is_array($createdPatient) ? (int)($createdPatient['patient']['id'] ?? 0) : 0;
+et('patient create capability succeeds', is_array($createdPatient) && !empty($createdPatient['ok']) && $createdPatientId > 0, json_encode($createdPatient));
+
+$createdAppointment = scheduling_cap_ehr_appointment_schedule_1([
+    'patient_id' => $createdPatientId,
+    'appointment_type' => 'Coverage Visit',
+    'scheduled_start' => '2026-05-14 09:00:00',
+    'scheduled_end' => '2026-05-14 09:30:00',
+    'status' => 'scheduled',
+    'reason_for_visit' => 'Coverage appointment create check',
+    'created_by_user_id' => 1,
+], 'ehr.appointment.schedule@1', 'scheduling');
+$createdAppointmentId = is_array($createdAppointment) ? (int)($createdAppointment['appointment']['id'] ?? 0) : 0;
+et('appointment create capability succeeds', is_array($createdAppointment) && !empty($createdAppointment['ok']) && $createdAppointmentId > 0, json_encode($createdAppointment));
+
+$createdEncounter = encounters_cap_ehr_encounter_create_1([
+    'patient_id' => $createdPatientId,
+    'encounter_type' => 'outpatient',
+    'service_line' => 'ambulatory',
+    'status' => 'open',
+    'reason_for_visit' => 'Coverage order create check',
+], 'ehr.encounter.create@1', 'encounters');
+$createdEncounterId = is_array($createdEncounter) ? (int)($createdEncounter['encounter']['id'] ?? 0) : 0;
+et('encounter create capability succeeds', is_array($createdEncounter) && !empty($createdEncounter['ok']) && $createdEncounterId > 0, json_encode($createdEncounter));
+
+$createdOrder = orders_cap_ehr_order_create_1([
+    'patient_id' => $createdPatientId,
+    'encounter_id' => $createdEncounterId,
+    'order_type' => 'lab',
+    'priority' => 'routine',
+    'status' => 'requested',
+    'destination_module' => 'results',
+    'clinical_question' => 'Coverage order create check',
+    'items' => [[
+        'item_label' => 'Coverage create order item',
+        'status' => 'requested',
+    ]],
+], 'ehr.order.create@1', 'orders');
+$createdOrderId = is_array($createdOrder) ? (int)($createdOrder['order']['id'] ?? 0) : 0;
+et('order create capability succeeds', is_array($createdOrder) && !empty($createdOrder['ok']) && $createdOrderId > 0, json_encode($createdOrder));
 
 $tenantEnabledModuleIds = array_keys(getEnabledModules());
 et('ehr tenant enabled modules include entry shell', in_array('ehr', $tenantEnabledModuleIds, true), json_encode($tenantEnabledModuleIds));
