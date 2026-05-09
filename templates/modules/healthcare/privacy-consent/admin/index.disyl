@@ -4,16 +4,17 @@
 <div class="space-y-6">
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
-            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Governance</div>
-            <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Privacy &amp; Consent</h1>
-            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Review granted and revoked consents alongside active break-glass overrides before sensitive records are accessed.</p>
+            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Privacy</div>
+            <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Privacy &amp; consent</h1>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Confirm a patient's consent and request emergency access when records are off-limits.</p>
         </div>
     </section>
 
     <div class="grid gap-6 xl:grid-cols-2">
         <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Recent Consents</h2>
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Patient consents</h2>
+                <p class="mt-1 text-xs text-slate-500">Latest consent records and any revocations.</p>
             </div>
             <div class="divide-y divide-slate-100">
                 {if consents}
@@ -50,7 +51,8 @@
 
         <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Break-Glass Events</h2>
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Emergency access</h2>
+                <p class="mt-1 text-xs text-slate-500">Active break-glass sessions and the reason recorded by staff.</p>
             </div>
             <div class="divide-y divide-slate-100">
                 {if break_glass_events}
@@ -84,7 +86,8 @@
     </div>
 
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Record Consent</h2>
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Record a consent</h2>
+        <p class="mt-1 text-xs text-slate-500">Capture what the patient agreed to and when it expires.</p>
         {if form_notice == 'consent_recorded'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Consent recorded.</div>{elseif form_notice == 'break_glass'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Break-glass access granted.</div>{/if}
         {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
         <form method="POST" action="{base_url}/admin/ehr/privacy/consents" class="mt-4 grid gap-4 md:grid-cols-2">
@@ -118,7 +121,8 @@
     </section>
 
     <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Break-Glass Access</h2>
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Request emergency access</h2>
+        <p class="mt-1 text-xs text-amber-700/80">Use only when standard consent isn't available and care can't wait. Every request is logged.</p>
         <form method="POST" action="{base_url}/admin/ehr/privacy/break-glass" class="mt-4 grid gap-4 md:grid-cols-2">
             {csrf_field | raw}
             <div class="md:col-span-2">

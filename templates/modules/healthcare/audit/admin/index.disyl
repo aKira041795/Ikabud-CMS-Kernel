@@ -5,9 +5,9 @@
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Oversight</div>
-                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Audit Trail</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Inspect the latest EHR access and workflow events without leaving the workspace shell.</p>
+                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Activity</div>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Activity log</h1>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Who did what, and when — across the patient chart.</p>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 <span class="font-semibold text-slate-900">{result_count}</span> recent audit events
@@ -17,7 +17,8 @@
 
     <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-4">
-            <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Latest Events</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Latest activity</h2>
+            <p class="mt-1 text-xs text-slate-500">Most recent record changes, views, and access decisions.</p>
         </div>
         <div class="divide-y divide-slate-100">
             {if entries}
@@ -47,7 +48,7 @@
                 </div>
                 {/foreach}
             {else}
-                <div class="px-6 py-12 text-center text-sm text-slate-600">No audit entries are available.</div>
+                <div class="px-6 py-12 text-center text-sm text-slate-600">No activity yet.</div>
             {/if}
         </div>
     </section>

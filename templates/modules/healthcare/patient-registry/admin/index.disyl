@@ -5,9 +5,9 @@
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Patient Identity</div>
-                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Patient Registry</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Search the canonical patient registry by name, UUID, phone, or email. Select a record to review identifiers and demographics.</p>
+                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Patients</div>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Patient registry</h1>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Find a patient by name, ID, phone, or email — or register a new one.</p>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 <span class="font-semibold text-slate-900">{result_count}</span> patients in current result set
@@ -22,7 +22,8 @@
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
         <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Search Results</h2>
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Search results</h2>
+                <p class="mt-1 text-xs text-slate-500">Tap a patient to load their record into the editor on the right.</p>
             </div>
             <div class="divide-y divide-slate-100">
                 {if patients}
@@ -53,8 +54,8 @@
                     {/foreach}
                 {else}
                     <div class="px-6 py-12 text-center">
-                        <div class="text-base font-semibold text-slate-900">No patient records matched this search.</div>
-                        <p class="mt-2 text-sm text-slate-600">Try a patient last name, phone number, or UUID.</p>
+                        <div class="text-base font-semibold text-slate-900">No patients matched your search.</div>
+                        <p class="mt-2 text-sm text-slate-600">Try a last name, phone number, or patient ID.</p>
                     </div>
                 {/if}
             </div>
@@ -63,7 +64,8 @@
         <aside class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex items-start justify-between gap-4">
                 <div>
-                    <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Patient Editor</h2>
+                    <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Patient details</h2>
+                    <p class="mt-1 text-xs text-slate-500">{if form_values.patient_id}Update demographics, contact info, and identifiers.{else}Fill in the basics to register a new patient.{/if}</p>
                     <div class="mt-2 text-2xl font-semibold text-slate-900">{if form_values.patient_id}Edit patient{else}Register patient{/if}</div>
                     {if selected_patient}<div class="mt-1 text-sm text-slate-600">Patient UUID: {selected_patient.patient_uuid}</div>{/if}
                 </div>

@@ -4,14 +4,11 @@
 <div class="space-y-6">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
         <div>
-            <h1 class="text-xl font-bold text-slate-900">EHR Operational Reporting</h1>
-            <p class="mt-1 text-sm text-slate-500">Track appointment flow, encounter volume, result turnaround, and audit activity from one operational dashboard.</p>
+            <h1 class="text-xl font-bold text-slate-900">Operations summary</h1>
+            <p class="mt-1 text-sm text-slate-500">How the day is moving — appointments, visits, result turnaround, and team activity.</p>
         </div>
         <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-            <div>
-                API endpoint: <span class="font-mono text-slate-700">{api_url}</span>
-            </div>
-            <a href="{csv_url}" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>
+            <a href="{csv_url}" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Download CSV</a>
         </div>
     </div>
 
@@ -42,7 +39,7 @@
 
     {if !report_ok}
     <div class="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-        <div class="font-semibold">Summary report unavailable</div>
+        <div class="font-semibold">We couldn't load the summary right now</div>
         <div class="mt-1">{report_error}</div>
     </div>
     {else}
@@ -58,25 +55,25 @@
             <div class="mt-1 text-xs text-slate-500">Open {report_summary.encounter_volume.open_count | default:0} · Completed {report_summary.encounter_volume.completed_count | default:0}</div>
         </div>
         <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
-            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Result Turnaround</div>
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Result turnaround</div>
             <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.turnaround_time.average_minutes | default:'--'}</div>
-            <div class="mt-1 text-xs text-slate-500">Average minutes across {report_summary.turnaround_time.released_count | default:0} released results</div>
+            <div class="mt-1 text-xs text-slate-500">Avg. minutes across {report_summary.turnaround_time.released_count | default:0} released results</div>
         </div>
         <div class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
-            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Audit Events</div>
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Team activity</div>
             <div class="mt-2 text-2xl font-bold text-slate-900">{report_summary.user_activity.total_events | default:0}</div>
-            <div class="mt-1 text-xs text-slate-500">Top modules and actions in the selected window</div>
+            <div class="mt-1 text-xs text-slate-500">Total actions in the selected window</div>
         </div>
     </div>
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
             <div class="border-b border-slate-100 px-5 py-4">
-                <h2 class="text-sm font-semibold text-slate-900">Appointment Flow</h2>
+                <h2 class="text-sm font-semibold text-slate-900">Appointment status mix</h2>
             </div>
             <div class="px-5 py-4">
                 {if report_summary.appointment_flow.by_status | count == 0}
-                <div class="text-sm text-slate-500">No appointment activity matched the current filters.</div>
+                <div class="text-sm text-slate-500">No appointments matched these filters.</div>
                 {else}
                 <div class="space-y-3">
                     {foreach report_summary.appointment_flow.by_status as status => count}
@@ -92,11 +89,11 @@
 
         <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
             <div class="border-b border-slate-100 px-5 py-4">
-                <h2 class="text-sm font-semibold text-slate-900">Encounter Volume</h2>
+                <h2 class="text-sm font-semibold text-slate-900">Visit status mix</h2>
             </div>
             <div class="px-5 py-4">
                 {if report_summary.encounter_volume.by_status | count == 0}
-                <div class="text-sm text-slate-500">No encounter activity matched the current filters.</div>
+                <div class="text-sm text-slate-500">No visits matched these filters.</div>
                 {else}
                 <div class="space-y-3">
                     {foreach report_summary.encounter_volume.by_status as status => count}
@@ -114,7 +111,7 @@
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
             <div class="border-b border-slate-100 px-5 py-4">
-                <h2 class="text-sm font-semibold text-slate-900">Top Modules</h2>
+                <h2 class="text-sm font-semibold text-slate-900">Busiest workspaces</h2>
             </div>
             <div class="px-5 py-4">
                 {if report_summary.user_activity.top_modules | count == 0}
@@ -134,7 +131,7 @@
 
         <div class="overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
             <div class="border-b border-slate-100 px-5 py-4">
-                <h2 class="text-sm font-semibold text-slate-900">Top Actions</h2>
+                <h2 class="text-sm font-semibold text-slate-900">Most common actions</h2>
             </div>
             <div class="px-5 py-4">
                 {if report_summary.user_activity.top_actions | count == 0}
