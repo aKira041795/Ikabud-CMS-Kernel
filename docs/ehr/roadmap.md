@@ -157,6 +157,8 @@ Acceptance criteria:
 
 ## Phase 4: Patient Portal and Consent Workflows
 
+**Status (May 2026):** Phase 4 MVP scaffold landed. `patient-portal` module is provisioned for the `ehr` entry bundle and ships with own DB tables (`ehr_portal_accounts`, `ehr_portal_login_attempts`), own auth shell at `/portal`, capabilities for account provisioning/deactivation/view, and a portal-side appointments read model that goes through `ehr.appointment.list@1` (no direct clinical-table reads). Released-results, prescriptions, documents, consent capture, and proxy/guardian access still pending.
+
 Outcome:
 - controlled patient-facing access to selected records and actions
 

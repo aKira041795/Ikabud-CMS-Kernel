@@ -52,6 +52,7 @@ function tenantProvisionEntryBundleModules(?string $entryModuleId): array
             'audit',
             'reporting',
             'billing-bridge',
+            'patient-portal',
         ],
         'ehr-core' => [
             'ehr',
@@ -68,6 +69,7 @@ function tenantProvisionEntryBundleModules(?string $entryModuleId): array
             'audit',
             'reporting',
             'billing-bridge',
+            'patient-portal',
         ],
     ];
 

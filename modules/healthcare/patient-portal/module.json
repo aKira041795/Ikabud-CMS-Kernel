@@ -1,0 +1,83 @@
+{
+    "id": "patient-portal",
+    "name": "Patient Portal",
+    "version": "0.1.0",
+    "description": "Patient-facing portal that releases selected EHR records (appointments, results, prescriptions, documents) under consent and audit controls.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_portal_accounts",
+        "ehr_portal_login_attempts"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ehr.portal.account.provision@1",
+                "priority": 100,
+                "modes": ["first"]
+            },
+            {
+                "id": "ehr.portal.account.deactivate@1",
+                "priority": 100,
+                "modes": ["first"]
+            },
+            {
+                "id": "ehr.portal.account.view@1",
+                "priority": 100,
+                "modes": ["first"]
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.patient.view@1",
+            "ehr.appointment.list@1",
+            "ehr.consent.record@1",
+            "ehr.consent.active@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.portal.account.provision@1": {
+                    "allow_callers": [
+                        "patient-portal",
+                        "patient-registry",
+                        "ehr"
+                    ]
+                },
+                "ehr.portal.account.deactivate@1": {
+                    "allow_callers": [
+                        "patient-portal",
+                        "patient-registry",
+                        "ehr"
+                    ]
+                },
+                "ehr.portal.account.view@1": {
+                    "allow_callers": [
+                        "patient-portal",
+                        "patient-registry",
+                        "ehr"
+                    ]
+                }
+            }
+        }
+    },
+    "nav": [
+        {
+            "key": "ehr_patient_portal",
+            "label": "Patient Portal",
+            "url": "/admin/ehr/portal",
+            "icon": "user-circle",
+            "roles": ["admin"],
+            "description": "Provision patient portal accounts and review portal access activity",
+            "order": 95
+        }
+    ],
+    "events": [
+        "ehr.portal.account.provisioned",
+        "ehr.portal.account.deactivated",
+        "ehr.portal.session.started",
+        "ehr.portal.session.ended"
+    ]
+}

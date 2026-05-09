@@ -192,6 +192,33 @@ $searchNeedle = strtolower(substr($crudSeed, 0, 4));
 $searchHit = patient_registry_cap_ehr_patient_search_1(['q' => $searchNeedle, 'limit' => 5], 'ehr.patient.search@1', 'patient-registry');
 et('patient search capability succeeds with non-empty q (regression: PDO native prepares disallow reused :q placeholder)', is_array($searchHit) && !empty($searchHit['ok']) && isset($searchHit['results']), json_encode($searchHit));
 
+$portalEmail = 'portal_' . $crudSeed . '@example.test';
+$portalPassword = 'P0rtal-' . $crudSeed . '!';
+$portalProvision = patient_portal_cap_ehr_portal_account_provision_1([
+    'patient_id' => $createdPatientId,
+    'email' => $portalEmail,
+    'password' => $portalPassword,
+    'provisioned_by_user_id' => 1,
+], 'ehr.portal.account.provision@1', 'patient-portal');
+et('patient portal account provision succeeds', is_array($portalProvision) && !empty($portalProvision['ok']) && !empty($portalProvision['account']['account_uuid']), json_encode($portalProvision));
+
+$portalDuplicate = patient_portal_cap_ehr_portal_account_provision_1([
+    'patient_id' => $createdPatientId,
+    'email' => 'second_' . $crudSeed . '@example.test',
+    'password' => $portalPassword,
+], 'ehr.portal.account.provision@1', 'patient-portal');
+et('patient portal account provision rejects second account for same patient', is_array($portalDuplicate) && empty($portalDuplicate['ok']) && stripos((string)($portalDuplicate['error'] ?? ''), 'already') !== false, json_encode($portalDuplicate));
+
+$portalView = patient_portal_cap_ehr_portal_account_view_1(['patient_id' => $createdPatientId], 'ehr.portal.account.view@1', 'patient-portal');
+et('patient portal account view returns account without password hash', is_array($portalView) && !empty($portalView['ok']) && isset($portalView['account']) && !isset($portalView['account']['password_hash']), json_encode($portalView));
+
+$portalDeactivate = patient_portal_cap_ehr_portal_account_deactivate_1([
+    'patient_id' => $createdPatientId,
+    'reason' => 'regression test cleanup',
+    'actor_user_id' => 1,
+], 'ehr.portal.account.deactivate@1', 'patient-portal');
+et('patient portal account deactivate succeeds', is_array($portalDeactivate) && !empty($portalDeactivate['ok']) && (string)($portalDeactivate['account']['status'] ?? '') === 'inactive', json_encode($portalDeactivate));
+
 $createdAppointment = scheduling_cap_ehr_appointment_schedule_1([
     'patient_id' => $createdPatientId,
     'appointment_type' => 'Coverage Visit',
@@ -296,9 +323,9 @@ $ehrAdminNavKeys = array_values(array_map(static fn(array $item): string => (str
 $tenantEntryRouter = new \Ikabud\Kernel\Http\TenantEntryRouter();
 et('ehr tenant root resolves to module entry login route', $tenantEntryRouter->rewriteUri('/') === '/ehr/login', $tenantEntryRouter->rewriteUri('/'));
 
-et('ehr admin nav derives from module manifests', count($ehrAdminNavItems) >= 14 && isset($ehrAdminNavByKey['ehr_dashboard'], $ehrAdminNavByKey['ehr_scheduling'], $ehrAdminNavByKey['ehr_patient_registry'], $ehrAdminNavByKey['ehr_encounters'], $ehrAdminNavByKey['ehr_clinical_notes'], $ehrAdminNavByKey['ehr_orders'], $ehrAdminNavByKey['ehr_results'], $ehrAdminNavByKey['ehr_prescriptions'], $ehrAdminNavByKey['ehr_documents'], $ehrAdminNavByKey['ehr_privacy_consent'], $ehrAdminNavByKey['ehr_audit'], $ehrAdminNavByKey['ehr_reporting_summary'], $ehrAdminNavByKey['ehr_reporting_compliance'], $ehrAdminNavByKey['ehr_billing_bridge'], $ehrAdminNavByKey['ehr_settings']));
-et('ehr admin nav keeps manifest keys', ($ehrAdminNavByKey['ehr_settings']['module'] ?? '') === 'ehr' && ($ehrAdminNavByKey['ehr_scheduling']['module'] ?? '') === 'scheduling' && ($ehrAdminNavByKey['ehr_patient_registry']['module'] ?? '') === 'patient-registry' && ($ehrAdminNavByKey['ehr_encounters']['module'] ?? '') === 'encounters' && ($ehrAdminNavByKey['ehr_clinical_notes']['module'] ?? '') === 'clinical-notes' && ($ehrAdminNavByKey['ehr_orders']['module'] ?? '') === 'orders' && ($ehrAdminNavByKey['ehr_results']['module'] ?? '') === 'results' && ($ehrAdminNavByKey['ehr_prescriptions']['module'] ?? '') === 'prescriptions' && ($ehrAdminNavByKey['ehr_documents']['module'] ?? '') === 'documents' && ($ehrAdminNavByKey['ehr_privacy_consent']['module'] ?? '') === 'privacy-consent' && ($ehrAdminNavByKey['ehr_audit']['module'] ?? '') === 'audit' && ($ehrAdminNavByKey['ehr_reporting_summary']['module'] ?? '') === 'reporting' && ($ehrAdminNavByKey['ehr_reporting_compliance']['module'] ?? '') === 'reporting' && ($ehrAdminNavByKey['ehr_billing_bridge']['module'] ?? '') === 'billing-bridge');
-et('ehr admin nav orders dashboard first and settings last', $ehrAdminNavKeys === ['ehr_dashboard', 'ehr_scheduling', 'ehr_patient_registry', 'ehr_encounters', 'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents', 'ehr_privacy_consent', 'ehr_audit', 'ehr_reporting_summary', 'ehr_reporting_compliance', 'ehr_billing_bridge', 'ehr_settings'], json_encode($ehrAdminNavKeys));
+et('ehr admin nav derives from module manifests', count($ehrAdminNavItems) >= 15 && isset($ehrAdminNavByKey['ehr_dashboard'], $ehrAdminNavByKey['ehr_scheduling'], $ehrAdminNavByKey['ehr_patient_registry'], $ehrAdminNavByKey['ehr_encounters'], $ehrAdminNavByKey['ehr_clinical_notes'], $ehrAdminNavByKey['ehr_orders'], $ehrAdminNavByKey['ehr_results'], $ehrAdminNavByKey['ehr_prescriptions'], $ehrAdminNavByKey['ehr_documents'], $ehrAdminNavByKey['ehr_privacy_consent'], $ehrAdminNavByKey['ehr_patient_portal'], $ehrAdminNavByKey['ehr_audit'], $ehrAdminNavByKey['ehr_reporting_summary'], $ehrAdminNavByKey['ehr_reporting_compliance'], $ehrAdminNavByKey['ehr_billing_bridge'], $ehrAdminNavByKey['ehr_settings']));
+et('ehr admin nav keeps manifest keys', ($ehrAdminNavByKey['ehr_settings']['module'] ?? '') === 'ehr' && ($ehrAdminNavByKey['ehr_scheduling']['module'] ?? '') === 'scheduling' && ($ehrAdminNavByKey['ehr_patient_registry']['module'] ?? '') === 'patient-registry' && ($ehrAdminNavByKey['ehr_encounters']['module'] ?? '') === 'encounters' && ($ehrAdminNavByKey['ehr_clinical_notes']['module'] ?? '') === 'clinical-notes' && ($ehrAdminNavByKey['ehr_orders']['module'] ?? '') === 'orders' && ($ehrAdminNavByKey['ehr_results']['module'] ?? '') === 'results' && ($ehrAdminNavByKey['ehr_prescriptions']['module'] ?? '') === 'prescriptions' && ($ehrAdminNavByKey['ehr_documents']['module'] ?? '') === 'documents' && ($ehrAdminNavByKey['ehr_privacy_consent']['module'] ?? '') === 'privacy-consent' && ($ehrAdminNavByKey['ehr_patient_portal']['module'] ?? '') === 'patient-portal' && ($ehrAdminNavByKey['ehr_audit']['module'] ?? '') === 'audit' && ($ehrAdminNavByKey['ehr_reporting_summary']['module'] ?? '') === 'reporting' && ($ehrAdminNavByKey['ehr_reporting_compliance']['module'] ?? '') === 'reporting' && ($ehrAdminNavByKey['ehr_billing_bridge']['module'] ?? '') === 'billing-bridge');
+et('ehr admin nav orders dashboard first and settings last', $ehrAdminNavKeys === ['ehr_dashboard', 'ehr_scheduling', 'ehr_patient_registry', 'ehr_encounters', 'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents', 'ehr_privacy_consent', 'ehr_patient_portal', 'ehr_audit', 'ehr_reporting_summary', 'ehr_reporting_compliance', 'ehr_billing_bridge', 'ehr_settings'], json_encode($ehrAdminNavKeys));
 
 $navGroups = ehrDashboardNavGroups($ehrAdminNavItems);
 $sidebarGroups = ehrSidebarNavGroups($ehrAdminNavItems);
