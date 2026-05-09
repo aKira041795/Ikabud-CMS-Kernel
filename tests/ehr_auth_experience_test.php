@@ -75,10 +75,13 @@ et('ehr reset password API route declared', ($ehrRoutes['POST']['/api/v1/ehr/aut
 et('ehr dashboard page route declared', ($ehrRoutes['GET']['/admin/ehr'] ?? '') === 'ehr:ehrDashboardPage');
 et('ehr settings page route declared', ($ehrRoutes['GET']['/admin/ehr/settings'] ?? '') === 'ehr:ehrSettingsPage');
 et('appointments page route declared', ($schedulingRoutes['GET']['/admin/ehr/appointments'] ?? '') === 'scheduling:schedPageIndex');
+et('appointments save route declared', ($schedulingRoutes['POST']['/admin/ehr/appointments'] ?? '') === 'scheduling:schedSaveAppointment');
 et('encounters page route declared', ($encounterRoutes['GET']['/admin/ehr/encounters'] ?? '') === 'encounters:encPageIndex');
 et('patient registry page route declared', ($patientRegistryRoutes['GET']['/admin/ehr/patients'] ?? '') === 'patient-registry:prPageIndex');
+et('patient registry save route declared', ($patientRegistryRoutes['POST']['/admin/ehr/patients'] ?? '') === 'patient-registry:prSavePatient');
 et('clinical notes page route declared', ($clinicalNotesRoutes['GET']['/admin/ehr/notes'] ?? '') === 'clinical-notes:cnPageIndex');
 et('orders page route declared', ($ordersRoutes['GET']['/admin/ehr/orders'] ?? '') === 'orders:ordPageIndex');
+et('orders save route declared', ($ordersRoutes['POST']['/admin/ehr/orders'] ?? '') === 'orders:ordSaveOrder');
 et('results page route declared', ($resultsRoutes['GET']['/admin/ehr/results'] ?? '') === 'results:resPageIndex');
 et('prescriptions page route declared', ($prescriptionsRoutes['GET']['/admin/ehr/prescriptions'] ?? '') === 'prescriptions:rxPageIndex');
 et('documents page route declared', ($documentsRoutes['GET']['/admin/ehr/documents'] ?? '') === 'documents:docPageIndex');

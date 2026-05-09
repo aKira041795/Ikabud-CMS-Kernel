@@ -6,4 +6,7 @@ return [
     'GET' => [
         '/admin/ehr/appointments' => 'scheduling:schedPageIndex',
     ],
+    'POST' => [
+        '/admin/ehr/appointments' => 'scheduling:schedSaveAppointment',
+    ],
 ];

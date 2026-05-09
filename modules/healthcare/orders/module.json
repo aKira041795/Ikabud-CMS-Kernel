@@ -40,13 +40,21 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.order.update@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
             "kernel.audit.record@1",
             "ehr.core.status.catalog@1",
             "ehr.patient.view@1",
-            "ehr.encounter.view@1"
+            "ehr.encounter.view@1",
+            "ehr.encounter.list@1"
         ],
         "policy": {
             "capabilities": {
@@ -63,12 +71,18 @@
                         "clinical-notes",
                         "documents"
                     ]
+                },
+                "ehr.order.update@1": {
+                    "allow_callers": [
+                        "orders"
+                    ]
                 }
             }
         }
     },
     "events": [
         "ehr.order.created",
+        "ehr.order.updated",
         "ehr.order.canceled"
     ]
 }

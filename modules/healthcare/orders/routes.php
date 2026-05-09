@@ -6,4 +6,7 @@ return [
     'GET' => [
         '/admin/ehr/orders' => 'orders:ordPageIndex',
     ],
+    'POST' => [
+        '/admin/ehr/orders' => 'orders:ordSaveOrder',
+    ],
 ];

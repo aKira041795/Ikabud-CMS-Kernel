@@ -52,21 +52,74 @@ function prFetchPatientByIdOrUuid(int $id = 0, string $patientUuid = ''): ?array
     return $patient;
 }
 
-function prPotentialDuplicate(array $payload): ?array
+function prPotentialDuplicate(array $payload, int $excludeId = 0): ?array
 {
-    $stmt = prDb()->query(
-        'SELECT id, patient_uuid, first_name, last_name, birth_date FROM ehr_patients '
+    $sql = 'SELECT id, patient_uuid, first_name, last_name, birth_date FROM ehr_patients '
         . 'WHERE first_name = :first_name AND last_name = :last_name AND birth_date = :birth_date '
-        . 'AND status <> :status LIMIT 1',
-        [
-            ':first_name' => (string)$payload['first_name'],
-            ':last_name' => (string)$payload['last_name'],
-            ':birth_date' => (string)$payload['birth_date'],
-            ':status' => 'archived',
-        ]
-    )->fetch(\PDO::FETCH_ASSOC);
+        . 'AND status <> :status';
+    $params = [
+        ':first_name' => (string)$payload['first_name'],
+        ':last_name' => (string)$payload['last_name'],
+        ':birth_date' => (string)$payload['birth_date'],
+        ':status' => 'archived',
+    ];
+    if ($excludeId > 0) {
+        $sql .= ' AND id <> :exclude_id';
+        $params[':exclude_id'] = $excludeId;
+    }
+    $sql .= ' LIMIT 1';
+
+    $stmt = prDb()->query($sql, $params)->fetch(\PDO::FETCH_ASSOC);
 
     return is_array($stmt) ? $stmt : null;
+}
+
+function prUpsertPrimaryIdentifier(int $patientId, array $identifier): void
+{
+    $identifierType = trim((string)($identifier['type'] ?? ''));
+    $identifierValue = trim((string)($identifier['value'] ?? ''));
+    if ($patientId <= 0 || $identifierType === '' || $identifierValue === '') {
+        return;
+    }
+
+    $existing = prDb()->query(
+        'SELECT id FROM ehr_patient_identifiers WHERE patient_id = :patient_id ORDER BY is_primary DESC, id ASC LIMIT 1',
+        [':patient_id' => $patientId]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (is_array($existing) && (int)($existing['id'] ?? 0) > 0) {
+        prDb()->execute(
+            'UPDATE ehr_patient_identifiers SET '
+            . 'identifier_type = :identifier_type, identifier_value = :identifier_value, issuing_authority = :issuing_authority, '
+            . 'valid_from = :valid_from, valid_to = :valid_to, status = :status, is_primary = 1, updated_at = NOW() '
+            . 'WHERE id = :id LIMIT 1',
+            [
+                ':identifier_type' => $identifierType,
+                ':identifier_value' => $identifierValue,
+                ':issuing_authority' => trim((string)($identifier['issuing_authority'] ?? '')),
+                ':valid_from' => trim((string)($identifier['valid_from'] ?? '')) ?: null,
+                ':valid_to' => trim((string)($identifier['valid_to'] ?? '')) ?: null,
+                ':status' => trim((string)($identifier['status'] ?? 'active')) ?: 'active',
+                ':id' => (int)$existing['id'],
+            ]
+        );
+        return;
+    }
+
+    prDb()->execute(
+        'INSERT INTO ehr_patient_identifiers '
+        . '(patient_id, identifier_type, identifier_value, issuing_authority, valid_from, valid_to, is_primary, status, created_at, updated_at) '
+        . 'VALUES (:patient_id, :identifier_type, :identifier_value, :issuing_authority, :valid_from, :valid_to, 1, :status, NOW(), NOW())',
+        [
+            ':patient_id' => $patientId,
+            ':identifier_type' => $identifierType,
+            ':identifier_value' => $identifierValue,
+            ':issuing_authority' => trim((string)($identifier['issuing_authority'] ?? '')),
+            ':valid_from' => trim((string)($identifier['valid_from'] ?? '')) ?: null,
+            ':valid_to' => trim((string)($identifier['valid_to'] ?? '')) ?: null,
+            ':status' => trim((string)($identifier['status'] ?? 'active')) ?: 'active',
+        ]
+    );
 }
 
 function patient_registry_cap_ehr_patient_create_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
@@ -180,6 +233,86 @@ function patient_registry_cap_ehr_patient_view_1(mixed $payload, string $resolve
     }
 
     return ['ok' => true, 'patient' => $patient];
+}
+
+function patient_registry_cap_ehr_patient_update_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patient = prFetchPatientByIdOrUuid((int)($data['id'] ?? 0), trim((string)($data['patient_uuid'] ?? '')));
+    if (!$patient) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    $firstName = trim((string)($data['first_name'] ?? ($patient['first_name'] ?? '')));
+    $lastName = trim((string)($data['last_name'] ?? ($patient['last_name'] ?? '')));
+    $birthDate = trim((string)($data['birth_date'] ?? ($patient['birth_date'] ?? '')));
+    $status = strtolower(trim((string)($data['status'] ?? ($patient['status'] ?? 'active'))));
+
+    if ($firstName === '' || $lastName === '' || $birthDate === '') {
+        return ['ok' => false, 'error' => 'first_name, last_name, and birth_date are required'];
+    }
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $birthDate)) {
+        return ['ok' => false, 'error' => 'birth_date must use YYYY-MM-DD'];
+    }
+
+    if (!prPatientStatusAllowed($status)) {
+        return ['ok' => false, 'error' => 'Unsupported patient status'];
+    }
+
+    $duplicate = prPotentialDuplicate([
+        'first_name' => $firstName,
+        'last_name' => $lastName,
+        'birth_date' => $birthDate,
+    ], (int)$patient['id']);
+    if ($duplicate) {
+        return ['ok' => false, 'error' => 'Potential duplicate patient exists', 'duplicate' => $duplicate];
+    }
+
+    prDb()->beginTransaction();
+    try {
+        prDb()->execute(
+            'UPDATE ehr_patients SET '
+            . 'first_name = :first_name, last_name = :last_name, middle_name = :middle_name, sex = :sex, birth_date = :birth_date, status = :status, '
+            . 'primary_phone = :primary_phone, email = :email, address_json = :address_json, updated_at = NOW() '
+            . 'WHERE id = :id LIMIT 1',
+            [
+                ':first_name' => $firstName,
+                ':last_name' => $lastName,
+                ':middle_name' => trim((string)($data['middle_name'] ?? ($patient['middle_name'] ?? ''))),
+                ':sex' => strtolower(trim((string)($data['sex'] ?? ($patient['sex'] ?? 'unknown')))),
+                ':birth_date' => $birthDate,
+                ':status' => $status,
+                ':primary_phone' => trim((string)($data['primary_phone'] ?? ($patient['primary_phone'] ?? ''))),
+                ':email' => trim((string)($data['email'] ?? ($patient['email'] ?? ''))),
+                ':address_json' => !empty($data['address']) ? json_encode($data['address'], JSON_UNESCAPED_SLASHES) : ($patient['address_json'] ?? null),
+                ':id' => (int)$patient['id'],
+            ]
+        );
+
+        prUpsertPrimaryIdentifier((int)$patient['id'], [
+            'type' => trim((string)($data['identifier_type'] ?? '')),
+            'value' => trim((string)($data['identifier_value'] ?? '')),
+            'issuing_authority' => trim((string)($data['identifier_issuing_authority'] ?? '')),
+            'status' => 'active',
+        ]);
+
+        prDb()->commit();
+    } catch (\Throwable $e) {
+        if (prDb()->inTransaction()) {
+            prDb()->rollBack();
+        }
+        return ['ok' => false, 'error' => 'Patient update failed', 'details' => $e->getMessage()];
+    }
+
+    $updated = prFetchPatientByIdOrUuid((int)$patient['id']);
+    ehcAudit('patient-registry', 'ehr.patient.updated', 'ehr_patient', (int)$patient['id'], $updated ?? [], $patient);
+    app()->events()->fire('ehr.patient.updated', [
+        'patient_id' => (int)$patient['id'],
+        'patient_uuid' => (string)($patient['patient_uuid'] ?? ''),
+    ]);
+
+    return ['ok' => true, 'patient' => $updated];
 }
 
 function patient_registry_cap_ehr_patient_search_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array

@@ -165,6 +165,16 @@ function encounters_cap_ehr_encounter_view_1(mixed $payload, string $resolvedCap
     return ['ok' => true, 'encounter' => $encounter];
 }
 
+function encounters_cap_ehr_encounter_list_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $status = trim((string)($data['status'] ?? ''));
+    $limit = max(1, min(50, (int)($data['limit'] ?? 25)));
+
+    $encounters = encHydrateEncounterPatients(encListRecentEncounters($status, $limit));
+    return ['ok' => true, 'encounters' => $encounters];
+}
+
 function encounters_cap_ehr_vitals_record_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];

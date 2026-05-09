@@ -29,6 +29,13 @@
                 ]
             },
             {
+                "id": "ehr.encounter.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
                 "id": "ehr.vitals.record@1",
                 "priority": 100,
                 "modes": [
@@ -59,6 +66,16 @@
                         "documents",
                         "scheduling",
                         "billing-bridge"
+                    ]
+                },
+                "ehr.encounter.list@1": {
+                    "allow_callers": [
+                        "encounters",
+                        "orders",
+                        "clinical-notes",
+                        "results",
+                        "documents",
+                        "scheduling"
                     ]
                 },
                 "ehr.vitals.record@1": {

@@ -35,6 +35,13 @@
                 ]
             },
             {
+                "id": "ehr.appointment.update@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
                 "id": "ehr.appointment.transition@1",
                 "priority": 100,
                 "modes": [
@@ -62,6 +69,11 @@
                     ]
                 },
                 "ehr.appointment.list@1": {
+                    "allow_callers": [
+                        "scheduling"
+                    ]
+                },
+                "ehr.appointment.update@1": {
                     "allow_callers": [
                         "scheduling"
                     ]

@@ -61,50 +61,107 @@
         </section>
 
         <aside class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Patient Snapshot</h2>
-            {if selected_patient}
-                <div class="mt-4 space-y-4">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Patient Editor</h2>
+                    <div class="mt-2 text-2xl font-semibold text-slate-900">{if form_values.patient_id}Edit patient{else}Register patient{/if}</div>
+                    {if selected_patient}<div class="mt-1 text-sm text-slate-600">Patient UUID: {selected_patient.patient_uuid}</div>{/if}
+                </div>
+                {if form_values.patient_id}
+                <a href="{base_url}/admin/ehr/patients{if search_query}?q={search_query}{/if}" class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 hover:text-slate-700">New</a>
+                {/if}
+            </div>
+
+            {if form_notice == 'created'}
+            <div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Patient created.</div>
+            {elseif form_notice == 'updated'}
+            <div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Patient updated.</div>
+            {/if}
+
+            {if form_error}
+            <div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>
+            {/if}
+
+            <form method="POST" action="{base_url}/admin/ehr/patients" class="mt-4 space-y-4">
+                {csrf_field | raw}
+                <input type="hidden" name="patient_id" value="{form_values.patient_id}">
+                <input type="hidden" name="q" value="{search_query}">
+                <div class="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <div class="text-2xl font-semibold text-slate-900">{selected_patient.last_name}, {selected_patient.first_name}</div>
-                        <div class="mt-1 text-sm text-slate-600">Patient UUID: {selected_patient.patient_uuid}</div>
-                    </div>
-                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                        <div class="rounded-2xl bg-slate-50 p-4">
-                            <div class="text-xs uppercase tracking-wide text-slate-400">Status</div>
-                            <div class="mt-2 text-sm font-semibold text-slate-900">{selected_patient.status}</div>
-                        </div>
-                        <div class="rounded-2xl bg-slate-50 p-4">
-                            <div class="text-xs uppercase tracking-wide text-slate-400">Birth Date</div>
-                            <div class="mt-2 text-sm font-semibold text-slate-900">{selected_patient.birth_date}</div>
-                        </div>
-                        <div class="rounded-2xl bg-slate-50 p-4">
-                            <div class="text-xs uppercase tracking-wide text-slate-400">Sex</div>
-                            <div class="mt-2 text-sm font-semibold text-slate-900">{selected_patient.sex}</div>
-                        </div>
-                        <div class="rounded-2xl bg-slate-50 p-4">
-                            <div class="text-xs uppercase tracking-wide text-slate-400">Contact</div>
-                            <div class="mt-2 text-sm font-semibold text-slate-900">{if selected_patient.primary_phone}{selected_patient.primary_phone}{else}Not set{/if}</div>
-                            <div class="mt-1 text-sm text-slate-600">{if selected_patient.email}{selected_patient.email}{else}No email recorded{/if}</div>
-                        </div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">First Name</label>
+                        <input type="text" name="first_name" value="{form_values.first_name}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
                     </div>
                     <div>
-                        <div class="text-xs uppercase tracking-wide text-slate-400">Identifiers</div>
-                        <div class="mt-3 space-y-3">
-                            {if selected_patient.identifiers}
-                                {foreach selected_patient.identifiers as identifier}
-                                <div class="rounded-2xl border border-slate-200 p-4">
-                                    <div class="text-sm font-semibold text-slate-900">{identifier.identifier_type}: {identifier.identifier_value}</div>
-                                    <div class="mt-1 text-xs text-slate-500">{if identifier.issuing_authority}{identifier.issuing_authority}{else}No issuing authority{/if}</div>
-                                </div>
-                                {/foreach}
-                            {else}
-                                <div class="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-600">No identifiers recorded for this patient.</div>
-                            {/if}
-                        </div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Last Name</label>
+                        <input type="text" name="last_name" value="{form_values.last_name}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
                     </div>
                 </div>
-            {else}
-                <div class="mt-4 rounded-2xl border border-dashed border-slate-200 p-6 text-sm leading-6 text-slate-600">Select a patient from the result list to review demographics and identifiers in this sidebar.</div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Middle Name</label>
+                    <input type="text" name="middle_name" value="{form_values.middle_name}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                </div>
+                <div class="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Birth Date</label>
+                        <input type="date" name="birth_date" value="{form_values.birth_date}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Sex</label>
+                        <select name="sex" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                            <option value="unknown" {if form_values.sex == 'unknown'}selected{/if}>unknown</option>
+                            <option value="female" {if form_values.sex == 'female'}selected{/if}>female</option>
+                            <option value="male" {if form_values.sex == 'male'}selected{/if}>male</option>
+                            <option value="other" {if form_values.sex == 'other'}selected{/if}>other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Status</label>
+                        <select name="status" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                            <option value="active" {if form_values.status == 'active'}selected{/if}>active</option>
+                            <option value="inactive" {if form_values.status == 'inactive'}selected{/if}>inactive</option>
+                            <option value="archived" {if form_values.status == 'archived'}selected{/if}>archived</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Phone</label>
+                        <input type="text" name="primary_phone" value="{form_values.primary_phone}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Email</label>
+                        <input type="email" name="email" value="{form_values.email}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    </div>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Primary Identifier Type</label>
+                        <input type="text" name="identifier_type" value="{form_values.identifier_type}" placeholder="MRN, PhilHealth, National ID" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Primary Identifier Value</label>
+                        <input type="text" name="identifier_value" value="{form_values.identifier_value}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    </div>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Issuing Authority</label>
+                    <input type="text" name="identifier_issuing_authority" value="{form_values.identifier_issuing_authority}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                </div>
+                <button type="submit" class="w-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">{if form_values.patient_id}Save Patient Changes{else}Register Patient{/if}</button>
+            </form>
+
+            {if selected_patient && selected_patient.identifiers}
+            <div class="mt-6">
+                <div class="text-xs uppercase tracking-wide text-slate-400">Existing Identifiers</div>
+                <div class="mt-3 space-y-3">
+                    {foreach selected_patient.identifiers as identifier}
+                    <div class="border border-slate-200 p-4">
+                        <div class="text-sm font-semibold text-slate-900">{identifier.identifier_type}: {identifier.identifier_value}</div>
+                        <div class="mt-1 text-xs text-slate-500">{if identifier.issuing_authority}{identifier.issuing_authority}{else}No issuing authority{/if}</div>
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
             {/if}
         </aside>
     </div>

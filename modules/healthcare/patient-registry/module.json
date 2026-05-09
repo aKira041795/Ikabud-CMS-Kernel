@@ -29,6 +29,13 @@
                 ]
             },
             {
+                "id": "ehr.patient.update@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
                 "id": "ehr.patient.search@1",
                 "priority": 100,
                 "modes": [
@@ -64,10 +71,16 @@
                         "patient-portal"
                     ]
                 },
+                "ehr.patient.update@1": {
+                    "allow_callers": [
+                        "patient-registry"
+                    ]
+                },
                 "ehr.patient.search@1": {
                     "allow_callers": [
                         "patient-registry",
                         "encounters",
+                        "orders",
                         "scheduling",
                         "patient-portal"
                     ]

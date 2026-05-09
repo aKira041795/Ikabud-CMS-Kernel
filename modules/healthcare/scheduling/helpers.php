@@ -230,6 +230,88 @@ function scheduling_cap_ehr_appointment_list_1(mixed $payload, string $resolvedC
     return ['ok' => true, 'appointments' => $appointments];
 }
 
+function scheduling_cap_ehr_appointment_update_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $appointment = schedFetchAppointmentByIdOrUuid((int)($data['id'] ?? 0), trim((string)($data['appointment_uuid'] ?? '')));
+    if (!$appointment) {
+        return ['ok' => false, 'error' => 'Appointment not found'];
+    }
+
+    $patientId = (int)($data['patient_id'] ?? ($appointment['patient_id'] ?? 0));
+    $appointmentType = trim((string)($data['appointment_type'] ?? ($appointment['appointment_type'] ?? 'general')));
+    $scheduledStart = schedNormalizeDateTime((string)($data['scheduled_start'] ?? (string)($appointment['scheduled_start'] ?? '')));
+    $scheduledEnd = schedNormalizeDateTime((string)($data['scheduled_end'] ?? (string)($appointment['scheduled_end'] ?? '')));
+    $status = strtolower(trim((string)($data['status'] ?? ($appointment['status'] ?? 'scheduled'))));
+
+    if ($patientId <= 0 || $appointmentType === '' || $scheduledStart === null) {
+        return ['ok' => false, 'error' => 'patient_id, appointment_type, and scheduled_start are required'];
+    }
+
+    if (!schedAppointmentStatusAllowed($status)) {
+        return ['ok' => false, 'error' => 'Unsupported appointment status'];
+    }
+
+    if ($scheduledEnd !== null && strtotime($scheduledEnd) < strtotime($scheduledStart)) {
+        return ['ok' => false, 'error' => 'scheduled_end must be after scheduled_start'];
+    }
+
+    $patient = schedPatientSummary($patientId);
+    if (!$patient) {
+        return ['ok' => false, 'error' => 'Patient not found'];
+    }
+
+    try {
+        schedDb()->execute(
+            'UPDATE ehr_appointments SET '
+            . 'patient_id = :patient_id, appointment_type = :appointment_type, scheduled_start = :scheduled_start, scheduled_end = :scheduled_end, '
+            . 'facility_id = :facility_id, department_id = :department_id, location_id = :location_id, reason_for_visit = :reason_for_visit, notes = :notes, updated_at = NOW() '
+            . 'WHERE id = :id LIMIT 1',
+            [
+                ':patient_id' => $patientId,
+                ':appointment_type' => $appointmentType,
+                ':scheduled_start' => $scheduledStart,
+                ':scheduled_end' => $scheduledEnd,
+                ':facility_id' => isset($data['facility_id']) ? (int)$data['facility_id'] : (isset($appointment['facility_id']) ? (int)$appointment['facility_id'] : null),
+                ':department_id' => isset($data['department_id']) ? (int)$data['department_id'] : (isset($appointment['department_id']) ? (int)$appointment['department_id'] : null),
+                ':location_id' => isset($data['location_id']) ? (int)$data['location_id'] : (isset($appointment['location_id']) ? (int)$appointment['location_id'] : null),
+                ':reason_for_visit' => trim((string)($data['reason_for_visit'] ?? (string)($appointment['reason_for_visit'] ?? ''))),
+                ':notes' => trim((string)($data['notes'] ?? (string)($appointment['notes'] ?? ''))),
+                ':id' => (int)$appointment['id'],
+            ]
+        );
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Appointment update failed', 'details' => $e->getMessage()];
+    }
+
+    $currentStatus = strtolower(trim((string)($appointment['status'] ?? 'scheduled')));
+    $updated = schedFetchAppointmentByIdOrUuid((int)$appointment['id']);
+    if ($status !== $currentStatus) {
+        $transition = scheduling_cap_ehr_appointment_transition_1([
+            'id' => (int)$appointment['id'],
+            'status' => $status,
+            'service_line' => trim((string)($data['service_line'] ?? 'ambulatory')),
+            'attending_provider_id' => isset($data['attending_provider_id']) ? (int)$data['attending_provider_id'] : null,
+            'suppress_audit' => true,
+        ], $resolvedCapabilityId, $providerId);
+        if (!is_array($transition) || empty($transition['ok'])) {
+            return $transition;
+        }
+        $updated = is_array($transition['appointment'] ?? null) ? $transition['appointment'] : schedFetchAppointmentByIdOrUuid((int)$appointment['id']);
+    }
+
+    ehcAudit('scheduling', 'ehr.appointment.updated', 'ehr_appointment', (int)$appointment['id'], $updated ?? [], $appointment);
+    app()->events()->fire('ehr.appointment.updated', [
+        'appointment_id' => (int)$appointment['id'],
+        'patient_id' => $patientId,
+        'status' => $status,
+        'previous_status' => $currentStatus,
+        'encounter_id' => isset($updated['encounter_id']) ? (int)$updated['encounter_id'] : null,
+    ]);
+
+    return ['ok' => true, 'appointment' => $updated];
+}
+
 function scheduling_cap_ehr_appointment_transition_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];
@@ -296,14 +378,16 @@ function scheduling_cap_ehr_appointment_transition_1(mixed $payload, string $res
     }
 
     $updated = schedFetchAppointmentByIdOrUuid((int)$appointment['id']);
-    ehcAudit('scheduling', 'ehr.appointment.updated', 'ehr_appointment', (int)$appointment['id'], $updated ?? [], $appointment);
-    app()->events()->fire('ehr.appointment.updated', [
-        'appointment_id' => (int)$appointment['id'],
-        'patient_id' => (int)$appointment['patient_id'],
-        'status' => $status,
-        'previous_status' => $currentStatus,
-        'encounter_id' => $encounterId > 0 ? $encounterId : null,
-    ]);
+    if (empty($data['suppress_audit'])) {
+        ehcAudit('scheduling', 'ehr.appointment.updated', 'ehr_appointment', (int)$appointment['id'], $updated ?? [], $appointment);
+        app()->events()->fire('ehr.appointment.updated', [
+            'appointment_id' => (int)$appointment['id'],
+            'patient_id' => (int)$appointment['patient_id'],
+            'status' => $status,
+            'previous_status' => $currentStatus,
+            'encounter_id' => $encounterId > 0 ? $encounterId : null,
+        ]);
+    }
 
     return ['ok' => true, 'appointment' => $updated];
 }
