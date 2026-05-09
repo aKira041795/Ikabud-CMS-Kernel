@@ -185,6 +185,13 @@ $createdPatient = patient_registry_cap_ehr_patient_create_1([
 $createdPatientId = is_array($createdPatient) ? (int)($createdPatient['patient']['id'] ?? 0) : 0;
 et('patient create capability succeeds', is_array($createdPatient) && !empty($createdPatient['ok']) && $createdPatientId > 0, json_encode($createdPatient));
 
+$searchEmpty = patient_registry_cap_ehr_patient_search_1(['q' => '', 'limit' => 5], 'ehr.patient.search@1', 'patient-registry');
+et('patient search capability succeeds with empty q', is_array($searchEmpty) && !empty($searchEmpty['ok']) && isset($searchEmpty['results']), json_encode($searchEmpty));
+
+$searchNeedle = strtolower(substr($crudSeed, 0, 4));
+$searchHit = patient_registry_cap_ehr_patient_search_1(['q' => $searchNeedle, 'limit' => 5], 'ehr.patient.search@1', 'patient-registry');
+et('patient search capability succeeds with non-empty q (regression: PDO native prepares disallow reused :q placeholder)', is_array($searchHit) && !empty($searchHit['ok']) && isset($searchHit['results']), json_encode($searchHit));
+
 $createdAppointment = scheduling_cap_ehr_appointment_schedule_1([
     'patient_id' => $createdPatientId,
     'appointment_type' => 'Coverage Visit',
