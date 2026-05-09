@@ -6,4 +6,8 @@ return [
     'GET' => [
         '/admin/ehr/results' => 'results:resPageIndex',
     ],
+    'POST' => [
+        '/admin/ehr/results' => 'results:resSaveResult',
+        '/admin/ehr/results/transition' => 'results:resTransitionResult',
+    ],
 ];

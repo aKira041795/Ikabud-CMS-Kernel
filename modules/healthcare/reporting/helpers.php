@@ -293,47 +293,35 @@ function rptFetchTurnaround(array $data): array
 
 function rptFetchActivity(array $data): array
 {
-    $where = ['1=1'];
-    $params = [];
-    rptApplyDateRange($data, 'created_at', $where, $params, 'aud');
-
-    $countRow = rptDb()->query('SELECT COUNT(*) FROM audit_logs WHERE ' . implode(' AND ', $where), $params)->fetchColumn();
-    $moduleSql = 'SELECT module, COUNT(*) AS aggregate_count FROM audit_logs WHERE ' . implode(' AND ', $where) . ' GROUP BY module ORDER BY aggregate_count DESC, module ASC LIMIT 10';
-    $actionSql = 'SELECT action, COUNT(*) AS aggregate_count FROM audit_logs WHERE ' . implode(' AND ', $where) . ' GROUP BY action ORDER BY aggregate_count DESC, action ASC LIMIT 10';
-    $moduleRows = rptDb()->query($moduleSql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    $actionRows = rptDb()->query($actionSql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-    $modules = [];
-    foreach ($moduleRows as $row) {
-        if (!is_array($row)) {
-            continue;
-        }
-        $modules[] = [
-            'module' => (string)($row['module'] ?? ''),
-            'count' => (int)($row['aggregate_count'] ?? 0),
-        ];
+    $payload = [
+        'group_limit' => 10,
+    ];
+    $dateFrom = trim((string)($data['date_from'] ?? ''));
+    $dateTo = trim((string)($data['date_to'] ?? ''));
+    if ($dateFrom !== '') {
+        $payload['date_from'] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $payload['date_to'] = $dateTo;
     }
 
-    $actions = [];
-    foreach ($actionRows as $row) {
-        if (!is_array($row)) {
-            continue;
-        }
-        $actions[] = [
-            'action' => (string)($row['action'] ?? ''),
-            'count' => (int)($row['aggregate_count'] ?? 0),
-        ];
+    $result = app()->cap()->call('ehr.audit.aggregate@1', $payload, ['caller_module' => 'reporting']);
+    if (!is_array($result) || empty($result['ok'])) {
+        return ['total_events' => 0, 'top_modules' => [], 'top_actions' => []];
     }
 
     return [
-        'total_events' => (int)$countRow,
-        'top_modules' => $modules,
-        'top_actions' => $actions,
+        'total_events' => (int)($result['total'] ?? 0),
+        'top_modules' => is_array($result['by_module'] ?? null) ? $result['by_module'] : [],
+        'top_actions' => is_array($result['by_action'] ?? null) ? $result['by_action'] : [],
     ];
 }
 
 function rptDecodeJson(mixed $value): array
 {
+    if (is_array($value)) {
+        return $value;
+    }
     if (!is_string($value) || trim($value) === '') {
         return [];
     }
@@ -503,29 +491,42 @@ function rptComplianceEntry(array $row): ?array
 
 function rptFetchCompliance(array $data): array
 {
-    [$where, $params] = rptComplianceWhere($data);
     $limit = max(1, min(200, (int)($data['limit'] ?? 50)));
     $page = max(1, (int)($data['page'] ?? 1));
     $offset = ($page - 1) * $limit;
-    $hasActorUserId = rptAuditLogHasColumn('actor_user_id');
-    $hasActorModuleUserId = rptAuditLogHasColumn('actor_module_user_id');
-    $hasActorSource = rptAuditLogHasColumn('actor_source');
-    $select = 'id, module, action, entity_type, entity_id, old_data, new_data, created_at';
-    if ($hasActorUserId) {
-        $select .= ', actor_user_id';
+
+    $payload = [
+        'actions' => [
+            'ehr.document.viewed',
+            'ehr.document.access_denied',
+            'ehr.document.printed',
+            'ehr.document.exported',
+            'ehr.document.restricted',
+            'ehr.note.viewed',
+            'ehr.note.access_denied',
+            'ehr.result.viewed',
+            'ehr.result.access_denied',
+            'ehr.break_glass.accessed',
+        ],
+        'limit' => $limit,
+        'offset' => $offset,
+    ];
+    foreach (['date_from', 'date_to', 'actor_source'] as $key) {
+        $value = trim((string)($data[$key] ?? ''));
+        if ($value !== '') {
+            $payload[$key] = $value;
+        }
     }
-    if ($hasActorModuleUserId) {
-        $select .= ', actor_module_user_id';
+    foreach (['patient_id', 'actor_user_id', 'actor_module_user_id'] as $key) {
+        $value = (int)($data[$key] ?? 0);
+        if ($value > 0) {
+            $payload[$key] = $value;
+        }
     }
-    if ($hasActorSource) {
-        $select .= ', actor_source';
-    }
-    $countSql = 'SELECT COUNT(*) FROM audit_logs WHERE ' . implode(' AND ', $where);
-    $total = (int)rptDb()->query($countSql, $params)->fetchColumn();
-    $sql = 'SELECT ' . $select . ' '
-        . 'FROM audit_logs WHERE ' . implode(' AND ', $where)
-        . ' ORDER BY created_at DESC, id DESC LIMIT ' . $limit . ' OFFSET ' . $offset;
-    $rows = rptDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+    $result = app()->cap()->call('ehr.audit.search@1', $payload, ['caller_module' => 'reporting']);
+    $rows = is_array($result) && !empty($result['ok']) && is_array($result['entries'] ?? null) ? $result['entries'] : [];
+    $total = is_array($result['pagination'] ?? null) ? (int)($result['pagination']['total'] ?? 0) : 0;
 
     $entries = [];
     $summary = [

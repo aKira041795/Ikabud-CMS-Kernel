@@ -159,6 +159,31 @@ function audSearchWhere(array $data): array
         $params[':action'] = $action;
     }
 
+    if (isset($data['actions']) && is_array($data['actions'])) {
+        $actionList = [];
+        foreach ($data['actions'] as $candidate) {
+            $candidate = trim((string)$candidate);
+            if ($candidate !== '') {
+                $actionList[] = $candidate;
+            }
+        }
+        if ($actionList !== []) {
+            $placeholders = [];
+            foreach ($actionList as $idx => $value) {
+                $key = ':action_in_' . $idx;
+                $placeholders[] = $key;
+                $params[$key] = $value;
+            }
+            $where[] = 'a.action IN (' . implode(', ', $placeholders) . ')';
+        }
+    }
+
+    $actionPrefix = trim((string)($data['action_prefix'] ?? ''));
+    if ($actionPrefix !== '') {
+        $where[] = 'a.action LIKE :action_prefix';
+        $params[':action_prefix'] = $actionPrefix . '%';
+    }
+
     $entityType = trim((string)($data['entity_type'] ?? ''));
     if ($entityType !== '') {
         $where[] = 'a.entity_type = :entity_type';
@@ -272,5 +297,59 @@ function audit_cap_ehr_audit_search_1(mixed $payload, string $resolvedCapability
             'offset' => $offset,
             'has_more' => ($offset + $limit) < $count,
         ],
+    ];
+}
+
+function audit_cap_ehr_audit_aggregate_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    [$where, $params] = audSearchWhere($data);
+
+    $whereSql = implode(' AND ', $where);
+    $groupLimit = max(1, min(100, (int)($data['group_limit'] ?? 10)));
+
+    try {
+        $total = (int)audDb()->query('SELECT COUNT(*) FROM audit_logs a WHERE ' . $whereSql, $params)->fetchColumn();
+        $byModuleRows = audDb()->query(
+            'SELECT a.module, COUNT(*) AS aggregate_count FROM audit_logs a WHERE ' . $whereSql
+            . ' GROUP BY a.module ORDER BY aggregate_count DESC, a.module ASC LIMIT ' . $groupLimit,
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $byActionRows = audDb()->query(
+            'SELECT a.action, COUNT(*) AS aggregate_count FROM audit_logs a WHERE ' . $whereSql
+            . ' GROUP BY a.action ORDER BY aggregate_count DESC, a.action ASC LIMIT ' . $groupLimit,
+            $params
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Audit aggregate failed', 'details' => $e->getMessage()];
+    }
+
+    $byModule = [];
+    foreach ($byModuleRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $byModule[] = [
+            'module' => (string)($row['module'] ?? ''),
+            'count' => (int)($row['aggregate_count'] ?? 0),
+        ];
+    }
+
+    $byAction = [];
+    foreach ($byActionRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $byAction[] = [
+            'action' => (string)($row['action'] ?? ''),
+            'count' => (int)($row['aggregate_count'] ?? 0),
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'total' => $total,
+        'by_module' => $byModule,
+        'by_action' => $byAction,
     ];
 }

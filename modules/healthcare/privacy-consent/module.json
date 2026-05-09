@@ -72,7 +72,8 @@
         ],
         "depends": [
             "kernel.audit.record@1",
-            "ehr.patient.view@1"
+            "ehr.patient.view@1",
+            "ehr.patient.search@1"
         ],
         "policy": {
             "capabilities": {

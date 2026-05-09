@@ -97,6 +97,15 @@ et('documents page route declared', ($documentsRoutes['GET']['/admin/ehr/documen
 et('privacy page route declared', ($privacyRoutes['GET']['/admin/ehr/privacy'] ?? '') === 'privacy-consent:pcPageIndex');
 et('audit page route declared', ($auditRoutes['GET']['/admin/ehr/audit'] ?? '') === 'audit:audPageIndex');
 et('billing signals page route declared', ($billingRoutes['GET']['/admin/ehr/billing'] ?? '') === 'billing-bridge:bbPageIndex');
+et('encounters save route declared', ($encounterRoutes['POST']['/admin/ehr/encounters'] ?? '') === 'encounters:encSaveEncounter');
+et('encounters vitals route declared', ($encounterRoutes['POST']['/admin/ehr/encounters/vitals'] ?? '') === 'encounters:encSaveVitals');
+et('clinical notes save route declared', ($clinicalNotesRoutes['POST']['/admin/ehr/notes'] ?? '') === 'clinical-notes:cnSaveNote');
+et('prescriptions save route declared', ($prescriptionsRoutes['POST']['/admin/ehr/prescriptions'] ?? '') === 'prescriptions:rxSavePrescription');
+et('results save route declared', ($resultsRoutes['POST']['/admin/ehr/results'] ?? '') === 'results:resSaveResult');
+et('results transition route declared', ($resultsRoutes['POST']['/admin/ehr/results/transition'] ?? '') === 'results:resTransitionResult');
+et('documents save route declared', ($documentsRoutes['POST']['/admin/ehr/documents'] ?? '') === 'documents:docSaveDocument');
+et('privacy consent save route declared', ($privacyRoutes['POST']['/admin/ehr/privacy/consents'] ?? '') === 'privacy-consent:pcSaveConsent');
+et('privacy break-glass save route declared', ($privacyRoutes['POST']['/admin/ehr/privacy/break-glass'] ?? '') === 'privacy-consent:pcSaveBreakGlass');
 et('ehr module db helper returns ModuleDB contract', ehrDb() instanceof \Ikabud\Kernel\Contracts\ModuleDB, get_debug_type(ehrDb()));
 
 $loginContext = ehrLoginPageContext([

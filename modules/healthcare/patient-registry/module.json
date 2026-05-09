@@ -82,6 +82,11 @@
                         "encounters",
                         "orders",
                         "scheduling",
+                        "clinical-notes",
+                        "prescriptions",
+                        "results",
+                        "documents",
+                        "privacy-consent",
                         "patient-portal"
                     ]
                 }

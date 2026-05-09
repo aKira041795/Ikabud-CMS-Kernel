@@ -82,5 +82,64 @@
             </div>
         </section>
     </div>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Record Consent</h2>
+        {if form_notice == 'consent_recorded'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Consent recorded.</div>{elseif form_notice == 'break_glass'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Break-glass access granted.</div>{/if}
+        {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+        <form method="POST" action="{base_url}/admin/ehr/privacy/consents" class="mt-4 grid gap-4 md:grid-cols-2">
+            {csrf_field | raw}
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Patient</label>
+                <select name="patient_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Select patient</option>
+                    {foreach patient_options as patient}
+                    <option value="{patient.id}" {if form_values.patient_id == patient.id}selected{/if}>{patient.last_name}, {patient.first_name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Consent Type</label>
+                <input type="text" name="consent_type" value="{form_values.consent_type}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Status</label>
+                <select name="status" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="granted" {if form_values.status == 'granted'}selected{/if}>granted</option>
+                    <option value="revoked" {if form_values.status == 'revoked'}selected{/if}>revoked</option>
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Expires At (YYYY-MM-DD HH:MM:SS)</label>
+                <input type="text" name="expires_at" value="{form_values.expires_at}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="optional">
+            </div>
+            <div class="md:col-span-2"><button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white">Record Consent</button></div>
+        </form>
+    </section>
+
+    <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Break-Glass Access</h2>
+        <form method="POST" action="{base_url}/admin/ehr/privacy/break-glass" class="mt-4 grid gap-4 md:grid-cols-2">
+            {csrf_field | raw}
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Patient</label>
+                <select name="patient_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Select patient</option>
+                    {foreach patient_options as patient}
+                    <option value="{patient.id}" {if form_values.patient_id == patient.id}selected{/if}>{patient.last_name}, {patient.first_name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Reason</label>
+                <textarea name="reason" rows="3" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">{form_values.reason}</textarea>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Duration (minutes, max 240)</label>
+                <input type="number" min="1" max="240" name="duration_minutes" value="{form_values.duration_minutes}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div class="md:col-span-2"><button type="submit" class="bg-amber-700 px-4 py-3 text-sm font-semibold text-white">Request Break-Glass</button></div>
+        </form>
+    </section>
 </div>
 {/block}

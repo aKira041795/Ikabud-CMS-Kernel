@@ -55,5 +55,57 @@
             {/if}
         </div>
     </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Register Document</h2>
+        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Document registered.</div>{/if}
+        {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+        <form method="POST" action="{base_url}/admin/ehr/documents" class="mt-4 grid gap-4 md:grid-cols-2">
+            {csrf_field | raw}
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Patient</label>
+                <select name="patient_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Select patient</option>
+                    {foreach patient_options as patient}
+                    <option value="{patient.id}" {if form_values.patient_id == patient.id}selected{/if}>{patient.last_name}, {patient.first_name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Encounter</label>
+                <select name="encounter_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Select encounter</option>
+                    {foreach encounter_options as encounter}
+                    <option value="{encounter.id}" {if form_values.encounter_id == encounter.id}selected{/if}>#{encounter.id} · {encounter.status}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Title</label>
+                <input type="text" name="title" value="{form_values.title}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Document Type</label>
+                <input type="text" name="document_type" value="{form_values.document_type}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">MIME Type</label>
+                <input type="text" name="mime_type" value="{form_values.mime_type}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Storage Key</label>
+                <input type="text" name="storage_key" value="{form_values.storage_key}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="auto if blank">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Sensitivity</label>
+                <input type="text" name="sensitivity_level" value="{form_values.sensitivity_level}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div class="md:col-span-2 flex items-center gap-6">
+                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="consent_required_flag" value="1"> Consent required</label>
+                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="break_glass_only_flag" value="1"> Break-glass only</label>
+            </div>
+            <div class="md:col-span-2"><button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white">Register Document</button></div>
+        </form>
+    </section>
 </div>
 {/block}

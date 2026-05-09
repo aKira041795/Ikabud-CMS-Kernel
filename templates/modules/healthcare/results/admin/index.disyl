@@ -60,5 +60,44 @@
             {/if}
         </div>
     </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Enter Result</h2>
+        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Result entered.</div>{elseif form_notice == 'verified'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Result verified.</div>{elseif form_notice == 'released'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Result released.</div>{/if}
+        {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+        <form method="POST" action="{base_url}/admin/ehr/results" class="mt-4 grid gap-4 md:grid-cols-2">
+            {csrf_field | raw}
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Order Item</label>
+                <select name="order_item_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Select order item</option>
+                    {foreach order_item_options as item}
+                    <option value="{item.order_item_id}" {if form_values.order_item_id == item.order_item_id}selected{/if}>{item.order_uuid} · {item.item_label}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Value (text)</label>
+                <input type="text" name="value_text" value="{form_values.value_text}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Value (numeric)</label>
+                <input type="text" name="value_numeric" value="{form_values.value_numeric}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Unit</label>
+                <input type="text" name="unit" value="{form_values.unit}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Reference Range</label>
+                <input type="text" name="reference_range_text" value="{form_values.reference_range_text}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Abnormal Flag</label>
+                <input type="text" name="abnormal_flag" value="{form_values.abnormal_flag}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="e.g. H, L, A">
+            </div>
+            <div class="md:col-span-2"><button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white">Enter Result</button></div>
+        </form>
+    </section>
 </div>
 {/block}

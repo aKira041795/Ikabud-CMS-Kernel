@@ -17,6 +17,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.audit.aggregate@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [],
@@ -24,7 +31,15 @@
             "capabilities": {
                 "ehr.audit.search@1": {
                     "allow_callers": [
-                        "audit"
+                        "audit",
+                        "reporting",
+                        "billing-bridge"
+                    ]
+                },
+                "ehr.audit.aggregate@1": {
+                    "allow_callers": [
+                        "audit",
+                        "reporting"
                     ]
                 }
             }

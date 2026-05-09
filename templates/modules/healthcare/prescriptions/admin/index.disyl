@@ -55,5 +55,49 @@
             {/if}
         </div>
     </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Issue Prescription</h2>
+        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Prescription issued.</div>{/if}
+        {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+        <form method="POST" action="{base_url}/admin/ehr/prescriptions" class="mt-4 grid gap-4 md:grid-cols-2">
+            {csrf_field | raw}
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Patient</label>
+                <select name="patient_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Select patient</option>
+                    {foreach patient_options as patient}
+                    <option value="{patient.id}" {if form_values.patient_id == patient.id}selected{/if}>{patient.last_name}, {patient.first_name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Encounter</label>
+                <select name="encounter_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Select encounter</option>
+                    {foreach encounter_options as encounter}
+                    <option value="{encounter.id}" {if form_values.encounter_id == encounter.id}selected{/if}>#{encounter.id} · {encounter.status}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Medication</label>
+                <input type="text" name="medication_text" value="{form_values.medication_text}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Dose</label>
+                <input type="text" name="dose_text" value="{form_values.dose_text}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Route</label>
+                <input type="text" name="route" value="{form_values.route}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Frequency</label>
+                <input type="text" name="frequency" value="{form_values.frequency}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div class="md:col-span-2"><button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white">Issue Prescription</button></div>
+        </form>
+    </section>
 </div>
 {/block}

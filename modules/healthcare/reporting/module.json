@@ -8,8 +8,7 @@
     "reads_tables": [
         "ehr_appointments",
         "ehr_encounters",
-        "ehr_lab_results",
-        "audit_logs"
+        "ehr_lab_results"
     ],
     "migrations": [],
     "capabilities": {
@@ -29,7 +28,10 @@
                 ]
             }
         ],
-        "depends": [],
+        "depends": [
+            "ehr.audit.search@1",
+            "ehr.audit.aggregate@1"
+        ],
         "policy": {
             "capabilities": {
                 "ehr.reporting.summary@1": {

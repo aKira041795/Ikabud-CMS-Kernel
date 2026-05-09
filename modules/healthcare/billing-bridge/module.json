@@ -5,9 +5,7 @@
     "description": "Derived billing charge candidates generated from EHR event audit records.",
     "author": "Ikabud Platform Team",
     "owns_tables": [],
-    "reads_tables": [
-        "audit_logs"
-    ],
+    "reads_tables": [],
     "migrations": [],
     "capabilities": {
         "exposes": [
@@ -19,7 +17,9 @@
                 ]
             }
         ],
-        "depends": [],
+        "depends": [
+            "ehr.audit.search@1"
+        ],
         "policy": {
             "capabilities": {
                 "ehr.billing.charge_candidates@1": {

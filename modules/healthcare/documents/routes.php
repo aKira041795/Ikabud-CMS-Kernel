@@ -6,4 +6,7 @@ return [
     'GET' => [
         '/admin/ehr/documents' => 'documents:docPageIndex',
     ],
+    'POST' => [
+        '/admin/ehr/documents' => 'documents:docSaveDocument',
+    ],
 ];

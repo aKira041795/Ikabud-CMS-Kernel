@@ -18,6 +18,9 @@ function bbDb(): \Ikabud\Kernel\Contracts\ModuleDB
 
 function bbDecodeJson(mixed $value): array
 {
+    if (is_array($value)) {
+        return $value;
+    }
     if (!is_string($value) || trim($value) === '') {
         return [];
     }
@@ -80,24 +83,29 @@ function bbBuildWhere(array $data): array
 
 function bbCanceledPrescriptionIds(): array
 {
-    $rows = bbDb()->query(
-        'SELECT entity_id FROM audit_logs WHERE action = :action AND entity_type = :entity_type',
-        [
-            ':action' => 'ehr.prescription.canceled',
-            ':entity_type' => 'ehr_prescription',
-        ]
-    )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
     $ids = [];
-    foreach ($rows as $row) {
-        if (!is_array($row)) {
-            continue;
+    $offset = 0;
+    $pageSize = 200;
+    do {
+        $result = app()->cap()->call('ehr.audit.search@1', [
+            'action' => 'ehr.prescription.canceled',
+            'entity_type' => 'ehr_prescription',
+            'limit' => $pageSize,
+            'offset' => $offset,
+        ], ['caller_module' => 'billing-bridge']);
+        $entries = is_array($result) && !empty($result['ok']) && is_array($result['entries'] ?? null) ? $result['entries'] : [];
+        foreach ($entries as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $entityId = trim((string)($row['entity_id'] ?? ''));
+            if ($entityId !== '') {
+                $ids[$entityId] = true;
+            }
         }
-        $entityId = trim((string)($row['entity_id'] ?? ''));
-        if ($entityId !== '') {
-            $ids[$entityId] = true;
-        }
-    }
+        $hasMore = is_array($result['pagination'] ?? null) && !empty($result['pagination']['has_more']);
+        $offset += $pageSize;
+    } while ($hasMore);
 
     return $ids;
 }
@@ -197,21 +205,42 @@ function bbCandidateFromAudit(array $row, array $canceledPrescriptionIds): ?arra
 function billing_bridge_cap_ehr_billing_charge_candidates_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];
-    [$where, $params] = bbBuildWhere($data);
     $limit = max(1, min(200, (int)($data['limit'] ?? 50)));
     $offset = max(0, (int)($data['offset'] ?? 0));
 
-    $sql = 'SELECT id, module, action, entity_type, entity_id, old_data, new_data, created_at '
-        . 'FROM audit_logs a WHERE ' . implode(' AND ', $where)
-        . ' ORDER BY a.created_at ASC, a.id ASC LIMIT ' . $limit . ' OFFSET ' . $offset;
-    $countSql = 'SELECT COUNT(*) FROM audit_logs a WHERE ' . implode(' AND ', $where);
-
-    try {
-        $rows = bbDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-        $total = (int)bbDb()->query($countSql, $params)->fetchColumn();
-    } catch (\Throwable $e) {
-        return ['ok' => false, 'error' => 'Charge candidate generation failed', 'details' => $e->getMessage()];
+    $searchPayload = [
+        'actions' => [
+            'ehr.appointment.updated',
+            'ehr.order.created',
+            'ehr.prescription.issued',
+        ],
+        'limit' => $limit,
+        'offset' => $offset,
+    ];
+    $from = bbNormalizeDate((string)($data['date_from'] ?? ''), false);
+    if ($from !== null) {
+        $searchPayload['date_from'] = $from;
     }
+    $to = bbNormalizeDate((string)($data['date_to'] ?? ''), true);
+    if ($to !== null) {
+        $searchPayload['date_to'] = $to;
+    }
+    $patientId = (int)($data['patient_id'] ?? 0);
+    if ($patientId > 0) {
+        $searchPayload['patient_id'] = $patientId;
+    }
+    $encounterId = (int)($data['encounter_id'] ?? 0);
+    if ($encounterId > 0) {
+        $searchPayload['encounter_id'] = $encounterId;
+    }
+
+    $result = app()->cap()->call('ehr.audit.search@1', $searchPayload, ['caller_module' => 'billing-bridge']);
+    if (!is_array($result) || empty($result['ok'])) {
+        return ['ok' => false, 'error' => 'Charge candidate generation failed', 'details' => (string)($result['error'] ?? 'audit cap unavailable')];
+    }
+
+    $rows = is_array($result['entries'] ?? null) ? $result['entries'] : [];
+    $total = is_array($result['pagination'] ?? null) ? (int)($result['pagination']['total'] ?? 0) : 0;
 
     $canceledPrescriptionIds = bbCanceledPrescriptionIds();
     $candidates = [];

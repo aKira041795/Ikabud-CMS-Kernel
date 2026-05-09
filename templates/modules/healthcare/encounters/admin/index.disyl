@@ -120,5 +120,62 @@
             {/if}
         </aside>
     </div>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Start Encounter</h2>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">New visit</div>
+        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Encounter started.</div>{elseif form_notice == 'vitals'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Vitals recorded.</div>{/if}
+        {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+
+        <form method="POST" action="{base_url}/admin/ehr/encounters" class="mt-4 grid gap-4 md:grid-cols-2">
+            {csrf_field | raw}
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Patient</label>
+                <select name="patient_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                    <option value="">Select patient</option>
+                    {foreach patient_options as patient}
+                    <option value="{patient.id}" {if form_values.patient_id == patient.id}selected{/if}>{patient.last_name}, {patient.first_name} · {patient.patient_uuid}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Encounter Type</label>
+                <input type="text" name="encounter_type" value="{form_values.encounter_type}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Service Line</label>
+                <input type="text" name="service_line" value="{form_values.service_line}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Status</label>
+                <select name="status" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                    {foreach status_options as status}
+                    <option value="{status}" {if form_values.status == status}selected{/if}>{status}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Reason for Visit</label>
+                <textarea name="reason_for_visit" rows="2" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">{form_values.reason_for_visit}</textarea>
+            </div>
+            <div class="md:col-span-2">
+                <button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Start Encounter</button>
+            </div>
+        </form>
+
+        {if selected_encounter}
+        <form method="POST" action="{base_url}/admin/ehr/encounters/vitals" class="mt-8 grid gap-4 md:grid-cols-3 border-t border-slate-200 pt-6">
+            {csrf_field | raw}
+            <input type="hidden" name="encounter_id" value="{selected_encounter.id}">
+            <div class="md:col-span-3 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Record Vitals for #{selected_encounter.id}</div>
+            <div><label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Temp °C</label><input type="text" name="temperature_c" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Pulse</label><input type="text" name="pulse_bpm" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">SpO₂</label><input type="text" name="spo2" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Systolic</label><input type="text" name="systolic_bp" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Diastolic</label><input type="text" name="diastolic_bp" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div class="md:col-span-3"><button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Record Vitals</button></div>
+        </form>
+        {/if}
+    </section>
 </div>
 {/block}

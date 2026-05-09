@@ -53,7 +53,9 @@
         "depends": [
             "kernel.audit.record@1",
             "ehr.patient.view@1",
+            "ehr.patient.search@1",
             "ehr.encounter.view@1",
+            "ehr.encounter.list@1",
             "ehr.consent.active@1",
             "ehr.break_glass.active@1"
         ],

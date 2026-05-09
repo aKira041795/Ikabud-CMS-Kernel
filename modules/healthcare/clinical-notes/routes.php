@@ -6,4 +6,7 @@ return [
     'GET' => [
         '/admin/ehr/notes' => 'clinical-notes:cnPageIndex',
     ],
+    'POST' => [
+        '/admin/ehr/notes' => 'clinical-notes:cnSaveNote',
+    ],
 ];
