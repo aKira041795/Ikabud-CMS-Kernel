@@ -14,9 +14,9 @@
     </div>
     <nav class="mx-auto max-w-6xl px-6 flex gap-1 text-sm overflow-x-auto">
         <a href="/portal/dashboard" class="px-3 py-3 {if active_nav == 'dashboard'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Overview</a>
-        <a href="/portal/appointments" class="px-3 py-3 {if active_nav == 'appointments'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Appointments</a>
+        <a href="/portal/appointments" class="px-3 py-3 {if active_nav == 'appointments'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">My Appointments</a>
         <a href="/portal/results" class="px-3 py-3 {if active_nav == 'results'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Results</a>
-        <a href="/portal/prescriptions" class="px-3 py-3 {if active_nav == 'prescriptions'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Prescriptions</a>
+        <a href="/portal/prescriptions" class="px-3 py-3 {if active_nav == 'prescriptions'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Medications</a>
         <a href="/portal/documents" class="px-3 py-3 {if active_nav == 'documents'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Documents</a>
         <a href="/portal/consent" class="px-3 py-3 {if active_nav == 'consent'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Sharing</a>
     </nav>

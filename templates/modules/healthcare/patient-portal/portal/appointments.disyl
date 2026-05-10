@@ -10,34 +10,151 @@
 <body class="min-h-screen bg-slate-100">
     {include "modules/patient-portal/portal/_header.disyl"}
 
-    <main class="mx-auto max-w-6xl px-6 py-8">
-        <section class="rounded bg-white shadow-sm ring-1 ring-slate-200">
-            <div class="px-6 py-4 border-b border-slate-200">
-                <h1 class="text-lg font-semibold text-slate-900">Your appointments</h1>
-                <p class="mt-1 text-sm text-slate-600">Past and upcoming visits scheduled with your clinic.</p>
-            </div>
-            <div class="divide-y divide-slate-100">
-                {if appointments}
-                    {foreach appointments as appointment}
-                    <div class="px-6 py-4 flex items-start gap-4">
-                        <div class="flex-shrink-0 rounded bg-teal-50 px-3 py-2 text-center ring-1 ring-teal-100 min-w-[96px]">
-                            <div class="text-[10px] font-semibold uppercase tracking-wide text-teal-600">When</div>
-                            <div class="mt-0.5 text-xs font-bold text-teal-900">{appointment.scheduled_start}</div>
-                            {if appointment.scheduled_end}<div class="mt-0.5 text-[10px] text-teal-700">to {appointment.scheduled_end}</div>{/if}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-semibold text-slate-900">{appointment.appointment_type | default:'Visit'}</div>
-                            {if appointment.reason_for_visit}<div class="mt-1 text-sm text-slate-600">{appointment.reason_for_visit}</div>{/if}
-                            {if appointment.notes}<div class="mt-1 text-xs text-slate-500">{appointment.notes}</div>{/if}
-                        </div>
-                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 capitalize">{appointment.status}</span>
+    <main class="mx-auto max-w-7xl px-6 py-8 space-y-6">
+
+        {if next_appointment}
+        <section class="rounded bg-gradient-to-br from-teal-600 to-emerald-600 text-white shadow-md">
+            <div class="px-6 py-6 sm:px-8 sm:py-7 grid gap-6 lg:grid-cols-[1fr_auto] items-center">
+                <div>
+                    <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-teal-100">
+                        <span class="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold tracking-wider">NEXT</span>
+                        Your next appointment
                     </div>
-                    {/foreach}
-                {else}
-                    <div class="px-6 py-12 text-center text-sm text-slate-500">No appointments on file yet.</div>
-                {/if}
+                    <h2 class="mt-2 text-2xl font-bold tracking-tight">{next_appointment.appointment_type | default:'Visit'}</h2>
+                    <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-teal-50">
+                        <span class="inline-flex items-center gap-1.5">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            {next_appointment.scheduled_start}
+                        </span>
+                        {if next_appointment.scheduled_end}<span class="text-teal-100">&rarr; {next_appointment.scheduled_end}</span>{/if}
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold capitalize">{next_appointment.status | default:'scheduled'}</span>
+                    </div>
+                    {if next_appointment.reason_for_visit}<p class="mt-3 text-sm text-teal-50/90 max-w-2xl">{next_appointment.reason_for_visit}</p>{/if}
+                    <p class="mt-3 text-xs text-teal-100/80">Please arrive 10 minutes early. To reschedule or cancel, contact your clinic.</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <a href="?selected={next_appointment.appointment_uuid}" class="inline-flex items-center rounded bg-white px-4 py-2 text-sm font-semibold text-teal-700 shadow-sm hover:bg-teal-50">View details</a>
+                    <a href="mailto:?subject=Reschedule%20appointment%20{next_appointment.appointment_uuid}" class="inline-flex items-center rounded bg-white/15 ring-1 ring-white/30 px-4 py-2 text-sm font-semibold text-white hover:bg-white/25">Request reschedule</a>
+                </div>
             </div>
         </section>
+        {else}
+        <section class="rounded bg-white ring-1 ring-slate-200 px-6 py-8 text-center">
+            <div class="mx-auto h-12 w-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </div>
+            <h2 class="mt-3 text-base font-semibold text-slate-900">No upcoming appointments</h2>
+            <p class="mt-1 text-sm text-slate-600">You don't have any scheduled visits right now.</p>
+            <p class="mt-3 text-xs text-slate-500">To book a new appointment, contact your clinic directly.</p>
+        </section>
+        {/if}
+
+        <div class="flex items-center gap-1 rounded bg-white p-1 ring-1 ring-slate-200 shadow-sm w-fit text-sm">
+            <a href="?view=upcoming" class="px-4 py-2 rounded font-medium {if view == 'upcoming'}bg-teal-600 text-white shadow-sm{else}text-slate-600 hover:text-slate-900 hover:bg-slate-50{/if}">Upcoming <span class="ml-1 inline-flex items-center justify-center rounded-full {if view == 'upcoming'}bg-white/25 text-white{else}bg-slate-100 text-slate-600{/if} px-1.5 text-[10px] font-bold">{counts.upcoming}</span></a>
+            <a href="?view=past" class="px-4 py-2 rounded font-medium {if view == 'past'}bg-teal-600 text-white shadow-sm{else}text-slate-600 hover:text-slate-900 hover:bg-slate-50{/if}">Past <span class="ml-1 inline-flex items-center justify-center rounded-full {if view == 'past'}bg-white/25 text-white{else}bg-slate-100 text-slate-600{/if} px-1.5 text-[10px] font-bold">{counts.past}</span></a>
+            <a href="?view=cancelled" class="px-4 py-2 rounded font-medium {if view == 'cancelled'}bg-teal-600 text-white shadow-sm{else}text-slate-600 hover:text-slate-900 hover:bg-slate-50{/if}">Cancelled <span class="ml-1 inline-flex items-center justify-center rounded-full {if view == 'cancelled'}bg-white/25 text-white{else}bg-slate-100 text-slate-600{/if} px-1.5 text-[10px] font-bold">{counts.cancelled}</span></a>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+
+            <section class="rounded bg-white shadow-sm ring-1 ring-slate-200">
+                <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-slate-900 capitalize">{view} appointments</h3>
+                    <span class="text-xs text-slate-500">{visible | count} shown</span>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    {if visible}
+                        {foreach visible as appointment}
+                        <a href="?view={view}&selected={appointment.appointment_uuid}" class="block px-5 py-4 hover:bg-slate-50 {if selected.appointment_uuid == appointment.appointment_uuid}bg-teal-50/60 border-l-4 border-teal-500 -ml-px{else}border-l-4 border-transparent{/if}">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0 flex flex-col items-center justify-center rounded bg-slate-50 ring-1 ring-slate-200 px-3 py-2 min-w-[64px]">
+                                    <div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">When</div>
+                                    <div class="mt-0.5 text-xs font-bold text-slate-900 text-center leading-tight">{appointment.scheduled_start}</div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-semibold text-slate-900 truncate">{appointment.appointment_type | default:'Visit'}</div>
+                                    {if appointment.reason_for_visit}<div class="mt-0.5 text-xs text-slate-600 truncate">{appointment.reason_for_visit}</div>{/if}
+                                    <div class="mt-1.5 flex items-center gap-2">
+                                        {if appointment.status == 'scheduled' || appointment.status == 'confirmed' || appointment.status == 'pending'}
+                                        <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 ring-1 ring-blue-100 capitalize">{appointment.status}</span>
+                                        {elseif appointment.status == 'completed' || appointment.status == 'checked_in' || appointment.status == 'roomed'}
+                                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 capitalize">{appointment.status}</span>
+                                        {elseif appointment.status == 'cancelled' || appointment.status == 'canceled' || appointment.status == 'no_show' || appointment.status == 'noshow'}
+                                        <span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700 ring-1 ring-rose-100 capitalize">{appointment.status}</span>
+                                        {else}
+                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 capitalize">{appointment.status | default:'unknown'}</span>
+                                        {/if}
+                                    </div>
+                                </div>
+                                <svg class="h-4 w-4 mt-1 flex-shrink-0 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                            </div>
+                        </a>
+                        {/foreach}
+                    {else}
+                        <div class="px-5 py-12 text-center text-sm text-slate-500">No {view} appointments.</div>
+                    {/if}
+                </div>
+            </section>
+
+            <aside class="rounded bg-white shadow-sm ring-1 ring-slate-200 lg:sticky lg:top-24 self-start">
+                {if selected}
+                <div class="px-5 py-3 border-b border-slate-200">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Appointment details</div>
+                </div>
+                <div class="px-5 py-5 space-y-4">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-900">{selected.appointment_type | default:'Visit'}</h3>
+                        {if selected.status == 'scheduled' || selected.status == 'confirmed' || selected.status == 'pending'}
+                        <span class="mt-2 inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-100 capitalize">{selected.status}</span>
+                        {elseif selected.status == 'completed' || selected.status == 'checked_in' || selected.status == 'roomed'}
+                        <span class="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 capitalize">{selected.status}</span>
+                        {elseif selected.status == 'cancelled' || selected.status == 'canceled' || selected.status == 'no_show' || selected.status == 'noshow'}
+                        <span class="mt-2 inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 capitalize">{selected.status}</span>
+                        {else}
+                        <span class="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 capitalize">{selected.status | default:'unknown'}</span>
+                        {/if}
+                    </div>
+
+                    <dl class="space-y-3 text-sm">
+                        <div>
+                            <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Date & time</dt>
+                            <dd class="mt-1 text-slate-900">{selected.scheduled_start}{if selected.scheduled_end} <span class="text-slate-500">&rarr; {selected.scheduled_end}</span>{/if}</dd>
+                        </div>
+                        {if selected.reason_for_visit}
+                        <div>
+                            <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Reason for visit</dt>
+                            <dd class="mt-1 text-slate-700">{selected.reason_for_visit}</dd>
+                        </div>
+                        {/if}
+                        {if selected.notes}
+                        <div>
+                            <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Notes</dt>
+                            <dd class="mt-1 text-slate-700">{selected.notes}</dd>
+                        </div>
+                        {/if}
+                        <div>
+                            <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Reference</dt>
+                            <dd class="mt-1 text-xs font-mono text-slate-500 break-all">{selected.appointment_uuid | default:'—'}</dd>
+                        </div>
+                    </dl>
+
+                    {if selected.status != 'cancelled' && selected.status != 'canceled' && selected.status != 'completed' && selected.status != 'no_show'}
+                    <div class="pt-3 border-t border-slate-100">
+                        <p class="text-xs text-slate-500">Need to reschedule or cancel? Please call your clinic.</p>
+                    </div>
+                    {/if}
+                </div>
+                {else}
+                <div class="px-5 py-12 text-center">
+                    <div class="mx-auto h-10 w-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <p class="mt-3 text-sm text-slate-500">Select an appointment to see its details.</p>
+                </div>
+                {/if}
+            </aside>
+
+        </div>
     </main>
 </body>
 </html>

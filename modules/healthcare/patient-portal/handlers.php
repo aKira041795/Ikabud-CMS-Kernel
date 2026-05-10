@@ -177,12 +177,76 @@ function portalPageAppointments(array $params = []): void
     $patient = portalPatientSummary((int)$session['patient_id']);
     $appointments = portalPatientAppointments((int)$session['patient_id'], 50);
 
+    $now = time();
+    $upcomingStatuses = ['scheduled', 'confirmed', 'checked_in', 'roomed', 'pending', ''];
+    $cancelledStatuses = ['cancelled', 'canceled', 'no_show', 'noshow'];
+
+    $upcoming = [];
+    $past = [];
+    $cancelled = [];
+    $nextAppointment = null;
+    $nextTs = PHP_INT_MAX;
+
+    foreach ($appointments as $appt) {
+        $status = strtolower((string)($appt['status'] ?? ''));
+        $startTs = !empty($appt['scheduled_start']) ? strtotime((string)$appt['scheduled_start']) : false;
+        if (in_array($status, $cancelledStatuses, true)) {
+            $cancelled[] = $appt;
+            continue;
+        }
+        if ($startTs !== false && $startTs >= $now && in_array($status, $upcomingStatuses, true)) {
+            $upcoming[] = $appt;
+            if ($startTs < $nextTs) {
+                $nextTs = $startTs;
+                $nextAppointment = $appt;
+            }
+        } else {
+            $past[] = $appt;
+        }
+    }
+
+    usort($upcoming, fn($a, $b) => strtotime((string)($a['scheduled_start'] ?? '')) <=> strtotime((string)($b['scheduled_start'] ?? '')));
+    usort($past, fn($a, $b) => strtotime((string)($b['scheduled_start'] ?? '')) <=> strtotime((string)($a['scheduled_start'] ?? '')));
+    usort($cancelled, fn($a, $b) => strtotime((string)($b['scheduled_start'] ?? '')) <=> strtotime((string)($a['scheduled_start'] ?? '')));
+
+    $view = strtolower((string)($_GET['view'] ?? 'upcoming'));
+    if (!in_array($view, ['upcoming', 'past', 'cancelled'], true)) {
+        $view = 'upcoming';
+    }
+    $visible = $view === 'past' ? $past : ($view === 'cancelled' ? $cancelled : $upcoming);
+
+    $selectedUuid = (string)($_GET['selected'] ?? '');
+    $selected = null;
+    if ($selectedUuid !== '') {
+        foreach ($appointments as $appt) {
+            if ((string)($appt['appointment_uuid'] ?? '') === $selectedUuid) {
+                $selected = $appt;
+                break;
+            }
+        }
+    }
+    if ($selected === null && !empty($visible)) {
+        $selected = $visible[0];
+    }
+
     echo portalRenderPage('modules/patient-portal/portal/appointments.disyl', [
-        'page_title' => 'Your appointments',
+        'page_title' => 'My appointments',
         'active_nav' => 'appointments',
         'patient' => $patient,
         'session' => $session,
         'appointments' => $appointments,
+        'next_appointment' => $nextAppointment,
+        'upcoming' => $upcoming,
+        'past' => $past,
+        'cancelled' => $cancelled,
+        'visible' => $visible,
+        'view' => $view,
+        'selected' => $selected,
+        'counts' => [
+            'upcoming' => count($upcoming),
+            'past' => count($past),
+            'cancelled' => count($cancelled),
+        ],
         'logout_endpoint' => '/portal/logout',
     ]);
 }
