@@ -6,6 +6,9 @@ return [
     'GET' => [
         '/portal' => 'patient-portal:portalPageRoot',
         '/portal/login' => 'patient-portal:portalPageLogin',
+        '/portal/register' => 'patient-portal:portalPageRegister',
+        '/portal/forgot-password' => 'patient-portal:portalPageForgotPassword',
+        '/portal/reset-password' => 'patient-portal:portalPageResetPassword',
         '/portal/dashboard' => 'patient-portal:portalPageDashboard',
         '/portal/appointments' => 'patient-portal:portalPageAppointments',
         '/portal/results' => 'patient-portal:portalPageResults',
@@ -17,6 +20,9 @@ return [
     'POST' => [
         '/portal/login' => 'patient-portal:portalAuthLogin',
         '/portal/logout' => 'patient-portal:portalAuthLogout',
+        '/portal/register' => 'patient-portal:portalRegister',
+        '/portal/forgot-password' => 'patient-portal:portalForgotPasswordRequest',
+        '/portal/reset-password' => 'patient-portal:portalResetPassword',
         '/portal/consent' => 'patient-portal:portalConsentRecord',
         '/admin/ehr/portal/provision' => 'patient-portal:portalAdminProvision',
         '/admin/ehr/portal/deactivate' => 'patient-portal:portalAdminDeactivate',

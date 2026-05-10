@@ -447,3 +447,111 @@ function patient_portal_cap_ehr_portal_account_view_1(mixed $payload, string $re
     unset($account['password_hash']);
     return ['ok' => true, 'account' => $account];
 }
+
+function portalPasswordResetTokenHash(string $token): string
+{
+    return hash('sha256', $token);
+}
+
+function portalPasswordResetTtlMinutes(): int
+{
+    return 60;
+}
+
+function portalCreatePasswordResetToken(int $accountId, ?string $requesterIp = null): string
+{
+    $rawToken = bin2hex(random_bytes(32));
+    $hash = portalPasswordResetTokenHash($rawToken);
+    $expiresAt = (new DateTimeImmutable('now'))->modify('+' . portalPasswordResetTtlMinutes() . ' minutes')->format('Y-m-d H:i:s');
+
+    portalDb()->execute(
+        'UPDATE ehr_portal_password_resets SET used_at = NOW() WHERE account_id = :account_id AND used_at IS NULL',
+        [':account_id' => $accountId]
+    );
+
+    portalDb()->execute(
+        'INSERT INTO ehr_portal_password_resets (account_id, token_hash, requester_ip, expires_at) VALUES (:account_id, :token_hash, :requester_ip, :expires_at)',
+        [
+            ':account_id' => $accountId,
+            ':token_hash' => $hash,
+            ':requester_ip' => $requesterIp,
+            ':expires_at' => $expiresAt,
+        ]
+    );
+
+    return $rawToken;
+}
+
+function portalConsumePasswordResetToken(string $rawToken): ?array
+{
+    $hash = portalPasswordResetTokenHash($rawToken);
+    $stmt = portalDb()->prepare(
+        'SELECT id, account_id, expires_at, used_at FROM ehr_portal_password_resets WHERE token_hash = :hash LIMIT 1'
+    );
+    $stmt->execute([':hash' => $hash]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    if (!empty($row['used_at'])) {
+        return null;
+    }
+    if (strtotime((string)$row['expires_at']) < time()) {
+        return null;
+    }
+
+    return $row;
+}
+
+function portalMarkPasswordResetUsed(int $resetId): void
+{
+    portalDb()->execute(
+        'UPDATE ehr_portal_password_resets SET used_at = NOW() WHERE id = :id',
+        [':id' => $resetId]
+    );
+}
+
+function portalUpdateAccountPassword(int $accountId, string $newPassword): void
+{
+    portalDb()->execute(
+        'UPDATE ehr_portal_accounts SET password_hash = :hash, token_version = token_version + 1, updated_at = NOW() WHERE id = :id',
+        [':hash' => portalHashPassword($newPassword), ':id' => $accountId]
+    );
+}
+
+function portalFindPatientForRegistration(string $email, string $lastName, string $birthDate): ?array
+{
+    $email = portalNormalizeEmail($email);
+    $lastName = trim($lastName);
+    $birthDate = trim($birthDate);
+    if ($email === '' || $lastName === '' || $birthDate === '') {
+        return null;
+    }
+
+    $search = app()->cap()->call(
+        'ehr.patient.search@1',
+        ['q' => $email, 'limit' => 5],
+        ['caller_module' => 'patient-portal']
+    );
+    if (!is_array($search) || empty($search['ok']) || !is_array($search['results'] ?? null)) {
+        return null;
+    }
+
+    foreach ($search['results'] as $patient) {
+        if (!is_array($patient)) {
+            continue;
+        }
+        $patientEmail = portalNormalizeEmail((string)($patient['email'] ?? ''));
+        $patientLast = strtolower(trim((string)($patient['last_name'] ?? '')));
+        $patientBirth = trim((string)($patient['birth_date'] ?? ''));
+        if (
+            $patientEmail === $email
+            && $patientLast === strtolower($lastName)
+            && $patientBirth === $birthDate
+        ) {
+            return $patient;
+        }
+    }
+
+    return null;
+}

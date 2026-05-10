@@ -6,11 +6,13 @@
     "author": "Ikabud Platform Team",
     "owns_tables": [
         "ehr_portal_accounts",
-        "ehr_portal_login_attempts"
+        "ehr_portal_login_attempts",
+        "ehr_portal_password_resets"
     ],
     "reads_tables": [],
     "migrations": [
-        "database/migrations/001_initial.sql"
+        "database/migrations/001_initial.sql",
+        "database/migrations/002_password_resets.sql"
     ],
     "capabilities": {
         "exposes": [

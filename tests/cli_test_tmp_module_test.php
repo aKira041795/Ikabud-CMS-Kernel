@@ -72,7 +72,7 @@ t('Capability declarations valid', !empty($capCheck['ok']), ($capCheck['error'] 
 echo "
 ── Routes ──
 ";
-$routesFile = BASE_PATH . '/modules/cli-test-tmp/routes.php';
+$routesFile = /var/www/html/applicationostest/modules/cli-test-tmp . '/routes.php';
 t('routes.php exists', is_file($routesFile));
 $routes = require $routesFile;
 t('routes.php returns array', is_array($routes));
@@ -82,7 +82,7 @@ t('GET routes defined', isset($routes['GET']) && is_array($routes['GET']));
 echo "
 ── Helpers ──
 ";
-$helpersFile = BASE_PATH . '/modules/cli-test-tmp/helpers.php';
+$helpersFile = /var/www/html/applicationostest/modules/cli-test-tmp . '/helpers.php';
 t('helpers.php exists', is_file($helpersFile));
 require_once $helpersFile;
 t('cttCtx function exists', function_exists('cttCtx'));

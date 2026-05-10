@@ -15,6 +15,12 @@
         </div>
 
         <div class="rounded-2xl bg-white shadow-md ring-1 ring-slate-200 p-8">
+            {if notice == 'registered'}
+                <div class="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Your portal account is ready. You can sign in below.</div>
+            {/if}
+            {if notice == 'password_reset'}
+                <div class="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Your password has been updated. Please sign in.</div>
+            {/if}
             <div id="portal-error" class="hidden mb-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700"></div>
 
             <form id="portal-login-form" method="POST" action="{login_endpoint}" class="space-y-5">
@@ -34,6 +40,11 @@
                     Sign in
                 </button>
             </form>
+
+            <div class="mt-5 flex items-center justify-between text-xs text-slate-600">
+                <a href="/portal/forgot-password" class="hover:text-teal-700 hover:underline">Forgot password?</a>
+                <a href="/portal/register" class="hover:text-teal-700 hover:underline">Activate your account</a>
+            </div>
         </div>
 
         <p class="mt-6 text-center text-xs text-slate-500">

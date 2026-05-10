@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title | default:'Activate your patient portal'} — Patient Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-teal-50 via-white to-sky-50 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+            <div class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-700 text-xl font-bold shadow-sm">P</div>
+            <h1 class="mt-4 text-2xl font-semibold text-slate-900">Activate your account</h1>
+            <p class="mt-1 text-sm text-slate-600">Verify your identity to enable patient portal access.</p>
+        </div>
+
+        <div class="rounded-2xl bg-white shadow-md ring-1 ring-slate-200 p-8">
+            {if notice == 'submitted'}
+                <div class="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">If your information matches a clinic record, your portal account will be activated. Please check with your clinic if you do not receive a confirmation.</div>
+            {/if}
+            {if error_message != ''}
+                <div class="mb-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">{error_message}</div>
+            {/if}
+
+            <form method="POST" action="{form_endpoint}" class="space-y-5" autocomplete="off">
+                {csrf_field | raw}
+                <div>
+                    <label for="email" class="block text-sm font-medium text-slate-700 mb-1">Email on file</label>
+                    <input type="email" name="email" id="email" required value="{form_values.email}"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none">
+                </div>
+                <div>
+                    <label for="last_name" class="block text-sm font-medium text-slate-700 mb-1">Last name</label>
+                    <input type="text" name="last_name" id="last_name" required value="{form_values.last_name}"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none">
+                </div>
+                <div>
+                    <label for="birth_date" class="block text-sm font-medium text-slate-700 mb-1">Date of birth</label>
+                    <input type="date" name="birth_date" id="birth_date" required value="{form_values.birth_date}"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-slate-700 mb-1">New password</label>
+                    <input type="password" name="password" id="password" required minlength="10" autocomplete="new-password"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none">
+                    <p class="mt-1 text-xs text-slate-500">Minimum 10 characters.</p>
+                </div>
+                <div>
+                    <label for="password_confirm" class="block text-sm font-medium text-slate-700 mb-1">Confirm password</label>
+                    <input type="password" name="password_confirm" id="password_confirm" required minlength="10" autocomplete="new-password"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none">
+                </div>
+                <button type="submit"
+                    class="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition">
+                    Activate account
+                </button>
+            </form>
+
+            <div class="mt-5 text-center text-xs text-slate-600">
+                Already have an account? <a href="{login_url}" class="text-teal-700 hover:underline">Sign in</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

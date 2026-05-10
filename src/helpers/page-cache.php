@@ -54,6 +54,7 @@ define('PAGE_CACHE_SKIP_PREFIXES', [
     '/cms/register',
     '/cms/admin',
     '/cms/auth',
+    '/portal',
 ]);
 
 // ── Instance & TTL ───────────────────────────────────────────────────

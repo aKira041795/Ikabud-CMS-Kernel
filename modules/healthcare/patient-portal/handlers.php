@@ -33,6 +33,7 @@ function portalPageLogin(array $params = []): void
         'page_title' => 'Sign in to your patient portal',
         'login_endpoint' => '/portal/login',
         'error_message' => '',
+        'notice' => trim((string)(app()->input()['notice'] ?? '')),
     ]);
 }
 
@@ -313,4 +314,235 @@ function portalAdminDeactivate(array $params = []): void
     $code = is_array($result) && !empty($result['ok']) ? 200 : 422;
     http_response_code($code);
     echo json_encode($result);
+}
+
+function portalPageForgotPassword(array $params = []): void
+{
+    if (portalCurrentSession()) {
+        app()->redirect('/portal/dashboard');
+        return;
+    }
+    $input = app()->input();
+    echo portalRenderPage('modules/patient-portal/portal/forgot_password.disyl', [
+        'page_title' => 'Reset your patient portal password',
+        'form_endpoint' => '/portal/forgot-password',
+        'login_url' => '/portal/login',
+        'notice' => trim((string)($input['notice'] ?? '')),
+        'error_message' => trim((string)($input['error'] ?? '')),
+    ]);
+}
+
+function portalForgotPasswordRequest(array $params = []): void
+{
+    app()->csrfEnforce();
+    $input = app()->input();
+    $email = portalNormalizeEmail((string)($input['email'] ?? ''));
+    $requesterIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+
+    // Always rate-limit by email; treat success and unknown-email the same publicly.
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        app()->redirect('/portal/forgot-password?error=' . urlencode('A valid email is required.'));
+        return;
+    }
+    if (portalRecentFailedAttempts($email) >= 8) {
+        app()->redirect('/portal/forgot-password?error=' . urlencode('Too many requests. Please try again later.'));
+        return;
+    }
+
+    $account = portalFetchAccountByEmail($email);
+    if ($account && (string)($account['status'] ?? '') === 'active') {
+        try {
+            $token = portalCreatePasswordResetToken((int)$account['id'], $requesterIp);
+            $resetLink = '/portal/reset-password?token=' . urlencode($token);
+            portalAuditRecord('ehr.portal.password_reset.requested', [
+                'patient_id' => (int)$account['patient_id'],
+                'new_data' => ['account_uuid' => (string)$account['account_uuid']],
+            ]);
+            // Out-of-band delivery (email) is owned by an integration. Log the link so admins
+            // can recover it from app.log if email delivery is not configured yet.
+            write_log('Portal password reset link issued for ' . $email . ' -> ' . $resetLink, 'info');
+        } catch (\Throwable $e) {
+            write_log('portal password reset issuance failed: ' . $e->getMessage(), 'warn');
+        }
+    }
+    portalRecordLoginAttempt($email, false);
+
+    app()->redirect('/portal/forgot-password?notice=sent');
+}
+
+function portalPageResetPassword(array $params = []): void
+{
+    if (portalCurrentSession()) {
+        app()->redirect('/portal/dashboard');
+        return;
+    }
+    $input = app()->input();
+    $token = trim((string)($input['token'] ?? ''));
+    $error = trim((string)($input['error'] ?? ''));
+
+    $valid = false;
+    if ($token !== '') {
+        $row = portalConsumePasswordResetToken($token);
+        $valid = $row !== null;
+        if (!$valid && $error === '') {
+            $error = 'This reset link is invalid or has expired.';
+        }
+    }
+
+    echo portalRenderPage('modules/patient-portal/portal/reset_password.disyl', [
+        'page_title' => 'Choose a new password',
+        'form_endpoint' => '/portal/reset-password',
+        'login_url' => '/portal/login',
+        'token' => $token,
+        'token_valid' => $valid,
+        'error_message' => $error,
+    ]);
+}
+
+function portalResetPassword(array $params = []): void
+{
+    app()->csrfEnforce();
+    $input = app()->input();
+    $token = trim((string)($input['token'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $confirm = (string)($input['password_confirm'] ?? '');
+
+    if ($token === '') {
+        app()->redirect('/portal/reset-password?error=' . urlencode('Reset link is missing.'));
+        return;
+    }
+    if (strlen($password) < 10) {
+        app()->redirect('/portal/reset-password?token=' . urlencode($token) . '&error=' . urlencode('Password must be at least 10 characters.'));
+        return;
+    }
+    if ($password !== $confirm) {
+        app()->redirect('/portal/reset-password?token=' . urlencode($token) . '&error=' . urlencode('Passwords do not match.'));
+        return;
+    }
+
+    $row = portalConsumePasswordResetToken($token);
+    if (!$row) {
+        app()->redirect('/portal/reset-password?error=' . urlencode('This reset link is invalid or has expired.'));
+        return;
+    }
+
+    $accountId = (int)$row['account_id'];
+    $account = portalFetchAccountById($accountId);
+    if (!$account || (string)($account['status'] ?? '') !== 'active') {
+        app()->redirect('/portal/reset-password?error=' . urlencode('Account is not available.'));
+        return;
+    }
+
+    portalUpdateAccountPassword($accountId, $password);
+    portalMarkPasswordResetUsed((int)$row['id']);
+    portalAuditRecord('ehr.portal.password_reset.completed', [
+        'patient_id' => (int)$account['patient_id'],
+        'new_data' => ['account_uuid' => (string)$account['account_uuid']],
+    ]);
+
+    app()->redirect('/portal/login?notice=password_reset');
+}
+
+function portalPageRegister(array $params = []): void
+{
+    if (portalCurrentSession()) {
+        app()->redirect('/portal/dashboard');
+        return;
+    }
+    $input = app()->input();
+    echo portalRenderPage('modules/patient-portal/portal/register.disyl', [
+        'page_title' => 'Activate your patient portal',
+        'form_endpoint' => '/portal/register',
+        'login_url' => '/portal/login',
+        'notice' => trim((string)($input['notice'] ?? '')),
+        'error_message' => trim((string)($input['error'] ?? '')),
+        'form_values' => [
+            'email' => (string)($input['email'] ?? ''),
+            'last_name' => (string)($input['last_name'] ?? ''),
+            'birth_date' => (string)($input['birth_date'] ?? ''),
+        ],
+    ]);
+}
+
+function portalRegister(array $params = []): void
+{
+    app()->csrfEnforce();
+    $input = app()->input();
+    $email = portalNormalizeEmail((string)($input['email'] ?? ''));
+    $lastName = trim((string)($input['last_name'] ?? ''));
+    $birthDate = trim((string)($input['birth_date'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $confirm = (string)($input['password_confirm'] ?? '');
+
+    $back = function (string $error) use ($email, $lastName, $birthDate): void {
+        $qs = http_build_query([
+            'error' => $error,
+            'email' => $email,
+            'last_name' => $lastName,
+            'birth_date' => $birthDate,
+        ]);
+        app()->redirect('/portal/register?' . $qs);
+    };
+
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $back('A valid email is required.');
+        return;
+    }
+    if ($lastName === '' || $birthDate === '') {
+        $back('Last name and date of birth are required.');
+        return;
+    }
+    if (strlen($password) < 10) {
+        $back('Password must be at least 10 characters.');
+        return;
+    }
+    if ($password !== $confirm) {
+        $back('Passwords do not match.');
+        return;
+    }
+    if (portalRecentFailedAttempts($email) >= 8) {
+        $back('Too many attempts. Please try again later.');
+        return;
+    }
+
+    if (portalFetchAccountByEmail($email)) {
+        portalRecordLoginAttempt($email, false);
+        // Same response as success to avoid email enumeration
+        app()->redirect('/portal/register?notice=submitted');
+        return;
+    }
+
+    $patient = portalFindPatientForRegistration($email, $lastName, $birthDate);
+    if (!$patient) {
+        portalRecordLoginAttempt($email, false);
+        // Same neutral response to avoid leaking whether a patient exists
+        app()->redirect('/portal/register?notice=submitted');
+        return;
+    }
+
+    $patientId = (int)($patient['id'] ?? 0);
+    if ($patientId <= 0 || portalFetchAccountByPatientId($patientId)) {
+        portalRecordLoginAttempt($email, false);
+        app()->redirect('/portal/register?notice=submitted');
+        return;
+    }
+
+    $result = app()->cap()->call(
+        'ehr.portal.account.provision@1',
+        [
+            'patient_id' => $patientId,
+            'email' => $email,
+            'password' => $password,
+            'provisioned_by_user_id' => 0,
+        ],
+        ['caller_module' => 'patient-portal']
+    );
+
+    if (!is_array($result) || empty($result['ok'])) {
+        write_log('portal self-register provision failed: ' . (string)($result['error'] ?? 'unknown'), 'warn');
+        $back('Registration could not be completed. Please contact your clinic.');
+        return;
+    }
+
+    app()->redirect('/portal/login?notice=registered');
 }
