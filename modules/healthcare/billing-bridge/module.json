@@ -40,7 +40,7 @@
                 "admin"
             ],
             "description": "Review charge candidates emitted from clinical activity",
-            "order": 130
+            "order": 160
         }
     ],
     "events": []

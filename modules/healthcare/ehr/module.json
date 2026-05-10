@@ -5,7 +5,10 @@
     "description": "Tenant-facing EHR authentication, branding, and admin shell.",
     "author": "Ikabud Kernel Team",
     "depends": [
-        "ehr-core"
+        "ehr-core",
+        "audit",
+        "reporting",
+        "billing-bridge"
     ],
     "owns_tables": [
         "ehr_users",
@@ -106,17 +109,6 @@
             ],
             "description": "Identity, login, and recovery",
             "order": 900
-        },
-        {
-            "key": "ehr_users",
-            "label": "Users",
-            "url": "/admin/ehr/users",
-            "icon": "users",
-            "roles": [
-                "admin"
-            ],
-            "description": "Manage staff accounts and access",
-            "order": 800
         }
     ],
     "hooks": [

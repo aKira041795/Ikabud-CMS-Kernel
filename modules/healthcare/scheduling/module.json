@@ -55,7 +55,8 @@
             "ehr.patient.view@1",
             "ehr.patient.search@1",
             "ehr.encounter.create@1",
-            "ehr.encounter.view@1"
+            "ehr.encounter.view@1",
+            "ehr.portal.reschedule.pending@1"
         ],
         "policy": {
             "capabilities": {

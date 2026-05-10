@@ -57,7 +57,7 @@
                 "admin"
             ],
             "description": "Appointments, visits, throughput",
-            "order": 110
+            "order": 130
         },
         {
             "key": "ehr_reporting_compliance",
@@ -68,7 +68,7 @@
                 "admin"
             ],
             "description": "Access, audit, and break-glass activity",
-            "order": 120
+            "order": 150
         }
     ],
     "events": []

@@ -76,7 +76,8 @@
             "ehr.consent.active@1",
             "ehr.result.list@1",
             "ehr.prescription.list@1",
-            "ehr.document.list@1"
+            "ehr.document.list@1",
+            "ehr.patient.search@1"
         ],
         "policy": {
             "capabilities": {
@@ -142,7 +143,7 @@
                 "admin"
             ],
             "description": "Manage patient portal account access (provision, deactivate, audit).",
-            "order": 950
+            "order": 95
         }
     ],
     "events": [

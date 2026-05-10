@@ -128,7 +128,7 @@
                 "admin"
             ],
             "description": "Manage admissions, transfers, and discharges across wards and beds",
-            "order": 100
+            "order": 110
         }
     ],
     "events": [

@@ -112,6 +112,14 @@ $loginContext = ehrLoginPageContext([
     'login_favicon_url' => '/assets/ehr-favicon.ico',
 ]);
 
+try {
+    $tvStmt = app()->db()->prepare('SELECT COALESCE(token_version, 0) AS token_version FROM ehr_users WHERE id = ? LIMIT 1');
+    $tvStmt->execute([1]);
+    $ehrTokenVersion = (int)($tvStmt->fetchColumn() ?: 0);
+} catch (\Throwable $ignored) {
+    $ehrTokenVersion = 0;
+}
+
 $validEhrToken = app()->jwt()->generate([
     'sub' => 'ehr:1',
     'id' => 1,
@@ -121,7 +129,7 @@ $validEhrToken = app()->jwt()->generate([
     'role' => 'admin',
     'source' => 'ehr',
     'tenant_id' => 426,
-    'token_version' => 1,
+    'token_version' => $ehrTokenVersion,
 ]);
 
 $originalCookies = $_COOKIE;
@@ -477,7 +485,7 @@ $reportAdminHtml = ehrRender('modules/reporting/admin/summary.disyl', array_merg
         'csv_url' => '/api/v1/ehr/reporting/summary?format=csv',
     ]
 ));
-et('ehr reporting page renders through EHR workspace shell', str_contains($reportAdminHtml, 'EHR Workspace') && str_contains($reportAdminHtml, 'Operations Report'));
+et('ehr reporting page renders through EHR workspace shell', str_contains($reportAdminHtml, 'EHR Workspace') && str_contains($reportAdminHtml, 'Clinic Activity'));
 
 $workspaceTemplateCases = [
     [

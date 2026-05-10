@@ -120,7 +120,7 @@
                 "admin"
             ],
             "description": "Quality summary, CDS rule library, and active alerts",
-            "order": 120
+            "order": 140
         }
     ],
     "events": [

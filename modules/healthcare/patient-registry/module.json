@@ -45,7 +45,8 @@
         ],
         "depends": [
             "kernel.audit.record@1",
-            "ehr.core.status.catalog@1"
+            "ehr.core.status.catalog@1",
+            "ehr.portal.account.view@1"
         ],
         "policy": {
             "capabilities": {
