@@ -68,6 +68,20 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.consent.revoke@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.break_glass.revoke@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -121,6 +135,16 @@
                         "documents",
                         "clinical-notes",
                         "results"
+                    ]
+                },
+                "ehr.consent.revoke@1": {
+                    "allow_callers": [
+                        "privacy-consent"
+                    ]
+                },
+                "ehr.break_glass.revoke@1": {
+                    "allow_callers": [
+                        "privacy-consent"
                     ]
                 }
             }

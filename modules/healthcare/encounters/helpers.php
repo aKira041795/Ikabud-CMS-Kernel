@@ -225,3 +225,45 @@ function encounters_cap_ehr_vitals_record_1(mixed $payload, string $resolvedCapa
 
     return ['ok' => true, 'vital' => $vital];
 }
+function encounters_cap_ehr_encounter_close_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $encounterId = (int)($data['encounter_id'] ?? $data['id'] ?? 0);
+    $encounterUuid = trim((string)($data['encounter_uuid'] ?? ''));
+
+    $encounter = encFetchEncounterByIdOrUuid($encounterId, $encounterUuid);
+    if (!is_array($encounter)) {
+        return ['ok' => false, 'error' => 'Encounter not found'];
+    }
+
+    $currentStatus = strtolower((string)($encounter['status'] ?? ''));
+    if ($currentStatus === 'completed') {
+        return ['ok' => true, 'encounter' => $encounter, 'idempotent' => true];
+    }
+    if (!in_array($currentStatus, ['open', 'in-progress', 'in_progress'], true)) {
+        return ['ok' => false, 'error' => 'Encounter is not in a closeable state'];
+    }
+    if (!encEncounterStatusAllowed('completed')) {
+        return ['ok' => false, 'error' => 'Closed status is not allowed by status catalog'];
+    }
+
+    try {
+        encDb()->execute(
+            'UPDATE ehr_encounters SET status = :status, end_at = COALESCE(end_at, NOW()), updated_at = NOW() WHERE id = :id',
+            [':status' => 'completed', ':id' => (int)$encounter['id']]
+        );
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Encounter close failed', 'details' => $e->getMessage()];
+    }
+
+    $closed = encFetchEncounterByIdOrUuid((int)$encounter['id']);
+    ehcAudit('encounters', 'ehr.encounter.closed', 'ehr_encounter', (int)$encounter['id'], $closed ?? [], $encounter);
+    app()->events()->fire('ehr.encounter.closed', [
+        'encounter_id' => (int)$encounter['id'],
+        'encounter_uuid' => (string)($encounter['encounter_uuid'] ?? ''),
+        'patient_id' => (int)($encounter['patient_id'] ?? 0),
+        'closed_by' => isset($data['actor_user_id']) ? (int)$data['actor_user_id'] : null,
+    ]);
+
+    return ['ok' => true, 'encounter' => $closed];
+}

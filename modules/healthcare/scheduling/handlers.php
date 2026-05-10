@@ -50,7 +50,7 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
             'patient_options' => $patientOptions,
             'status_options' => $statusOptions,
             'selected_appointment' => $selectedAppointment,
-            'form_error' => $formError,
+            'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),
             'form_values' => [
                 'appointment_id' => (int)($formSource['appointment_id'] ?? 0),
@@ -116,4 +116,30 @@ function schedSaveAppointment(array $params = []): void
 
     $error = trim((string)($result['error'] ?? 'Unable to save appointment.'));
     echo ehrRender('modules/scheduling/admin/index.disyl', schedPageState($user, $input, $error));
+}
+function schedTransitionAppointment(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) { http_response_code(503); echo 'EHR runtime unavailable'; return; }
+    $user = ehrRequireAdmin();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $allowed = ['checked-in','waiting','roomed','completed','no-show','canceled'];
+    $status = strtolower(trim((string)($input['status'] ?? '')));
+    if (!in_array($status, $allowed, true)) {
+        app()->redirect('/admin/ehr/appointments?error=' . rawurlencode('Unsupported transition'));
+        return;
+    }
+    $payload = [
+        'id' => (int)($input['id'] ?? 0),
+        'status' => $status,
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ];
+    $room = trim((string)($input['room_assignment'] ?? ''));
+    if ($room !== '') $payload['room_assignment'] = $room;
+    $reason = trim((string)($input['cancel_reason'] ?? ''));
+    if ($reason !== '') $payload['cancel_reason'] = $reason;
+    $result = app()->cap()->call('ehr.appointment.transition@1', $payload, ['caller_module' => 'scheduling']);
+    $ok = is_array($result) && !empty($result['ok']);
+    $qs = $ok ? '?notice=' . rawurlencode($status) : ('?error=' . rawurlencode((string)($result['error'] ?? 'Transition failed')));
+    app()->redirect('/admin/ehr/appointments' . $qs);
 }

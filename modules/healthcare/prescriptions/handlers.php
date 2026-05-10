@@ -7,7 +7,7 @@ require_once __DIR__ . '/helpers.php';
 function rxPageState(array $user, array $input = [], ?string $formError = null): array
 {
     $rows = rxDb()->query(
-        'SELECT id, prescription_uuid, patient_id, encounter_id, medication_text, dose_text, route, frequency, duration_text, quantity, refills, status, issued_at, canceled_at '
+        'SELECT id, prescription_uuid, patient_id, encounter_id, medication_text, dose_text, route, frequency, duration_text, quantity, refills, status, issued_at, canceled_at, cancellation_reason '
         . 'FROM ehr_prescriptions ORDER BY issued_at DESC, id DESC LIMIT 12'
     )->fetchAll(PDO::FETCH_ASSOC);
 
@@ -27,7 +27,7 @@ function rxPageState(array $user, array $input = [], ?string $formError = null):
             'result_count' => count($prescriptions),
             'patient_options' => $patientOptions,
             'encounter_options' => $encounterOptions,
-            'form_error' => $formError,
+            'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),
             'form_values' => [
                 'patient_id' => (int)($input['patient_id'] ?? 0),
@@ -82,4 +82,69 @@ function rxSavePrescription(array $params = []): void
 
     $error = trim((string)($result['error'] ?? 'Unable to issue prescription.'));
     echo ehrRender('modules/prescriptions/admin/index.disyl', rxPageState($user, $input, $error));
+}
+function rxCancelPrescription(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(503);
+        echo 'EHR admin runtime unavailable';
+        return;
+    }
+    $user = ehrRequireAdmin();
+    if (function_exists('csrfEnforce')) {
+        csrfEnforce();
+    }
+    $input = app()->input();
+    $prescriptionId = max(0, (int)($input['prescription_id'] ?? 0));
+    $reason = trim((string)($input['reason'] ?? ''));
+    if ($prescriptionId <= 0) {
+        app()->redirect('/admin/ehr/prescriptions?error=' . urlencode('Prescription is required.'));
+        return;
+    }
+    if ($reason === '') {
+        app()->redirect('/admin/ehr/prescriptions?error=' . urlencode('Cancellation reason is required.'));
+        return;
+    }
+    $result = app()->cap()->call('ehr.prescription.cancel@1', [
+        'prescription_id' => $prescriptionId,
+        'reason' => $reason,
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ], ['caller_module' => 'prescriptions']);
+    if (is_array($result) && !empty($result['ok'])) {
+        app()->redirect('/admin/ehr/prescriptions?notice=canceled');
+        return;
+    }
+    $error = trim((string)($result['error'] ?? 'Unable to cancel prescription.'));
+    app()->redirect('/admin/ehr/prescriptions?error=' . urlencode($error));
+}
+
+function rxRequestRefill(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(503);
+        echo 'EHR admin runtime unavailable';
+        return;
+    }
+    $user = ehrRequireAdmin();
+    if (function_exists('csrfEnforce')) {
+        csrfEnforce();
+    }
+    $input = app()->input();
+    $prescriptionId = max(0, (int)($input['prescription_id'] ?? 0));
+    $reason = trim((string)($input['reason'] ?? ''));
+    if ($prescriptionId <= 0) {
+        app()->redirect('/admin/ehr/prescriptions?error=' . urlencode('Prescription is required.'));
+        return;
+    }
+    $result = app()->cap()->call('ehr.prescription.request_refill@1', [
+        'prescription_id' => $prescriptionId,
+        'reason' => $reason,
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ], ['caller_module' => 'prescriptions']);
+    if (is_array($result) && !empty($result['ok'])) {
+        app()->redirect('/admin/ehr/prescriptions?notice=refill_requested');
+        return;
+    }
+    $error = trim((string)($result['error'] ?? 'Unable to request refill.'));
+    app()->redirect('/admin/ehr/prescriptions?error=' . urlencode($error));
 }

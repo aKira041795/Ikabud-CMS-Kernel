@@ -40,7 +40,7 @@ function encPageState(array $user, array $input = [], ?string $formError = null)
             'selected_encounter' => $selectedEncounter,
             'patient_options' => $patientOptions,
             'status_options' => $statusOptions,
-            'form_error' => $formError,
+            'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),
             'form_values' => [
                 'patient_id' => (int)($input['patient_id'] ?? 0),
@@ -145,4 +145,36 @@ function encSaveVitals(array $params = []): void
 
     $error = trim((string)($result['error'] ?? 'Unable to record vitals.'));
     echo ehrRender('modules/encounters/admin/index.disyl', encPageState($user, $input, $error));
+}
+function encCloseEncounter(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(503);
+        echo 'EHR admin runtime unavailable';
+        return;
+    }
+
+    $user = ehrRequireAdmin();
+    if (function_exists('csrfEnforce')) {
+        csrfEnforce();
+    }
+    $input = app()->input();
+    $encounterId = max(0, (int)($input['encounter_id'] ?? 0));
+    if ($encounterId <= 0) {
+        app()->redirect('/admin/ehr/encounters?error=' . urlencode('Encounter is required.'));
+        return;
+    }
+
+    $result = app()->cap()->call('ehr.encounter.close@1', [
+        'encounter_id' => $encounterId,
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ], ['caller_module' => 'encounters']);
+
+    if (is_array($result) && !empty($result['ok'])) {
+        app()->redirect('/admin/ehr/encounters?notice=closed&encounter_id=' . $encounterId);
+        return;
+    }
+
+    $error = trim((string)($result['error'] ?? 'Unable to close encounter.'));
+    app()->redirect('/admin/ehr/encounters?error=' . urlencode($error) . '&encounter_id=' . $encounterId);
 }

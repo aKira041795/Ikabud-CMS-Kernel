@@ -182,3 +182,46 @@ function prescriptions_cap_ehr_prescription_cancel_1(mixed $payload, string $res
 
     return ['ok' => true, 'prescription' => $canceled];
 }
+function prescriptions_cap_ehr_prescription_request_refill_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $prescriptionId = (int)($data['prescription_id'] ?? $data['id'] ?? 0);
+    $reason = trim((string)($data['reason'] ?? ''));
+
+    if ($prescriptionId <= 0) {
+        return ['ok' => false, 'error' => 'prescription_id is required'];
+    }
+
+    $prescription = rxFetchPrescription($prescriptionId);
+    if (!$prescription) {
+        return ['ok' => false, 'error' => 'Prescription not found'];
+    }
+    if ((string)($prescription['status'] ?? '') !== 'issued') {
+        return ['ok' => false, 'error' => 'Only issued prescriptions can be refilled'];
+    }
+
+    $remaining = $prescription['refills'] !== null ? (int)$prescription['refills'] : null;
+    if ($remaining !== null && $remaining <= 0) {
+        return ['ok' => false, 'error' => 'No refills remaining'];
+    }
+
+    if ($remaining !== null) {
+        rxDb()->execute(
+            'UPDATE ehr_prescriptions SET refills = refills - 1, updated_at = NOW() WHERE id = :id AND refills > 0',
+            [':id' => $prescriptionId]
+        );
+    }
+
+    $updated = rxFetchPrescription($prescriptionId);
+    ehcAudit('prescriptions', 'ehr.prescription.refill.requested', 'ehr_prescription', $prescriptionId, $updated ?? [], $prescription);
+    app()->events()->fire('ehr.prescription.refill.requested', [
+        'prescription_id' => $prescriptionId,
+        'patient_id' => (int)$prescription['patient_id'],
+        'encounter_id' => (int)$prescription['encounter_id'],
+        'reason' => $reason,
+        'requested_by' => isset($data['actor_user_id']) ? (int)$data['actor_user_id'] : null,
+        'refills_remaining' => $updated['refills'] ?? null,
+    ]);
+
+    return ['ok' => true, 'prescription' => $updated];
+}

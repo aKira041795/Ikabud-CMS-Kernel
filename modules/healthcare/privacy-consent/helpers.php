@@ -277,3 +277,66 @@ function privacy_consent_cap_ehr_break_glass_active_1(mixed $payload, string $re
 
     return ['ok' => true, 'active' => $event !== null, 'event' => $event];
 }
+function privacy_consent_cap_ehr_consent_revoke_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $consentId = (int)($data['id'] ?? $data['consent_id'] ?? 0);
+    if ($consentId <= 0) {
+        return ['ok' => false, 'error' => 'consent id is required'];
+    }
+    $consent = pcFetchConsent($consentId);
+    if (!$consent) {
+        return ['ok' => false, 'error' => 'Consent not found'];
+    }
+    if (!empty($consent['revoked_at'])) {
+        return ['ok' => true, 'consent' => $consent];
+    }
+    $actor = isset($data['actor_user_id']) ? (int)$data['actor_user_id'] : null;
+    try {
+        pcDb()->execute(
+            'UPDATE ehr_consents SET status = :status, revoked_at = NOW(), revoked_by_user_id = :revoked_by, updated_at = NOW() WHERE id = :id',
+            [':status' => 'revoked', ':revoked_by' => $actor, ':id' => $consentId]
+        );
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Consent revoke failed', 'details' => $e->getMessage()];
+    }
+    $updated = pcFetchConsent($consentId);
+    ehcAudit('privacy-consent', 'ehr.consent.revoked', 'ehr_consent', $consentId, $updated ?? [], $consent);
+    app()->events()->fire('ehr.consent.revoked', [
+        'consent_id' => $consentId,
+        'patient_id' => (int)($consent['patient_id'] ?? 0),
+        'consent_type' => (string)($consent['consent_type'] ?? ''),
+    ]);
+    return ['ok' => true, 'consent' => $updated];
+}
+
+function privacy_consent_cap_ehr_break_glass_revoke_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $eventId = (int)($data['id'] ?? $data['event_id'] ?? 0);
+    if ($eventId <= 0) {
+        return ['ok' => false, 'error' => 'break-glass event id is required'];
+    }
+    $event = pcFetchBreakGlass($eventId);
+    if (!$event) {
+        return ['ok' => false, 'error' => 'Break-glass event not found'];
+    }
+    if ((string)($event['status'] ?? '') !== 'active') {
+        return ['ok' => true, 'event' => $event];
+    }
+    try {
+        pcDb()->execute(
+            'UPDATE ehr_break_glass_events SET status = :status, granted_until = NOW(), updated_at = NOW() WHERE id = :id',
+            [':status' => 'revoked', ':id' => $eventId]
+        );
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Break-glass revoke failed', 'details' => $e->getMessage()];
+    }
+    $updated = pcFetchBreakGlass($eventId);
+    ehcAudit('privacy-consent', 'ehr.break_glass.revoked', 'ehr_break_glass_event', $eventId, $updated ?? [], $event);
+    app()->events()->fire('ehr.break_glass.revoked', [
+        'event_id' => $eventId,
+        'patient_id' => (int)($event['patient_id'] ?? 0),
+    ]);
+    return ['ok' => true, 'event' => $updated];
+}

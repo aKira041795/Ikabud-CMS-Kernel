@@ -8,5 +8,7 @@ return [
     ],
     'POST' => [
         '/admin/ehr/prescriptions' => 'prescriptions:rxSavePrescription',
+        '/admin/ehr/prescriptions/cancel' => 'prescriptions:rxCancelPrescription',
+        '/admin/ehr/prescriptions/refill' => 'prescriptions:rxRequestRefill',
     ],
 ];

@@ -13,7 +13,8 @@
     ],
     "migrations": [
         "database/migrations/001_initial.sql",
-        "database/migrations/002_add_restricted_flag.sql"
+        "database/migrations/002_add_restricted_flag.sql",
+        "database/migrations/003_add_acknowledgment.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -47,6 +48,13 @@
             },
             {
                 "id": "ehr.result.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.result.acknowledge@1",
                 "priority": 100,
                 "modes": [
                     "first"
@@ -88,6 +96,11 @@
                         "clinical-notes",
                         "patient-portal",
                         "ehr"
+                    ]
+                },
+                "ehr.result.acknowledge@1": {
+                    "allow_callers": [
+                        "results"
                     ]
                 }
             }

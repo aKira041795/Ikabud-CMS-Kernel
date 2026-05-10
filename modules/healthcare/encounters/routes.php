@@ -9,5 +9,6 @@ return [
     'POST' => [
         '/admin/ehr/encounters' => 'encounters:encSaveEncounter',
         '/admin/ehr/encounters/vitals' => 'encounters:encSaveVitals',
+        '/admin/ehr/encounters/close' => 'encounters:encCloseEncounter',
     ],
 ];

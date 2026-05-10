@@ -8,5 +8,7 @@ return [
     ],
     'POST' => [
         '/admin/ehr/notes' => 'clinical-notes:cnSaveNote',
+        '/admin/ehr/notes/sign' => 'clinical-notes:cnSignNote',
+        '/admin/ehr/notes/amend' => 'clinical-notes:cnAmendNote',
     ],
 ];

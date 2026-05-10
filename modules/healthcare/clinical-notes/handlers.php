@@ -38,7 +38,7 @@ function cnPageState(array $user, array $input = [], ?string $formError = null):
             'result_count' => count($notes),
             'patient_options' => $patientOptions,
             'encounter_options' => $encounterOptions,
-            'form_error' => $formError,
+            'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),
             'form_values' => [
                 'patient_id' => (int)($input['patient_id'] ?? 0),
@@ -89,4 +89,38 @@ function cnSaveNote(array $params = []): void
 
     $error = trim((string)($result['error'] ?? 'Unable to create note.'));
     echo ehrRender('modules/clinical-notes/admin/index.disyl', cnPageState($user, $input, $error));
+}
+function cnSignNote(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) { http_response_code(503); echo 'EHR runtime unavailable'; return; }
+    $user = ehrRequireAdmin();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $payload = [
+        'note_id' => (int)($input['note_id'] ?? 0),
+        'sign_reason' => trim((string)($input['sign_reason'] ?? '')),
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ];
+    $result = app()->cap()->call('ehr.note.sign@1', $payload, ['caller_module' => 'clinical-notes']);
+    $ok = is_array($result) && !empty($result['ok']);
+    $qs = $ok ? '?notice=signed' : ('?error=' . urlencode((string)($result['error'] ?? 'Unable to sign note.')));
+    app()->redirect('/admin/ehr/notes' . $qs);
+}
+
+function cnAmendNote(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) { http_response_code(503); echo 'EHR runtime unavailable'; return; }
+    $user = ehrRequireAdmin();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $payload = [
+        'note_id' => (int)($input['note_id'] ?? 0),
+        'amendment_reason' => trim((string)($input['amendment_reason'] ?? '')),
+        'body_text' => trim((string)($input['body_text'] ?? '')),
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ];
+    $result = app()->cap()->call('ehr.note.amend@1', $payload, ['caller_module' => 'clinical-notes']);
+    $ok = is_array($result) && !empty($result['ok']);
+    $qs = $ok ? '?notice=amended' : ('?error=' . urlencode((string)($result['error'] ?? 'Unable to amend note.')));
+    app()->redirect('/admin/ehr/notes' . $qs);
 }

@@ -8,5 +8,6 @@ return [
     ],
     'POST' => [
         '/admin/ehr/appointments' => 'scheduling:schedSaveAppointment',
+        '/admin/ehr/appointments/transition' => 'scheduling:schedTransitionAppointment',
     ],
 ];

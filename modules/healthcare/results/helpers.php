@@ -250,3 +250,40 @@ function results_cap_ehr_result_list_1(mixed $payload, string $resolvedCapabilit
     $rows = resDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     return ['ok' => true, 'results' => $rows];
 }
+function results_cap_ehr_result_acknowledge_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $resultId = (int)($data['result_id'] ?? $data['id'] ?? 0);
+    if ($resultId <= 0) {
+        return ['ok' => false, 'error' => 'result_id is required'];
+    }
+    $result = resFetchResult($resultId);
+    if (!$result) {
+        return ['ok' => false, 'error' => 'Result not found'];
+    }
+    $status = (string)($result['result_status'] ?? '');
+    if ($status !== 'released' && $status !== 'corrected') {
+        return ['ok' => false, 'error' => 'Only released or corrected results can be acknowledged'];
+    }
+    if (!empty($result['acknowledged_at'])) {
+        return ['ok' => true, 'result' => $result];
+    }
+    $actor = isset($data['actor_user_id']) ? (int)$data['actor_user_id'] : null;
+    try {
+        resDb()->execute(
+            'UPDATE ehr_lab_results SET acknowledged_at = NOW(), acknowledged_by_user_id = :ack_by, updated_at = NOW() WHERE id = :id',
+            [':ack_by' => $actor, ':id' => $resultId]
+        );
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Acknowledgment failed', 'details' => $e->getMessage()];
+    }
+    $acked = resFetchResult($resultId);
+    ehcAudit('results', 'ehr.result.acknowledged', 'ehr_lab_result', $resultId, $acked ?? [], $result);
+    app()->events()->fire('ehr.result.acknowledged', [
+        'result_id' => $resultId,
+        'order_item_id' => (int)($result['order_item_id'] ?? 0),
+        'patient_id' => (int)($result['patient_id'] ?? 0),
+        'acknowledged_by' => $actor,
+    ]);
+    return ['ok' => true, 'result' => $acked];
+}

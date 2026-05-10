@@ -7,7 +7,7 @@ require_once __DIR__ . '/helpers.php';
 function resPageState(array $user, array $input = [], ?string $formError = null): array
 {
     $rows = resDb()->query(
-        'SELECT r.id, r.patient_id, r.encounter_id, r.result_status, r.observed_at, r.value_text, r.value_numeric, r.unit, r.abnormal_flag, r.restricted_flag, '
+        'SELECT r.id, r.patient_id, r.encounter_id, r.result_status, r.observed_at, r.value_text, r.value_numeric, r.unit, r.abnormal_flag, r.restricted_flag, r.acknowledged_at, r.acknowledged_by_user_id, '
         . 'oi.item_label, o.order_uuid '
         . 'FROM ehr_lab_results r '
         . 'LEFT JOIN ehr_order_items oi ON oi.id = r.order_item_id '
@@ -110,7 +110,12 @@ function resTransitionResult(array $params = []): void
     $input = app()->input();
     $resultId = max(0, (int)($input['result_id'] ?? 0));
     $action = strtolower(trim((string)($input['action'] ?? '')));
-    $cap = $action === 'verify' ? 'ehr.result.verify@1' : ($action === 'release' ? 'ehr.result.release@1' : '');
+    $capMap = [
+        'verify' => 'ehr.result.verify@1',
+        'release' => 'ehr.result.release@1',
+        'acknowledge' => 'ehr.result.acknowledge@1',
+    ];
+    $cap = $capMap[$action] ?? '';
     if ($resultId <= 0 || $cap === '') {
         echo ehrRender('modules/results/admin/index.disyl', resPageState($user, $input, 'Invalid transition request.'));
         return;
@@ -120,9 +125,13 @@ function resTransitionResult(array $params = []): void
     if ($cap === 'ehr.result.verify@1') {
         $payload['verified_by_user_id'] = (int)($user['id'] ?? 0);
     }
+    if ($cap === 'ehr.result.acknowledge@1') {
+        $payload['actor_user_id'] = (int)($user['id'] ?? 0);
+    }
     $result = app()->cap()->call($cap, $payload, ['caller_module' => 'results']);
     if (is_array($result) && !empty($result['ok'])) {
-        app()->redirect('/admin/ehr/results?notice=' . ($action === 'verify' ? 'verified' : 'released'));
+        $noticeMap = ['verify' => 'verified', 'release' => 'released', 'acknowledge' => 'acknowledged'];
+        app()->redirect('/admin/ehr/results?notice=' . $noticeMap[$action]);
         return;
     }
 

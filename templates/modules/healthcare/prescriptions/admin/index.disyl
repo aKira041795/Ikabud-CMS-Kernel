@@ -49,6 +49,23 @@
                             <div class="mt-1 text-slate-900">{prescription.issued_at}</div>
                         </div>
                     </div>
+                    {if prescription.status == 'issued'}
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                        <form method="POST" action="{base_url}/admin/ehr/prescriptions/refill" class="inline" onsubmit="return confirm('Request a refill for this prescription?');">
+                            {csrf_field | raw}
+                            <input type="hidden" name="prescription_id" value="{prescription.id}">
+                            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">Request Refill{if prescription.refills} ({prescription.refills} left){/if}</button>
+                        </form>
+                        <form method="POST" action="{base_url}/admin/ehr/prescriptions/cancel" class="inline flex flex-wrap items-center gap-2" onsubmit="return confirm('Cancel this prescription?');">
+                            {csrf_field | raw}
+                            <input type="hidden" name="prescription_id" value="{prescription.id}">
+                            <input type="text" name="reason" required placeholder="Cancellation reason" class="rounded-md border border-slate-200 px-2 py-1 text-xs">
+                            <button type="submit" class="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Cancel</button>
+                        </form>
+                    </div>
+                    {elseif prescription.status == 'canceled'}
+                    <div class="mt-3 text-xs text-rose-600">Canceled{if prescription.cancellation_reason}: {prescription.cancellation_reason}{/if}</div>
+                    {/if}
                 </div>
                 {/foreach}
             {else}
@@ -60,7 +77,7 @@
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Issue a prescription</h2>
         <p class="mt-1 text-xs text-slate-500">Pick the patient and visit, then enter the medication details.</p>
-        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Prescription issued.</div>{/if}
+        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Prescription issued.</div>{elseif form_notice == 'canceled'}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Prescription canceled.</div>{elseif form_notice == 'refill_requested'}<div class="mt-4 border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Refill requested.</div>{/if}
         {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
         <form method="POST" action="{base_url}/admin/ehr/prescriptions" class="mt-4 grid gap-4 md:grid-cols-2">
             {csrf_field | raw}

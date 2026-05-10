@@ -41,7 +41,7 @@ function pcPageState(array $user, array $input = [], ?string $formError = null):
             'consents' => $consents,
             'break_glass_events' => $breakGlass,
             'patient_options' => $patientOptions,
-            'form_error' => $formError,
+            'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),
             'form_values' => [
                 'patient_id' => (int)($input['patient_id'] ?? 0),
@@ -120,4 +120,29 @@ function pcSaveBreakGlass(array $params = []): void
 
     $error = trim((string)($result['error'] ?? 'Unable to request break-glass access.'));
     echo ehrRender('modules/privacy-consent/admin/index.disyl', pcPageState($user, $input, $error));
+}
+function pcRevokeConsent(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) { http_response_code(503); echo 'EHR runtime unavailable'; return; }
+    $user = ehrRequireAdmin();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $payload = ['id' => (int)($input['id'] ?? 0), 'actor_user_id' => (int)($user['id'] ?? 0)];
+    $result = app()->cap()->call('ehr.consent.revoke@1', $payload, ['caller_module' => 'privacy-consent']);
+    $ok = is_array($result) && !empty($result['ok']);
+    $qs = $ok ? '?notice=consent_revoked' : ('?error=' . rawurlencode((string)($result['error'] ?? 'Revoke failed')));
+    app()->redirect('/admin/ehr/privacy' . $qs);
+}
+
+function pcRevokeBreakGlass(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) { http_response_code(503); echo 'EHR runtime unavailable'; return; }
+    $user = ehrRequireAdmin();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $payload = ['id' => (int)($input['id'] ?? 0), 'actor_user_id' => (int)($user['id'] ?? 0)];
+    $result = app()->cap()->call('ehr.break_glass.revoke@1', $payload, ['caller_module' => 'privacy-consent']);
+    $ok = is_array($result) && !empty($result['ok']);
+    $qs = $ok ? '?notice=break_glass_revoked' : ('?error=' . rawurlencode((string)($result['error'] ?? 'Revoke failed')));
+    app()->redirect('/admin/ehr/privacy' . $qs);
 }

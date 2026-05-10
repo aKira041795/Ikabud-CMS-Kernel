@@ -41,6 +41,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.encounter.close@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -85,6 +92,11 @@
                     "allow_callers": [
                         "encounters",
                         "clinical-notes"
+                    ]
+                },
+                "ehr.encounter.close@1": {
+                    "allow_callers": [
+                        "encounters"
                     ]
                 }
             }

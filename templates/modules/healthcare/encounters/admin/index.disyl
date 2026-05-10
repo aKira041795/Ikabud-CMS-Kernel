@@ -96,6 +96,15 @@
                             <div class="mt-2 text-sm font-semibold text-slate-900">{if selected_encounter.end_at}{selected_encounter.end_at}{else}Still open{/if}</div>
                         </div>
                     </div>
+                    {if form_notice == 'closed'}<div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Encounter closed.</div>{/if}
+                    {if form_error}<div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+                    {if selected_encounter.status != 'completed' && selected_encounter.status != 'canceled' && selected_encounter.status != 'cancelled'}
+                    <form method="POST" action="{base_url}/admin/ehr/encounters/close" onsubmit="return confirm('Close this encounter?');">
+                        {csrf_field | raw}
+                        <input type="hidden" name="encounter_id" value="{selected_encounter.id}">
+                        <button type="submit" class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Close Encounter</button>
+                    </form>
+                    {/if}
                     <div>
                         <div class="text-xs uppercase tracking-wide text-slate-400">Latest Vitals</div>
                         <div class="mt-3 space-y-3">
