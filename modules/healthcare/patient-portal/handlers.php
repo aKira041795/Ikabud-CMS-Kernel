@@ -230,11 +230,29 @@ function portalAdminPageIndex(array $params = []): void
 
     $user = ehrRequireAdmin();
     $rows = portalDb()->query(
-        'SELECT a.id, a.account_uuid, a.patient_id, a.email, a.status, a.last_login_at, a.created_at, '
-        . "p.first_name, p.last_name, p.patient_uuid "
-        . 'FROM ehr_portal_accounts a LEFT JOIN ehr_patients p ON p.id = a.patient_id '
-        . 'ORDER BY a.created_at DESC LIMIT 100'
+        'SELECT id, account_uuid, patient_id, email, status, last_login_at, created_at '
+        . 'FROM ehr_portal_accounts ORDER BY created_at DESC LIMIT 100'
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($rows as &$row) {
+        $row['first_name'] = null;
+        $row['last_name'] = null;
+        $row['patient_uuid'] = null;
+        try {
+            $patientResult = app()->cap()->call('ehr.patient.view@1', [
+                'patient_id' => (int)$row['patient_id'],
+            ], ['caller_module' => 'patient-portal']);
+            if (is_array($patientResult) && !empty($patientResult['ok']) && !empty($patientResult['patient'])) {
+                $patient = $patientResult['patient'];
+                $row['first_name'] = $patient['first_name'] ?? null;
+                $row['last_name'] = $patient['last_name'] ?? null;
+                $row['patient_uuid'] = $patient['patient_uuid'] ?? null;
+            }
+        } catch (\Throwable $e) {
+            // ignore — display row without patient name
+        }
+    }
+    unset($row);
 
     $context = ehrAdminContext($user, 'ehr_patient_portal', [
         'page_title' => 'Patient Portal',

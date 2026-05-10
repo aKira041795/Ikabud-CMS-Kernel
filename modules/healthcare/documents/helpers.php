@@ -304,7 +304,7 @@ function documents_cap_ehr_document_list_1(mixed $payload, string $resolvedCapab
         $where[] = 'access_policy_id IS NULL';
     }
 
-    $sql = 'SELECT id, document_uuid, patient_id, encounter_id, title, document_type, mime_type, file_size_bytes, sensitivity_level, created_at '
+    $sql = 'SELECT id, document_uuid, patient_id, encounter_id, title, document_type, mime_type, file_size, sensitivity_level, created_at '
          . 'FROM ehr_documents WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC, id DESC LIMIT ' . $limit;
     $rows = docDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     return ['ok' => true, 'documents' => $rows];
