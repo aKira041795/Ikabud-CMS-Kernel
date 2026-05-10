@@ -5,7 +5,7 @@
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
             <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Insights</div>
-            <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Analytics &amp; CDS</h1>
+            <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Insights</h1>
             <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Quality summary, decision-support rule library, and active alerts.</p>
         </div>
         <div class="mt-6 grid gap-3 sm:grid-cols-4">

@@ -13,9 +13,20 @@ function ordPageState(array $user, array $input = [], ?string $formError = null)
         . 'FROM ehr_orders o ORDER BY o.ordered_at DESC, o.id DESC LIMIT 12'
     )->fetchAll(PDO::FETCH_ASSOC);
     $orders = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'orders');
+    $buckets = ['pending' => 0, 'in_progress' => 0, 'resulted' => 0, 'cancelled' => 0];
     foreach ($orders as &$ordRow) {
         if (function_exists('ehrStatusBadge')) {
             $ordRow['status_badge'] = ehrStatusBadge((string)($ordRow['status'] ?? ''), 'order');
+        }
+        $st = strtolower((string)($ordRow['status'] ?? ''));
+        if (in_array($st, ['cancelled', 'canceled'], true)) {
+            $buckets['cancelled']++;
+        } elseif (in_array($st, ['resulted', 'completed'], true)) {
+            $buckets['resulted']++;
+        } elseif (in_array($st, ['in-progress', 'in_progress', 'placed'], true)) {
+            $buckets['in_progress']++;
+        } else {
+            $buckets['pending']++;
         }
     }
     unset($ordRow);
@@ -51,6 +62,7 @@ function ordPageState(array $user, array $input = [], ?string $formError = null)
         [
             'orders' => $orders,
             'result_count' => count($orders),
+            'status_buckets' => $buckets,
             'selected_order' => $selectedOrder,
             'patient_options' => $patientOptions,
             'encounter_options' => $encounterOptions,

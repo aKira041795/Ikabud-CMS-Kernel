@@ -36,7 +36,7 @@ function pcPageState(array $user, array $input = [], ?string $formError = null):
         ? array_values($patientSearch['results']) : [];
 
     return array_merge(
-        ehrAdminContext($user, 'ehr_privacy_consent', ['page_title' => 'Privacy & Consent']),
+        ehrAdminContext($user, 'ehr_privacy_consent', ['page_title' => 'Consent']),
         [
             'consents' => $consents,
             'break_glass_events' => $breakGlass,

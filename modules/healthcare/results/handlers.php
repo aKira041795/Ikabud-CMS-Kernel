@@ -16,6 +16,7 @@ function resPageState(array $user, array $input = [], ?string $formError = null)
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $results = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'results');
+    $triage = ['critical' => 0, 'abnormal' => 0, 'pending' => 0, 'reviewed' => 0];
     foreach ($results as &$resRow) {
         if (function_exists('ehrStatusBadge')) {
             $statusKey = (string)($resRow['result_status'] ?? '');
@@ -23,6 +24,18 @@ function resPageState(array $user, array $input = [], ?string $formError = null)
                 $statusKey = 'abnormal';
             }
             $resRow['status_badge'] = ehrStatusBadge($statusKey, 'result');
+        }
+        $abn = strtolower(trim((string)($resRow['abnormal_flag'] ?? '')));
+        $status = (string)($resRow['result_status'] ?? '');
+        $acked = !empty($resRow['acknowledged_at']);
+        if ($abn === 'critical' || $abn === 'panic') {
+            $triage['critical']++;
+        } elseif ($abn !== '' && $abn !== 'normal') {
+            $triage['abnormal']++;
+        } elseif (in_array($status, ['entered', 'pending', 'verified'], true) && !$acked) {
+            $triage['pending']++;
+        } else {
+            $triage['reviewed']++;
         }
     }
     unset($resRow);
@@ -39,6 +52,7 @@ function resPageState(array $user, array $input = [], ?string $formError = null)
         [
             'results' => $results,
             'result_count' => count($results),
+            'triage_counts' => $triage,
             'order_item_options' => $orderItemOptions,
             'form_error' => $formError,
             'form_notice' => trim((string)($input['notice'] ?? '')),

@@ -19,7 +19,7 @@ function audPageIndex(array $params = []): void
         : [];
 
     echo ehrRender('modules/audit/admin/index.disyl', array_merge(
-        ehrAdminContext($user, 'ehr_audit', ['page_title' => 'Audit Trail']),
+        ehrAdminContext($user, 'ehr_audit', ['page_title' => 'Access Activity']),
         [
             'entries' => $entries,
             'result_count' => count($entries),

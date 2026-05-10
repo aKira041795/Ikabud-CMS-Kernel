@@ -20,7 +20,7 @@ function interopAdminPageIndex(array $params = []): void
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
     $context = ehrAdminContext($user, 'ehr_interop_bridge', [
-        'page_title' => 'Interoperability Bridge',
+        'page_title' => 'External Systems',
         'messages' => $messages,
         'identifier_maps' => $maps,
         'identifier_endpoint' => '/admin/ehr/interop/identifier',

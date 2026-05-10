@@ -13,9 +13,20 @@ function encPageState(array $user, array $input = [], ?string $formError = null)
 
     $selectedEncounterId = max(0, (int)($input['encounter_id'] ?? 0));
     $encounters = encHydrateEncounterPatients(encListRecentEncounters($statusFilter, 25));
+    $segments = ['active' => [], 'today' => [], 'recent' => []];
+    $todayPrefix = date('Y-m-d');
     foreach ($encounters as &$encRow) {
         if (function_exists('ehrStatusBadge')) {
             $encRow['status_badge'] = ehrStatusBadge((string)($encRow['status'] ?? ''), 'encounter');
+        }
+        $st = strtolower((string)($encRow['status'] ?? ''));
+        $startedAt = (string)($encRow['started_at'] ?? $encRow['encounter_started_at'] ?? $encRow['created_at'] ?? '');
+        if (in_array($st, ['open', 'in-progress', 'in_progress'], true)) {
+            $segments['active'][] = $encRow;
+        } elseif ($startedAt !== '' && str_starts_with($startedAt, $todayPrefix)) {
+            $segments['today'][] = $encRow;
+        } else {
+            $segments['recent'][] = $encRow;
         }
     }
     unset($encRow);
@@ -46,6 +57,11 @@ function encPageState(array $user, array $input = [], ?string $formError = null)
             'status_filter' => $statusFilter,
             'encounters' => $encounters,
             'result_count' => count($encounters),
+            'segment_counts' => [
+                'active' => count($segments['active']),
+                'today' => count($segments['today']),
+                'recent' => count($segments['recent']),
+            ],
             'selected_encounter' => $selectedEncounter,
             'patient_options' => $patientOptions,
             'status_options' => $statusOptions,

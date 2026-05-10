@@ -25,7 +25,7 @@ function adtAdminPageIndex(array $params = []): void
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
     $context = ehrAdminContext($user, 'ehr_hospital_adt', [
-        'page_title' => 'Hospital ADT',
+        'page_title' => 'Admissions & Beds',
         'wards' => $wards,
         'beds' => $beds,
         'admissions' => $admissions,

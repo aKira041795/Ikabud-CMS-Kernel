@@ -450,7 +450,7 @@ function portalAdminPageIndex(array $params = []): void
     )->fetch(\PDO::FETCH_ASSOC)['c'] ?? 0);
 
     $context = ehrAdminContext($user, 'ehr_patient_portal', [
-        'page_title' => 'Patient Portal',
+        'page_title' => 'Portal Access',
         'portal_accounts' => $rows,
         'provision_endpoint' => '/admin/ehr/portal/provision',
         'deactivate_endpoint' => '/admin/ehr/portal/deactivate',

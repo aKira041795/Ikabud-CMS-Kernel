@@ -20,7 +20,7 @@ function bbPageIndex(array $params = []): void
     $candidates = ehrHydrateRecordSummaries($candidates, 'billing-bridge');
 
     echo ehrRender('modules/billing-bridge/admin/index.disyl', array_merge(
-        ehrAdminContext($user, 'ehr_billing_bridge', ['page_title' => 'Billing Signals']),
+        ehrAdminContext($user, 'ehr_billing_bridge', ['page_title' => 'Billing Queue']),
         [
             'candidates' => $candidates,
             'result_count' => count($candidates),

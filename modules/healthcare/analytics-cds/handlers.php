@@ -21,7 +21,7 @@ function cdsAdminPageIndex(array $params = []): void
     $summary = is_array($summary) && !empty($summary['ok']) ? $summary['summary'] : [];
 
     $context = ehrAdminContext($user, 'ehr_analytics_cds', [
-        'page_title' => 'Analytics & CDS',
+        'page_title' => 'Insights',
         'cds_rules' => $rules,
         'cds_alerts' => $alerts,
         'cds_summary' => $summary,

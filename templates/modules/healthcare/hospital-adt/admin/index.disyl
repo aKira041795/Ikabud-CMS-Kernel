@@ -6,7 +6,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
                 <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Inpatient</div>
-                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Hospital ADT</h1>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Admissions &amp; beds</h1>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Admit, transfer, and discharge inpatients across wards and beds.</p>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
