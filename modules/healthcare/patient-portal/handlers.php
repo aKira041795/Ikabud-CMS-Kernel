@@ -445,6 +445,10 @@ function portalAdminPageIndex(array $params = []): void
     unset($row);
 
     $input = app()->input();
+    $pendingReschedule = (int)(portalDb()->query(
+        "SELECT COUNT(*) AS c FROM ehr_portal_reschedule_requests WHERE status = 'pending'"
+    )->fetch(\PDO::FETCH_ASSOC)['c'] ?? 0);
+
     $context = ehrAdminContext($user, 'ehr_patient_portal', [
         'page_title' => 'Patient Portal',
         'portal_accounts' => $rows,
@@ -453,11 +457,162 @@ function portalAdminPageIndex(array $params = []): void
         'update_endpoint' => '/admin/ehr/portal/update',
         'reset_password_endpoint' => '/admin/ehr/portal/reset-password',
         'reactivate_endpoint' => '/admin/ehr/portal/reactivate',
+        'reschedule_inbox_url' => '/admin/ehr/portal/reschedule-requests',
+        'reschedule_pending_count' => $pendingReschedule,
         'form_notice' => trim((string)($input['notice'] ?? '')),
         'form_error' => trim((string)($input['error'] ?? '')),
     ]);
 
     echo ehrRender('modules/patient-portal/admin/index.disyl', $context);
+}
+
+function portalAdminPageRescheduleRequests(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin') || !function_exists('ehrRender') || !function_exists('ehrAdminContext')) {
+        http_response_code(500);
+        echo 'EHR admin shell unavailable';
+        return;
+    }
+
+    $user = ehrRequireAdmin();
+    $input = app()->input();
+
+    $statusFilter = strtolower(trim((string)($input['status'] ?? 'pending')));
+    if (!in_array($statusFilter, ['pending', 'handled', 'dismissed', 'all'], true)) {
+        $statusFilter = 'pending';
+    }
+
+    if ($statusFilter === 'all') {
+        $stmt = portalDb()->query(
+            'SELECT id, account_id, patient_id, appointment_uuid, appointment_type, scheduled_start,
+                    preferred_window, contact_method, reason, status, requester_ip,
+                    handled_at, handled_by, created_at
+               FROM ehr_portal_reschedule_requests
+              ORDER BY (status = "pending") DESC, created_at DESC
+              LIMIT 200'
+        );
+    } else {
+        $stmt = portalDb()->prepare(
+            'SELECT id, account_id, patient_id, appointment_uuid, appointment_type, scheduled_start,
+                    preferred_window, contact_method, reason, status, requester_ip,
+                    handled_at, handled_by, created_at
+               FROM ehr_portal_reschedule_requests
+              WHERE status = :status
+              ORDER BY created_at DESC
+              LIMIT 200'
+        );
+        $stmt->execute([':status' => $statusFilter]);
+    }
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($rows as &$row) {
+        $row['first_name'] = null;
+        $row['last_name'] = null;
+        $row['patient_uuid'] = null;
+        try {
+            $patientResult = app()->cap()->call('ehr.patient.view@1', [
+                'patient_id' => (int)$row['patient_id'],
+            ], ['caller_module' => 'patient-portal']);
+            if (is_array($patientResult) && !empty($patientResult['ok']) && !empty($patientResult['patient'])) {
+                $patient = $patientResult['patient'];
+                $row['first_name'] = $patient['first_name'] ?? null;
+                $row['last_name'] = $patient['last_name'] ?? null;
+                $row['patient_uuid'] = $patient['patient_uuid'] ?? null;
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+    }
+    unset($row);
+
+    $counts = ['pending' => 0, 'handled' => 0, 'dismissed' => 0];
+    $countStmt = portalDb()->query(
+        'SELECT status, COUNT(*) AS c FROM ehr_portal_reschedule_requests GROUP BY status'
+    );
+    foreach ($countStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $c) {
+        $counts[$c['status']] = (int)$c['c'];
+    }
+
+    $context = ehrAdminContext($user, 'ehr_patient_portal', [
+        'page_title' => 'Reschedule Requests',
+        'requests' => $rows,
+        'status_filter' => $statusFilter,
+        'count_pending' => $counts['pending'] ?? 0,
+        'count_handled' => $counts['handled'] ?? 0,
+        'count_dismissed' => $counts['dismissed'] ?? 0,
+        'handle_endpoint' => '/admin/ehr/portal/reschedule-requests/handle',
+        'back_url' => '/admin/ehr/portal',
+        'form_notice' => trim((string)($input['notice'] ?? '')),
+        'form_error' => trim((string)($input['error'] ?? '')),
+    ]);
+
+    echo ehrRender('modules/patient-portal/admin/reschedule_requests.disyl', $context);
+}
+
+function portalAdminRescheduleHandle(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(500);
+        echo 'EHR admin shell unavailable';
+        return;
+    }
+
+    app()->csrfEnforce();
+    $user = ehrRequireAdmin();
+    $input = app()->input();
+
+    $id = (int)($input['id'] ?? 0);
+    $action = strtolower(trim((string)($input['action'] ?? '')));
+    $statusFilter = strtolower(trim((string)($input['status'] ?? 'pending')));
+    if (!in_array($statusFilter, ['pending', 'handled', 'dismissed', 'all'], true)) {
+        $statusFilter = 'pending';
+    }
+    $newStatus = $action === 'dismiss' ? 'dismissed' : ($action === 'handle' ? 'handled' : '');
+
+    $redirect = '/admin/ehr/portal/reschedule-requests?status=' . rawurlencode($statusFilter);
+
+    if ($id <= 0 || $newStatus === '') {
+        app()->redirect($redirect . '&notice=handle_failed&error=' . rawurlencode('Invalid request.'));
+        return;
+    }
+
+    $stmt = portalDb()->prepare(
+        'SELECT id, patient_id, appointment_uuid, status FROM ehr_portal_reschedule_requests WHERE id = :id LIMIT 1'
+    );
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$row) {
+        app()->redirect($redirect . '&notice=handle_failed&error=' . rawurlencode('Request not found.'));
+        return;
+    }
+    if ($row['status'] !== 'pending') {
+        app()->redirect($redirect . '&notice=handle_failed&error=' . rawurlencode('Request already resolved.'));
+        return;
+    }
+
+    $handledBy = trim((string)($user['email'] ?? $user['username'] ?? $user['id'] ?? 'admin'));
+    portalDb()->execute(
+        'UPDATE ehr_portal_reschedule_requests
+            SET status = :status, handled_at = NOW(), handled_by = :handled_by
+          WHERE id = :id',
+        [
+            ':status' => $newStatus,
+            ':handled_by' => substr($handledBy, 0, 128),
+            ':id' => $id,
+        ]
+    );
+
+    portalAuditRecord('ehr.portal.appointment.reschedule_' . $newStatus, [
+        'patient_id' => (int)$row['patient_id'],
+        'new_data' => [
+            'request_id' => $id,
+            'appointment_uuid' => (string)$row['appointment_uuid'],
+            'status' => $newStatus,
+            'handled_by' => $handledBy,
+        ],
+    ]);
+
+    app()->redirect($redirect . '&notice=' . rawurlencode($newStatus));
 }
 
 function portalAdminProvision(array $params = []): void

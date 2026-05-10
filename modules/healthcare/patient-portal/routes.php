@@ -16,6 +16,7 @@ return [
         '/portal/documents' => 'patient-portal:portalPageDocuments',
         '/portal/consent' => 'patient-portal:portalPageConsent',
         '/admin/ehr/portal' => 'patient-portal:portalAdminPageIndex',
+        '/admin/ehr/portal/reschedule-requests' => 'patient-portal:portalAdminPageRescheduleRequests',
     ],
     'POST' => [
         '/portal/login' => 'patient-portal:portalAuthLogin',
@@ -30,5 +31,6 @@ return [
         '/admin/ehr/portal/update' => 'patient-portal:portalAdminUpdate',
         '/admin/ehr/portal/reset-password' => 'patient-portal:portalAdminResetPassword',
         '/admin/ehr/portal/reactivate' => 'patient-portal:portalAdminReactivate',
+        '/admin/ehr/portal/reschedule-requests/handle' => 'patient-portal:portalAdminRescheduleHandle',
     ],
 ];
