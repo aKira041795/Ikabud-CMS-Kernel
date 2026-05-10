@@ -225,9 +225,6 @@ function portalPageAppointments(array $params = []): void
             }
         }
     }
-    if ($selected === null && !empty($visible)) {
-        $selected = $visible[0];
-    }
 
     echo portalRenderPage('modules/patient-portal/portal/appointments.disyl', [
         'page_title' => 'My appointments',
