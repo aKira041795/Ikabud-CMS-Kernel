@@ -661,3 +661,69 @@ function portalFindPatientForRegistration(string $email, string $lastName, strin
 
     return null;
 }
+
+function patient_portal_cap_ehr_portal_reschedule_pending_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $statusFilter = strtolower(trim((string)($data['status'] ?? 'pending')));
+    if (!in_array($statusFilter, ['pending', 'handled', 'dismissed', 'all'], true)) {
+        $statusFilter = 'pending';
+    }
+    $appointmentUuids = [];
+    if (isset($data['appointment_uuids']) && is_array($data['appointment_uuids'])) {
+        foreach ($data['appointment_uuids'] as $u) {
+            $u = trim((string)$u);
+            if ($u !== '') {
+                $appointmentUuids[] = $u;
+            }
+        }
+    }
+    $limit = max(1, min(500, (int)($data['limit'] ?? 200)));
+
+    $sql = 'SELECT id, account_id, patient_id, appointment_uuid, appointment_type, scheduled_start,
+                   preferred_window, contact_method, reason, status, requester_ip,
+                   handled_at, handled_by, created_at
+              FROM ehr_portal_reschedule_requests';
+    $where = [];
+    $params = [];
+    if ($statusFilter !== 'all') {
+        $where[] = 'status = :status';
+        $params[':status'] = $statusFilter;
+    }
+    if (!empty($appointmentUuids)) {
+        $placeholders = [];
+        foreach ($appointmentUuids as $i => $u) {
+            $key = ':uuid' . $i;
+            $placeholders[] = $key;
+            $params[$key] = $u;
+        }
+        $where[] = 'appointment_uuid IN (' . implode(',', $placeholders) . ')';
+    }
+    if (!empty($where)) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY created_at DESC LIMIT ' . $limit;
+
+    try {
+        $stmt = portalDb()->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Reschedule lookup failed', 'requests' => []];
+    }
+
+    $countByUuid = [];
+    foreach ($rows as $r) {
+        $u = (string)($r['appointment_uuid'] ?? '');
+        if ($u !== '' && (string)$r['status'] === 'pending') {
+            $countByUuid[$u] = ($countByUuid[$u] ?? 0) + 1;
+        }
+    }
+
+    return [
+        'ok' => true,
+        'requests' => $rows,
+        'pending_total' => count(array_filter($rows, static fn($r) => ($r['status'] ?? '') === 'pending')),
+        'pending_by_appointment_uuid' => $countByUuid,
+    ];
+}

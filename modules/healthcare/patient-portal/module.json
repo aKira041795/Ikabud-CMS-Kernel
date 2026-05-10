@@ -59,6 +59,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.portal.reschedule.pending@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -112,6 +119,13 @@
                     "allow_callers": [
                         "patient-portal",
                         "patient-registry",
+                        "ehr"
+                    ]
+                },
+                "ehr.portal.reschedule.pending@1": {
+                    "allow_callers": [
+                        "patient-portal",
+                        "scheduling",
                         "ehr"
                     ]
                 }

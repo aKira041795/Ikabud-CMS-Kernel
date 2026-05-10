@@ -31,6 +31,42 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
         ? array_values($statusCatalog['statuses'])
         : [];
 
+    // Optional bridge to patient-portal: pending reschedule requests for the appointments we're showing.
+    $rescheduleByUuid = [];
+    $reschedulePendingTotal = 0;
+    try {
+        $apptUuids = [];
+        foreach ($appointments as $a) {
+            $u = (string)($a['appointment_uuid'] ?? '');
+            if ($u !== '') {
+                $apptUuids[] = $u;
+            }
+        }
+        $reschedResult = app()->cap()->call('ehr.portal.reschedule.pending@1', [
+            'status' => 'pending',
+            'appointment_uuids' => $apptUuids,
+            'limit' => 100,
+        ], ['caller_module' => 'scheduling']);
+        if (is_array($reschedResult) && !empty($reschedResult['ok'])) {
+            foreach (($reschedResult['requests'] ?? []) as $rr) {
+                $u = (string)($rr['appointment_uuid'] ?? '');
+                if ($u !== '' && ($rr['status'] ?? '') === 'pending') {
+                    $rescheduleByUuid[$u] = $rr;
+                }
+            }
+        }
+        // Get global pending total (across all appointments, not just this page)
+        $totalResult = app()->cap()->call('ehr.portal.reschedule.pending@1', [
+            'status' => 'pending',
+            'limit' => 500,
+        ], ['caller_module' => 'scheduling']);
+        if (is_array($totalResult) && !empty($totalResult['ok'])) {
+            $reschedulePendingTotal = (int)($totalResult['pending_total'] ?? 0);
+        }
+    } catch (\Throwable $e) {
+        // patient-portal not present or capability blocked — silently skip the bridge
+    }
+
     $selectedAppointmentId = max(0, (int)($input['appointment_id'] ?? 0));
     $selectedAppointment = $selectedAppointmentId > 0 ? schedFetchAppointmentByIdOrUuid($selectedAppointmentId) : null;
     $formSource = is_array($selectedAppointment) ? $selectedAppointment : [];
@@ -41,6 +77,59 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
     }
     $formSource['appointment_id'] = $selectedAppointmentId > 0 ? $selectedAppointmentId : (int)($input['appointment_id'] ?? 0);
 
+    // Build per-appointment view-model: primary next action, more-actions list, reschedule flag.
+    $statusActionPlan = static function (string $status): array {
+        $status = strtolower($status);
+        switch ($status) {
+            case 'scheduled':
+                return [
+                    'primary' => ['status' => 'checked-in', 'label' => 'Check in', 'tone' => 'teal'],
+                    'more' => [
+                        ['status' => 'no-show', 'label' => 'Mark no-show', 'tone' => 'rose'],
+                        ['status' => 'canceled', 'label' => 'Cancel appointment', 'tone' => 'slate'],
+                    ],
+                ];
+            case 'checked-in':
+                return [
+                    'primary' => ['status' => 'waiting', 'label' => 'Send to waiting', 'tone' => 'amber'],
+                    'more' => [
+                        ['status' => 'roomed', 'label' => 'Send to room', 'tone' => 'indigo', 'needs_room' => true],
+                        ['status' => 'no-show', 'label' => 'Mark no-show', 'tone' => 'rose'],
+                        ['status' => 'canceled', 'label' => 'Cancel appointment', 'tone' => 'slate'],
+                    ],
+                ];
+            case 'waiting':
+                return [
+                    'primary' => ['status' => 'roomed', 'label' => 'Send to room', 'tone' => 'indigo', 'needs_room' => true],
+                    'more' => [
+                        ['status' => 'canceled', 'label' => 'Cancel appointment', 'tone' => 'slate'],
+                    ],
+                ];
+            case 'roomed':
+                return [
+                    'primary' => ['status' => 'completed', 'label' => 'Complete', 'tone' => 'emerald'],
+                    'more' => [
+                        ['status' => 'canceled', 'label' => 'Cancel appointment', 'tone' => 'slate'],
+                    ],
+                ];
+            case 'completed':
+            case 'canceled':
+            case 'no-show':
+            default:
+                return ['primary' => null, 'more' => []];
+        }
+    };
+
+    foreach ($appointments as &$a) {
+        $u = (string)($a['appointment_uuid'] ?? '');
+        $a['has_reschedule_request'] = isset($rescheduleByUuid[$u]);
+        $a['reschedule_request'] = $rescheduleByUuid[$u] ?? null;
+        $plan = $statusActionPlan((string)($a['status'] ?? ''));
+        $a['action_primary'] = $plan['primary'];
+        $a['action_more'] = $plan['more'];
+    }
+    unset($a);
+
     return array_merge(
         ehrAdminContext($user, 'ehr_scheduling', ['page_title' => 'Appointments']),
         [
@@ -49,6 +138,8 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
             'status_counts' => is_array($statusCounts) ? $statusCounts : [],
             'patient_options' => $patientOptions,
             'status_options' => $statusOptions,
+            'reschedule_pending_total' => $reschedulePendingTotal,
+            'reschedule_inbox_url' => '/admin/ehr/portal/reschedule-requests',
             'selected_appointment' => $selectedAppointment,
             'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),
