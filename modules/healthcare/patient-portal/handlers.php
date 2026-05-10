@@ -110,14 +110,62 @@ function portalAuthLogout(array $params = []): void
 function portalPageDashboard(array $params = []): void
 {
     $session = portalRequireSession();
-    $patient = portalPatientSummary((int)$session['patient_id']);
-    $appointments = portalPatientAppointments((int)$session['patient_id'], 5);
+    $patientId = (int)$session['patient_id'];
+    $patient = portalPatientSummary($patientId);
+    $appointments = portalPatientAppointments($patientId, 5);
+    $results = portalPatientResults($patientId, 25);
+    $prescriptions = portalPatientPrescriptions($patientId, 25);
+    $documents = portalPatientDocuments($patientId, 25);
+    $consent = portalActiveConsent($patientId, 'general');
+
+    // Derive highlights
+    $nextAppointment = null;
+    $nowTs = time();
+    foreach ($appointments as $appt) {
+        $startTs = strtotime((string)($appt['scheduled_start'] ?? '')) ?: 0;
+        if ($startTs > 0 && $startTs >= $nowTs && in_array((string)($appt['status'] ?? ''), ['scheduled', 'confirmed', 'checked_in', 'roomed', 'pending'], true)) {
+            if ($nextAppointment === null || $startTs < (strtotime((string)$nextAppointment['scheduled_start']) ?: PHP_INT_MAX)) {
+                $nextAppointment = $appt;
+            }
+        }
+    }
+
+    $newResults = 0;
+    $abnormalResults = 0;
+    foreach ($results as $r) {
+        if (empty($r['acknowledged_at'])) {
+            $newResults++;
+        }
+        if (!empty($r['abnormal_flag']) && (string)$r['abnormal_flag'] !== 'normal' && (string)$r['abnormal_flag'] !== 'N') {
+            $abnormalResults++;
+        }
+    }
+
+    $activeRx = 0;
+    foreach ($prescriptions as $rx) {
+        $status = strtolower((string)($rx['status'] ?? ''));
+        if ($status === '' || $status === 'active' || $status === 'on-hold' || $status === 'in_progress') {
+            $activeRx++;
+        }
+    }
 
     echo portalRenderPage('modules/patient-portal/portal/dashboard.disyl', [
         'page_title' => 'Your portal',
         'patient' => $patient,
         'session' => $session,
         'upcoming_appointments' => $appointments,
+        'next_appointment' => $nextAppointment,
+        'recent_results' => array_slice($results, 0, 4),
+        'recent_prescriptions' => array_slice($prescriptions, 0, 4),
+        'stats' => [
+            'appointments_total' => count($appointments),
+            'results_total' => count($results),
+            'results_new' => $newResults,
+            'results_abnormal' => $abnormalResults,
+            'prescriptions_active' => $activeRx,
+            'documents_total' => count($documents),
+        ],
+        'consent_active' => $consent !== null,
         'logout_endpoint' => '/portal/logout',
     ]);
 }

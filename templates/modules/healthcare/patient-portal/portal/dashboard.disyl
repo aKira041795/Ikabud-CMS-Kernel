@@ -6,58 +6,217 @@
     <title>{page_title | default:'Your portal'} — Patient Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen bg-slate-50">
-    <header class="bg-white border-b border-slate-200">
-        <div class="mx-auto max-w-5xl px-6 py-4 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="h-9 w-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">P</div>
+<body class="min-h-screen bg-slate-100">
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div class="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between gap-4">
+            <a href="/portal/dashboard" class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">P</div>
                 <div>
-                    <div class="text-sm font-semibold text-slate-900">Patient Portal</div>
+                    <div class="text-sm font-semibold text-slate-900 leading-tight">Patient Portal</div>
                     <div class="text-xs text-slate-500">{if patient.first_name}{patient.first_name} {patient.last_name}{else}Welcome{/if}</div>
                 </div>
-            </div>
+            </a>
             <form method="POST" action="{logout_endpoint}">
                 {csrf_field | raw}
-                <button type="submit" class="text-sm font-medium text-slate-600 hover:text-slate-900">Sign out</button>
+                <button type="submit" class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900">Sign out</button>
             </form>
         </div>
-        <nav class="mx-auto max-w-5xl px-6 pb-3 flex gap-6 text-sm overflow-x-auto">
-            <a href="/portal/dashboard" class="font-semibold text-teal-700 border-b-2 border-teal-600 pb-2 whitespace-nowrap">Overview</a>
-            <a href="/portal/appointments" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Appointments</a>
-            <a href="/portal/results" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Results</a>
-            <a href="/portal/prescriptions" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Prescriptions</a>
-            <a href="/portal/documents" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Documents</a>
-            <a href="/portal/consent" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Sharing</a>
+        <nav class="mx-auto max-w-6xl px-6 flex gap-1 text-sm overflow-x-auto">
+            <a href="/portal/dashboard" class="px-3 py-3 font-semibold text-teal-700 border-b-2 border-teal-600 whitespace-nowrap">Overview</a>
+            <a href="/portal/appointments" class="px-3 py-3 text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200 whitespace-nowrap">Appointments</a>
+            <a href="/portal/results" class="px-3 py-3 text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200 whitespace-nowrap">Results</a>
+            <a href="/portal/prescriptions" class="px-3 py-3 text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200 whitespace-nowrap">Prescriptions</a>
+            <a href="/portal/documents" class="px-3 py-3 text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200 whitespace-nowrap">Documents</a>
+            <a href="/portal/consent" class="px-3 py-3 text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200 whitespace-nowrap">Sharing</a>
         </nav>
     </header>
 
-    <main class="mx-auto max-w-5xl px-6 py-8 space-y-6">
+    <main class="mx-auto max-w-6xl px-6 py-8 space-y-6">
         <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 p-6">
-            <h1 class="text-xl font-semibold text-slate-900">Welcome{if patient.first_name}, {patient.first_name}{/if}</h1>
-            <p class="mt-1 text-sm text-slate-600">Here's a quick look at your upcoming care.</p>
-        </section>
-
-        <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Upcoming appointments</h2>
-                <a href="/portal/appointments" class="text-sm font-medium text-teal-700 hover:text-teal-900">View all</a>
-            </div>
-            <div class="divide-y divide-slate-100">
-                {if upcoming_appointments}
-                    {foreach upcoming_appointments as appointment}
-                    <div class="px-6 py-4 flex items-start justify-between">
-                        <div>
-                            <div class="text-sm font-semibold text-slate-900">{appointment.appointment_type | default:'Visit'}</div>
-                            <div class="mt-1 text-xs text-slate-500">{appointment.scheduled_start}{if appointment.scheduled_end} – {appointment.scheduled_end}{/if}</div>
-                            {if appointment.reason_for_visit}<div class="mt-2 text-sm text-slate-600">{appointment.reason_for_visit}</div>{/if}
-                        </div>
-                        <span class="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">{appointment.status}</span>
-                    </div>
-                    {/foreach}
-                {else}
-                    <div class="px-6 py-8 text-center text-sm text-slate-500">No upcoming appointments. Your clinic will let you know when something is scheduled.</div>
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">Welcome back</div>
+                    <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{if patient.first_name}{patient.first_name} {patient.last_name}{else}Patient{/if}</h1>
+                    <dl class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
+                        {if patient.birth_date}<div><dt class="inline font-medium text-slate-500">DOB:</dt> <dd class="inline text-slate-900">{patient.birth_date}</dd></div>{/if}
+                        {if patient.sex}<div><dt class="inline font-medium text-slate-500">Sex:</dt> <dd class="inline text-slate-900 capitalize">{patient.sex}</dd></div>{/if}
+                        {if patient.patient_uuid}<div><dt class="inline font-medium text-slate-500">MRN:</dt> <dd class="inline font-mono text-xs text-slate-700">{patient.patient_uuid}</dd></div>{/if}
+                    </dl>
+                </div>
+                {if !consent_active}
+                <a href="/portal/consent" class="inline-flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200">
+                    <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+                    Sharing consent needed
+                </a>
                 {/if}
             </div>
+        </section>
+
+        <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <a href="/portal/appointments" class="block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 hover:ring-teal-300 transition">
+                <div class="flex items-start justify-between">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Next appointment</div>
+                    <span class="text-teal-600">&rarr;</span>
+                </div>
+                {if next_appointment}
+                <div class="mt-3 text-2xl font-semibold text-slate-900">{next_appointment.scheduled_start}</div>
+                <div class="mt-1 text-sm text-slate-600">{next_appointment.appointment_type | default:'Visit'}{if next_appointment.status} &middot; <span class="text-teal-700">{next_appointment.status}</span>{/if}</div>
+                {else}
+                <div class="mt-3 text-2xl font-semibold text-slate-400">None scheduled</div>
+                <div class="mt-1 text-sm text-slate-500">Your clinic will notify you.</div>
+                {/if}
+            </a>
+
+            <a href="/portal/results" class="block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 hover:ring-teal-300 transition">
+                <div class="flex items-start justify-between">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Lab results</div>
+                    <span class="text-teal-600">&rarr;</span>
+                </div>
+                <div class="mt-3 flex items-baseline gap-2">
+                    <div class="text-3xl font-semibold text-slate-900">{stats.results_new}</div>
+                    <div class="text-sm text-slate-500">new of {stats.results_total}</div>
+                </div>
+                {if stats.results_abnormal > 0}
+                <div class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+                    <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                    {stats.results_abnormal} flagged abnormal
+                </div>
+                {else}
+                <div class="mt-2 text-xs text-slate-500">All within normal range.</div>
+                {/if}
+            </a>
+
+            <a href="/portal/prescriptions" class="block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 hover:ring-teal-300 transition">
+                <div class="flex items-start justify-between">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Active prescriptions</div>
+                    <span class="text-teal-600">&rarr;</span>
+                </div>
+                <div class="mt-3 text-3xl font-semibold text-slate-900">{stats.prescriptions_active}</div>
+                <div class="mt-1 text-xs text-slate-500">Tap to review dosing &amp; instructions.</div>
+            </a>
+        </section>
+
+        {if next_appointment}
+        <section class="rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 p-6 text-white shadow-sm">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div class="flex-shrink-0 rounded-xl bg-white/10 backdrop-blur px-5 py-3 text-center ring-1 ring-white/20">
+                    <div class="text-xs font-semibold uppercase tracking-wider text-teal-100">Upcoming</div>
+                    <div class="mt-1 text-xl font-bold">{next_appointment.scheduled_start}</div>
+                </div>
+                <div class="flex-1">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-teal-100">{next_appointment.appointment_type | default:'Visit'}</div>
+                    <div class="mt-1 text-lg font-semibold">{if next_appointment.reason_for_visit}{next_appointment.reason_for_visit}{else}Scheduled visit{/if}</div>
+                    {if next_appointment.scheduled_end}<div class="mt-1 text-sm text-teal-100">Ends at {next_appointment.scheduled_end}</div>{/if}
+                </div>
+                <a href="/portal/appointments" class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">Details</a>
+            </div>
+        </section>
+        {/if}
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Upcoming appointments</h2>
+                        <p class="mt-0.5 text-xs text-slate-400">Showing {stats.appointments_total | default:0}</p>
+                    </div>
+                    <a href="/portal/appointments" class="text-sm font-medium text-teal-700 hover:text-teal-900">View all</a>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    {if upcoming_appointments}
+                        {foreach upcoming_appointments as appointment}
+                        <div class="px-6 py-4 flex items-start gap-4">
+                            <div class="flex-shrink-0 rounded-lg bg-teal-50 px-3 py-2 text-center ring-1 ring-teal-100 min-w-[88px]">
+                                <div class="text-[10px] font-semibold uppercase tracking-wide text-teal-600">When</div>
+                                <div class="mt-0.5 text-xs font-bold text-teal-900">{appointment.scheduled_start}</div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-semibold text-slate-900">{appointment.appointment_type | default:'Visit'}</div>
+                                {if appointment.reason_for_visit}<div class="mt-1 text-sm text-slate-600 line-clamp-2">{appointment.reason_for_visit}</div>{/if}
+                            </div>
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 capitalize">{appointment.status}</span>
+                        </div>
+                        {/foreach}
+                    {else}
+                        <div class="px-6 py-10 text-center text-sm text-slate-500">No upcoming appointments.</div>
+                    {/if}
+                </div>
+            </section>
+
+            <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Recent results</h2>
+                        <p class="mt-0.5 text-xs text-slate-400">{stats.results_new} new &middot; {stats.results_total} total</p>
+                    </div>
+                    <a href="/portal/results" class="text-sm font-medium text-teal-700 hover:text-teal-900">View all</a>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    {if recent_results}
+                        {foreach recent_results as result}
+                        <div class="px-6 py-4 flex items-start justify-between gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-semibold text-slate-900">{result.test_name | default:result.value_text | default:'Result'}</div>
+                                <div class="mt-1 text-xs text-slate-500">{result.observed_at | default:result.released_at | default:''}</div>
+                                {if result.value_text || result.value_numeric}
+                                <div class="mt-1 text-sm text-slate-700">
+                                    {if result.value_numeric}{result.value_numeric}{else}{result.value_text}{/if}{if result.unit} <span class="text-xs text-slate-500">{result.unit}</span>{/if}
+                                    {if result.reference_range_text} <span class="text-xs text-slate-400">(ref {result.reference_range_text})</span>{/if}
+                                </div>
+                                {/if}
+                            </div>
+                            <div class="flex flex-col items-end gap-1">
+                                {if result.abnormal_flag && result.abnormal_flag != 'N' && result.abnormal_flag != 'normal'}
+                                <span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">{result.abnormal_flag}</span>
+                                {else}
+                                <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Normal</span>
+                                {/if}
+                                {if !result.acknowledged_at}<span class="text-[10px] font-semibold uppercase tracking-wide text-teal-600">New</span>{/if}
+                            </div>
+                        </div>
+                        {/foreach}
+                    {else}
+                        <div class="px-6 py-10 text-center text-sm text-slate-500">No released results yet.</div>
+                    {/if}
+                </div>
+            </section>
+        </div>
+
+        {if recent_prescriptions}
+        <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Current medications</h2>
+                <a href="/portal/prescriptions" class="text-sm font-medium text-teal-700 hover:text-teal-900">View all</a>
+            </div>
+            <div class="grid gap-px bg-slate-100 sm:grid-cols-2">
+                {foreach recent_prescriptions as rx}
+                <div class="bg-white p-4">
+                    <div class="text-sm font-semibold text-slate-900">{rx.medication_text | default:'Medication'}</div>
+                    <div class="mt-1 text-xs text-slate-500">
+                        {if rx.dose_text}{rx.dose_text}{/if}
+                        {if rx.route} &middot; {rx.route}{/if}
+                        {if rx.frequency} &middot; {rx.frequency}{/if}
+                    </div>
+                    {if rx.status}<span class="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 capitalize">{rx.status}</span>{/if}
+                </div>
+                {/foreach}
+            </div>
+        </section>
+        {/if}
+
+        <section class="grid gap-3 sm:grid-cols-3">
+            <a href="/portal/documents" class="rounded-xl border border-slate-200 bg-white p-4 hover:border-teal-300 hover:shadow-sm transition">
+                <div class="text-sm font-semibold text-slate-900">Documents</div>
+                <div class="mt-1 text-xs text-slate-500">{stats.documents_total} on file</div>
+            </a>
+            <a href="/portal/consent" class="rounded-xl border border-slate-200 bg-white p-4 hover:border-teal-300 hover:shadow-sm transition">
+                <div class="text-sm font-semibold text-slate-900">Sharing &amp; consent</div>
+                <div class="mt-1 text-xs text-slate-500">{if consent_active}Active{else}Action needed{/if}</div>
+            </a>
+            <a href="/portal/appointments" class="rounded-xl border border-slate-200 bg-white p-4 hover:border-teal-300 hover:shadow-sm transition">
+                <div class="text-sm font-semibold text-slate-900">All appointments</div>
+                <div class="mt-1 text-xs text-slate-500">{stats.appointments_total} upcoming</div>
+            </a>
         </section>
     </main>
 </body>
