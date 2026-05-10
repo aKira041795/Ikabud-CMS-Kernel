@@ -32,7 +32,7 @@
                             </div>
                             <div class="flex items-center gap-3">
                                 <a href="{base_url}/admin/ehr/orders?order_id={order.id}" class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 hover:text-teal-900">Edit</a>
-                                <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{order.status}</div>
+                                {if order.status_badge}{include "modules/healthcare/ehr/partials/_status_badge" with {badge: order.status_badge, size: 'sm'}}{else}<div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{order.status}</div>{/if}
                             </div>
                         </div>
                         <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-4">

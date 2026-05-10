@@ -13,6 +13,12 @@ function ordPageState(array $user, array $input = [], ?string $formError = null)
         . 'FROM ehr_orders o ORDER BY o.ordered_at DESC, o.id DESC LIMIT 12'
     )->fetchAll(PDO::FETCH_ASSOC);
     $orders = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'orders');
+    foreach ($orders as &$ordRow) {
+        if (function_exists('ehrStatusBadge')) {
+            $ordRow['status_badge'] = ehrStatusBadge((string)($ordRow['status'] ?? ''), 'order');
+        }
+    }
+    unset($ordRow);
 
     $patientSearch = app()->cap()->call('ehr.patient.search@1', ['limit' => 50], ['caller_module' => 'orders']);
     $patientOptions = is_array($patientSearch) && !empty($patientSearch['ok']) && is_array($patientSearch['results'] ?? null)
@@ -29,6 +35,9 @@ function ordPageState(array $user, array $input = [], ?string $formError = null)
 
     $selectedOrderId = max(0, (int)($input['order_id'] ?? 0));
     $selectedOrder = $selectedOrderId > 0 ? ordFetchOrder($selectedOrderId) : null;
+    if (is_array($selectedOrder) && function_exists('ehrStatusBadge')) {
+        $selectedOrder['status_badge'] = ehrStatusBadge((string)($selectedOrder['status'] ?? ''), 'order');
+    }
     $firstItem = is_array($selectedOrder['items'][0] ?? null) ? $selectedOrder['items'][0] : [];
     $formSource = is_array($selectedOrder) ? $selectedOrder : [];
     foreach (['order_id', 'patient_id', 'encounter_id', 'order_type', 'priority', 'status', 'destination_module', 'clinical_question', 'item_label'] as $key) {

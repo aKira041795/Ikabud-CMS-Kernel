@@ -12,6 +12,12 @@ function rxPageState(array $user, array $input = [], ?string $formError = null):
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $prescriptions = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'prescriptions');
+    foreach ($prescriptions as &$rxRow) {
+        if (function_exists('ehrStatusBadge')) {
+            $rxRow['status_badge'] = ehrStatusBadge((string)($rxRow['status'] ?? ''), 'prescription');
+        }
+    }
+    unset($rxRow);
 
     $patientSearch = app()->cap()->call('ehr.patient.search@1', ['limit' => 50], ['caller_module' => 'prescriptions']);
     $patientOptions = is_array($patientSearch) && !empty($patientSearch['ok']) && is_array($patientSearch['results'] ?? null)
@@ -21,7 +27,7 @@ function rxPageState(array $user, array $input = [], ?string $formError = null):
         ? array_values($encounterList['encounters']) : [];
 
     return array_merge(
-        ehrAdminContext($user, 'ehr_prescriptions', ['page_title' => 'Prescriptions']),
+        ehrAdminContext($user, 'ehr_prescriptions', ['page_title' => 'Medications']),
         [
             'prescriptions' => $prescriptions,
             'result_count' => count($prescriptions),

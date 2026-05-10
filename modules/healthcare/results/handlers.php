@@ -16,6 +16,16 @@ function resPageState(array $user, array $input = [], ?string $formError = null)
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $results = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'results');
+    foreach ($results as &$resRow) {
+        if (function_exists('ehrStatusBadge')) {
+            $statusKey = (string)($resRow['result_status'] ?? '');
+            if ($statusKey === '' && isset($resRow['abnormal_flag']) && trim((string)$resRow['abnormal_flag']) !== '' && trim((string)$resRow['abnormal_flag']) !== 'normal') {
+                $statusKey = 'abnormal';
+            }
+            $resRow['status_badge'] = ehrStatusBadge($statusKey, 'result');
+        }
+    }
+    unset($resRow);
 
     $itemRows = resDb()->query(
         'SELECT oi.id AS order_item_id, oi.order_id, oi.item_label, oi.item_code, o.order_uuid, o.patient_id, o.encounter_id '

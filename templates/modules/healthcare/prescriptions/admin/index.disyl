@@ -6,7 +6,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
                 <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Medications</div>
-                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Prescriptions</h1>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Medications</h1>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">See what's been prescribed and issue new medication for a patient visit.</p>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -29,7 +29,7 @@
                             <div class="text-base font-semibold text-slate-900">{prescription.medication_text}</div>
                             <div class="mt-1 text-sm text-slate-600">{if prescription.patient_summary}{prescription.patient_summary.last_name}, {prescription.patient_summary.first_name}{else}Unknown patient{/if} · {prescription.prescription_uuid}</div>
                         </div>
-                        <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{prescription.status}</div>
+                        {if prescription.status_badge}{include "modules/healthcare/ehr/partials/_status_badge" with {badge: prescription.status_badge, size: 'sm'}}{else}<div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{prescription.status}</div>{/if}
                     </div>
                     <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-4">
                         <div>

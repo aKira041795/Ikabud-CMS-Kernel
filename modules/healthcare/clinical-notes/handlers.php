@@ -21,6 +21,9 @@ function cnPageState(array $user, array $input = [], ?string $formError = null):
         }
         $body = trim((string)($note['body_text'] ?? ''));
         $note['excerpt'] = $body !== '' ? mb_substr($body, 0, 180) : '';
+        if (function_exists('ehrStatusBadge')) {
+            $note['status_badge'] = ehrStatusBadge((string)($note['status'] ?? ''), 'note');
+        }
     }
     unset($note);
 
@@ -32,7 +35,7 @@ function cnPageState(array $user, array $input = [], ?string $formError = null):
         ? array_values($encounterList['encounters']) : [];
 
     return array_merge(
-        ehrAdminContext($user, 'ehr_clinical_notes', ['page_title' => 'Clinical Notes']),
+        ehrAdminContext($user, 'ehr_clinical_notes', ['page_title' => 'Notes']),
         [
             'notes' => $notes,
             'result_count' => count($notes),

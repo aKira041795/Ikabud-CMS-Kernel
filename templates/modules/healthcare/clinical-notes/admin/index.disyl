@@ -33,7 +33,7 @@
                             {if note.restricted_flag}
                             <div class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700">Restricted</div>
                             {/if}
-                            <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{note.status}</div>
+                            {if note.status_badge}{include "modules/healthcare/ehr/partials/_status_badge" with {badge: note.status_badge, size: 'sm'}}{else}<div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{note.status}</div>{/if}
                         </div>
                     </div>
                     <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
