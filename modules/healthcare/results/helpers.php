@@ -223,3 +223,30 @@ function results_cap_ehr_result_view_1(mixed $payload, string $resolvedCapabilit
 
     return ['ok' => true, 'result' => $result];
 }
+
+function results_cap_ehr_result_list_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patientId = (int)($data['patient_id'] ?? 0);
+    if ($patientId <= 0) {
+        return ['ok' => false, 'error' => 'patient_id is required'];
+    }
+    $limit = max(1, min(100, (int)($data['limit'] ?? 25)));
+    $releasedOnly = !empty($data['released_only']) || (string)($data['caller_module'] ?? '') === 'patient-portal';
+    $excludeRestricted = !empty($data['exclude_restricted']) || (string)($data['caller_module'] ?? '') === 'patient-portal';
+
+    $where = ['patient_id = :pid'];
+    $params = [':pid' => $patientId];
+    if ($releasedOnly) {
+        $where[] = 'released_at IS NOT NULL';
+    }
+    if ($excludeRestricted) {
+        $where[] = 'restricted_flag = 0';
+    }
+
+    $sql = 'SELECT id, patient_id, encounter_id, order_item_id, result_status, observed_at, released_at, value_text, value_numeric, unit, abnormal_flag, restricted_flag, created_at '
+         . 'FROM ehr_lab_results WHERE ' . implode(' AND ', $where) . ' ORDER BY observed_at DESC, id DESC LIMIT ' . $limit;
+
+    $rows = resDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    return ['ok' => true, 'results' => $rows];
+}

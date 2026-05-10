@@ -21,9 +21,13 @@
                 <button type="submit" class="text-sm font-medium text-slate-600 hover:text-slate-900">Sign out</button>
             </form>
         </div>
-        <nav class="mx-auto max-w-5xl px-6 pb-3 flex gap-6 text-sm">
-            <a href="/portal/dashboard" class="text-slate-600 hover:text-slate-900 pb-2">Overview</a>
-            <a href="/portal/appointments" class="font-semibold text-teal-700 border-b-2 border-teal-600 pb-2">Appointments</a>
+        <nav class="mx-auto max-w-5xl px-6 pb-3 flex gap-6 text-sm overflow-x-auto">
+            <a href="/portal/dashboard" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Overview</a>
+            <a href="/portal/appointments" class="font-semibold text-teal-700 border-b-2 border-teal-600 pb-2 whitespace-nowrap">Appointments</a>
+            <a href="/portal/results" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Results</a>
+            <a href="/portal/prescriptions" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Prescriptions</a>
+            <a href="/portal/documents" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Documents</a>
+            <a href="/portal/consent" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Sharing</a>
         </nav>
     </header>
 

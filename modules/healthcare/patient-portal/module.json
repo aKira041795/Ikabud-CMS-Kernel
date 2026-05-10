@@ -17,17 +17,23 @@
             {
                 "id": "ehr.portal.account.provision@1",
                 "priority": 100,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "ehr.portal.account.deactivate@1",
                 "priority": 100,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "ehr.portal.account.view@1",
                 "priority": 100,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -35,7 +41,10 @@
             "ehr.patient.view@1",
             "ehr.appointment.list@1",
             "ehr.consent.record@1",
-            "ehr.consent.active@1"
+            "ehr.consent.active@1",
+            "ehr.result.list@1",
+            "ehr.prescription.list@1",
+            "ehr.document.list@1"
         ],
         "policy": {
             "capabilities": {
@@ -69,7 +78,9 @@
             "label": "Patient Portal",
             "url": "/admin/ehr/portal",
             "icon": "user-circle",
-            "roles": ["admin"],
+            "roles": [
+                "admin"
+            ],
             "description": "Provision patient portal accounts and review portal access activity",
             "order": 95
         }

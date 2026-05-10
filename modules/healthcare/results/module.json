@@ -44,6 +44,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.result.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -69,6 +76,13 @@
                     ]
                 },
                 "ehr.result.view@1": {
+                    "allow_callers": [
+                        "results",
+                        "clinical-notes",
+                        "patient-portal"
+                    ]
+                },
+                "ehr.result.list@1": {
                     "allow_callers": [
                         "results",
                         "clinical-notes",

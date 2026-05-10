@@ -119,6 +119,28 @@ function prescriptions_cap_ehr_prescription_view_1(mixed $payload, string $resol
     return ['ok' => true, 'prescription' => $prescription];
 }
 
+function prescriptions_cap_ehr_prescription_list_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patientId = (int)($data['patient_id'] ?? 0);
+    if ($patientId <= 0) {
+        return ['ok' => false, 'error' => 'patient_id is required'];
+    }
+    $limit = max(1, min(100, (int)($data['limit'] ?? 25)));
+    $status = trim((string)($data['status'] ?? ''));
+
+    $where = ['patient_id = :pid'];
+    $params = [':pid' => $patientId];
+    if ($status !== '') {
+        $where[] = 'status = :status';
+        $params[':status'] = $status;
+    }
+
+    $sql = 'SELECT * FROM ehr_prescriptions WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC, id DESC LIMIT ' . $limit;
+    $rows = rxDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    return ['ok' => true, 'prescriptions' => $rows];
+}
+
 function prescriptions_cap_ehr_prescription_cancel_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];

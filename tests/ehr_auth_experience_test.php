@@ -325,7 +325,7 @@ et('ehr tenant root resolves to module entry login route', $tenantEntryRouter->r
 
 et('ehr admin nav derives from module manifests', count($ehrAdminNavItems) >= 15 && isset($ehrAdminNavByKey['ehr_dashboard'], $ehrAdminNavByKey['ehr_scheduling'], $ehrAdminNavByKey['ehr_patient_registry'], $ehrAdminNavByKey['ehr_encounters'], $ehrAdminNavByKey['ehr_clinical_notes'], $ehrAdminNavByKey['ehr_orders'], $ehrAdminNavByKey['ehr_results'], $ehrAdminNavByKey['ehr_prescriptions'], $ehrAdminNavByKey['ehr_documents'], $ehrAdminNavByKey['ehr_privacy_consent'], $ehrAdminNavByKey['ehr_patient_portal'], $ehrAdminNavByKey['ehr_audit'], $ehrAdminNavByKey['ehr_reporting_summary'], $ehrAdminNavByKey['ehr_reporting_compliance'], $ehrAdminNavByKey['ehr_billing_bridge'], $ehrAdminNavByKey['ehr_settings']));
 et('ehr admin nav keeps manifest keys', ($ehrAdminNavByKey['ehr_settings']['module'] ?? '') === 'ehr' && ($ehrAdminNavByKey['ehr_scheduling']['module'] ?? '') === 'scheduling' && ($ehrAdminNavByKey['ehr_patient_registry']['module'] ?? '') === 'patient-registry' && ($ehrAdminNavByKey['ehr_encounters']['module'] ?? '') === 'encounters' && ($ehrAdminNavByKey['ehr_clinical_notes']['module'] ?? '') === 'clinical-notes' && ($ehrAdminNavByKey['ehr_orders']['module'] ?? '') === 'orders' && ($ehrAdminNavByKey['ehr_results']['module'] ?? '') === 'results' && ($ehrAdminNavByKey['ehr_prescriptions']['module'] ?? '') === 'prescriptions' && ($ehrAdminNavByKey['ehr_documents']['module'] ?? '') === 'documents' && ($ehrAdminNavByKey['ehr_privacy_consent']['module'] ?? '') === 'privacy-consent' && ($ehrAdminNavByKey['ehr_patient_portal']['module'] ?? '') === 'patient-portal' && ($ehrAdminNavByKey['ehr_audit']['module'] ?? '') === 'audit' && ($ehrAdminNavByKey['ehr_reporting_summary']['module'] ?? '') === 'reporting' && ($ehrAdminNavByKey['ehr_reporting_compliance']['module'] ?? '') === 'reporting' && ($ehrAdminNavByKey['ehr_billing_bridge']['module'] ?? '') === 'billing-bridge');
-et('ehr admin nav orders dashboard first and settings last', $ehrAdminNavKeys === ['ehr_dashboard', 'ehr_scheduling', 'ehr_patient_registry', 'ehr_encounters', 'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents', 'ehr_privacy_consent', 'ehr_patient_portal', 'ehr_audit', 'ehr_reporting_summary', 'ehr_reporting_compliance', 'ehr_billing_bridge', 'ehr_settings'], json_encode($ehrAdminNavKeys));
+et('ehr admin nav orders dashboard first and settings last', $ehrAdminNavKeys === ['ehr_dashboard', 'ehr_scheduling', 'ehr_patient_registry', 'ehr_encounters', 'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents', 'ehr_privacy_consent', 'ehr_patient_portal', 'ehr_audit', 'ehr_hospital_adt', 'ehr_interop_bridge', 'ehr_reporting_summary', 'ehr_analytics_cds', 'ehr_reporting_compliance', 'ehr_billing_bridge', 'ehr_settings'], json_encode($ehrAdminNavKeys));
 
 $navGroups = ehrDashboardNavGroups($ehrAdminNavItems);
 $sidebarGroups = ehrSidebarNavGroups($ehrAdminNavItems);
@@ -700,6 +700,64 @@ foreach ($workspaceTemplateCases as $case) {
     }
 
     et($case['label'], $ok);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5/6/7 capability smoke tests
+// ---------------------------------------------------------------------------
+
+try {
+    $cap = app()->cap();
+
+    $wardRes = $cap->call('ehr.adt.ward.list@1', [], ['caller_module' => 'hospital-adt']);
+    et('hospital-adt ward.list cap responds ok', is_array($wardRes) && !empty($wardRes['ok']));
+
+    $msgRes = $cap->call('ehr.interop.message.log@1', [
+        'direction' => 'outbound',
+        'protocol' => 'fhir',
+        'message_type' => 'Patient',
+        'payload' => ['resourceType' => 'Patient', 'id' => 'smoke'],
+    ], ['caller_module' => 'interoperability-bridge']);
+    et('interop message.log cap accepts a fhir message', is_array($msgRes) && !empty($msgRes['ok']) && !empty($msgRes['message_id']));
+
+    $mapRes = $cap->call('ehr.interop.identifier.map@1', [
+        'local_entity' => 'patient',
+        'local_id' => 1,
+        'external_system' => 'lab-vendor-1',
+        'external_id' => 'EXT-001',
+    ], ['caller_module' => 'interoperability-bridge']);
+    et('interop identifier.map cap upserts mapping', is_array($mapRes) && !empty($mapRes['ok']));
+
+    $lookupRes = $cap->call('ehr.interop.identifier.lookup@1', [
+        'local_entity' => 'patient',
+        'local_id' => 1,
+        'external_system' => 'lab-vendor-1',
+    ], ['caller_module' => 'interoperability-bridge']);
+    et(
+        'interop identifier.lookup returns mapped external_id',
+        is_array($lookupRes) && !empty($lookupRes['ok']) && is_array($lookupRes['mapping'] ?? null) && ($lookupRes['mapping']['external_id'] ?? '') === 'EXT-001'
+    );
+
+    $ruleCode = 'smoke-rule-' . substr(bin2hex(random_bytes(4)), 0, 8);
+    $ruleRes = $cap->call('ehr.cds.rule.add@1', [
+        'code' => $ruleCode,
+        'name' => 'Smoke Rule',
+        'domain' => 'labs',
+        'severity' => 'warning',
+        'expression' => ['field' => 'lab.value', 'op' => '>', 'value' => 100],
+    ], ['caller_module' => 'analytics-cds']);
+    et('cds rule.add cap returns rule id', is_array($ruleRes) && !empty($ruleRes['ok']) && !empty($ruleRes['rule_id']));
+
+    $evalRes = $cap->call('ehr.cds.evaluate@1', [
+        'domain' => 'labs',
+        'context' => ['lab' => ['value' => 250]],
+    ], ['caller_module' => 'analytics-cds']);
+    et('cds evaluate cap fires alert when threshold exceeded', is_array($evalRes) && !empty($evalRes['ok']) && !empty($evalRes['alerts']));
+
+    $summaryRes = $cap->call('ehr.analytics.summary@1', ['since_days' => 30], ['caller_module' => 'analytics-cds']);
+    et('analytics summary cap returns active rules count', is_array($summaryRes) && !empty($summaryRes['ok']) && isset($summaryRes['summary']['active_rules']));
+} catch (\Throwable $e) {
+    et('phase 5/6/7 capability smoke tests threw', false, $e->getMessage());
 }
 
 echo "\n{$pass} passed, {$fail} failed\n";

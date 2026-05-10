@@ -157,7 +157,7 @@ Acceptance criteria:
 
 ## Phase 4: Patient Portal and Consent Workflows
 
-**Status (May 2026):** Phase 4 MVP scaffold landed. `patient-portal` module is provisioned for the `ehr` entry bundle and ships with own DB tables (`ehr_portal_accounts`, `ehr_portal_login_attempts`), own auth shell at `/portal`, capabilities for account provisioning/deactivation/view, and a portal-side appointments read model that goes through `ehr.appointment.list@1` (no direct clinical-table reads). Released-results, prescriptions, documents, consent capture, and proxy/guardian access still pending.
+**Status (current):** Phase 4 v1.1 delivered. Portal now exposes Results, Prescriptions, Documents, and Consent pages backed by new `ehr.{result,prescription,document}.list@1` capabilities (released-only / non-restricted filters honoured for `caller_module=patient-portal`) plus consent grant/revoke recording. Proxy/guardian access remains future work.
 
 Outcome:
 - controlled patient-facing access to selected records and actions
@@ -185,6 +185,8 @@ Acceptance criteria:
 
 ## Phase 5: Hospital Features
 
+**Status (current):** ADT MVP delivered as the `hospital-adt` module — wards, beds, admissions, ADT events tables; capabilities `ehr.adt.{ward.list,bed.list,admit,transfer,discharge,admission.view,admission.list}@1`; admin shell at `/admin/ehr/adt`. Patient validation flows through `ehr.patient.view@1` (no cross-module FKs).
+
 Outcome:
 - extend the outpatient model into small-hospital workflows without rewriting the foundation
 
@@ -208,6 +210,8 @@ Acceptance criteria:
 - outpatient tenants are not forced to enable hospital-only modules
 
 ## Phase 6: Interoperability Bridge
+
+**Status (current):** Bridge MVP delivered as `interoperability-bridge` — message log + identifier map tables; capabilities `ehr.interop.fhir.patient.export@1`, `ehr.interop.message.{log,list}@1`, `ehr.interop.identifier.{map,lookup}@1`; FHIR R4-shaped Patient export; admin shell at `/admin/ehr/interop`.
 
 Outcome:
 - stable external exchange patterns for healthcare integrations
@@ -234,6 +238,8 @@ Acceptance criteria:
 - bridges can be enabled incrementally without reshaping the core schema
 
 ## Phase 7: Analytics and Clinical Decision Support
+
+**Status (current):** Analytics & CDS MVP delivered as `analytics-cds` — rules, evaluations, alerts tables; capabilities `ehr.cds.rule.{add,list}@1`, `ehr.cds.evaluate@1`, `ehr.cds.alert.{list,acknowledge}@1`, `ehr.analytics.summary@1`; expression evaluator supports nested all/any with comparison ops; admin shell at `/admin/ehr/analytics` with summary KPIs, rule library, alert acknowledgement, and ad-hoc evaluation.
 
 Outcome:
 - advanced insights and assisted workflows built on a reliable clinical data foundation

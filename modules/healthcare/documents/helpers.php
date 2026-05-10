@@ -287,6 +287,29 @@ function documents_cap_ehr_document_view_1(mixed $payload, string $resolvedCapab
     return ['ok' => true, 'document' => $document];
 }
 
+function documents_cap_ehr_document_list_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patientId = (int)($data['patient_id'] ?? 0);
+    if ($patientId <= 0) {
+        return ['ok' => false, 'error' => 'patient_id is required'];
+    }
+    $limit = max(1, min(100, (int)($data['limit'] ?? 25)));
+    $excludeRestricted = !empty($data['exclude_restricted']) || (string)($data['caller_module'] ?? '') === 'patient-portal';
+
+    $where = ['patient_id = :pid'];
+    $params = [':pid' => $patientId];
+    if ($excludeRestricted) {
+        $where[] = "(sensitivity_level IS NULL OR sensitivity_level NOT IN ('restricted','sensitive'))";
+        $where[] = 'access_policy_id IS NULL';
+    }
+
+    $sql = 'SELECT id, document_uuid, patient_id, encounter_id, title, document_type, mime_type, file_size_bytes, sensitivity_level, created_at '
+         . 'FROM ehr_documents WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC, id DESC LIMIT ' . $limit;
+    $rows = docDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    return ['ok' => true, 'documents' => $rows];
+}
+
 function documents_cap_ehr_document_print_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];

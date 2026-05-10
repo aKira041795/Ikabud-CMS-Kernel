@@ -46,6 +46,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.prescription.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -75,6 +82,13 @@
                     "allow_callers": [
                         "prescriptions",
                         "clinical-notes"
+                    ]
+                },
+                "ehr.prescription.list@1": {
+                    "allow_callers": [
+                        "prescriptions",
+                        "clinical-notes",
+                        "patient-portal"
                     ]
                 }
             }

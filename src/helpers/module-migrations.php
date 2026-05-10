@@ -36,41 +36,29 @@ function tenantProvisionEntryBundleModules(?string $entryModuleId): array
         return [];
     }
 
+    $ehrBundle = [
+        'ehr',
+        'ehr-core',
+        'patient-registry',
+        'encounters',
+        'clinical-notes',
+        'orders',
+        'results',
+        'prescriptions',
+        'documents',
+        'privacy-consent',
+        'scheduling',
+        'audit',
+        'reporting',
+        'billing-bridge',
+        'patient-portal',
+        'hospital-adt',
+        'interoperability-bridge',
+        'analytics-cds',
+    ];
     $bundles = [
-        'ehr' => [
-            'ehr',
-            'ehr-core',
-            'patient-registry',
-            'encounters',
-            'clinical-notes',
-            'orders',
-            'results',
-            'prescriptions',
-            'documents',
-            'privacy-consent',
-            'scheduling',
-            'audit',
-            'reporting',
-            'billing-bridge',
-            'patient-portal',
-        ],
-        'ehr-core' => [
-            'ehr',
-            'ehr-core',
-            'patient-registry',
-            'encounters',
-            'clinical-notes',
-            'orders',
-            'results',
-            'prescriptions',
-            'documents',
-            'privacy-consent',
-            'scheduling',
-            'audit',
-            'reporting',
-            'billing-bridge',
-            'patient-portal',
-        ],
+        'ehr' => $ehrBundle,
+        'ehr-core' => $ehrBundle,
     ];
 
     return $bundles[$entryModuleId] ?? [$entryModuleId];

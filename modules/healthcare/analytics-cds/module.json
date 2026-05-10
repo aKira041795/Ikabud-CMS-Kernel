@@ -1,0 +1,56 @@
+{
+    "id": "analytics-cds",
+    "name": "Analytics & CDS",
+    "version": "0.1.0",
+    "description": "Reporting summaries and clinical decision support (CDS) rules engine. Subscribes to clinical events to evaluate rules and surface alerts.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_cds_rules",
+        "ehr_cds_evaluations",
+        "ehr_cds_alerts"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {"id": "ehr.cds.rule.add@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.cds.rule.list@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.cds.evaluate@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.cds.alert.list@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.cds.alert.acknowledge@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.analytics.summary@1", "priority": 100, "modes": ["first"]}
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.patient.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.cds.rule.add@1": {"allow_callers": ["analytics-cds", "ehr"]},
+                "ehr.cds.rule.list@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes"]},
+                "ehr.cds.evaluate@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes", "results", "prescriptions"]},
+                "ehr.cds.alert.list@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes"]},
+                "ehr.cds.alert.acknowledge@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes"]},
+                "ehr.analytics.summary@1": {"allow_callers": ["analytics-cds", "ehr", "reporting"]}
+            }
+        }
+    },
+    "nav": [
+        {
+            "key": "ehr_analytics_cds",
+            "label": "Analytics & CDS",
+            "url": "/admin/ehr/analytics",
+            "icon": "chart-bar",
+            "roles": ["admin"],
+            "description": "Quality summary, CDS rule library, and active alerts",
+            "order": 120
+        }
+    ],
+    "events": [
+        "ehr.cds.rule.added",
+        "ehr.cds.alert.fired",
+        "ehr.cds.alert.acknowledged"
+    ]
+}

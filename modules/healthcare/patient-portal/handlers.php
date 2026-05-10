@@ -136,6 +136,90 @@ function portalPageAppointments(array $params = []): void
     ]);
 }
 
+function portalPageResults(array $params = []): void
+{
+    $session = portalRequireSession();
+    $patient = portalPatientSummary((int)$session['patient_id']);
+    $results = portalPatientResults((int)$session['patient_id'], 50);
+
+    echo portalRenderPage('modules/patient-portal/portal/results.disyl', [
+        'page_title' => 'Your released results',
+        'patient' => $patient,
+        'session' => $session,
+        'results' => $results,
+        'logout_endpoint' => '/portal/logout',
+    ]);
+}
+
+function portalPagePrescriptions(array $params = []): void
+{
+    $session = portalRequireSession();
+    $patient = portalPatientSummary((int)$session['patient_id']);
+    $prescriptions = portalPatientPrescriptions((int)$session['patient_id'], 50);
+
+    echo portalRenderPage('modules/patient-portal/portal/prescriptions.disyl', [
+        'page_title' => 'Your prescriptions',
+        'patient' => $patient,
+        'session' => $session,
+        'prescriptions' => $prescriptions,
+        'logout_endpoint' => '/portal/logout',
+    ]);
+}
+
+function portalPageDocuments(array $params = []): void
+{
+    $session = portalRequireSession();
+    $patient = portalPatientSummary((int)$session['patient_id']);
+    $documents = portalPatientDocuments((int)$session['patient_id'], 50);
+
+    echo portalRenderPage('modules/patient-portal/portal/documents.disyl', [
+        'page_title' => 'Your documents',
+        'patient' => $patient,
+        'session' => $session,
+        'documents' => $documents,
+        'logout_endpoint' => '/portal/logout',
+    ]);
+}
+
+function portalPageConsent(array $params = []): void
+{
+    $session = portalRequireSession();
+    $patient = portalPatientSummary((int)$session['patient_id']);
+    $active = portalActiveConsent((int)$session['patient_id'], 'general');
+
+    echo portalRenderPage('modules/patient-portal/portal/consent.disyl', [
+        'page_title' => 'Sharing & consent',
+        'patient' => $patient,
+        'session' => $session,
+        'active_consent' => $active,
+        'consent_endpoint' => '/portal/consent',
+        'logout_endpoint' => '/portal/logout',
+    ]);
+}
+
+function portalConsentRecord(array $params = []): void
+{
+    $session = portalRequireSession();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $action = strtolower(trim((string)($input['action'] ?? 'grant')));
+    $status = $action === 'revoke' ? 'revoked' : 'granted';
+
+    $result = portalRecordConsent((int)$session['patient_id'], 'general', $status, [
+        'recorded_via' => 'patient-portal',
+        'action' => $action,
+    ]);
+
+    if (is_array($result) && !empty($result['ok'])) {
+        portalAuditRecord('ehr.consent.recorded', [
+            'patient_id' => (int)$session['patient_id'],
+            'new_data' => ['status' => $status, 'consent_type' => 'general'],
+        ]);
+    }
+
+    app()->redirect('/portal/consent');
+}
+
 function portalAdminPageIndex(array $params = []): void
 {
     if (!function_exists('ehrRequireAdmin') || !function_exists('ehrRender') || !function_exists('ehrAdminContext')) {

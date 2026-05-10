@@ -256,6 +256,70 @@ function portalPatientAppointments(int $patientId, int $limit = 20): array
     return array_values($result['appointments']);
 }
 
+function portalPatientResults(int $patientId, int $limit = 25): array
+{
+    $result = app()->cap()->call(
+        'ehr.result.list@1',
+        ['patient_id' => $patientId, 'limit' => $limit, 'caller_module' => 'patient-portal'],
+        ['caller_module' => 'patient-portal']
+    );
+    return is_array($result) && !empty($result['ok']) && is_array($result['results'] ?? null)
+        ? array_values($result['results'])
+        : [];
+}
+
+function portalPatientPrescriptions(int $patientId, int $limit = 25): array
+{
+    $result = app()->cap()->call(
+        'ehr.prescription.list@1',
+        ['patient_id' => $patientId, 'limit' => $limit],
+        ['caller_module' => 'patient-portal']
+    );
+    return is_array($result) && !empty($result['ok']) && is_array($result['prescriptions'] ?? null)
+        ? array_values($result['prescriptions'])
+        : [];
+}
+
+function portalPatientDocuments(int $patientId, int $limit = 25): array
+{
+    $result = app()->cap()->call(
+        'ehr.document.list@1',
+        ['patient_id' => $patientId, 'limit' => $limit, 'caller_module' => 'patient-portal'],
+        ['caller_module' => 'patient-portal']
+    );
+    return is_array($result) && !empty($result['ok']) && is_array($result['documents'] ?? null)
+        ? array_values($result['documents'])
+        : [];
+}
+
+function portalActiveConsent(int $patientId, string $consentType = 'general'): ?array
+{
+    $result = app()->cap()->call(
+        'ehr.consent.active@1',
+        ['patient_id' => $patientId, 'consent_type' => $consentType],
+        ['caller_module' => 'patient-portal']
+    );
+    if (!is_array($result) || empty($result['ok']) || empty($result['active'])) {
+        return null;
+    }
+    return is_array($result['consent'] ?? null) ? $result['consent'] : null;
+}
+
+function portalRecordConsent(int $patientId, string $consentType, string $status, array $scope = []): array
+{
+    $result = app()->cap()->call(
+        'ehr.consent.record@1',
+        [
+            'patient_id' => $patientId,
+            'consent_type' => $consentType,
+            'status' => $status,
+            'scope' => $scope,
+        ],
+        ['caller_module' => 'patient-portal']
+    );
+    return is_array($result) ? $result : ['ok' => false, 'error' => 'Consent record failed'];
+}
+
 function portalAuditRecord(string $action, array $payload): void
 {
     try {

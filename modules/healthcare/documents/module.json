@@ -48,6 +48,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.document.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -96,6 +103,14 @@
                     "allow_callers": [
                         "documents",
                         "privacy-consent"
+                    ]
+                },
+                "ehr.document.list@1": {
+                    "allow_callers": [
+                        "documents",
+                        "clinical-notes",
+                        "results",
+                        "patient-portal"
                     ]
                 }
             }

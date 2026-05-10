@@ -1,0 +1,53 @@
+{
+    "id": "interoperability-bridge",
+    "name": "Interoperability Bridge",
+    "version": "0.1.0",
+    "description": "Outbound and inbound interoperability surface. Translates EHR records to FHIR-shaped JSON, logs HL7/FHIR/DICOM messages, and maintains external identifier mappings.",
+    "author": "Ikabud Platform Team",
+    "owns_tables": [
+        "ehr_interop_messages",
+        "ehr_interop_identifier_map"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {"id": "ehr.interop.fhir.patient.export@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.interop.message.log@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.interop.message.list@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.interop.identifier.map@1", "priority": 100, "modes": ["first"]},
+            {"id": "ehr.interop.identifier.lookup@1", "priority": 100, "modes": ["first"]}
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "ehr.patient.view@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "ehr.interop.fhir.patient.export@1": {"allow_callers": ["interoperability-bridge", "ehr"]},
+                "ehr.interop.message.log@1": {"allow_callers": ["interoperability-bridge", "ehr", "results", "documents", "hospital-adt"]},
+                "ehr.interop.message.list@1": {"allow_callers": ["interoperability-bridge", "ehr"]},
+                "ehr.interop.identifier.map@1": {"allow_callers": ["interoperability-bridge", "ehr", "patient-registry"]},
+                "ehr.interop.identifier.lookup@1": {"allow_callers": ["interoperability-bridge", "ehr", "patient-registry"]}
+            }
+        }
+    },
+    "nav": [
+        {
+            "key": "ehr_interop_bridge",
+            "label": "Interoperability",
+            "url": "/admin/ehr/interop",
+            "icon": "share",
+            "roles": ["admin"],
+            "description": "Inspect outbound FHIR exports, message log, and external identifier mappings",
+            "order": 110
+        }
+    ],
+    "events": [
+        "ehr.interop.exported",
+        "ehr.interop.message.logged",
+        "ehr.interop.identifier.mapped"
+    ]
+}
