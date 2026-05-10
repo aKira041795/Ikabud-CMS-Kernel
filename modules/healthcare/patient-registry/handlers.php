@@ -21,6 +21,15 @@ function prPageState(array $user, array $input = [], ?string $formError = null):
         : [];
 
     $selectedPatient = $selectedPatientId > 0 ? prFetchPatientByIdOrUuid($selectedPatientId) : null;
+    $portalAccount = null;
+    if ($selectedPatientId > 0) {
+        $portalResult = app()->cap()->call('ehr.portal.account.view@1', [
+            'patient_id' => $selectedPatientId,
+        ], ['caller_module' => 'patient-registry']);
+        if (is_array($portalResult) && !empty($portalResult['ok']) && is_array($portalResult['account'] ?? null)) {
+            $portalAccount = $portalResult['account'];
+        }
+    }
     $primaryIdentifier = is_array($selectedPatient['identifiers'][0] ?? null) ? $selectedPatient['identifiers'][0] : [];
     $formSource = is_array($selectedPatient) ? $selectedPatient : [];
     foreach (['patient_id', 'first_name', 'last_name', 'middle_name', 'birth_date', 'sex', 'status', 'primary_phone', 'email', 'identifier_type', 'identifier_value', 'identifier_issuing_authority'] as $key) {
@@ -38,6 +47,7 @@ function prPageState(array $user, array $input = [], ?string $formError = null):
             'patients' => $patients,
             'result_count' => count($patients),
             'selected_patient' => $selectedPatient,
+            'portal_account' => $portalAccount,
             'form_error' => $formError,
             'form_notice' => trim((string)($input['notice'] ?? '')),
             'form_values' => [

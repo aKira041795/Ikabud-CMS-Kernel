@@ -574,7 +574,7 @@ function ehrSidebarNavGroups(array $navItems): array
             'ehr_dashboard' => 'overview',
             'ehr_scheduling', 'ehr_patient_registry', 'ehr_encounters' => 'patient_flow',
             'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents' => 'clinical_workspace',
-            'ehr_settings' => 'administration',
+            'ehr_patient_portal', 'ehr_settings' => 'administration',
             default => 'governance_revenue',
         };
 

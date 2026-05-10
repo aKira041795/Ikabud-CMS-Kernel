@@ -165,6 +165,67 @@
                 </div>
             </div>
             {/if}
+
+            {if selected_patient}
+            <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Patient Portal Access</div>
+                        <div class="mt-1 text-sm text-slate-600">Provision or deactivate this patient's portal login.</div>
+                    </div>
+                    {if portal_account}
+                    <span class="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide {if portal_account.status == 'active'}bg-emerald-100 text-emerald-700{else}bg-slate-200 text-slate-700{/if}">{portal_account.status}</span>
+                    {else}
+                    <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">no account</span>
+                    {/if}
+                </div>
+
+                {if form_notice == 'provisioned'}
+                <div class="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">Portal account provisioned.</div>
+                {elseif form_notice == 'deactivated'}
+                <div class="mt-3 rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">Portal account deactivated.</div>
+                {elseif form_notice == 'provision_failed' || form_notice == 'deactivate_failed'}
+                <div class="mt-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{if form_values.error}{form_values.error}{else}Action failed.{/if}</div>
+                {/if}
+
+                {if portal_account}
+                <dl class="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                    <div><dt class="font-semibold uppercase tracking-wide text-slate-400">Email</dt><dd class="mt-0.5 text-slate-900">{portal_account.email}</dd></div>
+                    <div><dt class="font-semibold uppercase tracking-wide text-slate-400">Last login</dt><dd class="mt-0.5 text-slate-900">{if portal_account.last_login_at}{portal_account.last_login_at}{else}Never{/if}</dd></div>
+                </dl>
+                {if portal_account.status == 'active'}
+                <form method="POST" action="{base_url}/admin/ehr/portal/deactivate" class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
+                    {csrf_field | raw}
+                    <input type="hidden" name="patient_id" value="{form_values.patient_id}">
+                    <input type="hidden" name="redirect" value="/admin/ehr/patients?patient_id={form_values.patient_id}">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium uppercase tracking-wide text-slate-500">Deactivation reason</label>
+                        <input type="text" name="reason" placeholder="e.g. Patient request" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+                    </div>
+                    <button type="submit" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">Deactivate</button>
+                </form>
+                {/if}
+                {else}
+                <form method="POST" action="{base_url}/admin/ehr/portal/provision" class="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                    {csrf_field | raw}
+                    <input type="hidden" name="patient_id" value="{form_values.patient_id}">
+                    <input type="hidden" name="redirect" value="/admin/ehr/patients?patient_id={form_values.patient_id}">
+                    <div>
+                        <label class="block text-xs font-medium uppercase tracking-wide text-slate-500">Email</label>
+                        <input type="email" name="email" required value="{form_values.email}" class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium uppercase tracking-wide text-slate-500">Initial password</label>
+                        <input type="text" name="password" minlength="10" required class="mt-1 w-full border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Provision</button>
+                    </div>
+                </form>
+                <p class="mt-2 text-[11px] text-slate-500">At least 10 characters. Share with the patient through a secure channel.</p>
+                {/if}
+            </div>
+            {/if}
         </aside>
     </div>
 </div>

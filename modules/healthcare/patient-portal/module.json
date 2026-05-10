@@ -77,14 +77,14 @@
     "nav": [
         {
             "key": "ehr_patient_portal",
-            "label": "Patient Portal",
+            "label": "Portal Accounts",
             "url": "/admin/ehr/portal",
             "icon": "user-circle",
             "roles": [
                 "admin"
             ],
-            "description": "Provision patient portal accounts and review portal access activity",
-            "order": 95
+            "description": "Manage patient portal account access (provision, deactivate, audit).",
+            "order": 950
         }
     ],
     "events": [

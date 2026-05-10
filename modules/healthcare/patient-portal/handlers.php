@@ -267,10 +267,9 @@ function portalAdminPageIndex(array $params = []): void
 
 function portalAdminProvision(array $params = []): void
 {
-    header('Content-Type: application/json; charset=utf-8');
-
     if (!function_exists('ehrRequireAdmin')) {
         http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => 'EHR admin shell unavailable']);
         return;
     }
@@ -286,17 +285,14 @@ function portalAdminProvision(array $params = []): void
         'provisioned_by_user_id' => (int)($user['id'] ?? 0),
     ], ['caller_module' => 'patient-portal']);
 
-    $code = is_array($result) && !empty($result['ok']) ? 200 : 422;
-    http_response_code($code);
-    echo json_encode($result);
+    portalAdminRespond($input, $result, 'provisioned', 'provision_failed');
 }
 
 function portalAdminDeactivate(array $params = []): void
 {
-    header('Content-Type: application/json; charset=utf-8');
-
     if (!function_exists('ehrRequireAdmin')) {
         http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => 'EHR admin shell unavailable']);
         return;
     }
@@ -311,9 +307,36 @@ function portalAdminDeactivate(array $params = []): void
         'actor_user_id' => (int)($user['id'] ?? 0),
     ], ['caller_module' => 'patient-portal']);
 
-    $code = is_array($result) && !empty($result['ok']) ? 200 : 422;
-    http_response_code($code);
-    echo json_encode($result);
+    portalAdminRespond($input, $result, 'deactivated', 'deactivate_failed');
+}
+
+function portalAdminRespond(array $input, mixed $result, string $okNotice, string $errNotice): void
+{
+    $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+    $wantsJson = str_contains($accept, 'application/json') && !str_contains($accept, 'text/html');
+    $ok = is_array($result) && !empty($result['ok']);
+
+    if ($wantsJson) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code($ok ? 200 : 422);
+        echo json_encode($result);
+        return;
+    }
+
+    $redirect = trim((string)($input['redirect'] ?? ''));
+    if ($redirect === '' || !preg_match('#^/admin/ehr(/|$)#', $redirect)) {
+        $redirect = '/admin/ehr/portal';
+    }
+    $sep = str_contains($redirect, '?') ? '&' : '?';
+    $notice = $ok ? $okNotice : $errNotice;
+    $target = $redirect . $sep . 'notice=' . rawurlencode($notice);
+    if (!$ok) {
+        $err = is_array($result) ? trim((string)($result['error'] ?? '')) : '';
+        if ($err !== '') {
+            $target .= '&error=' . rawurlencode($err);
+        }
+    }
+    app()->redirect($target);
 }
 
 function portalPageForgotPassword(array $params = []): void
