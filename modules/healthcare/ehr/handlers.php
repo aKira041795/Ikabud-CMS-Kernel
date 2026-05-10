@@ -496,3 +496,160 @@ function ehrPatientChartPage(array $params = []): void
         ]
     ));
 }
+
+function ehrUsersListPage(array $params = []): void
+{
+    $user = ehrRequireAdmin();
+    $input = app()->input();
+    $notice = trim((string)($input['notice'] ?? ''));
+    $error = trim((string)($input['error'] ?? ''));
+
+    $rows = ehrDb()->query(
+        'SELECT id, username, email, full_name, role, is_active, created_at, updated_at FROM ehr_users ORDER BY is_active DESC, full_name ASC, username ASC LIMIT 200'
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $users = is_array($rows) ? $rows : [];
+
+    $activeCount = 0;
+    $inactiveCount = 0;
+    foreach ($users as $u) {
+        if ((int)($u['is_active'] ?? 0) === 1) {
+            $activeCount++;
+        } else {
+            $inactiveCount++;
+        }
+    }
+
+    echo ehrRender('admin/users.disyl', array_merge(
+        ehrAdminContext($user, 'ehr_users', ['page_title' => 'Users']),
+        [
+            'base_url' => ehrBaseUrl(),
+            'users' => $users,
+            'user_count' => count($users),
+            'active_count' => $activeCount,
+            'inactive_count' => $inactiveCount,
+            'current_user_id' => (int)($user['id'] ?? 0),
+            'form_notice' => $notice,
+            'form_error' => $error !== '' ? $error : null,
+            'form_values' => [
+                'username' => (string)($input['username'] ?? ''),
+                'email' => (string)($input['email'] ?? ''),
+                'full_name' => (string)($input['full_name'] ?? ''),
+                'role' => (string)($input['role'] ?? 'admin'),
+            ],
+            'role_options' => ['admin', 'clinician', 'nurse', 'reception', 'billing'],
+        ]
+    ));
+}
+
+function ehrUsersCreate(array $params = []): void
+{
+    ehrRequireAdmin();
+    if (function_exists('csrfEnforce')) {
+        csrfEnforce();
+    }
+    $input = app()->input();
+    $username = strtolower(trim((string)($input['username'] ?? '')));
+    $email = strtolower(trim((string)($input['email'] ?? '')));
+    $fullName = trim((string)($input['full_name'] ?? ''));
+    $role = strtolower(trim((string)($input['role'] ?? 'admin')));
+    $password = (string)($input['password'] ?? '');
+
+    if ($username === '' || !preg_match('/^[a-z0-9._-]{3,64}$/', $username)) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Username must be 3-64 chars (a-z, 0-9, . _ -).'));
+        return;
+    }
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Valid email is required.'));
+        return;
+    }
+    if (strlen($password) < 8) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Password must be at least 8 characters.'));
+        return;
+    }
+    if ($role === '') {
+        $role = 'admin';
+    }
+
+    $existsStmt = ehrDb()->prepare('SELECT id FROM ehr_users WHERE username = :u OR email = :e LIMIT 1');
+    $existsStmt->execute([':u' => $username, ':e' => $email]);
+    if ($existsStmt->fetch(PDO::FETCH_ASSOC)) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Username or email already exists.'));
+        return;
+    }
+
+    $hash = password_hash($password, PASSWORD_BCRYPT);
+    $stmt = ehrDb()->prepare(
+        'INSERT INTO ehr_users (username, email, password_hash, full_name, role, is_active, token_version, created_at, updated_at) '
+        . 'VALUES (:username, :email, :password_hash, :full_name, :role, 1, 0, NOW(), NOW())'
+    );
+    $stmt->execute([
+        ':username' => $username,
+        ':email' => $email,
+        ':password_hash' => $hash,
+        ':full_name' => $fullName,
+        ':role' => $role,
+    ]);
+
+    app()->redirect('/admin/ehr/users?notice=created');
+}
+
+function ehrUsersToggleActive(array $params = []): void
+{
+    $actor = ehrRequireAdmin();
+    if (function_exists('csrfEnforce')) {
+        csrfEnforce();
+    }
+    $input = app()->input();
+    $userId = max(0, (int)($input['user_id'] ?? 0));
+    if ($userId <= 0) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('User is required.'));
+        return;
+    }
+    if ($userId === (int)($actor['id'] ?? 0)) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('You cannot change your own status.'));
+        return;
+    }
+
+    $stmt = ehrDb()->prepare('SELECT id, is_active FROM ehr_users WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('User not found.'));
+        return;
+    }
+
+    $newActive = (int)$row['is_active'] === 1 ? 0 : 1;
+    $update = ehrDb()->prepare(
+        'UPDATE ehr_users SET is_active = :active, token_version = token_version + 1, updated_at = NOW() WHERE id = :id'
+    );
+    $update->execute([':active' => $newActive, ':id' => $userId]);
+
+    app()->redirect('/admin/ehr/users?notice=' . ($newActive === 1 ? 'activated' : 'deactivated'));
+}
+
+function ehrUsersResetPassword(array $params = []): void
+{
+    $actor = ehrRequireAdmin();
+    if (function_exists('csrfEnforce')) {
+        csrfEnforce();
+    }
+    $input = app()->input();
+    $userId = max(0, (int)($input['user_id'] ?? 0));
+    $newPassword = (string)($input['new_password'] ?? '');
+    if ($userId <= 0) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('User is required.'));
+        return;
+    }
+    if (strlen($newPassword) < 8) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('New password must be at least 8 characters.'));
+        return;
+    }
+
+    $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+    $stmt = ehrDb()->prepare(
+        'UPDATE ehr_users SET password_hash = :hash, token_version = token_version + 1, updated_at = NOW() WHERE id = :id'
+    );
+    $stmt->execute([':hash' => $hash, ':id' => $userId]);
+
+    app()->redirect('/admin/ehr/users?notice=password_reset');
+}

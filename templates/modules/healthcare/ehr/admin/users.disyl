@@ -1,0 +1,99 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="mx-auto max-w-6xl space-y-6">
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Access Control</p>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Users</h1>
+                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Manage staff accounts that can sign into the EHR. Deactivating a user immediately invalidates active sessions.</p>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center text-sm">
+                <div class="rounded-2xl bg-slate-50 px-4 py-3"><div class="text-2xl font-semibold text-slate-900">{user_count}</div><div class="text-xs uppercase tracking-wide text-slate-500">Total</div></div>
+                <div class="rounded-2xl bg-emerald-50 px-4 py-3"><div class="text-2xl font-semibold text-emerald-700">{active_count}</div><div class="text-xs uppercase tracking-wide text-emerald-600">Active</div></div>
+                <div class="rounded-2xl bg-slate-100 px-4 py-3"><div class="text-2xl font-semibold text-slate-700">{inactive_count}</div><div class="text-xs uppercase tracking-wide text-slate-500">Inactive</div></div>
+            </div>
+        </div>
+        {if form_notice == 'created'}<div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">User created.</div>{elseif form_notice == 'activated'}<div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">User activated.</div>{elseif form_notice == 'deactivated'}<div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">User deactivated.</div>{elseif form_notice == 'password_reset'}<div class="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Password reset.</div>{/if}
+        {if form_error}<div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Staff accounts</h2>
+            <p class="mt-1 text-xs text-slate-500">Showing up to 200 users, sorted by status then name.</p>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {if users}
+                {foreach users as u}
+                <div class="px-6 py-4">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="text-base font-semibold text-slate-900">{if u.full_name}{u.full_name}{else}{u.username}{/if}</div>
+                                {if u.is_active}<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">Active</span>{else}<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-slate-600">Inactive</span>{/if}
+                                <span class="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-teal-700">{u.role}</span>
+                                {if u.id == current_user_id}<span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">You</span>{/if}
+                            </div>
+                            <div class="mt-1 text-sm text-slate-600">@{u.username} · {u.email}</div>
+                            <div class="mt-1 text-xs text-slate-400">Created {u.created_at} · Updated {u.updated_at}</div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            {if u.id != current_user_id}
+                            <form method="POST" action="{base_url}/admin/ehr/users/toggle-active" class="inline" onsubmit="return confirm('Change this user\u2019s status?');">
+                                {csrf_field | raw}
+                                <input type="hidden" name="user_id" value="{u.id}">
+                                {if u.is_active}<button type="submit" class="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">Deactivate</button>{else}<button type="submit" class="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Activate</button>{/if}
+                            </form>
+                            {/if}
+                            <form method="POST" action="{base_url}/admin/ehr/users/reset-password" class="inline flex flex-wrap items-center gap-2" onsubmit="return confirm('Reset this user\u2019s password?');">
+                                {csrf_field | raw}
+                                <input type="hidden" name="user_id" value="{u.id}">
+                                <input type="password" name="new_password" required minlength="8" placeholder="New password (min 8)" class="rounded-md border border-slate-200 px-2 py-1 text-xs">
+                                <button type="submit" class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">Reset Password</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {/foreach}
+            {else}
+                <div class="px-6 py-12 text-center text-sm text-slate-600">No users yet. Create one below.</div>
+            {/if}
+        </div>
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Create a user</h2>
+        <p class="mt-1 text-xs text-slate-500">New users are active by default and must change their password on next sign-in is recommended.</p>
+        <form method="POST" action="{base_url}/admin/ehr/users/create" class="mt-4 grid gap-4 md:grid-cols-2">
+            {csrf_field | raw}
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Username</label>
+                <input type="text" name="username" value="{form_values.username}" required pattern="[a-z0-9._-]{3,64}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Email</label>
+                <input type="email" name="email" value="{form_values.email}" required class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Full Name</label>
+                <input type="text" name="full_name" value="{form_values.full_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Role</label>
+                <select name="role" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                    {foreach role_options as r}
+                    <option value="{r}" {if form_values.role == r}selected{/if}>{r}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Initial Password (min 8 chars)</label>
+                <input type="password" name="password" required minlength="8" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div class="md:col-span-2"><button type="submit" class="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Create User</button></div>
+        </form>
+    </section>
+</div>
+{/block}

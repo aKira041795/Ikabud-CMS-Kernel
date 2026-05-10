@@ -10,6 +10,7 @@ return [
         '/admin/ehr' => 'ehr:ehrDashboardPage',
         '/admin/ehr/settings' => 'ehr:ehrSettingsPage',
         '/admin/ehr/patients/{id}/chart' => 'ehr:ehrPatientChartPage',
+        '/admin/ehr/users' => 'ehr:ehrUsersListPage',
     ],
     'POST' => [
         '/ehr/auth/login' => 'ehr:ehrAuthLogin',
@@ -21,5 +22,8 @@ return [
         '/api/v1/ehr/settings/branding-asset' => 'ehr:ehrApiUploadBrandingAsset',
         '/admin/ehr/patients/context/clear' => 'ehr:ehrPatientContextClear',
         '/admin/ehr/patients/context/set' => 'ehr:ehrPatientContextSet',
+        '/admin/ehr/users/create' => 'ehr:ehrUsersCreate',
+        '/admin/ehr/users/toggle-active' => 'ehr:ehrUsersToggleActive',
+        '/admin/ehr/users/reset-password' => 'ehr:ehrUsersResetPassword',
     ],
 ];

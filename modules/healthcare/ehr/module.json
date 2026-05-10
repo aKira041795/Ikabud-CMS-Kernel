@@ -106,6 +106,17 @@
             ],
             "description": "Identity, login, and recovery",
             "order": 900
+        },
+        {
+            "key": "ehr_users",
+            "label": "Users",
+            "url": "/admin/ehr/users",
+            "icon": "users",
+            "roles": [
+                "admin"
+            ],
+            "description": "Manage staff accounts and access",
+            "order": 800
         }
     ],
     "hooks": [
