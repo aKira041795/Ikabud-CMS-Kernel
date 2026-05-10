@@ -36,6 +36,27 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.portal.account.update@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.portal.account.reset_password@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.portal.account.reactivate@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -70,6 +91,27 @@
                         "patient-registry",
                         "ehr"
                     ]
+                },
+                "ehr.portal.account.update@1": {
+                    "allow_callers": [
+                        "patient-portal",
+                        "patient-registry",
+                        "ehr"
+                    ]
+                },
+                "ehr.portal.account.reset_password@1": {
+                    "allow_callers": [
+                        "patient-portal",
+                        "patient-registry",
+                        "ehr"
+                    ]
+                },
+                "ehr.portal.account.reactivate@1": {
+                    "allow_callers": [
+                        "patient-portal",
+                        "patient-registry",
+                        "ehr"
+                    ]
                 }
             }
         }
@@ -89,6 +131,9 @@
     ],
     "events": [
         "ehr.portal.account.provisioned",
+        "ehr.portal.account.updated",
+        "ehr.portal.account.password_reset_by_admin",
+        "ehr.portal.account.reactivated",
         "ehr.portal.account.deactivated",
         "ehr.portal.session.started",
         "ehr.portal.session.ended"

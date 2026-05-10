@@ -26,5 +26,8 @@ return [
         '/portal/consent' => 'patient-portal:portalConsentRecord',
         '/admin/ehr/portal/provision' => 'patient-portal:portalAdminProvision',
         '/admin/ehr/portal/deactivate' => 'patient-portal:portalAdminDeactivate',
+        '/admin/ehr/portal/update' => 'patient-portal:portalAdminUpdate',
+        '/admin/ehr/portal/reset-password' => 'patient-portal:portalAdminResetPassword',
+        '/admin/ehr/portal/reactivate' => 'patient-portal:portalAdminReactivate',
     ],
 ];

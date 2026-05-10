@@ -63,6 +63,7 @@ function prPageState(array $user, array $input = [], ?string $formError = null):
                 'identifier_type' => (string)($formSource['identifier_type'] ?? ($primaryIdentifier['identifier_type'] ?? '')),
                 'identifier_value' => (string)($formSource['identifier_value'] ?? ($primaryIdentifier['identifier_value'] ?? '')),
                 'identifier_issuing_authority' => (string)($formSource['identifier_issuing_authority'] ?? ($primaryIdentifier['issuing_authority'] ?? '')),
+                'error' => trim((string)($input['error'] ?? '')),
             ],
         ]
     );

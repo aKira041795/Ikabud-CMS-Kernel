@@ -448,6 +448,112 @@ function patient_portal_cap_ehr_portal_account_view_1(mixed $payload, string $re
     return ['ok' => true, 'account' => $account];
 }
 
+function patient_portal_cap_ehr_portal_account_update_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patientId = (int)($data['patient_id'] ?? 0);
+    $newEmail = portalNormalizeEmail((string)($data['email'] ?? ''));
+    $actorId = (int)($data['actor_user_id'] ?? 0);
+
+    $account = portalFetchAccountByPatientId($patientId);
+    if (!$account) {
+        return ['ok' => false, 'error' => 'Account not found'];
+    }
+    if ($newEmail === '' || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+        return ['ok' => false, 'error' => 'A valid email is required'];
+    }
+    $oldEmail = (string)($account['email'] ?? '');
+    if ($newEmail === $oldEmail) {
+        unset($account['password_hash']);
+        return ['ok' => true, 'account' => $account];
+    }
+    $existing = portalFetchAccountByEmail($newEmail);
+    if (is_array($existing) && (int)($existing['id'] ?? 0) !== (int)$account['id']) {
+        return ['ok' => false, 'error' => 'Email already in use by another portal account'];
+    }
+
+    portalDb()->execute(
+        'UPDATE ehr_portal_accounts SET email = :email, token_version = token_version + 1 WHERE id = :id',
+        [':email' => $newEmail, ':id' => (int)$account['id']]
+    );
+
+    portalAuditRecord('ehr.portal.account.updated', [
+        'patient_id' => $patientId,
+        'old_data' => ['email' => $oldEmail],
+        'new_data' => ['email' => $newEmail],
+        'actor_module_user_id' => $actorId > 0 ? $actorId : null,
+    ]);
+
+    $fresh = portalFetchAccountById((int)$account['id']);
+    if (is_array($fresh)) {
+        unset($fresh['password_hash']);
+    }
+    return ['ok' => true, 'account' => $fresh];
+}
+
+function patient_portal_cap_ehr_portal_account_reset_password_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patientId = (int)($data['patient_id'] ?? 0);
+    $newPassword = (string)($data['password'] ?? '');
+    $actorId = (int)($data['actor_user_id'] ?? 0);
+
+    $account = portalFetchAccountByPatientId($patientId);
+    if (!$account) {
+        return ['ok' => false, 'error' => 'Account not found'];
+    }
+    if (strlen($newPassword) < 10) {
+        return ['ok' => false, 'error' => 'Password must be at least 10 characters'];
+    }
+
+    portalUpdateAccountPassword((int)$account['id'], $newPassword);
+
+    portalAuditRecord('ehr.portal.account.password_reset_by_admin', [
+        'patient_id' => $patientId,
+        'actor_module_user_id' => $actorId > 0 ? $actorId : null,
+    ]);
+
+    $fresh = portalFetchAccountById((int)$account['id']);
+    if (is_array($fresh)) {
+        unset($fresh['password_hash']);
+    }
+    return ['ok' => true, 'account' => $fresh];
+}
+
+function patient_portal_cap_ehr_portal_account_reactivate_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patientId = (int)($data['patient_id'] ?? 0);
+    $actorId = (int)($data['actor_user_id'] ?? 0);
+
+    $account = portalFetchAccountByPatientId($patientId);
+    if (!$account) {
+        return ['ok' => false, 'error' => 'Account not found'];
+    }
+    if ((string)($account['status'] ?? '') === 'active') {
+        unset($account['password_hash']);
+        return ['ok' => true, 'account' => $account];
+    }
+
+    portalDb()->execute(
+        'UPDATE ehr_portal_accounts SET status = :status, deactivated_at = NULL, deactivation_reason = NULL, token_version = token_version + 1 WHERE id = :id',
+        [':status' => 'active', ':id' => (int)$account['id']]
+    );
+
+    portalAuditRecord('ehr.portal.account.reactivated', [
+        'patient_id' => $patientId,
+        'old_data' => ['status' => 'inactive'],
+        'new_data' => ['status' => 'active'],
+        'actor_module_user_id' => $actorId > 0 ? $actorId : null,
+    ]);
+
+    $fresh = portalFetchAccountById((int)$account['id']);
+    if (is_array($fresh)) {
+        unset($fresh['password_hash']);
+    }
+    return ['ok' => true, 'account' => $fresh];
+}
+
 function portalPasswordResetTokenHash(string $token): string
 {
     return hash('sha256', $token);

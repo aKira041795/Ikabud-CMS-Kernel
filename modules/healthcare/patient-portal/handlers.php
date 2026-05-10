@@ -310,6 +310,71 @@ function portalAdminDeactivate(array $params = []): void
     portalAdminRespond($input, $result, 'deactivated', 'deactivate_failed');
 }
 
+function portalAdminUpdate(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'EHR admin shell unavailable']);
+        return;
+    }
+
+    app()->csrfEnforce();
+    $user = ehrRequireAdmin();
+    $input = app()->input();
+
+    $result = app()->cap()->call('ehr.portal.account.update@1', [
+        'patient_id' => (int)($input['patient_id'] ?? 0),
+        'email' => (string)($input['email'] ?? ''),
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ], ['caller_module' => 'patient-portal']);
+
+    portalAdminRespond($input, $result, 'updated', 'update_failed');
+}
+
+function portalAdminResetPassword(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'EHR admin shell unavailable']);
+        return;
+    }
+
+    app()->csrfEnforce();
+    $user = ehrRequireAdmin();
+    $input = app()->input();
+
+    $result = app()->cap()->call('ehr.portal.account.reset_password@1', [
+        'patient_id' => (int)($input['patient_id'] ?? 0),
+        'password' => (string)($input['password'] ?? ''),
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ], ['caller_module' => 'patient-portal']);
+
+    portalAdminRespond($input, $result, 'password_reset', 'password_reset_failed');
+}
+
+function portalAdminReactivate(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'EHR admin shell unavailable']);
+        return;
+    }
+
+    app()->csrfEnforce();
+    $user = ehrRequireAdmin();
+    $input = app()->input();
+
+    $result = app()->cap()->call('ehr.portal.account.reactivate@1', [
+        'patient_id' => (int)($input['patient_id'] ?? 0),
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ], ['caller_module' => 'patient-portal']);
+
+    portalAdminRespond($input, $result, 'reactivated', 'reactivate_failed');
+}
+
 function portalAdminRespond(array $input, mixed $result, string $okNotice, string $errNotice): void
 {
     $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
