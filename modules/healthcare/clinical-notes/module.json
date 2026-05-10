@@ -65,7 +65,8 @@
                         "results",
                         "prescriptions",
                         "documents",
-                        "patient-portal"
+                        "patient-portal",
+                        "ehr"
                     ]
                 },
                 "ehr.note.sign@1": {
@@ -84,7 +85,7 @@
     "nav": [
         {
             "key": "ehr_clinical_notes",
-            "label": "Clinical Notes",
+            "label": "Notes",
             "url": "/admin/ehr/notes",
             "icon": "document-text",
             "roles": [

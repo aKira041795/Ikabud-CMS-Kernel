@@ -77,7 +77,8 @@
                         "prescriptions",
                         "results",
                         "documents",
-                        "scheduling"
+                        "scheduling",
+                        "ehr"
                     ]
                 },
                 "ehr.vitals.record@1": {
@@ -92,7 +93,7 @@
     "nav": [
         {
             "key": "ehr_encounters",
-            "label": "Encounters",
+            "label": "Visits",
             "url": "/admin/ehr/encounters",
             "icon": "clipboard-list",
             "roles": [

@@ -9,6 +9,7 @@ return [
         '/ehr/reset-password' => 'ehr:ehrResetPasswordPage',
         '/admin/ehr' => 'ehr:ehrDashboardPage',
         '/admin/ehr/settings' => 'ehr:ehrSettingsPage',
+        '/admin/ehr/patients/{id}/chart' => 'ehr:ehrPatientChartPage',
     ],
     'POST' => [
         '/ehr/auth/login' => 'ehr:ehrAuthLogin',
@@ -18,5 +19,7 @@ return [
         '/api/v1/ehr/auth/reset-password' => 'ehr:ehrApiResetPassword',
         '/api/v1/ehr/settings/save' => 'ehr:ehrApiSaveSettings',
         '/api/v1/ehr/settings/branding-asset' => 'ehr:ehrApiUploadBrandingAsset',
+        '/admin/ehr/patients/context/clear' => 'ehr:ehrPatientContextClear',
+        '/admin/ehr/patients/context/set' => 'ehr:ehrPatientContextSet',
     ],
 ];

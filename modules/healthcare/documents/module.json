@@ -110,7 +110,8 @@
                         "documents",
                         "clinical-notes",
                         "results",
-                        "patient-portal"
+                        "patient-portal",
+                        "ehr"
                     ]
                 }
             }
@@ -119,7 +120,7 @@
     "nav": [
         {
             "key": "ehr_documents",
-            "label": "Documents",
+            "label": "Patient Documents",
             "url": "/admin/ehr/documents",
             "icon": "folder",
             "roles": [

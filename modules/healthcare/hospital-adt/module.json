@@ -16,13 +16,55 @@
     ],
     "capabilities": {
         "exposes": [
-            {"id": "ehr.adt.ward.list@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.adt.bed.list@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.adt.admit@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.adt.transfer@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.adt.discharge@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.adt.admission.view@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.adt.admission.list@1", "priority": 100, "modes": ["first"]}
+            {
+                "id": "ehr.adt.ward.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.adt.bed.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.adt.admit@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.adt.transfer@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.adt.discharge@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.adt.admission.view@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.adt.admission.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
         ],
         "depends": [
             "kernel.audit.record@1",
@@ -30,23 +72,61 @@
         ],
         "policy": {
             "capabilities": {
-                "ehr.adt.ward.list@1": {"allow_callers": ["hospital-adt", "ehr"]},
-                "ehr.adt.bed.list@1": {"allow_callers": ["hospital-adt", "ehr"]},
-                "ehr.adt.admit@1": {"allow_callers": ["hospital-adt"]},
-                "ehr.adt.transfer@1": {"allow_callers": ["hospital-adt"]},
-                "ehr.adt.discharge@1": {"allow_callers": ["hospital-adt"]},
-                "ehr.adt.admission.view@1": {"allow_callers": ["hospital-adt", "ehr", "patient-portal", "billing-bridge"]},
-                "ehr.adt.admission.list@1": {"allow_callers": ["hospital-adt", "ehr", "patient-portal", "billing-bridge"]}
+                "ehr.adt.ward.list@1": {
+                    "allow_callers": [
+                        "hospital-adt",
+                        "ehr"
+                    ]
+                },
+                "ehr.adt.bed.list@1": {
+                    "allow_callers": [
+                        "hospital-adt",
+                        "ehr"
+                    ]
+                },
+                "ehr.adt.admit@1": {
+                    "allow_callers": [
+                        "hospital-adt"
+                    ]
+                },
+                "ehr.adt.transfer@1": {
+                    "allow_callers": [
+                        "hospital-adt"
+                    ]
+                },
+                "ehr.adt.discharge@1": {
+                    "allow_callers": [
+                        "hospital-adt"
+                    ]
+                },
+                "ehr.adt.admission.view@1": {
+                    "allow_callers": [
+                        "hospital-adt",
+                        "ehr",
+                        "patient-portal",
+                        "billing-bridge"
+                    ]
+                },
+                "ehr.adt.admission.list@1": {
+                    "allow_callers": [
+                        "hospital-adt",
+                        "ehr",
+                        "patient-portal",
+                        "billing-bridge"
+                    ]
+                }
             }
         }
     },
     "nav": [
         {
             "key": "ehr_hospital_adt",
-            "label": "Hospital ADT",
+            "label": "Admissions & Beds",
             "url": "/admin/ehr/adt",
             "icon": "bed",
-            "roles": ["admin"],
+            "roles": [
+                "admin"
+            ],
             "description": "Manage admissions, transfers, and discharges across wards and beds",
             "order": 100
         }

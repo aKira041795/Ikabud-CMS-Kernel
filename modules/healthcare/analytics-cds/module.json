@@ -15,12 +15,48 @@
     ],
     "capabilities": {
         "exposes": [
-            {"id": "ehr.cds.rule.add@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.cds.rule.list@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.cds.evaluate@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.cds.alert.list@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.cds.alert.acknowledge@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.analytics.summary@1", "priority": 100, "modes": ["first"]}
+            {
+                "id": "ehr.cds.rule.add@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.cds.rule.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.cds.evaluate@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.cds.alert.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.cds.alert.acknowledge@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.analytics.summary@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
         ],
         "depends": [
             "kernel.audit.record@1",
@@ -28,12 +64,49 @@
         ],
         "policy": {
             "capabilities": {
-                "ehr.cds.rule.add@1": {"allow_callers": ["analytics-cds", "ehr"]},
-                "ehr.cds.rule.list@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes"]},
-                "ehr.cds.evaluate@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes", "results", "prescriptions"]},
-                "ehr.cds.alert.list@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes"]},
-                "ehr.cds.alert.acknowledge@1": {"allow_callers": ["analytics-cds", "ehr", "clinical-notes"]},
-                "ehr.analytics.summary@1": {"allow_callers": ["analytics-cds", "ehr", "reporting"]}
+                "ehr.cds.rule.add@1": {
+                    "allow_callers": [
+                        "analytics-cds",
+                        "ehr"
+                    ]
+                },
+                "ehr.cds.rule.list@1": {
+                    "allow_callers": [
+                        "analytics-cds",
+                        "ehr",
+                        "clinical-notes"
+                    ]
+                },
+                "ehr.cds.evaluate@1": {
+                    "allow_callers": [
+                        "analytics-cds",
+                        "ehr",
+                        "clinical-notes",
+                        "results",
+                        "prescriptions"
+                    ]
+                },
+                "ehr.cds.alert.list@1": {
+                    "allow_callers": [
+                        "analytics-cds",
+                        "ehr",
+                        "clinical-notes"
+                    ]
+                },
+                "ehr.cds.alert.acknowledge@1": {
+                    "allow_callers": [
+                        "analytics-cds",
+                        "ehr",
+                        "clinical-notes"
+                    ]
+                },
+                "ehr.analytics.summary@1": {
+                    "allow_callers": [
+                        "analytics-cds",
+                        "ehr",
+                        "reporting"
+                    ]
+                }
             }
         }
     },
@@ -43,7 +116,9 @@
             "label": "Analytics & CDS",
             "url": "/admin/ehr/analytics",
             "icon": "chart-bar",
-            "roles": ["admin"],
+            "roles": [
+                "admin"
+            ],
             "description": "Quality summary, CDS rule library, and active alerts",
             "order": 120
         }

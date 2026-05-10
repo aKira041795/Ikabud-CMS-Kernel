@@ -2,55 +2,149 @@
 
 {block content}
 <div class="space-y-8">
-    <section class="rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-sm shadow-slate-200/40 lg:p-8">
-        <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+
+    <!-- Top summary strip -->
+    <section class="rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-sm shadow-slate-200/40 lg:p-7">
+        <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <div class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Workspace Overview</div>
-                <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Start using the EHR</h2>
-                <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Open the workflows your team uses every day. The dashboard and sidebar are discovered from enabled EHR module manifests, so new workspace pages appear here without hardcoded menu links.</p>
+                <div class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Today's Clinic</div>
+                <h2 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{today_label}</h2>
             </div>
-            <div class="rounded-3xl border border-teal-200 bg-teal-50 px-5 py-4 text-sm text-teal-900">
-                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Available Views</div>
-                <div class="mt-2 text-3xl font-semibold">{workspace_item_count}</div>
+            <div class="text-sm text-slate-500">Live counts from today's queue and active visits.</div>
+        </div>
+        <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="rounded-2xl border border-teal-200 bg-teal-50/70 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-700">Appointments</div>
+                <div class="mt-1 text-3xl font-semibold text-teal-900">{summary.appointments.total}</div>
+                <div class="text-xs text-teal-700/80">scheduled today</div>
+            </div>
+            <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Checked In</div>
+                <div class="mt-1 text-3xl font-semibold text-amber-900">{summary.appointments.checked_in}</div>
+                <div class="text-xs text-amber-700/80">waiting</div>
+            </div>
+            <div class="rounded-2xl border border-sky-200 bg-sky-50/70 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">In Consult</div>
+                <div class="mt-1 text-3xl font-semibold text-sky-900">{summary.appointments.in_consult}</div>
+                <div class="text-xs text-sky-700/80">roomed</div>
+            </div>
+            <div class="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-700">Active Visits</div>
+                <div class="mt-1 text-3xl font-semibold text-indigo-900">{summary.active_visits_count}</div>
+                <div class="text-xs text-indigo-700/80">open encounters</div>
+            </div>
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Completed</div>
+                <div class="mt-1 text-3xl font-semibold text-emerald-900">{summary.appointments.completed}</div>
+                <div class="text-xs text-emerald-700/80">visits today</div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">No-Show / Canceled</div>
+                <div class="mt-1 text-3xl font-semibold text-slate-800">{summary.appointments.no_show}</div>
+                <div class="text-xs text-slate-500">{summary.appointments.canceled} canceled</div>
             </div>
         </div>
     </section>
 
-    {foreach workspace_nav_groups as group}
+    <!-- Patient flow lane -->
     <section>
         <div class="mb-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">{group.title}</div>
-            <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{group.description}</h3>
+            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Patient Flow</div>
+            <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Follow the visit, step by step</h3>
+            <p class="mt-1 text-sm text-slate-500">Each card opens the worklist for that step.</p>
         </div>
-        <div class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {foreach group.items as item}
-            <a href="{item.url}" class="group rounded-[28px] border border-slate-200 bg-white/90 p-6 shadow-sm shadow-slate-200/40 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-lg hover:shadow-teal-100/60">
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {foreach patient_flow as step}
+            <a href="{step.url}" class="group relative rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-lg hover:shadow-teal-100/60">
                 <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <div class="text-lg font-semibold text-slate-900">{item.label}</div>
-                        <div class="mt-3 text-sm leading-6 text-slate-600">{item.description}</div>
+                    <div class="flex h-9 w-9 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-800">{step.step}</div>
+                    {if step.count != null}
+                    <div class="text-right">
+                        <div class="text-2xl font-semibold text-slate-900">{step.count}</div>
+                        <div class="text-[11px] uppercase tracking-[0.18em] text-slate-500">{step.count_label}</div>
                     </div>
-                    <div class="rounded-2xl bg-teal-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Open</div>
+                    {/if}
                 </div>
+                <div class="mt-4 text-base font-semibold text-slate-900">{step.title}</div>
+                <div class="mt-1 text-sm leading-6 text-slate-600">{step.detail}</div>
+                <div class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 transition group-hover:text-teal-900">{step.cta} →</div>
             </a>
             {/foreach}
         </div>
     </section>
-    {/foreach}
+
+    <!-- Worklists -->
+    <section>
+        <div class="mb-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Worklists</div>
+            <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Pick up the next item</h3>
+        </div>
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {foreach worklists as wl}
+            <a href="{wl.url}" class="rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-sm transition hover:border-teal-300 hover:shadow-md">
+                <div class="flex items-baseline justify-between">
+                    <div class="text-sm font-semibold text-slate-900">{wl.title}</div>
+                    <div class="text-2xl font-semibold text-teal-700">{wl.count}</div>
+                </div>
+                <div class="mt-2 text-xs leading-5 text-slate-500">{wl.detail}</div>
+            </a>
+            {/foreach}
+        </div>
+    </section>
+
+    <!-- Quick actions -->
+    <section>
+        <div class="mb-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Quick Actions</div>
+            <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Start something new</h3>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {foreach quick_actions as qa}
+            <a href="{qa.url}" class="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-teal-300 hover:bg-teal-50/60">
+                <div>{qa.label}</div>
+                <div class="mt-1 text-xs font-normal text-slate-500">{qa.description}</div>
+            </a>
+            {/foreach}
+        </div>
+    </section>
+
+    <!-- All workspace views (collapsed below worklists) -->
+    {if workspace_nav_groups}
+    <section>
+        <div class="mb-4">
+            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">All Workspace Views</div>
+            <h3 class="mt-2 text-xl font-semibold tracking-tight text-slate-900">Direct module access</h3>
+        </div>
+        {foreach workspace_nav_groups as group}
+        <div class="mb-5">
+            <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{group.title}</div>
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {foreach group.items as item}
+                <a href="{item.url}" class="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/60">
+                    <div class="text-sm font-semibold text-slate-900">{item.label}</div>
+                    <div class="mt-1 text-xs leading-5 text-slate-500">{item.description}</div>
+                </a>
+                {/foreach}
+            </div>
+        </div>
+        {/foreach}
+    </section>
+    {/if}
 
     {if admin_nav_items}
-    <section class="rounded-[28px] border border-slate-200 bg-white/90 p-6 shadow-sm shadow-slate-200/40 lg:p-8">
-        <div class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Administration</div>
-        <div class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Branding and access controls</div>
-        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+    <section class="rounded-[28px] border border-slate-200 bg-white/80 p-6 shadow-sm">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Administration</div>
+        <div class="mt-2 text-xl font-semibold tracking-tight text-slate-900">System settings & access</div>
+        <div class="mt-4 grid gap-3 md:grid-cols-2">
             {foreach admin_nav_items as item}
-            <a href="{item.url}" class="rounded-3xl border border-slate-200 bg-slate-50/80 px-5 py-4 transition hover:border-teal-300 hover:bg-teal-50/80">
-                <div class="font-semibold text-slate-900">{item.label}</div>
-                <div class="mt-2 text-sm leading-6 text-slate-600">{item.description}</div>
+            <a href="{item.url}" class="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/80">
+                <div class="text-sm font-semibold text-slate-900">{item.label}</div>
+                <div class="mt-1 text-xs leading-5 text-slate-500">{item.description}</div>
             </a>
             {/foreach}
         </div>
     </section>
     {/if}
+
 </div>
 {/block}

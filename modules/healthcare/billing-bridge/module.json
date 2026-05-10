@@ -33,7 +33,7 @@
     "nav": [
         {
             "key": "ehr_billing_bridge",
-            "label": "Billing Signals",
+            "label": "Billing Queue",
             "url": "/admin/ehr/billing",
             "icon": "receipt",
             "roles": [

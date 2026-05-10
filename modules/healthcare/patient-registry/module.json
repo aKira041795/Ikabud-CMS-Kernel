@@ -68,7 +68,8 @@
                         "privacy-consent",
                         "scheduling",
                         "billing-bridge",
-                        "patient-portal"
+                        "patient-portal",
+                        "ehr"
                     ]
                 },
                 "ehr.patient.update@1": {

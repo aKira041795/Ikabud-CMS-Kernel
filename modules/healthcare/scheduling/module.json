@@ -66,12 +66,15 @@
                 },
                 "ehr.appointment.view@1": {
                     "allow_callers": [
-                        "scheduling"
+                        "scheduling",
+                        "patient-portal"
                     ]
                 },
                 "ehr.appointment.list@1": {
                     "allow_callers": [
-                        "scheduling"
+                        "scheduling",
+                        "patient-portal",
+                        "ehr"
                     ]
                 },
                 "ehr.appointment.update@1": {

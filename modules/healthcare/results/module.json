@@ -86,7 +86,8 @@
                     "allow_callers": [
                         "results",
                         "clinical-notes",
-                        "patient-portal"
+                        "patient-portal",
+                        "ehr"
                     ]
                 }
             }
@@ -95,7 +96,7 @@
     "nav": [
         {
             "key": "ehr_results",
-            "label": "Results",
+            "label": "Lab Results",
             "url": "/admin/ehr/results",
             "icon": "beaker",
             "roles": [

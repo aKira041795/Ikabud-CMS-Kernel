@@ -11,7 +11,7 @@
     "nav": [
         {
             "key": "ehr_orders",
-            "label": "Orders",
+            "label": "Lab & Imaging Orders",
             "url": "/admin/ehr/orders",
             "icon": "clipboard-check",
             "roles": [

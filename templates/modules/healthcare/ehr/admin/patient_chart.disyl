@@ -1,0 +1,128 @@
+{extends "modules/ehr/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+
+    <!-- Tabs -->
+    <nav class="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
+        {foreach tabs as t}
+        <a href="{t.url}" class="rounded-t-lg px-4 py-2 text-sm font-semibold transition {if t.active}border border-b-0 border-slate-200 bg-white text-teal-700{else}text-slate-600 hover:text-teal-700{/if}">{t.label}</a>
+        {/foreach}
+    </nav>
+
+    <!-- Summary grid -->
+    <div class="grid gap-6 lg:grid-cols-3">
+
+        <!-- Demographics + identifiers -->
+        <section class="rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-sm lg:col-span-1">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Patient Profile</div>
+            <h2 class="mt-2 text-2xl font-semibold text-slate-900">{patient_name}</h2>
+            <dl class="mt-4 space-y-2 text-sm">
+                {if patient.sex}<div class="flex justify-between"><dt class="text-slate-500">Sex</dt><dd class="font-medium text-slate-800">{patient.sex}</dd></div>{/if}
+                {if patient.birth_date}<div class="flex justify-between"><dt class="text-slate-500">Birth date</dt><dd class="font-medium text-slate-800">{patient.birth_date}</dd></div>{/if}
+                {if patient.status}<div class="flex justify-between"><dt class="text-slate-500">Status</dt><dd class="font-medium text-slate-800">{patient.status}</dd></div>{/if}
+                {if patient.patient_uuid}<div class="flex justify-between"><dt class="text-slate-500">UUID</dt><dd class="font-mono text-xs text-slate-600">{patient.patient_uuid}</dd></div>{/if}
+            </dl>
+            <div class="mt-5 flex flex-wrap gap-2">
+                <a href="/admin/ehr/encounters?patient_id={patient.id}" class="rounded-xl bg-teal-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-700">Start Visit</a>
+                <a href="/admin/ehr/notes?patient_id={patient.id}" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-teal-300">Add Note</a>
+                <a href="/admin/ehr/documents?patient_id={patient.id}" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-teal-300">Upload Document</a>
+            </div>
+        </section>
+
+        <!-- Recent visits -->
+        <section class="rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-sm lg:col-span-2">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Recent Visits</div>
+                    <h3 class="mt-1 text-lg font-semibold text-slate-900">{recent_visits_count} total</h3>
+                </div>
+                <a href="/admin/ehr/encounters?patient_id={patient.id}" class="text-sm font-semibold text-teal-700 hover:text-teal-900">View all →</a>
+            </div>
+            {if recent_visits}
+            <ul class="mt-4 space-y-2">
+                {foreach recent_visits as v}
+                <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+                    <div>
+                        <div class="text-sm font-semibold text-slate-900">{v.encounter_type}{if v.service_line} · {v.service_line}{/if}</div>
+                        <div class="text-xs text-slate-500">{v.start_at} · status: <span class="font-semibold text-slate-700">{v.status}</span></div>
+                    </div>
+                    <div class="text-xs text-slate-500">#{v.id}</div>
+                </li>
+                {/foreach}
+            </ul>
+            {else}
+            <div class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-6 text-center text-sm text-slate-500">No visits yet. Start the patient's first visit from the Visits tab.</div>
+            {/if}
+        </section>
+
+        <!-- Recent results -->
+        <section class="rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Recent Lab Results</div>
+            {if recent_results}
+            <ul class="mt-3 space-y-2 text-sm">
+                {foreach recent_results as r}
+                <li class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
+                    <div class="font-semibold text-slate-800">{r.value_text}{if r.unit} {r.unit}{/if}{if r.abnormal_flag} <span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-rose-700">{r.abnormal_flag}</span>{/if}</div>
+                    <div class="text-xs text-slate-500">{r.observed_at} · {r.result_status}</div>
+                </li>
+                {/foreach}
+            </ul>
+            {else}
+            <div class="mt-3 text-sm text-slate-500">No results yet.</div>
+            {/if}
+            <a href="/admin/ehr/results?patient_id={patient.id}" class="mt-4 inline-block text-sm font-semibold text-teal-700 hover:text-teal-900">All results →</a>
+        </section>
+
+        <!-- Current medications -->
+        <section class="rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Medications</div>
+            {if recent_medications}
+            <ul class="mt-3 space-y-2 text-sm">
+                {foreach recent_medications as m}
+                <li class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
+                    <div class="font-semibold text-slate-800">{m.medication_text}</div>
+                    <div class="text-xs text-slate-500">{m.dose_text}{if m.frequency} · {m.frequency}{/if} · {m.status}</div>
+                </li>
+                {/foreach}
+            </ul>
+            {else}
+            <div class="mt-3 text-sm text-slate-500">No active medications.</div>
+            {/if}
+            <a href="/admin/ehr/prescriptions?patient_id={patient.id}" class="mt-4 inline-block text-sm font-semibold text-teal-700 hover:text-teal-900">All medications →</a>
+        </section>
+
+        <!-- Recent documents -->
+        <section class="rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Recent Documents</div>
+            {if recent_documents}
+            <ul class="mt-3 space-y-2 text-sm">
+                {foreach recent_documents as d}
+                <li class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
+                    <div class="font-semibold text-slate-800">{d.title}</div>
+                    <div class="text-xs text-slate-500">{d.document_type} · {d.uploaded_at}{if d.sensitivity_level} · <span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700">{d.sensitivity_level}</span>{/if}</div>
+                </li>
+                {/foreach}
+            </ul>
+            {else}
+            <div class="mt-3 text-sm text-slate-500">No documents yet.</div>
+            {/if}
+            <a href="/admin/ehr/documents?patient_id={patient.id}" class="mt-4 inline-block text-sm font-semibold text-teal-700 hover:text-teal-900">All documents →</a>
+        </section>
+
+        <!-- Consent -->
+        <section class="rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-sm lg:col-span-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Privacy & Consent</div>
+                    <div class="mt-1 text-sm text-slate-700">
+                        General consent: {if consent_active}<span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Active</span>{else}<span class="rounded bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">Not on file</span>{/if}
+                    </div>
+                </div>
+                <a href="/admin/ehr/privacy?patient_id={patient.id}" class="text-sm font-semibold text-teal-700 hover:text-teal-900">Manage privacy →</a>
+            </div>
+        </section>
+
+    </div>
+</div>
+{/block}

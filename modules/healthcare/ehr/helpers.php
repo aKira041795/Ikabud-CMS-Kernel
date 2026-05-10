@@ -662,6 +662,7 @@ function ehrAdminContext(array $user, string $currentPage, array $extra = []): a
         'user_role' => ucfirst($role),
         'brand_name' => ehrAppName(),
         'brand_initial' => ehrBrandInitial(),
+        'patient_context' => ehrPatientContextView(),
     ], $extra);
 }
 
@@ -866,4 +867,262 @@ function ehr_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId
     } catch (Throwable $e) {
         return null;
     }
+}
+
+function ehrSafeCap(string $capId, array $payload, string $caller = 'ehr'): array
+{
+    try {
+        $result = app()->cap()->call($capId, $payload, ['caller_module' => $caller]);
+        return is_array($result) ? $result : [];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function ehrDashboardSummary(): array
+{
+    $today = date('Y-m-d');
+
+    $appointmentsToday = ehrSafeCap('ehr.appointment.list@1', ['scheduled_date' => $today, 'limit' => 100]);
+    $appointments = is_array($appointmentsToday['appointments'] ?? null) ? $appointmentsToday['appointments'] : [];
+    $apptCounts = [
+        'total' => count($appointments),
+        'scheduled' => 0,
+        'checked_in' => 0,
+        'in_consult' => 0,
+        'completed' => 0,
+        'no_show' => 0,
+        'canceled' => 0,
+    ];
+    foreach ($appointments as $a) {
+        $st = strtolower((string)($a['status'] ?? ''));
+        switch ($st) {
+            case 'scheduled': $apptCounts['scheduled']++; break;
+            case 'checked-in':
+            case 'waiting': $apptCounts['checked_in']++; break;
+            case 'roomed': $apptCounts['in_consult']++; break;
+            case 'completed': $apptCounts['completed']++; break;
+            case 'no-show': $apptCounts['no_show']++; break;
+            case 'canceled': $apptCounts['canceled']++; break;
+        }
+    }
+
+    $openEnc = ehrSafeCap('ehr.encounter.list@1', ['status' => 'open', 'limit' => 50]);
+    $activeEncounters = is_array($openEnc['encounters'] ?? null) ? $openEnc['encounters'] : [];
+
+    $plannedEnc = ehrSafeCap('ehr.encounter.list@1', ['status' => 'planned', 'limit' => 50]);
+    $plannedEncounters = is_array($plannedEnc['encounters'] ?? null) ? $plannedEnc['encounters'] : [];
+
+    return [
+        'today_label' => date('l, F j, Y'),
+        'appointments' => $apptCounts,
+        'appointments_today' => $appointments,
+        'active_visits_count' => count($activeEncounters),
+        'active_visits' => $activeEncounters,
+        'planned_visits_count' => count($plannedEncounters),
+    ];
+}
+
+function ehrDashboardPatientFlow(array $summary): array
+{
+    $appt = $summary['appointments'] ?? [];
+    return [
+        [
+            'step' => 1,
+            'title' => 'Check In Patients',
+            'count' => (int)($appt['scheduled'] ?? 0),
+            'count_label' => 'scheduled',
+            'detail' => sprintf('%d waiting · %d in consult', (int)($appt['checked_in'] ?? 0), (int)($appt['in_consult'] ?? 0)),
+            'cta' => 'Open Queue',
+            'url' => '/admin/ehr/appointments',
+        ],
+        [
+            'step' => 2,
+            'title' => 'Active Visits',
+            'count' => (int)($summary['active_visits_count'] ?? 0),
+            'count_label' => 'currently being seen',
+            'detail' => 'Continue documentation, orders, or close the visit.',
+            'cta' => 'Continue Visit',
+            'url' => '/admin/ehr/encounters',
+        ],
+        [
+            'step' => 3,
+            'title' => 'Document Care',
+            'count' => null,
+            'count_label' => '',
+            'detail' => 'Open the chart of an active visit to write notes.',
+            'cta' => 'Open Notes',
+            'url' => '/admin/ehr/notes',
+        ],
+        [
+            'step' => 4,
+            'title' => 'Order or Prescribe',
+            'count' => null,
+            'count_label' => '',
+            'detail' => 'Place lab/imaging orders or issue medications.',
+            'cta' => 'Open Orders',
+            'url' => '/admin/ehr/orders',
+        ],
+        [
+            'step' => 5,
+            'title' => 'Review Lab Results',
+            'count' => null,
+            'count_label' => '',
+            'detail' => 'Verify and release pending laboratory results.',
+            'cta' => 'Open Results',
+            'url' => '/admin/ehr/results',
+        ],
+        [
+            'step' => 6,
+            'title' => 'Close Visit',
+            'count' => (int)($appt['completed'] ?? 0),
+            'count_label' => 'completed today',
+            'detail' => 'Finalise active visits when documentation is complete.',
+            'cta' => 'Open Visits',
+            'url' => '/admin/ehr/encounters',
+        ],
+    ];
+}
+
+function ehrDashboardWorklists(array $summary): array
+{
+    $appt = $summary['appointments'] ?? [];
+    return [
+        [
+            'title' => 'Waiting Patients',
+            'count' => (int)($appt['checked_in'] ?? 0),
+            'detail' => 'Patients checked in and waiting for the clinician.',
+            'url' => '/admin/ehr/appointments',
+        ],
+        [
+            'title' => 'In Consultation',
+            'count' => (int)($appt['in_consult'] ?? 0),
+            'detail' => 'Currently roomed appointments.',
+            'url' => '/admin/ehr/appointments',
+        ],
+        [
+            'title' => 'Active Visits',
+            'count' => (int)($summary['active_visits_count'] ?? 0),
+            'detail' => 'Open encounters needing documentation or closure.',
+            'url' => '/admin/ehr/encounters',
+        ],
+        [
+            'title' => 'Planned Visits',
+            'count' => (int)($summary['planned_visits_count'] ?? 0),
+            'detail' => 'Visits scheduled but not yet started.',
+            'url' => '/admin/ehr/encounters',
+        ],
+    ];
+}
+
+function ehrDashboardQuickActions(): array
+{
+    return [
+        ['label' => 'Register Patient', 'url' => '/admin/ehr/patients', 'description' => 'Create a new patient record.'],
+        ['label' => 'Book Appointment', 'url' => '/admin/ehr/appointments', 'description' => 'Schedule a visit on the queue.'],
+        ['label' => 'Open Patient Chart', 'url' => '/admin/ehr/patients', 'description' => 'Find a patient and open their chart.'],
+        ['label' => 'Upload Document', 'url' => '/admin/ehr/documents', 'description' => 'Attach a document to a patient record.'],
+    ];
+}
+
+/**
+ * Persistent clinical patient context — what patient (and optional encounter)
+ * the user is currently working on. Used by the sticky header and chart links.
+ */
+function ehrPatientContextKey(): string { return 'ehr_patient_ctx'; }
+
+function ehrSetPatientContext(int $patientId, int $encounterId = 0): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        @session_start();
+    }
+    if ($patientId <= 0) {
+        unset($_SESSION[ehrPatientContextKey()]);
+        return;
+    }
+    $_SESSION[ehrPatientContextKey()] = [
+        'patient_id' => $patientId,
+        'encounter_id' => $encounterId,
+        'set_at' => time(),
+    ];
+}
+
+function ehrClearPatientContext(): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        @session_start();
+    }
+    unset($_SESSION[ehrPatientContextKey()]);
+}
+
+function ehrCurrentPatientContext(): ?array
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        @session_start();
+    }
+    $ctx = $_SESSION[ehrPatientContextKey()] ?? null;
+    if (!is_array($ctx) || (int)($ctx['patient_id'] ?? 0) <= 0) {
+        return null;
+    }
+    return $ctx;
+}
+
+/**
+ * Build the sticky-header view-model for the current patient context.
+ * Returns null when no patient is selected.
+ */
+function ehrPatientContextView(): ?array
+{
+    $ctx = ehrCurrentPatientContext();
+    if (!$ctx) return null;
+
+    $patientId = (int)$ctx['patient_id'];
+    $encounterId = (int)($ctx['encounter_id'] ?? 0);
+
+    $patient = ehrSafeCap('ehr.patient.view@1', ['id' => $patientId]);
+    $patientRow = is_array($patient['patient'] ?? null) ? $patient['patient'] : null;
+    if (!$patientRow) return null;
+
+    $encounter = null;
+    if ($encounterId > 0) {
+        $encResult = ehrSafeCap('ehr.encounter.view@1', ['id' => $encounterId]);
+        $encounter = is_array($encResult['encounter'] ?? null) ? $encResult['encounter'] : null;
+    }
+
+    $first = trim((string)($patientRow['first_name'] ?? ''));
+    $last = trim((string)($patientRow['last_name'] ?? ''));
+    $name = trim($first . ' ' . $last);
+    if ($name === '') $name = 'Patient #' . $patientId;
+    $initial = strtoupper(substr($name, 0, 1));
+
+    $age = null;
+    $birth = trim((string)($patientRow['birth_date'] ?? ''));
+    if ($birth !== '') {
+        try {
+            $bd = new \DateTimeImmutable($birth);
+            $age = (new \DateTimeImmutable('today'))->diff($bd)->y;
+        } catch (\Throwable $e) { $age = null; }
+    }
+
+    return [
+        'patient_id' => $patientId,
+        'encounter_id' => $encounterId,
+        'name' => $name,
+        'initial' => $initial,
+        'sex' => (string)($patientRow['sex'] ?? $patientRow['gender'] ?? ''),
+        'age' => $age,
+        'mrn' => (string)($patientRow['mrn'] ?? $patientRow['patient_uuid'] ?? ''),
+        'birth_date' => $birth,
+        'status' => (string)($patientRow['status'] ?? ''),
+        'encounter' => $encounter ? [
+            'id' => (int)($encounter['id'] ?? 0),
+            'type' => (string)($encounter['encounter_type'] ?? ''),
+            'service_line' => (string)($encounter['service_line'] ?? ''),
+            'status' => (string)($encounter['status'] ?? ''),
+            'reason' => (string)($encounter['reason_for_visit'] ?? ''),
+            'start_at' => (string)($encounter['start_at'] ?? ''),
+        ] : null,
+        'chart_url' => '/admin/ehr/patients/' . $patientId . '/chart',
+        'clear_url' => '/admin/ehr/patients/context/clear',
+    ];
 }

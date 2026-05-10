@@ -10,7 +10,7 @@
     "nav": [
         {
             "key": "ehr_prescriptions",
-            "label": "Prescriptions",
+            "label": "Medications",
             "url": "/admin/ehr/prescriptions",
             "icon": "pill",
             "roles": [
@@ -88,7 +88,8 @@
                     "allow_callers": [
                         "prescriptions",
                         "clinical-notes",
-                        "patient-portal"
+                        "patient-portal",
+                        "ehr"
                     ]
                 }
             }

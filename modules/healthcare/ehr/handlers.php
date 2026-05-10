@@ -307,16 +307,23 @@ function ehrDashboardPage(array $params = []): void
     $user = ehrRequireAdmin();
     $navItems = ehrAdminNavItems($user);
     $navGroups = ehrDashboardNavGroups($navItems);
+    $summary = ehrDashboardSummary();
 
     echo ehrRender('admin/dashboard.disyl', array_merge(
         ehrAdminContext($user, 'ehr_dashboard', [
-            'page_title' => 'EHR Dashboard',
+            'page_title' => 'Today at a Glance',
         ]),
         [
             'workspace_nav_items' => $navGroups['workspace'],
             'workspace_nav_groups' => $navGroups['workspace_groups'],
             'admin_nav_items' => $navGroups['administration'],
             'workspace_item_count' => count($navGroups['workspace']),
+            'today_label' => date('l, F j, Y'),
+            'today_iso' => date('Y-m-d'),
+            'summary' => $summary,
+            'patient_flow' => ehrDashboardPatientFlow($summary),
+            'worklists' => ehrDashboardWorklists($summary),
+            'quick_actions' => ehrDashboardQuickActions(),
         ]
     ));
 }
@@ -394,4 +401,98 @@ function ehrApiSaveSettings(array $params = []): void
             'brand_initial' => ehrBrandInitial(),
         ]),
     ]);
+}
+
+function ehrPatientContextSet(array $params = []): void
+{
+    ehrRequireAdmin();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $patientId = (int)($input['patient_id'] ?? 0);
+    $encounterId = (int)($input['encounter_id'] ?? 0);
+    if ($patientId <= 0) {
+        app()->json(['ok' => false, 'error' => 'patient_id is required'], 422);
+        return;
+    }
+    ehrSetPatientContext($patientId, $encounterId);
+    $redirect = (string)($input['redirect'] ?? ('/admin/ehr/patients/' . $patientId . '/chart'));
+    if (!str_starts_with($redirect, '/')) $redirect = '/admin/ehr';
+    app()->redirect($redirect);
+}
+
+function ehrPatientContextClear(array $params = []): void
+{
+    ehrRequireAdmin();
+    app()->csrfEnforce();
+    ehrClearPatientContext();
+    $back = (string)($_SERVER['HTTP_REFERER'] ?? '/admin/ehr');
+    if (!str_starts_with($back, '/admin/ehr')) $back = '/admin/ehr';
+    app()->redirect($back);
+}
+
+function ehrPatientChartPage(array $params = []): void
+{
+    $user = ehrRequireAdmin();
+    $patientId = (int)($params['id'] ?? 0);
+    if ($patientId <= 0) {
+        http_response_code(404);
+        echo 'Patient not found';
+        return;
+    }
+
+    $patient = ehrSafeCap('ehr.patient.view@1', ['id' => $patientId]);
+    $patientRow = is_array($patient['patient'] ?? null) ? $patient['patient'] : null;
+    if (!$patientRow) {
+        http_response_code(404);
+        echo 'Patient not found';
+        return;
+    }
+
+    // Make this the current working patient.
+    ehrSetPatientContext($patientId, (int)(ehrCurrentPatientContext()['encounter_id'] ?? 0));
+
+    // Recent visits
+    $encList = ehrSafeCap('ehr.encounter.list@1', ['limit' => 25]);
+    $encounters = is_array($encList['encounters'] ?? null) ? $encList['encounters'] : [];
+    $recentVisits = array_values(array_filter($encounters, static fn($e) => is_array($e) && (int)($e['patient_id'] ?? 0) === $patientId));
+
+    // Pull patient-scoped lists
+    $notes = ehrSafeCap('ehr.note.list@1', ['patient_id' => $patientId, 'limit' => 5]);
+    $orders = ehrSafeCap('ehr.order.list@1', ['patient_id' => $patientId, 'limit' => 5]);
+    $results = ehrSafeCap('ehr.result.list@1', ['patient_id' => $patientId, 'limit' => 5]);
+    $rx = ehrSafeCap('ehr.prescription.list@1', ['patient_id' => $patientId, 'limit' => 5]);
+    $docs = ehrSafeCap('ehr.document.list@1', ['patient_id' => $patientId, 'limit' => 5]);
+    $consent = ehrSafeCap('ehr.consent.active@1', ['patient_id' => $patientId, 'consent_type' => 'general']);
+
+    $first = trim((string)($patientRow['first_name'] ?? ''));
+    $last = trim((string)($patientRow['last_name'] ?? ''));
+    $name = trim($first . ' ' . $last);
+    if ($name === '') $name = 'Patient #' . $patientId;
+
+    echo ehrRender('admin/patient_chart.disyl', array_merge(
+        ehrAdminContext($user, 'ehr_patient_chart', [
+            'page_title' => $name,
+        ]),
+        [
+            'patient' => $patientRow,
+            'patient_name' => $name,
+            'recent_visits' => array_slice($recentVisits, 0, 6),
+            'recent_visits_count' => count($recentVisits),
+            'recent_notes' => is_array($notes['notes'] ?? null) ? $notes['notes'] : [],
+            'recent_orders' => is_array($orders['orders'] ?? null) ? $orders['orders'] : [],
+            'recent_results' => is_array($results['results'] ?? null) ? $results['results'] : [],
+            'recent_medications' => is_array($rx['prescriptions'] ?? null) ? $rx['prescriptions'] : [],
+            'recent_documents' => is_array($docs['documents'] ?? null) ? $docs['documents'] : [],
+            'consent_active' => !empty($consent['active']),
+            'tabs' => [
+                ['key' => 'summary', 'label' => 'Summary', 'url' => '/admin/ehr/patients/' . $patientId . '/chart', 'active' => true],
+                ['key' => 'visits', 'label' => 'Visits', 'url' => '/admin/ehr/encounters?patient_id=' . $patientId, 'active' => false],
+                ['key' => 'notes', 'label' => 'Notes', 'url' => '/admin/ehr/notes?patient_id=' . $patientId, 'active' => false],
+                ['key' => 'orders', 'label' => 'Orders', 'url' => '/admin/ehr/orders?patient_id=' . $patientId, 'active' => false],
+                ['key' => 'results', 'label' => 'Results', 'url' => '/admin/ehr/results?patient_id=' . $patientId, 'active' => false],
+                ['key' => 'medications', 'label' => 'Medications', 'url' => '/admin/ehr/prescriptions?patient_id=' . $patientId, 'active' => false],
+                ['key' => 'documents', 'label' => 'Documents', 'url' => '/admin/ehr/documents?patient_id=' . $patientId, 'active' => false],
+            ],
+        ]
+    ));
 }

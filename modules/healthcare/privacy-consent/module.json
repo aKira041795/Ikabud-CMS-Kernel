@@ -97,7 +97,8 @@
                         "documents",
                         "clinical-notes",
                         "results",
-                        "patient-portal"
+                        "patient-portal",
+                        "ehr"
                     ]
                 },
                 "ehr.break_glass.request@1": {

@@ -14,11 +14,41 @@
     ],
     "capabilities": {
         "exposes": [
-            {"id": "ehr.interop.fhir.patient.export@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.interop.message.log@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.interop.message.list@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.interop.identifier.map@1", "priority": 100, "modes": ["first"]},
-            {"id": "ehr.interop.identifier.lookup@1", "priority": 100, "modes": ["first"]}
+            {
+                "id": "ehr.interop.fhir.patient.export@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.interop.message.log@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.interop.message.list@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.interop.identifier.map@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "ehr.interop.identifier.lookup@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            }
         ],
         "depends": [
             "kernel.audit.record@1",
@@ -26,21 +56,53 @@
         ],
         "policy": {
             "capabilities": {
-                "ehr.interop.fhir.patient.export@1": {"allow_callers": ["interoperability-bridge", "ehr"]},
-                "ehr.interop.message.log@1": {"allow_callers": ["interoperability-bridge", "ehr", "results", "documents", "hospital-adt"]},
-                "ehr.interop.message.list@1": {"allow_callers": ["interoperability-bridge", "ehr"]},
-                "ehr.interop.identifier.map@1": {"allow_callers": ["interoperability-bridge", "ehr", "patient-registry"]},
-                "ehr.interop.identifier.lookup@1": {"allow_callers": ["interoperability-bridge", "ehr", "patient-registry"]}
+                "ehr.interop.fhir.patient.export@1": {
+                    "allow_callers": [
+                        "interoperability-bridge",
+                        "ehr"
+                    ]
+                },
+                "ehr.interop.message.log@1": {
+                    "allow_callers": [
+                        "interoperability-bridge",
+                        "ehr",
+                        "results",
+                        "documents",
+                        "hospital-adt"
+                    ]
+                },
+                "ehr.interop.message.list@1": {
+                    "allow_callers": [
+                        "interoperability-bridge",
+                        "ehr"
+                    ]
+                },
+                "ehr.interop.identifier.map@1": {
+                    "allow_callers": [
+                        "interoperability-bridge",
+                        "ehr",
+                        "patient-registry"
+                    ]
+                },
+                "ehr.interop.identifier.lookup@1": {
+                    "allow_callers": [
+                        "interoperability-bridge",
+                        "ehr",
+                        "patient-registry"
+                    ]
+                }
             }
         }
     },
     "nav": [
         {
             "key": "ehr_interop_bridge",
-            "label": "Interoperability",
+            "label": "External Systems",
             "url": "/admin/ehr/interop",
             "icon": "share",
-            "roles": ["admin"],
+            "roles": [
+                "admin"
+            ],
             "description": "Inspect outbound FHIR exports, message log, and external identifier mappings",
             "order": 110
         }

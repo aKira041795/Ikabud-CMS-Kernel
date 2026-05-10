@@ -50,18 +50,18 @@
     "nav": [
         {
             "key": "ehr_reporting_summary",
-            "label": "Operations Report",
+            "label": "Clinic Activity",
             "url": "/admin/ehr/reports/summary",
             "icon": "chart-bar",
             "roles": [
                 "admin"
             ],
-            "description": "Appointments, encounters, throughput",
+            "description": "Appointments, visits, throughput",
             "order": 110
         },
         {
             "key": "ehr_reporting_compliance",
-            "label": "Compliance Report",
+            "label": "Privacy & Audit Report",
             "url": "/admin/ehr/reports/compliance",
             "icon": "shield-check",
             "roles": [
