@@ -244,6 +244,9 @@ function portalPageAppointments(array $params = []): void
             'past' => count($past),
             'cancelled' => count($cancelled),
         ],
+        'reschedule_endpoint' => '/portal/appointments/reschedule',
+        'reschedule_notice' => isset($_GET['reschedule_notice']) ? 'Your reschedule request has been sent. The clinic will contact you shortly.' : '',
+        'reschedule_error' => trim((string)($_GET['reschedule_error'] ?? '')),
         'logout_endpoint' => '/portal/logout',
     ]);
 }
@@ -334,6 +337,77 @@ function portalConsentRecord(array $params = []): void
     }
 
     app()->redirect('/portal/consent');
+}
+
+function portalAppointmentRescheduleRequest(array $params = []): void
+{
+    $session = portalRequireSession();
+    app()->csrfEnforce();
+    $input = app()->input();
+
+    $appointmentUuid = trim((string)($input['appointment_uuid'] ?? ''));
+    $reason = trim((string)($input['reason'] ?? ''));
+    $preferredWindow = trim((string)($input['preferred_window'] ?? ''));
+    $contactMethod = strtolower(trim((string)($input['contact_method'] ?? 'phone')));
+    if (!in_array($contactMethod, ['phone', 'email', 'sms'], true)) {
+        $contactMethod = 'phone';
+    }
+
+    $patientId = (int)$session['patient_id'];
+    $accountId = (int)($session['account_id'] ?? 0);
+
+    $redirectBack = '/portal/appointments';
+    if ($appointmentUuid !== '') {
+        $redirectBack .= '?selected=' . rawurlencode($appointmentUuid) . '#appt-' . rawurlencode($appointmentUuid);
+    }
+
+    if ($appointmentUuid === '' || strlen($reason) < 3) {
+        app()->redirect($redirectBack . (strpos($redirectBack, '?') === false ? '?' : '&') . 'reschedule_error=' . rawurlencode('Please describe why you need to reschedule.'));
+        return;
+    }
+
+    $appointment = null;
+    foreach (portalPatientAppointments($patientId, 50) as $appt) {
+        if ((string)($appt['appointment_uuid'] ?? '') === $appointmentUuid) {
+            $appointment = $appt;
+            break;
+        }
+    }
+    if ($appointment === null) {
+        app()->redirect($redirectBack . (strpos($redirectBack, '?') === false ? '?' : '&') . 'reschedule_error=' . rawurlencode('Appointment not found.'));
+        return;
+    }
+
+    portalDb()->execute(
+        'INSERT INTO ehr_portal_reschedule_requests
+            (account_id, patient_id, appointment_uuid, appointment_type, scheduled_start,
+             preferred_window, contact_method, reason, requester_ip, created_at)
+         VALUES
+            (:account_id, :patient_id, :appointment_uuid, :appointment_type, :scheduled_start,
+             :preferred_window, :contact_method, :reason, :requester_ip, NOW())',
+        [
+            ':account_id' => $accountId,
+            ':patient_id' => $patientId,
+            ':appointment_uuid' => $appointmentUuid,
+            ':appointment_type' => substr((string)($appointment['appointment_type'] ?? ''), 0, 128),
+            ':scheduled_start' => (string)($appointment['scheduled_start'] ?? null) ?: null,
+            ':preferred_window' => substr($preferredWindow, 0, 64) ?: null,
+            ':contact_method' => $contactMethod,
+            ':reason' => substr($reason, 0, 4000),
+            ':requester_ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64) ?: null,
+        ]
+    );
+
+    portalAuditRecord('ehr.portal.appointment.reschedule_requested', [
+        'patient_id' => $patientId,
+        'new_data' => [
+            'appointment_uuid' => $appointmentUuid,
+            'contact_method' => $contactMethod,
+            'preferred_window' => $preferredWindow,
+        ],
+    ]);
+
+    app()->redirect($redirectBack . (strpos($redirectBack, '?') === false ? '?' : '&') . 'reschedule_notice=1');
 }
 
 function portalAdminPageIndex(array $params = []): void
