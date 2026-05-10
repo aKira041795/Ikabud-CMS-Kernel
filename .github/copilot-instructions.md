@@ -32,7 +32,12 @@
 - Always check logs after running tests/builds or reproducing bugs:
   - app log: [storage/logs/app.log](storage/logs/app.log)
   - PHP error log: [storage/logs/error.log](storage/logs/error.log)
+- Check **both** logs (app + error) on every debugging session, every test/build run, and every bug reproduction — not just one.
 - Use request-id-aware traces (`X-Request-Id`, `request_id()`) when correlating API failures.
+
+## EHR product review stance
+- Review the EHR as **one product, not as isolated pages**. When changing or critiquing any EHR module, consider the patient/visit spine, the shell layout archetypes, persistent context, role-aware nav, and clinical safety UX as defined in [docs/ehr/system-design-and-architecture-plan.md](docs/ehr/system-design-and-architecture-plan.md).
+- Page-level changes that conflict with the system design plan should either be aligned to it or call out the deviation explicitly.
 
 ## Project-specific conventions
 - Do not bypass module routing conventions; keep handler references as `module-id:functionName` in module route maps.

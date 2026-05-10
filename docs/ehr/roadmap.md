@@ -262,6 +262,48 @@ Acceptance criteria:
 - CDS recommendations remain advisory unless explicitly designed otherwise
 - model-generated content is attributable and reviewable before finalization
 
+## Phase 8: EHR Cohesion & Workspace Spine
+
+**Status (current):** Not started. This phase consolidates the EHR product surface so it reads as one clinical workspace rather than a set of module pages. Full design rationale, page-by-page review, design tokens, role workspaces, and clinical safety UX checklist live in [docs/ehr/system-design-and-architecture-plan.md](docs/ehr/system-design-and-architecture-plan.md).
+
+Outcome:
+- the EHR feels like a single guided patient-care workspace, not a conglomerate of CRUD modules
+- patient identity and active visit are persistent shell concepts, present on every clinical page
+- clinicians land on decisions ("who is next, what is unsigned, what is abnormal") instead of module launchers
+
+Scope (sub-phases):
+1. Cohesion fixes — shell-side label map, regrouped nav (Today / Patients / Clinical / Governance / Operations / System), global design tokens (typography, spacing, radius, button hierarchy, status colours), empty-state pass on every list page, global "Find patient" search.
+2. Patient & Visit context — session-backed `EhrPatientSession`, `ehr.patient.context@1` and `ehr.encounter.progress@1` capabilities, patient header (with allergies, restrictions, active visit) and visit-progress strip rendered unconditionally on Clinical/Patients pages.
+3. Dashboard / worklists — replace dashboard tiles with a clinical command center (queue, active visits, unsigned notes, abnormal results, pending reschedules, restricted-access prompts, quick actions); reframe Schedule and Visits as worklists.
+4. Patient Chart spine — `/admin/ehr/patients/{id}/chart` with sub-tabs Summary · Visits · Notes · Orders · Results · Medications · Documents · Consent · Audit; each tab reuses existing module lists filtered by patient id.
+5. Role-based workspaces — receptionist, nurse, physician, lab, billing, admin, auditor each get filtered nav and a role-specific landing page.
+6. Patient portal refinement — patient-friendly typography, plain-language results, mobile QA, calendar/directions on appointments.
+7. Design system hardening — every page conforms to one of the six layout archetypes (Workboard, List+Detail, Patient Chart, Form, Report, Settings); accessibility audit (focus rings, contrast, keyboard nav).
+
+Modules touched:
+- `ehr` (shell, layouts, helpers)
+- `patient-registry` (chart spine source-of-truth)
+- `encounters` (progress capability, close-visit checklist)
+- `scheduling`, `clinical-notes`, `orders`, `results`, `prescriptions`, `documents`, `privacy-consent`, `audit`, `analytics-cds`, `billing-bridge`, `interoperability-bridge`, `hospital-adt`, `patient-portal` (page-level alignment to archetypes)
+
+Deliverables:
+- shell-side nav label/group map and role-aware filtering
+- `EhrPatientSession` + `ehr.patient.context@1` + `ehr.encounter.progress@1`
+- patient header and visit-progress partials rendered on every Clinical/Patients page
+- dashboard rebuilt as clinical command center
+- patient chart route with tabbed shell
+- six reusable layout partials (workboard, list+detail, chart, form, report, settings)
+- design-token partial set used by admin shell and patient portal
+- empty-state, loading-state, restricted-state, draft/signed, abnormal-result components
+
+Acceptance criteria:
+- no clinical write surface exists without persistent patient + visit context
+- no UUIDs, internal status names, or module-implementation labels appear in user-visible UI
+- allergies, restricted access, and abnormal/critical results are unmissable and audit-logged on view
+- every role sees only nav items they use; receptionist, nurse, physician, lab, billing, admin, auditor each have a defined landing
+- "Close Visit" is a guided checklist, not a status flip
+- patient portal uses patient-friendly language and mobile-friendly density
+
 ## Core data model milestones
 
 Phase 1 table groups:
