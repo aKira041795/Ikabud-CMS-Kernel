@@ -157,7 +157,7 @@ Acceptance criteria:
 
 ## Phase 4: Patient Portal and Consent Workflows
 
-**Status (current):** Phase 4 v1.1 delivered. Portal now exposes Results, Prescriptions, Documents, and Consent pages backed by new `ehr.{result,prescription,document}.list@1` capabilities (released-only / non-restricted filters honoured for `caller_module=patient-portal`) plus consent grant/revoke recording. Proxy/guardian access remains future work.
+**Status (current):** Phase 4 v1.2 delivered. Portal now exposes Results, Prescriptions, Documents, and Consent pages backed by `ehr.{result,prescription,document}.list@1` (released-only / non-restricted filters honoured for `caller_module=patient-portal`), consent grant/revoke recording, and a server-backed **appointment reschedule request** flow: patients submit reasons + preferred window + contact method through an inline form on `/portal/appointments` (table `ehr_portal_reschedule_requests`, audit `ehr.portal.appointment.reschedule_requested`); clinic admins triage them in an inbox at `/admin/ehr/portal/reschedule-requests` (status tabs, Mark handled / Dismiss with audit). Proxy/guardian access remains future work.
 
 Outcome:
 - controlled patient-facing access to selected records and actions
@@ -174,6 +174,7 @@ Modules in scope:
 
 Deliverables:
 - portal-safe read models for appointments, released results, prescriptions, and selected documents
+- patient-submitted appointment reschedule requests with admin triage inbox
 - consent capture screens and consent document linkage
 - patient-facing download and print controls for allowed records
 - proxy access and consent expiration rules
