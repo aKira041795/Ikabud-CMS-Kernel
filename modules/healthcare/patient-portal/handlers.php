@@ -255,11 +255,17 @@ function portalAdminPageIndex(array $params = []): void
     }
     unset($row);
 
+    $input = app()->input();
     $context = ehrAdminContext($user, 'ehr_patient_portal', [
         'page_title' => 'Patient Portal',
         'portal_accounts' => $rows,
         'provision_endpoint' => '/admin/ehr/portal/provision',
         'deactivate_endpoint' => '/admin/ehr/portal/deactivate',
+        'update_endpoint' => '/admin/ehr/portal/update',
+        'reset_password_endpoint' => '/admin/ehr/portal/reset-password',
+        'reactivate_endpoint' => '/admin/ehr/portal/reactivate',
+        'form_notice' => trim((string)($input['notice'] ?? '')),
+        'form_error' => trim((string)($input['error'] ?? '')),
     ]);
 
     echo ehrRender('modules/patient-portal/admin/index.disyl', $context);

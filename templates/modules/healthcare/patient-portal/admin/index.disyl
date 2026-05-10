@@ -20,6 +20,19 @@
             <div class="border-b border-slate-200 px-6 py-4">
                 <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Active accounts</h2>
                 <p class="mt-1 text-xs text-slate-500">Most recent portal accounts and their last sign-in.</p>
+                {if form_notice == 'provisioned'}
+                <div class="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">Portal account provisioned.</div>
+                {elseif form_notice == 'deactivated'}
+                <div class="mt-3 rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">Portal account deactivated.</div>
+                {elseif form_notice == 'reactivated'}
+                <div class="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">Portal account reactivated.</div>
+                {elseif form_notice == 'updated'}
+                <div class="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">Portal email updated.</div>
+                {elseif form_notice == 'password_reset'}
+                <div class="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">Portal password reset. Share the new password with the patient through a secure channel.</div>
+                {elseif form_notice == 'provision_failed' || form_notice == 'deactivate_failed' || form_notice == 'update_failed' || form_notice == 'password_reset_failed' || form_notice == 'reactivate_failed'}
+                <div class="mt-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{if form_error}{form_error}{else}Action failed.{/if}</div>
+                {/if}
             </div>
             <div class="divide-y divide-slate-100">
                 {if portal_accounts}
@@ -47,6 +60,48 @@
                                 <div class="mt-1 text-slate-900">{account.patient_uuid}</div>
                             </div>
                         </div>
+                        <div class="mt-4 space-y-2">
+                            <details class="rounded-lg border border-slate-200 bg-slate-50">
+                                <summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:text-slate-900">Change email</summary>
+                                <form method="POST" action="{update_endpoint}" class="space-y-2 px-3 pb-3 pt-2">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="patient_id" value="{account.patient_id}">
+                                    <input type="hidden" name="redirect" value="/admin/ehr/portal">
+                                    <input type="email" name="email" required value="{account.email}" class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                                    <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">Update email</button>
+                                </form>
+                            </details>
+                            <details class="rounded-lg border border-slate-200 bg-slate-50">
+                                <summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:text-slate-900">Reset password</summary>
+                                <form method="POST" action="{reset_password_endpoint}" class="space-y-2 px-3 pb-3 pt-2">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="patient_id" value="{account.patient_id}">
+                                    <input type="hidden" name="redirect" value="/admin/ehr/portal">
+                                    <input type="text" name="password" minlength="10" required placeholder="New password (min 10 chars)" class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                                    <p class="text-[11px] text-slate-500">Existing portal sessions and pending password-reset links will be invalidated.</p>
+                                    <button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-700">Reset password</button>
+                                </form>
+                            </details>
+                            {if account.status == 'active'}
+                            <details class="rounded-lg border border-rose-200 bg-rose-50">
+                                <summary class="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-rose-600 hover:text-rose-800">Deactivate</summary>
+                                <form method="POST" action="{deactivate_endpoint}" class="space-y-2 px-3 pb-3 pt-2">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="patient_id" value="{account.patient_id}">
+                                    <input type="hidden" name="redirect" value="/admin/ehr/portal">
+                                    <input type="text" name="reason" placeholder="Reason (e.g. Patient request)" class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+                                    <button type="submit" class="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700">Deactivate account</button>
+                                </form>
+                            </details>
+                            {else}
+                            <form method="POST" action="{reactivate_endpoint}" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                                {csrf_field | raw}
+                                <input type="hidden" name="patient_id" value="{account.patient_id}">
+                                <input type="hidden" name="redirect" value="/admin/ehr/portal">
+                                <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700">Reactivate account</button>
+                            </form>
+                            {/if}
+                        </div>
                     </div>
                     {/foreach}
                 {else}
@@ -61,6 +116,7 @@
                 <p class="mt-1 text-xs text-slate-500">Patient must already exist in the registry.</p>
                 <form method="POST" action="{provision_endpoint}" class="mt-4 space-y-3">
                     {csrf_field | raw}
+                    <input type="hidden" name="redirect" value="/admin/ehr/portal">
                     <div>
                         <label class="block text-xs font-medium text-slate-600">Patient ID</label>
                         <input type="number" name="patient_id" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none">
