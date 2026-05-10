@@ -1,0 +1,23 @@
+<header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between gap-4">
+        <a href="/portal/dashboard" class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">P</div>
+            <div>
+                <div class="text-sm font-semibold text-slate-900 leading-tight">Patient Portal</div>
+                <div class="text-xs text-slate-500">{if patient.first_name}{patient.first_name} {patient.last_name}{else}Welcome{/if}</div>
+            </div>
+        </a>
+        <form method="POST" action="{logout_endpoint}">
+            {csrf_field | raw}
+            <button type="submit" class="rounded border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900">Sign out</button>
+        </form>
+    </div>
+    <nav class="mx-auto max-w-6xl px-6 flex gap-1 text-sm overflow-x-auto">
+        <a href="/portal/dashboard" class="px-3 py-3 {if active_nav == 'dashboard'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Overview</a>
+        <a href="/portal/appointments" class="px-3 py-3 {if active_nav == 'appointments'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Appointments</a>
+        <a href="/portal/results" class="px-3 py-3 {if active_nav == 'results'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Results</a>
+        <a href="/portal/prescriptions" class="px-3 py-3 {if active_nav == 'prescriptions'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Prescriptions</a>
+        <a href="/portal/documents" class="px-3 py-3 {if active_nav == 'documents'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Documents</a>
+        <a href="/portal/consent" class="px-3 py-3 {if active_nav == 'consent'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Sharing</a>
+    </nav>
+</header>

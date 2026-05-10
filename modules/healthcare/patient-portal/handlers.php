@@ -151,6 +151,7 @@ function portalPageDashboard(array $params = []): void
 
     echo portalRenderPage('modules/patient-portal/portal/dashboard.disyl', [
         'page_title' => 'Your portal',
+        'active_nav' => 'dashboard',
         'patient' => $patient,
         'session' => $session,
         'upcoming_appointments' => $appointments,
@@ -178,6 +179,7 @@ function portalPageAppointments(array $params = []): void
 
     echo portalRenderPage('modules/patient-portal/portal/appointments.disyl', [
         'page_title' => 'Your appointments',
+        'active_nav' => 'appointments',
         'patient' => $patient,
         'session' => $session,
         'appointments' => $appointments,
@@ -193,6 +195,7 @@ function portalPageResults(array $params = []): void
 
     echo portalRenderPage('modules/patient-portal/portal/results.disyl', [
         'page_title' => 'Your released results',
+        'active_nav' => 'results',
         'patient' => $patient,
         'session' => $session,
         'results' => $results,
@@ -208,6 +211,7 @@ function portalPagePrescriptions(array $params = []): void
 
     echo portalRenderPage('modules/patient-portal/portal/prescriptions.disyl', [
         'page_title' => 'Your prescriptions',
+        'active_nav' => 'prescriptions',
         'patient' => $patient,
         'session' => $session,
         'prescriptions' => $prescriptions,
@@ -223,6 +227,7 @@ function portalPageDocuments(array $params = []): void
 
     echo portalRenderPage('modules/patient-portal/portal/documents.disyl', [
         'page_title' => 'Your documents',
+        'active_nav' => 'documents',
         'patient' => $patient,
         'session' => $session,
         'documents' => $documents,
@@ -238,6 +243,7 @@ function portalPageConsent(array $params = []): void
 
     echo portalRenderPage('modules/patient-portal/portal/consent.disyl', [
         'page_title' => 'Sharing & consent',
+        'active_nav' => 'consent',
         'patient' => $patient,
         'session' => $session,
         'active_consent' => $active,

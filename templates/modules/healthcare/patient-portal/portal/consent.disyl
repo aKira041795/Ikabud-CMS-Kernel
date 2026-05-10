@@ -5,37 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title | default:'Sharing & consent'} — Patient Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    {include "modules/patient-portal/portal/_styles.disyl"}
 </head>
-<body class="min-h-screen bg-slate-50">
-    <header class="bg-white border-b border-slate-200">
-        <div class="mx-auto max-w-5xl px-6 py-4 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="h-9 w-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">P</div>
-                <div>
-                    <div class="text-sm font-semibold text-slate-900">Patient Portal</div>
-                    <div class="text-xs text-slate-500">{if patient.first_name}{patient.first_name} {patient.last_name}{else}Welcome{/if}</div>
-                </div>
-            </div>
-            <form method="POST" action="{logout_endpoint}">
-                {csrf_field | raw}
-                <button type="submit" class="text-sm font-medium text-slate-600 hover:text-slate-900">Sign out</button>
-            </form>
-        </div>
-        <nav class="mx-auto max-w-5xl px-6 pb-3 flex gap-6 text-sm overflow-x-auto">
-            <a href="/portal/dashboard" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Overview</a>
-            <a href="/portal/appointments" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Appointments</a>
-            <a href="/portal/results" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Results</a>
-            <a href="/portal/prescriptions" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Prescriptions</a>
-            <a href="/portal/documents" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Documents</a>
-            <a href="/portal/consent" class="font-semibold text-teal-700 border-b-2 border-teal-600 pb-2 whitespace-nowrap">Sharing</a>
-        </nav>
-    </header>
+<body class="min-h-screen bg-slate-100">
+    {include "modules/patient-portal/portal/_header.disyl"}
 
-    <main class="mx-auto max-w-5xl px-6 py-8 space-y-6">
-        <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 p-6">
-            <h1 class="text-lg font-semibold text-slate-900">Sharing &amp; consent</h1>
-            <p class="mt-1 text-sm text-slate-600">Choose whether your clinic may share your general health information with care partners.</p>
-            <div class="mt-4 rounded-xl bg-slate-50 ring-1 ring-slate-200 p-4">
+    <main class="mx-auto max-w-6xl px-6 py-8 space-y-6">
+        <section class="rounded bg-white shadow-sm ring-1 ring-slate-200 p-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">Privacy</div>
+                    <h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Sharing &amp; consent</h1>
+                    <p class="mt-1 max-w-2xl text-sm text-slate-600">Choose whether your clinic may share your general health information with care partners.</p>
+                </div>
+                {if active_consent}
+                <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                    Consent active
+                </span>
+                {else}
+                <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+                    Action needed
+                </span>
+                {/if}
+            </div>
+
+            <div class="mt-6 rounded bg-slate-50 ring-1 ring-slate-200 p-4">
                 <div class="text-xs uppercase tracking-wide text-slate-500">Current status</div>
                 <div class="mt-1 text-sm font-semibold text-slate-900">
                     {if active_consent}Granted on {active_consent.granted_at | default:'—'}{else}No active consent on file{/if}
@@ -44,8 +40,8 @@
 
             <form method="POST" action="{consent_endpoint}" class="mt-6 flex flex-wrap gap-3">
                 {csrf_field | raw}
-                <button type="submit" name="action" value="grant" class="inline-flex items-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Grant general consent</button>
-                <button type="submit" name="action" value="revoke" class="inline-flex items-center rounded-lg bg-white ring-1 ring-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Revoke consent</button>
+                <button type="submit" name="action" value="grant" class="inline-flex items-center rounded bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Grant general consent</button>
+                <button type="submit" name="action" value="revoke" class="inline-flex items-center rounded bg-white ring-1 ring-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Revoke consent</button>
             </form>
         </section>
     </main>

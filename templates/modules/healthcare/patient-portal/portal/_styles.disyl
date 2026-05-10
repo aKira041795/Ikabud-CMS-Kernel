@@ -1,0 +1,19 @@
+<style>
+    /* Force 3px border radius across the patient portal */
+    .rounded,
+    .rounded-sm, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl,
+    .rounded-t, .rounded-t-sm, .rounded-t-md, .rounded-t-lg, .rounded-t-xl, .rounded-t-2xl, .rounded-t-3xl,
+    .rounded-b, .rounded-b-sm, .rounded-b-md, .rounded-b-lg, .rounded-b-xl, .rounded-b-2xl, .rounded-b-3xl,
+    .rounded-l, .rounded-l-sm, .rounded-l-md, .rounded-l-lg, .rounded-l-xl, .rounded-l-2xl, .rounded-l-3xl,
+    .rounded-r, .rounded-r-sm, .rounded-r-md, .rounded-r-lg, .rounded-r-xl, .rounded-r-2xl, .rounded-r-3xl {
+        border-radius: 3px !important;
+    }
+    .rounded-full,
+    [class*="rounded-full"] {
+        border-radius: 9999px !important;
+    }
+    /* Inputs and buttons inherit too */
+    input, select, textarea, button {
+        border-radius: 3px;
+    }
+</style>

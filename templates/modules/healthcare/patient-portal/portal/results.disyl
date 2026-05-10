@@ -5,49 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title | default:'Your results'} — Patient Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    {include "modules/patient-portal/portal/_styles.disyl"}
 </head>
-<body class="min-h-screen bg-slate-50">
-    <header class="bg-white border-b border-slate-200">
-        <div class="mx-auto max-w-5xl px-6 py-4 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="h-9 w-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">P</div>
-                <div>
-                    <div class="text-sm font-semibold text-slate-900">Patient Portal</div>
-                    <div class="text-xs text-slate-500">{if patient.first_name}{patient.first_name} {patient.last_name}{else}Welcome{/if}</div>
-                </div>
-            </div>
-            <form method="POST" action="{logout_endpoint}">
-                {csrf_field | raw}
-                <button type="submit" class="text-sm font-medium text-slate-600 hover:text-slate-900">Sign out</button>
-            </form>
-        </div>
-        <nav class="mx-auto max-w-5xl px-6 pb-3 flex gap-6 text-sm overflow-x-auto">
-            <a href="/portal/dashboard" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Overview</a>
-            <a href="/portal/appointments" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Appointments</a>
-            <a href="/portal/results" class="font-semibold text-teal-700 border-b-2 border-teal-600 pb-2 whitespace-nowrap">Results</a>
-            <a href="/portal/prescriptions" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Prescriptions</a>
-            <a href="/portal/documents" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Documents</a>
-            <a href="/portal/consent" class="text-slate-600 hover:text-slate-900 pb-2 whitespace-nowrap">Sharing</a>
-        </nav>
-    </header>
+<body class="min-h-screen bg-slate-100">
+    {include "modules/patient-portal/portal/_header.disyl"}
 
-    <main class="mx-auto max-w-5xl px-6 py-8">
-        <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-            <div class="px-6 py-4 border-b border-slate-200">
-                <h1 class="text-lg font-semibold text-slate-900">Your released results</h1>
-                <p class="mt-1 text-sm text-slate-600">Only verified results released by your care team are shown here.</p>
+    <main class="mx-auto max-w-6xl px-6 py-8">
+        <section class="rounded bg-white shadow-sm ring-1 ring-slate-200">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-start justify-between gap-4">
+                <div>
+                    <h1 class="text-lg font-semibold text-slate-900">Your released results</h1>
+                    <p class="mt-1 text-sm text-slate-600">Only verified results released by your care team are shown here.</p>
+                </div>
+                <div class="text-right text-xs text-slate-500">{results | count} total</div>
             </div>
             <div class="divide-y divide-slate-100">
                 {if results}
                     {foreach results as result}
-                    <div class="px-6 py-4 flex items-start justify-between">
-                        <div>
-                            <div class="text-sm font-semibold text-slate-900">{result.value_text | default:result.value_numeric | default:'—'}{if result.unit} <span class="text-xs text-slate-500">{result.unit}</span>{/if}</div>
+                    <div class="px-6 py-4 flex items-start justify-between gap-4">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-slate-900">{result.test_name | default:'Result'}</div>
                             <div class="mt-1 text-xs text-slate-500">Observed {result.observed_at | default:result.released_at | default:'—'}</div>
+                            {if result.value_text || result.value_numeric}
+                            <div class="mt-2 text-base text-slate-900">
+                                <span class="font-semibold">{if result.value_numeric}{result.value_numeric}{else}{result.value_text}{/if}</span>{if result.unit} <span class="text-xs text-slate-500">{result.unit}</span>{/if}
+                            </div>
+                            {/if}
+                            {if result.reference_range_text}<div class="mt-1 text-xs text-slate-400">Reference: {result.reference_range_text}</div>{/if}
                         </div>
                         <div class="flex flex-col items-end gap-1">
-                            {if result.abnormal_flag}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Flagged</span>{/if}
-                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Released</span>
+                            {if result.abnormal_flag && result.abnormal_flag != 'N' && result.abnormal_flag != 'normal'}
+                            <span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700">{result.abnormal_flag}</span>
+                            {else}
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Normal</span>
+                            {/if}
+                            {if !result.acknowledged_at}<span class="text-[10px] font-semibold uppercase tracking-wide text-teal-600">New</span>{/if}
                         </div>
                     </div>
                     {/foreach}
