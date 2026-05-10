@@ -329,6 +329,7 @@ et('ehr admin nav orders dashboard first and settings last', $ehrAdminNavKeys ==
 
 $navGroups = ehrDashboardNavGroups($ehrAdminNavItems);
 $sidebarGroups = ehrSidebarNavGroups($ehrAdminNavItems);
+$dashboardSummary = ehrDashboardSummary();
 $dashboardHtml = ehrRender('admin/dashboard.disyl', array_merge(
     ehrAdminContext($ehrAdminUser, 'ehr_dashboard', ['page_title' => 'EHR Dashboard']),
     [
@@ -336,12 +337,18 @@ $dashboardHtml = ehrRender('admin/dashboard.disyl', array_merge(
         'workspace_nav_groups' => $navGroups['workspace_groups'],
         'admin_nav_items' => $navGroups['administration'],
         'workspace_item_count' => count($navGroups['workspace']),
+        'today_label' => date('l, F j, Y'),
+        'today_iso' => date('Y-m-d'),
+        'summary' => $dashboardSummary,
+        'patient_flow' => ehrDashboardPatientFlow($dashboardSummary),
+        'worklists' => ehrDashboardWorklists($dashboardSummary),
+        'quick_actions' => ehrDashboardQuickActions(),
     ]
 ));
-et('ehr dashboard renders dynamic workspace links', str_contains($dashboardHtml, 'Start using the EHR') && str_contains($dashboardHtml, '/admin/ehr/appointments') && str_contains($dashboardHtml, '/admin/ehr/patients') && str_contains($dashboardHtml, '/admin/ehr/notes'));
-et('ehr dashboard keeps settings in administration section', str_contains($dashboardHtml, '/admin/ehr/settings') && str_contains($dashboardHtml, 'Branding and access controls'));
-et('ehr dashboard renders grouped workspace sections', str_contains($dashboardHtml, 'Patient Flow') && str_contains($dashboardHtml, 'Clinical Workspace') && str_contains($dashboardHtml, 'Governance &amp; Revenue'));
-et('ehr sidebar nav groups keep contextual sections', array_values(array_map(static fn(array $group): string => (string)($group['title'] ?? ''), $sidebarGroups)) === ['Overview', 'Patient Flow', 'Clinical Workspace', 'Governance & Revenue', 'Administration'], json_encode($sidebarGroups));
+et('ehr dashboard renders workspace links', str_contains($dashboardHtml, '/admin/ehr/appointments') && str_contains($dashboardHtml, '/admin/ehr/patients') && str_contains($dashboardHtml, '/admin/ehr/notes'));
+et('ehr dashboard surfaces settings entry', str_contains($dashboardHtml, '/admin/ehr/settings'));
+et('ehr dashboard renders patient flow + worklists', str_contains($dashboardHtml, 'Patient Flow') && str_contains($dashboardHtml, 'My Worklists') && str_contains($dashboardHtml, 'Workspace Modules'));
+et('ehr sidebar nav groups use new clinical structure', array_values(array_map(static fn(array $group): string => (string)($group['title'] ?? ''), $sidebarGroups)) === ['Today', 'Patients', 'Clinical', 'Governance', 'Operations', 'System'], json_encode($sidebarGroups));
 
 $settingsAdminHtml = ehrRender('admin/settings.disyl', array_merge(
     ehrAdminContext($ehrAdminUser, 'ehr_settings', ['page_title' => 'Branding & Access']),
@@ -358,7 +365,7 @@ $settingsAdminHtml = ehrRender('admin/settings.disyl', array_merge(
         'login_url' => '/login',
     ]
 ));
-et('ehr admin layout renders grouped sidebar headings', str_contains($settingsAdminHtml, 'Patient Flow') && str_contains($settingsAdminHtml, 'Clinical Workspace') && str_contains($settingsAdminHtml, 'Governance &amp; Revenue'));
+et('ehr admin layout renders grouped sidebar headings', str_contains($settingsAdminHtml, 'Today') && str_contains($settingsAdminHtml, 'Clinical') && str_contains($settingsAdminHtml, 'Governance'));
 et('ehr admin layout forces 3px sidebar radius', str_contains($settingsAdminHtml, '.ehr-shell-sidebar [class*="rounded"]') && str_contains($settingsAdminHtml, 'border-radius: 3px !important;'));
 et('ehr settings admin page renders through EHR workspace shell', str_contains($settingsAdminHtml, 'EHR Workspace') && str_contains($settingsAdminHtml, 'Branding and Access'));
 et('ehr settings admin page renders module logout action', str_contains($settingsAdminHtml, '/ehr/logout') && str_contains($settingsAdminHtml, 'Sign Out'));

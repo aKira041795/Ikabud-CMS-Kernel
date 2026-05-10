@@ -42,7 +42,7 @@
                                 <div class="text-base font-semibold text-slate-900">{if encounter.patient_summary}{encounter.patient_summary.last_name}, {encounter.patient_summary.first_name}{else}Unknown patient{/if}</div>
                                 <div class="mt-1 text-sm text-slate-600">Encounter UUID: {encounter.encounter_uuid}</div>
                             </div>
-                            <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{encounter.status}</div>
+                            {if encounter.status_badge}{include "modules/healthcare/ehr/partials/_status_badge" with {badge: encounter.status_badge, size: 'sm'}}{else}<div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{encounter.status}</div>{/if}
                         </div>
                         <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
                             <div>
@@ -81,7 +81,7 @@
                     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                         <div class="rounded-2xl bg-slate-50 p-4">
                             <div class="text-xs uppercase tracking-wide text-slate-400">Status</div>
-                            <div class="mt-2 text-sm font-semibold text-slate-900">{selected_encounter.status}</div>
+                            <div class="mt-2">{if selected_encounter.status_badge}{include "modules/healthcare/ehr/partials/_status_badge" with {badge: selected_encounter.status_badge, size: 'lg'}}{else}<span class="text-sm font-semibold text-slate-900">{selected_encounter.status}</span>{/if}</div>
                         </div>
                         <div class="rounded-2xl bg-slate-50 p-4">
                             <div class="text-xs uppercase tracking-wide text-slate-400">Service Line</div>

@@ -13,12 +13,21 @@ function encPageState(array $user, array $input = [], ?string $formError = null)
 
     $selectedEncounterId = max(0, (int)($input['encounter_id'] ?? 0));
     $encounters = encHydrateEncounterPatients(encListRecentEncounters($statusFilter, 25));
+    foreach ($encounters as &$encRow) {
+        if (function_exists('ehrStatusBadge')) {
+            $encRow['status_badge'] = ehrStatusBadge((string)($encRow['status'] ?? ''), 'encounter');
+        }
+    }
+    unset($encRow);
 
     $selectedEncounter = null;
     if ($selectedEncounterId > 0) {
         $selectedEncounter = encFetchEncounterByIdOrUuid($selectedEncounterId);
         if (is_array($selectedEncounter)) {
             $selectedEncounter = encHydrateEncounterPatients([$selectedEncounter])[0] ?? $selectedEncounter;
+            if (function_exists('ehrStatusBadge')) {
+                $selectedEncounter['status_badge'] = ehrStatusBadge((string)($selectedEncounter['status'] ?? ''), 'encounter');
+            }
         }
     }
 
@@ -32,7 +41,7 @@ function encPageState(array $user, array $input = [], ?string $formError = null)
         : ['open', 'completed', 'cancelled'];
 
     return array_merge(
-        ehrAdminContext($user, 'ehr_encounters', ['page_title' => 'Encounters']),
+        ehrAdminContext($user, 'ehr_encounters', ['page_title' => 'Visits']),
         [
             'status_filter' => $statusFilter,
             'encounters' => $encounters,

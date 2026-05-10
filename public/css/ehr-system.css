@@ -1,0 +1,617 @@
+/* EHR UI/UX System - Global styles */
+/* Referenced in: templates/modules/healthcare/ehr/layouts/admin.disyl */
+
+/* ============================================================================
+   Button Component Styles
+   ============================================================================ */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    font-weight: 500;
+    border-radius: 3px;
+    transition: all 0.15s;
+    cursor: pointer;
+    text-decoration: none;
+    border: none;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn:focus-visible {
+    outline-offset: 2px;
+}
+
+.btn-label {
+    display: inline;
+}
+
+.btn-icon {
+    font-weight: bold;
+    display: inline-block;
+}
+
+/* Button sizes */
+.btn-size-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 12px;
+    min-height: 32px;
+}
+
+.btn-size-md {
+    padding: 0.625rem 1rem;
+    font-size: 14px;
+    min-height: 40px;
+}
+
+.btn-size-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 16px;
+    min-height: 48px;
+}
+
+/* Button types */
+.btn-primary {
+    background: #0d9488;
+    color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #0f766e;
+}
+
+.btn-primary:focus-visible {
+    outline: 2px solid #0d9488;
+}
+
+.btn-secondary {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.btn-secondary:focus-visible {
+    outline: 2px solid #cbd5e1;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: #0d9488;
+    border: none;
+    padding: 0.375rem;
+}
+
+.btn-ghost:hover:not(:disabled) {
+    background: #f0fdfa;
+}
+
+.btn-ghost:focus-visible {
+    outline: 2px solid #0d9488;
+}
+
+.btn-destructive {
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+}
+
+.btn-destructive:hover:not(:disabled) {
+    background: #b91c1c;
+}
+
+.btn-destructive:focus-visible {
+    outline: 2px solid #dc2626;
+}
+
+.btn[aria-busy="true"] {
+    opacity: 0.8;
+}
+
+.btn-loader {
+    display: inline-block;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================================
+   Status Badge Styles
+   ============================================================================ */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 500;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.status-badge-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 12px;
+}
+
+.status-badge-lg {
+    padding: 0.5rem 0.75rem;
+    font-size: 14px;
+}
+
+.status-icon {
+    display: inline-block;
+    font-weight: bold;
+}
+
+/* Color palettes */
+.status-badge-slate {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.status-badge-teal {
+    background: #ccfbf1;
+    color: #0d9488;
+}
+
+.status-badge-indigo {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+
+.status-badge-rose {
+    background: #ffe4e6;
+    color: #be123c;
+}
+
+.status-badge-emerald {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-badge-amber {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge-slate-2 {
+    background: #cbd5e1;
+    color: #475569;
+}
+
+/* ============================================================================
+   Layout Styles - Workboard
+   ============================================================================ */
+
+.layout-workboard {
+    padding: 0;
+}
+
+.workboard-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.workboard-header-main h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.workboard-subtitle {
+    margin: 0.5rem 0 0;
+    font-size: 14px;
+    color: #64748b;
+}
+
+.workboard-header-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.workboard-filters {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-select {
+    padding: 0.5rem 0.75rem;
+    font-size: 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    background: #ffffff;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.filter-select:focus {
+    outline: 2px solid #0d9488;
+    outline-offset: 2px;
+}
+
+.workboard-list {
+    border-top: 1px solid #e2e8f0;
+}
+
+.workboard-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    gap: 1rem;
+    min-height: 56px;
+    transition: background-color 0.15s;
+}
+
+.workboard-row:hover {
+    background-color: #f8fafc;
+}
+
+.workboard-content {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.workboard-field {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 14px;
+}
+
+.workboard-field.time {
+    min-width: 50px;
+    font-weight: 600;
+}
+
+.workboard-field.status {
+    min-width: 100px;
+}
+
+.workboard-field.patient-name {
+    flex: 1;
+    min-width: 150px;
+    font-weight: 500;
+}
+
+.workboard-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    white-space: nowrap;
+}
+
+.workboard-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    color: #64748b;
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.5rem;
+}
+
+.empty-description {
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+    max-width: 24rem;
+    color: #64748b;
+}
+
+/* ============================================================================
+   Layout Styles - List+Detail
+   ============================================================================ */
+
+.layout-list-detail {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.list-detail-container {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 0;
+    flex: 1;
+    min-height: calc(100vh - 180px);
+}
+
+.list-panel {
+    border-right: 1px solid #e2e8f0;
+    overflow-y: auto;
+    background: #ffffff;
+}
+
+.list-items {
+    display: flex;
+    flex-direction: column;
+}
+
+.list-item {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.15s;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.list-item:hover {
+    background-color: #f8fafc;
+}
+
+.list-item.selected {
+    background-color: #ecf0f7;
+    border-left: 4px solid #0e7490;
+}
+
+.list-item-title {
+    font-weight: 500;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.list-item-subtitle {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+.list-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.list-empty-desc {
+    font-size: 12px;
+    margin-top: 0.5rem;
+}
+
+.detail-panel {
+    overflow-y: auto;
+    background: #ffffff;
+}
+
+.detail-content {
+    padding: 2rem;
+    max-width: 100%;
+}
+
+.detail-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #94a3b8;
+}
+
+/* ============================================================================
+   Layout Styles - Form Page
+   ============================================================================ */
+
+.layout-form-page {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.form-container {
+    padding: 2rem 0;
+}
+
+.form-section {
+    margin-bottom: 2rem;
+    border: none;
+    padding: 0;
+}
+
+.form-section legend {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    display: block;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    font-weight: 500;
+    font-size: 14px;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.form-required {
+    color: #dc2626;
+    font-weight: bold;
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+    display: block;
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    font-size: 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    transition: border-color 0.15s;
+    font-family: inherit;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+    outline: none;
+    border-color: #0d9488;
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1);
+}
+
+.form-input.has-error,
+.form-textarea.has-error,
+.form-select.has-error {
+    border-color: #dc2626;
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.form-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    margin-right: 0.5rem;
+}
+
+.form-checkbox-label {
+    display: inline;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+.form-error {
+    font-size: 12px;
+    color: #dc2626;
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+.form-help {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 0.5rem;
+}
+
+.form-footer {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-start;
+    padding-top: 2rem;
+    border-top: 1px solid #e2e8f0;
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    z-index: 10;
+}
+
+/* ============================================================================
+   Responsive adjustments
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    .list-detail-container {
+        grid-template-columns: 1fr;
+    }
+
+    .list-panel {
+        display: none;
+    }
+
+    .detail-panel {
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .workboard-content {
+        gap: 0.75rem;
+    }
+
+    .workboard-field {
+        min-width: auto;
+        font-size: 13px;
+    }
+
+    .workboard-field.patient-name {
+        min-width: 100px;
+    }
+
+    .workboard-actions {
+        gap: 0.25rem;
+    }
+
+    .btn-size-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 11px;
+    }
+
+    .workboard-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .workboard-header-actions {
+        width: 100%;
+    }
+
+    .workboard-header-actions .btn {
+        width: 100%;
+    }
+}
+/* Visit Progress Strip */
+.ehr-visit-progress { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.ehr-visit-progress__steps { display: flex; align-items: center; gap: 0.5rem; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
+.ehr-visit-progress__step { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: #64748b; padding: 0.25rem 0.5rem; border-radius: 3px; background: transparent; }
+.ehr-visit-progress__step + .ehr-visit-progress__step::before { content: "→"; color: #cbd5e1; margin-right: 0.25rem; }
+.ehr-visit-progress__dot { display: inline-flex; align-items: center; justify-content: center; width: 1.1rem; height: 1.1rem; border-radius: 999px; font-size: 0.65rem; background: #e2e8f0; color: #94a3b8; }
+.ehr-visit-progress__step--done .ehr-visit-progress__dot { background: #14b8a6; color: #fff; }
+.ehr-visit-progress__step--done .ehr-visit-progress__label { color: #0f766e; }
+.ehr-visit-progress__step--current .ehr-visit-progress__dot { background: #0d9488; color: #fff; box-shadow: 0 0 0 3px rgba(13,148,136,0.18); }
+.ehr-visit-progress__step--current .ehr-visit-progress__label { color: #0f766e; font-weight: 600; }
+.ehr-visit-progress__meta { font-size: 0.7rem; color: #64748b; white-space: nowrap; }
+.ehr-visit-progress__duration { background: #fff; border: 1px solid #e2e8f0; padding: 0.2rem 0.5rem; border-radius: 3px; }
+@media (max-width: 768px) {
+    .ehr-visit-progress { flex-direction: column; align-items: flex-start; }
+    .ehr-visit-progress__step + .ehr-visit-progress__step::before { display: none; }
+}

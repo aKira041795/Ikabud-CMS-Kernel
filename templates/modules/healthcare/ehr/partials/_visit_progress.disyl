@@ -1,0 +1,21 @@
+{# Visit Progress Strip — horizontal stepper for active encounter
+   Required: progress.stages[] (each: key, label, state: done|current|pending)
+   Optional: progress.duration_minutes
+#}
+<div class="ehr-visit-progress" role="group" aria-label="Visit progress">
+    <ol class="ehr-visit-progress__steps">
+        {foreach progress.stages as stage}
+            <li class="ehr-visit-progress__step ehr-visit-progress__step--{stage.state}">
+                <span class="ehr-visit-progress__dot" aria-hidden="true">
+                    {if stage.state == 'done'}&#10003;{else}&#9679;{/if}
+                </span>
+                <span class="ehr-visit-progress__label">{stage.label}</span>
+            </li>
+        {/foreach}
+    </ol>
+    {if progress.duration_minutes}
+        <div class="ehr-visit-progress__meta">
+            <span class="ehr-visit-progress__duration">{progress.duration_minutes} min in visit</span>
+        </div>
+    {/if}
+</div>

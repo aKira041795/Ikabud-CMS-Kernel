@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Ikabud\Kernel\Contracts\ModuleDB;
 
+
 app()->registerAuthTable('ehr', 'ehr_users');
 
 if (function_exists('app') && method_exists(app(), 'hooks')) {
@@ -509,24 +510,26 @@ function ehrDashboardNavGroups(array $navItems): array
         $groupTitle = (string)($group['title'] ?? '');
         $groupItems = is_array($group['items'] ?? null) ? array_values($group['items']) : [];
 
-        if ($groupKey === 'overview') {
+        // Skip system group for dashboard (only on sidebar)
+        if ($groupKey === 'system') {
             continue;
         }
 
-        if ($groupKey === 'administration') {
-            $administration = $groupItems;
-            continue;
-        }
+        // Map new group keys to descriptions
+        $description = match ($groupKey) {
+            'today' => 'Quick access to active workloads.',
+            'patients' => 'Patient demographics, search, and contact.',
+            'clinical' => 'Review notes, orders, results, prescriptions, and documents.',
+            'governance' => 'Compliance, audit trails, and consent tracking.',
+            'operations' => 'Reporting and clinical insights.',
+            default => 'Additional tools and settings.',
+        };
 
         $workspace = array_merge($workspace, $groupItems);
         $workspaceGroups[] = [
             'key' => $groupKey,
             'title' => $groupTitle,
-            'description' => match ($groupKey) {
-                'patient_flow' => 'Coordinate appointments, patient identity, and active visits.',
-                'clinical_workspace' => 'Review notes, orders, results, prescriptions, and chart documents.',
-                default => 'Track consent, audit, reporting, and downstream billing signals.',
-            },
+            'description' => $description,
             'items' => $groupItems,
         ];
     }
@@ -538,32 +541,68 @@ function ehrDashboardNavGroups(array $navItems): array
     ];
 }
 
-function ehrSidebarNavGroups(array $navItems): array
+/**
+ * Label map: translate module nav labels to user-friendly clinical terminology.
+ * Shell-side mapping; modules are not edited.
+ */
+function ehrNavLabelMap(): array
 {
+    return [
+        'Dashboard' => 'Today',
+        'Appointments' => 'Schedule',
+        'Encounters' => 'Visits',
+        'Patient Registry' => 'Patients',
+        'Clinical Notes' => 'Notes',
+        'Prescriptions' => 'Medications',
+        'Privacy & Consent' => 'Consent',
+        'Hospital ADT' => 'Admissions & Beds',
+        'Interoperability' => 'External Systems',
+        'Operations Report' => 'Clinic Activity',
+        'Analytics & CDS' => 'Insights',
+        'Billing Signals' => 'Billing Queue',
+        'Branding & Access' => 'Settings',
+        'Patient Portal' => 'Portal Access',
+        'Audit Trail' => 'Access Activity',
+    ];
+}
+
+/**
+ * Group items into new 6-group navigation structure.
+ * Maps module keys to groups: Today, Patients, Clinical, Governance, Operations, System.
+ */
+function ehrSidebarNavGroups(array $navItems, ?string $userRole = null): array
+{
+    $map = ehrNavLabelMap();
+    
     $groups = [
-        'overview' => [
-            'key' => 'overview',
-            'title' => 'Overview',
+        'today' => [
+            'key' => 'today',
+            'title' => 'Today',
             'items' => [],
         ],
-        'patient_flow' => [
-            'key' => 'patient_flow',
-            'title' => 'Patient Flow',
+        'patients' => [
+            'key' => 'patients',
+            'title' => 'Patients',
             'items' => [],
         ],
-        'clinical_workspace' => [
-            'key' => 'clinical_workspace',
-            'title' => 'Clinical Workspace',
+        'clinical' => [
+            'key' => 'clinical',
+            'title' => 'Clinical',
             'items' => [],
         ],
-        'governance_revenue' => [
-            'key' => 'governance_revenue',
-            'title' => 'Governance & Revenue',
+        'governance' => [
+            'key' => 'governance',
+            'title' => 'Governance',
             'items' => [],
         ],
-        'administration' => [
-            'key' => 'administration',
-            'title' => 'Administration',
+        'operations' => [
+            'key' => 'operations',
+            'title' => 'Operations',
+            'items' => [],
+        ],
+        'system' => [
+            'key' => 'system',
+            'title' => 'System',
             'items' => [],
         ],
     ];
@@ -571,14 +610,27 @@ function ehrSidebarNavGroups(array $navItems): array
     foreach ($navItems as $item) {
         $key = (string)($item['key'] ?? '');
         $groupKey = match ($key) {
-            'ehr_dashboard' => 'overview',
-            'ehr_scheduling', 'ehr_patient_registry', 'ehr_encounters' => 'patient_flow',
-            'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents' => 'clinical_workspace',
-            'ehr_patient_portal', 'ehr_settings' => 'administration',
-            default => 'governance_revenue',
+            'ehr_dashboard', 'ehr_scheduling', 'ehr_encounters' => 'today',
+            'ehr_patient_registry' => 'patients',
+            'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents' => 'clinical',
+            'ehr_privacy_consent', 'ehr_audit' => 'governance',
+            'ehr_reporting_summary', 'ehr_reporting_compliance', 'ehr_billing_bridge', 'ehr_analytics_cds' => 'operations',
+            'ehr_hospital_adt', 'ehr_interop_bridge', 'ehr_users', 'ehr_settings', 'ehr_patient_portal' => 'system',
+            default => 'system',
         };
 
+        // Apply user-friendly label map (shell-side translation; do not edit module.json)
+        $originalLabel = (string)($item['label'] ?? '');
+        if ($originalLabel !== '' && isset($map[$originalLabel])) {
+            $item['label'] = $map[$originalLabel];
+        }
+
         $groups[$groupKey]['items'][] = $item;
+    }
+
+    // Filter System group for non-admin roles
+    if ($userRole && $userRole !== 'admin') {
+        unset($groups['system']);
     }
 
     return array_values(array_filter($groups, static fn(array $group): bool => !empty($group['items'])));
@@ -657,7 +709,7 @@ function ehrAdminContext(array $user, string $currentPage, array $extra = []): a
         'csrf_token' => app()->csrfToken(),
         'csrf_field' => app()->csrfField(),
         'nav_items' => ehrAdminNavItems($user),
-        'sidebar_nav_groups' => ehrSidebarNavGroups(ehrAdminNavItems($user)),
+        'sidebar_nav_groups' => ehrSidebarNavGroups(ehrAdminNavItems($user), $role),
         'user_display' => $displayName,
         'user_role' => ucfirst($role),
         'brand_name' => ehrAppName(),
@@ -1084,9 +1136,12 @@ function ehrPatientContextView(): ?array
     if (!$patientRow) return null;
 
     $encounter = null;
+    $progress = null;
     if ($encounterId > 0) {
         $encResult = ehrSafeCap('ehr.encounter.view@1', ['id' => $encounterId]);
         $encounter = is_array($encResult['encounter'] ?? null) ? $encResult['encounter'] : null;
+        $progResult = ehrSafeCap('ehr.encounter.progress@1', ['encounter_id' => $encounterId]);
+        $progress = is_array($progResult['progress'] ?? null) ? $progResult['progress'] : null;
     }
 
     $first = trim((string)($patientRow['first_name'] ?? ''));
@@ -1124,5 +1179,81 @@ function ehrPatientContextView(): ?array
         ] : null,
         'chart_url' => '/admin/ehr/patients/' . $patientId . '/chart',
         'clear_url' => '/admin/ehr/patients/context/clear',
+        'progress' => $progress,
     ];
+}
+
+/**
+ * Resolve display data for a status badge (color + label + icon)
+ * given a status code and the entity type it belongs to.
+ * Used by the _status_badge partial and any caller that needs to
+ * precompute badge data.
+ */
+function ehrStatusBadge(string $status, string $entity = 'appointment'): array
+{
+    static $map = null;
+    if ($map === null) {
+        $map = [
+            'appointment' => [
+                'scheduled'      => ['color' => 'slate',   'label' => 'Scheduled',     'icon' => '•'],
+                'checked-in'     => ['color' => 'teal',    'label' => 'Checked In',    'icon' => '✓'],
+                'waiting'        => ['color' => 'amber',   'label' => 'Waiting',       'icon' => '⏱'],
+                'roomed'         => ['color' => 'indigo',  'label' => 'Roomed',        'icon' => '◉'],
+                'with-provider'  => ['color' => 'indigo',  'label' => 'With Provider', 'icon' => '👤'],
+                'in-consult'     => ['color' => 'indigo',  'label' => 'In Consult',    'icon' => '◉'],
+                'completed'      => ['color' => 'emerald', 'label' => 'Completed',     'icon' => '✓'],
+                'no-show'        => ['color' => 'rose',    'label' => 'No-show',       'icon' => '✕'],
+                'cancelled'      => ['color' => 'slate-2', 'label' => 'Cancelled',     'icon' => '✕'],
+                'canceled'       => ['color' => 'slate-2', 'label' => 'Cancelled',     'icon' => '✕'],
+            ],
+            'note' => [
+                'draft'          => ['color' => 'rose',    'label' => 'Draft',         'icon' => '◒'],
+                'signed'         => ['color' => 'emerald', 'label' => 'Signed',        'icon' => '✓'],
+                'amended'        => ['color' => 'amber',   'label' => 'Amended',       'icon' => '↻'],
+            ],
+            'order' => [
+                'open'           => ['color' => 'teal',    'label' => 'Open',          'icon' => '•'],
+                'in-progress'    => ['color' => 'indigo',  'label' => 'In Progress',   'icon' => '⟳'],
+                'resulted'       => ['color' => 'emerald', 'label' => 'Resulted',      'icon' => '✓'],
+                'cancelled'      => ['color' => 'slate-2', 'label' => 'Cancelled',     'icon' => '✕'],
+            ],
+            'result' => [
+                'pending'        => ['color' => 'amber',   'label' => 'Pending',       'icon' => '⏱'],
+                'normal'         => ['color' => 'emerald', 'label' => 'Normal',        'icon' => '✓'],
+                'abnormal'       => ['color' => 'rose',    'label' => 'Abnormal',      'icon' => '⚠'],
+                'critical'       => ['color' => 'rose',    'label' => 'Critical',      'icon' => '!'],
+                'released'       => ['color' => 'emerald', 'label' => 'Released',      'icon' => '✓'],
+                'verified'       => ['color' => 'teal',    'label' => 'Verified',      'icon' => '✓'],
+                'entered'        => ['color' => 'slate',   'label' => 'Entered',       'icon' => '•'],
+            ],
+            'encounter' => [
+                'planned'        => ['color' => 'slate',   'label' => 'Planned',       'icon' => '•'],
+                'open'           => ['color' => 'indigo',  'label' => 'In Progress',   'icon' => '⟳'],
+                'in-progress'    => ['color' => 'indigo',  'label' => 'In Progress',   'icon' => '⟳'],
+                'completed'      => ['color' => 'emerald', 'label' => 'Completed',     'icon' => '✓'],
+                'closed'         => ['color' => 'emerald', 'label' => 'Closed',        'icon' => '✓'],
+                'cancelled'      => ['color' => 'slate-2', 'label' => 'Cancelled',     'icon' => '✕'],
+            ],
+            'prescription' => [
+                'active'         => ['color' => 'emerald', 'label' => 'Active',        'icon' => '✓'],
+                'cancelled'      => ['color' => 'slate-2', 'label' => 'Cancelled',     'icon' => '✕'],
+                'completed'      => ['color' => 'slate',   'label' => 'Completed',     'icon' => '✓'],
+            ],
+            'patient' => [
+                'active'         => ['color' => 'emerald', 'label' => 'Active',        'icon' => '✓'],
+                'inactive'       => ['color' => 'slate',   'label' => 'Inactive',      'icon' => '•'],
+                'deceased'       => ['color' => 'slate-2', 'label' => 'Deceased',      'icon' => '✕'],
+            ],
+        ];
+    }
+
+    $key = strtolower(trim($status));
+    $config = $map[$entity][$key] ?? [
+        'color' => 'slate',
+        'label' => $status !== '' ? ucfirst(str_replace(['-', '_'], ' ', $status)) : 'Unknown',
+        'icon'  => '•',
+    ];
+    $config['status'] = $key;
+    $config['entity'] = $entity;
+    return $config;
 }

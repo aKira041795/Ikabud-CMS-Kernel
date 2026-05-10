@@ -1,0 +1,9 @@
+{# Status badge — render with precomputed badge data.
+   Usage: {include "modules/healthcare/ehr/partials/_status_badge" with {badge: ehrStatusBadge(appt.status, 'appointment'), size: 'sm'}}
+   Required: badge.color, badge.label, badge.icon
+   Optional: size = 'sm' | 'lg'
+#}
+<span class="status-badge status-badge-{if size == 'lg'}lg{else}sm{/if} status-badge-{badge.color}" data-status="{badge.status}" data-entity="{badge.entity}" title="{badge.label}">
+    <span class="status-icon" aria-hidden="true">{badge.icon}</span>
+    <span class="status-label">{badge.label}</span>
+</span>

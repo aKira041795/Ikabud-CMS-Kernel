@@ -28,15 +28,22 @@
             <div class="divide-y divide-slate-100">
                 {if patients}
                     {foreach patients as patient}
-                    <a href="{base_url}/admin/ehr/patients?patient_id={patient.id}{if search_query}&q={search_query}{/if}" class="block px-6 py-4 transition hover:bg-slate-50">
+                    <div class="block px-6 py-4 transition hover:bg-slate-50">
                         <div class="flex items-start justify-between gap-4">
-                            <div>
+                            <a href="{base_url}/admin/ehr/patients?patient_id={patient.id}{if search_query}&q={search_query}{/if}" class="flex-1 block">
                                 <div class="text-base font-semibold text-slate-900">{patient.last_name}, {patient.first_name}</div>
                                 <div class="mt-1 text-sm text-slate-600">UUID: {patient.patient_uuid}</div>
+                            </a>
+                            <div class="flex flex-col items-end gap-2">
+                                <span class="status-badge status-badge-sm status-badge-{if patient.status == 'active'}emerald{elseif patient.status == 'inactive'}slate{else}slate-2{/if}">{patient.status}</span>
+                                <form method="POST" action="{base_url}/admin/ehr/patients/context/set" class="inline">
+                                    {csrf_field | raw}
+                                    <input type="hidden" name="patient_id" value="{patient.id}">
+                                    <button type="submit" class="btn btn-size-sm btn-primary">Open Chart</button>
+                                </form>
                             </div>
-                            <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{patient.status}</div>
                         </div>
-                        <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+                        <a href="{base_url}/admin/ehr/patients?patient_id={patient.id}{if search_query}&q={search_query}{/if}" class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
                             <div>
                                 <div class="text-xs uppercase tracking-wide text-slate-400">Birth Date</div>
                                 <div class="mt-1 text-slate-900">{patient.birth_date}</div>
@@ -49,8 +56,8 @@
                                 <div class="text-xs uppercase tracking-wide text-slate-400">Email</div>
                                 <div class="mt-1 text-slate-900">{if patient.email}{patient.email}{else}Not set{/if}</div>
                             </div>
-                        </div>
-                    </a>
+                        </a>
+                    </div>
                     {/foreach}
                 {else}
                     <div class="px-6 py-12 text-center">

@@ -267,3 +267,75 @@ function encounters_cap_ehr_encounter_close_1(mixed $payload, string $resolvedCa
 
     return ['ok' => true, 'encounter' => $closed];
 }
+
+function encounters_cap_ehr_encounter_progress_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $encounterId = (int)($data['encounter_id'] ?? $data['id'] ?? 0);
+    $encounterUuid = trim((string)($data['encounter_uuid'] ?? ''));
+
+    $encounter = encFetchEncounterByIdOrUuid($encounterId, $encounterUuid);
+    if (!is_array($encounter)) {
+        return ['ok' => false, 'error' => 'Encounter not found'];
+    }
+
+    $stages = [
+        ['key' => 'scheduled',    'label' => 'Scheduled'],
+        ['key' => 'checked-in',   'label' => 'Checked In'],
+        ['key' => 'waiting',      'label' => 'Waiting'],
+        ['key' => 'roomed',       'label' => 'Roomed'],
+        ['key' => 'in-progress',  'label' => 'In Progress'],
+        ['key' => 'completed',    'label' => 'Completed'],
+    ];
+
+    $current = strtolower((string)($encounter['status'] ?? 'open'));
+    $aliasMap = ['open' => 'in-progress', 'in_progress' => 'in-progress', 'cancelled' => 'completed'];
+    $current = $aliasMap[$current] ?? $current;
+
+    $currentIndex = -1;
+    foreach ($stages as $i => $stage) {
+        if ($stage['key'] === $current) {
+            $currentIndex = $i;
+            break;
+        }
+    }
+
+    foreach ($stages as $i => &$stage) {
+        if ($currentIndex < 0) {
+            $stage['state'] = 'pending';
+        } elseif ($i < $currentIndex) {
+            $stage['state'] = 'done';
+        } elseif ($i === $currentIndex) {
+            $stage['state'] = 'current';
+        } else {
+            $stage['state'] = 'pending';
+        }
+    }
+    unset($stage);
+
+    $startedAt = (string)($encounter['start_at'] ?? '');
+    $endedAt = (string)($encounter['end_at'] ?? '');
+    $durationMinutes = null;
+    if ($startedAt !== '') {
+        $start = strtotime($startedAt);
+        $end = $endedAt !== '' ? strtotime($endedAt) : time();
+        if ($start !== false && $end !== false && $end >= $start) {
+            $durationMinutes = (int)floor(($end - $start) / 60);
+        }
+    }
+
+    return [
+        'ok' => true,
+        'progress' => [
+            'encounter_id' => (int)$encounter['id'],
+            'encounter_uuid' => (string)($encounter['encounter_uuid'] ?? ''),
+            'patient_id' => (int)($encounter['patient_id'] ?? 0),
+            'stages' => $stages,
+            'current' => $current,
+            'current_index' => $currentIndex,
+            'started_at' => $startedAt !== '' ? $startedAt : null,
+            'ended_at' => $endedAt !== '' ? $endedAt : null,
+            'duration_minutes' => $durationMinutes,
+        ],
+    ];
+}

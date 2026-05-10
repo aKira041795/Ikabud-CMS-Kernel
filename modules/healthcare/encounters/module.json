@@ -48,6 +48,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "ehr.encounter.progress@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -97,6 +104,18 @@
                 "ehr.encounter.close@1": {
                     "allow_callers": [
                         "encounters"
+                    ]
+                },
+                "ehr.encounter.progress@1": {
+                    "allow_callers": [
+                        "encounters",
+                        "ehr",
+                        "scheduling",
+                        "clinical-notes",
+                        "orders",
+                        "results",
+                        "prescriptions",
+                        "documents"
                     ]
                 }
             }
