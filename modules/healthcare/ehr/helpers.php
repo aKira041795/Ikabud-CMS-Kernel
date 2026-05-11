@@ -1394,6 +1394,27 @@ function ehrPatientContextView(): ?array
         } catch (\Throwable $e) { $age = null; }
     }
 
+    // MRN: never expose a UUID in visible text. Fall back to short patient id.
+    $mrnRaw = (string)($patientRow['mrn'] ?? '');
+    $mrn = $mrnRaw !== '' ? $mrnRaw : sprintf('P-%06d', $patientId);
+
+    // Safety chips: allergies + restricted access. Allergies are NEVER silent.
+    $patientStatus = strtolower((string)($patientRow['status'] ?? ''));
+    $isRestricted = in_array($patientStatus, ['restricted', 'sensitive', 'vip', 'break-glass'], true)
+        || !empty($patientRow['restricted_record'])
+        || !empty($patientRow['is_restricted']);
+    $allergies = ehrSafeCap('ehr.patient.allergies@1', ['patient_id' => $patientId]);
+    $allergyList = is_array($allergies['allergies'] ?? null) ? $allergies['allergies'] : [];
+    $allergySummary = [
+        'has_data' => !empty($allergies['captured']) || !empty($allergyList),
+        'items' => array_values(array_filter(array_map(static function ($a): string {
+            if (is_string($a)) return trim($a);
+            if (is_array($a)) return trim((string)($a['substance'] ?? $a['name'] ?? $a['allergen'] ?? ''));
+            return '';
+        }, $allergyList))),
+        'nka' => !empty($allergies['no_known_allergies']),
+    ];
+
     return [
         'patient_id' => $patientId,
         'encounter_id' => $encounterId,
@@ -1401,9 +1422,11 @@ function ehrPatientContextView(): ?array
         'initial' => $initial,
         'sex' => (string)($patientRow['sex'] ?? $patientRow['gender'] ?? ''),
         'age' => $age,
-        'mrn' => (string)($patientRow['mrn'] ?? $patientRow['patient_uuid'] ?? ''),
+        'mrn' => $mrn,
         'birth_date' => $birth,
         'status' => (string)($patientRow['status'] ?? ''),
+        'restricted' => $isRestricted,
+        'allergies' => $allergySummary,
         'encounter' => $encounter ? [
             'id' => (int)($encounter['id'] ?? 0),
             'type' => (string)($encounter['encounter_type'] ?? ''),
