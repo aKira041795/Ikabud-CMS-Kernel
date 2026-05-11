@@ -19,5 +19,9 @@
         <a href="/portal/prescriptions" class="px-3 py-3 {if active_nav == 'prescriptions'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Medications</a>
         <a href="/portal/documents" class="px-3 py-3 {if active_nav == 'documents'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Documents</a>
         <a href="/portal/consent" class="px-3 py-3 {if active_nav == 'consent'}font-semibold text-teal-700 border-b-2 border-teal-600{else}text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-200{/if} whitespace-nowrap">Sharing</a>
+        <span class="ml-auto flex items-center gap-3 px-3 text-xs text-slate-500">
+            {if clinic.help_phone}<a href="tel:{clinic.help_phone}" class="hover:text-teal-700 whitespace-nowrap">📞 {clinic.help_phone}</a>{/if}
+            {if clinic.help_email}<a href="mailto:{clinic.help_email}" class="hover:text-teal-700 whitespace-nowrap">✉ Help</a>{/if}
+        </span>
     </nav>
 </header>

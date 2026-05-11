@@ -15,6 +15,7 @@ return [
         '/portal/prescriptions' => 'patient-portal:portalPagePrescriptions',
         '/portal/documents' => 'patient-portal:portalPageDocuments',
         '/portal/consent' => 'patient-portal:portalPageConsent',
+        '/portal/appointments/{uuid}/calendar.ics' => 'patient-portal:portalAppointmentDownloadIcs',
         '/admin/ehr/portal' => 'patient-portal:portalAdminPageIndex',
         '/admin/ehr/portal/reschedule-requests' => 'patient-portal:portalAdminPageRescheduleRequests',
     ],

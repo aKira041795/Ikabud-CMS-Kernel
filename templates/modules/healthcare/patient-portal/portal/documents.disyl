@@ -10,18 +10,19 @@
 <body class="min-h-screen bg-slate-100">
     {include "modules/patient-portal/portal/_header.disyl"}
 
-    <main class="mx-auto max-w-6xl px-6 py-8">
-        <section class="rounded bg-white shadow-sm ring-1 ring-slate-200">
-            <div class="px-6 py-4 border-b border-slate-200 flex items-start justify-between gap-4">
-                <div>
-                    <h1 class="text-lg font-semibold text-slate-900">Your documents</h1>
-                    <p class="mt-1 text-sm text-slate-600">Documents shared by your care team. Restricted items are not shown here.</p>
+    <main class="mx-auto max-w-6xl px-6 py-8 space-y-6">
+        {if document_groups}
+            {foreach document_groups as group}
+            <section class="rounded bg-white shadow-sm ring-1 ring-slate-200">
+                <div class="px-6 py-4 border-b border-slate-200 flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-900">{group.title}</h2>
+                        <p class="mt-1 text-xs text-slate-500">Shared by your care team.</p>
+                    </div>
+                    <div class="text-xs text-slate-500">{group.count} on file</div>
                 </div>
-                <div class="text-right text-xs text-slate-500">{documents | count} on file</div>
-            </div>
-            <div class="divide-y divide-slate-100">
-                {if documents}
-                    {foreach documents as doc}
+                <div class="divide-y divide-slate-100">
+                    {foreach group.items as doc}
                     <div class="px-6 py-4 flex items-start gap-4">
                         <div class="flex-shrink-0 h-10 w-10 rounded bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold">DOC</div>
                         <div class="flex-1 min-w-0">
@@ -32,11 +33,18 @@
                         <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 capitalize">{doc.sensitivity_level | default:'standard'}</span>
                     </div>
                     {/foreach}
-                {else}
-                    <div class="px-6 py-12 text-center text-sm text-slate-500">No documents have been shared with you yet.</div>
-                {/if}
-            </div>
-        </section>
+                </div>
+            </section>
+            {/foreach}
+        {else}
+            <section class="rounded bg-white shadow-sm ring-1 ring-slate-200">
+                <div class="px-6 py-12 text-center">
+                    <div class="mx-auto mb-3 text-4xl text-slate-300">📁</div>
+                    <div class="text-sm font-semibold text-slate-700">No documents yet</div>
+                    <div class="mt-1 text-xs text-slate-500">When your care team shares a document with you, it will appear here grouped by type.</div>
+                </div>
+            </section>
+        {/if}
     </main>
 </body>
 </html>

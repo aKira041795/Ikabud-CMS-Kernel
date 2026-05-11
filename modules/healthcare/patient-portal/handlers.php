@@ -10,6 +10,7 @@ function portalRenderPage(string $template, array $context = []): string
         'brand_name' => 'Patient Portal',
         'csrf_token' => app()->csrfToken(),
         'csrf_field' => app()->csrfField(),
+        'clinic' => portalClinicInfo(),
     ], $context));
 }
 
@@ -289,12 +290,35 @@ function portalPageDocuments(array $params = []): void
     $patient = portalPatientSummary((int)$session['patient_id']);
     $documents = portalPatientDocuments((int)$session['patient_id'], 50);
 
+    // Group by document_type for the patient-friendly portal view.
+    $labels = [
+        'lab_report'  => 'Lab reports',
+        'imaging'     => 'Imaging',
+        'avs'         => 'After-visit summary',
+        'after_visit' => 'After-visit summary',
+        'form'        => 'Forms',
+        'consent'     => 'Consent forms',
+        'general'     => 'Other documents',
+    ];
+    $buckets = [];
+    foreach ($documents as $d) {
+        $type = (string)($d['document_type'] ?? 'general');
+        $title = $labels[$type] ?? ucwords(str_replace('_', ' ', $type !== '' ? $type : 'Other documents'));
+        $buckets[$title][] = $d;
+    }
+    $grouped = [];
+    foreach ($buckets as $title => $items) {
+        $grouped[] = ['title' => $title, 'items' => $items, 'count' => count($items)];
+    }
+    usort($grouped, static fn(array $a, array $b): int => strcmp((string)$a['title'], (string)$b['title']));
+
     echo portalRenderPage('modules/patient-portal/portal/documents.disyl', [
         'page_title' => 'Your documents',
         'active_nav' => 'documents',
         'patient' => $patient,
         'session' => $session,
         'documents' => $documents,
+        'document_groups' => $grouped,
         'logout_endpoint' => '/portal/logout',
     ]);
 }
@@ -983,4 +1007,53 @@ function portalRegister(array $params = []): void
     }
 
     app()->redirect('/portal/login?notice=registered');
+}
+
+/**
+ * Stream a single appointment as an .ics calendar event for the signed-in
+ * patient. Per docs/ehr/system-design-and-architecture-plan.md §L.
+ */
+function portalAppointmentDownloadIcs(array $params = []): void
+{
+    $session = portalRequireSession();
+    $patientId = (int)$session['patient_id'];
+    $uuid = trim((string)($params['uuid'] ?? ''));
+    if ($uuid === '') {
+        http_response_code(400);
+        echo 'Missing appointment id';
+        return;
+    }
+
+    $appointments = portalPatientAppointments($patientId, 100);
+    $match = null;
+    foreach ($appointments as $a) {
+        if ((string)($a['appointment_uuid'] ?? '') === $uuid) {
+            $match = $a;
+            break;
+        }
+    }
+    if ($match === null) {
+        http_response_code(404);
+        echo 'Appointment not found';
+        return;
+    }
+
+    $clinic = portalClinicInfo();
+    $ics = portalAppointmentIcs($match, $clinic);
+    if ($ics === null) {
+        http_response_code(422);
+        echo 'Cannot build calendar event';
+        return;
+    }
+
+    portalAuditRecord('ehr.portal.appointment.ics_download', [
+        'patient_id' => $patientId,
+        'new_data' => ['appointment_uuid' => $uuid],
+    ]);
+
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+    header('Content-Type: text/calendar; charset=utf-8');
+    header('Content-Disposition: attachment; filename="appointment-' . preg_replace('/[^A-Za-z0-9_-]/', '_', $uuid) . '.ics"');
+    header('Cache-Control: no-store');
+    echo $ics;
 }

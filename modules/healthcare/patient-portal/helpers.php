@@ -336,6 +336,106 @@ function portalAuditRecord(string $action, array $payload): void
     }
 }
 
+/**
+ * Read clinic identity / contact / address from EHR module settings so the
+ * portal can render "contact clinic" + "get directions" + .ics ORGANIZER.
+ */
+function portalClinicInfo(): array
+{
+    $defaults = [
+        'name' => 'Your Clinic',
+        'phone' => '',
+        'support_email' => '',
+        'website_url' => '',
+        'address_line1' => '',
+        'address_line2' => '',
+        'city' => '',
+        'state' => '',
+        'postal_code' => '',
+        'country' => 'US',
+        'timezone' => 'UTC',
+    ];
+    try {
+        if (function_exists('getModuleSettings')) {
+            $s = getModuleSettings('ehr');
+            if (is_array($s) && !empty($s)) {
+                foreach ($defaults as $k => $_) {
+                    if (isset($s[$k]) && (string)$s[$k] !== '') {
+                        $defaults[$k] = (string)$s[$k];
+                    }
+                }
+                if (!empty($s['organization_name'])) {
+                    $defaults['name'] = (string)$s['organization_name'];
+                } elseif (!empty($s['org_name'])) {
+                    $defaults['name'] = (string)$s['org_name'];
+                }
+            }
+        }
+    } catch (\Throwable $e) { /* fall back to defaults */ }
+
+    $addressParts = array_filter([
+        trim((string)$defaults['address_line1']),
+        trim((string)$defaults['address_line2']),
+        trim(implode(', ', array_filter([
+            trim((string)$defaults['city']),
+            trim(trim((string)$defaults['state']) . ' ' . trim((string)$defaults['postal_code'])),
+        ]))),
+    ], static fn(string $p): bool => $p !== '');
+    $defaults['address_full'] = implode(' · ', $addressParts);
+    $defaults['directions_url'] = $defaults['address_full'] !== ''
+        ? 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($defaults['address_full'])
+        : '';
+    $defaults['help_email'] = $defaults['support_email'];
+    $defaults['help_phone'] = $defaults['phone'];
+
+    return $defaults;
+}
+
+/**
+ * Build an RFC-5545 .ics calendar event for a single portal appointment.
+ * Returns null when the appointment cannot be rendered safely.
+ */
+function portalAppointmentIcs(array $appointment, array $clinic): ?string
+{
+    $start = (string)($appointment['scheduled_start'] ?? '');
+    if ($start === '') return null;
+    try {
+        $tz = new \DateTimeZone((string)($clinic['timezone'] ?: 'UTC'));
+        $dtStart = new \DateTimeImmutable($start, $tz);
+        $endRaw = (string)($appointment['scheduled_end'] ?? '');
+        $dtEnd = $endRaw !== ''
+            ? new \DateTimeImmutable($endRaw, $tz)
+            : $dtStart->modify('+30 minutes');
+    } catch (\Throwable $e) { return null; }
+
+    $fmt = static fn(\DateTimeImmutable $d): string => $d->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+    $esc = static fn(string $s): string => addcslashes(strip_tags($s), ",;\\\n");
+
+    $uid = (string)($appointment['appointment_uuid'] ?? bin2hex(random_bytes(8))) . '@patient-portal';
+    $summary = $esc(trim((string)($clinic['name'] ?? '') . ' — ' . (string)($appointment['appointment_type'] ?? 'Visit'), ' —'));
+    $description = $esc((string)($appointment['reason_for_visit'] ?? '') . ($clinic['help_phone'] ? "\nClinic: " . $clinic['help_phone'] : ''));
+    $location = $esc((string)($clinic['address_full'] ?? ''));
+
+    $lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Ikabud//Patient Portal//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        'UID:' . $uid,
+        'DTSTAMP:' . gmdate('Ymd\THis\Z'),
+        'DTSTART:' . $fmt($dtStart),
+        'DTEND:' . $fmt($dtEnd),
+        'SUMMARY:' . $summary,
+        'DESCRIPTION:' . $description,
+    ];
+    if ($location !== '') $lines[] = 'LOCATION:' . $location;
+    $lines[] = 'END:VEVENT';
+    $lines[] = 'END:VCALENDAR';
+    return implode("\r\n", $lines) . "\r\n";
+}
+
 function patient_portal_cap_ehr_portal_account_provision_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];
