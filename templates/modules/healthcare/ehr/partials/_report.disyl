@@ -1,0 +1,10 @@
+<!-- Report Page Archetype scaffold.
+     KPI strip + controls + charts/tables + export.
+     See docs/ehr/system-design-and-architecture-plan.md §E.
+
+     Required context:
+       - header   {title, eyebrow?, subtitle?, primary? (export CTA), secondary?}
+       - kpis[]?  KPI tiles for the strip
+-->
+{include "modules/ehr/partials/_page_header.disyl" with {header: header}}
+{if kpis}<div class="mb-5">{include "modules/ehr/partials/_kpi_strip.disyl" with {kpis: kpis}}</div>{/if}

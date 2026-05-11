@@ -1,0 +1,22 @@
+<!-- Page Header — standardized title row across EHR archetypes.
+     Required: header.title
+     Optional: header.eyebrow, header.subtitle, header.primary {url, label, icon}, header.secondary[]{url, label} -->
+<header class="mb-5 flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+        {if header.eyebrow}<div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-700">{header.eyebrow}</div>{/if}
+        <h1 class="mt-1 text-xl font-semibold tracking-tight text-slate-900">{header.title}</h1>
+        {if header.subtitle}<p class="mt-1 text-sm text-slate-500">{header.subtitle}</p>{/if}
+    </div>
+    {if header.primary || header.secondary}
+    <div class="flex flex-wrap items-center gap-2">
+        {if header.secondary}
+            {foreach header.secondary as s}
+            <a href="{s.url}" class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-teal-300">{if s.icon}<span aria-hidden="true">{s.icon}</span> {/if}{s.label}</a>
+            {/foreach}
+        {/if}
+        {if header.primary}
+        <a href="{header.primary.url}" class="inline-flex items-center gap-1 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-700">{if header.primary.icon}<span aria-hidden="true">{header.primary.icon}</span> {/if}{header.primary.label}</a>
+        {/if}
+    </div>
+    {/if}
+</header>

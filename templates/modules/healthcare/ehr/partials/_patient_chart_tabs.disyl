@@ -1,0 +1,16 @@
+<!-- Patient Chart Archetype scaffold.
+     Sticky patient header is provided by layouts/admin.disyl when ehrPatientContextSet() is active.
+     This partial renders only the sub-tabs row.
+     See docs/ehr/system-design-and-architecture-plan.md §E.
+
+     Required context:
+       - tabs[] each: {key, label, url, active?, count?}
+-->
+<nav class="mb-5 flex flex-wrap gap-1 border-b border-slate-200" aria-label="Patient chart sections">
+    {foreach tabs as t}
+    <a href="{t.url}" class="inline-flex items-center gap-1 rounded-t-md px-3 py-2 text-xs font-semibold uppercase tracking-wide {if t.active}border border-b-0 border-slate-200 bg-white text-teal-700{else}text-slate-500 hover:text-teal-700{/if}">
+        <span>{t.label}</span>
+        {if t.count}<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{t.count}</span>{/if}
+    </a>
+    {/foreach}
+</nav>

@@ -1,0 +1,12 @@
+<!-- KPI Strip — standardized 4–6 stat tiles for Workboard / Report archetypes.
+     Required: kpis[] each: {label, value, hint?, color?}
+     color: teal | amber | sky | indigo | emerald | rose | slate (default slate) -->
+<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-{kpis | count}">
+    {foreach kpis as k}
+    <div class="rounded-md border {if k.color == 'teal'}border-teal-200 bg-teal-50/70{elseif k.color == 'amber'}border-amber-200 bg-amber-50/70{elseif k.color == 'sky'}border-sky-200 bg-sky-50/70{elseif k.color == 'indigo'}border-indigo-200 bg-indigo-50/70{elseif k.color == 'emerald'}border-emerald-200 bg-emerald-50/70{elseif k.color == 'rose'}border-rose-200 bg-rose-50/70{else}border-slate-200 bg-slate-50/70{/if} p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] {if k.color == 'teal'}text-teal-700{elseif k.color == 'amber'}text-amber-700{elseif k.color == 'sky'}text-sky-700{elseif k.color == 'indigo'}text-indigo-700{elseif k.color == 'emerald'}text-emerald-700{elseif k.color == 'rose'}text-rose-700{else}text-slate-600{/if}">{k.label}</div>
+        <div class="mt-1 text-3xl font-semibold {if k.color == 'teal'}text-teal-900{elseif k.color == 'amber'}text-amber-900{elseif k.color == 'sky'}text-sky-900{elseif k.color == 'indigo'}text-indigo-900{elseif k.color == 'emerald'}text-emerald-900{elseif k.color == 'rose'}text-rose-900{else}text-slate-800{/if}">{k.value}</div>
+        {if k.hint}<div class="text-xs {if k.color == 'teal'}text-teal-700/80{elseif k.color == 'amber'}text-amber-700/80{elseif k.color == 'sky'}text-sky-700/80{elseif k.color == 'indigo'}text-indigo-700/80{elseif k.color == 'emerald'}text-emerald-700/80{elseif k.color == 'rose'}text-rose-700/80{else}text-slate-500{/if}">{k.hint}</div>{/if}
+    </div>
+    {/foreach}
+</div>

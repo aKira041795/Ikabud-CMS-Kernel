@@ -1,0 +1,18 @@
+<!-- Workboard Archetype — page scaffold for queue / Today / Active Visits / Billing Queue.
+     Provides standard page header + filter slot + grouped rows + empty state.
+     See docs/ehr/system-design-and-architecture-plan.md §E.
+
+     Required context:
+       - header     {title, eyebrow?, subtitle?, primary?, secondary?}
+       - kpis[]?    KPI tiles for the strip (see _kpi_strip.disyl)
+       - empty?     {title, body?, icon?, cta?}    used when the caller indicates no rows
+
+     Render the row body in the caller; this scaffold supplies header chrome only.
+     Caller pattern:
+       {include "modules/ehr/partials/_workboard.disyl" with {header: ..., kpis: ...}}
+       <section class="rounded-md border border-slate-200 bg-white">
+         {if rows} ...rows... {else}{include "modules/ehr/partials/_empty_state.disyl" with {empty: ...}}{/if}
+       </section>
+-->
+{include "modules/ehr/partials/_page_header.disyl" with {header: header}}
+{if kpis}<div class="mb-5">{include "modules/ehr/partials/_kpi_strip.disyl" with {kpis: kpis}}</div>{/if}

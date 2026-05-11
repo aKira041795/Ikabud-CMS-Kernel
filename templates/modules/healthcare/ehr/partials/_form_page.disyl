@@ -1,0 +1,12 @@
+<!-- Form Page Archetype scaffold.
+     Single column ≤ 720px wide for clinical/admin write surfaces.
+     See docs/ehr/system-design-and-architecture-plan.md §E.
+
+     Required context:
+       - header     {title, eyebrow?, subtitle?, primary?, secondary?}
+     Caller wraps form rows inside the returned wrapper.
+-->
+{include "modules/ehr/partials/_page_header.disyl" with {header: header}}
+<div class="mx-auto max-w-[720px]">
+    <!-- Caller renders form sections here. -->
+</div>

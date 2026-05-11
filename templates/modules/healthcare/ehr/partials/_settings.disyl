@@ -1,0 +1,16 @@
+<!-- Settings Page Archetype scaffold.
+     Left section nav + right form panel.
+     See docs/ehr/system-design-and-architecture-plan.md §E.
+
+     Required context:
+       - header     {title, eyebrow?, subtitle?, primary?, secondary?}
+       - sections[] each: {key, label, url, active?}
+-->
+{include "modules/ehr/partials/_page_header.disyl" with {header: header}}
+{if sections}
+<aside class="mb-4 flex flex-wrap gap-1 border-b border-slate-200">
+    {foreach sections as s}
+    <a href="{s.url}" class="rounded-t-md px-3 py-2 text-xs font-semibold uppercase tracking-wide {if s.active}border border-b-0 border-slate-200 bg-white text-teal-700{else}text-slate-500 hover:text-teal-700{/if}">{s.label}</a>
+    {/foreach}
+</aside>
+{/if}

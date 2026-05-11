@@ -1,0 +1,9 @@
+<!-- Empty State — standardized "nothing here yet" component.
+     Required: empty.title
+     Optional: empty.icon (emoji or single char), empty.body, empty.cta {url, label} -->
+<div class="px-6 py-16 text-center">
+    {if empty.icon}<div class="mx-auto mb-3 text-4xl text-slate-300" aria-hidden="true">{empty.icon}</div>{/if}
+    <div class="text-sm font-semibold text-slate-700">{empty.title}</div>
+    {if empty.body}<div class="mt-1 text-xs text-slate-500">{empty.body}</div>{/if}
+    {if empty.cta}<a href="{empty.cta.url}" class="mt-4 inline-flex items-center rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-700">{empty.cta.label}</a>{/if}
+</div>

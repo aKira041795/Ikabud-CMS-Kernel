@@ -1,0 +1,15 @@
+<!-- List + Side Detail Archetype scaffold.
+     Used by Patients / Visits / Notes / Orders / Results / Medications / Documents.
+     See docs/ehr/system-design-and-architecture-plan.md §E.
+
+     Required context:
+       - header     {title, eyebrow?, subtitle?, primary?, secondary?}
+     The grid is rendered by the caller; this scaffold only provides the header.
+     Caller pattern:
+       {include "modules/ehr/partials/_list_detail.disyl" with {header: ...}}
+       <div class="grid gap-6 lg:grid-cols-[2fr_3fr]">
+         <aside>...list...</aside>
+         <section>...inspector for ?selected=...</section>
+       </div>
+-->
+{include "modules/ehr/partials/_page_header.disyl" with {header: header}}
