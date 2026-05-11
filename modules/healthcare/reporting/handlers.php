@@ -24,6 +24,7 @@ function rptPageSummary(array $params = []): void
     echo ehrRender('modules/reporting/admin/summary.disyl', array_merge(
         ehrAdminContext($user, 'ehr_reporting_summary', [
             'page_title' => 'Clinic Activity',
+            'insights_tab' => 'operations',
         ]),
         [
             'filters' => [
@@ -89,6 +90,7 @@ function rptPageCompliance(array $params = []): void
     echo ehrRender('modules/reporting/admin/compliance.disyl', array_merge(
         ehrAdminContext($user, 'ehr_reporting_compliance', [
             'page_title' => 'Privacy & Audit Report',
+            'insights_tab' => 'compliance',
         ]),
         [
             'filters' => [

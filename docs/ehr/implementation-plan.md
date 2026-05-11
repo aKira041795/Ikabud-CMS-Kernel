@@ -2278,13 +2278,14 @@ Target layout: [Workboard | List+Detail | Form | Report | Settings]
 | Orders | 2 | ✅ done | 3–4h | Status badge + KPI strip |
 | Results | 2 | ✅ done | 4–5h | Status badge + triage strip |
 | Medications (Rx) | 2 | ✅ done | 3–4h | Rename + status badge |
-| Documents | 2b | ⏳ pending | 3–4h | Workboard |
-| Consent | 2b | ⏳ pending | 4–5h | Form + Workboard |
+| Documents | 2b | ✅ done | 3–4h | Workboard sensitivity bucket strip |
+| Consent | 2b | ✅ done | 4–5h | Status bucket strip (granted/expired/revoked/break-glass) |
 | Access Activity (Audit) | 2b | ✅ done | 4–5h | Search + break-glass filter + human-readable events |
 | Billing Queue | 3 | ✅ done | 2–3h | Renamed (workboard pending) |
 | Portal Access | 3 | ✅ done | 2–3h | Renamed (workboard pending) |
-| Insights (Analytics) | 3 | 🚧 partial | 3–4h | Renamed; tab-unification pending |
-| Portal (patient-side) | 3 | ⏳ pending | 4–6h | Typography, responsive |
+| Insights (Analytics) | 3 | ✅ done | 3–4h | Tab nav unifies CDS / Clinic activity / Privacy & audit |
+| Portal (patient-side) | 3 | ✅ done | 4–6h | Typography baseline, touch targets, focus rings |
+| Role-aware nav | X | ✅ done | — | Per-role allow-list + route-level enforcement |
 | — | — | — | **59–78h** | — |
 
 *Total effort: ~2–2.5 weeks for one developer working full-time.*

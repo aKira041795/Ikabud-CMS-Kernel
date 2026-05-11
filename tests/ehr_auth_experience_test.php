@@ -358,6 +358,74 @@ et('ehr dashboard surfaces settings entry', str_contains($dashboardHtml, '/admin
 et('ehr dashboard renders patient flow + worklists', str_contains($dashboardHtml, 'Patient Flow') && str_contains($dashboardHtml, 'My Worklists') && str_contains($dashboardHtml, 'Workspace Modules'));
 et('ehr sidebar nav groups use new clinical structure', array_values(array_map(static fn(array $group): string => (string)($group['title'] ?? ''), $sidebarGroups)) === ['Today', 'Patients', 'Clinical', 'Governance', 'Operations', 'System'], json_encode($sidebarGroups));
 
+// Role-aware nav: verify each role only sees its intended groups/keys.
+$roleNavCases = [
+    'physician' => [
+        'expected_groups' => ['Today', 'Patients', 'Clinical', 'Operations'],
+        'must_have_keys' => ['ehr_dashboard', 'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_analytics_cds'],
+        'must_not_have_keys' => ['ehr_settings', 'ehr_users', 'ehr_audit', 'ehr_billing_bridge'],
+    ],
+    'nurse' => [
+        'expected_groups' => ['Today', 'Patients', 'Clinical'],
+        'must_have_keys' => ['ehr_clinical_notes', 'ehr_documents', 'ehr_hospital_adt'],
+        'must_not_have_keys' => ['ehr_settings', 'ehr_audit', 'ehr_analytics_cds', 'ehr_billing_bridge'],
+    ],
+    'front_desk' => [
+        'expected_groups' => ['Today', 'Patients'],
+        'must_have_keys' => ['ehr_scheduling', 'ehr_patient_registry', 'ehr_patient_portal'],
+        'must_not_have_keys' => ['ehr_orders', 'ehr_audit', 'ehr_billing_bridge', 'ehr_settings'],
+    ],
+    'billing' => [
+        'expected_groups' => ['Today', 'Operations'],
+        'must_have_keys' => ['ehr_billing_bridge', 'ehr_reporting_summary'],
+        'must_not_have_keys' => ['ehr_clinical_notes', 'ehr_audit', 'ehr_settings'],
+    ],
+    'auditor' => [
+        'expected_groups' => ['Today', 'Governance', 'Operations'],
+        'must_have_keys' => ['ehr_audit', 'ehr_privacy_consent', 'ehr_reporting_compliance'],
+        'must_not_have_keys' => ['ehr_clinical_notes', 'ehr_orders', 'ehr_settings', 'ehr_billing_bridge'],
+    ],
+    'admin' => [
+        'expected_groups' => ['Today', 'Patients', 'Clinical', 'Governance', 'Operations', 'System'],
+        'must_have_keys' => ['ehr_settings', 'ehr_audit', 'ehr_billing_bridge', 'ehr_patient_portal'],
+        'must_not_have_keys' => [],
+    ],
+];
+foreach ($roleNavCases as $role => $expect) {
+    $roleGroups = ehrSidebarNavGroups($ehrAdminNavItems, $role);
+    $groupTitles = array_values(array_map(static fn(array $g): string => (string)($g['title'] ?? ''), $roleGroups));
+    $keys = [];
+    foreach ($roleGroups as $g) {
+        foreach (($g['items'] ?? []) as $it) {
+            $keys[] = (string)($it['key'] ?? '');
+        }
+    }
+    $titlesOk = $groupTitles === $expect['expected_groups'];
+    $hasOk = true;
+    foreach ($expect['must_have_keys'] as $k) {
+        if (!in_array($k, $keys, true)) {
+            $hasOk = false;
+            break;
+        }
+    }
+    $absentOk = true;
+    foreach ($expect['must_not_have_keys'] as $k) {
+        if (in_array($k, $keys, true)) {
+            $absentOk = false;
+            break;
+        }
+    }
+    et("ehr sidebar role={$role} shows correct groups and keys", $titlesOk && $hasOk && $absentOk, json_encode(['titles' => $groupTitles, 'keys' => $keys]));
+}
+
+// Route → nav-key resolution drives URL-level enforcement.
+$routeKeyOk = ehrCurrentRouteNavKey('/admin/ehr/notes') === 'ehr_clinical_notes'
+    && ehrCurrentRouteNavKey('/admin/ehr/reports/compliance') === 'ehr_reporting_compliance'
+    && ehrCurrentRouteNavKey('/admin/ehr/reports/summary') === 'ehr_reporting_summary'
+    && ehrCurrentRouteNavKey('/admin/ehr/audit/something') === 'ehr_audit'
+    && ehrCurrentRouteNavKey('/admin/ehr/unknown') === null;
+et('ehr route→nav-key resolver matches longest prefix', $routeKeyOk);
+
 $settingsAdminHtml = ehrRender('admin/settings.disyl', array_merge(
     ehrAdminContext($ehrAdminUser, 'ehr_settings', ['page_title' => 'Branding & Access']),
     [

@@ -16,6 +16,23 @@ function docPageState(array $user, array $input = [], ?string $formError = null)
 
     $documents = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'documents');
 
+    $buckets = ['normal' => [], 'sensitive' => [], 'restricted' => []];
+    foreach ($documents as $doc) {
+        $level = strtolower((string)($doc['sensitivity_level'] ?? 'normal'));
+        if (!empty($doc['break_glass_only_flag']) || in_array($level, ['restricted', 'confidential', 'high'], true)) {
+            $buckets['restricted'][] = $doc;
+        } elseif (!empty($doc['consent_required_flag']) || in_array($level, ['sensitive', 'protected'], true)) {
+            $buckets['sensitive'][] = $doc;
+        } else {
+            $buckets['normal'][] = $doc;
+        }
+    }
+    $bucketCounts = [
+        'normal' => count($buckets['normal']),
+        'sensitive' => count($buckets['sensitive']),
+        'restricted' => count($buckets['restricted']),
+    ];
+
     $patientSearch = app()->cap()->call('ehr.patient.search@1', ['limit' => 50], ['caller_module' => 'documents']);
     $patientOptions = is_array($patientSearch) && !empty($patientSearch['ok']) && is_array($patientSearch['results'] ?? null)
         ? array_values($patientSearch['results']) : [];
@@ -28,6 +45,8 @@ function docPageState(array $user, array $input = [], ?string $formError = null)
         [
             'documents' => $documents,
             'result_count' => count($documents),
+            'document_buckets' => $buckets,
+            'bucket_counts' => $bucketCounts,
             'patient_options' => $patientOptions,
             'encounter_options' => $encounterOptions,
             'form_error' => $formError,

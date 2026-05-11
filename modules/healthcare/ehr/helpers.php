@@ -97,7 +97,7 @@ function ehrUserHasAdminAccess(?array $user): bool
 
     $source = (string)($user['source'] ?? '');
     $role = (string)($user['role'] ?? '');
-    if ($source === 'ehr' && $role === 'admin') {
+    if ($source === 'ehr' && in_array($role, ['admin', 'physician', 'nurse', 'front_desk', 'billing', 'auditor'], true)) {
         return true;
     }
     if ($source === 'kernel' && in_array($role, ['admin', 'superadmin'], true)) {
@@ -140,7 +140,71 @@ function ehrRequireAdmin(): array
         exit;
     }
 
+    // Route-level role enforcement: prevent off-nav URL access.
+    $role = strtolower((string)($user['role'] ?? ''));
+    $allowed = ehrRoleAllowedNavKeys($role);
+    if (is_array($allowed)) {
+        $routeKey = ehrCurrentRouteNavKey($requestUri);
+        if ($routeKey !== null && !in_array($routeKey, $allowed, true)) {
+            if ($isApiRoute) {
+                app()->json(['ok' => false, 'error' => 'Access denied for role'], 403);
+                exit;
+            }
+            http_response_code(403);
+            if (function_exists('cmsRender')) {
+                echo cmsRender('pages/404.disyl', ['page_title' => 'Access Denied']);
+            } else {
+                echo 'Access denied';
+            }
+            exit;
+        }
+    }
+
     return $user;
+}
+
+/**
+ * Resolve the current admin URL path to a nav key for role enforcement.
+ * Returns null when the path is not part of the role-gated workspace surface.
+ */
+function ehrCurrentRouteNavKey(string $path): ?string
+{
+    static $prefixMap = [
+        '/admin/ehr/dashboard' => 'ehr_dashboard',
+        '/admin/ehr/scheduling' => 'ehr_scheduling',
+        '/admin/ehr/appointments' => 'ehr_scheduling',
+        '/admin/ehr/encounters' => 'ehr_encounters',
+        '/admin/ehr/patients' => 'ehr_patient_registry',
+        '/admin/ehr/notes' => 'ehr_clinical_notes',
+        '/admin/ehr/orders' => 'ehr_orders',
+        '/admin/ehr/results' => 'ehr_results',
+        '/admin/ehr/prescriptions' => 'ehr_prescriptions',
+        '/admin/ehr/medications' => 'ehr_prescriptions',
+        '/admin/ehr/documents' => 'ehr_documents',
+        '/admin/ehr/privacy' => 'ehr_privacy_consent',
+        '/admin/ehr/audit' => 'ehr_audit',
+        '/admin/ehr/reports/compliance' => 'ehr_reporting_compliance',
+        '/admin/ehr/reports' => 'ehr_reporting_summary',
+        '/admin/ehr/billing' => 'ehr_billing_bridge',
+        '/admin/ehr/analytics' => 'ehr_analytics_cds',
+        '/admin/ehr/adt' => 'ehr_hospital_adt',
+        '/admin/ehr/interop' => 'ehr_interop_bridge',
+        '/admin/ehr/users' => 'ehr_users',
+        '/admin/ehr/settings' => 'ehr_settings',
+        '/admin/ehr/portal-admin' => 'ehr_patient_portal',
+        '/admin/ehr/patient-portal' => 'ehr_patient_portal',
+    ];
+
+    // Longest-prefix match.
+    $best = null;
+    $bestLen = 0;
+    foreach ($prefixMap as $prefix => $key) {
+        if (str_starts_with($path, $prefix) && strlen($prefix) > $bestLen) {
+            $best = $key;
+            $bestLen = strlen($prefix);
+        }
+    }
+    return $best;
 }
 
 function ehrSettingsDefaults(): array
@@ -567,11 +631,60 @@ function ehrNavLabelMap(): array
 }
 
 /**
+ * Map a role to the set of nav item keys it is allowed to see.
+ * admin/superadmin see everything (null sentinel).
+ */
+function ehrRoleAllowedNavKeys(?string $role): ?array
+{
+    $role = strtolower((string)$role);
+    return match ($role) {
+        'admin', 'superadmin', '' => null,
+        'physician', 'provider', 'clinician' => [
+            'ehr_dashboard', 'ehr_scheduling', 'ehr_encounters',
+            'ehr_patient_registry',
+            'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents',
+            'ehr_analytics_cds',
+        ],
+        'nurse' => [
+            'ehr_dashboard', 'ehr_scheduling', 'ehr_encounters',
+            'ehr_patient_registry',
+            'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents',
+            'ehr_hospital_adt',
+        ],
+        'front_desk', 'receptionist' => [
+            'ehr_dashboard', 'ehr_scheduling',
+            'ehr_patient_registry',
+            'ehr_patient_portal',
+        ],
+        'billing' => [
+            'ehr_dashboard',
+            'ehr_billing_bridge',
+            'ehr_reporting_summary',
+        ],
+        'auditor' => [
+            'ehr_dashboard',
+            'ehr_audit',
+            'ehr_reporting_compliance',
+            'ehr_privacy_consent',
+        ],
+        default => null,
+    };
+}
+
+/**
  * Group items into new 6-group navigation structure.
  * Maps module keys to groups: Today, Patients, Clinical, Governance, Operations, System.
  */
 function ehrSidebarNavGroups(array $navItems, ?string $userRole = null): array
 {
+    $allowedKeys = ehrRoleAllowedNavKeys($userRole);
+    if (is_array($allowedKeys)) {
+        $allowSet = array_flip($allowedKeys);
+        $navItems = array_values(array_filter($navItems, static function (array $item) use ($allowSet): bool {
+            return isset($allowSet[(string)($item['key'] ?? '')]);
+        }));
+    }
+
     $map = ehrNavLabelMap();
     
     $groups = [
@@ -611,11 +724,11 @@ function ehrSidebarNavGroups(array $navItems, ?string $userRole = null): array
         $key = (string)($item['key'] ?? '');
         $groupKey = match ($key) {
             'ehr_dashboard', 'ehr_scheduling', 'ehr_encounters' => 'today',
-            'ehr_patient_registry' => 'patients',
-            'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents' => 'clinical',
+            'ehr_patient_registry', 'ehr_patient_portal' => 'patients',
+            'ehr_clinical_notes', 'ehr_orders', 'ehr_results', 'ehr_prescriptions', 'ehr_documents', 'ehr_hospital_adt' => 'clinical',
             'ehr_privacy_consent', 'ehr_audit' => 'governance',
             'ehr_reporting_summary', 'ehr_reporting_compliance', 'ehr_billing_bridge', 'ehr_analytics_cds' => 'operations',
-            'ehr_hospital_adt', 'ehr_interop_bridge', 'ehr_users', 'ehr_settings', 'ehr_patient_portal' => 'system',
+            'ehr_interop_bridge', 'ehr_users', 'ehr_settings' => 'system',
             default => 'system',
         };
 
@@ -629,7 +742,7 @@ function ehrSidebarNavGroups(array $navItems, ?string $userRole = null): array
     }
 
     // Filter System group for non-admin roles
-    if ($userRole && $userRole !== 'admin') {
+    if ($userRole && !in_array(strtolower($userRole), ['admin', 'superadmin'], true)) {
         unset($groups['system']);
     }
 

@@ -22,6 +22,7 @@ function cdsAdminPageIndex(array $params = []): void
 
     $context = ehrAdminContext($user, 'ehr_analytics_cds', [
         'page_title' => 'Insights',
+        'insights_tab' => 'cds',
         'cds_rules' => $rules,
         'cds_alerts' => $alerts,
         'cds_summary' => $summary,

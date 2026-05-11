@@ -31,6 +31,31 @@ function pcPageState(array $user, array $input = [], ?string $formError = null):
     }
     unset($event);
 
+    $consentCounts = ['granted' => 0, 'revoked' => 0, 'expired' => 0, 'pending' => 0];
+    $nowTs = time();
+    foreach ($consents as $c) {
+        $st = strtolower((string)($c['status'] ?? ''));
+        $expiresAt = (string)($c['expires_at'] ?? '');
+        if (!empty($c['revoked_at']) || $st === 'revoked') {
+            $consentCounts['revoked']++;
+        } elseif ($expiresAt !== '' && strtotime($expiresAt) !== false && strtotime($expiresAt) < $nowTs) {
+            $consentCounts['expired']++;
+        } elseif ($st === 'granted' || $st === 'active') {
+            $consentCounts['granted']++;
+        } else {
+            $consentCounts['pending']++;
+        }
+    }
+    $bgCounts = ['active' => 0, 'expired' => 0];
+    foreach ($breakGlass as $e) {
+        $until = (string)($e['granted_until'] ?? '');
+        if ($until !== '' && strtotime($until) !== false && strtotime($until) >= $nowTs) {
+            $bgCounts['active']++;
+        } else {
+            $bgCounts['expired']++;
+        }
+    }
+
     $patientSearch = app()->cap()->call('ehr.patient.search@1', ['limit' => 50], ['caller_module' => 'privacy-consent']);
     $patientOptions = is_array($patientSearch) && !empty($patientSearch['ok']) && is_array($patientSearch['results'] ?? null)
         ? array_values($patientSearch['results']) : [];
@@ -40,6 +65,8 @@ function pcPageState(array $user, array $input = [], ?string $formError = null):
         [
             'consents' => $consents,
             'break_glass_events' => $breakGlass,
+            'consent_counts' => $consentCounts,
+            'break_glass_counts' => $bgCounts,
             'patient_options' => $patientOptions,
             'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),

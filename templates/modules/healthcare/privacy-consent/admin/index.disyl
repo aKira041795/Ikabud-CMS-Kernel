@@ -10,6 +10,35 @@
         </div>
     </section>
 
+    {if consent_counts}
+    <section class="grid grid-cols-2 gap-3 md:grid-cols-6">
+        <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Granted</div>
+            <div class="mt-1 text-2xl font-semibold text-emerald-900">{consent_counts.granted}</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pending</div>
+            <div class="mt-1 text-2xl font-semibold text-slate-900">{consent_counts.pending}</div>
+        </div>
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Expired</div>
+            <div class="mt-1 text-2xl font-semibold text-amber-900">{consent_counts.expired}</div>
+        </div>
+        <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Revoked</div>
+            <div class="mt-1 text-2xl font-semibold text-rose-900">{consent_counts.revoked}</div>
+        </div>
+        <div class="rounded-2xl border border-rose-300 bg-rose-100 px-4 py-3 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-800">Break-glass active</div>
+            <div class="mt-1 text-2xl font-semibold text-rose-900">{break_glass_counts.active}</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Break-glass past</div>
+            <div class="mt-1 text-2xl font-semibold text-slate-900">{break_glass_counts.expired}</div>
+        </div>
+    </section>
+    {/if}
+
     <div class="grid gap-6 xl:grid-cols-2">
         <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">
