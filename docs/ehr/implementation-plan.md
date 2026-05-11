@@ -2267,25 +2267,25 @@ Target layout: [Workboard | List+Detail | Form | Report | Settings]
 
 ### Summary Table
 
-| Page | Phase | Effort | Dependencies |
-|---|---|---|---|
-| Today (Dashboard) | 1 | 6–8h | New dashboard handler |
-| Schedule (Appointments) | 1 | 4–5h | Status badge, button hierarchy |
-| Sidebar nav | 1 | 2–3h | None (shell) |
-| Patients (Registry) | 1b | 5–6h | Patient context header |
-| Visits (Encounters) | 2 | 3–4h | Visit context strip |
-| Notes (Clinical) | 2 | 4–5h | Patient + visit context |
-| Orders | 2 | 3–4h | Status badge |
-| Results | 2 | 4–5h | Status badge, critical modal |
-| Medications (Rx) | 2 | 3–4h | Rename, status badge |
-| Documents | 2b | 3–4h | Workboard |
-| Consent | 2b | 4–5h | Form + Workboard |
-| Access Activity (Audit) | 2b | 4–5h | Search, human-readable events |
-| Billing Queue | 3 | 2–3h | Workboard |
-| Portal Access | 3 | 2–3h | Workboard |
-| Insights (Analytics) | 3 | 3–4h | Report tabs |
-| Portal (patient-side) | 3 | 4–6h | Typography, responsive |
-| — | — | **59–78h** | — |
+| Page | Phase | Status | Effort | Dependencies |
+|---|---|---|---|---|
+| Today (Dashboard) | 1 | ✅ done | 6–8h | New dashboard handler |
+| Schedule (Appointments) | 1 | ✅ done | 4–5h | Status badge, button hierarchy |
+| Sidebar nav | 1 | ✅ done | 2–3h | None (shell) |
+| Patients (Registry) | 1b | ✅ done | 5–6h | Patient context header |
+| Visits (Encounters) | 2 | ✅ done | 3–4h | Visit context strip + active/today/recent segments |
+| Notes (Clinical) | 2 | ✅ done | 4–5h | Status badge precompute |
+| Orders | 2 | ✅ done | 3–4h | Status badge + KPI strip |
+| Results | 2 | ✅ done | 4–5h | Status badge + triage strip |
+| Medications (Rx) | 2 | ✅ done | 3–4h | Rename + status badge |
+| Documents | 2b | ⏳ pending | 3–4h | Workboard |
+| Consent | 2b | ⏳ pending | 4–5h | Form + Workboard |
+| Access Activity (Audit) | 2b | ✅ done | 4–5h | Search + break-glass filter + human-readable events |
+| Billing Queue | 3 | ✅ done | 2–3h | Renamed (workboard pending) |
+| Portal Access | 3 | ✅ done | 2–3h | Renamed (workboard pending) |
+| Insights (Analytics) | 3 | 🚧 partial | 3–4h | Renamed; tab-unification pending |
+| Portal (patient-side) | 3 | ⏳ pending | 4–6h | Typography, responsive |
+| — | — | — | **59–78h** | — |
 
 *Total effort: ~2–2.5 weeks for one developer working full-time.*
 
