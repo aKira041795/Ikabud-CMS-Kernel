@@ -990,7 +990,7 @@ function ehrApiPatientSearch(array $params = []): void
 
     try {
         $result = app()->cap()->call('ehr.patient.search@1', [
-            'query' => $q,
+            'q' => $q,
             'limit' => $limit,
         ], ['caller_module' => 'ehr']);
     } catch (\Throwable $e) {
@@ -1000,8 +1000,9 @@ function ehrApiPatientSearch(array $params = []): void
     }
 
     $patients = [];
-    if (is_array($result) && !empty($result['ok']) && is_array($result['patients'] ?? null)) {
-        foreach ($result['patients'] as $p) {
+    $rows = is_array($result) && is_array($result['results'] ?? null) ? $result['results'] : (is_array($result['patients'] ?? null) ? $result['patients'] : []);
+    if (is_array($result) && !empty($result['ok'])) {
+        foreach ($rows as $p) {
             $id = (int)($p['id'] ?? 0);
             if ($id <= 0) {
                 continue;
