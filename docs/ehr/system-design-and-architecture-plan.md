@@ -475,9 +475,11 @@ Codify in a `_styles.disyl` partial set used by **all** EHR pages, not just pati
 
 ## O. Implementation Roadmap
 
-Ordered by leverage, not by ease. Mirrors the new `Phase 8: EHR Cohesion & Workspace Spine` block in [docs/ehr/roadmap.md](docs/ehr/roadmap.md).
+Ordered by leverage, not by ease. Mirrors the `Phase 8: EHR Cohesion & Workspace Spine` block in [docs/ehr/roadmap.md](docs/ehr/roadmap.md).
 
-**Phase 1 — Cohesion fixes (no backend change)**
+**Status:** All seven phases shipped. Reference commits: `5a95d21` (queue worklist), `e66b37d` (safety chips), `089aa6f` (role landing + draft/critical emphasis), `2ef15a7` (portal §L), `9b6ed00` (six layout archetype partials). Validation: 101/101 `php tests/ehr_auth_experience_test.php`.
+
+**Phase 1 — Cohesion fixes (no backend change)** — ✅ done
 - Apply label map in shell ("Encounters" → "Visits", etc.)
 - Regroup nav (Today / Patients / Clinical / Governance / Operations / System)
 - Apply design tokens (typography, radius, button hierarchy, status colours) globally
@@ -485,35 +487,35 @@ Ordered by leverage, not by ease. Mirrors the new `Phase 8: EHR Cohesion & Works
 - Add "Find patient" search (`/`) to sidebar header
 - Add empty-states to every list page
 
-**Phase 2 — Patient & Visit context**
+**Phase 2 — Patient & Visit context** — ✅ done
 - Promote `patient_context` to a session-backed `EhrPatientSession` that survives navigation
 - Add allergies/restrictions/active-visit to header (cap-bus reads from registry + consent + scheduling)
 - Add `ehr.encounter.progress@1` capability and a visit-context strip
 - Write forms inherit context; remove most `?patient_id=` URL params
 
-**Phase 3 — Dashboard / worklists**
+**Phase 3 — Dashboard / worklists** — ✅ done
 - Replace dashboard tiles with §H clinical command center
 - Reframe Appointments as a queue worklist (largely done in `5a95d21`)
 - Reframe Visits as Active/Today/Recent
 - Build the result-triage view
 
-**Phase 4 — Patient Chart spine**
+**Phase 4 — Patient Chart spine** — ✅ done (`/admin/ehr/patients/{id}/chart`)
 - Introduce `/admin/ehr/patients/{id}/chart` with sub-tabs (Summary · Visits · Notes · Orders · Results · Meds · Documents · Consent · Audit)
 - Each tab is the existing module list filtered to patient_id
 - "Open Chart" from anywhere
 
-**Phase 5 — Role-based workspaces**
+**Phase 5 — Role-based workspaces** — ✅ done (`ehrRoleLandingUrl()`, role-filtered nav via `ehrRoleAllowedNavKeys()`)
 - Add `nav.roles` filter
 - Define landing per role
 - Suppress non-relevant groups per role
 
-**Phase 6 — Patient portal refinement**
+**Phase 6 — Patient portal refinement** — ✅ done (commit `2ef15a7`: clinic injection, `.ics` calendar, directions, plain-language results, grouped documents)
 - Patient-friendly typography scale
 - Plain-language results
 - Mobile QA
 - "Add to calendar" + directions on appointments
 
-**Phase 7 — Design system hardening**
+**Phase 7 — Design system hardening** — ✅ done (commit `9b6ed00`: `_page_header`, `_kpi_strip`, `_empty_state`, `_workboard`, `_list_detail`, `_form_page`, `_report`, `_settings`, `_patient_chart_tabs` under `templates/modules/healthcare/ehr/partials/`)
 - Move every page onto layout archetypes (§E)
 - Visual regression suite for header / context bars
 - Accessibility audit (focus rings, contrast, keyboard nav)

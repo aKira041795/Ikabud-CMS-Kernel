@@ -1,6 +1,6 @@
 # EHR UI/UX Refactor Implementation Plan
 
-**Status:** Ready to implement (Phase 1–2 scoped below)
+**Status:** Phase 1–7 shipped (commits `e66b37d`, `089aa6f`, `2ef15a7`, `9b6ed00`, plus prior `5a95d21`, `1d01121`, `b2618a2`, `47a2d02`). Tests: 101/101 (`php tests/ehr_auth_experience_test.php`).
 **Companion:** [docs/ehr/system-design-and-architecture-plan.md](docs/ehr/system-design-and-architecture-plan.md) (conceptual foundation)
 **Roadmap:** [docs/ehr/roadmap.md](docs/ehr/roadmap.md) (Phase 8: EHR Cohesion & Workspace Spine)
 

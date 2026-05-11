@@ -264,7 +264,15 @@ Acceptance criteria:
 
 ## Phase 8: EHR Cohesion & Workspace Spine
 
-**Status (current):** Not started. This phase consolidates the EHR product surface so it reads as one clinical workspace rather than a set of module pages. Full design rationale, page-by-page review, design tokens, role workspaces, and clinical safety UX checklist live in [docs/ehr/system-design-and-architecture-plan.md](docs/ehr/system-design-and-architecture-plan.md).
+**Status (current):** Shipped end-to-end (sub-phases 1–7). Reference commits: `5a95d21` (queue worklist), `e66b37d` (safety chips), `089aa6f` (role landing + draft/critical emphasis), `2ef15a7` (portal §L), `9b6ed00` (six layout archetype partials). Validation: 101/101 `php tests/ehr_auth_experience_test.php`.
+
+Shipped artefacts:
+- shell helpers: `ehrSidebarNavGroups()`, `ehrNavLabelMap()`, `ehrRoleAllowedNavKeys()`, `ehrRoleLandingUrl()`, `ehrPatientContextView()`, `ehrSettingsDefaults()`, `ehrStatusBadge()` in `modules/healthcare/ehr/helpers.php`
+- patient/visit context: `EhrPatientSession` helpers + `ehr.patient.context@1` + `ehr.encounter.progress@1` capabilities; safety chips on `templates/modules/healthcare/ehr/layouts/admin.disyl` (allergies / restricted lock / MRN no-UUID / End-session)
+- patient chart spine: `GET /admin/ehr/patients/{id}/chart` with sub-tabs (Summary · Visits · Notes · Orders · Results · Medications · Documents)
+- portal: clinic-info injection, `.ics` calendar download (`portalAppointmentDownloadIcs`), Google-Maps directions, plain-language result wording, grouped document types
+- visual safety emphasis: amber draft / rose critical-result borders + badges in `clinical-notes` and `results` admin templates
+- six layout archetype partials + reusable `_page_header` / `_kpi_strip` / `_empty_state` components (commit `9b6ed00`) This phase consolidates the EHR product surface so it reads as one clinical workspace rather than a set of module pages. Full design rationale, page-by-page review, design tokens, role workspaces, and clinical safety UX checklist live in [docs/ehr/system-design-and-architecture-plan.md](docs/ehr/system-design-and-architecture-plan.md).
 
 Outcome:
 - the EHR feels like a single guided patient-care workspace, not a conglomerate of CRUD modules
