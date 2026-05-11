@@ -974,3 +974,56 @@ function ehrUsersResetPassword(array $params = []): void
 
     app()->redirect('/admin/ehr/users?notice=password_reset');
 }
+
+/**
+ * GET /api/v1/ehr/patients/search?q=...
+ * Returns up to 20 matching patients for the patient picker.
+ * Response: {ok, patients: [{id, label, sub, mrn, dob}]}
+ */
+function ehrApiPatientSearch(array $params = []): void
+{
+    ehrRequireAdmin();
+    header('Content-Type: application/json');
+
+    $q = trim((string)($_GET['q'] ?? ''));
+    $limit = max(1, min(20, (int)($_GET['limit'] ?? 12)));
+
+    try {
+        $result = app()->cap()->call('ehr.patient.search@1', [
+            'query' => $q,
+            'limit' => $limit,
+        ], ['caller_module' => 'ehr']);
+    } catch (\Throwable $e) {
+        write_log('ehr.api.patient_search.error', 'error', ['error' => $e->getMessage()]);
+        echo json_encode(['ok' => false, 'patients' => []]);
+        return;
+    }
+
+    $patients = [];
+    if (is_array($result) && !empty($result['ok']) && is_array($result['patients'] ?? null)) {
+        foreach ($result['patients'] as $p) {
+            $id = (int)($p['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $first = trim((string)($p['first_name'] ?? ''));
+            $last = trim((string)($p['last_name'] ?? ''));
+            $name = trim($last . ', ' . $first, ', ');
+            if ($name === '') {
+                $name = 'Patient #' . $id;
+            }
+            $dob = (string)($p['birth_date'] ?? '');
+            $mrn = sprintf('P-%06d', $id);
+            $sub = trim($mrn . ($dob !== '' ? ' • DOB ' . $dob : ''), ' •');
+            $patients[] = [
+                'id' => $id,
+                'label' => $name,
+                'sub' => $sub,
+                'mrn' => $mrn,
+                'dob' => $dob,
+            ];
+        }
+    }
+
+    echo json_encode(['ok' => true, 'patients' => $patients]);
+}

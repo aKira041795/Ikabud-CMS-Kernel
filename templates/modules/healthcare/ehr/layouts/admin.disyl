@@ -207,6 +207,82 @@
             </main>
         </div>
     </div>
+    <script>
+    (function () {
+        function initPicker(root) {
+            if (root.__ehrPpInit) return; root.__ehrPpInit = true;
+            var d = root.dataset;
+            var endpoint = d.endpoint && d.endpoint.length ? d.endpoint : ((d.baseUrl || '') + '/api/v1/ehr/patients/search');
+            var placeholder = d.placeholder || 'Search patient by name or MRN…';
+            var hidden = root.querySelector('[data-ehr-pp-input]');
+            var input  = root.querySelector('[data-ehr-pp-query]');
+            var clearBtn = root.querySelector('[data-ehr-pp-clear]');
+            var panel  = root.querySelector('[data-ehr-pp-panel]');
+            var list   = root.querySelector('[data-ehr-pp-list]');
+            var empty  = root.querySelector('[data-ehr-pp-empty]');
+            var selectedId = (d.value || '').toString();
+            var selectedLabel = (d.valueLabel || '').toString();
+            var options = []; var active = 0; var loading = false;
+            input.placeholder = placeholder;
+            if (selectedLabel) input.value = selectedLabel;
+            function showClear() { clearBtn.classList.toggle('hidden', !selectedId); clearBtn.classList.toggle('flex', !!selectedId); }
+            showClear();
+            function openPanel() { panel.classList.remove('hidden'); }
+            function closePanel() { panel.classList.add('hidden'); }
+            function render() {
+                list.innerHTML = '';
+                if (loading) { empty.textContent = 'Searching…'; empty.classList.remove('hidden'); return; }
+                if (!options.length) { empty.textContent = input.value ? ('No patients match “' + input.value + '”.') : 'Type a name or MRN to search.'; empty.classList.remove('hidden'); return; }
+                empty.classList.add('hidden');
+                options.forEach(function (opt, idx) {
+                    var li = document.createElement('li');
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'flex w-full items-start gap-3 px-3 py-2 text-left text-sm transition ' + (idx === active ? 'bg-teal-50' : 'hover:bg-slate-50');
+                    var initial = (opt.label || '?').charAt(0).toUpperCase();
+                    btn.innerHTML = '<span class="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-700"></span><span class="min-w-0 flex-1"><span class="block font-medium text-slate-800"></span><span class="block truncate text-[11px] text-slate-500"></span></span>';
+                    btn.children[0].textContent = initial;
+                    btn.children[1].children[0].textContent = opt.label || '';
+                    btn.children[1].children[1].textContent = opt.sub || '';
+                    btn.addEventListener('mouseenter', function () { active = idx; render(); });
+                    btn.addEventListener('click', function () { selectOpt(opt); });
+                    li.appendChild(btn); list.appendChild(li);
+                });
+            }
+            function selectOpt(opt) {
+                selectedId = String(opt.id || '');
+                selectedLabel = (opt.label || '') + (opt.sub ? ' (' + opt.sub + ')' : '');
+                hidden.value = selectedId;
+                input.value = selectedLabel;
+                showClear();
+                closePanel();
+            }
+            function fetchOptions(q) {
+                loading = true; render();
+                fetch(endpoint + '?q=' + encodeURIComponent(q || ''), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) { options = (data && data.patients) ? data.patients : []; active = 0; loading = false; render(); })
+                    .catch(function () { options = []; loading = false; render(); });
+            }
+            input.addEventListener('focus', function () { openPanel(); if (!options.length) fetchOptions(input.value); });
+            var debounce; input.addEventListener('input', function () {
+                if (input.value !== selectedLabel) { selectedId = ''; hidden.value = ''; showClear(); }
+                clearTimeout(debounce); debounce = setTimeout(function () { fetchOptions(input.value); }, 200);
+                openPanel();
+            });
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowDown') { e.preventDefault(); openPanel(); if (!options.length) { fetchOptions(input.value); return; } active = (active + 1) % options.length; render(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); if (!options.length) return; active = (active - 1 + options.length) % options.length; render(); }
+                else if (e.key === 'Enter') { if (options[active]) { e.preventDefault(); selectOpt(options[active]); } }
+                else if (e.key === 'Escape') { closePanel(); }
+            });
+            clearBtn.addEventListener('click', function () { selectedId = ''; selectedLabel = ''; hidden.value = ''; input.value = ''; options = []; showClear(); closePanel(); input.focus(); });
+            document.addEventListener('click', function (e) { if (!root.contains(e.target)) closePanel(); });
+        }
+        function initAll() { document.querySelectorAll('[data-ehr-picker]').forEach(initPicker); }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAll); else initAll();
+    })();
+    </script>
     {block scripts}{/block}
 </body>
 </html>

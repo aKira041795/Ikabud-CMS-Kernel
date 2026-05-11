@@ -16,8 +16,8 @@
     <form method="get" action="" class="rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div>
-                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Patient ID</label>
-                <input type="number" min="1" name="patient_id" value="{filters.patient_id}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
+                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Patient</label>
+                {include "modules/healthcare/ehr/partials/_patient_picker" with {name: "patient_id", value: filters.patient_id, placeholder: "Search patient by name or MRN…"}}
             </div>
             <div>
                 <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Kernel Actor User ID</label>

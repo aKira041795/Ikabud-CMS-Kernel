@@ -133,8 +133,10 @@
                     {csrf_field | raw}
                     <input type="hidden" name="redirect" value="/admin/ehr/portal">
                     <div>
-                        <label class="block text-xs font-medium text-slate-600">Patient ID</label>
-                        <input type="number" name="patient_id" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none">
+                        <label class="block text-xs font-medium text-slate-600">Patient</label>
+                        <div class="mt-1">
+                            {include "modules/healthcare/ehr/partials/_patient_picker" with {name: "patient_id", required: true, placeholder: "Search patient by name or MRN…"}}
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600">Email</label>

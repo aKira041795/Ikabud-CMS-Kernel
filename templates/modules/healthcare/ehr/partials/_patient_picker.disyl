@@ -1,0 +1,26 @@
+<!-- Patient picker — searchable combobox for patient_id fields.
+     Required: name. Optional: required, value, value_label, placeholder, endpoint -->
+<div class="ehr-pp relative"
+     data-ehr-picker
+     data-name="{name}"
+     data-value="{value}"
+     data-value-label="{value_label}"
+     data-endpoint="{endpoint}"
+     data-base-url="{base_url}"
+     data-placeholder="{placeholder}">
+    <input type="hidden" name="{name}" value="{value}" data-ehr-pp-input{if required} required{/if}>
+    <div class="relative">
+        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400" aria-hidden="true">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path></svg>
+        </span>
+        <input type="text" data-ehr-pp-query autocomplete="off" spellcheck="false"
+               class="w-full rounded-md border border-slate-300 bg-white pl-9 pr-9 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+        <button type="button" data-ehr-pp-clear class="absolute inset-y-0 right-0 hidden items-center pr-3 text-slate-400 hover:text-rose-600" aria-label="Clear selection">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+        </button>
+    </div>
+    <div data-ehr-pp-panel class="absolute z-30 mt-1 hidden w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+        <ul data-ehr-pp-list class="max-h-72 overflow-y-auto py-1"></ul>
+        <div data-ehr-pp-empty class="hidden px-3 py-3 text-xs text-slate-500"></div>
+    </div>
+</div>

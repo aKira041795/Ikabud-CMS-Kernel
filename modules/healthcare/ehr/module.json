@@ -32,6 +32,9 @@
                 ]
             }
         ],
+        "depends": [
+            "ehr.patient.search@1"
+        ],
         "policy": {
             "capabilities": {
                 "kernel.auth.authenticate@1": {

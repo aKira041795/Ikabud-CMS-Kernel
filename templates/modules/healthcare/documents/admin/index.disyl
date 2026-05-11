@@ -91,12 +91,7 @@
             </div>
             <div>
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Patient</label>
-                <select name="patient_id" required class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <option value="">Select patient</option>
-                    {foreach patient_options as patient}
-                    <option value="{patient.id}" {if form_values.patient_id == patient.id}selected{/if}>{patient.last_name}, {patient.first_name}</option>
-                    {/foreach}
-                </select>
+                {include "modules/healthcare/ehr/partials/_patient_picker" with {name: "patient_id", required: true, value: form_values.patient_id, placeholder: "Search patient by name or MRN…"}}
             </div>
             <div>
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Encounter</label>

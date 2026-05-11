@@ -11,6 +11,7 @@ return [
         '/admin/ehr/settings' => 'ehr:ehrSettingsPage',
         '/admin/ehr/patients/{id}/chart' => 'ehr:ehrPatientChartPage',
         '/admin/ehr/users' => 'ehr:ehrUsersListPage',
+        '/api/v1/ehr/patients/search' => 'ehr:ehrApiPatientSearch',
     ],
     'POST' => [
         '/ehr/auth/login' => 'ehr:ehrAuthLogin',

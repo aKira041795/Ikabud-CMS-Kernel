@@ -81,6 +81,7 @@
                 "ehr.patient.search@1": {
                     "allow_callers": [
                         "patient-registry",
+                        "ehr",
                         "encounters",
                         "orders",
                         "scheduling",

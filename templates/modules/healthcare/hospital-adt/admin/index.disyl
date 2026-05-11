@@ -62,7 +62,7 @@
                 <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Admit patient</h2>
                 <form method="POST" action="{admit_endpoint}" class="mt-3 space-y-2">
                     {csrf_field | raw}
-                    <input type="number" name="patient_id" placeholder="Patient ID" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    {include "modules/healthcare/ehr/partials/_patient_picker" with {name: "patient_id", required: true, placeholder: "Search patient by name or MRN…"}}
                     <input type="number" name="ward_id" placeholder="Ward ID" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                     <input type="number" name="bed_id" placeholder="Bed ID (optional)" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                     <textarea name="notes" placeholder="Notes" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
