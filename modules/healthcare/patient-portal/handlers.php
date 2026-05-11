@@ -469,6 +469,21 @@ function portalAdminPageIndex(array $params = []): void
     unset($row);
 
     $input = app()->input();
+    $accountTab = strtolower(trim((string)($input['tab'] ?? 'active')));
+    if (!in_array($accountTab, ['active', 'inactive'], true)) {
+        $accountTab = 'active';
+    }
+    $activeAccounts = [];
+    $inactiveAccounts = [];
+    foreach ($rows as $row) {
+        $status = strtolower(trim((string)($row['status'] ?? '')));
+        if ($status === 'active') {
+            $activeAccounts[] = $row;
+            continue;
+        }
+        $inactiveAccounts[] = $row;
+    }
+    $visibleAccounts = $accountTab === 'inactive' ? $inactiveAccounts : $activeAccounts;
     $pendingReschedule = (int)(portalDb()->query(
         "SELECT COUNT(*) AS c FROM ehr_portal_reschedule_requests WHERE status = 'pending'"
     )->fetch(\PDO::FETCH_ASSOC)['c'] ?? 0);
@@ -476,6 +491,10 @@ function portalAdminPageIndex(array $params = []): void
     $context = ehrAdminContext($user, 'ehr_patient_portal', [
         'page_title' => 'Portal Access',
         'portal_accounts' => $rows,
+        'active_accounts' => $activeAccounts,
+        'inactive_accounts' => $inactiveAccounts,
+        'visible_accounts' => $visibleAccounts,
+        'account_tab' => $accountTab,
         'provision_endpoint' => '/admin/ehr/portal/provision',
         'deactivate_endpoint' => '/admin/ehr/portal/deactivate',
         'update_endpoint' => '/admin/ehr/portal/update',
