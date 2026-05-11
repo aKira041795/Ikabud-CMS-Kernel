@@ -222,7 +222,7 @@
             var empty  = root.querySelector('[data-ehr-pp-empty]');
             var selectedId = (d.value || '').toString();
             var selectedLabel = (d.valueLabel || '').toString();
-            var options = []; var active = 0; var loading = false;
+            var options = []; var active = 0; var loading = false; var fetchSeq = 0;
             input.placeholder = placeholder;
             if (selectedLabel) input.value = selectedLabel;
             function showClear() { clearBtn.classList.toggle('hidden', !selectedId); clearBtn.classList.toggle('flex', !!selectedId); }
@@ -235,10 +235,14 @@
                 });
             }
             function render() {
-                list.innerHTML = '';
-                if (loading) { empty.textContent = 'Searching…'; empty.classList.remove('hidden'); return; }
-                if (!options.length) { empty.textContent = input.value ? ('No patients match “' + input.value + '”.') : 'Type a name or MRN to search.'; empty.classList.remove('hidden'); return; }
+                if (!options.length) {
+                    list.innerHTML = '';
+                    empty.textContent = loading ? 'Searching…' : (input.value ? ('No patients match “' + input.value + '”.') : 'Type a name or MRN to search.');
+                    empty.classList.remove('hidden');
+                    return;
+                }
                 empty.classList.add('hidden');
+                list.innerHTML = '';
                 options.forEach(function (opt, idx) {
                     var li = document.createElement('li');
                     var btn = document.createElement('button');
@@ -263,11 +267,13 @@
                 closePanel();
             }
             function fetchOptions(q) {
-                loading = true; render();
+                var seq = ++fetchSeq;
+                loading = true;
+                if (!options.length) render();
                 fetch(endpoint + '?q=' + encodeURIComponent(q || ''), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
                     .then(function (r) { return r.json(); })
-                    .then(function (data) { options = (data && data.patients) ? data.patients : []; active = 0; loading = false; render(); })
-                    .catch(function () { options = []; loading = false; render(); });
+                    .then(function (data) { if (seq !== fetchSeq) return; options = (data && data.patients) ? data.patients : []; active = 0; loading = false; render(); })
+                    .catch(function () { if (seq !== fetchSeq) return; options = []; loading = false; render(); });
             }
             input.addEventListener('focus', function () { openPanel(); if (!options.length) fetchOptions(input.value); });
             var debounce; input.addEventListener('input', function () {
