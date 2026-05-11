@@ -72,6 +72,165 @@ function getFlagValue(string $prefix): ?string
     return null;
 }
 
+function cliResolveTenantId(string $selector): ?int
+{
+    $selector = trim($selector);
+    if ($selector === '') {
+        return null;
+    }
+
+    if (ctype_digit($selector)) {
+        $tenantId = (int)$selector;
+        return $tenantId > 0 ? $tenantId : null;
+    }
+
+    try {
+        $pdo = app()->controlDb();
+
+        $stmt = $pdo->prepare('SELECT id FROM kernel_tenants WHERE tenant_key = :selector LIMIT 1');
+        $stmt->execute([':selector' => $selector]);
+        $tenantId = (int)($stmt->fetchColumn() ?: 0);
+        if ($tenantId > 0) {
+            return $tenantId;
+        }
+
+        $stmt = $pdo->prepare('SELECT tenant_id FROM kernel_tenant_domains WHERE domain = :selector LIMIT 1');
+        $stmt->execute([':selector' => $selector]);
+        $tenantId = (int)($stmt->fetchColumn() ?: 0);
+        return $tenantId > 0 ? $tenantId : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function cliModuleManifest(string $moduleId): ?array
+{
+    $modules = discoverModules();
+    $manifest = $modules[$moduleId] ?? null;
+    return is_array($manifest) ? $manifest : null;
+}
+
+function cliModuleTenantTargets(?string $moduleId = null): array
+{
+    if (!function_exists('tenantSeparateDatabaseMigrationTargets')) {
+        return [];
+    }
+
+    $targets = tenantSeparateDatabaseMigrationTargets();
+    $moduleId = trim((string)$moduleId);
+    if ($moduleId === '') {
+        return $targets;
+    }
+
+    $filtered = [];
+    foreach ($targets as $target) {
+        if (!is_array($target)) {
+            continue;
+        }
+
+        $entryModuleId = trim((string)($target['entry_module_id'] ?? ''));
+        $plan = function_exists('tenantProvisionModulePlan')
+            ? tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null)
+            : [];
+        if (in_array($moduleId, $plan, true)) {
+            $filtered[] = $target;
+        }
+    }
+
+    return $filtered;
+}
+
+function cliDbHasAnyOwnedModuleTable(PDO $db, ?array $manifest): bool
+{
+    if (!is_array($manifest)) {
+        return false;
+    }
+
+    $tables = $manifest['owns_tables'] ?? [];
+    if (!is_array($tables) || $tables === []) {
+        return false;
+    }
+
+    foreach ($tables as $table) {
+        $table = trim((string)$table);
+        if ($table === '') {
+            continue;
+        }
+
+        try {
+            $exists = $db->query('SHOW TABLES LIKE ' . $db->quote($table))->fetchColumn();
+            if ($exists !== false) {
+                return true;
+            }
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+function cliModuleHasMigrationHistory(PDO $db, string $moduleId): bool
+{
+    try {
+        $stmt = $db->prepare('SELECT 1 FROM `_migrations` WHERE module = :module LIMIT 1');
+        $stmt->execute([':module' => $moduleId]);
+        return $stmt->fetchColumn() !== false;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function cliShouldTreatBaseMigrationFailureAsTenantOnly(PDO $db, string $moduleId, ?array $manifest, array $tenantTargets, Throwable $e): bool
+{
+    if ($tenantTargets === []) {
+        return false;
+    }
+
+    $message = $e->getMessage();
+    if (!str_contains($message, 'SQLSTATE[42S02]') && !str_contains($message, 'Base table or view not found')) {
+        return false;
+    }
+
+    if (cliDbHasAnyOwnedModuleTable($db, $manifest)) {
+        return false;
+    }
+
+    return cliModuleHasMigrationHistory($db, $moduleId);
+}
+
+function cliRunBaseModuleMigration(MigrationRunner $runner, PDO $baseDb, string $moduleId): array
+{
+    if ($moduleId === '_kernel' || $moduleId === '_control') {
+        return [
+            'executed' => $runner->migrate($moduleId),
+            'skipped' => false,
+            'warning' => '',
+        ];
+    }
+
+    $manifest = cliModuleManifest($moduleId);
+    $tenantTargets = cliModuleTenantTargets($moduleId);
+
+    try {
+        return [
+            'executed' => $runner->migrate($moduleId),
+            'skipped' => false,
+            'warning' => '',
+        ];
+    } catch (Throwable $e) {
+        if (!cliShouldTreatBaseMigrationFailureAsTenantOnly($baseDb, $moduleId, $manifest, $tenantTargets, $e)) {
+            throw $e;
+        }
+
+        return [
+            'executed' => [],
+            'skipped' => true,
+            'warning' => $e->getMessage(),
+        ];
+    }
+}
+
 // ── Styling helpers ──────────────────────────────────────────────────
 
 function out(string $msg): void { echo $msg . "\n"; }
@@ -118,6 +277,7 @@ switch ($command) {
 
         out('  ' . bold('Tenancy (control plane)'));
         out('    ' . green('tenant:list') . '                 List tenants');
+        out('    ' . green('tenant:migrate') . ' <tenant_id|tenant_key|domain> [module]');
         out('    ' . green('tenant:create') . ' <key> <domain> [--entry=<module_id>]');
         out('    ' . green('tenant:domain:add') . ' <tenant_id> <domain>');
         out('    ' . green('tenant:domain:remove') . ' <tenant_id> <domain>');
@@ -185,6 +345,78 @@ switch ($command) {
             out('  ' . red('✗ Migration failed: ') . $e->getMessage());
             exit(1);
         }
+        out('');
+        break;
+
+    // ── tenant:migrate ────────────────────────────────────────────
+    case 'tenant:migrate':
+        banner();
+        $positionals = paramsWithoutFlags($params);
+        $tenantSelector = trim((string)($positionals[0] ?? ''));
+        $requestedModuleId = trim((string)($positionals[1] ?? ''));
+
+        if ($tenantSelector === '') {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:migrate <tenant_id|tenant_key|domain> [module]');
+            out('');
+            exit(1);
+        }
+
+        $tenantId = cliResolveTenantId($tenantSelector);
+        if ($tenantId === null || $tenantId <= 0) {
+            out('  ' . red('✗ Unknown tenant: ') . $tenantSelector);
+            out('');
+            exit(1);
+        }
+
+        try {
+            $sync = function_exists('syncTenantCliMigrationsForTenant')
+                ? syncTenantCliMigrationsForTenant($tenantId, $requestedModuleId !== '' ? $requestedModuleId : null)
+                : ['ok' => false, 'error' => 'Tenant CLI migration sync helper unavailable'];
+
+            if (empty($sync['ok'])) {
+                throw new RuntimeException((string)($sync['error'] ?? 'Tenant migration sync failed'));
+            }
+
+            $entryModuleId = trim((string)($sync['entry_module_id'] ?? ''));
+            out('  Syncing tenant migrations for ' . bold('#' . $tenantId) . ($entryModuleId !== '' ? ' ' . dim('(entry=' . $entryModuleId . ')') : ''));
+            if ($requestedModuleId !== '') {
+                out('  Module filter: ' . bold($requestedModuleId));
+            }
+            out('');
+
+            $tenantModules = is_array($sync['modules'] ?? null) ? $sync['modules'] : [];
+            if ($tenantModules === []) {
+                $skipReason = trim((string)($sync['skipped'] ?? ''));
+                if ($skipReason === 'module_not_in_plan') {
+                    out('  ' . dim('Module not in tenant plan.'));
+                } else {
+                    out('  ' . dim('Nothing to migrate.'));
+                }
+                out('');
+                break;
+            }
+
+            $count = 0;
+            foreach ($tenantModules as $moduleId => $files) {
+                if (!is_array($files) || $files === []) {
+                    continue;
+                }
+
+                out('  ' . bold((string)$moduleId));
+                foreach ($files as $file) {
+                    out('    ' . green('✓') . ' ' . (string)$file);
+                    $count++;
+                }
+            }
+
+            out('');
+            out('  ' . green('✓') . bold(' ' . $count . ' migration(s) executed.'));
+        } catch (Throwable $e) {
+            out('  ' . red('✗ Migration failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+
         out('');
         break;
 
@@ -2588,13 +2820,18 @@ MD;
         banner();
         try {
             $runner = new MigrationRunner(app()->db());
+            $baseDb = app()->db();
             $requestedModuleId = !empty($params[0]) ? trim((string)$params[0]) : null;
+            $tenantTargets = function_exists('tenantSeparateDatabaseMigrationTargets')
+                ? tenantSeparateDatabaseMigrationTargets()
+                : [];
 
             if ($requestedModuleId !== null && $requestedModuleId !== '') {
                 // Single module
                 $moduleId = $requestedModuleId;
                 out('  Running migrations for: ' . bold($moduleId));
-                $executed = $runner->migrate($moduleId);
+                $baseResult = cliRunBaseModuleMigration($runner, $baseDb, $moduleId);
+                $executed = is_array($baseResult['executed'] ?? null) ? $baseResult['executed'] : [];
                 if (empty($executed)) {
                     out('  ' . dim('Nothing to migrate.'));
                 } else {
@@ -2603,12 +2840,40 @@ MD;
                     }
                     out('  ' . green('✓') . bold(' ' . count($executed) . ' migration(s) executed.'));
                 }
+
+                if (!empty($baseResult['skipped'])) {
+                    out('  ' . yellow('!') . ' Base DB migration skipped: stale migration history exists in ' . (string)app()->config('database.database', 'app') . ' but the module tables are absent there.');
+                    out('  ' . dim('Continuing with separate tenant database sync for this module.'));
+                }
             } else {
                 // All modules
                 out('  Running all pending migrations...');
                 out('');
-                $results = $runner->migrateAll();
+                $results = [];
                 $totalCount = 0;
+                $skippedBaseModules = [];
+
+                $kernelResult = $runner->migrate('_kernel');
+                if ($kernelResult !== []) {
+                    $results['_kernel'] = $kernelResult;
+                }
+
+                foreach (array_keys(discoverModules()) as $moduleId) {
+                    $moduleId = trim((string)$moduleId);
+                    if ($moduleId === '') {
+                        continue;
+                    }
+
+                    $baseResult = cliRunBaseModuleMigration($runner, $baseDb, $moduleId);
+                    $moduleExecuted = is_array($baseResult['executed'] ?? null) ? $baseResult['executed'] : [];
+                    if ($moduleExecuted !== []) {
+                        $results[$moduleId] = $moduleExecuted;
+                    }
+                    if (!empty($baseResult['skipped'])) {
+                        $skippedBaseModules[$moduleId] = (string)($baseResult['warning'] ?? '');
+                    }
+                }
+
                 if (empty($results)) {
                     out('  ' . dim('Nothing to migrate.'));
                 } else {
@@ -2622,11 +2887,15 @@ MD;
                     out('');
                     out('  ' . green('✓') . bold(" {$totalCount} migration(s) executed across " . count($results) . ' module(s).'));
                 }
-            }
 
-            $tenantTargets = function_exists('tenantSeparateDatabaseMigrationTargets')
-                ? tenantSeparateDatabaseMigrationTargets()
-                : [];
+                if (!empty($skippedBaseModules)) {
+                    out('');
+                    foreach ($skippedBaseModules as $moduleId => $warning) {
+                        out('  ' . yellow('!') . ' Skipped base DB migration for ' . bold((string)$moduleId) . ' because the primary DB only has stale migration history for that module.');
+                    }
+                    out('  ' . dim('Separate tenant database sync will apply those modules where they actually belong.'));
+                }
+            }
 
             if (!empty($tenantTargets)) {
                 $tenantMigrationCount = 0;
@@ -2663,6 +2932,11 @@ MD;
                     }
 
                     out('  ' . bold($tenantLabel) . ($meta !== [] ? ' ' . dim('(' . implode(', ', $meta) . ')') : ''));
+
+                    if ($entryModuleId === '') {
+                        out('    ' . dim('No entry module; skipping tenant DB sync.'));
+                        continue;
+                    }
 
                     $sync = function_exists('syncTenantCliMigrationsForTenant')
                         ? syncTenantCliMigrationsForTenant($tenantId, $requestedModuleId)

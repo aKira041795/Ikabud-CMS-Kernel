@@ -124,9 +124,14 @@ $tableName = 'cli_tenant_migrate_' . $suffix;
 $moduleDir = BASE_PATH . '/modules/' . $moduleId;
 $migrationDir = $moduleDir . '/migrations';
 $migrationFile = $migrationDir . '/001_create_cli_tenant_sync_marker.sql';
+$secondMigrationFile = $migrationDir . '/002_add_cli_tenant_sync_note.sql';
+$noteColumn = 'sync_note';
 $baseDb = app()->db();
+$controlDb = app()->controlDb();
 $entryModuleId = trim((string)($target['entry_module_id'] ?? ''));
 $hookName = $entryModuleId !== '' ? ($entryModuleId . '.test.sync') : '';
+$tempNoEntryTenantId = 0;
+$tempNoEntryTenantKey = 'cli-tenant-no-entry-' . $suffix;
 
 try {
     if (!is_dir($migrationDir) && !mkdir($migrationDir, 0775, true) && !is_dir($migrationDir)) {
@@ -139,7 +144,9 @@ try {
         'version' => '0.0.1',
         'migrations' => [
             'migrations/001_create_cli_tenant_sync_marker.sql',
+            'migrations/002_add_cli_tenant_sync_note.sql',
         ],
+        'depends' => $entryModuleId !== '' ? [$entryModuleId] : [],
         'hooks' => $hookName !== '' ? [$hookName] : [],
     ];
 
@@ -197,6 +204,67 @@ try {
     t('primary DB recorded the migration', (string)$baseRow->fetchColumn() === '001_create_cli_tenant_sync_marker.sql');
     t('tenant DB recorded the migration', (string)$tenantRow->fetchColumn() === '001_create_cli_tenant_sync_marker.sql');
 
+    $sql = "ALTER TABLE `{$tableName}` ADD COLUMN `{$noteColumn}` VARCHAR(50) DEFAULT NULL;\n";
+    file_put_contents($secondMigrationFile, $sql);
+
+    $baseDb->exec('DROP TABLE IF EXISTS `' . $tableName . '`');
+
+    $command = 'php ' . escapeshellarg(BASE_PATH . '/ikabud') . ' migrate ' . escapeshellarg($moduleId) . ' 2>&1';
+    $result = shellWithExitCode($command);
+    $output = trim((string)($result['output'] ?? ''));
+
+    t('CLI migrate succeeds when base DB has stale module migration history', (int)($result['exit_code'] ?? 1) === 0, $output);
+    t('CLI output warns that the base DB module migration was skipped', str_contains($output, 'Base DB migration skipped'), $output);
+    t('CLI output still mentions separate tenant sync after stale base history', str_contains($output, 'Syncing separate tenant databases'), $output);
+
+    $baseTableExists = $baseDb->query("SHOW TABLES LIKE '{$tableName}'")->fetchColumn() !== false;
+    $tenantDb = app()->reconnectDbForTenant($tenantId) ?? $tenantDb;
+    $tenantColumnExists = $tenantDb->query("SHOW COLUMNS FROM `{$tableName}` LIKE '{$noteColumn}'")->fetchColumn() !== false;
+
+    t('stale base DB table remains absent after migrate fallback', !$baseTableExists);
+    t('second migration still runs on the separate tenant DB', $tenantColumnExists);
+
+    $baseSecondRow = $baseDb->prepare('SELECT migration FROM `_migrations` WHERE module = :module AND migration = :migration LIMIT 1');
+    $baseSecondRow->execute([':module' => $moduleId, ':migration' => '002_add_cli_tenant_sync_note.sql']);
+    $tenantSecondRow = $tenantDb->prepare('SELECT migration FROM `_migrations` WHERE module = :module AND migration = :migration LIMIT 1');
+    $tenantSecondRow->execute([':module' => $moduleId, ':migration' => '002_add_cli_tenant_sync_note.sql']);
+
+    t('primary DB does not record the stale fallback migration', $baseSecondRow->fetchColumn() === false);
+    t('tenant DB records the second migration after fallback', (string)$tenantSecondRow->fetchColumn() === '002_add_cli_tenant_sync_note.sql');
+
+    $insertTenant = $controlDb->prepare(
+        'INSERT INTO kernel_tenants (tenant_key, status, entry_module_id) VALUES (:tenant_key, :status, NULL)'
+    );
+    $insertTenant->execute([
+        ':tenant_key' => $tempNoEntryTenantKey,
+        ':status' => 'active',
+    ]);
+    $tempNoEntryTenantId = (int)$controlDb->lastInsertId();
+
+    $insertTenantDb = $controlDb->prepare(
+        'INSERT INTO kernel_tenant_db_connections '
+        . '(tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset) '
+        . 'VALUES (:tenant_id, :db_driver, :db_host, :db_port, :db_name, :db_user, :db_pass, :db_charset)'
+    );
+    $insertTenantDb->execute([
+        ':tenant_id' => $tempNoEntryTenantId,
+        ':db_driver' => 'mysql',
+        ':db_host' => 'localhost',
+        ':db_port' => '3306',
+        ':db_name' => 'cli_tenant_skip_' . $suffix,
+        ':db_user' => 'root',
+        ':db_pass' => '',
+        ':db_charset' => 'utf8mb4',
+    ]);
+
+    $command = 'php ' . escapeshellarg(BASE_PATH . '/ikabud') . ' migrate 2>&1';
+    $result = shellWithExitCode($command);
+    $output = trim((string)($result['output'] ?? ''));
+
+    t('generic CLI migrate exits successfully with a no-entry separate tenant present', (int)($result['exit_code'] ?? 1) === 0, $output);
+    t('generic CLI migrate lists the no-entry tenant', str_contains($output, '#' . $tempNoEntryTenantId . ' ' . $tempNoEntryTenantKey), $output);
+    t('generic CLI migrate skips no-entry tenants without connection warnings', str_contains($output, 'No entry module; skipping tenant DB sync.'), $output);
+
     $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
     $errorLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
     t('no app.log critical errors during CLI sync', !str_contains($appLog, '[critical]'), trim($appLog));
@@ -220,6 +288,17 @@ try {
     try {
         $stmt = $baseDb->prepare('DELETE FROM `_migrations` WHERE module = :module');
         $stmt->execute([':module' => $moduleId]);
+    } catch (Throwable $ignored) {
+    }
+
+    try {
+        if ($tempNoEntryTenantId > 0) {
+            $stmt = $controlDb->prepare('DELETE FROM kernel_tenant_db_connections WHERE tenant_id = :tenant_id');
+            $stmt->execute([':tenant_id' => $tempNoEntryTenantId]);
+
+            $stmt = $controlDb->prepare('DELETE FROM kernel_tenants WHERE id = :tenant_id');
+            $stmt->execute([':tenant_id' => $tempNoEntryTenantId]);
+        }
     } catch (Throwable $ignored) {
     }
 
