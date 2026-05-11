@@ -110,7 +110,8 @@ function ordPageIndex(array $params = []): void
     }
 
     $user = ehrRequireAdmin();
-    echo ehrRender('modules/orders/admin/index.disyl', ordPageState($user, app()->input()));
+    $state = ordPageState($user, app()->input());
+    echo ehrRender('modules/orders/admin/index.disyl', $state);
 }
 
 function ordSaveOrder(array $params = []): void

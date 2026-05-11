@@ -1,12 +1,14 @@
+{if status_tabs_data}
 <nav class="-mt-2 flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1 text-sm" aria-label="Status filter">
-    {foreach status_tabs as tab}
+    {foreach status_tabs_data.tabs as tab}
     <a href="{tab.url}" class="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 font-semibold {if tab.active}bg-white text-slate-900 shadow-sm{else}text-slate-600 hover:bg-white hover:text-slate-900{/if}" {if tab.active}aria-current="page"{/if}>
         <span>{tab.label}</span>
         {if tab.count > 0}<span class="rounded-full {if tab.active}bg-slate-900 text-white{elseif tab.tone == 'rose'}bg-rose-100 text-rose-700{elseif tab.tone == 'amber'}bg-amber-100 text-amber-800{elseif tab.tone == 'indigo'}bg-indigo-100 text-indigo-700{elseif tab.tone == 'teal'}bg-teal-100 text-teal-700{else}bg-slate-200 text-slate-700{/if} px-2 text-xs">{tab.count}</span>{/if}
     </a>
     {/foreach}
-    {if status_done_url}
+    {if status_tabs_data.done_url}
     <span class="mx-2 h-4 w-px bg-slate-200"></span>
-    <a href="{status_done_url}" class="text-xs font-medium text-slate-500 underline-offset-4 hover:text-emerald-700 hover:underline">{status_done_label | default:'Show completed'}{if status_done_count} ({status_done_count}){/if}</a>
+    <a href="{status_tabs_data.done_url}" class="text-xs font-medium text-slate-500 underline-offset-4 hover:text-emerald-700 hover:underline">{status_tabs_data.done_label}{if status_tabs_data.done_count > 0} ({status_tabs_data.done_count}){/if}</a>
     {/if}
 </nav>
+{/if}

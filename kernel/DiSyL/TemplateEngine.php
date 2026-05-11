@@ -1051,6 +1051,7 @@ class TemplateEngine
     {
         $content = preg_replace('/\{!--.*?--\}/s', '', $content);
         $content = preg_replace('/\{\*.*?\*\}/s', '', $content);
+        $content = preg_replace('/\{#.*?#\}/s', '', $content);
         // DiSyL 4.2: {types}...{/types} blocks are compile-time only; never render.
         $content = preg_replace('/\{types\s*\}.*?\{\/types\s*\}/s', '', $content);
         return $content;

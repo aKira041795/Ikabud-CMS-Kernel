@@ -145,8 +145,8 @@ final class Parser
             return false;
         }
         $next = $this->source[$this->pos + 1];
-        // Comments  {!-- or {*
-        if ($next === '!' || $next === '*') {
+        // Comments  {!-- or {* or {#
+        if ($next === '!' || $next === '*' || $next === '#') {
             return true;
         }
         // Closing tags {/...}
@@ -178,6 +178,9 @@ final class Parser
         }
         if (isset($peek[0]) && $peek[0] === '*') {
             return $this->parseStarComment();
+        }
+        if (isset($peek[0]) && $peek[0] === '#') {
+            return $this->parseHashComment();
         }
 
         // Raw blocks
@@ -296,6 +299,20 @@ final class Parser
     private function parseStarComment(): CommentNode
     {
         $end = strpos($this->source, '*}', $this->pos + 2);
+        if ($end === false) {
+            $content = substr($this->source, $this->pos);
+            $this->pos = $this->len;
+            return new CommentNode([], $content);
+        }
+        $content = substr($this->source, $this->pos + 2, $end - $this->pos - 2);
+        $this->pos = $end + 2;
+        return new CommentNode([], trim($content));
+    }
+
+    /** {# comment #} (Twig/Jinja-style block comment) */
+    private function parseHashComment(): CommentNode
+    {
+        $end = strpos($this->source, '#}', $this->pos + 2);
         if ($end === false) {
             $content = substr($this->source, $this->pos);
             $this->pos = $this->len;
