@@ -46,7 +46,10 @@
                             <div class="text-base font-semibold text-slate-900">{document.title}</div>
                             <div class="mt-1 text-sm text-slate-600">{if document.patient_summary}{document.patient_summary.last_name}, {document.patient_summary.first_name}{else}Unknown patient{/if} · {document.document_uuid}</div>
                         </div>
-                        <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{document.document_type}</div>
+                        <div class="flex items-center gap-2">
+                            <a href="{base_url}/admin/ehr/documents/{document.id}/download" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-400 hover:text-teal-700">Download</a>
+                            <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-700">{document.document_type}</div>
+                        </div>
                     </div>
                     <div class="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-4">
                         <div>
@@ -75,15 +78,20 @@
     </section>
 
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Add a document</h2>
-        <p class="mt-1 text-xs text-slate-500">Attach a file to a patient and tag whether consent or break-glass is required.</p>
-        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Document registered.</div>{/if}
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Upload a document</h2>
+        <p class="mt-1 text-xs text-slate-500">Attach a file to a patient encounter and tag whether consent or break-glass is required. Allowed: PDF, Word, Excel, images, CSV, plain text, DICOM, HL7, XML, JSON.</p>
+        {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Document uploaded.</div>{/if}
         {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
-        <form method="POST" action="{base_url}/admin/ehr/documents" class="mt-4 grid gap-4 md:grid-cols-2">
+        <form method="POST" action="{base_url}/admin/ehr/documents" enctype="multipart/form-data" class="mt-4 grid gap-4 md:grid-cols-2">
             {csrf_field | raw}
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">File</label>
+                <input type="file" name="document_file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.txt,.csv,.dcm,.xml,.json,.hl7" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-teal-700">
+                <p class="mt-1 text-xs text-slate-500">Maximum upload size is 25 MB. MIME type and file size are detected automatically.</p>
+            </div>
             <div>
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Patient</label>
-                <select name="patient_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                <select name="patient_id" required class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
                     <option value="">Select patient</option>
                     {foreach patient_options as patient}
                     <option value="{patient.id}" {if form_values.patient_id == patient.id}selected{/if}>{patient.last_name}, {patient.first_name}</option>
@@ -92,7 +100,7 @@
             </div>
             <div>
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Encounter</label>
-                <select name="encounter_id" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                <select name="encounter_id" required class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
                     <option value="">Select encounter</option>
                     {foreach encounter_options as encounter}
                     <option value="{encounter.id}" {if form_values.encounter_id == encounter.id}selected{/if}>#{encounter.id} · {encounter.status}</option>
@@ -101,29 +109,36 @@
             </div>
             <div class="md:col-span-2">
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Title</label>
-                <input type="text" name="title" value="{form_values.title}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                <input type="text" name="title" value="{form_values.title}" required class="w-full border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="e.g. Discharge Summary 2026-05-10">
             </div>
             <div>
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Document Type</label>
-                <input type="text" name="document_type" value="{form_values.document_type}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
-            </div>
-            <div>
-                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">MIME Type</label>
-                <input type="text" name="mime_type" value="{form_values.mime_type}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
-            </div>
-            <div>
-                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Storage Key</label>
-                <input type="text" name="storage_key" value="{form_values.storage_key}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="auto if blank">
+                <select name="document_type" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="attachment" {if form_values.document_type == 'attachment'}selected{/if}>Attachment</option>
+                    <option value="clinical_note" {if form_values.document_type == 'clinical_note'}selected{/if}>Clinical Note</option>
+                    <option value="lab_report" {if form_values.document_type == 'lab_report'}selected{/if}>Lab Report</option>
+                    <option value="imaging" {if form_values.document_type == 'imaging'}selected{/if}>Imaging</option>
+                    <option value="referral" {if form_values.document_type == 'referral'}selected{/if}>Referral</option>
+                    <option value="consent" {if form_values.document_type == 'consent'}selected{/if}>Consent</option>
+                    <option value="insurance" {if form_values.document_type == 'insurance'}selected{/if}>Insurance</option>
+                    <option value="id_document" {if form_values.document_type == 'id_document'}selected{/if}>ID Document</option>
+                    <option value="discharge" {if form_values.document_type == 'discharge'}selected{/if}>Discharge</option>
+                    <option value="other" {if form_values.document_type == 'other'}selected{/if}>Other</option>
+                </select>
             </div>
             <div>
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Sensitivity</label>
-                <input type="text" name="sensitivity_level" value="{form_values.sensitivity_level}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                <select name="sensitivity_level" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="normal" {if form_values.sensitivity_level == 'normal'}selected{/if}>Normal</option>
+                    <option value="sensitive" {if form_values.sensitivity_level == 'sensitive'}selected{/if}>Sensitive</option>
+                    <option value="restricted" {if form_values.sensitivity_level == 'restricted'}selected{/if}>Restricted</option>
+                </select>
             </div>
             <div class="md:col-span-2 flex items-center gap-6">
                 <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="consent_required_flag" value="1"> Consent required</label>
                 <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="break_glass_only_flag" value="1"> Break-glass only</label>
             </div>
-            <div class="md:col-span-2"><button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white">Register Document</button></div>
+            <div class="md:col-span-2"><button type="submit" class="rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-700">Upload Document</button></div>
         </form>
     </section>
 </div>

@@ -398,3 +398,115 @@ function documents_cap_ehr_document_restrict_1(mixed $payload, string $resolvedC
 
     return ['ok' => true, 'document' => $restricted];
 }
+
+function docMaxUploadBytes(): int
+{
+    if (function_exists('cmsMediaMaxUploadBytes')) {
+        return max(1048576, (int)cmsMediaMaxUploadBytes());
+    }
+    return 25 * 1024 * 1024;
+}
+
+function docAllowedMimeTypes(): array
+{
+    return [
+        'application/pdf', 'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff',
+        'text/plain', 'text/csv',
+        'application/dicom', 'application/hl7-v2', 'application/xml', 'text/xml',
+        'application/json',
+    ];
+}
+
+function docStorageBaseDir(): string
+{
+    $tenantId = app()->tenant()->current();
+    $tenantSegment = $tenantId !== null ? ('/t' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)$tenantId)) : '';
+    return BASE_PATH . '/storage/private/ehr-documents' . $tenantSegment;
+}
+
+function docPersistUploadedFile(array $file, int $patientId): array
+{
+    if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException('Upload a document file first.');
+    }
+    $tmp = trim((string)($file['tmp_name'] ?? ''));
+    if ($tmp === '' || !is_file($tmp)) {
+        throw new InvalidArgumentException('Uploaded document file is not available.');
+    }
+    if (PHP_SAPI !== 'cli' && function_exists('is_uploaded_file') && !is_uploaded_file($tmp)) {
+        throw new InvalidArgumentException('Document upload did not arrive through the HTTP upload pipeline.');
+    }
+    $size = (int)($file['size'] ?? 0);
+    if ($size <= 0) { $size = (int)(@filesize($tmp) ?: 0); }
+    if ($size <= 0) {
+        throw new InvalidArgumentException('Uploaded document file is empty.');
+    }
+    if ($size > docMaxUploadBytes()) {
+        throw new InvalidArgumentException('Uploaded document exceeds the maximum allowed size.');
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = strtolower((string)($finfo->file($tmp) ?: ''));
+    if ($mimeType === '' || !in_array($mimeType, docAllowedMimeTypes(), true)) {
+        throw new InvalidArgumentException('Document file type is not allowed.');
+    }
+
+    $originalName = trim((string)($file['name'] ?? 'document'));
+    $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    if ($ext === '' || strlen($ext) > 8 || !preg_match('/^[a-z0-9]+$/', $ext)) {
+        $ext = match ($mimeType) {
+            'application/pdf' => 'pdf',
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/tiff' => 'tif',
+            'text/plain' => 'txt',
+            'text/csv' => 'csv',
+            'application/dicom' => 'dcm',
+            'application/xml', 'text/xml' => 'xml',
+            'application/json' => 'json',
+            'application/msword' => 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            'application/vnd.ms-excel' => 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+            default => 'bin',
+        };
+    }
+
+    $subDir = 'p' . max(0, $patientId) . '/' . date('Y') . '/' . date('m');
+    $filename = 'doc_' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(6)), 0, 12) . '.' . $ext;
+    $relative = $subDir . '/' . $filename;
+    $destDir = docStorageBaseDir() . '/' . $subDir;
+    $destPath = $destDir . '/' . $filename;
+
+    if (!kernelEnsureDirectory($destDir)) {
+        throw new RuntimeException('Unable to prepare document storage directory.');
+    }
+    if (!kernelCopyFile($tmp, $destPath)) {
+        throw new RuntimeException('Unable to persist uploaded document.');
+    }
+    @chmod($destPath, 0640);
+
+    return [
+        'storage_key' => 'ehr-documents/' . $relative,
+        'absolute_path' => $destPath,
+        'mime_type' => $mimeType,
+        'file_size' => $size,
+        'original_name' => $originalName,
+    ];
+}
+
+function docResolveStoragePath(string $storageKey): ?string
+{
+    $key = ltrim($storageKey, '/');
+    if ($key === '' || str_contains($key, '..')) return null;
+    if (!str_starts_with($key, 'ehr-documents/')) return null;
+    $relative = substr($key, strlen('ehr-documents/'));
+    $path = docStorageBaseDir() . '/' . $relative;
+    return is_file($path) ? $path : null;
+}

@@ -86,21 +86,62 @@ function docSaveDocument(array $params = []): void
 
     $user = ehrRequireAdmin();
     $input = app()->input();
-    $storageKey = trim((string)($input['storage_key'] ?? ''));
-    if ($storageKey === '') {
-        $storageKey = 'ehr/manual/' . bin2hex(random_bytes(8));
+
+    $patientId = max(0, (int)($input['patient_id'] ?? 0));
+    $encounterId = max(0, (int)($input['encounter_id'] ?? 0));
+    $title = trim((string)($input['title'] ?? ''));
+
+    if ($patientId <= 0 || $encounterId <= 0) {
+        echo ehrRender('modules/documents/admin/index.disyl', docPageState($user, $input, 'Select a patient and an encounter before uploading.'));
+        return;
     }
+    if ($title === '') {
+        echo ehrRender('modules/documents/admin/index.disyl', docPageState($user, $input, 'Document title is required.'));
+        return;
+    }
+
+    $storageKey = '';
+    $mimeType = trim((string)($input['mime_type'] ?? ''));
+    $fileSize = null;
+    $originalName = '';
+
+    $uploaded = function_exists('kernelUploadedFile') ? kernelUploadedFile('document_file') : null;
+    if (is_array($uploaded)) {
+        try {
+            $persisted = docPersistUploadedFile($uploaded, $patientId);
+        } catch (\InvalidArgumentException $e) {
+            echo ehrRender('modules/documents/admin/index.disyl', docPageState($user, $input, $e->getMessage()));
+            return;
+        } catch (\Throwable $e) {
+            write_log('ehr document upload failed: ' . $e->getMessage(), 'error');
+            echo ehrRender('modules/documents/admin/index.disyl', docPageState($user, $input, 'Failed to store uploaded document.'));
+            return;
+        }
+        $storageKey = (string)$persisted['storage_key'];
+        $mimeType = (string)$persisted['mime_type'];
+        $fileSize = (int)$persisted['file_size'];
+        $originalName = (string)$persisted['original_name'];
+        if ($title === '' && $originalName !== '') {
+            $title = $originalName;
+        }
+    } else {
+        echo ehrRender('modules/documents/admin/index.disyl', docPageState($user, $input, 'Choose a file to upload.'));
+        return;
+    }
+
     $payload = [
-        'patient_id' => max(0, (int)($input['patient_id'] ?? 0)),
-        'encounter_id' => max(0, (int)($input['encounter_id'] ?? 0)),
-        'title' => trim((string)($input['title'] ?? '')),
+        'patient_id' => $patientId,
+        'encounter_id' => $encounterId,
+        'title' => $title,
         'document_type' => trim((string)($input['document_type'] ?? 'attachment')),
-        'mime_type' => trim((string)($input['mime_type'] ?? 'application/pdf')),
+        'mime_type' => $mimeType !== '' ? $mimeType : 'application/octet-stream',
         'storage_key' => $storageKey,
+        'file_size' => $fileSize,
         'sensitivity_level' => trim((string)($input['sensitivity_level'] ?? 'normal')),
         'consent_required_flag' => !empty($input['consent_required_flag']),
         'break_glass_only_flag' => !empty($input['break_glass_only_flag']),
         'uploaded_by_user_id' => (int)($user['id'] ?? 0),
+        'source' => 'ehr-upload',
     ];
 
     $result = app()->cap()->call('ehr.document.upload@1', $payload, ['caller_module' => 'documents']);
@@ -111,4 +152,56 @@ function docSaveDocument(array $params = []): void
 
     $error = trim((string)($result['error'] ?? 'Unable to register document.'));
     echo ehrRender('modules/documents/admin/index.disyl', docPageState($user, $input, $error));
+}
+
+function docDownload(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(503);
+        echo 'EHR admin runtime unavailable';
+        return;
+    }
+    $user = ehrRequireAdmin();
+    $documentId = (int)($params['id'] ?? 0);
+    if ($documentId <= 0) {
+        http_response_code(404);
+        echo 'Document not found';
+        return;
+    }
+
+    $result = app()->cap()->call('ehr.document.view@1', [
+        'id' => $documentId,
+        'user_id' => (int)($user['id'] ?? 0),
+        'role' => (string)($user['role'] ?? 'admin'),
+    ], ['caller_module' => 'documents']);
+    if (!is_array($result) || empty($result['ok']) || !is_array($result['document'] ?? null)) {
+        http_response_code(403);
+        echo 'Document access denied';
+        return;
+    }
+    $document = $result['document'];
+    $storageKey = (string)($document['storage_key'] ?? '');
+    $path = docResolveStoragePath($storageKey);
+    if ($path === null) {
+        http_response_code(404);
+        echo 'Document file not available';
+        return;
+    }
+
+    $mimeType = (string)($document['mime_type'] ?? 'application/octet-stream');
+    $title = (string)($document['title'] ?? 'document');
+    $ext = pathinfo($path, PATHINFO_EXTENSION);
+    $downloadName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $title);
+    if ($downloadName === '' || $downloadName === '_') $downloadName = 'document';
+    if ($ext !== '' && !str_ends_with(strtolower($downloadName), '.' . strtolower($ext))) {
+        $downloadName .= '.' . $ext;
+    }
+
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+    header('Content-Type: ' . $mimeType);
+    header('Content-Length: ' . (int)filesize($path));
+    header('Content-Disposition: attachment; filename="' . addslashes($downloadName) . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store, max-age=0');
+    @readfile($path);
 }
