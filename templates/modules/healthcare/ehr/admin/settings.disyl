@@ -1,13 +1,13 @@
 {extends "modules/ehr/layouts/admin.disyl"}
 
 {block content}
-<div class="mx-auto max-w-5xl space-y-6">
+<div class="mx-auto max-w-7xl space-y-6">
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">EHR Settings</p>
                 <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Branding and Access</h1>
-                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Set the custom EHR name, upload the login logo and favicon, and manage the module-owned password reset experience used by the EHR entry tenant.</p>
+                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Configure your healthcare organization's identity, brand visuals, identifiers, contact information, and HIPAA-required compliance officers. These values are reused by the EHR auth pages, transactional emails, and printed clinical documents.</p>
             </div>
             <div class="flex flex-wrap gap-3 text-sm">
                 <a href="{login_url}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50">Open Login</a>
@@ -18,68 +18,275 @@
 
     <div id="ehr-settings-banner" class="hidden rounded-2xl border px-4 py-3 text-sm font-medium"></div>
 
-    <section class="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-        <form id="ehr-settings-form" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
-            <div class="grid gap-5 md:grid-cols-2">
-                <div class="md:col-span-2">
-                    <label for="ehr-app-name" class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Custom EHR Name</label>
-                    <input id="ehr-app-name" name="app_name" maxlength="120" value="{settings.app_name}" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
-                </div>
-                <div class="md:col-span-2">
-                    <label for="ehr-login-subtitle" class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Login Subtitle</label>
-                    <textarea id="ehr-login-subtitle" name="login_subtitle" rows="4" maxlength="280" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">{settings.login_subtitle}</textarea>
-                </div>
-            </div>
-
+    <section class="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
+        <form id="ehr-settings-form" class="space-y-6">
             <input type="hidden" name="logo_url" value="{settings.logo_url}">
+            <input type="hidden" name="dark_logo_url" value="{settings.dark_logo_url}">
             <input type="hidden" name="favicon_url" value="{settings.favicon_url}">
+            <input type="hidden" name="login_background_url" value="{settings.login_background_url}">
 
-            <div class="grid gap-6 md:grid-cols-2">
-                <div class="space-y-3 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+            {# Organization Identity #}
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <header class="mb-4 flex items-start justify-between gap-4">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Logo</p>
-                        <p class="mt-1 text-sm text-slate-600">Shown on the EHR login, forgot-password, and reset-password pages.</p>
+                        <h2 class="text-lg font-semibold text-slate-900">Organization Identity</h2>
+                        <p class="mt-1 text-sm text-slate-600">Legal and operating identity used on bills, clinical documents, and the patient portal.</p>
                     </div>
-                    <div id="ehr-logo-preview" class="flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-white text-3xl font-semibold text-teal-700">{if settings.logo_url}<img src="{settings.logo_url}" alt="{settings.app_name} logo" class="h-full w-full object-contain p-3">{else}{settings.brand_initial}{/if}</div>
-                    <input id="ehr-logo-file" type="file" accept="image/*" class="block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-teal-700">
-                    <div class="flex flex-wrap gap-3">
-                        <button type="button" id="ehr-logo-remove" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100" {if !settings.logo_url}hidden{/if}>Use Monogram</button>
+                </header>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="md:col-span-2">
+                        <label for="ehr-app-name" class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Display Name (EHR app)</label>
+                        <input id="ehr-app-name" name="app_name" maxlength="120" value="{settings.app_name}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
                     </div>
-                </div>
-
-                <div class="space-y-3 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Favicon</p>
-                        <p class="mt-1 text-sm text-slate-600">Used by the branded EHR auth pages in the browser tab and bookmarks.</p>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Legal Name</label>
+                        <input name="legal_name" maxlength="200" value="{settings.legal_name}" placeholder="ABC Healthcare, Inc." class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
                     </div>
-                    <div id="ehr-favicon-preview" class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white p-3">{if settings.favicon_url}<img src="{settings.favicon_url}" alt="{settings.app_name} favicon" class="h-full w-full object-contain">{else}<img src="{settings.resolved_favicon_url}" alt="Default EHR favicon" class="h-full w-full object-contain">{/if}</div>
-                    <input id="ehr-favicon-file" type="file" accept="image/*,.ico" class="block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-teal-700">
-                    <div class="flex flex-wrap gap-3">
-                        <button type="button" id="ehr-favicon-remove" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100" {if !settings.favicon_url}hidden{/if}>Use Default Favicon</button>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Doing Business As (DBA)</label>
+                        <input name="dba_name" maxlength="200" value="{settings.dba_name}" placeholder="ABC Family Clinic" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Organization Type</label>
+                        <select name="org_type" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                            {foreach org_type_options as key => label}<option value="{key}" {if settings.org_type == key}selected{/if}>{label}</option>{/foreach}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Tagline</label>
+                        <input name="tagline" maxlength="160" value="{settings.tagline}" placeholder="Compassionate care, modern tools." class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="ehr-login-subtitle" class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Login Subtitle</label>
+                        <textarea id="ehr-login-subtitle" name="login_subtitle" rows="3" maxlength="280" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">{settings.login_subtitle}</textarea>
                     </div>
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-5">
-                <p class="max-w-2xl text-sm leading-6 text-slate-600">The tenant keeps the kernel login page at <span class="font-semibold text-slate-900">/login</span>, while password recovery resolves into the EHR-owned reset flow behind <span class="font-semibold text-slate-900">/forgot-password</span> and <span class="font-semibold text-slate-900">/reset-password</span>.</p>
+            {# Brand Visuals #}
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <header class="mb-4">
+                    <h2 class="text-lg font-semibold text-slate-900">Brand Visuals</h2>
+                    <p class="mt-1 text-sm text-slate-600">Logos, favicon, login background, and brand colors used across the EHR auth surfaces.</p>
+                </header>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Primary Logo</p>
+                        <div id="ehr-logo-preview" class="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white text-2xl font-semibold text-teal-700">{if settings.logo_url}<img src="{settings.logo_url}" alt="logo" class="h-full w-full object-contain p-2">{else}{settings.brand_initial}{/if}</div>
+                        <input id="ehr-logo-file" type="file" accept="image/*" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-teal-700">
+                        <button type="button" id="ehr-logo-remove" class="text-xs font-semibold text-slate-600 hover:text-rose-600" {if !settings.logo_url}hidden{/if}>Remove logo</button>
+                    </div>
+                    <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-900 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">Dark Logo (for dark backgrounds)</p>
+                        <div id="ehr-dark-logo-preview" class="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/20 bg-slate-800 text-2xl font-semibold text-teal-200">{if settings.dark_logo_url}<img src="{settings.dark_logo_url}" alt="dark logo" class="h-full w-full object-contain p-2">{else}{settings.brand_initial}{/if}</div>
+                        <input id="ehr-dark-logo-file" type="file" accept="image/*" class="block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-teal-400">
+                        <button type="button" id="ehr-dark-logo-remove" class="text-xs font-semibold text-slate-300 hover:text-rose-400" {if !settings.dark_logo_url}hidden{/if}>Remove dark logo</button>
+                    </div>
+                    <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Favicon</p>
+                        <div id="ehr-favicon-preview" class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white p-2">{if settings.favicon_url}<img src="{settings.favicon_url}" alt="favicon" class="h-full w-full object-contain">{else}<img src="{settings.resolved_favicon_url}" alt="default favicon" class="h-full w-full object-contain">{/if}</div>
+                        <input id="ehr-favicon-file" type="file" accept="image/*,.ico" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-teal-700">
+                        <button type="button" id="ehr-favicon-remove" class="text-xs font-semibold text-slate-600 hover:text-rose-600" {if !settings.favicon_url}hidden{/if}>Use default favicon</button>
+                    </div>
+                    <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Login Background Image</p>
+                        <div id="ehr-loginbg-preview" class="flex h-24 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white">{if settings.login_background_url}<img src="{settings.login_background_url}" alt="login background" class="h-full w-full object-cover">{else}<span class="text-xs text-slate-400">No image</span>{/if}</div>
+                        <input id="ehr-loginbg-file" type="file" accept="image/*" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-teal-700">
+                        <button type="button" id="ehr-loginbg-remove" class="text-xs font-semibold text-slate-600 hover:text-rose-600" {if !settings.login_background_url}hidden{/if}>Remove background</button>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Primary Color</label>
+                        <div class="flex items-center gap-2">
+                            <input type="color" name="primary_color" value="{if settings.primary_color}{settings.primary_color}{else}#0d9488{/if}" class="h-10 w-14 cursor-pointer rounded-lg border border-slate-200">
+                            <input type="text" id="ehr-primary-color-text" value="{settings.primary_color}" maxlength="7" placeholder="#0d9488" class="w-32 rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm uppercase text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Accent Color</label>
+                        <div class="flex items-center gap-2">
+                            <input type="color" name="accent_color" value="{if settings.accent_color}{settings.accent_color}{else}#0e7490{/if}" class="h-10 w-14 cursor-pointer rounded-lg border border-slate-200">
+                            <input type="text" id="ehr-accent-color-text" value="{settings.accent_color}" maxlength="7" placeholder="#0e7490" class="w-32 rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm uppercase text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# Healthcare Identifiers #}
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <header class="mb-4">
+                    <h2 class="text-lg font-semibold text-slate-900">Healthcare Identifiers</h2>
+                    <p class="mt-1 text-sm text-slate-600">Practice-level identifiers used by claims, lab orders, and HIE messages.</p>
+                </header>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Group / Organization NPI</label>
+                        <input name="group_npi" maxlength="10" inputmode="numeric" pattern="\d{10}" value="{settings.group_npi}" placeholder="10 digits" class="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Tax ID / EIN</label>
+                        <input name="tax_id" maxlength="12" value="{settings.tax_id}" placeholder="12-3456789" class="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">CLIA Number <span class="font-normal normal-case text-slate-400">(if applicable)</span></label>
+                        <input name="clia_number" maxlength="12" value="{settings.clia_number}" placeholder="12D3456789" class="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm uppercase text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Taxonomy Code</label>
+                        <input name="taxonomy_code" maxlength="12" value="{settings.taxonomy_code}" placeholder="207Q00000X" class="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm uppercase text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                </div>
+            </div>
+
+            {# Contact & Address #}
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <header class="mb-4">
+                    <h2 class="text-lg font-semibold text-slate-900">Contact &amp; Address</h2>
+                    <p class="mt-1 text-sm text-slate-600">Practice contact information surfaced on the patient portal and clinical documents.</p>
+                </header>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Phone</label>
+                        <input name="phone" maxlength="40" value="{settings.phone}" placeholder="+1 (555) 555-0100" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fax</label>
+                        <input name="fax" maxlength="40" value="{settings.fax}" placeholder="+1 (555) 555-0199" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Support Email</label>
+                        <input name="support_email" type="email" maxlength="160" value="{settings.support_email}" placeholder="support@practice.com" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Website URL</label>
+                        <input name="website_url" type="url" maxlength="2048" value="{settings.website_url}" placeholder="https://practice.com" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Street Address</label>
+                        <input name="address_line1" maxlength="160" value="{settings.address_line1}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Suite / Unit / Building</label>
+                        <input name="address_line2" maxlength="160" value="{settings.address_line2}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">City</label>
+                        <input name="city" maxlength="80" value="{settings.city}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">State</label>
+                            <select name="state" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                                {foreach us_state_options as s}<option value="{s}" {if settings.state == s}selected{/if}>{if s}{s}{else}—{/if}</option>{/foreach}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Postal Code</label>
+                            <input name="postal_code" maxlength="20" value="{settings.postal_code}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Country</label>
+                        <select name="country" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                            {foreach country_options as code => label}<option value="{code}" {if settings.country == code}selected{/if}>{label}</option>{/foreach}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Default Timezone</label>
+                        <select name="timezone" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                            {foreach timezone_options as zone => label}<option value="{zone}" {if settings.timezone == zone}selected{/if}>{label}</option>{/foreach}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Default Locale</label>
+                        <select name="locale" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                            {foreach locale_options as code => label}<option value="{code}" {if settings.locale == code}selected{/if}>{label}</option>{/foreach}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {# HIPAA / Compliance #}
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <header class="mb-4">
+                    <h2 class="text-lg font-semibold text-slate-900">HIPAA Compliance Officers</h2>
+                    <p class="mt-1 text-sm text-slate-600">HIPAA requires a designated Privacy Officer and Security Officer. Their contact details appear on the Notice of Privacy Practices.</p>
+                </header>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Privacy Officer Name</label>
+                        <input name="privacy_officer_name" maxlength="160" value="{settings.privacy_officer_name}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Privacy Officer Email</label>
+                        <input name="privacy_officer_email" type="email" maxlength="160" value="{settings.privacy_officer_email}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Security Officer Name</label>
+                        <input name="security_officer_name" maxlength="160" value="{settings.security_officer_name}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Security Officer Email</label>
+                        <input name="security_officer_email" type="email" maxlength="160" value="{settings.security_officer_email}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Notice of Privacy Practices URL</label>
+                        <input name="npp_url" type="url" maxlength="2048" value="{settings.npp_url}" placeholder="https://practice.com/privacy-practices" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                </div>
+            </div>
+
+            {# Login footer / legal #}
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <header class="mb-4">
+                    <h2 class="text-lg font-semibold text-slate-900">Login &amp; Legal Footer</h2>
+                    <p class="mt-1 text-sm text-slate-600">Legal links and the support footer shown on the EHR sign-in surface.</p>
+                </header>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="md:col-span-2">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Support Footer Message</label>
+                        <textarea name="support_footer" rows="2" maxlength="280" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">{settings.support_footer}</textarea>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Terms of Service URL</label>
+                        <input name="terms_url" type="url" maxlength="2048" value="{settings.terms_url}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Privacy Policy URL</label>
+                        <input name="privacy_url" type="url" maxlength="2048" value="{settings.privacy_url}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p class="max-w-2xl text-sm leading-6 text-slate-600">The tenant keeps the kernel login at <span class="font-semibold text-slate-900">/login</span>; password recovery uses the EHR-owned flow at <span class="font-semibold text-slate-900">/forgot-password</span> and <span class="font-semibold text-slate-900">/reset-password</span>.</p>
                 <button type="submit" id="ehr-settings-submit" class="inline-flex items-center justify-center rounded-2xl bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">Save EHR Settings</button>
             </div>
         </form>
 
-        <aside class="rounded-3xl border border-slate-200 bg-slate-950 p-6 text-slate-100 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Preview</p>
-            <div class="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur">
-                <div class="flex items-center gap-4">
-                    <div id="ehr-preview-mark" class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[22px] bg-white/10 text-2xl font-semibold text-teal-200">{if settings.logo_url}<img src="{settings.logo_url}" alt="{settings.app_name} logo" class="h-full w-full object-contain bg-white p-2">{else}{settings.brand_initial}{/if}</div>
-                    <div>
-                        <h2 id="ehr-preview-name" class="text-2xl font-semibold tracking-tight">{settings.app_name}</h2>
-                        <p id="ehr-preview-subtitle" class="mt-1 text-sm leading-6 text-slate-300">{settings.login_subtitle}</p>
+        <aside class="space-y-4 lg:sticky lg:top-6 lg:self-start">
+            <div class="rounded-3xl border border-slate-200 bg-slate-950 p-6 text-slate-100 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Login Preview</p>
+                <div id="ehr-preview-card" class="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur" style="background-image:{if settings.login_background_url}url('{settings.login_background_url}'){else}none{/if};background-size:cover;background-position:center;">
+                    <div class="rounded-2xl bg-slate-950/70 p-4">
+                        <div class="flex items-center gap-4">
+                            <div id="ehr-preview-mark" class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[22px] bg-white/10 text-2xl font-semibold text-teal-200">{if settings.logo_url}<img src="{settings.logo_url}" alt="logo" class="h-full w-full object-contain bg-white p-2">{else}{settings.brand_initial}{/if}</div>
+                            <div>
+                                <h2 id="ehr-preview-name" class="text-2xl font-semibold tracking-tight">{settings.app_name}</h2>
+                                <p id="ehr-preview-subtitle" class="mt-1 text-sm leading-6 text-slate-300">{settings.login_subtitle}</p>
+                            </div>
+                        </div>
+                        <button type="button" id="ehr-preview-cta" class="mt-4 inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white" style="background-color: {if settings.primary_color}{settings.primary_color}{else}#0d9488{/if};">Sign In</button>
                     </div>
                 </div>
-                <div class="mt-6 rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
-                    <p class="font-semibold text-white">Reset password convention</p>
-                    <p class="mt-2">The EHR module owns its reset tokens and recovery endpoints. This branding is reused across sign-in, forgot-password, reset-password, and reset email copy.</p>
-                </div>
+            </div>
+            <div class="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                <p class="font-semibold text-slate-900">Industry-standard fields</p>
+                <ul class="mt-2 space-y-1 list-disc pl-5">
+                    <li>Org identity: legal name, DBA, type, tagline.</li>
+                    <li>Healthcare IDs: Group NPI, Tax ID/EIN, CLIA, taxonomy.</li>
+                    <li>HIPAA: Privacy/Security Officer, NPP URL.</li>
+                    <li>Branding: logo, dark logo, favicon, login background, brand colors.</li>
+                </ul>
             </div>
         </aside>
     </section>
@@ -94,90 +301,114 @@
     const submitButton = document.getElementById('ehr-settings-submit');
     const appNameInput = document.getElementById('ehr-app-name');
     const subtitleInput = document.getElementById('ehr-login-subtitle');
-    const logoUrlInput = form?.querySelector('[name="logo_url"]');
-    const faviconUrlInput = form?.querySelector('[name="favicon_url"]');
-    const logoFileInput = document.getElementById('ehr-logo-file');
-    const faviconFileInput = document.getElementById('ehr-favicon-file');
-    const logoPreview = document.getElementById('ehr-logo-preview');
-    const faviconPreview = document.getElementById('ehr-favicon-preview');
+
+    const hidden = {
+        logo: form?.querySelector('[name="logo_url"]'),
+        dark_logo: form?.querySelector('[name="dark_logo_url"]'),
+        favicon: form?.querySelector('[name="favicon_url"]'),
+        login_background: form?.querySelector('[name="login_background_url"]'),
+    };
+    const fileInputs = {
+        logo: document.getElementById('ehr-logo-file'),
+        dark_logo: document.getElementById('ehr-dark-logo-file'),
+        favicon: document.getElementById('ehr-favicon-file'),
+        login_background: document.getElementById('ehr-loginbg-file'),
+    };
+    const previews = {
+        logo: document.getElementById('ehr-logo-preview'),
+        dark_logo: document.getElementById('ehr-dark-logo-preview'),
+        favicon: document.getElementById('ehr-favicon-preview'),
+        login_background: document.getElementById('ehr-loginbg-preview'),
+    };
+    const removeButtons = {
+        logo: document.getElementById('ehr-logo-remove'),
+        dark_logo: document.getElementById('ehr-dark-logo-remove'),
+        favicon: document.getElementById('ehr-favicon-remove'),
+        login_background: document.getElementById('ehr-loginbg-remove'),
+    };
     const previewMark = document.getElementById('ehr-preview-mark');
     const previewName = document.getElementById('ehr-preview-name');
     const previewSubtitle = document.getElementById('ehr-preview-subtitle');
-    const logoRemoveButton = document.getElementById('ehr-logo-remove');
-    const faviconRemoveButton = document.getElementById('ehr-favicon-remove');
+    const previewCta = document.getElementById('ehr-preview-cta');
+    const previewCard = document.getElementById('ehr-preview-card');
+    const primaryColorInput = form?.querySelector('[name="primary_color"]');
+    const accentColorInput = form?.querySelector('[name="accent_color"]');
+    const primaryColorText = document.getElementById('ehr-primary-color-text');
+    const accentColorText = document.getElementById('ehr-accent-color-text');
+    const defaultFavicon = '{settings.resolved_favicon_url}';
 
     function brandInitial(name) {
-        return String(name || 'EHR Suite')
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((part) => part.charAt(0).toUpperCase())
-            .join('') || 'EH';
+        return String(name || 'EHR Suite').trim().split(/\s+/).filter(Boolean).slice(0,2).map(p=>p.charAt(0).toUpperCase()).join('') || 'EH';
     }
 
     function showBanner(message, type = 'info') {
-        if (!banner) {
-            return;
-        }
+        if (!banner) return;
         banner.textContent = message;
         banner.className = 'rounded-2xl border px-4 py-3 text-sm font-medium';
-        if (type === 'success') {
-            banner.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-700');
-        } else if (type === 'error') {
-            banner.classList.add('border-rose-200', 'bg-rose-50', 'text-rose-700');
-        } else {
-            banner.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
-        }
+        if (type === 'success') banner.classList.add('border-emerald-200','bg-emerald-50','text-emerald-700');
+        else if (type === 'error') banner.classList.add('border-rose-200','bg-rose-50','text-rose-700');
+        else banner.classList.add('border-slate-200','bg-white','text-slate-700');
         banner.classList.remove('hidden');
     }
 
-    function renderBrandPreview() {
-        const name = appNameInput?.value?.trim() || 'EHR Suite';
-        const subtitle = subtitleInput?.value?.trim() || 'Clinical operations, records access, and compliance workflows in one secure workspace.';
-        const logoUrl = logoUrlInput?.value || '';
-        const faviconUrl = faviconUrlInput?.value || '';
-
-        if (previewName) {
-            previewName.textContent = name;
+    function renderPreviewMark(target, url, dark) {
+        if (!target) return;
+        target.replaceChildren();
+        if (url) {
+            const img = document.createElement('img');
+            img.src = url; img.alt = 'logo';
+            img.className = dark ? 'h-full w-full object-contain p-2' : 'h-full w-full object-contain p-2';
+            if (target === previewMark) img.className = 'h-full w-full object-contain bg-white p-2';
+            target.appendChild(img);
+        } else {
+            target.textContent = brandInitial(appNameInput?.value || 'EHR Suite');
         }
-        if (previewSubtitle) {
-            previewSubtitle.textContent = subtitle;
-        }
+    }
 
-        const markTargets = [logoPreview, previewMark];
-        markTargets.forEach((target) => {
-            if (!target) {
-                return;
-            }
-            target.replaceChildren();
-            if (logoUrl) {
-                const image = document.createElement('img');
-                image.src = logoUrl;
-                image.alt = name + ' logo';
-                image.className = target === logoPreview
-                    ? 'h-full w-full object-contain p-3'
-                    : 'h-full w-full object-contain bg-white p-2';
-                target.appendChild(image);
-            } else {
-                target.textContent = brandInitial(name);
-            }
+    function renderFaviconPreview(url) {
+        if (!previews.favicon) return;
+        previews.favicon.replaceChildren();
+        const img = document.createElement('img');
+        img.src = url || defaultFavicon;
+        img.alt = 'favicon';
+        img.className = 'h-full w-full object-contain';
+        previews.favicon.appendChild(img);
+    }
+
+    function renderLoginBgPreview(url) {
+        if (!previews.login_background) return;
+        previews.login_background.replaceChildren();
+        if (url) {
+            const img = document.createElement('img');
+            img.src = url; img.alt = 'login background';
+            img.className = 'h-full w-full object-cover';
+            previews.login_background.appendChild(img);
+        } else {
+            const span = document.createElement('span');
+            span.className = 'text-xs text-slate-400';
+            span.textContent = 'No image';
+            previews.login_background.appendChild(span);
+        }
+        if (previewCard) {
+            previewCard.style.backgroundImage = url ? `url('${url}')` : 'none';
+        }
+    }
+
+    function renderAll() {
+        const name = (appNameInput?.value?.trim()) || 'EHR Suite';
+        const subtitle = (subtitleInput?.value?.trim()) || '';
+        if (previewName) previewName.textContent = name;
+        if (previewSubtitle) previewSubtitle.textContent = subtitle;
+        renderPreviewMark(previews.logo, hidden.logo?.value || '', false);
+        renderPreviewMark(previews.dark_logo, hidden.dark_logo?.value || '', true);
+        renderPreviewMark(previewMark, hidden.logo?.value || '', false);
+        renderFaviconPreview(hidden.favicon?.value || '');
+        renderLoginBgPreview(hidden.login_background?.value || '');
+        Object.keys(removeButtons).forEach(k => {
+            if (removeButtons[k]) removeButtons[k].hidden = !(hidden[k]?.value || '');
         });
-
-        if (logoRemoveButton) {
-            logoRemoveButton.hidden = !logoUrl;
-        }
-
-        if (faviconPreview) {
-            faviconPreview.replaceChildren();
-            const image = document.createElement('img');
-            image.src = faviconUrl || '{settings.resolved_favicon_url}';
-            image.alt = name + ' favicon';
-            image.className = 'h-full w-full object-contain';
-            faviconPreview.appendChild(image);
-        }
-        if (faviconRemoveButton) {
-            faviconRemoveButton.hidden = !faviconUrl;
+        if (previewCta && primaryColorInput) {
+            previewCta.style.backgroundColor = primaryColorInput.value || '#0d9488';
         }
     }
 
@@ -185,100 +416,73 @@
         const body = new FormData();
         body.append('asset_type', assetType);
         body.append('asset_file', file);
-        const response = await fetch('{base_url}/api/v1/ehr/settings/branding-asset', {
-            method: 'POST',
-            body,
-        });
+        const response = await fetch('{base_url}/api/v1/ehr/settings/branding-asset', { method: 'POST', body });
         const payload = await response.json();
-        if (!response.ok || !payload.ok) {
-            throw new Error(payload.error || 'Branding asset upload failed.');
-        }
+        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Upload failed.');
         return payload;
     }
+
+    function bindColorPair(colorInput, textInput) {
+        if (!colorInput || !textInput) return;
+        colorInput.addEventListener('input', () => { textInput.value = colorInput.value; renderAll(); });
+        textInput.addEventListener('change', () => {
+            const v = textInput.value.trim();
+            if (/^#[0-9a-fA-F]{6}$/.test(v)) { colorInput.value = v.toLowerCase(); }
+            renderAll();
+        });
+    }
+    bindColorPair(primaryColorInput, primaryColorText);
+    bindColorPair(accentColorInput, accentColorText);
+
+    Object.keys(fileInputs).forEach(kind => {
+        fileInputs[kind]?.addEventListener('change', () => renderAll());
+        removeButtons[kind]?.addEventListener('click', () => {
+            if (hidden[kind]) hidden[kind].value = '';
+            if (fileInputs[kind]) fileInputs[kind].value = '';
+            renderAll();
+        });
+    });
+
+    appNameInput?.addEventListener('input', renderAll);
+    subtitleInput?.addEventListener('input', renderAll);
 
     form?.addEventListener('submit', async (event) => {
         event.preventDefault();
         submitButton.disabled = true;
         submitButton.textContent = 'Saving...';
-
         try {
-            let logoUrl = logoUrlInput?.value || '';
-            let faviconUrl = faviconUrlInput?.value || '';
-
-            const logoFile = logoFileInput?.files?.[0] || null;
-            if (logoFile) {
-                showBanner('Uploading EHR logo...');
-                const upload = await uploadAsset('logo', logoFile);
-                logoUrl = upload.asset_url || '';
-                if (logoUrlInput) {
-                    logoUrlInput.value = logoUrl;
-                }
+            for (const kind of Object.keys(fileInputs)) {
+                const f = fileInputs[kind]?.files?.[0];
+                if (!f) continue;
+                showBanner(`Uploading ${kind.replace('_',' ')}...`);
+                const upload = await uploadAsset(kind, f);
+                if (hidden[kind]) hidden[kind].value = upload.asset_url || '';
             }
 
-            const faviconFile = faviconFileInput?.files?.[0] || null;
-            if (faviconFile) {
-                showBanner('Uploading EHR favicon...');
-                const upload = await uploadAsset('favicon', faviconFile);
-                faviconUrl = upload.asset_url || '';
-                if (faviconUrlInput) {
-                    faviconUrlInput.value = faviconUrl;
-                }
-            }
+            const fd = new FormData(form);
+            const payload = {};
+            fd.forEach((v, k) => { payload[k] = v; });
 
-            const response = await fetch('{base_url}/api/v1/ehr/settings/save', {
+            const res = await fetch('{base_url}/api/v1/ehr/settings/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    app_name: appNameInput?.value || '',
-                    login_subtitle: subtitleInput?.value || '',
-                    logo_url: logoUrl,
-                    favicon_url: faviconUrl,
-                }),
+                body: JSON.stringify(payload),
             });
-            const payload = await response.json();
-            if (!response.ok || !payload.ok) {
-                throw new Error(payload.error || 'Unable to save EHR settings.');
-            }
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Unable to save EHR settings.');
 
-            if (logoFileInput) {
-                logoFileInput.value = '';
-            }
-            if (faviconFileInput) {
-                faviconFileInput.value = '';
-            }
-            renderBrandPreview();
-            showBanner(payload.message || 'EHR settings updated.', 'success');
-        } catch (error) {
-            showBanner(error instanceof Error ? error.message : 'Unable to save EHR settings.', 'error');
+            Object.keys(fileInputs).forEach(k => { if (fileInputs[k]) fileInputs[k].value = ''; });
+            renderAll();
+            showBanner(data.message || 'EHR settings updated.', 'success');
+        } catch (err) {
+            showBanner(err instanceof Error ? err.message : 'Unable to save EHR settings.', 'error');
         } finally {
             submitButton.disabled = false;
             submitButton.textContent = 'Save EHR Settings';
         }
     });
 
-    logoRemoveButton?.addEventListener('click', () => {
-        if (logoUrlInput) {
-            logoUrlInput.value = '';
-        }
-        if (logoFileInput) {
-            logoFileInput.value = '';
-        }
-        renderBrandPreview();
-    });
-
-    faviconRemoveButton?.addEventListener('click', () => {
-        if (faviconUrlInput) {
-            faviconUrlInput.value = '';
-        }
-        if (faviconFileInput) {
-            faviconFileInput.value = '';
-        }
-        renderBrandPreview();
-    });
-
-    appNameInput?.addEventListener('input', renderBrandPreview);
-    subtitleInput?.addEventListener('input', renderBrandPreview);
-    renderBrandPreview();
+    renderAll();
 })();
 </script>
 {/block}

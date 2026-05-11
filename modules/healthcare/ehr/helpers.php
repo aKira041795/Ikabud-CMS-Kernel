@@ -210,11 +210,115 @@ function ehrCurrentRouteNavKey(string $path): ?string
 function ehrSettingsDefaults(): array
 {
     return [
+        // Display / login
         'app_name' => 'EHR Suite',
         'login_subtitle' => 'Clinical operations, records access, and compliance workflows in one secure workspace.',
+        'support_footer' => '',
+        'terms_url' => '',
+        'privacy_url' => '',
+        // Brand visuals
         'logo_url' => '',
+        'dark_logo_url' => '',
         'favicon_url' => '',
+        'login_background_url' => '',
+        'primary_color' => '#0d9488',
+        'accent_color' => '#0e7490',
+        // Organization identity
+        'legal_name' => '',
+        'dba_name' => '',
+        'org_type' => 'clinic',
+        'tagline' => '',
+        // Healthcare identifiers
+        'group_npi' => '',
+        'tax_id' => '',
+        'clia_number' => '',
+        'taxonomy_code' => '',
+        // Contact
+        'phone' => '',
+        'fax' => '',
+        'support_email' => '',
+        'website_url' => '',
+        // Address
+        'address_line1' => '',
+        'address_line2' => '',
+        'city' => '',
+        'state' => '',
+        'postal_code' => '',
+        'country' => 'US',
+        // Operational
+        'timezone' => 'America/New_York',
+        'locale' => 'en-US',
+        // HIPAA / compliance contacts
+        'privacy_officer_name' => '',
+        'privacy_officer_email' => '',
+        'security_officer_name' => '',
+        'security_officer_email' => '',
+        'npp_url' => '',
     ];
+}
+
+function ehrSettingsOrgTypes(): array
+{
+    return [
+        'clinic' => 'Outpatient Clinic',
+        'hospital' => 'Hospital / Health System',
+        'group_practice' => 'Group Practice',
+        'solo_practice' => 'Solo Practice',
+        'urgent_care' => 'Urgent Care',
+        'specialty' => 'Specialty Practice',
+        'lab' => 'Diagnostic Laboratory',
+        'imaging' => 'Imaging Center',
+        'pharmacy' => 'Pharmacy',
+        'behavioral_health' => 'Behavioral Health',
+        'home_health' => 'Home Health Agency',
+        'long_term_care' => 'Long-Term / Skilled Nursing',
+        'fqhc' => 'FQHC / Community Health Center',
+        'telehealth' => 'Telehealth Practice',
+        'other' => 'Other Healthcare Organization',
+    ];
+}
+
+function ehrSettingsTimezones(): array
+{
+    return [
+        'America/New_York' => '(UTC-05/04) Eastern',
+        'America/Chicago' => '(UTC-06/05) Central',
+        'America/Denver' => '(UTC-07/06) Mountain',
+        'America/Phoenix' => '(UTC-07) Arizona (no DST)',
+        'America/Los_Angeles' => '(UTC-08/07) Pacific',
+        'America/Anchorage' => '(UTC-09/08) Alaska',
+        'Pacific/Honolulu' => '(UTC-10) Hawaii',
+        'America/Puerto_Rico' => '(UTC-04) Atlantic / Puerto Rico',
+        'UTC' => '(UTC) Coordinated Universal Time',
+    ];
+}
+
+function ehrSettingsLocales(): array
+{
+    return [
+        'en-US' => 'English (United States)',
+        'en-GB' => 'English (United Kingdom)',
+        'es-US' => 'Spanish (United States)',
+        'fr-CA' => 'French (Canada)',
+        'tl-PH' => 'Filipino (Philippines)',
+    ];
+}
+
+function ehrSettingsCountries(): array
+{
+    return [
+        'US' => 'United States',
+        'CA' => 'Canada',
+        'PH' => 'Philippines',
+        'GB' => 'United Kingdom',
+        'AU' => 'Australia',
+        'OTHER' => 'Other',
+    ];
+}
+
+function ehrSettingsUsStates(): array
+{
+    return ['', 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC','PR'];
 }
 
 function ehrModuleSettings(bool $refresh = false): array
@@ -347,7 +451,9 @@ function ehrUploadBrandAsset(string $assetType, array $file): array
     $assetType = strtolower(trim($assetType));
     $labels = [
         'logo' => 'Logo',
+        'dark_logo' => 'Dark logo',
         'favicon' => 'Favicon',
+        'login_background' => 'Login background',
     ];
     if (!isset($labels[$assetType])) {
         throw new InvalidArgumentException('Unsupported branding asset type.');

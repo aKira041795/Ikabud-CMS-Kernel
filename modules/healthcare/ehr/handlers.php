@@ -281,6 +281,14 @@ function ehrSettingsPage(array $params = []): void
 {
     $user = ehrRequireAdmin();
     $settings = ehrModuleSettings();
+    $defaults = ehrSettingsDefaults();
+    $merged = array_merge($defaults, $settings);
+    $merged['logo_url'] = ehrLogoUrl();
+    $merged['favicon_url'] = ehrFaviconUrl();
+    $merged['resolved_favicon_url'] = ehrResolvedFaviconUrl();
+    $merged['brand_initial'] = ehrBrandInitial();
+    $merged['app_name'] = (string)($settings['app_name'] ?? ehrAppName());
+    $merged['login_subtitle'] = (string)($settings['login_subtitle'] ?? ehrLoginSubtitle());
 
     echo ehrRender('admin/settings.disyl', array_merge(
         ehrAdminContext($user, 'ehr_settings', [
@@ -288,14 +296,12 @@ function ehrSettingsPage(array $params = []): void
         ]),
         [
             'base_url' => ehrBaseUrl(),
-            'settings' => [
-                'app_name' => (string)($settings['app_name'] ?? ehrAppName()),
-                'login_subtitle' => (string)($settings['login_subtitle'] ?? ehrLoginSubtitle()),
-                'logo_url' => ehrLogoUrl(),
-                'favicon_url' => ehrFaviconUrl(),
-                'resolved_favicon_url' => ehrResolvedFaviconUrl(),
-                'brand_initial' => ehrBrandInitial(),
-            ],
+            'settings' => $merged,
+            'org_type_options' => ehrSettingsOrgTypes(),
+            'timezone_options' => ehrSettingsTimezones(),
+            'locale_options' => ehrSettingsLocales(),
+            'country_options' => ehrSettingsCountries(),
+            'us_state_options' => ehrSettingsUsStates(),
             'forgot_password_url' => ehrBaseUrl() . '/forgot-password',
             'login_url' => ehrBaseUrl() . '/login',
         ]
@@ -349,7 +355,12 @@ function ehrApiUploadBrandingAsset(array $params = []): void
         return;
     }
 
-    $settingKey = $assetType === 'favicon' ? 'favicon_url' : 'logo_url';
+    $settingKey = match ($assetType) {
+        'favicon' => 'favicon_url',
+        'dark_logo' => 'dark_logo_url',
+        'login_background' => 'login_background_url',
+        default => 'logo_url',
+    };
     if (!ehrPersistModuleSettings([$settingKey => $upload['asset_url']])) {
         app()->json(['ok' => false, 'error' => 'Branding asset uploaded but could not be persisted to settings.'], 500);
         return;
@@ -368,24 +379,149 @@ function ehrApiSaveSettings(array $params = []): void
     ehrRequireAdmin();
     $input = app()->input();
 
-    $appNameInput = trim((string)($input['app_name'] ?? ''));
-    $appName = $appNameInput !== '' ? (function_exists('mb_substr') ? mb_substr($appNameInput, 0, 120) : substr($appNameInput, 0, 120)) : 'EHR Suite';
-    $loginSubtitleInput = trim((string)($input['login_subtitle'] ?? ''));
-    $loginSubtitle = $loginSubtitleInput !== '' ? (function_exists('mb_substr') ? mb_substr($loginSubtitleInput, 0, 280) : substr($loginSubtitleInput, 0, 280)) : ehrLoginSubtitle();
+    $clip = static function (mixed $value, int $max): string {
+        $value = trim((string)$value);
+        if ($value === '') return '';
+        return function_exists('mb_substr') ? mb_substr($value, 0, $max) : substr($value, 0, $max);
+    };
+    $clipOrFallback = static function (mixed $value, int $max, string $fallback) use ($clip): string {
+        $clipped = $clip($value, $max);
+        return $clipped !== '' ? $clipped : $fallback;
+    };
+
+    $appName = $clipOrFallback($input['app_name'] ?? '', 120, 'EHR Suite');
+    $loginSubtitle = $clipOrFallback($input['login_subtitle'] ?? '', 280, ehrLoginSubtitle());
 
     try {
         $logoUrl = ehrNormalizeBrandAssetUrl($input['logo_url'] ?? '', 'Logo URL');
+        $darkLogoUrl = ehrNormalizeBrandAssetUrl($input['dark_logo_url'] ?? '', 'Dark logo URL');
         $faviconUrl = ehrNormalizeBrandAssetUrl($input['favicon_url'] ?? '', 'Favicon URL');
+        $loginBackgroundUrl = ehrNormalizeBrandAssetUrl($input['login_background_url'] ?? '', 'Login background URL');
+        $websiteUrl = ehrNormalizeBrandAssetUrl($input['website_url'] ?? '', 'Website URL');
+        $nppUrl = ehrNormalizeBrandAssetUrl($input['npp_url'] ?? '', 'Notice of Privacy Practices URL');
+        $termsUrl = ehrNormalizeBrandAssetUrl($input['terms_url'] ?? '', 'Terms URL');
+        $privacyUrl = ehrNormalizeBrandAssetUrl($input['privacy_url'] ?? '', 'Privacy URL');
     } catch (InvalidArgumentException $e) {
         app()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        return;
+    }
+
+    $primaryColor = trim((string)($input['primary_color'] ?? ''));
+    if ($primaryColor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $primaryColor)) {
+        app()->json(['ok' => false, 'error' => 'Primary color must be a 6-digit hex value (e.g. #0d9488).'], 422);
+        return;
+    }
+    $accentColor = trim((string)($input['accent_color'] ?? ''));
+    if ($accentColor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $accentColor)) {
+        app()->json(['ok' => false, 'error' => 'Accent color must be a 6-digit hex value (e.g. #0e7490).'], 422);
+        return;
+    }
+
+    $orgType = strtolower(trim((string)($input['org_type'] ?? '')));
+    if ($orgType !== '' && !array_key_exists($orgType, ehrSettingsOrgTypes())) {
+        app()->json(['ok' => false, 'error' => 'Invalid organization type.'], 422);
+        return;
+    }
+
+    $groupNpi = preg_replace('/\D+/', '', (string)($input['group_npi'] ?? '')) ?? '';
+    if ($groupNpi !== '' && !preg_match('/^\d{10}$/', $groupNpi)) {
+        app()->json(['ok' => false, 'error' => 'Group NPI must be exactly 10 digits.'], 422);
+        return;
+    }
+
+    $taxId = trim((string)($input['tax_id'] ?? ''));
+    if ($taxId !== '' && !preg_match('/^[\d\- ]{9,12}$/', $taxId)) {
+        app()->json(['ok' => false, 'error' => 'Tax ID / EIN must be 9 digits (formats like 12-3456789 are accepted).'], 422);
+        return;
+    }
+
+    $clia = strtoupper(trim((string)($input['clia_number'] ?? '')));
+    if ($clia !== '' && !preg_match('/^[A-Z0-9]{8,12}$/', $clia)) {
+        app()->json(['ok' => false, 'error' => 'CLIA number must be 8-12 alphanumeric characters.'], 422);
+        return;
+    }
+
+    $taxonomy = strtoupper(trim((string)($input['taxonomy_code'] ?? '')));
+    if ($taxonomy !== '' && !preg_match('/^[A-Z0-9]{6,12}$/', $taxonomy)) {
+        app()->json(['ok' => false, 'error' => 'Taxonomy code must be 6-12 alphanumeric characters.'], 422);
+        return;
+    }
+
+    $supportEmail = trim((string)($input['support_email'] ?? ''));
+    if ($supportEmail !== '' && !filter_var($supportEmail, FILTER_VALIDATE_EMAIL)) {
+        app()->json(['ok' => false, 'error' => 'Support email is invalid.'], 422);
+        return;
+    }
+    $privacyOfficerEmail = trim((string)($input['privacy_officer_email'] ?? ''));
+    if ($privacyOfficerEmail !== '' && !filter_var($privacyOfficerEmail, FILTER_VALIDATE_EMAIL)) {
+        app()->json(['ok' => false, 'error' => 'Privacy officer email is invalid.'], 422);
+        return;
+    }
+    $securityOfficerEmail = trim((string)($input['security_officer_email'] ?? ''));
+    if ($securityOfficerEmail !== '' && !filter_var($securityOfficerEmail, FILTER_VALIDATE_EMAIL)) {
+        app()->json(['ok' => false, 'error' => 'Security officer email is invalid.'], 422);
+        return;
+    }
+
+    $timezone = trim((string)($input['timezone'] ?? ''));
+    if ($timezone !== '' && !in_array($timezone, timezone_identifiers_list(), true)) {
+        app()->json(['ok' => false, 'error' => 'Invalid timezone identifier.'], 422);
+        return;
+    }
+    $locale = trim((string)($input['locale'] ?? ''));
+    if ($locale !== '' && !preg_match('/^[a-z]{2}(-[A-Z]{2})?$/', $locale)) {
+        app()->json(['ok' => false, 'error' => 'Locale must be a BCP-47 tag like en-US.'], 422);
+        return;
+    }
+
+    $country = strtoupper(trim((string)($input['country'] ?? '')));
+    if ($country !== '' && !array_key_exists($country, ehrSettingsCountries())) {
+        app()->json(['ok' => false, 'error' => 'Invalid country.'], 422);
+        return;
+    }
+    $stateValue = strtoupper(trim((string)($input['state'] ?? '')));
+    if ($stateValue !== '' && $country === 'US' && !in_array($stateValue, array_filter(ehrSettingsUsStates()), true)) {
+        app()->json(['ok' => false, 'error' => 'Invalid US state code.'], 422);
         return;
     }
 
     $settingsToSave = [
         'app_name' => $appName,
         'login_subtitle' => $loginSubtitle,
+        'support_footer' => $clip($input['support_footer'] ?? '', 280),
+        'terms_url' => $termsUrl,
+        'privacy_url' => $privacyUrl,
         'logo_url' => $logoUrl,
+        'dark_logo_url' => $darkLogoUrl,
         'favicon_url' => $faviconUrl,
+        'login_background_url' => $loginBackgroundUrl,
+        'primary_color' => $primaryColor !== '' ? strtolower($primaryColor) : '',
+        'accent_color' => $accentColor !== '' ? strtolower($accentColor) : '',
+        'legal_name' => $clip($input['legal_name'] ?? '', 200),
+        'dba_name' => $clip($input['dba_name'] ?? '', 200),
+        'org_type' => $orgType,
+        'tagline' => $clip($input['tagline'] ?? '', 160),
+        'group_npi' => $groupNpi,
+        'tax_id' => $taxId,
+        'clia_number' => $clia,
+        'taxonomy_code' => $taxonomy,
+        'phone' => $clip($input['phone'] ?? '', 40),
+        'fax' => $clip($input['fax'] ?? '', 40),
+        'support_email' => $supportEmail,
+        'website_url' => $websiteUrl,
+        'address_line1' => $clip($input['address_line1'] ?? '', 160),
+        'address_line2' => $clip($input['address_line2'] ?? '', 160),
+        'city' => $clip($input['city'] ?? '', 80),
+        'state' => $stateValue,
+        'postal_code' => $clip($input['postal_code'] ?? '', 20),
+        'country' => $country !== '' ? $country : 'US',
+        'timezone' => $timezone,
+        'locale' => $locale,
+        'privacy_officer_name' => $clip($input['privacy_officer_name'] ?? '', 160),
+        'privacy_officer_email' => $privacyOfficerEmail,
+        'security_officer_name' => $clip($input['security_officer_name'] ?? '', 160),
+        'security_officer_email' => $securityOfficerEmail,
+        'npp_url' => $nppUrl,
     ];
 
     if (!ehrPersistModuleSettings($settingsToSave)) {
