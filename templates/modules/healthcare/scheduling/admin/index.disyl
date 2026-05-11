@@ -13,16 +13,8 @@
                 <span class="font-semibold text-slate-900">{result_count}</span> appointments in this worklist
             </div>
         </div>
-        <div class="mt-6 flex flex-wrap gap-3">
-            {if status_counts}
-                {foreach status_counts as row}
-                <div class="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">
-                    <span class="font-semibold text-slate-900">{row.total}</span> {row.status}
-                </div>
-                {/foreach}
-            {else}
-                <div class="rounded-full border border-dashed border-slate-200 px-4 py-2 text-sm text-slate-600">No appointment statuses recorded yet.</div>
-            {/if}
+        <div class="mt-6">
+            {if status_tabs_data}{include "modules/ehr/partials/_status_tabs.disyl" with {status_tabs: status_tabs_data.tabs, status_done_url: status_tabs_data.done_url, status_done_label: status_tabs_data.done_label, status_done_count: status_tabs_data.done_count}}{/if}
         </div>
     </section>
 

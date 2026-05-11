@@ -51,12 +51,21 @@ function encPageState(array $user, array $input = [], ?string $formError = null)
         ? array_values($statusCatalog['statuses'])
         : ['open', 'completed', 'cancelled'];
 
+    $statusCounts = encDb()->query('SELECT status, COUNT(*) AS total FROM ehr_encounters GROUP BY status')->fetchAll(PDO::FETCH_ASSOC);
+
     return array_merge(
         ehrAdminContext($user, 'ehr_encounters', ['page_title' => 'Visits']),
         [
             'status_filter' => $statusFilter,
             'encounters' => $encounters,
             'result_count' => count($encounters),
+            'status_tabs_data' => ehrStatusTabs(
+                'encounter',
+                ['open', 'in-progress', 'planned', 'cancelled', 'completed', 'closed'],
+                is_array($statusCounts) ? $statusCounts : [],
+                $statusFilter,
+                '/admin/ehr/encounters'
+            ),
             'segment_counts' => [
                 'active' => count($segments['active']),
                 'today' => count($segments['today']),

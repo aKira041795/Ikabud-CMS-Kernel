@@ -15,26 +15,9 @@
         </div>
     </section>
 
-    {if triage_counts}
-    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 shadow-sm">
-            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Critical</div>
-            <div class="mt-1 text-2xl font-semibold text-rose-900">{triage_counts.critical}</div>
-        </div>
-        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
-            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Abnormal</div>
-            <div class="mt-1 text-2xl font-semibold text-amber-900">{triage_counts.abnormal}</div>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pending</div>
-            <div class="mt-1 text-2xl font-semibold text-slate-900">{triage_counts.pending}</div>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Reviewed</div>
-            <div class="mt-1 text-2xl font-semibold text-slate-900">{triage_counts.reviewed}</div>
-        </div>
+    <section>
+        {if status_tabs_data}{include "modules/ehr/partials/_status_tabs.disyl" with {status_tabs: status_tabs_data.tabs, status_done_url: status_tabs_data.done_url, status_done_label: status_tabs_data.done_label, status_done_count: status_tabs_data.done_count}}{/if}
     </section>
-    {/if}
 
     <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-4">

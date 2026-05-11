@@ -6,18 +6,38 @@ require_once __DIR__ . '/helpers.php';
 
 function resPageState(array $user, array $input = [], ?string $formError = null): array
 {
+    $triageFilter = strtolower(trim((string)($input['status'] ?? '')));
+    if (!in_array($triageFilter, ['critical', 'abnormal', 'pending', 'reviewed'], true)) {
+        $triageFilter = '';
+    }
     $rows = resDb()->query(
         'SELECT r.id, r.patient_id, r.encounter_id, r.result_status, r.observed_at, r.value_text, r.value_numeric, r.unit, r.abnormal_flag, r.restricted_flag, r.acknowledged_at, r.acknowledged_by_user_id, '
         . 'oi.item_label, o.order_uuid '
         . 'FROM ehr_lab_results r '
         . 'LEFT JOIN ehr_order_items oi ON oi.id = r.order_item_id '
         . 'LEFT JOIN ehr_orders o ON o.id = oi.order_id '
-        . 'ORDER BY r.observed_at DESC, r.id DESC LIMIT 12'
+        . 'ORDER BY r.observed_at DESC, r.id DESC LIMIT 50'
     )->fetchAll(PDO::FETCH_ASSOC);
 
-    $results = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'results');
+    $allResults = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'results');
     $triage = ['critical' => 0, 'abnormal' => 0, 'pending' => 0, 'reviewed' => 0];
-    foreach ($results as &$resRow) {
+    $classify = static function (array $resRow): string {
+        $abn = strtolower(trim((string)($resRow['abnormal_flag'] ?? '')));
+        $status = (string)($resRow['result_status'] ?? '');
+        $acked = !empty($resRow['acknowledged_at']);
+        if ($abn === 'critical' || $abn === 'panic') {
+            return 'critical';
+        }
+        if ($abn !== '' && $abn !== 'normal') {
+            return 'abnormal';
+        }
+        if (in_array($status, ['entered', 'pending', 'verified'], true) && !$acked) {
+            return 'pending';
+        }
+        return 'reviewed';
+    };
+    $filtered = [];
+    foreach ($allResults as $resRow) {
         if (function_exists('ehrStatusBadge')) {
             $statusKey = (string)($resRow['result_status'] ?? '');
             if ($statusKey === '' && isset($resRow['abnormal_flag']) && trim((string)$resRow['abnormal_flag']) !== '' && trim((string)$resRow['abnormal_flag']) !== 'normal') {
@@ -25,20 +45,19 @@ function resPageState(array $user, array $input = [], ?string $formError = null)
             }
             $resRow['status_badge'] = ehrStatusBadge($statusKey, 'result');
         }
-        $abn = strtolower(trim((string)($resRow['abnormal_flag'] ?? '')));
-        $status = (string)($resRow['result_status'] ?? '');
-        $acked = !empty($resRow['acknowledged_at']);
-        if ($abn === 'critical' || $abn === 'panic') {
-            $triage['critical']++;
-        } elseif ($abn !== '' && $abn !== 'normal') {
-            $triage['abnormal']++;
-        } elseif (in_array($status, ['entered', 'pending', 'verified'], true) && !$acked) {
-            $triage['pending']++;
-        } else {
-            $triage['reviewed']++;
+        $bucket = $classify($resRow);
+        $triage[$bucket]++;
+        if ($triageFilter === '' || $triageFilter === $bucket) {
+            $filtered[] = $resRow;
+            if (count($filtered) >= 12) {
+                // continue counting but don't add more rows
+                // keep iterating so triage counts stay accurate
+                continue;
+            }
         }
     }
-    unset($resRow);
+    // Trim filtered to 12 items max (preserve order)
+    $results = array_slice($filtered, 0, 12);
 
     $itemRows = resDb()->query(
         'SELECT oi.id AS order_item_id, oi.order_id, oi.item_label, oi.item_code, o.order_uuid, o.patient_id, o.encounter_id '
@@ -53,6 +72,18 @@ function resPageState(array $user, array $input = [], ?string $formError = null)
             'results' => $results,
             'result_count' => count($results),
             'triage_counts' => $triage,
+            'status_filter' => $triageFilter,
+            'status_tabs_data' => [
+                'tabs' => [
+                    ['status' => '',         'label' => 'All open', 'count' => $triage['critical'] + $triage['abnormal'] + $triage['pending'], 'tone' => 'slate', 'url' => '/admin/ehr/results', 'active' => $triageFilter === ''],
+                    ['status' => 'critical', 'label' => 'Critical', 'count' => $triage['critical'], 'tone' => 'rose',  'url' => '/admin/ehr/results?status=critical', 'active' => $triageFilter === 'critical'],
+                    ['status' => 'abnormal', 'label' => 'Abnormal', 'count' => $triage['abnormal'], 'tone' => 'amber', 'url' => '/admin/ehr/results?status=abnormal', 'active' => $triageFilter === 'abnormal'],
+                    ['status' => 'pending',  'label' => 'Pending',  'count' => $triage['pending'],  'tone' => 'slate', 'url' => '/admin/ehr/results?status=pending',  'active' => $triageFilter === 'pending'],
+                ],
+                'done_url'   => '/admin/ehr/results?status=reviewed',
+                'done_label' => 'Show reviewed',
+                'done_count' => $triage['reviewed'],
+            ],
             'order_item_options' => $orderItemOptions,
             'form_error' => $formError,
             'form_notice' => trim((string)($input['notice'] ?? '')),

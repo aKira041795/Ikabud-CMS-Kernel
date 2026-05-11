@@ -13,18 +13,9 @@
                 <span class="font-semibold text-slate-900">{result_count}</span> encounters in current view
             </div>
         </div>
-        <form method="GET" action="{base_url}/admin/ehr/encounters" class="mt-6 flex flex-col gap-3 lg:flex-row lg:items-end">
-            <div class="min-w-[220px]">
-                <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
-                <select name="status" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
-                    <option value="">All encounter statuses</option>
-                    <option value="open" {if status_filter == 'open'}selected{/if}>Open</option>
-                    <option value="completed" {if status_filter == 'completed'}selected{/if}>Completed</option>
-                    <option value="cancelled" {if status_filter == 'cancelled'}selected{/if}>Cancelled</option>
-                </select>
-            </div>
-            <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Filter Encounters</button>
-        </form>
+        <div class="mt-6">
+            {if status_tabs_data}{include "modules/ehr/partials/_status_tabs.disyl" with {status_tabs: status_tabs_data.tabs, status_done_url: status_tabs_data.done_url, status_done_label: status_tabs_data.done_label, status_done_count: status_tabs_data.done_count}}{/if}
+        </div>
     </section>
 
     {if segment_counts}

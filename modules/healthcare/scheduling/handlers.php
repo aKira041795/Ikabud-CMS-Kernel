@@ -16,7 +16,15 @@ function schedDateTimeLocalValue(?string $value): string
 
 function schedPageState(array $user, array $input = [], ?string $formError = null): array
 {
-    $list = scheduling_cap_ehr_appointment_list_1(['limit' => 12], 'ehr.appointment.list@1', 'scheduling');
+    $statusFilter = strtolower(trim((string)($input['status'] ?? '')));
+    if ($statusFilter === 'all') {
+        $statusFilter = '';
+    }
+    $listPayload = ['limit' => 12];
+    if ($statusFilter !== '') {
+        $listPayload['status'] = $statusFilter;
+    }
+    $list = scheduling_cap_ehr_appointment_list_1($listPayload, 'ehr.appointment.list@1', 'scheduling');
     $appointments = is_array($list) && !empty($list['ok']) && is_array($list['appointments'] ?? null)
         ? array_values($list['appointments'])
         : [];
@@ -136,6 +144,14 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
             'appointments' => $appointments,
             'result_count' => count($appointments),
             'status_counts' => is_array($statusCounts) ? $statusCounts : [],
+            'status_filter' => $statusFilter,
+            'status_tabs_data' => ehrStatusTabs(
+                'appointment',
+                ['scheduled', 'checked-in', 'waiting', 'roomed', 'no-show', 'canceled', 'completed'],
+                is_array($statusCounts) ? $statusCounts : [],
+                $statusFilter,
+                '/admin/ehr/appointments'
+            ),
             'patient_options' => $patientOptions,
             'status_options' => $statusOptions,
             'reschedule_pending_total' => $reschedulePendingTotal,

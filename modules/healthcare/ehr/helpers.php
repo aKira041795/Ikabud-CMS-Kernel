@@ -1370,3 +1370,98 @@ function ehrStatusBadge(string $status, string $entity = 'appointment'): array
     $config['entity'] = $entity;
     return $config;
 }
+
+/**
+ * Build a list of status tabs for an action-oriented worklist.
+ *
+ * Splits statuses into open/action tabs (rendered as the tab strip) and
+ * success/done statuses (rendered as a separate small link), so the staff's
+ * primary attention stays on items that still need work.
+ *
+ * @param string $entity   ehrStatusBadge entity (appointment, encounter, order, ...)
+ * @param array  $statuses list of status codes, ordered the way they should appear
+ * @param array  $counts   map status_code => int
+ * @param string $active   currently active status filter ('' or 'all' for All)
+ * @param string $baseUrl  url to link to (status appended as ?status=X / &status=X)
+ * @return array{tabs: array<int,array<string,mixed>>, done_url: string, done_label: string, done_count: int}
+ */
+function ehrStatusTabs(string $entity, array $statuses, array $counts, string $active, string $baseUrl): array
+{
+    $countMap = [];
+    foreach ($counts as $k => $v) {
+        if (is_array($v)) {
+            $code = (string)($v['status'] ?? $v['code'] ?? $k);
+            $countMap[strtolower($code)] = (int)($v['total'] ?? $v['count'] ?? 0);
+        } else {
+            $countMap[strtolower((string)$k)] = (int)$v;
+        }
+    }
+
+    $toneFor = static function (array $badge): string {
+        $c = strtolower((string)($badge['color'] ?? 'slate'));
+        if (str_starts_with($c, 'rose'))    return 'rose';
+        if (str_starts_with($c, 'amber'))   return 'amber';
+        if (str_starts_with($c, 'indigo'))  return 'indigo';
+        if (str_starts_with($c, 'teal'))    return 'teal';
+        if (str_starts_with($c, 'emerald')) return 'emerald';
+        return 'slate';
+    };
+
+    $activeLc = strtolower(trim($active));
+    $sep = (strpos($baseUrl, '?') === false) ? '?' : '&';
+    $totalOpen = 0;
+    $doneCount = 0;
+    $doneStatuses = [];
+    $tabs = [];
+
+    foreach ($statuses as $status) {
+        $code = strtolower(trim((string)$status));
+        if ($code === '') {
+            continue;
+        }
+        $badge = ehrStatusBadge($code, $entity);
+        $count = $countMap[$code] ?? 0;
+        $isSuccess = ($badge['color'] ?? '') === 'emerald';
+        if ($isSuccess) {
+            $doneCount += $count;
+            $doneStatuses[] = $code;
+            continue;
+        }
+        $tabs[] = [
+            'status' => $code,
+            'label'  => (string)($badge['label'] ?? ucfirst($code)),
+            'count'  => $count,
+            'tone'   => $toneFor($badge),
+            'url'    => $baseUrl . $sep . 'status=' . rawurlencode($code),
+            'active' => $activeLc === $code,
+        ];
+        $totalOpen += $count;
+    }
+
+    // Prepend an "All open" tab covering everything except success/done statuses.
+    array_unshift($tabs, [
+        'status' => '',
+        'label'  => 'All open',
+        'count'  => $totalOpen,
+        'tone'   => 'slate',
+        'url'    => $baseUrl,
+        'active' => ($activeLc === '' || $activeLc === 'all'),
+    ]);
+
+    $doneUrl = '';
+    $doneLabel = '';
+    if ($doneStatuses !== []) {
+        // Link uses the first success status; "Completed" is the common label.
+        $primary = $doneStatuses[0];
+        $doneUrl = $baseUrl . $sep . 'status=' . rawurlencode($primary);
+        $badge = ehrStatusBadge($primary, $entity);
+        $doneLabel = 'Show ' . strtolower((string)($badge['label'] ?? 'completed'));
+    }
+
+    return [
+        'tabs' => $tabs,
+        'done_url' => $doneUrl,
+        'done_label' => $doneLabel,
+        'done_count' => $doneCount,
+    ];
+}

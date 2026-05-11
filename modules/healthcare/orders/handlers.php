@@ -6,12 +6,21 @@ require_once __DIR__ . '/helpers.php';
 
 function ordPageState(array $user, array $input = [], ?string $formError = null): array
 {
-    $rows = ordDb()->query(
-        'SELECT o.id, o.order_uuid, o.patient_id, o.encounter_id, o.order_type, o.priority, o.status, o.ordered_at, o.destination_module, o.clinical_question, '
+    $statusFilter = strtolower(trim((string)($input['status'] ?? '')));
+    if ($statusFilter === 'all') {
+        $statusFilter = '';
+    }
+    $listSql = 'SELECT o.id, o.order_uuid, o.patient_id, o.encounter_id, o.order_type, o.priority, o.status, o.ordered_at, o.destination_module, o.clinical_question, '
         . '(SELECT COUNT(*) FROM ehr_order_items oi WHERE oi.order_id = o.id) AS item_count, '
         . '(SELECT item_label FROM ehr_order_items oi WHERE oi.order_id = o.id ORDER BY oi.id ASC LIMIT 1) AS first_item_label '
-        . 'FROM ehr_orders o ORDER BY o.ordered_at DESC, o.id DESC LIMIT 12'
-    )->fetchAll(PDO::FETCH_ASSOC);
+        . 'FROM ehr_orders o';
+    $listParams = [];
+    if ($statusFilter !== '') {
+        $listSql .= ' WHERE o.status = :status';
+        $listParams[':status'] = $statusFilter;
+    }
+    $listSql .= ' ORDER BY o.ordered_at DESC, o.id DESC LIMIT 12';
+    $rows = ordDb()->query($listSql, $listParams)->fetchAll(PDO::FETCH_ASSOC);
     $orders = ehrHydrateRecordSummaries(is_array($rows) ? $rows : [], 'orders');
     $buckets = ['pending' => 0, 'in_progress' => 0, 'resulted' => 0, 'cancelled' => 0];
     foreach ($orders as &$ordRow) {
@@ -63,6 +72,14 @@ function ordPageState(array $user, array $input = [], ?string $formError = null)
             'orders' => $orders,
             'result_count' => count($orders),
             'status_buckets' => $buckets,
+            'status_filter' => $statusFilter,
+            'status_tabs_data' => ehrStatusTabs(
+                'order',
+                ['open', 'in-progress', 'cancelled', 'resulted'],
+                ordDb()->query('SELECT status, COUNT(*) AS total FROM ehr_orders GROUP BY status')->fetchAll(PDO::FETCH_ASSOC),
+                $statusFilter,
+                '/admin/ehr/orders'
+            ),
             'selected_order' => $selectedOrder,
             'patient_options' => $patientOptions,
             'encounter_options' => $encounterOptions,

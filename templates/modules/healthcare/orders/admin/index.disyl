@@ -15,6 +15,10 @@
         </div>
     </section>
 
+    <section>
+        {if status_tabs_data}{include "modules/ehr/partials/_status_tabs.disyl" with {status_tabs: status_tabs_data.tabs, status_done_url: status_tabs_data.done_url, status_done_label: status_tabs_data.done_label, status_done_count: status_tabs_data.done_count}}{/if}
+    </section>
+
     {if status_buckets}
     <section class="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">

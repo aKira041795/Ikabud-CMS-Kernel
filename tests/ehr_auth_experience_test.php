@@ -495,7 +495,7 @@ $encountersAdminHtml = ehrRender('modules/encounters/admin/index.disyl', array_m
         ],
     ]
 ));
-et('encounters page renders through EHR workspace shell', str_contains($encountersAdminHtml, 'Encounters') && str_contains($encountersAdminHtml, 'Filter Encounters'));
+et('encounters page renders through EHR workspace shell', str_contains($encountersAdminHtml, 'Patient visits') && str_contains($encountersAdminHtml, 'encounters in current view'));
 et('encounters page exposes sidebar nav item from manifest', str_contains($encountersAdminHtml, '/admin/ehr/encounters') && str_contains($encountersAdminHtml, 'Track active and completed visits'));
 
 $patientRegistryHtml = ehrRender('modules/patient-registry/admin/index.disyl', array_merge(
