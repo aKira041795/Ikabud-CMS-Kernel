@@ -211,13 +211,11 @@ function schedSaveAppointment(array $params = []): void
     $capabilityId = $appointmentId > 0 ? 'ehr.appointment.update@1' : 'ehr.appointment.schedule@1';
     $result = app()->cap()->call($capabilityId, $payload, ['caller_module' => 'scheduling']);
     if (is_array($result) && !empty($result['ok']) && is_array($result['appointment'] ?? null)) {
-        $savedAppointmentId = (int)($result['appointment']['id'] ?? 0);
+        // After save, redirect to a clean URL so the Book/Update form is not
+        // pre-populated with the just-saved appointment. The notice query
+        // parameter is stripped client-side after the banner renders.
         $notice = $appointmentId > 0 ? 'updated' : 'scheduled';
-        $target = '/admin/ehr/appointments?notice=' . rawurlencode($notice);
-        if ($savedAppointmentId > 0) {
-            $target .= '&appointment_id=' . $savedAppointmentId;
-        }
-        app()->redirect($target);
+        app()->redirect('/admin/ehr/appointments?notice=' . rawurlencode($notice));
         return;
     }
 

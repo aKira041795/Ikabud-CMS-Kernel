@@ -291,6 +291,17 @@
             document.addEventListener('click', function (e) { if (!root.contains(e.target)) closePanel(); });
         }
         function initAll() { document.querySelectorAll('[data-ehr-picker]').forEach(initPicker); }
+        // Strip transient flash params from the URL after first paint so a
+        // refresh / back-nav does not re-show "Appointment scheduled." etc.
+        function stripFlashParams() {
+            try {
+                var url = new URL(window.location.href);
+                var changed = false;
+                ['notice', 'error'].forEach(function (k) { if (url.searchParams.has(k)) { url.searchParams.delete(k); changed = true; } });
+                if (changed) window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+            } catch (_e) {}
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', stripFlashParams); else stripFlashParams();
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAll); else initAll();
     })();
     </script>
