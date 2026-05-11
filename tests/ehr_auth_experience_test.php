@@ -661,12 +661,14 @@ $workspaceTemplateCases = [
         'label' => 'audit page renders through EHR workspace shell',
         'template' => 'modules/audit/admin/index.disyl',
         'nav_key' => 'ehr_audit',
-        'page_title' => 'Audit Trail',
+        'page_title' => 'Access Activity',
         'context' => [
             'result_count' => 1,
             'entries' => [
                 [
                     'action' => 'ehr.note.viewed',
+                    'event_label' => 'Note viewed',
+                    'is_break_glass' => false,
                     'module' => 'clinical-notes',
                     'entity_type' => 'ehr_note',
                     'entity_id' => '77',
@@ -677,7 +679,7 @@ $workspaceTemplateCases = [
                 ],
             ],
         ],
-        'needles' => ['Audit Trail', '/admin/ehr/audit', 'ehr.note.viewed'],
+        'needles' => ['Access Activity', '/admin/ehr/audit', 'Note viewed'],
     ],
     [
         'label' => 'billing signals page renders through EHR workspace shell',
