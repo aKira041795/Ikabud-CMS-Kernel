@@ -750,6 +750,7 @@ function ehrSidebarNavGroups(array $navItems, ?string $userRole = null, ?string 
     // auto-expand the relevant collapsible section.
     foreach ($groups as $gKey => &$group) {
         $group['is_active'] = false;
+        $group['count'] = count($group['items']);
         if ($currentPage !== null && $currentPage !== '') {
             foreach ($group['items'] as $it) {
                 if ((string)($it['key'] ?? '') === $currentPage) {

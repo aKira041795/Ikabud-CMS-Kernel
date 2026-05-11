@@ -100,6 +100,17 @@
             "order": 10
         },
         {
+            "key": "ehr_users",
+            "label": "Users",
+            "url": "/admin/ehr/users",
+            "icon": "users",
+            "roles": [
+                "admin"
+            ],
+            "description": "Manage EHR staff accounts and access",
+            "order": 800
+        },
+        {
             "key": "ehr_settings",
             "label": "Branding & Access",
             "url": "/admin/ehr/settings",
