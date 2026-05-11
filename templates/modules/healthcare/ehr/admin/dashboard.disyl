@@ -111,21 +111,40 @@
     <!-- Workspace modules -->
     {if workspace_nav_groups}
     <section class="rounded-2xl border border-slate-200 bg-white p-6">
-        <div class="mb-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Workspace Modules</div>
-            <h3 class="mt-2 text-lg font-semibold text-slate-900">Open another module</h3>
+        <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Workspace Modules</div>
+                <h3 class="mt-1 text-lg font-semibold text-slate-900">Open another module</h3>
+            </div>
+            <div class="text-xs text-slate-500">Grouped by clinical workflow.</div>
         </div>
-        <div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        <div class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             {foreach workspace_nav_groups as group}
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <div class="mb-3 flex items-center justify-between">
-                    <div class="text-sm font-semibold text-slate-900">{group.title}</div>
-                </div>
-                <div class="space-y-1">
+            <div class="overflow-hidden rounded-xl border {if group.color == 'teal'}border-teal-200{elseif group.color == 'amber'}border-amber-200{elseif group.color == 'sky'}border-sky-200{elseif group.color == 'indigo'}border-indigo-200{elseif group.color == 'rose'}border-rose-200{else}border-slate-200{/if} bg-white shadow-sm transition hover:shadow-md">
+                <header class="flex items-center justify-between gap-3 px-4 py-3 {if group.color == 'teal'}bg-teal-50/70{elseif group.color == 'amber'}bg-amber-50/70{elseif group.color == 'sky'}bg-sky-50/70{elseif group.color == 'indigo'}bg-indigo-50/70{elseif group.color == 'rose'}bg-rose-50/70{else}bg-slate-50/70{/if}">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex h-7 w-7 items-center justify-center rounded-md text-base {if group.color == 'teal'}bg-teal-100 text-teal-700{elseif group.color == 'amber'}bg-amber-100 text-amber-700{elseif group.color == 'sky'}bg-sky-100 text-sky-700{elseif group.color == 'indigo'}bg-indigo-100 text-indigo-700{elseif group.color == 'rose'}bg-rose-100 text-rose-700{else}bg-slate-100 text-slate-700{/if}" aria-hidden="true">{group.icon}</span>
+                        <div>
+                            <div class="text-sm font-semibold {if group.color == 'teal'}text-teal-900{elseif group.color == 'amber'}text-amber-900{elseif group.color == 'sky'}text-sky-900{elseif group.color == 'indigo'}text-indigo-900{elseif group.color == 'rose'}text-rose-900{else}text-slate-900{/if}">{group.title}</div>
+                            <div class="text-[11px] {if group.color == 'teal'}text-teal-700/80{elseif group.color == 'amber'}text-amber-700/80{elseif group.color == 'sky'}text-sky-700/80{elseif group.color == 'indigo'}text-indigo-700/80{elseif group.color == 'rose'}text-rose-700/80{else}text-slate-600{/if}">{group.description}</div>
+                        </div>
+                    </div>
+                    <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ring-1 ring-slate-200">{group.count}</span>
+                </header>
+                <ul class="divide-y divide-slate-100">
                     {foreach group.items as item}
-                    <a href="{item.url}" class="block rounded px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-slate-900">{item.label}</a>
+                    <li>
+                        <a href="{item.url}" class="group flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-slate-50 focus:bg-slate-50 focus:outline-none">
+                            <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-base text-slate-600 transition group-hover:{if group.color == 'teal'}bg-teal-100 group-hover:text-teal-700{elseif group.color == 'amber'}bg-amber-100 group-hover:text-amber-700{elseif group.color == 'sky'}bg-sky-100 group-hover:text-sky-700{elseif group.color == 'indigo'}bg-indigo-100 group-hover:text-indigo-700{elseif group.color == 'rose'}bg-rose-100 group-hover:text-rose-700{else}bg-slate-200 group-hover:text-slate-800{/if}" aria-hidden="true">{item.icon}</span>
+                            <span class="flex-1 min-w-0">
+                                <span class="block font-medium text-slate-800 group-hover:text-slate-900">{item.label}</span>
+                                {if item.description}<span class="block truncate text-[11px] text-slate-500">{item.description}</span>{/if}
+                            </span>
+                            <span class="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" aria-hidden="true">→</span>
+                        </a>
+                    </li>
                     {/foreach}
-                </div>
+                </ul>
             </div>
             {/foreach}
         </div>

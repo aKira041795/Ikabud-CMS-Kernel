@@ -668,6 +668,48 @@ function ehrAdminNavItems(array $user): array
     return $items;
 }
 
+function ehrDashboardNavItemMeta(string $key): array
+{
+    static $map = [
+        'ehr_dashboard'           => ['icon' => '🏠', 'description' => "Today's clinical command center"],
+        'ehr_scheduling'          => ['icon' => '📅', 'description' => 'Schedule, queue, and check-ins'],
+        'ehr_encounters'          => ['icon' => '🩺', 'description' => 'Active and recent visits'],
+        'ehr_patient_registry'    => ['icon' => '👥', 'description' => 'Patient demographics and search'],
+        'ehr_patient_portal'      => ['icon' => '📱', 'description' => 'Portal accounts and invitations'],
+        'ehr_clinical_notes'      => ['icon' => '📝', 'description' => 'Encounter notes — drafts and signed'],
+        'ehr_orders'              => ['icon' => '🧪', 'description' => 'Lab and imaging orders'],
+        'ehr_results'             => ['icon' => '📊', 'description' => 'Results to triage and review'],
+        'ehr_prescriptions'       => ['icon' => '💊', 'description' => 'Active medications and refills'],
+        'ehr_documents'           => ['icon' => '📄', 'description' => 'Patient documents and uploads'],
+        'ehr_hospital_adt'        => ['icon' => '🏥', 'description' => 'Admissions, wards, and beds'],
+        'ehr_privacy_consent'     => ['icon' => '🔒', 'description' => 'Consents and break-glass access'],
+        'ehr_audit'               => ['icon' => '🛡', 'description' => 'Who accessed what and when'],
+        'ehr_reporting_summary'   => ['icon' => '📈', 'description' => 'Clinic activity overview'],
+        'ehr_reporting_compliance'=> ['icon' => '📋', 'description' => 'Privacy and audit report'],
+        'ehr_billing_bridge'      => ['icon' => '💳', 'description' => 'Encoded billing items queue'],
+        'ehr_analytics_cds'       => ['icon' => '💡', 'description' => 'Insights and clinical decision support'],
+        'ehr_interop_bridge'      => ['icon' => '🔌', 'description' => 'FHIR messages and identifier maps'],
+        'ehr_users'               => ['icon' => '👤', 'description' => 'Users, roles, and permissions'],
+        'ehr_settings'            => ['icon' => '⚙', 'description' => 'Branding and access settings'],
+    ];
+
+    return $map[$key] ?? ['icon' => '•', 'description' => ''];
+}
+
+function ehrDashboardGroupMeta(string $groupKey): array
+{
+    static $map = [
+        'today'      => ['icon' => '🕒', 'color' => 'amber'],
+        'patients'   => ['icon' => '👥', 'color' => 'indigo'],
+        'clinical'   => ['icon' => '🩺', 'color' => 'teal'],
+        'governance' => ['icon' => '🛡', 'color' => 'rose'],
+        'operations' => ['icon' => '📊', 'color' => 'sky'],
+        'system'     => ['icon' => '⚙', 'color' => 'slate'],
+    ];
+
+    return $map[$groupKey] ?? ['icon' => '•', 'color' => 'slate'];
+}
+
 function ehrDashboardNavGroups(array $navItems): array
 {
     $workspace = [];
@@ -696,11 +738,22 @@ function ehrDashboardNavGroups(array $navItems): array
         };
 
         $workspace = array_merge($workspace, $groupItems);
+        $groupMeta = ehrDashboardGroupMeta($groupKey);
+        $enrichedItems = array_map(static function (array $item): array {
+            $meta = ehrDashboardNavItemMeta((string)($item['key'] ?? ''));
+            $item['icon'] = $meta['icon'];
+            $item['description'] = $meta['description'];
+            return $item;
+        }, $groupItems);
+
         $workspaceGroups[] = [
             'key' => $groupKey,
             'title' => $groupTitle,
             'description' => $description,
-            'items' => $groupItems,
+            'icon' => $groupMeta['icon'],
+            'color' => $groupMeta['color'],
+            'count' => count($enrichedItems),
+            'items' => $enrichedItems,
         ];
     }
 
