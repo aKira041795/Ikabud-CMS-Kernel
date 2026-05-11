@@ -13,7 +13,14 @@ function audPageIndex(array $params = []): void
     }
 
     $user = ehrRequireAdmin();
-    $search = audit_cap_ehr_audit_search_1(['limit' => 20], 'ehr.audit.search@1', 'audit');
+    $input = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET;
+    $q = trim((string)($input['q'] ?? ''));
+    $breakGlassOnly = !empty($input['break_glass']);
+    $searchPayload = ['limit' => 50];
+    if ($q !== '') {
+        $searchPayload['q'] = $q;
+    }
+    $search = audit_cap_ehr_audit_search_1($searchPayload, 'ehr.audit.search@1', 'audit');
     $entries = is_array($search) && !empty($search['ok']) && is_array($search['entries'] ?? null)
         ? array_values($search['entries'])
         : [];
@@ -44,11 +51,17 @@ function audPageIndex(array $params = []): void
     }
     unset($entry);
 
+    if ($breakGlassOnly) {
+        $entries = array_values(array_filter($entries, static fn(array $e): bool => !empty($e['is_break_glass'])));
+    }
+
     echo ehrRender('modules/audit/admin/index.disyl', array_merge(
         ehrAdminContext($user, 'ehr_audit', ['page_title' => 'Access Activity']),
         [
             'entries' => $entries,
             'result_count' => count($entries),
+            'filter_q' => $q,
+            'filter_break_glass' => $breakGlassOnly,
         ]
     ));
 }

@@ -19,6 +19,17 @@
         <div class="border-b border-slate-200 px-6 py-4">
             <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Latest activity</h2>
             <p class="mt-1 text-xs text-slate-500">Most recent record changes, views, and access decisions.</p>
+            <form method="GET" action="{base_url}/admin/ehr/audit" class="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
+                <div class="flex-1">
+                    <label for="audit-q" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Search</label>
+                    <input id="audit-q" type="text" name="q" value="{filter_q}" placeholder="Event, module, patient id…" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200">
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" name="break_glass" value="1" {if filter_break_glass}checked{/if} class="rounded border-slate-300 text-rose-600 focus:ring-rose-200">
+                    Break-glass only
+                </label>
+                <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">Filter</button>
+            </form>
         </div>
         <div class="divide-y divide-slate-100">
             {if entries}
