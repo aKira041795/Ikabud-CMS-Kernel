@@ -229,6 +229,11 @@
             showClear();
             function openPanel() { panel.classList.remove('hidden'); }
             function closePanel() { panel.classList.add('hidden'); }
+            function highlight() {
+                Array.prototype.forEach.call(list.querySelectorAll('button'), function (b, i) {
+                    b.className = 'flex w-full items-start gap-3 px-3 py-2 text-left text-sm transition ' + (i === active ? 'bg-teal-50' : 'hover:bg-slate-50');
+                });
+            }
             function render() {
                 list.innerHTML = '';
                 if (loading) { empty.textContent = 'Searching…'; empty.classList.remove('hidden'); return; }
@@ -244,8 +249,8 @@
                     btn.children[0].textContent = initial;
                     btn.children[1].children[0].textContent = opt.label || '';
                     btn.children[1].children[1].textContent = opt.sub || '';
-                    btn.addEventListener('mouseenter', function () { active = idx; render(); });
-                    btn.addEventListener('click', function () { selectOpt(opt); });
+                    btn.addEventListener('mouseenter', function () { active = idx; highlight(); });
+                    btn.addEventListener('mousedown', function (e) { e.preventDefault(); selectOpt(opt); });
                     li.appendChild(btn); list.appendChild(li);
                 });
             }
@@ -271,8 +276,8 @@
                 openPanel();
             });
             input.addEventListener('keydown', function (e) {
-                if (e.key === 'ArrowDown') { e.preventDefault(); openPanel(); if (!options.length) { fetchOptions(input.value); return; } active = (active + 1) % options.length; render(); }
-                else if (e.key === 'ArrowUp') { e.preventDefault(); if (!options.length) return; active = (active - 1 + options.length) % options.length; render(); }
+                if (e.key === 'ArrowDown') { e.preventDefault(); openPanel(); if (!options.length) { fetchOptions(input.value); return; } active = (active + 1) % options.length; highlight(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); if (!options.length) return; active = (active - 1 + options.length) % options.length; highlight(); }
                 else if (e.key === 'Enter') { if (options[active]) { e.preventDefault(); selectOpt(options[active]); } }
                 else if (e.key === 'Escape') { closePanel(); }
             });
