@@ -13,11 +13,18 @@ function bbPageIndex(array $params = []): void
     }
 
     $user = ehrRequireAdmin();
-    $result = billing_bridge_cap_ehr_billing_charge_candidates_1(['limit' => 20], 'ehr.billing.charge_candidates@1', 'billing-bridge');
+    $input = app()->input();
+    $format = strtolower(trim((string)($input['format'] ?? 'html')));
+    $result = billing_bridge_cap_ehr_billing_charge_candidates_1(['limit' => $format === 'csv' ? 500 : 20], 'ehr.billing.charge_candidates@1', 'billing-bridge');
     $candidates = is_array($result) && !empty($result['ok']) && is_array($result['candidates'] ?? null)
         ? array_values($result['candidates'])
         : [];
     $candidates = ehrHydrateRecordSummaries($candidates, 'billing-bridge');
+
+    if ($format === 'csv') {
+        bbSendCandidatesCsv($candidates);
+        return;
+    }
 
     echo ehrRender('modules/billing-bridge/admin/index.disyl', array_merge(
         ehrAdminContext($user, 'ehr_billing_bridge', ['page_title' => 'Billing Queue']),

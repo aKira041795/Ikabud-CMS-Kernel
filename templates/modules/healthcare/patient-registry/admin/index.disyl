@@ -17,6 +17,15 @@
             <input type="text" name="q" value="{search_query}" placeholder="Search by patient name, UUID, phone, or email" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
             <button type="submit" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Search Registry</button>
         </form>
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+            <a href="{base_url}/admin/ehr/patients/export{if search_query}?q={search_query}{/if}" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-400 hover:text-teal-700">Export CSV</a>
+            <form method="POST" action="{base_url}/admin/ehr/patients/import" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2">
+                {csrf_field | raw}
+                <input type="file" name="import_file" accept=".csv,text/csv" required class="text-xs">
+                <button type="submit" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-400 hover:text-teal-700">Import CSV</button>
+                <span class="text-xs text-slate-500">Required columns: first_name, last_name, birth_date</span>
+            </form>
+        </div>
     </section>
 
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">

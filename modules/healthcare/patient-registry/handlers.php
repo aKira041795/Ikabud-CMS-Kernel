@@ -133,3 +133,126 @@ function prSavePatient(array $params = []): void
     $error = trim((string)($result['error'] ?? 'Unable to save patient.'));
     echo ehrRender('modules/patient-registry/admin/index.disyl', prPageState($user, $input, $error));
 }
+function prExportCsv(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) {
+        http_response_code(503);
+        echo 'EHR admin runtime unavailable';
+        return;
+    }
+    ehrRequireAdmin();
+    $input = app()->input();
+    $q = trim((string)($input['q'] ?? ''));
+    $payload = ['limit' => 1000];
+    if ($q !== '') { $payload['q'] = $q; }
+    $result = app()->cap()->call('ehr.patient.search@1', $payload, ['caller_module' => 'patient-registry']);
+    $patients = is_array($result) && !empty($result['ok']) && is_array($result['results'] ?? null) ? $result['results'] : [];
+
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="ehr-patients.csv"');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    $out = fopen('php://output', 'wb');
+    fputcsv($out, ['id', 'patient_uuid', 'first_name', 'last_name', 'middle_name', 'birth_date', 'sex', 'status', 'primary_phone', 'email', 'identifier_type', 'identifier_value', 'identifier_issuing_authority']);
+    foreach ($patients as $p) {
+        if (!is_array($p)) continue;
+        $ident = is_array($p['identifiers'][0] ?? null) ? $p['identifiers'][0] : [];
+        fputcsv($out, [
+            (string)($p['id'] ?? ''),
+            (string)($p['patient_uuid'] ?? ''),
+            (string)($p['first_name'] ?? ''),
+            (string)($p['last_name'] ?? ''),
+            (string)($p['middle_name'] ?? ''),
+            (string)($p['birth_date'] ?? ''),
+            (string)($p['sex'] ?? ''),
+            (string)($p['status'] ?? ''),
+            (string)($p['primary_phone'] ?? ''),
+            (string)($p['email'] ?? ''),
+            (string)($ident['identifier_type'] ?? $ident['type'] ?? ''),
+            (string)($ident['identifier_value'] ?? $ident['value'] ?? ''),
+            (string)($ident['issuing_authority'] ?? ''),
+        ]);
+    }
+    fclose($out);
+}
+
+function prImportCsv(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin') || !function_exists('ehrRender') || !function_exists('ehrAdminContext')) {
+        http_response_code(503);
+        echo 'EHR admin runtime unavailable';
+        return;
+    }
+    $user = ehrRequireAdmin();
+    $input = app()->input();
+    $upload = function_exists('kernelUploadedFile') ? kernelUploadedFile('import_file') : null;
+    if (!is_array($upload) || (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        echo ehrRender('modules/patient-registry/admin/index.disyl', prPageState($user, $input, 'Choose a CSV file to import.'));
+        return;
+    }
+    $tmp = (string)($upload['tmp_name'] ?? '');
+    if ($tmp === '' || !is_file($tmp)) {
+        echo ehrRender('modules/patient-registry/admin/index.disyl', prPageState($user, $input, 'Uploaded file is not available.'));
+        return;
+    }
+    if (PHP_SAPI !== 'cli' && !is_uploaded_file($tmp)) {
+        echo ehrRender('modules/patient-registry/admin/index.disyl', prPageState($user, $input, 'Upload pipeline rejected file.'));
+        return;
+    }
+    $handle = fopen($tmp, 'rb');
+    if (!$handle) {
+        echo ehrRender('modules/patient-registry/admin/index.disyl', prPageState($user, $input, 'Cannot read uploaded CSV.'));
+        return;
+    }
+    $header = fgetcsv($handle);
+    if (!is_array($header)) {
+        fclose($handle);
+        echo ehrRender('modules/patient-registry/admin/index.disyl', prPageState($user, $input, 'CSV is empty or malformed.'));
+        return;
+    }
+    $header = array_map(static fn($h): string => strtolower(trim((string)$h)), $header);
+    $required = ['first_name', 'last_name', 'birth_date'];
+    foreach ($required as $req) {
+        if (!in_array($req, $header, true)) {
+            fclose($handle);
+            echo ehrRender('modules/patient-registry/admin/index.disyl', prPageState($user, $input, 'CSV missing required column: ' . $req));
+            return;
+        }
+    }
+    $created = 0; $updated = 0; $failed = 0;
+    while (($row = fgetcsv($handle)) !== false) {
+        if (!is_array($row) || count(array_filter($row, static fn($v): bool => trim((string)$v) !== '')) === 0) continue;
+        $assoc = [];
+        foreach ($header as $i => $col) {
+            $assoc[$col] = isset($row[$i]) ? trim((string)$row[$i]) : '';
+        }
+        $patientId = (int)($assoc['id'] ?? 0);
+        $payload = [
+            'id' => $patientId,
+            'first_name' => (string)($assoc['first_name'] ?? ''),
+            'last_name' => (string)($assoc['last_name'] ?? ''),
+            'middle_name' => (string)($assoc['middle_name'] ?? ''),
+            'birth_date' => (string)($assoc['birth_date'] ?? ''),
+            'sex' => (string)($assoc['sex'] ?? 'unknown'),
+            'status' => (string)($assoc['status'] ?? 'active'),
+            'primary_phone' => (string)($assoc['primary_phone'] ?? ''),
+            'email' => (string)($assoc['email'] ?? ''),
+            'identifiers' => [[
+                'type' => (string)($assoc['identifier_type'] ?? ''),
+                'value' => (string)($assoc['identifier_value'] ?? ''),
+                'issuing_authority' => (string)($assoc['identifier_issuing_authority'] ?? ''),
+                'is_primary' => true,
+                'status' => 'active',
+            ]],
+        ];
+        $cap = $patientId > 0 ? 'ehr.patient.update@1' : 'ehr.patient.create@1';
+        $r = app()->cap()->call($cap, $payload, ['caller_module' => 'patient-registry']);
+        if (is_array($r) && !empty($r['ok'])) {
+            if ($patientId > 0) { $updated++; } else { $created++; }
+        } else {
+            $failed++;
+        }
+    }
+    fclose($handle);
+    app()->redirect('/admin/ehr/patients?notice=' . rawurlencode('imported:' . $created . '/' . $updated . '/' . $failed));
+}

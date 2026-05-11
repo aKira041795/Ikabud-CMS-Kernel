@@ -253,6 +253,33 @@ function audSearchWhere(array $data): array
     return [$where, $params];
 }
 
+function audSendCsv(string $filename, array $entries): void
+{
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    $out = fopen('php://output', 'wb');
+    if ($out === false) { http_response_code(500); echo 'CSV stream failed'; return; }
+    fputcsv($out, ['id', 'created_at', 'module', 'action', 'event_label', 'actor_user_id', 'actor_source', 'entity_type', 'entity_id', 'is_break_glass']);
+    foreach ($entries as $e) {
+        if (!is_array($e)) continue;
+        fputcsv($out, [
+            (string)($e['id'] ?? ''),
+            (string)($e['created_at'] ?? ''),
+            (string)($e['module'] ?? ''),
+            (string)($e['action'] ?? ''),
+            (string)($e['event_label'] ?? ''),
+            (string)($e['actor_user_id'] ?? ''),
+            (string)($e['actor_source'] ?? ''),
+            (string)($e['entity_type'] ?? ''),
+            (string)($e['entity_id'] ?? ''),
+            !empty($e['is_break_glass']) ? '1' : '0',
+        ]);
+    }
+    fclose($out);
+}
+
 function audit_cap_ehr_audit_search_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];

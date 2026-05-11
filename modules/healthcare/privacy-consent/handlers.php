@@ -104,13 +104,51 @@ function pcSaveConsent(array $params = []): void
 
     $user = ehrRequireAdmin();
     $input = app()->input();
+    $patientId = max(0, (int)($input['patient_id'] ?? 0));
+    $documentId = 0;
+    $upload = function_exists('kernelUploadedFile') ? kernelUploadedFile('signed_consent_file') : null;
+    if (is_array($upload) && (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+        if ($patientId <= 0) {
+            echo ehrRender('modules/privacy-consent/admin/index.disyl', pcPageState($user, $input, 'Select a patient before attaching a signed consent file.'));
+            return;
+        }
+        if (!function_exists('docPersistUploadedFile')) {
+            echo ehrRender('modules/privacy-consent/admin/index.disyl', pcPageState($user, $input, 'Documents module unavailable for signed consent upload.'));
+            return;
+        }
+        try {
+            $persisted = docPersistUploadedFile($upload, $patientId);
+        } catch (\Throwable $e) {
+            echo ehrRender('modules/privacy-consent/admin/index.disyl', pcPageState($user, $input, 'Signed consent upload failed: ' . $e->getMessage()));
+            return;
+        }
+        $docResult = app()->cap()->call('ehr.document.upload@1', [
+            'patient_id' => $patientId,
+            'encounter_id' => max(0, (int)($input['encounter_id'] ?? 0)),
+            'title' => 'Signed consent ' . trim((string)($input['consent_type'] ?? 'general')) . ' ' . date('Y-m-d'),
+            'document_type' => 'consent',
+            'mime_type' => $persisted['mime_type'],
+            'storage_key' => $persisted['storage_key'],
+            'file_size' => $persisted['file_size'],
+            'sensitivity_level' => 'sensitive',
+            'consent_required_flag' => true,
+            'uploaded_by_user_id' => (int)($user['id'] ?? 0),
+            'source' => 'consent-upload',
+        ], ['caller_module' => 'privacy-consent']);
+        if (is_array($docResult) && !empty($docResult['ok']) && is_array($docResult['document'] ?? null)) {
+            $documentId = (int)($docResult['document']['id'] ?? 0);
+        }
+    }
     $payload = [
-        'patient_id' => max(0, (int)($input['patient_id'] ?? 0)),
+        'patient_id' => $patientId,
         'consent_type' => trim((string)($input['consent_type'] ?? 'general')),
         'status' => trim((string)($input['status'] ?? 'granted')),
         'expires_at' => trim((string)($input['expires_at'] ?? '')),
         'captured_by_user_id' => (int)($user['id'] ?? 0),
     ];
+    if ($documentId > 0) {
+        $payload['document_id'] = $documentId;
+    }
 
     $result = app()->cap()->call('ehr.consent.record@1', $payload, ['caller_module' => 'privacy-consent']);
     if (is_array($result) && !empty($result['ok']) && is_array($result['consent'] ?? null)) {

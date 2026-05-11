@@ -266,3 +266,27 @@ function billing_bridge_cap_ehr_billing_charge_candidates_1(mixed $payload, stri
         ],
     ];
 }
+function bbSendCandidatesCsv(array $candidates): void
+{
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="ehr-billing-candidates.csv"');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    $out = fopen('php://output', 'wb');
+    if ($out === false) { http_response_code(500); echo 'CSV stream failed'; return; }
+    fputcsv($out, ['source_action', 'patient_id', 'encounter_id', 'object_type', 'object_id', 'event_at', 'description', 'amount']);
+    foreach ($candidates as $c) {
+        if (!is_array($c)) continue;
+        fputcsv($out, [
+            (string)($c['source_action'] ?? ''),
+            (string)($c['patient_id'] ?? ''),
+            (string)($c['encounter_id'] ?? ''),
+            (string)($c['object_type'] ?? ''),
+            (string)($c['object_id'] ?? ''),
+            (string)($c['event_at'] ?? ''),
+            (string)($c['description'] ?? ''),
+            (string)($c['amount'] ?? ''),
+        ]);
+    }
+    fclose($out);
+}

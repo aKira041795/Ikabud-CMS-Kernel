@@ -16,7 +16,8 @@ function audPageIndex(array $params = []): void
     $input = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET;
     $q = trim((string)($input['q'] ?? ''));
     $breakGlassOnly = !empty($input['break_glass']);
-    $searchPayload = ['limit' => 50];
+    $format = strtolower(trim((string)($input['format'] ?? 'html')));
+    $searchPayload = ['limit' => $format === 'csv' ? 1000 : 50];
     if ($q !== '') {
         $searchPayload['q'] = $q;
     }
@@ -53,6 +54,11 @@ function audPageIndex(array $params = []): void
 
     if ($breakGlassOnly) {
         $entries = array_values(array_filter($entries, static fn(array $e): bool => !empty($e['is_break_glass'])));
+    }
+
+    if ($format === 'csv') {
+        audSendCsv('ehr-audit-log.csv', $entries);
+        return;
     }
 
     echo ehrRender('modules/audit/admin/index.disyl', array_merge(

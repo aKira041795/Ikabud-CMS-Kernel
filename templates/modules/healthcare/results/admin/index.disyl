@@ -101,7 +101,7 @@
         <p class="mt-1 text-xs text-slate-500">Choose the order item, then record the value, units, and any flags.</p>
         {if form_notice == 'created'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Result entered.</div>{elseif form_notice == 'verified'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Result verified.</div>{elseif form_notice == 'released'}<div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Result released.</div>{elseif form_notice == 'acknowledged'}<div class="mt-4 border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Result acknowledged.</div>{/if}
         {if form_error}<div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
-        <form method="POST" action="{base_url}/admin/ehr/results" class="mt-4 grid gap-4 md:grid-cols-2">
+        <form method="POST" action="{base_url}/admin/ehr/results" enctype="multipart/form-data" class="mt-4 grid gap-4 md:grid-cols-2">
             {csrf_field | raw}
             <div class="md:col-span-2">
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Order Item</label>
@@ -132,7 +132,15 @@
                 <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Abnormal Flag</label>
                 <input type="text" name="abnormal_flag" value="{form_values.abnormal_flag}" class="w-full border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="e.g. H, L, A">
             </div>
-            <div class="md:col-span-2"><button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white">Enter Result</button></div>
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Attach lab file (optional)</label>
+                <input type="file" name="result_file" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.txt,.csv,.xml,.hl7,.dcm" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-teal-700">
+                <p class="mt-1 text-xs text-slate-500">PDF, image, HL7, DICOM, CSV, XML or text. Stored as a lab_report document tied to this encounter.</p>
+            </div>
+            <div class="md:col-span-2 flex items-center justify-between">
+                <button type="submit" class="bg-slate-900 px-4 py-3 text-sm font-semibold text-white">Enter Result</button>
+                <a href="{base_url}/admin/ehr/results/export" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-400 hover:text-teal-700">Export CSV</a>
+            </div>
         </form>
     </section>
 </div>

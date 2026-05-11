@@ -29,6 +29,7 @@
                     Break-glass only
                 </label>
                 <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">Filter</button>
+                <a href="{base_url}/admin/ehr/audit?format=csv&q={filter_q}{if filter_break_glass}&break_glass=1{/if}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-teal-400 hover:text-teal-700">Export CSV</a>
             </form>
         </div>
         <div class="divide-y divide-slate-100">
