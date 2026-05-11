@@ -426,6 +426,29 @@ $routeKeyOk = ehrCurrentRouteNavKey('/admin/ehr/notes') === 'ehr_clinical_notes'
     && ehrCurrentRouteNavKey('/admin/ehr/unknown') === null;
 et('ehr route→nav-key resolver matches longest prefix', $routeKeyOk);
 
+// Status tabs: green/success codes must be excluded from the main strip and surfaced via done_url.
+$apptTabs = ehrStatusTabs(
+    'appointment',
+    ['scheduled', 'checked_in', 'in_progress', 'completed', 'cancelled', 'no_show'],
+    ['scheduled' => 4, 'checked_in' => 2, 'in_progress' => 1, 'completed' => 9, 'cancelled' => 3, 'no_show' => 0],
+    '',
+    '/admin/ehr/appointments'
+);
+$apptStatusCodes = array_map(static fn(array $t): string => (string)$t['status'], $apptTabs['tabs']);
+et('status tabs exclude completed/success state for appointments', !in_array('completed', $apptStatusCodes, true));
+et('status tabs surface success state via done_url for appointments', $apptTabs['done_count'] === 9 && str_contains((string)$apptTabs['done_url'], 'status=completed'));
+et('status tabs prepend "All open" with sum of non-success counts', ($apptTabs['tabs'][0]['status'] ?? null) === '' && (int)($apptTabs['tabs'][0]['count'] ?? -1) === (4 + 2 + 1 + 3 + 0));
+
+$encTabs = ehrStatusTabs(
+    'encounter',
+    ['open', 'in_progress', 'completed', 'cancelled'],
+    ['open' => 3, 'in_progress' => 2, 'completed' => 7, 'cancelled' => 1],
+    'open',
+    '/admin/ehr/encounters'
+);
+$encCodes = array_map(static fn(array $t): string => (string)$t['status'], $encTabs['tabs']);
+et('status tabs exclude completed/success state for encounters', !in_array('completed', $encCodes, true) && $encTabs['done_count'] === 7);
+
 $settingsAdminHtml = ehrRender('admin/settings.disyl', array_merge(
     ehrAdminContext($ehrAdminUser, 'ehr_settings', ['page_title' => 'Branding & Access']),
     [
