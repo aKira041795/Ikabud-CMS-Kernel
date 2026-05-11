@@ -53,6 +53,7 @@ declare(strict_types=1);
         '/cms/admin',
         '/cms/auth',
         '/portal',
+        '/ehr/queue-monitor',
         '/assets/',
     ];
     foreach ($skipPrefixes as $prefix) {

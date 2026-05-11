@@ -55,6 +55,7 @@ define('PAGE_CACHE_SKIP_PREFIXES', [
     '/cms/admin',
     '/cms/auth',
     '/portal',
+    '/ehr/queue-monitor',
 ]);
 
 // ── Instance & TTL ───────────────────────────────────────────────────
