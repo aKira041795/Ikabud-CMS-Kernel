@@ -50,7 +50,7 @@
             </div>
             <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
                 <div class="mb-3 space-y-2 px-1">
-                    <div class="px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Find Patient</div>
+                    <div class="px-1 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-700">Find Patient</div>
                     <input
                         type="text"
                         placeholder="Search by name or MRN..."
@@ -68,20 +68,20 @@
                     <button
                         type="button"
                         @click="open = !open"
-                        class="flex w-full items-center justify-between px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 hover:text-slate-700"
+                        class="flex w-full items-center justify-between px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-700 hover:text-teal-800"
                         :aria-expanded="open"
                     >
                         <span class="flex items-center gap-2">
                             <span>{group.title}</span>
-                            <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-slate-500">{group.count}</span>
+                            <span class="rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-bold normal-case tracking-normal text-teal-800">{group.count}</span>
                         </span>
-                        <span class="ehr-nav-group-chevron text-slate-400">›</span>
+                        <span class="ehr-nav-group-chevron text-teal-700">›</span>
                     </button>
                     <div x-show="open" x-cloak class="mt-1 space-y-0.5">
                         {foreach group.items as item}
-                        <a href="{item.url}" class="block rounded-md border-l-2 px-3 py-2 transition {if current_page == item.key}border-teal-700 bg-white text-teal-900 shadow-sm{else}border-transparent text-slate-600 hover:border-teal-300 hover:bg-white/70 hover:text-slate-900{/if}">
-                            <div class="text-sm font-medium">{item.label}</div>
-                            <div class="mt-0.5 text-xs {if current_page == item.key}text-teal-700/80{else}text-slate-500{/if}">{item.description}</div>
+                        <a href="{item.url}" class="block rounded-md border-l-2 px-3 py-2 transition {if current_page == item.key}border-teal-700 bg-white text-teal-900 shadow-sm{else}border-transparent text-slate-800 hover:border-teal-500 hover:bg-white hover:text-teal-900{/if}">
+                            <div class="text-sm font-semibold">{item.label}</div>
+                            <div class="mt-0.5 text-xs {if current_page == item.key}text-teal-800{else}text-slate-600{/if}">{item.description}</div>
                         </a>
                         {/foreach}
                     </div>
