@@ -19,7 +19,8 @@
     ],
     "migrations": [
         "database/migrations/001_ehr_users.sql",
-        "database/migrations/002_ehr_password_resets.sql"
+        "database/migrations/002_ehr_password_resets.sql",
+        "database/migrations/003_ehr_users_industry_fields.sql"
     ],
     "capabilities": {
         "exposes": [

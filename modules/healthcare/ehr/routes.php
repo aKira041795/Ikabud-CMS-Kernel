@@ -23,6 +23,7 @@ return [
         '/admin/ehr/patients/context/clear' => 'ehr:ehrPatientContextClear',
         '/admin/ehr/patients/context/set' => 'ehr:ehrPatientContextSet',
         '/admin/ehr/users/create' => 'ehr:ehrUsersCreate',
+        '/admin/ehr/users/update' => 'ehr:ehrUsersUpdate',
         '/admin/ehr/users/toggle-active' => 'ehr:ehrUsersToggleActive',
         '/admin/ehr/users/reset-password' => 'ehr:ehrUsersResetPassword',
     ],

@@ -1,45 +1,67 @@
 {extends "modules/ehr/layouts/admin.disyl"}
 
 {block content}
-<div class="mx-auto max-w-6xl space-y-6">
-    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+<div class="mx-auto max-w-7xl space-y-6">
+    <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Access Control</p>
-                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Users</h1>
-                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Manage staff accounts that can sign into the EHR. Deactivating a user immediately invalidates active sessions.</p>
+                <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Staff Directory & Access</h1>
+                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Manage clinical and administrative accounts. Captures legal name, credentials, NPI/DEA, licensure, employment, and security state. Deactivating a user immediately invalidates active sessions.</p>
             </div>
             <div class="grid grid-cols-3 gap-3 text-center text-sm">
-                <div class="rounded-2xl bg-slate-50 px-4 py-3"><div class="text-2xl font-semibold text-slate-900">{user_count}</div><div class="text-xs uppercase tracking-wide text-slate-500">Total</div></div>
-                <div class="rounded-2xl bg-emerald-50 px-4 py-3"><div class="text-2xl font-semibold text-emerald-700">{active_count}</div><div class="text-xs uppercase tracking-wide text-emerald-600">Active</div></div>
-                <div class="rounded-2xl bg-slate-100 px-4 py-3"><div class="text-2xl font-semibold text-slate-700">{inactive_count}</div><div class="text-xs uppercase tracking-wide text-slate-500">Inactive</div></div>
+                <div class="rounded-lg bg-slate-50 px-4 py-3"><div class="text-2xl font-semibold text-slate-900">{user_count}</div><div class="text-xs uppercase tracking-wide text-slate-500">Total</div></div>
+                <div class="rounded-lg bg-emerald-50 px-4 py-3"><div class="text-2xl font-semibold text-emerald-700">{active_count}</div><div class="text-xs uppercase tracking-wide text-emerald-600">Active</div></div>
+                <div class="rounded-lg bg-slate-100 px-4 py-3"><div class="text-2xl font-semibold text-slate-700">{inactive_count}</div><div class="text-xs uppercase tracking-wide text-slate-500">Inactive</div></div>
             </div>
         </div>
-        {if form_notice == 'created'}<div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">User created.</div>{elseif form_notice == 'activated'}<div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">User activated.</div>{elseif form_notice == 'deactivated'}<div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">User deactivated.</div>{elseif form_notice == 'password_reset'}<div class="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Password reset.</div>{/if}
-        {if form_error}<div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
+        {if form_notice == 'created'}<div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">User created.</div>
+        {elseif form_notice == 'updated'}<div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">User updated.</div>
+        {elseif form_notice == 'activated'}<div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">User activated.</div>
+        {elseif form_notice == 'deactivated'}<div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">User deactivated.</div>
+        {elseif form_notice == 'password_reset'}<div class="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Password reset.</div>{/if}
+        {if form_error}<div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>{/if}
     </section>
 
-    <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-4">
             <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Staff accounts</h2>
-            <p class="mt-1 text-xs text-slate-500">Showing up to 200 users, sorted by status then name.</p>
+            <p class="mt-1 text-xs text-slate-500">Showing up to 200 users, sorted by status then last name.</p>
         </div>
-        <div class="divide-y divide-slate-100">
+        <div class="divide-y divide-slate-100" x-data="{ openId: null }">
             {if users}
                 {foreach users as u}
                 <div class="px-6 py-4">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
-                                <div class="text-base font-semibold text-slate-900">{if u.full_name}{u.full_name}{else}{u.username}{/if}</div>
+                                <div class="text-base font-semibold text-slate-900">
+                                    {if u.title}{u.title} {/if}{if u.first_name}{u.first_name}{else}{u.full_name}{/if}{if u.last_name} {u.last_name}{/if}{if u.suffix}, {u.suffix}{/if}{if u.credentials}, <span class="text-teal-700 font-medium">{u.credentials}</span>{/if}
+                                </div>
                                 {if u.is_active}<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">Active</span>{else}<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-slate-600">Inactive</span>{/if}
                                 <span class="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-teal-700">{u.role}</span>
-                                {if u.id == current_user_id}<span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">You</span>{/if}
+                                {if u.can_prescribe}<span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">Rx</span>{/if}
+                                {if u.mfa_enabled}<span class="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-sky-700">MFA</span>{/if}
+                                {if u.id == current_user_id}<span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-700">You</span>{/if}
                             </div>
-                            <div class="mt-1 text-sm text-slate-600">@{u.username} · {u.email}</div>
+                            <div class="mt-1 text-sm text-slate-600">@{u.username} · {u.email}{if u.phone} · {u.phone}{/if}</div>
+                            <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                                {if u.job_title}<span><strong class="text-slate-700">Title:</strong> {u.job_title}</span>{/if}
+                                {if u.department}<span><strong class="text-slate-700">Dept:</strong> {u.department}</span>{/if}
+                                {if u.specialty}<span><strong class="text-slate-700">Specialty:</strong> {u.specialty}</span>{/if}
+                                {if u.npi}<span><strong class="text-slate-700">NPI:</strong> {u.npi}</span>{/if}
+                                {if u.dea_number}<span><strong class="text-slate-700">DEA:</strong> {u.dea_number}</span>{/if}
+                                {if u.license_number}<span><strong class="text-slate-700">License:</strong> {u.license_number}{if u.license_state} ({u.license_state}){/if}{if u.license_expires_on} · exp {u.license_expires_on}{/if}</span>{/if}
+                                {if u.employee_id}<span><strong class="text-slate-700">Emp #:</strong> {u.employee_id}</span>{/if}
+                                {if u.last_login_at}<span><strong class="text-slate-700">Last login:</strong> {u.last_login_at}</span>{/if}
+                            </div>
                             <div class="mt-1 text-xs text-slate-400">Created {u.created_at} · Updated {u.updated_at}</div>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
+                            <button type="button" @click="openId = (openId === {u.id} ? null : {u.id})" class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-300 hover:bg-teal-50">
+                                <span x-show="openId !== {u.id}">Edit</span>
+                                <span x-show="openId === {u.id}" x-cloak>Close</span>
+                            </button>
                             {if u.id != current_user_id}
                             <form method="POST" action="{base_url}/admin/ehr/users/toggle-active" class="inline" onsubmit="return confirm('Change this user\u2019s status?');">
                                 {csrf_field | raw}
@@ -55,6 +77,90 @@
                             </form>
                         </div>
                     </div>
+
+                    <div x-show="openId === {u.id}" x-cloak class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <form method="POST" action="{base_url}/admin/ehr/users/update" class="grid gap-4 md:grid-cols-3">
+                            {csrf_field | raw}
+                            <input type="hidden" name="user_id" value="{u.id}">
+
+                            <div class="md:col-span-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Account</div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">Email *</label>
+                                <input type="email" name="email" value="{u.email}" required class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">Role *</label>
+                                <select name="role" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    {foreach role_options as r}<option value="{r}" {if u.role == r}selected{/if}>{r}</option>{/foreach}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">Display / Full Name</label>
+                                <input type="text" name="full_name" value="{u.full_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                            </div>
+
+                            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Identity</div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Title</label>
+                                <select name="title" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    {foreach title_options as t}<option value="{t}" {if u.title == t}selected{/if}>{if t}{t}{else}—{/if}</option>{/foreach}
+                                </select>
+                            </div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">First Name</label><input type="text" name="first_name" value="{u.first_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Middle Name</label><input type="text" name="middle_name" value="{u.middle_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Last Name</label><input type="text" name="last_name" value="{u.last_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Suffix</label><input type="text" name="suffix" value="{u.suffix}" placeholder="Jr., III" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Preferred Name</label><input type="text" name="preferred_name" value="{u.preferred_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+
+                            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Credentials & Licensure</div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Credentials</label><input type="text" name="credentials" value="{u.credentials}" placeholder="MD, DO, RN, NP, PA" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">NPI (10 digits)</label><input type="text" name="npi" value="{u.npi}" pattern="\d{10}" maxlength="10" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">DEA Number</label><input type="text" name="dea_number" value="{u.dea_number}" pattern="[A-Za-z]{2}\d{7}" maxlength="9" placeholder="AB1234567" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm uppercase"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">License Number</label><input type="text" name="license_number" value="{u.license_number}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">License State</label>
+                                <select name="license_state" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="">—</option>
+                                    {foreach us_states as s}<option value="{s}" {if u.license_state == s}selected{/if}>{s}</option>{/foreach}
+                                </select>
+                            </div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">License Expires</label><input type="date" name="license_expires_on" value="{u.license_expires_on}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Specialty</label><input type="text" name="specialty" value="{u.specialty}" placeholder="Family Medicine" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Taxonomy Code</label><input type="text" name="taxonomy_code" value="{u.taxonomy_code}" placeholder="207Q00000X" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Provider Type</label>
+                                <select name="provider_type" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    {foreach provider_type_options as p}<option value="{p}" {if u.provider_type == p}selected{/if}>{if p}{p}{else}—{/if}</option>{/foreach}
+                                </select>
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="can_prescribe" value="1" {if u.can_prescribe}checked{/if} class="rounded border-slate-300"> Can prescribe</label>
+                            </div>
+
+                            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Employment</div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Employee ID</label><input type="text" name="employee_id" value="{u.employee_id}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Job Title</label><input type="text" name="job_title" value="{u.job_title}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Department</label><input type="text" name="department" value="{u.department}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Hire Date</label><input type="date" name="hire_date" value="{u.hire_date}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Termination Date</label><input type="date" name="termination_date" value="{u.termination_date}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Phone (work)</label><input type="tel" name="phone" value="{u.phone}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="mb-1 block text-xs font-medium text-slate-600">Mobile / Pager</label><input type="tel" name="mobile" value="{u.mobile}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+
+                            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Security</div>
+                            <div class="flex items-end gap-2">
+                                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="mfa_enabled" value="1" {if u.mfa_enabled}checked{/if} class="rounded border-slate-300"> MFA enabled</label>
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="force_password_change" value="1" {if u.force_password_change}checked{/if} class="rounded border-slate-300"> Force password change at next login</label>
+                            </div>
+                            <div class="text-xs text-slate-500 self-end">Failed logins: <strong>{u.failed_login_count}</strong>{if u.locked_until} · Locked until {u.locked_until}{/if}</div>
+
+                            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Notes</div>
+                            <div class="md:col-span-3"><textarea name="notes" rows="3" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">{u.notes}</textarea></div>
+
+                            <div class="md:col-span-3 flex items-center justify-end gap-2 pt-2">
+                                <button type="button" @click="openId = null" class="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+                                <button type="submit" class="rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 {/foreach}
             {else}
@@ -63,36 +169,75 @@
         </div>
     </section>
 
-    <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Create a user</h2>
-        <p class="mt-1 text-xs text-slate-500">New users are active by default and must change their password on next sign-in is recommended.</p>
-        <form method="POST" action="{base_url}/admin/ehr/users/create" class="mt-4 grid gap-4 md:grid-cols-2">
+    <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Add a new staff member</h2>
+        <p class="mt-1 text-xs text-slate-500">Required: username, email, role, password. Other fields can be filled in now or later from the Edit panel above.</p>
+        <form method="POST" action="{base_url}/admin/ehr/users/create" class="mt-4 grid gap-4 md:grid-cols-3">
             {csrf_field | raw}
+
+            <div class="md:col-span-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Account</div>
             <div>
-                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Username</label>
+                <label class="mb-1 block text-xs font-medium text-slate-600">Username *</label>
                 <input type="text" name="username" value="{form_values.username}" required pattern="[a-z0-9._-]{3,64}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
             </div>
             <div>
-                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Email</label>
+                <label class="mb-1 block text-xs font-medium text-slate-600">Email *</label>
                 <input type="email" name="email" value="{form_values.email}" required class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
             </div>
             <div>
-                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Full Name</label>
-                <input type="text" name="full_name" value="{form_values.full_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-            </div>
-            <div>
-                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Role</label>
+                <label class="mb-1 block text-xs font-medium text-slate-600">Role *</label>
                 <select name="role" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-                    {foreach role_options as r}
-                    <option value="{r}" {if form_values.role == r}selected{/if}>{r}</option>
-                    {/foreach}
+                    {foreach role_options as r}<option value="{r}" {if form_values.role == r}selected{/if}>{r}</option>{/foreach}
                 </select>
             </div>
-            <div class="md:col-span-2">
-                <label class="mb-1 block text-xs uppercase tracking-wide text-slate-500">Initial Password (min 8 chars)</label>
+            <div class="md:col-span-3">
+                <label class="mb-1 block text-xs font-medium text-slate-600">Initial Password * (min 8)</label>
                 <input type="password" name="password" required minlength="8" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
             </div>
-            <div class="md:col-span-2"><button type="submit" class="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Create User</button></div>
+
+            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Identity</div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Title</label>
+                <select name="title" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                    {foreach title_options as t}<option value="{t}">{if t}{t}{else}—{/if}</option>{/foreach}
+                </select>
+            </div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">First Name</label><input type="text" name="first_name" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Last Name</label><input type="text" name="last_name" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Display / Full Name <span class="text-slate-400">(auto if blank)</span></label><input type="text" name="full_name" value="{form_values.full_name}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Credentials</label><input type="text" name="credentials" placeholder="MD, RN, NP" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Provider Type</label>
+                <select name="provider_type" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                    {foreach provider_type_options as p}<option value="{p}">{if p}{p}{else}—{/if}</option>{/foreach}
+                </select>
+            </div>
+
+            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Credentials & Licensure (optional)</div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">NPI</label><input type="text" name="npi" pattern="\d{10}" maxlength="10" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">DEA Number</label><input type="text" name="dea_number" pattern="[A-Za-z]{2}\d{7}" maxlength="9" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm uppercase"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">License Number</label><input type="text" name="license_number" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">License State</label>
+                <select name="license_state" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">—</option>
+                    {foreach us_states as s}<option value="{s}">{s}</option>{/foreach}
+                </select>
+            </div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">License Expires</label><input type="date" name="license_expires_on" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Specialty</label><input type="text" name="specialty" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+
+            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Employment</div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Employee ID</label><input type="text" name="employee_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Job Title</label><input type="text" name="job_title" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Department</label><input type="text" name="department" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Hire Date</label><input type="date" name="hire_date" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Phone (work)</label><input type="tel" name="phone" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+            <div><label class="mb-1 block text-xs font-medium text-slate-600">Mobile / Pager</label><input type="tel" name="mobile" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+
+            <div class="md:col-span-3 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 border-b border-slate-200 pb-1">Security</div>
+            <div class="flex items-end"><label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="can_prescribe" value="1" class="rounded border-slate-300"> Can prescribe</label></div>
+            <div class="flex items-end"><label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="mfa_enabled" value="1" class="rounded border-slate-300"> MFA enabled</label></div>
+            <div class="flex items-end"><label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="force_password_change" value="1" checked class="rounded border-slate-300"> Force password change on first login</label></div>
+
+            <div class="md:col-span-3"><button type="submit" class="rounded-md bg-teal-600 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-700">Create User</button></div>
         </form>
     </section>
 </div>

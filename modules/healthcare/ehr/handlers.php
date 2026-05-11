@@ -505,7 +505,12 @@ function ehrUsersListPage(array $params = []): void
     $error = trim((string)($input['error'] ?? ''));
 
     $rows = ehrDb()->query(
-        'SELECT id, username, email, full_name, role, is_active, created_at, updated_at FROM ehr_users ORDER BY is_active DESC, full_name ASC, username ASC LIMIT 200'
+        'SELECT id, username, email, full_name, title, first_name, middle_name, last_name, suffix, preferred_name,
+                credentials, npi, dea_number, license_number, license_state, license_expires_on, specialty,
+                taxonomy_code, provider_type, can_prescribe, employee_id, job_title, department, hire_date,
+                termination_date, phone, mobile, mfa_enabled, password_changed_at, force_password_change,
+                failed_login_count, locked_until, last_login_at, last_login_ip, role, is_active, created_at, updated_at
+         FROM ehr_users ORDER BY is_active DESC, COALESCE(last_name, full_name, username) ASC, username ASC LIMIT 200'
     )->fetchAll(PDO::FETCH_ASSOC);
     $users = is_array($rows) ? $rows : [];
 
@@ -536,9 +541,96 @@ function ehrUsersListPage(array $params = []): void
                 'full_name' => (string)($input['full_name'] ?? ''),
                 'role' => (string)($input['role'] ?? 'admin'),
             ],
-            'role_options' => ['admin', 'clinician', 'nurse', 'reception', 'billing'],
+            'role_options' => ['admin', 'physician', 'clinician', 'nurse', 'pharmacist', 'lab_tech', 'reception', 'billing'],
+            'title_options' => ['', 'Dr.', 'Mr.', 'Ms.', 'Mrs.', 'Mx.'],
+            'provider_type_options' => ['', 'physician', 'physician_assistant', 'nurse_practitioner', 'registered_nurse', 'pharmacist', 'therapist', 'midwife', 'dentist', 'non_clinical'],
+            'us_states' => ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC','PR'],
         ]
     ));
+}
+
+function ehrUsersFormFieldDefinitions(): array
+{
+    return [
+        'title' => ['len' => 20],
+        'first_name' => ['len' => 80],
+        'middle_name' => ['len' => 80],
+        'last_name' => ['len' => 80],
+        'suffix' => ['len' => 20],
+        'preferred_name' => ['len' => 80],
+        'credentials' => ['len' => 80],
+        'npi' => ['len' => 15],
+        'dea_number' => ['len' => 20],
+        'license_number' => ['len' => 50],
+        'license_state' => ['len' => 10],
+        'license_expires_on' => ['type' => 'date'],
+        'specialty' => ['len' => 120],
+        'taxonomy_code' => ['len' => 20],
+        'provider_type' => ['len' => 40],
+        'employee_id' => ['len' => 40],
+        'job_title' => ['len' => 120],
+        'department' => ['len' => 120],
+        'hire_date' => ['type' => 'date'],
+        'termination_date' => ['type' => 'date'],
+        'phone' => ['len' => 40],
+        'mobile' => ['len' => 40],
+        'notes' => ['len' => 4000],
+    ];
+}
+
+/**
+ * Read industry-standard fields from $input, validate basic shape, and return
+ * a normalized array of [column => value] suitable for INSERT/UPDATE binding.
+ * Returns null on validation error and sets $errorMessage by reference.
+ */
+function ehrUsersExtractProfileFields(array $input, ?string &$errorMessage = null): ?array
+{
+    $defs = ehrUsersFormFieldDefinitions();
+    $out = [];
+    foreach ($defs as $field => $meta) {
+        $raw = trim((string)($input[$field] ?? ''));
+        if ($raw === '') {
+            $out[$field] = null;
+            continue;
+        }
+        if (($meta['type'] ?? null) === 'date') {
+            $dt = DateTime::createFromFormat('Y-m-d', $raw);
+            if (!$dt || $dt->format('Y-m-d') !== $raw) {
+                $errorMessage = ucfirst(str_replace('_', ' ', $field)) . ' must be in YYYY-MM-DD format.';
+                return null;
+            }
+            $out[$field] = $raw;
+            continue;
+        }
+        $maxLen = (int)($meta['len'] ?? 255);
+        if (mb_strlen($raw) > $maxLen) {
+            $errorMessage = ucfirst(str_replace('_', ' ', $field)) . ' is too long (max ' . $maxLen . ').';
+            return null;
+        }
+        $out[$field] = $raw;
+    }
+
+    // Format-specific checks (lightweight; storage stays permissive).
+    if (!empty($out['npi']) && !preg_match('/^\d{10}$/', (string)$out['npi'])) {
+        $errorMessage = 'NPI must be exactly 10 digits.';
+        return null;
+    }
+    if (!empty($out['dea_number']) && !preg_match('/^[A-Za-z]{2}\d{7}$/', (string)$out['dea_number'])) {
+        $errorMessage = 'DEA number must be 2 letters followed by 7 digits.';
+        return null;
+    }
+    if (!empty($out['license_state'])) {
+        $out['license_state'] = strtoupper((string)$out['license_state']);
+    }
+    if (!empty($out['dea_number'])) {
+        $out['dea_number'] = strtoupper((string)$out['dea_number']);
+    }
+
+    $out['can_prescribe'] = !empty($input['can_prescribe']) ? 1 : 0;
+    $out['mfa_enabled'] = !empty($input['mfa_enabled']) ? 1 : 0;
+    $out['force_password_change'] = !empty($input['force_password_change']) ? 1 : 0;
+
+    return $out;
 }
 
 function ehrUsersCreate(array $params = []): void
@@ -570,6 +662,27 @@ function ehrUsersCreate(array $params = []): void
         $role = 'admin';
     }
 
+    $profileErr = null;
+    $profile = ehrUsersExtractProfileFields($input, $profileErr);
+    if ($profile === null) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode((string)$profileErr));
+        return;
+    }
+
+    // Compose full_name when missing from explicit name parts.
+    if ($fullName === '') {
+        $parts = array_filter([
+            $profile['title'] ?? null,
+            $profile['first_name'] ?? null,
+            $profile['middle_name'] ?? null,
+            $profile['last_name'] ?? null,
+            $profile['suffix'] ?? null,
+        ], static fn($v) => $v !== null && $v !== '');
+        if (!empty($parts)) {
+            $fullName = implode(' ', $parts);
+        }
+    }
+
     $existsStmt = ehrDb()->prepare('SELECT id FROM ehr_users WHERE username = :u OR email = :e LIMIT 1');
     $existsStmt->execute([':u' => $username, ':e' => $email]);
     if ($existsStmt->fetch(PDO::FETCH_ASSOC)) {
@@ -578,19 +691,91 @@ function ehrUsersCreate(array $params = []): void
     }
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $stmt = ehrDb()->prepare(
-        'INSERT INTO ehr_users (username, email, password_hash, full_name, role, is_active, token_version, created_at, updated_at) '
-        . 'VALUES (:username, :email, :password_hash, :full_name, :role, 1, 0, NOW(), NOW())'
-    );
-    $stmt->execute([
+    $columns = ['username', 'email', 'password_hash', 'full_name', 'role', 'is_active', 'token_version', 'password_changed_at', 'created_at', 'updated_at'];
+    $values = [':username', ':email', ':password_hash', ':full_name', ':role', '1', '0', 'NOW()', 'NOW()', 'NOW()'];
+    $bind = [
         ':username' => $username,
         ':email' => $email,
         ':password_hash' => $hash,
         ':full_name' => $fullName,
         ':role' => $role,
-    ]);
+    ];
+    foreach ($profile as $col => $val) {
+        $columns[] = $col;
+        $values[] = ':' . $col;
+        $bind[':' . $col] = $val;
+    }
+    $sql = 'INSERT INTO ehr_users (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ')';
+    try {
+        ehrDb()->prepare($sql)->execute($bind);
+    } catch (\PDOException $e) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Could not create user: ' . $e->getMessage()));
+        return;
+    }
 
     app()->redirect('/admin/ehr/users?notice=created');
+}
+
+function ehrUsersUpdate(array $params = []): void
+{
+    ehrRequireAdmin();
+    if (function_exists('csrfEnforce')) {
+        csrfEnforce();
+    }
+    $input = app()->input();
+    $userId = max(0, (int)($input['user_id'] ?? 0));
+    if ($userId <= 0) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('User is required.'));
+        return;
+    }
+
+    $email = strtolower(trim((string)($input['email'] ?? '')));
+    $fullName = trim((string)($input['full_name'] ?? ''));
+    $role = strtolower(trim((string)($input['role'] ?? '')));
+
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Valid email is required.'));
+        return;
+    }
+    if ($role === '') {
+        $role = 'admin';
+    }
+
+    $profileErr = null;
+    $profile = ehrUsersExtractProfileFields($input, $profileErr);
+    if ($profile === null) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode((string)$profileErr));
+        return;
+    }
+
+    // Ensure email is unique against other rows.
+    $dup = ehrDb()->prepare('SELECT id FROM ehr_users WHERE email = :e AND id <> :id LIMIT 1');
+    $dup->execute([':e' => $email, ':id' => $userId]);
+    if ($dup->fetch(PDO::FETCH_ASSOC)) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Another account already uses that email.'));
+        return;
+    }
+
+    $sets = ['email = :email', 'full_name = :full_name', 'role = :role', 'updated_at = NOW()'];
+    $bind = [
+        ':email' => $email,
+        ':full_name' => $fullName,
+        ':role' => $role,
+        ':id' => $userId,
+    ];
+    foreach ($profile as $col => $val) {
+        $sets[] = $col . ' = :' . $col;
+        $bind[':' . $col] = $val;
+    }
+    $sql = 'UPDATE ehr_users SET ' . implode(', ', $sets) . ' WHERE id = :id';
+    try {
+        ehrDb()->prepare($sql)->execute($bind);
+    } catch (\PDOException $e) {
+        app()->redirect('/admin/ehr/users?error=' . urlencode('Could not update user: ' . $e->getMessage()));
+        return;
+    }
+
+    app()->redirect('/admin/ehr/users?notice=updated');
 }
 
 function ehrUsersToggleActive(array $params = []): void
