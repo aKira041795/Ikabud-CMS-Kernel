@@ -52,6 +52,7 @@ declare(strict_types=1);
         '/cms/register',
         '/cms/admin',
         '/cms/auth',
+        '/portal',
         '/assets/',
     ];
     foreach ($skipPrefixes as $prefix) {
