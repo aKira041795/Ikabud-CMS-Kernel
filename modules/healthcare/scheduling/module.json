@@ -9,7 +9,8 @@
     ],
     "reads_tables": [],
     "migrations": [
-        "database/migrations/001_initial.sql"
+        "database/migrations/001_initial.sql",
+        "database/migrations/002_queue_workflow.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -98,7 +99,15 @@
             "url": "/admin/ehr/appointments",
             "icon": "calendar",
             "roles": [
-                "admin"
+                "admin",
+                "front_desk",
+                "reception",
+                "receptionist",
+                "nurse",
+                "physician",
+                "provider",
+                "clinician",
+                "pharmacist"
             ],
             "description": "Start the day with the appointment and queue worklist",
             "order": 15
@@ -106,6 +115,7 @@
     ],
     "events": [
         "ehr.appointment.scheduled",
-        "ehr.appointment.updated"
+        "ehr.appointment.updated",
+        "ehr.appointment.handoff"
     ]
 }

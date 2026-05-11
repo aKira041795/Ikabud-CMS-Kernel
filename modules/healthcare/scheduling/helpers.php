@@ -62,8 +62,7 @@ function schedFetchAppointmentByIdOrUuid(int $id = 0, string $appointmentUuid = 
         return null;
     }
 
-    $appointment['patient_summary'] = schedPatientSummary((int)($appointment['patient_id'] ?? 0));
-    return $appointment;
+    return schedAugmentAppointmentRow($appointment);
 }
 
 function schedAllowedTransitions(): array
@@ -104,6 +103,300 @@ function schedNormalizeDateTime(string $value): ?string
     }
 
     return date('Y-m-d H:i:s', $timestamp);
+}
+
+function schedActiveQueueStatuses(): array
+{
+    return ['scheduled', 'checked-in', 'waiting', 'roomed'];
+}
+
+function schedTerminalAppointmentStatuses(): array
+{
+    return ['completed', 'no-show', 'canceled'];
+}
+
+function schedQueueDestinations(): array
+{
+    return [
+        'front_desk' => [
+            'label' => 'Reception',
+            'short' => 'Front desk',
+            'description' => 'Check-ins, arrivals, and same-day queue management.',
+        ],
+        'nurse' => [
+            'label' => 'Nurse intake',
+            'short' => 'Nurse',
+            'description' => 'Vitals, triage, and prep before the visit.',
+        ],
+        'physician' => [
+            'label' => 'Doctor consult',
+            'short' => 'Doctor',
+            'description' => 'Patients ready for the provider encounter.',
+        ],
+        'pharmacist' => [
+            'label' => 'Pharmacy',
+            'short' => 'Pharmacy',
+            'description' => 'Medication counseling and dispense follow-up.',
+        ],
+    ];
+}
+
+function schedQueueDefaultLane(?string $role): string
+{
+    $role = strtolower(trim((string)$role));
+
+    return match ($role) {
+        'nurse' => 'nurse',
+        'physician', 'provider', 'clinician' => 'physician',
+        'pharmacist' => 'pharmacist',
+        default => 'front_desk',
+    };
+}
+
+function schedQueueDestinationLabel(?string $destination): string
+{
+    $destination = strtolower(trim((string)$destination));
+    $destinations = schedQueueDestinations();
+
+    return (string)($destinations[$destination]['label'] ?? $destinations['front_desk']['label']);
+}
+
+function schedQueueTicketDisplay(int $ticketNumber): string
+{
+    if ($ticketNumber <= 0) {
+        return 'Pending';
+    }
+
+    return 'T-' . str_pad((string)$ticketNumber, 3, '0', STR_PAD_LEFT);
+}
+
+function schedPatientInitials(?array $patientSummary): string
+{
+    if (!is_array($patientSummary)) {
+        return 'PT';
+    }
+
+    $letters = '';
+    foreach ([(string)($patientSummary['first_name'] ?? ''), (string)($patientSummary['last_name'] ?? '')] as $name) {
+        $name = trim($name);
+        if ($name !== '') {
+            $letters .= strtoupper(substr($name, 0, 1));
+        }
+    }
+
+    return $letters !== '' ? $letters : 'PT';
+}
+
+function schedAugmentAppointmentRow(array $appointment): array
+{
+    if (!isset($appointment['patient_summary']) || !is_array($appointment['patient_summary'])) {
+        $appointment['patient_summary'] = schedPatientSummary((int)($appointment['patient_id'] ?? 0));
+    }
+
+    $destinations = schedQueueDestinations();
+    $destination = strtolower(trim((string)($appointment['queue_destination'] ?? '')));
+    if ($destination === '' || !isset($destinations[$destination])) {
+        $destination = 'front_desk';
+    }
+
+    $appointment['queue_destination'] = $destination;
+    $appointment['queue_destination_label'] = schedQueueDestinationLabel($destination);
+    $appointment['queue_ticket_number'] = (int)($appointment['queue_ticket_number'] ?? 0);
+    $appointment['queue_ticket_label'] = schedQueueTicketDisplay((int)$appointment['queue_ticket_number']);
+    $appointment['patient_initials'] = schedPatientInitials(is_array($appointment['patient_summary'] ?? null) ? $appointment['patient_summary'] : null);
+
+    return $appointment;
+}
+
+function schedNextQueueTicketNumber(): int
+{
+    $row = schedDb()->query(
+        'SELECT COALESCE(MAX(queue_ticket_number), 0) AS max_ticket '
+        . 'FROM ehr_appointments '
+        . 'WHERE queue_ticket_number IS NOT NULL AND DATE(COALESCE(checked_in_at, created_at)) = CURDATE()'
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    return max(1, ((int)($row['max_ticket'] ?? 0)) + 1);
+}
+
+function schedEnsureQueueTicketForAppointment(array $appointment): int
+{
+    $ticketNumber = (int)($appointment['queue_ticket_number'] ?? 0);
+    if ($ticketNumber > 0) {
+        return $ticketNumber;
+    }
+
+    $ticketNumber = schedNextQueueTicketNumber();
+    schedDb()->execute(
+        'UPDATE ehr_appointments SET queue_ticket_number = :queue_ticket_number, updated_at = NOW() WHERE id = :id AND (queue_ticket_number IS NULL OR queue_ticket_number = 0) LIMIT 1',
+        [
+            ':queue_ticket_number' => $ticketNumber,
+            ':id' => (int)($appointment['id'] ?? 0),
+        ]
+    );
+
+    return $ticketNumber;
+}
+
+function schedFetchQueueRows(string $scheduledDate, string $statusFilter = ''): array
+{
+    $scheduledDate = trim($scheduledDate);
+    if ($scheduledDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $scheduledDate)) {
+        $scheduledDate = date('Y-m-d');
+    }
+
+    $where = ['DATE(scheduled_start) = :scheduled_date'];
+    $params = [':scheduled_date' => $scheduledDate];
+    $statusFilter = strtolower(trim($statusFilter));
+
+    if ($statusFilter !== '') {
+        $where[] = 'status = :status';
+        $params[':status'] = $statusFilter;
+    } else {
+        $where[] = "status IN ('scheduled', 'checked-in', 'waiting', 'roomed')";
+    }
+
+    $rows = schedDb()->query(
+        'SELECT * FROM ehr_appointments WHERE ' . implode(' AND ', $where) . ' ORDER BY scheduled_start ASC, id ASC',
+        $params
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $appointments = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $appointments[] = schedAugmentAppointmentRow($row);
+    }
+
+    return $appointments;
+}
+
+function schedFetchQueueMonitorRows(int $limit = 8): array
+{
+    $limit = max(1, min(24, $limit));
+    $rows = schedDb()->query(
+        'SELECT * FROM ehr_appointments '
+        . "WHERE DATE(scheduled_start) = CURDATE() AND queue_called_at IS NOT NULL AND status NOT IN ('completed', 'no-show', 'canceled') "
+        . 'ORDER BY queue_called_at DESC, id DESC LIMIT ' . $limit
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $appointments = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $appointments[] = schedAugmentAppointmentRow($row);
+    }
+
+    return $appointments;
+}
+
+function schedFetchWaitingRoomRows(int $limit = 12): array
+{
+    $limit = max(1, min(50, $limit));
+    $rows = schedDb()->query(
+        'SELECT * FROM ehr_appointments '
+        . "WHERE DATE(scheduled_start) = CURDATE() AND queue_ticket_number IS NOT NULL AND status IN ('checked-in', 'waiting', 'roomed') "
+        . 'ORDER BY COALESCE(queue_called_at, checked_in_at, scheduled_start) ASC, id ASC LIMIT ' . $limit
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $appointments = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $appointments[] = schedAugmentAppointmentRow($row);
+    }
+
+    return $appointments;
+}
+
+function schedHandleAppointmentHandoff(array $payload): array
+{
+    $appointment = schedFetchAppointmentByIdOrUuid((int)($payload['id'] ?? 0), trim((string)($payload['appointment_uuid'] ?? '')));
+    if (!$appointment) {
+        return ['ok' => false, 'error' => 'Appointment not found'];
+    }
+
+    $destination = strtolower(trim((string)($payload['destination'] ?? '')));
+    $destinations = schedQueueDestinations();
+    if ($destination === '' || !isset($destinations[$destination]) || $destination === 'front_desk') {
+        return ['ok' => false, 'error' => 'Unsupported queue destination'];
+    }
+
+    $currentStatus = strtolower(trim((string)($appointment['status'] ?? 'scheduled')));
+    if (in_array($currentStatus, schedTerminalAppointmentStatuses(), true)) {
+        return ['ok' => false, 'error' => 'Completed appointments cannot be handed off'];
+    }
+    if (!in_array($currentStatus, ['checked-in', 'waiting', 'roomed'], true)) {
+        return ['ok' => false, 'error' => 'Patient must be checked in before handoff'];
+    }
+
+    $roomAssignment = trim((string)($payload['room_assignment'] ?? ''));
+    $ticketNumber = schedEnsureQueueTicketForAppointment($appointment);
+    $transitionStatus = null;
+    if ($destination === 'nurse' && $currentStatus === 'checked-in') {
+        $transitionStatus = 'waiting';
+    }
+    if ($destination === 'physician' && in_array($currentStatus, ['checked-in', 'waiting'], true)) {
+        $transitionStatus = 'roomed';
+    }
+
+    if ($transitionStatus !== null) {
+        $transitionPayload = [
+            'id' => (int)$appointment['id'],
+            'status' => $transitionStatus,
+            'service_line' => trim((string)($payload['service_line'] ?? 'ambulatory')),
+            'attending_provider_id' => isset($payload['attending_provider_id']) ? (int)$payload['attending_provider_id'] : null,
+            'suppress_audit' => true,
+        ];
+        if ($roomAssignment !== '') {
+            $transitionPayload['room_assignment'] = $roomAssignment;
+        }
+        $transition = scheduling_cap_ehr_appointment_transition_1($transitionPayload, '', 'scheduling');
+        if (!is_array($transition) || empty($transition['ok'])) {
+            return $transition;
+        }
+    }
+
+    $sql = 'UPDATE ehr_appointments SET '
+        . 'queue_ticket_number = COALESCE(queue_ticket_number, :queue_ticket_number), '
+        . 'queue_destination = :queue_destination, '
+        . 'queue_called_at = NOW(), '
+        . 'queue_called_by_user_id = :queue_called_by_user_id, '
+        . 'updated_at = NOW()';
+    $params = [
+        ':queue_ticket_number' => $ticketNumber,
+        ':queue_destination' => $destination,
+        ':queue_called_by_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
+        ':id' => (int)$appointment['id'],
+    ];
+    if ($roomAssignment !== '') {
+        $sql .= ', room_assignment = :room_assignment';
+        $params[':room_assignment'] = $roomAssignment;
+    }
+    $sql .= ' WHERE id = :id LIMIT 1';
+
+    try {
+        schedDb()->execute($sql, $params);
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => 'Queue handoff failed', 'details' => $e->getMessage()];
+    }
+
+    $updated = schedFetchAppointmentByIdOrUuid((int)$appointment['id']);
+    ehcAudit('scheduling', 'ehr.appointment.handoff', 'ehr_appointment', (int)$appointment['id'], $updated ?? [], $appointment);
+    app()->events()->fire('ehr.appointment.handoff', [
+        'appointment_id' => (int)$appointment['id'],
+        'appointment_uuid' => (string)($appointment['appointment_uuid'] ?? ''),
+        'patient_id' => (int)($appointment['patient_id'] ?? 0),
+        'destination' => $destination,
+        'actor_user_id' => isset($payload['actor_user_id']) ? (int)$payload['actor_user_id'] : null,
+        'ticket_number' => $ticketNumber,
+        'status' => (string)($updated['status'] ?? $currentStatus),
+    ]);
+
+    return ['ok' => true, 'appointment' => $updated];
 }
 
 function scheduling_cap_ehr_appointment_schedule_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
@@ -211,6 +504,12 @@ function scheduling_cap_ehr_appointment_list_1(mixed $payload, string $resolvedC
         $params[':scheduled_date'] = $scheduledDate;
     }
 
+    $queueDestination = strtolower(trim((string)($data['queue_destination'] ?? '')));
+    if ($queueDestination !== '') {
+        $where[] = 'queue_destination = :queue_destination';
+        $params[':queue_destination'] = $queueDestination;
+    }
+
     $sql = 'SELECT * FROM ehr_appointments';
     if ($where !== []) {
         $sql .= ' WHERE ' . implode(' AND ', $where);
@@ -223,8 +522,7 @@ function scheduling_cap_ehr_appointment_list_1(mixed $payload, string $resolvedC
         if (!is_array($row)) {
             continue;
         }
-        $row['patient_summary'] = schedPatientSummary((int)($row['patient_id'] ?? 0));
-        $appointments[] = $row;
+        $appointments[] = schedAugmentAppointmentRow($row);
     }
 
     return ['ok' => true, 'appointments' => $appointments];
@@ -362,12 +660,21 @@ function scheduling_cap_ehr_appointment_transition_1(mixed $payload, string $res
         ':encounter_id' => $encounterId > 0 ? $encounterId : null,
         ':id' => (int)$appointment['id'],
     ];
+    $roomAssignment = trim((string)($data['room_assignment'] ?? ''));
 
     if ($timestampColumn !== null) {
         $sql .= ', ' . $timestampColumn . ' = COALESCE(' . $timestampColumn . ', NOW())';
     }
     if ($status === 'waiting') {
         $sql .= ', checked_in_at = COALESCE(checked_in_at, NOW())';
+    }
+    if ($status === 'checked-in') {
+        $sql .= ", queue_destination = COALESCE(NULLIF(queue_destination, ''), 'front_desk'), queue_ticket_number = COALESCE(queue_ticket_number, :queue_ticket_number)";
+        $params[':queue_ticket_number'] = schedEnsureQueueTicketForAppointment($appointment);
+    }
+    if ($roomAssignment !== '') {
+        $sql .= ', room_assignment = :room_assignment';
+        $params[':room_assignment'] = $roomAssignment;
     }
     $sql .= ' WHERE id = :id LIMIT 1';
 

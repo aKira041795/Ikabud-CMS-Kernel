@@ -7,11 +7,26 @@
             <div>
                 <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-700">Schedule</div>
                 <h1 class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Appointments</h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">See who's coming in next, check them in, and book new appointments.</p>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">See who is ready next, call them into the right lane, and keep the same-day queue moving.</p>
             </div>
             <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                <span class="font-semibold text-slate-900">{result_count}</span> appointments in this worklist
+                <span class="font-semibold text-slate-900">{result_count}</span> appointments in the {queue_lane_label} worklist
             </div>
+        </div>
+        <div class="mt-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div class="flex flex-wrap gap-2">
+                {foreach queue_lanes as lane}
+                <a href="{lane.url}" class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] {if lane.active}border-teal-200 bg-teal-50 text-teal-800{else}border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800{/if}">
+                    <span>{lane.label}</span>
+                    <span class="inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded-full bg-black/5 px-1.5 text-[11px] font-bold">{lane.count}</span>
+                </a>
+                {/foreach}
+            </div>
+            <a href="{queue_monitor_url}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 hover:border-slate-300 hover:text-slate-900">Open queue monitor</a>
+        </div>
+        <div class="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{queue_lane_label}</div>
+            <p class="mt-1 text-sm text-slate-600">{queue_lane_description}</p>
         </div>
         <div class="mt-6">
             {include "modules/ehr/partials/_status_tabs.disyl"}
@@ -38,8 +53,8 @@
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.85fr)]">
         <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Today's queue</h2>
-                <p class="mt-1 text-xs text-slate-500">Upcoming and in-progress appointments, ordered by scheduled start.</p>
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{queue_lane_label} worklist</h2>
+                <p class="mt-1 text-xs text-slate-500">Queue date {queue_date}. Ticketing, calls, and handoffs stay scoped to this lane.</p>
             </div>
             <div class="divide-y divide-slate-100">
                 {if appointments}
@@ -80,6 +95,12 @@
                                 <div class="mt-1 text-slate-900">{if appointment.reason_for_visit}{appointment.reason_for_visit}{else}Not recorded{/if}</div>
                             </div>
                         </div>
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">{appointment.queue_ticket_label}</span>
+                            <span class="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 font-medium text-teal-700">{appointment.queue_destination_label}</span>
+                            {if appointment.queue_called_at}<span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-700">Last call {appointment.queue_called_at}</span>{/if}
+                            {if appointment.room_assignment}<span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 font-medium text-indigo-700">Room {appointment.room_assignment}</span>{/if}
+                        </div>
                         <div class="mt-3 flex flex-wrap gap-2">
                             {if appointment.action_primary}
                                 {if appointment.action_primary.needs_room}
@@ -87,6 +108,7 @@
                                     {csrf_field | raw}
                                     <input type="hidden" name="id" value="{appointment.id}">
                                     <input type="hidden" name="status" value="{appointment.action_primary.status}">
+                                    <input type="hidden" name="redirect" value="{current_queue_url}">
                                     <input type="text" name="room_assignment" placeholder="Room" class="rounded border border-slate-200 px-2 py-1.5 text-xs">
                                     <button type="submit" class="rounded-lg bg-{appointment.action_primary.tone}-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-{appointment.action_primary.tone}-700">{appointment.action_primary.label}</button>
                                 </form>
@@ -95,6 +117,7 @@
                                     {csrf_field | raw}
                                     <input type="hidden" name="id" value="{appointment.id}">
                                     <input type="hidden" name="status" value="{appointment.action_primary.status}">
+                                    <input type="hidden" name="redirect" value="{current_queue_url}">
                                     <button type="submit" class="rounded-lg bg-{appointment.action_primary.tone}-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-{appointment.action_primary.tone}-700">{appointment.action_primary.label}</button>
                                 </form>
                                 {/if}
@@ -109,6 +132,7 @@
                                             {csrf_field | raw}
                                             <input type="hidden" name="id" value="{appointment.id}">
                                             <input type="hidden" name="status" value="{act.status}">
+                                            <input type="hidden" name="redirect" value="{current_queue_url}">
                                             <input type="text" name="room_assignment" placeholder="Room" class="w-20 rounded border border-slate-200 px-2 py-1 text-xs">
                                             <button type="submit" class="rounded bg-{act.tone}-600 px-2 py-1 text-xs font-semibold text-white hover:bg-{act.tone}-700">{act.label}</button>
                                         </form>
@@ -117,6 +141,7 @@
                                             {csrf_field | raw}
                                             <input type="hidden" name="id" value="{appointment.id}">
                                             <input type="hidden" name="status" value="{act.status}">
+                                            <input type="hidden" name="redirect" value="{current_queue_url}">
                                             <button type="submit" class="block w-full text-left rounded px-3 py-1.5 text-xs font-semibold text-{act.tone}-700 hover:bg-{act.tone}-50">{act.label}</button>
                                         </form>
                                         {/if}
@@ -125,6 +150,33 @@
                             </details>
                             {/if}
                         </div>
+                        {if appointment.handoff_actions}
+                        <div class="mt-3 border-t border-dashed border-slate-200 pt-3">
+                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Queue handoff</div>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                {foreach appointment.handoff_actions as handoff}
+                                    {if handoff.needs_room}
+                                    <form method="POST" action="{queue_handoff_endpoint}" class="inline-flex items-center gap-1">
+                                        {csrf_field | raw}
+                                        <input type="hidden" name="id" value="{appointment.id}">
+                                        <input type="hidden" name="destination" value="{handoff.destination}">
+                                        <input type="hidden" name="redirect" value="{current_queue_url}">
+                                        <input type="text" name="room_assignment" placeholder="Room" class="rounded border border-slate-200 px-2 py-1.5 text-xs">
+                                        <button type="submit" class="rounded-lg bg-{handoff.tone}-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-{handoff.tone}-700">{handoff.label}</button>
+                                    </form>
+                                    {else}
+                                    <form method="POST" action="{queue_handoff_endpoint}" class="inline">
+                                        {csrf_field | raw}
+                                        <input type="hidden" name="id" value="{appointment.id}">
+                                        <input type="hidden" name="destination" value="{handoff.destination}">
+                                        <input type="hidden" name="redirect" value="{current_queue_url}">
+                                        <button type="submit" class="rounded-lg bg-{handoff.tone}-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-{handoff.tone}-700">{handoff.label}</button>
+                                    </form>
+                                    {/if}
+                                {/foreach}
+                            </div>
+                        </div>
+                        {/if}
                         {if appointment.has_reschedule_request}
                         <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -144,11 +196,12 @@
                     </div>
                     {/foreach}
                 {else}
-                    <div class="px-6 py-12 text-center text-sm text-slate-600">No appointments yet. Book one using the form on the right.</div>
+                    <div class="px-6 py-12 text-center text-sm text-slate-600">No appointments in this lane right now.{if show_appointment_form} Book one using the form on the right.{/if}</div>
                 {/if}
             </div>
         </section>
 
+        {if show_appointment_form}
         <aside class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex items-start justify-between gap-4">
                 <div>
@@ -183,6 +236,12 @@
             <div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Marked as no-show.</div>
             {elseif form_notice == 'canceled'}
             <div class="mt-4 border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">Appointment canceled.</div>
+            {elseif form_notice == 'called_nurse'}
+            <div class="mt-4 border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-700">Patient sent to the nurse queue.</div>
+            {elseif form_notice == 'called_physician'}
+            <div class="mt-4 border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Patient sent to the doctor queue.</div>
+            {elseif form_notice == 'called_pharmacist'}
+            <div class="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">Patient sent to the pharmacy queue.</div>
             {/if}
 
             {if form_error}
@@ -231,6 +290,43 @@
                 <button type="submit" class="w-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">{if form_values.appointment_id}Update Appointment{else}Set Appointment{/if}</button>
             </form>
         </aside>
+        {else}
+        <aside class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div>
+                <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Lane summary</h2>
+                <p class="mt-1 text-xs text-slate-500">Use this board to call the next patient and move them to the next care step.</p>
+                <div class="mt-3 text-2xl font-semibold text-slate-900">{queue_lane_label}</div>
+            </div>
+
+            {if form_notice == 'checked-in'}
+            <div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Patient checked in.</div>
+            {elseif form_notice == 'waiting'}
+            <div class="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">Moved to waiting.</div>
+            {elseif form_notice == 'roomed'}
+            <div class="mt-4 border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Patient roomed; encounter opened.</div>
+            {elseif form_notice == 'completed'}
+            <div class="mt-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Visit completed.</div>
+            {elseif form_notice == 'called_nurse'}
+            <div class="mt-4 border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-700">Patient sent to the nurse queue.</div>
+            {elseif form_notice == 'called_physician'}
+            <div class="mt-4 border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">Patient sent to the doctor queue.</div>
+            {elseif form_notice == 'called_pharmacist'}
+            <div class="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">Patient sent to the pharmacy queue.</div>
+            {/if}
+
+            {if form_error}
+            <div class="mt-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{form_error}</div>
+            {/if}
+
+            <div class="mt-6 space-y-4 text-sm text-slate-600">
+                <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">What to do here</div>
+                    <p class="mt-2 leading-6">Use the queue actions to call the next patient, assign a room when needed, and hand them off to the next lane without losing context.</p>
+                </div>
+                <a href="{base_url}/admin/ehr/appointments?lane=front_desk" class="inline-flex items-center justify-center rounded-lg border border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700 hover:border-slate-300 hover:text-slate-900">Open front desk board</a>
+            </div>
+        </aside>
+        {/if}
     </div>
 </div>
 {/block}

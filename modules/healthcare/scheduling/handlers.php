@@ -14,22 +14,100 @@ function schedDateTimeLocalValue(?string $value): string
     return $timestamp === false ? '' : date('Y-m-d\TH:i', $timestamp);
 }
 
+function schedAppointmentsRedirectUrl(array $input, string $queryString = ''): string
+{
+    $redirect = trim((string)($input['redirect'] ?? ''));
+    if ($redirect === '' || !preg_match('#^/admin/ehr/appointments(?:\?|$)#', $redirect)) {
+        $redirect = '/admin/ehr/appointments';
+    }
+    if ($queryString === '') {
+        return $redirect;
+    }
+
+    $separator = str_contains($redirect, '?') ? '&' : '?';
+    return $redirect . $separator . ltrim($queryString, '?');
+}
+
 function schedPageState(array $user, array $input = [], ?string $formError = null): array
 {
     $statusFilter = strtolower(trim((string)($input['status'] ?? '')));
     if ($statusFilter === 'all') {
         $statusFilter = '';
     }
-    $listPayload = ['limit' => 12];
-    if ($statusFilter !== '') {
-        $listPayload['status'] = $statusFilter;
+    $queueDate = trim((string)($input['queue_date'] ?? date('Y-m-d')));
+    if ($queueDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $queueDate)) {
+        $queueDate = date('Y-m-d');
     }
-    $list = scheduling_cap_ehr_appointment_list_1($listPayload, 'ehr.appointment.list@1', 'scheduling');
-    $appointments = is_array($list) && !empty($list['ok']) && is_array($list['appointments'] ?? null)
-        ? array_values($list['appointments'])
-        : [];
+    $laneMetaMap = schedQueueDestinations();
+    $queueLane = strtolower(trim((string)($input['lane'] ?? schedQueueDefaultLane((string)($user['role'] ?? '')))));
+    if (!isset($laneMetaMap[$queueLane])) {
+        $queueLane = schedQueueDefaultLane((string)($user['role'] ?? ''));
+    }
 
-    $statusCounts = schedDb()->query('SELECT status, COUNT(*) AS total FROM ehr_appointments GROUP BY status ORDER BY total DESC, status ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $queueAppointments = schedFetchQueueRows($queueDate, $statusFilter);
+    $statusCountsMap = [];
+    $queueCounts = array_fill_keys(array_keys($laneMetaMap), 0);
+    foreach ($queueAppointments as $queueAppointment) {
+        $statusCode = strtolower(trim((string)($queueAppointment['status'] ?? 'scheduled')));
+        $statusCountsMap[$statusCode] = ($statusCountsMap[$statusCode] ?? 0) + 1;
+
+        $destination = strtolower(trim((string)($queueAppointment['queue_destination'] ?? 'front_desk')));
+        if (!isset($queueCounts[$destination])) {
+            $destination = 'front_desk';
+        }
+        $queueCounts[$destination]++;
+    }
+
+    $appointments = array_values(array_filter($queueAppointments, static function (array $appointment) use ($queueLane): bool {
+        if ($queueLane === 'front_desk') {
+            return true;
+        }
+
+        return strtolower(trim((string)($appointment['queue_destination'] ?? 'front_desk'))) === $queueLane;
+    }));
+
+    $statusCounts = [];
+    foreach ($statusCountsMap as $statusCode => $count) {
+        $statusCounts[] = ['status' => $statusCode, 'total' => $count];
+    }
+
+    $statusBaseQuery = ['lane' => $queueLane];
+    if ($queueDate !== date('Y-m-d')) {
+        $statusBaseQuery['queue_date'] = $queueDate;
+    }
+    $statusBaseUrl = '/admin/ehr/appointments';
+    if ($statusBaseQuery !== []) {
+        $statusBaseUrl .= '?' . http_build_query($statusBaseQuery);
+    }
+
+    $currentQueueQuery = ['lane' => $queueLane];
+    if ($statusFilter !== '') {
+        $currentQueueQuery['status'] = $statusFilter;
+    }
+    if ($queueDate !== date('Y-m-d')) {
+        $currentQueueQuery['queue_date'] = $queueDate;
+    }
+    $currentQueueUrl = '/admin/ehr/appointments';
+    if ($currentQueueQuery !== []) {
+        $currentQueueUrl .= '?' . http_build_query($currentQueueQuery);
+    }
+
+    $queueLaneTabs = [];
+    foreach ($laneMetaMap as $laneKey => $laneMeta) {
+        $queueLaneTabs[] = [
+            'key' => $laneKey,
+            'label' => (string)($laneMeta['short'] ?? ucfirst(str_replace('_', ' ', $laneKey))),
+            'description' => (string)($laneMeta['description'] ?? ''),
+            'count' => (int)($queueCounts[$laneKey] ?? 0),
+            'url' => '/admin/ehr/appointments?' . http_build_query(array_filter([
+                'lane' => $laneKey,
+                'status' => $statusFilter !== '' ? $statusFilter : null,
+                'queue_date' => $queueDate !== date('Y-m-d') ? $queueDate : null,
+            ], static fn ($value): bool => $value !== null && $value !== '')),
+            'active' => $queueLane === $laneKey,
+        ];
+    }
+
     $patientSearch = app()->cap()->call('ehr.patient.search@1', ['limit' => 50], ['caller_module' => 'scheduling']);
     $patientOptions = is_array($patientSearch) && !empty($patientSearch['ok']) && is_array($patientSearch['results'] ?? null)
         ? array_values($patientSearch['results'])
@@ -128,6 +206,34 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
         }
     };
 
+    $handoffActionPlan = static function (array $appointment, string $queueLane): array {
+        $status = strtolower(trim((string)($appointment['status'] ?? 'scheduled')));
+        if (!in_array($status, ['checked-in', 'waiting', 'roomed'], true)) {
+            return [];
+        }
+
+        $plans = match ($queueLane) {
+            'front_desk' => [
+                ['destination' => 'nurse', 'label' => 'Call nurse', 'tone' => 'teal'],
+                ['destination' => 'physician', 'label' => 'Call doctor', 'tone' => 'indigo', 'needs_room' => true],
+                ['destination' => 'pharmacist', 'label' => 'Send pharmacy', 'tone' => 'amber'],
+            ],
+            'nurse' => [
+                ['destination' => 'physician', 'label' => 'Send doctor', 'tone' => 'indigo', 'needs_room' => true],
+                ['destination' => 'pharmacist', 'label' => 'Send pharmacy', 'tone' => 'amber'],
+            ],
+            'physician' => [
+                ['destination' => 'pharmacist', 'label' => 'Send pharmacy', 'tone' => 'amber'],
+            ],
+            default => [],
+        };
+
+        $currentDestination = strtolower(trim((string)($appointment['queue_destination'] ?? 'front_desk')));
+        return array_values(array_filter($plans, static function (array $plan) use ($currentDestination): bool {
+            return strtolower((string)($plan['destination'] ?? '')) !== $currentDestination;
+        }));
+    };
+
     foreach ($appointments as &$a) {
         $u = (string)($a['appointment_uuid'] ?? '');
         $a['has_reschedule_request'] = isset($rescheduleByUuid[$u]);
@@ -135,6 +241,7 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
         $plan = $statusActionPlan((string)($a['status'] ?? ''));
         $a['action_primary'] = $plan['primary'];
         $a['action_more'] = $plan['more'];
+        $a['handoff_actions'] = $handoffActionPlan($a, $queueLane);
     }
     unset($a);
 
@@ -150,13 +257,22 @@ function schedPageState(array $user, array $input = [], ?string $formError = nul
                 ['scheduled', 'checked-in', 'waiting', 'roomed', 'no-show', 'canceled', 'completed'],
                 is_array($statusCounts) ? $statusCounts : [],
                 $statusFilter,
-                '/admin/ehr/appointments'
+                $statusBaseUrl
             ),
             'patient_options' => $patientOptions,
             'status_options' => $statusOptions,
             'reschedule_pending_total' => $reschedulePendingTotal,
             'reschedule_inbox_url' => '/admin/ehr/portal/reschedule-requests',
             'selected_appointment' => $selectedAppointment,
+            'queue_lane' => $queueLane,
+            'queue_lane_label' => (string)($laneMetaMap[$queueLane]['label'] ?? 'Reception'),
+            'queue_lane_description' => (string)($laneMetaMap[$queueLane]['description'] ?? ''),
+            'queue_lanes' => $queueLaneTabs,
+            'queue_date' => $queueDate,
+            'queue_monitor_url' => '/ehr/queue-monitor',
+            'queue_handoff_endpoint' => '/admin/ehr/appointments/handoff',
+            'current_queue_url' => $currentQueueUrl,
+            'show_appointment_form' => $queueLane === 'front_desk',
             'form_error' => $formError !== null ? $formError : (trim((string)($input['error'] ?? '')) !== '' ? (string)$input['error'] : null),
             'form_notice' => trim((string)($input['notice'] ?? '')),
             'form_values' => [
@@ -183,6 +299,17 @@ function schedPageIndex(array $params = []): void
 
     $user = ehrRequireAdmin();
     echo ehrRender('modules/scheduling/admin/index.disyl', schedPageState($user, app()->input()));
+}
+
+function schedPageMonitor(array $params = []): void
+{
+    echo app()->render('modules/scheduling/monitor.disyl', [
+        'page_title' => 'Queue monitor',
+        'current_calls' => schedFetchQueueMonitorRows(6),
+        'waiting_board' => schedFetchWaitingRoomRows(12),
+        'monitor_refresh_seconds' => 15,
+        'monitor_updated_at' => date('Y-m-d H:i:s'),
+    ]);
 }
 
 function schedSaveAppointment(array $params = []): void
@@ -245,6 +372,35 @@ function schedTransitionAppointment(array $params = []): void
     if ($reason !== '') $payload['cancel_reason'] = $reason;
     $result = app()->cap()->call('ehr.appointment.transition@1', $payload, ['caller_module' => 'scheduling']);
     $ok = is_array($result) && !empty($result['ok']);
-    $qs = $ok ? '?notice=' . rawurlencode($status) : ('?error=' . rawurlencode((string)($result['error'] ?? 'Transition failed')));
-    app()->redirect('/admin/ehr/appointments' . $qs);
+    $qs = $ok ? 'notice=' . rawurlencode($status) : ('error=' . rawurlencode((string)($result['error'] ?? 'Transition failed')));
+    app()->redirect(schedAppointmentsRedirectUrl($input, $qs));
+}
+
+function schedHandoffAppointment(array $params = []): void
+{
+    if (!function_exists('ehrRequireAdmin')) { http_response_code(503); echo 'EHR runtime unavailable'; return; }
+
+    $user = ehrRequireAdmin();
+    app()->csrfEnforce();
+    $input = app()->input();
+    $destination = strtolower(trim((string)($input['destination'] ?? '')));
+
+    $result = schedHandleAppointmentHandoff([
+        'id' => (int)($input['id'] ?? 0),
+        'destination' => $destination,
+        'room_assignment' => trim((string)($input['room_assignment'] ?? '')),
+        'actor_user_id' => (int)($user['id'] ?? 0),
+    ]);
+
+    $notice = match ($destination) {
+        'nurse' => 'called_nurse',
+        'physician' => 'called_physician',
+        'pharmacist' => 'called_pharmacist',
+        default => 'updated',
+    };
+
+    $qs = is_array($result) && !empty($result['ok'])
+        ? 'notice=' . rawurlencode($notice)
+        : 'error=' . rawurlencode((string)($result['error'] ?? 'Queue handoff failed'));
+    app()->redirect(schedAppointmentsRedirectUrl($input, $qs));
 }

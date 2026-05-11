@@ -84,7 +84,9 @@ et('ehr reset password API route declared', ($ehrRoutes['POST']['/api/v1/ehr/aut
 et('ehr dashboard page route declared', ($ehrRoutes['GET']['/admin/ehr'] ?? '') === 'ehr:ehrDashboardPage');
 et('ehr settings page route declared', ($ehrRoutes['GET']['/admin/ehr/settings'] ?? '') === 'ehr:ehrSettingsPage');
 et('appointments page route declared', ($schedulingRoutes['GET']['/admin/ehr/appointments'] ?? '') === 'scheduling:schedPageIndex');
+et('appointments queue monitor route declared', ($schedulingRoutes['GET']['/ehr/queue-monitor'] ?? '') === 'scheduling:schedPageMonitor');
 et('appointments save route declared', ($schedulingRoutes['POST']['/admin/ehr/appointments'] ?? '') === 'scheduling:schedSaveAppointment');
+et('appointments handoff route declared', ($schedulingRoutes['POST']['/admin/ehr/appointments/handoff'] ?? '') === 'scheduling:schedHandoffAppointment');
 et('encounters page route declared', ($encounterRoutes['GET']['/admin/ehr/encounters'] ?? '') === 'encounters:encPageIndex');
 et('patient registry page route declared', ($patientRegistryRoutes['GET']['/admin/ehr/patients'] ?? '') === 'patient-registry:prPageIndex');
 et('patient registry save route declared', ($patientRegistryRoutes['POST']['/admin/ehr/patients'] ?? '') === 'patient-registry:prSavePatient');
@@ -107,6 +109,10 @@ et('documents save route declared', ($documentsRoutes['POST']['/admin/ehr/docume
 et('privacy consent save route declared', ($privacyRoutes['POST']['/admin/ehr/privacy/consents'] ?? '') === 'privacy-consent:pcSaveConsent');
 et('privacy break-glass save route declared', ($privacyRoutes['POST']['/admin/ehr/privacy/break-glass'] ?? '') === 'privacy-consent:pcSaveBreakGlass');
 et('ehr module db helper returns ModuleDB contract', ehrDb() instanceof \Ikabud\Kernel\Contracts\ModuleDB, get_debug_type(ehrDb()));
+et('front desk landing points to front desk lane', ehrRoleLandingUrl('front_desk') === '/admin/ehr/appointments?lane=front_desk');
+et('nurse landing points to nurse lane', ehrRoleLandingUrl('nurse') === '/admin/ehr/appointments?lane=nurse');
+et('physician landing points to physician lane', ehrRoleLandingUrl('physician') === '/admin/ehr/appointments?lane=physician');
+et('pharmacist landing points to pharmacist lane', ehrRoleLandingUrl('pharmacist') === '/admin/ehr/appointments?lane=pharmacist');
 
 $loginContext = ehrLoginPageContext([
     'login_favicon_url' => '/assets/ehr-favicon.ico',

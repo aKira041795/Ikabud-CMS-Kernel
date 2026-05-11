@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="{monitor_refresh_seconds}">
+    <title>{page_title}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-white">
+    <div class="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-6 py-8 lg:px-10">
+        <header class="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <div class="text-xs font-semibold uppercase tracking-[0.28em] text-teal-300">Clinic queue</div>
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h1 class="text-4xl font-semibold tracking-tight text-white">Now calling</h1>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Public-safe queue board for the waiting area. Refreshes automatically every {monitor_refresh_seconds} seconds.</p>
+                </div>
+                <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">Updated {monitor_updated_at}</div>
+            </div>
+        </header>
+
+        <section class="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+            <div class="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-300">Current calls</div>
+                        <h2 class="mt-2 text-2xl font-semibold text-white">Proceed when your ticket appears</h2>
+                    </div>
+                    <div class="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200">Active queue board</div>
+                </div>
+                <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {if current_calls}
+                        {foreach current_calls as appointment}
+                        <div class="rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-teal-500/20 via-slate-900/60 to-indigo-500/20 p-5">
+                            <div class="text-xs font-semibold uppercase tracking-[0.22em] text-teal-200">{appointment.queue_destination_label}</div>
+                            <div class="mt-4 text-4xl font-semibold tracking-tight text-white">{appointment.queue_ticket_label}</div>
+                            <div class="mt-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-lg font-semibold text-white">{appointment.patient_initials}</div>
+                            <div class="mt-4 text-sm text-slate-200">{if appointment.room_assignment}Proceed to room {appointment.room_assignment}.{else}Please proceed to {appointment.queue_destination_label}.{/if}</div>
+                            <div class="mt-3 text-xs uppercase tracking-[0.18em] text-slate-400">Called {appointment.queue_called_at}</div>
+                        </div>
+                        {/foreach}
+                    {else}
+                        <div class="rounded-[1.75rem] border border-dashed border-white/15 bg-black/20 p-8 text-center text-sm text-slate-300 md:col-span-2 xl:col-span-3">No patients are being called right now.</div>
+                    {/if}
+                </div>
+            </div>
+
+            <aside class="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur">
+                <div class="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Waiting room</div>
+                <h2 class="mt-2 text-2xl font-semibold text-white">Upcoming queue</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-300">Patients appear here after check-in. Privacy-safe initials and ticket numbers only.</p>
+                <div class="mt-6 space-y-3">
+                    {if waiting_board}
+                        {foreach waiting_board as appointment}
+                        <div class="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                            <div>
+                                <div class="text-lg font-semibold text-white">{appointment.queue_ticket_label}</div>
+                                <div class="text-xs uppercase tracking-[0.18em] text-slate-400">{appointment.queue_destination_label}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-medium text-slate-200">{appointment.patient_initials}</div>
+                                <div class="text-xs text-slate-400">{appointment.scheduled_start}</div>
+                            </div>
+                        </div>
+                        {/foreach}
+                    {else}
+                        <div class="rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-8 text-center text-sm text-slate-300">No patients waiting.</div>
+                    {/if}
+                </div>
+            </aside>
+        </section>
+    </div>
+</body>
+</html>

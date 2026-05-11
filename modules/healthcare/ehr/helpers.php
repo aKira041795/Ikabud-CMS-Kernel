@@ -95,9 +95,9 @@ function ehrUserHasAdminAccess(?array $user): bool
         return false;
     }
 
-    $source = (string)($user['source'] ?? '');
-    $role = (string)($user['role'] ?? '');
-    if ($source === 'ehr' && in_array($role, ['admin', 'physician', 'nurse', 'front_desk', 'billing', 'auditor'], true)) {
+    $source = strtolower((string)($user['source'] ?? ''));
+    $role = strtolower((string)($user['role'] ?? ''));
+    if ($source === 'ehr' && in_array($role, ['admin', 'physician', 'provider', 'clinician', 'nurse', 'front_desk', 'reception', 'receptionist', 'pharmacist', 'billing', 'auditor'], true)) {
         return true;
     }
     if ($source === 'kernel' && in_array($role, ['admin', 'superadmin'], true)) {
@@ -776,8 +776,10 @@ function ehrRoleLandingUrl(?string $role): string
 {
     $role = strtolower(trim((string)$role));
     return match ($role) {
-        'front_desk', 'reception', 'receptionist' => '/admin/ehr/appointments',
-        'nurse'                                    => '/admin/ehr/appointments?status=roomed',
+        'front_desk', 'reception', 'receptionist' => '/admin/ehr/appointments?lane=front_desk',
+        'nurse'                                    => '/admin/ehr/appointments?lane=nurse',
+        'physician', 'provider', 'clinician'       => '/admin/ehr/appointments?lane=physician',
+        'pharmacist'                               => '/admin/ehr/appointments?lane=pharmacist',
         'lab_tech', 'lab', 'diagnostic'            => '/admin/ehr/results?status=pending',
         'billing'                                  => '/admin/ehr/billing',
         'auditor'                                  => '/admin/ehr/audit',
@@ -831,6 +833,11 @@ function ehrRoleAllowedNavKeys(?string $role): ?array
             'ehr_dashboard', 'ehr_scheduling',
             'ehr_patient_registry',
             'ehr_patient_portal',
+        ],
+        'pharmacist' => [
+            'ehr_dashboard', 'ehr_scheduling',
+            'ehr_patient_registry',
+            'ehr_prescriptions', 'ehr_documents',
         ],
         'billing' => [
             'ehr_dashboard',
