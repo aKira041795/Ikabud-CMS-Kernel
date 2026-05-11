@@ -144,11 +144,9 @@ function ordSaveOrder(array $params = []): void
     $capabilityId = $orderId > 0 ? 'ehr.order.update@1' : 'ehr.order.create@1';
     $result = app()->cap()->call($capabilityId, $payload, ['caller_module' => 'orders']);
     if (is_array($result) && !empty($result['ok']) && is_array($result['order'] ?? null)) {
-        $savedOrderId = (int)($result['order']['id'] ?? 0);
+        // Drop order_id from redirect so the form resets after save (otherwise
+        // the page handler treats order_id as edit-mode and re-populates).
         $target = '/admin/ehr/orders?notice=' . rawurlencode($orderId > 0 ? 'updated' : 'created');
-        if ($savedOrderId > 0) {
-            $target .= '&order_id=' . $savedOrderId;
-        }
         app()->redirect($target);
         return;
     }

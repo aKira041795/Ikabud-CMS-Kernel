@@ -986,13 +986,24 @@ function ehrApiPatientSearch(array $params = []): void
     header('Content-Type: application/json');
 
     $q = trim((string)($_GET['q'] ?? ''));
+    $idLookup = max(0, (int)($_GET['id'] ?? 0));
     $limit = max(1, min(20, (int)($_GET['limit'] ?? 12)));
 
     try {
-        $result = app()->cap()->call('ehr.patient.search@1', [
-            'q' => $q,
-            'limit' => $limit,
-        ], ['caller_module' => 'ehr']);
+        if ($idLookup > 0) {
+            $patient = app()->cap()->call('ehr.patient.view@1', ['id' => $idLookup], ['caller_module' => 'ehr']);
+            if (is_array($patient) && !empty($patient['ok']) && is_array($patient['patient'] ?? null)) {
+                $rows = [$patient['patient']];
+                $result = ['ok' => true, 'results' => $rows];
+            } else {
+                $result = ['ok' => true, 'results' => []];
+            }
+        } else {
+            $result = app()->cap()->call('ehr.patient.search@1', [
+                'q' => $q,
+                'limit' => $limit,
+            ], ['caller_module' => 'ehr']);
+        }
     } catch (\Throwable $e) {
         write_log('ehr.api.patient_search.error', 'error', ['error' => $e->getMessage()]);
         echo json_encode(['ok' => false, 'patients' => []]);
