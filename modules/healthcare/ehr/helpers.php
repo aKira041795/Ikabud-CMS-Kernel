@@ -675,7 +675,7 @@ function ehrRoleAllowedNavKeys(?string $role): ?array
  * Group items into new 6-group navigation structure.
  * Maps module keys to groups: Today, Patients, Clinical, Governance, Operations, System.
  */
-function ehrSidebarNavGroups(array $navItems, ?string $userRole = null): array
+function ehrSidebarNavGroups(array $navItems, ?string $userRole = null, ?string $currentPage = null): array
 {
     $allowedKeys = ehrRoleAllowedNavKeys($userRole);
     if (is_array($allowedKeys)) {
@@ -745,6 +745,21 @@ function ehrSidebarNavGroups(array $navItems, ?string $userRole = null): array
     if ($userRole && !in_array(strtolower($userRole), ['admin', 'superadmin'], true)) {
         unset($groups['system']);
     }
+
+    // Mark groups containing the current page as active so the sidebar can
+    // auto-expand the relevant collapsible section.
+    foreach ($groups as $gKey => &$group) {
+        $group['is_active'] = false;
+        if ($currentPage !== null && $currentPage !== '') {
+            foreach ($group['items'] as $it) {
+                if ((string)($it['key'] ?? '') === $currentPage) {
+                    $group['is_active'] = true;
+                    break;
+                }
+            }
+        }
+    }
+    unset($group);
 
     return array_values(array_filter($groups, static fn(array $group): bool => !empty($group['items'])));
 }
@@ -822,7 +837,7 @@ function ehrAdminContext(array $user, string $currentPage, array $extra = []): a
         'csrf_token' => app()->csrfToken(),
         'csrf_field' => app()->csrfField(),
         'nav_items' => ehrAdminNavItems($user),
-        'sidebar_nav_groups' => ehrSidebarNavGroups(ehrAdminNavItems($user), $role),
+        'sidebar_nav_groups' => ehrSidebarNavGroups(ehrAdminNavItems($user), $role, $currentPage),
         'user_display' => $displayName,
         'user_role' => ucfirst($role),
         'brand_name' => ehrAppName(),

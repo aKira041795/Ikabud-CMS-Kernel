@@ -10,67 +10,85 @@
     <style>
         body {
             background:
-                radial-gradient(circle at top right, rgba(20, 184, 166, 0.10), transparent 28%),
-                radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.10), transparent 24%),
-                linear-gradient(180deg, #eff8ff 0%, #f8fafc 100%);
+                radial-gradient(circle at top right, rgba(13, 148, 136, 0.06), transparent 30%),
+                radial-gradient(circle at bottom left, rgba(2, 132, 199, 0.05), transparent 26%),
+                linear-gradient(180deg, #f0f7fa 0%, #f8fafc 100%);
             color: #0f172a;
         }
 
         .ehr-page-views [class*="rounded"] {
-            border-radius: 3px !important;
+            border-radius: 6px !important;
         }
 
         .ehr-page-views [class*="file:rounded"]::file-selector-button {
-            border-radius: 3px !important;
+            border-radius: 6px !important;
         }
 
         .ehr-shell-sidebar [class*="rounded"] {
-            border-radius: 3px !important;
+            border-radius: 6px !important;
         }
+
+        /* Smooth chevron rotation for collapsible nav groups */
+        .ehr-nav-group-chevron { transition: transform 200ms ease; }
+        .ehr-nav-group[data-open="true"] .ehr-nav-group-chevron { transform: rotate(90deg); }
     </style>
     {block head}{/block}
 </head>
 <body class="min-h-screen text-slate-900" x-data="{ mobileNavOpen: false }">
     <div class="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside class="ehr-shell-sidebar hidden border-r border-slate-200/80 bg-slate-950 text-slate-100 lg:flex lg:flex-col">
-            <div class="border-b border-white/10 px-6 py-6">
+        <aside class="ehr-shell-sidebar hidden border-r border-slate-200 bg-white text-slate-700 lg:flex lg:flex-col">
+            <div class="border-b border-slate-200 bg-gradient-to-br from-teal-600 to-cyan-700 px-6 py-6 text-white">
                 <div class="flex items-center gap-4">
-                    <div class="flex h-14 w-14 items-center justify-center rounded-3xl bg-teal-500/15 text-xl font-semibold text-teal-200">{brand_initial}</div>
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-lg font-semibold text-white ring-1 ring-white/25">{brand_initial}</div>
                     <div>
-                        <div class="text-xs uppercase tracking-[0.22em] text-teal-300">EHR Admin</div>
-                        <div class="mt-1 text-lg font-semibold text-white">{brand_name}</div>
+                        <div class="text-[11px] uppercase tracking-[0.22em] text-teal-100">EHR Admin</div>
+                        <div class="mt-0.5 text-base font-semibold leading-tight text-white">{brand_name}</div>
                     </div>
                 </div>
             </div>
-            <nav class="flex-1 space-y-1 overflow-y-auto px-4 py-6">
-                <div class="mb-4 space-y-2">
-                    <div class="px-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Find Patient</div>
-                    <input 
-                        type="text" 
-                        placeholder="Search by name or MRN..." 
-                        class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                        x-data 
+            <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+                <div class="mb-3 space-y-2 px-1">
+                    <div class="px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Find Patient</div>
+                    <input
+                        type="text"
+                        placeholder="Search by name or MRN..."
+                        class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                        x-data
                         @input="$dispatch('search-patient', { query: $el.value })"
                     >
                 </div>
                 {foreach sidebar_nav_groups as group}
-                <section class="space-y-2">
-                    <div class="px-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{group.title}</div>
-                    {foreach group.items as item}
-                    <a href="{item.url}" class="block rounded-2xl border px-4 py-3 transition {if current_page == item.key}border-teal-400/40 bg-teal-400/10 text-white{else}border-transparent text-slate-300 hover:border-white/10 hover:bg-white/5 hover:text-white{/if}">
-                        <div class="text-sm font-semibold">{item.label}</div>
-                        <div class="mt-1 text-xs text-slate-400">{item.description}</div>
-                    </a>
-                    {/foreach}
+                <section
+                    class="ehr-nav-group mb-1"
+                    x-data="{ open: {if group.is_active}true{else}false{/if} }"
+                    :data-open="open ? 'true' : 'false'"
+                >
+                    <button
+                        type="button"
+                        @click="open = !open"
+                        class="flex w-full items-center justify-between px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 hover:text-slate-700"
+                        :aria-expanded="open"
+                    >
+                        <span>{group.title}</span>
+                        <span class="ehr-nav-group-chevron text-slate-400">›</span>
+                    </button>
+                    <div x-show="open" x-cloak class="mt-1 space-y-0.5">
+                        {foreach group.items as item}
+                        <a href="{item.url}" class="block rounded-md border-l-2 px-3 py-2 transition {if current_page == item.key}border-teal-600 bg-teal-50 text-teal-900{else}border-transparent text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900{/if}">
+                            <div class="text-sm font-medium">{item.label}</div>
+                            <div class="mt-0.5 text-xs {if current_page == item.key}text-teal-700/80{else}text-slate-500{/if}">{item.description}</div>
+                        </a>
+                        {/foreach}
+                    </div>
                 </section>
                 {/foreach}
             </nav>
-            <div class="border-t border-white/10 px-6 py-5 text-sm">
-                <div class="font-semibold text-white">{user_display}</div>
-                <div class="mt-1 text-slate-400">{user_role}</div>
-                <form method="POST" action="{logout_url}" class="mt-4">
+            <div class="border-t border-slate-200 bg-slate-50/60 px-5 py-4 text-sm">
+                <div class="font-semibold text-slate-900">{user_display}</div>
+                <div class="mt-0.5 text-xs text-slate-500">{user_role}</div>
+                <form method="POST" action="{logout_url}" class="mt-3">
                     {csrf_field | raw}
-                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-teal-400/40 hover:bg-teal-400/10 hover:text-white">
+                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800">
                         Sign Out
                     </button>
                 </form>
@@ -96,21 +114,35 @@
                         </form>
                     </div>
                 </div>
-                <div class="ehr-shell-sidebar mt-4 space-y-4 lg:hidden" x-show="mobileNavOpen" x-cloak>
+                <div class="ehr-shell-sidebar mt-4 space-y-3 lg:hidden" x-show="mobileNavOpen" x-cloak>
                     {foreach sidebar_nav_groups as group}
-                    <section class="space-y-2">
-                        <div class="px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{group.title}</div>
-                        {foreach group.items as item}
-                        <a href="{item.url}" class="block rounded-2xl border px-4 py-3 text-sm {if current_page == item.key}border-teal-300 bg-teal-50 text-teal-900{else}border-slate-200 bg-white text-slate-700{/if}">
-                            <div class="font-semibold">{item.label}</div>
-                            <div class="mt-1 text-xs text-slate-500">{item.description}</div>
-                        </a>
-                        {/foreach}
+                    <section
+                        class="ehr-nav-group rounded-md border border-slate-200 bg-white"
+                        x-data="{ open: {if group.is_active}true{else}false{/if} }"
+                        :data-open="open ? 'true' : 'false'"
+                    >
+                        <button
+                            type="button"
+                            @click="open = !open"
+                            class="flex w-full items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 hover:text-slate-700"
+                            :aria-expanded="open"
+                        >
+                            <span>{group.title}</span>
+                            <span class="ehr-nav-group-chevron text-slate-400">›</span>
+                        </button>
+                        <div x-show="open" x-cloak class="space-y-1 border-t border-slate-100 p-2">
+                            {foreach group.items as item}
+                            <a href="{item.url}" class="block rounded-md border-l-2 px-3 py-2 text-sm {if current_page == item.key}border-teal-600 bg-teal-50 text-teal-900{else}border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900{/if}">
+                                <div class="font-medium">{item.label}</div>
+                                <div class="mt-0.5 text-xs text-slate-500">{item.description}</div>
+                            </a>
+                            {/foreach}
+                        </div>
                     </section>
                     {/foreach}
                     <form method="POST" action="{logout_url}" class="pt-2">
                         {csrf_field | raw}
-                        <button type="submit" class="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-teal-700">Sign Out</button>
+                        <button type="submit" class="block w-full rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-teal-700">Sign Out</button>
                     </form>
                 </div>
             </header>

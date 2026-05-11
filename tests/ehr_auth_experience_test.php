@@ -465,7 +465,7 @@ $settingsAdminHtml = ehrRender('admin/settings.disyl', array_merge(
     ]
 ));
 et('ehr admin layout renders grouped sidebar headings', str_contains($settingsAdminHtml, 'Today') && str_contains($settingsAdminHtml, 'Clinical') && str_contains($settingsAdminHtml, 'Governance'));
-et('ehr admin layout forces 3px sidebar radius', str_contains($settingsAdminHtml, '.ehr-shell-sidebar [class*="rounded"]') && str_contains($settingsAdminHtml, 'border-radius: 3px !important;'));
+et('ehr admin layout forces 6px sidebar radius', str_contains($settingsAdminHtml, '.ehr-shell-sidebar [class*="rounded"]') && str_contains($settingsAdminHtml, 'border-radius: 6px !important;'));
 et('ehr settings admin page renders through EHR workspace shell', str_contains($settingsAdminHtml, 'EHR Workspace') && str_contains($settingsAdminHtml, 'Branding and Access'));
 et('ehr settings admin page renders module logout action', str_contains($settingsAdminHtml, '/ehr/logout') && str_contains($settingsAdminHtml, 'Sign Out'));
 et('ehr settings admin logout renders csrf input markup', str_contains($settingsAdminHtml, '<input type="hidden" name="_token"') && !str_contains($settingsAdminHtml, '&lt;input type=&quot;hidden&quot; name=&quot;_token&quot;'));
