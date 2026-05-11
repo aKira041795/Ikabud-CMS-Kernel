@@ -224,22 +224,6 @@
             var selectedLabel = (d.valueLabel || '').toString();
             var options = []; var active = 0; var loading = false; var fetchSeq = 0;
             input.placeholder = placeholder;
-            if (selectedLabel) input.value = selectedLabel;
-            // If we have an id but no label (e.g. edit-mode where the form was
-            // populated from the DB without resolving the patient name), look
-            // it up so the picker shows the patient instead of an empty box.
-            if (selectedId && !selectedLabel) {
-                fetch(endpoint + '?id=' + encodeURIComponent(selectedId), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        var p = data && data.patients && data.patients[0];
-                        if (p) {
-                            selectedLabel = (p.label || '') + (p.sub ? ' (' + p.sub + ')' : '');
-                            input.value = selectedLabel;
-                        }
-                    })
-                    .catch(function () {});
-            }
             function showClear() { clearBtn.classList.toggle('hidden', !selectedId); clearBtn.classList.toggle('flex', !!selectedId); }
             showClear();
             function openPanel() { panel.classList.remove('hidden'); }
