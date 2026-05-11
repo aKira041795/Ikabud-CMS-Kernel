@@ -36,9 +36,19 @@
                 <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{if account_tab == 'inactive'}Inactive accounts{else}Active accounts{/if}</h2>
                 <p class="mt-1 text-xs text-slate-500">{if account_tab == 'inactive'}Accounts that are currently blocked from portal sign-in.{else}Most recent portal accounts and their last sign-in.{/if}</p>
                 <div class="mt-4 inline-flex rounded-full bg-slate-100 p-1 text-xs font-semibold">
-                    <a href="{base_url}/admin/ehr/portal?tab=active" class="rounded-full px-3 py-1.5 {if account_tab == 'active'}bg-white text-slate-900 shadow-sm{else}text-slate-600 hover:text-slate-900{/if}">Active <span class="ml-1 text-[11px]">{active_accounts | count}</span></a>
-                    <a href="{base_url}/admin/ehr/portal?tab=inactive" class="rounded-full px-3 py-1.5 {if account_tab == 'inactive'}bg-white text-slate-900 shadow-sm{else}text-slate-600 hover:text-slate-900{/if}">Inactive <span class="ml-1 text-[11px]">{inactive_accounts | count}</span></a>
+                    <a href="{active_tab_url}" class="rounded-full px-3 py-1.5 {if account_tab == 'active'}bg-white text-slate-900 shadow-sm{else}text-slate-600 hover:text-slate-900{/if}">Active <span class="ml-1 text-[11px]">{active_accounts | count}</span></a>
+                    <a href="{inactive_tab_url}" class="rounded-full px-3 py-1.5 {if account_tab == 'inactive'}bg-white text-slate-900 shadow-sm{else}text-slate-600 hover:text-slate-900{/if}">Inactive <span class="ml-1 text-[11px]">{inactive_accounts | count}</span></a>
                 </div>
+                <form method="GET" action="{base_url}/admin/ehr/portal" class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input type="hidden" name="tab" value="{account_tab}">
+                    <input type="search" name="q" value="{search_query}" placeholder="Search patient, email, patient UUID, or account UUID" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
+                    <div class="flex gap-2">
+                        <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">Search</button>
+                        {if search_query}
+                        <a href="{base_url}/admin/ehr/portal?tab={account_tab}" class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Clear</a>
+                        {/if}
+                    </div>
+                </form>
                 {if form_notice == 'provisioned'}
                 <div class="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">Portal account provisioned.</div>
                 {elseif form_notice == 'deactivated'}
@@ -85,7 +95,7 @@
                                 <form method="POST" action="{update_endpoint}" class="space-y-2 px-3 pb-3 pt-2">
                                     {csrf_field | raw}
                                     <input type="hidden" name="patient_id" value="{account.patient_id}">
-                                    <input type="hidden" name="redirect" value="/admin/ehr/portal?tab={account_tab}">
+                                    <input type="hidden" name="redirect" value="{account_redirect_url}">
                                     <input type="email" name="email" required value="{account.email}" class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
                                     <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">Update email</button>
                                 </form>
@@ -95,7 +105,7 @@
                                 <form method="POST" action="{reset_password_endpoint}" class="space-y-2 px-3 pb-3 pt-2">
                                     {csrf_field | raw}
                                     <input type="hidden" name="patient_id" value="{account.patient_id}">
-                                    <input type="hidden" name="redirect" value="/admin/ehr/portal?tab={account_tab}">
+                                    <input type="hidden" name="redirect" value="{account_redirect_url}">
                                     <input type="text" name="password" minlength="10" required placeholder="New password (min 10 chars)" class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20">
                                     <p class="text-[11px] text-slate-500">Existing portal sessions and pending password-reset links will be invalidated.</p>
                                     <button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-700">Reset password</button>
@@ -107,7 +117,7 @@
                                 <form method="POST" action="{deactivate_endpoint}" class="space-y-2 px-3 pb-3 pt-2">
                                     {csrf_field | raw}
                                     <input type="hidden" name="patient_id" value="{account.patient_id}">
-                                    <input type="hidden" name="redirect" value="/admin/ehr/portal?tab={account_tab}">
+                                    <input type="hidden" name="redirect" value="{account_redirect_url}">
                                     <input type="text" name="reason" placeholder="Reason (e.g. Patient request)" class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20">
                                     <button type="submit" class="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700">Deactivate account</button>
                                 </form>
@@ -116,7 +126,7 @@
                             <form method="POST" action="{reactivate_endpoint}" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                                 {csrf_field | raw}
                                 <input type="hidden" name="patient_id" value="{account.patient_id}">
-                                <input type="hidden" name="redirect" value="/admin/ehr/portal?tab={account_tab}">
+                                <input type="hidden" name="redirect" value="{account_redirect_url}">
                                 <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700">Reactivate account</button>
                             </form>
                             {/if}
@@ -124,7 +134,7 @@
                     </div>
                     {/foreach}
                 {else}
-                    <div class="px-6 py-12 text-center text-sm text-slate-500">{if account_tab == 'inactive'}No inactive portal accounts.{else}No active portal accounts have been provisioned yet.{/if}</div>
+                    <div class="px-6 py-12 text-center text-sm text-slate-500">{if search_query}{if account_tab == 'inactive'}No inactive portal accounts match "{search_query}".{else}No active portal accounts match "{search_query}".{/if}{elseif account_tab == 'inactive'}No inactive portal accounts.{else}No active portal accounts have been provisioned yet.{/if}</div>
                 {/if}
             </div>
         </section>

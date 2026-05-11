@@ -470,12 +470,34 @@ function portalAdminPageIndex(array $params = []): void
 
     $input = app()->input();
     $accountTab = strtolower(trim((string)($input['tab'] ?? 'active')));
+    $searchQuery = trim((string)($input['q'] ?? ''));
+    $searchNeedle = strtolower($searchQuery);
     if (!in_array($accountTab, ['active', 'inactive'], true)) {
         $accountTab = 'active';
     }
+    $filteredRows = [];
+    foreach ($rows as $row) {
+        if ($searchNeedle === '') {
+            $filteredRows[] = $row;
+            continue;
+        }
+        $haystack = strtolower(implode(' ', array_filter([
+            (string)($row['email'] ?? ''),
+            (string)($row['account_uuid'] ?? ''),
+            (string)($row['patient_uuid'] ?? ''),
+            (string)($row['status'] ?? ''),
+            (string)($row['first_name'] ?? ''),
+            (string)($row['last_name'] ?? ''),
+            trim((string)($row['first_name'] ?? '') . ' ' . (string)($row['last_name'] ?? '')),
+            trim((string)($row['last_name'] ?? '') . ' ' . (string)($row['first_name'] ?? '')),
+        ], static fn($value) => $value !== '')));
+        if (str_contains($haystack, $searchNeedle)) {
+            $filteredRows[] = $row;
+        }
+    }
     $activeAccounts = [];
     $inactiveAccounts = [];
-    foreach ($rows as $row) {
+    foreach ($filteredRows as $row) {
         $status = strtolower(trim((string)($row['status'] ?? '')));
         if ($status === 'active') {
             $activeAccounts[] = $row;
@@ -484,6 +506,8 @@ function portalAdminPageIndex(array $params = []): void
         $inactiveAccounts[] = $row;
     }
     $visibleAccounts = $accountTab === 'inactive' ? $inactiveAccounts : $activeAccounts;
+    $tabSuffix = $searchQuery !== '' ? '&q=' . rawurlencode($searchQuery) : '';
+    $accountRedirectUrl = '/admin/ehr/portal?tab=' . rawurlencode($accountTab) . $tabSuffix;
     $pendingReschedule = (int)(portalDb()->query(
         "SELECT COUNT(*) AS c FROM ehr_portal_reschedule_requests WHERE status = 'pending'"
     )->fetch(\PDO::FETCH_ASSOC)['c'] ?? 0);
@@ -495,6 +519,10 @@ function portalAdminPageIndex(array $params = []): void
         'inactive_accounts' => $inactiveAccounts,
         'visible_accounts' => $visibleAccounts,
         'account_tab' => $accountTab,
+        'search_query' => $searchQuery,
+        'active_tab_url' => '/admin/ehr/portal?tab=active' . $tabSuffix,
+        'inactive_tab_url' => '/admin/ehr/portal?tab=inactive' . $tabSuffix,
+        'account_redirect_url' => $accountRedirectUrl,
         'provision_endpoint' => '/admin/ehr/portal/provision',
         'deactivate_endpoint' => '/admin/ehr/portal/deactivate',
         'update_endpoint' => '/admin/ehr/portal/update',
