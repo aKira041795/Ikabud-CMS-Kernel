@@ -27,10 +27,13 @@
         <div class="divide-y divide-slate-100">
             {if results}
                 {foreach results as result}
-                <div class="px-6 py-4">
+                <div class="px-6 py-4 {if result.abnormal_flag == 'C' || result.abnormal_flag == 'CRIT' || result.abnormal_flag == 'critical'}border-l-4 border-rose-600 bg-rose-50/40{elseif result.abnormal_flag && result.abnormal_flag != 'N'}border-l-4 border-amber-400 bg-amber-50/30{/if}">
                     <div class="flex items-start justify-between gap-4">
                         <div>
-                            <div class="text-base font-semibold text-slate-900">{if result.item_label}{result.item_label}{else}Clinical result{/if}</div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-base font-semibold text-slate-900">{if result.item_label}{result.item_label}{else}Clinical result{/if}</span>
+                                {if result.abnormal_flag == 'C' || result.abnormal_flag == 'CRIT' || result.abnormal_flag == 'critical'}<span class="rounded-sm bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">⚠ Critical</span>{elseif result.abnormal_flag && result.abnormal_flag != 'N'}<span class="rounded-sm bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">Abnormal</span>{/if}
+                            </div>
                             <div class="mt-1 text-sm text-slate-600">{if result.patient_summary}{result.patient_summary.last_name}, {result.patient_summary.first_name}{else}Unknown patient{/if} · {if result.order_uuid}{result.order_uuid}{else}No order reference{/if}</div>
                         </div>
                         <div class="flex items-center gap-2">

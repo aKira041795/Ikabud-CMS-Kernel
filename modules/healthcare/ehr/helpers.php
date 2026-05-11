@@ -715,6 +715,23 @@ function ehrDashboardNavGroups(array $navItems): array
  * Label map: translate module nav labels to user-friendly clinical terminology.
  * Shell-side mapping; modules are not edited.
  */
+/**
+ * Map an EHR user role to the landing URL they should see post-login.
+ * Per docs/ehr/system-design-and-architecture-plan.md §K.
+ */
+function ehrRoleLandingUrl(?string $role): string
+{
+    $role = strtolower(trim((string)$role));
+    return match ($role) {
+        'front_desk', 'reception', 'receptionist' => '/admin/ehr/appointments',
+        'nurse'                                    => '/admin/ehr/appointments?status=roomed',
+        'lab_tech', 'lab', 'diagnostic'            => '/admin/ehr/results?status=pending',
+        'billing'                                  => '/admin/ehr/billing',
+        'auditor'                                  => '/admin/ehr/audit',
+        default                                    => '/admin/ehr',
+    };
+}
+
 function ehrNavLabelMap(): array
 {
     return [

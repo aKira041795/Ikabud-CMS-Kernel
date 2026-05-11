@@ -105,7 +105,7 @@ function ehrAuthLogin(array $params = []): void
     ehrSetAuthCookie($token, (int)config('app.jwt.expiration', 86400));
     app()->csrfRotate(true);
 
-    $redirect = kernelResolveAuthenticatedHomeRedirect($payload, true) ?? '/admin/ehr';
+    $redirect = kernelResolveAuthenticatedHomeRedirect($payload, true) ?? ehrRoleLandingUrl((string)($user['role'] ?? ''));
     echo json_encode(['ok' => true, 'redirect' => $redirect]);
 }
 

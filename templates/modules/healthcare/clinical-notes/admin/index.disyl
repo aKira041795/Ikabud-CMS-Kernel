@@ -23,10 +23,14 @@
         <div class="divide-y divide-slate-100">
             {if notes}
                 {foreach notes as note}
-                <div class="px-6 py-4">
+                <div class="px-6 py-4 {if note.status == 'draft'}border-l-4 border-amber-400 bg-amber-50/40{/if}">
                     <div class="flex items-start justify-between gap-4">
                         <div>
-                            <div class="text-base font-semibold text-slate-900">{note.note_type}</div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-base font-semibold text-slate-900">{note.note_type}</span>
+                                {if note.status == 'draft'}<span class="rounded-sm border border-amber-400 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-900">DRAFT — UNSIGNED</span>{/if}
+                                {if note.status == 'signed'}<span class="text-xs text-emerald-700" title="Signed">✓ Signed{if note.signed_at} · {note.signed_at}{/if}</span>{/if}
+                            </div>
                             <div class="mt-1 text-sm text-slate-600">{if note.patient_summary}{note.patient_summary.last_name}, {note.patient_summary.first_name}{else}Unknown patient{/if} · {if note.encounter_summary}{note.encounter_summary.encounter_uuid}{else}No encounter{/if}</div>
                         </div>
                         <div class="flex items-center gap-2">
@@ -76,7 +80,11 @@
                 </div>
                 {/foreach}
             {else}
-                <div class="px-6 py-12 text-center text-sm text-slate-600">No notes have been written yet. Use the form below to start one.</div>
+                <div class="px-6 py-16 text-center">
+                    <div class="mx-auto mb-3 text-4xl text-slate-300">📝</div>
+                    <div class="text-sm font-semibold text-slate-700">No clinical notes yet</div>
+                    <div class="mt-1 text-xs text-slate-500">Notes are the legal record of each visit. Start one in the form below.</div>
+                </div>
             {/if}
         </div>
     </section>
