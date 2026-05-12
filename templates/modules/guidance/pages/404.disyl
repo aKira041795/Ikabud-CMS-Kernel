@@ -1,30 +1,11 @@
-{extends "modules/guidance/layouts/app.disyl"}
+{extends "pages/404.disyl"}
 
 {block content}
-{!-- 404 Not Found Page --}
-
-{ikb_section padding="xlarge"}
-    {ikb_container size="small"}
-        <div class="text-center py-16">
-            <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <i class="fas fa-exclamation-triangle text-gray-400 text-4xl"></i>
-            </div>
-            
-            {ikb_text tag="h1" size="4xl" weight="bold" class="text-gray-800 mb-4"}404{/ikb_text}
-            {ikb_text tag="h2" size="xl" class="text-gray-600 mb-2"}Page Not Found{/ikb_text}
-            {ikb_text color="muted" class="mb-8"}{message | default:'The page you are looking for does not exist.'}{/ikb_text}
-            
-            <div class="flex items-center justify-center space-x-4">
-                {ikb_button variant="primary" hx-get="{base_url}/pages/dashboard" hx-target="#main-content" hx-push-url="{base_url}/"}
-                    <i class="fas fa-home mr-2"></i> Go to Dashboard
-                {/ikb_button}
-                
-                <button onclick="history.back()" class="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition">
-                    <i class="fas fa-arrow-left mr-2"></i> Go Back
-                </button>
-            </div>
-        </div>
-    {/ikb_container}
-{/ikb_section}
-
+{* Pass Guidance-specific context for link resolution *}
+{include parent() with {
+    base_url: '/guidance',
+    gui: gui,
+    not_found_title: not_found_title|default:'Page Not Found',
+    not_found_body: not_found_body|default: message|default:'The page you are looking for does not exist.'
+}}
 {/block}
