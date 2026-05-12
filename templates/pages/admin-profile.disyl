@@ -21,7 +21,7 @@
     <div class="page-header">
         <div>
             <h2>Profile</h2>
-            <div class="page-desc">View your account details and update your name or password.</div>
+            <div class="page-desc">View your account details and update your name, email, or password.</div>
         </div>
     </div>
 
@@ -50,15 +50,29 @@
     <div class="profile-card">
         <strong style="font-size:14px; display:block; margin-bottom:14px;">Update Profile</strong>
 
-        <div id="profile-msg" style="display:none;"></div>
+        <div id="profile-msg"{if profile_notice} class="alert alert-{if profile_notice.type == 'success'}success{else}danger{/if}" style="display:block;"{else} style="display:none;"{/if}>{if profile_notice}{profile_notice.message}{/if}</div>
 
-        <form id="profile-form" onsubmit="return submitProfile(event)">
+        <form id="profile-form" method="post" action="{base_url}/api/v1/admin/profile/update" onsubmit="submitProfile(event); return false;">
             {csrf_field | raw}
 
             <div class="form-group">
                 <label class="form-label" for="full_name">Full Name</label>
                 <input class="form-input" type="text" id="full_name" name="full_name" value="{if user.full_name}{user.full_name}{else}{user.name}{/if}" required />
             </div>
+
+            {if email_supported}
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input class="form-input" type="email" id="email" name="email" value="{user.email}" required />
+                <div class="hint">Used by the kernel forgot-password flow to send reset links.</div>
+            </div>
+            {else}
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input class="form-input" type="email" id="email" value="" placeholder="Kernel email storage not available yet" disabled />
+                <div class="hint">Run the latest kernel migration to enable email-backed forgot-password for kernel admins.</div>
+            </div>
+            {/if}
 
             <div class="form-group">
                 <label class="form-label" for="password">New Password</label>
@@ -84,8 +98,13 @@ async function submitProfile(e) {
     msg.textContent = '';
 
     var fullName = document.getElementById('full_name').value.trim();
+    var email = document.getElementById('email').value.trim();
     var password = document.getElementById('password').value;
     var csrf = (document.querySelector('input[name="_token"]') || {}).value || '';
+    var payload = { full_name: fullName, password: password, _token: csrf };
+    if ({if email_supported}true{else}false{/if}) {
+        payload.email = email;
+    }
 
     btn.disabled = true;
     btn.textContent = 'Saving…';
@@ -95,7 +114,7 @@ async function submitProfile(e) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ full_name: fullName, password: password, _token: csrf })
+            body: JSON.stringify(payload)
         });
         var data = await res.json().catch(function() { return {}; });
 
@@ -110,8 +129,8 @@ async function submitProfile(e) {
 
         msg.style.display = 'block';
         msg.className = 'alert alert-success';
-        msg.textContent = 'Profile updated successfully.';
-        showToast('Profile updated');
+    msg.textContent = data.message || 'Profile updated successfully.';
+    showToast(data.message || 'Profile updated');
 
         document.getElementById('password').value = '';
         btn.disabled = false;

@@ -125,27 +125,59 @@ final class ModuleContext implements AuthContract, LogContract
 
         try {
             KernelPDO::kernelEscalationEnter();
-            $stmt = $this->app->db()->prepare(
-                'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
-                . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
-            );
-            $stmt->execute([
-                ':module'     => $this->moduleId, // always use the scoped module ID, not the passed one
-                ':actor'      => $actorId,
-                ':actor_mod'  => $actorModuleUserId,
-                ':actor_src'  => $actorSource,
-                ':branch'     => $branchId,
-                ':action'     => $action,
-                ':etype'      => $entityType,
-                ':eid'        => $entityId,
-                ':old'        => $oldData !== null ? json_encode($oldData) : null,
-                ':new'        => $newData !== null ? json_encode($newData) : null,
-            ]);
+            $db = $this->app->db();
+            $supportsActorColumns = $this->auditLogSupportsActorColumns($db);
+            if ($supportsActorColumns) {
+                $stmt = $db->prepare(
+                    'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
+                    . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
+                );
+                $stmt->execute([
+                    ':module'     => $this->moduleId,
+                    ':actor'      => $actorId,
+                    ':actor_mod'  => $actorModuleUserId,
+                    ':actor_src'  => $actorSource,
+                    ':branch'     => $branchId,
+                    ':action'     => $action,
+                    ':etype'      => $entityType,
+                    ':eid'        => $entityId,
+                    ':old'        => $oldData !== null ? json_encode($oldData) : null,
+                    ':new'        => $newData !== null ? json_encode($newData) : null,
+                ]);
+            } else {
+                $stmt = $db->prepare(
+                    'INSERT INTO audit_logs (module, actor_user_id, branch_id, action, entity_type, entity_id, old_data, new_data) '
+                    . 'VALUES (:module, :actor, :branch, :action, :etype, :eid, :old, :new)'
+                );
+                $stmt->execute([
+                    ':module' => $this->moduleId,
+                    ':actor' => $actorId,
+                    ':branch' => $branchId,
+                    ':action' => $action,
+                    ':etype' => $entityType,
+                    ':eid' => $entityId,
+                    ':old' => $oldData !== null ? json_encode($oldData) : null,
+                    ':new' => $newData !== null ? json_encode($newData) : null,
+                ]);
+            }
         } catch (\Throwable $e) {
             // Non-fatal — log but don't crash
             $this->log('Audit log write failed: ' . $e->getMessage(), 'error');
         } finally {
             KernelPDO::kernelEscalationLeave();
+        }
+    }
+
+    private function auditLogSupportsActorColumns(\PDO $db): bool
+    {
+        try {
+            $moduleUserStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'actor_module_user_id'");
+            $hasModuleUserId = $moduleUserStmt && $moduleUserStmt->fetchColumn() !== false;
+            $sourceStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'actor_source'");
+            $hasActorSource = $sourceStmt && $sourceStmt->fetchColumn() !== false;
+            return $hasModuleUserId && $hasActorSource;
+        } catch (\Throwable) {
+            return false;
         }
     }
 

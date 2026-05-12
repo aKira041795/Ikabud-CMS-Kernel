@@ -392,8 +392,49 @@ function kernelHandlePageAdminProfile(): void
         app()->redirect('/');
         exit;
     }
+
+    $requestPath = parse_url((string)($_SERVER['REQUEST_URI'] ?? '/admin/profile'), PHP_URL_PATH) ?: '/admin/profile';
+    if ($requestPath === '/api/v1/admin/profile/update') {
+        app()->redirect('/admin/profile');
+        exit;
+    }
+
+    $profileNotice = null;
+    if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['_admin_profile_notice']) && is_array($_SESSION['_admin_profile_notice'])) {
+        $profileNotice = $_SESSION['_admin_profile_notice'];
+        unset($_SESSION['_admin_profile_notice']);
+    }
+
+    $emailSupported = kernelUsersHasEmailColumn(app()->db());
+    $profileUser = $user;
+    $profileStmt = app()->db()->prepare(
+        $emailSupported
+            ? 'SELECT username, email, full_name, role
+         FROM users
+         WHERE id = :id AND role IN (\'admin\', \'superadmin\')
+         LIMIT 1'
+            : 'SELECT username, full_name, role
+         FROM users
+         WHERE id = :id AND role IN (\'admin\', \'superadmin\')
+         LIMIT 1'
+    );
+    $profileStmt->execute([':id' => (int)($user['id'] ?? 0)]);
+    $profileRow = $profileStmt->fetch(PDO::FETCH_ASSOC);
+    if (is_array($profileRow)) {
+        $profileUser = array_merge($profileUser, [
+            'username' => (string)($profileRow['username'] ?? ($profileUser['username'] ?? '')),
+            'email' => $emailSupported ? (string)($profileRow['email'] ?? '') : '',
+            'full_name' => (string)($profileRow['full_name'] ?? ($profileUser['full_name'] ?? $profileUser['name'] ?? '')),
+            'name' => (string)($profileRow['full_name'] ?? ($profileUser['full_name'] ?? $profileUser['name'] ?? '')),
+            'role' => (string)($profileRow['role'] ?? ($profileUser['role'] ?? '')),
+        ]);
+    }
+
     echo app()->render('pages/admin-profile.disyl', [
         'page_title' => 'Profile',
+        'email_supported' => $emailSupported,
+        'profile_notice' => $profileNotice,
+        'user' => $profileUser,
     ]);
     exit;
 }

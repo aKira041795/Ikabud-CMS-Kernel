@@ -18,6 +18,7 @@ if (!function_exists('kernelCoreRoutes')) {
                 '/api/v1/me' => 'apiMe',
                 '/api/v1/audit-log' => 'apiAuditLog',
                 '/admin/profile' => 'pageAdminProfile',
+                '/api/v1/admin/profile/update' => 'pageAdminProfile',
                 '/admin/users' => 'pageAdminUsers',
                 '/admin/modules' => 'pageAdminModules',
                 '/admin/tenants' => 'pageAdminTenants',

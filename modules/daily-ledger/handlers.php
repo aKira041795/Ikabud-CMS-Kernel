@@ -301,7 +301,7 @@ function dlPersistModuleSettings(array $settings): bool
         }
 
         $actual = $fresh[$key];
-        if (json_encode($actual, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !== json_encode($expected, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) {
+            if (!dlSettingValuesMatch($actual, $expected)) {
             return false;
         }
     }
@@ -549,6 +549,53 @@ function dl_isAllowedAutoCloseTime(string $time): bool
 
     $hours = (int)$matches[1];
     return $hours >= 0 && $hours < 24;
+}
+
+function dlSettingValuesMatch(mixed $actual, mixed $expected): bool
+{
+    return json_encode(dlNormalizeSettingValue($actual), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        === json_encode(dlNormalizeSettingValue($expected), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+}
+
+function dlNormalizeSettingValue(mixed $value): mixed
+{
+    if (!is_array($value)) {
+        return $value;
+    }
+
+    $normalized = [];
+    foreach ($value as $key => $item) {
+        $normalized[$key] = dlNormalizeSettingValue($item);
+    }
+
+    if ($normalized !== [] && array_keys($normalized) !== range(0, count($normalized) - 1)) {
+        ksort($normalized);
+    }
+
+    return $normalized;
+}
+
+function dlAuditLogHasColumn(string $column): bool
+{
+    static $cache = [];
+    if (array_key_exists($column, $cache)) {
+        return $cache[$column];
+    }
+
+    $safeColumn = preg_replace('/[^a-z0-9_]+/i', '', $column);
+    if ($safeColumn === '') {
+        $cache[$column] = false;
+        return false;
+    }
+
+    try {
+        $stmt = dlCtx()->db()->query("SHOW COLUMNS FROM audit_logs LIKE '" . $safeColumn . "'");
+        $cache[$column] = $stmt->fetchColumn() !== false;
+        return $cache[$column];
+    } catch (Throwable) {
+        $cache[$column] = false;
+        return false;
+    }
 }
 
 function dl_closeOfDaySettings(): array
@@ -4261,16 +4308,21 @@ function handleAdminActivity(array $params = []): void
         $branchLookup[(int)$branchRow['id']] = (string)$branchRow['name'];
     }
 
+    $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
+    $hasActorSource = dlAuditLogHasColumn('actor_source');
+
     $sql = 'SELECT a.action, a.created_at, a.old_data, a.new_data,
-                   a.entity_type, a.entity_id, a.actor_source,
-                   a.actor_user_id, a.actor_module_user_id,
+                   a.entity_type, a.entity_id, '
+        . ($hasActorSource ? 'a.actor_source' : 'NULL') . ' AS actor_source,
+                   a.actor_user_id, '
+        . ($hasActorModuleUserId ? 'a.actor_module_user_id' : 'NULL') . ' AS actor_module_user_id,
                    b.name AS branch_name,
                    ku.full_name AS kernel_actor_name,
-                   du.full_name AS module_actor_name
+                   ' . ($hasActorModuleUserId ? 'du.full_name' : 'NULL') . ' AS module_actor_name
             FROM audit_logs a
             LEFT JOIN dl_branches b ON b.id = a.branch_id
             LEFT JOIN users ku ON ku.id = a.actor_user_id
-            LEFT JOIN dl_users du ON du.id = a.actor_module_user_id
+            ' . ($hasActorModuleUserId ? 'LEFT JOIN dl_users du ON du.id = a.actor_module_user_id' : 'LEFT JOIN dl_users du ON 1 = 0') . '
             WHERE a.module = \'daily-ledger\'
               AND DATE(a.created_at) BETWEEN :df AND :dt';
     $bind = [':df' => $dateFrom, ':dt' => $dateTo];

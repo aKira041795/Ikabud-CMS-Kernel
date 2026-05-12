@@ -193,22 +193,51 @@ final class App
 
             try {
                 KernelPDO::kernelEscalationEnter();
-                $stmt = $this->db()->prepare(
-                    'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
-                    . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
-                );
-                $stmt->execute([
-                    ':module' => $module,
-                    ':actor' => $actorId,
-                    ':actor_mod' => $actorModuleUserId,
-                    ':actor_src' => $actorSource,
-                    ':branch' => $branchId,
-                    ':action' => $action,
-                    ':etype' => $entityType,
-                    ':eid' => $entityId,
-                    ':old' => $oldData !== null ? json_encode($oldData) : null,
-                    ':new' => $newData !== null ? json_encode($newData) : null,
-                ]);
+                $db = $this->db();
+                $supportsActorColumns = false;
+                try {
+                    $moduleUserStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'actor_module_user_id'");
+                    $hasModuleUserId = $moduleUserStmt && $moduleUserStmt->fetchColumn() !== false;
+                    $sourceStmt = $db->query("SHOW COLUMNS FROM audit_logs LIKE 'actor_source'");
+                    $hasActorSource = $sourceStmt && $sourceStmt->fetchColumn() !== false;
+                    $supportsActorColumns = $hasModuleUserId && $hasActorSource;
+                } catch (\Throwable) {
+                    $supportsActorColumns = false;
+                }
+
+                if ($supportsActorColumns) {
+                    $stmt = $db->prepare(
+                        'INSERT INTO audit_logs (module, actor_user_id, actor_module_user_id, actor_source, branch_id, action, entity_type, entity_id, old_data, new_data) '
+                        . 'VALUES (:module, :actor, :actor_mod, :actor_src, :branch, :action, :etype, :eid, :old, :new)'
+                    );
+                    $stmt->execute([
+                        ':module' => $module,
+                        ':actor' => $actorId,
+                        ':actor_mod' => $actorModuleUserId,
+                        ':actor_src' => $actorSource,
+                        ':branch' => $branchId,
+                        ':action' => $action,
+                        ':etype' => $entityType,
+                        ':eid' => $entityId,
+                        ':old' => $oldData !== null ? json_encode($oldData) : null,
+                        ':new' => $newData !== null ? json_encode($newData) : null,
+                    ]);
+                } else {
+                    $stmt = $db->prepare(
+                        'INSERT INTO audit_logs (module, actor_user_id, branch_id, action, entity_type, entity_id, old_data, new_data) '
+                        . 'VALUES (:module, :actor, :branch, :action, :etype, :eid, :old, :new)'
+                    );
+                    $stmt->execute([
+                        ':module' => $module,
+                        ':actor' => $actorId,
+                        ':branch' => $branchId,
+                        ':action' => $action,
+                        ':etype' => $entityType,
+                        ':eid' => $entityId,
+                        ':old' => $oldData !== null ? json_encode($oldData) : null,
+                        ':new' => $newData !== null ? json_encode($newData) : null,
+                    ]);
+                }
             } catch (\Throwable $e) {
                 // Best-effort: do not fail the request.
                 $this->log('Audit log write failed: ' . $e->getMessage(), 'error', ['module' => $module, 'action' => $action, 'reason' => $reason]);
@@ -265,13 +294,21 @@ final class App
             }
 
             try {
+                $hasEmailColumn = function_exists('kernelUsersHasEmailColumn')
+                    ? kernelUsersHasEmailColumn($this->db())
+                    : false;
                 $stmt = $this->db()->prepare(
-                    "SELECT id, username, password_hash, full_name, role\n                     FROM users\n                     WHERE username = :username AND is_active = 1\n                     LIMIT 1"
+                    $hasEmailColumn
+                        ? "SELECT id, username, email, password_hash, full_name, role\n                     FROM users\n                     WHERE username = :username AND is_active = 1\n                     LIMIT 1"
+                        : "SELECT id, username, password_hash, full_name, role\n                     FROM users\n                     WHERE username = :username AND is_active = 1\n                     LIMIT 1"
                 );
                 $stmt->execute([':username' => $username]);
                 $row = $stmt->fetch(\PDO::FETCH_ASSOC);
                 if (!is_array($row) || !in_array(($row['role'] ?? null), ['admin', 'superadmin'], true) || !password_verify($password, (string)$row['password_hash'])) {
                     return null;
+                }
+                if (!$hasEmailColumn) {
+                    $row['email'] = '';
                 }
                 // Fetch token_version separately: the column was added in migration 015.
                 // If the migration has not yet run, default to 0 rather than blocking login.

@@ -290,11 +290,12 @@ final class KernelPDO extends PDO
 
         self::kernelEscalationEnter();
         try {
+            $repairDb = self::freshRuntimeRepairConnection($db);
             if (function_exists('tenantRepairKernelRuntimeArtifacts')) {
-                tenantRepairKernelRuntimeArtifacts($db);
+                tenantRepairKernelRuntimeArtifacts($repairDb);
             } else {
-                $applied = tenantAllAppliedMigrations($db);
-                tenantSyncKernelMigrations($db, is_array($applied) ? $applied : null);
+                $applied = tenantAllAppliedMigrations($repairDb);
+                tenantSyncKernelMigrations($repairDb, is_array($applied) ? $applied : null);
             }
             return true;
         } catch (\Throwable $syncError) {
@@ -308,6 +309,39 @@ final class KernelPDO extends PDO
         } finally {
             self::kernelEscalationLeave();
         }
+    }
+
+    private static function freshRuntimeRepairConnection(PDO $fallback): PDO
+    {
+        if (!function_exists('app')) {
+            return $fallback;
+        }
+
+        try {
+            $tenantId = null;
+            $tenant = app()->tenant();
+            if (is_object($tenant) && method_exists($tenant, 'current')) {
+                $tenantId = $tenant->current();
+            }
+
+            if (is_int($tenantId) && $tenantId > 0 && method_exists(app(), 'reconnectDbForTenant')) {
+                $tenantDb = app()->reconnectDbForTenant($tenantId);
+                if ($tenantDb instanceof PDO) {
+                    return $tenantDb;
+                }
+            }
+
+            if (method_exists(app(), 'reconnectDb')) {
+                $db = app()->reconnectDb();
+                if ($db instanceof PDO) {
+                    return $db;
+                }
+            }
+        } catch (\Throwable) {
+            return $fallback;
+        }
+
+        return $fallback;
     }
 
     private static function repairableKernelRuntimeTable(string $sql, \Throwable $error): ?string

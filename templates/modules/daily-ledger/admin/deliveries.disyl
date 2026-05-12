@@ -428,9 +428,9 @@ function deliveriesPage() {
             const items = this.form.items
                 .filter(it => it.product_id && it.quantity > 0)
                 .map(it => ({ product_id: parseInt(it.product_id, 10), quantity: parseInt(it.quantity, 10), unit: it.unit || 'pc' }));
-            if (items.length === 0) { alert('Add at least one item'); return; }
+            if (items.length === 0) { showToast('Add at least one item', 'error'); return; }
             if (this.form.destination_type === 'branch' && !String(this.form.recovery_reason || '').trim()) {
-                alert('Explain why this branch transfer is being recorded here. For normal transfers, use Send to Branch and Receive Stock.');
+                showToast('Explain why this branch transfer is being recorded here. For normal transfers, use Send to Branch and Receive Stock.', 'error');
                 return;
             }
             this.saving = true;
@@ -458,10 +458,14 @@ function deliveriesPage() {
             .then(r => r.json())
             .then(j => {
                 this.saving = false;
-                if (j && j.ok) { this.createOpen = false; this.reload(); }
-                else { alert((j && j.error) || 'Failed to create delivery'); }
+                if (j && j.ok) {
+                    showToast((j && j.message) || 'Delivery record created', 'success');
+                    this.createOpen = false;
+                    this.reload();
+                }
+                else { showToast((j && j.error) || 'Failed to create delivery', 'error'); }
             })
-            .catch(() => { this.saving = false; alert('Network error'); });
+            .catch(() => { this.saving = false; showToast('Network error creating delivery', 'error'); });
         },
         postDelivery(id) {
             if (!confirm('Post this record now? Make sure the DR details and items are final.')) return;
@@ -476,7 +480,15 @@ function deliveriesPage() {
                 body: JSON.stringify({ delivery_id: id })
             })
             .then(r => r.json())
-            .then(j => { if (j && j.ok) this.reload(); else alert((j && j.error) || 'Failed'); });
+            .then(j => {
+                if (j && j.ok) {
+                    showToast((j && j.message) || 'Delivery finalized', 'success');
+                    this.reload();
+                } else {
+                    showToast((j && j.error) || 'Failed to finalize delivery', 'error');
+                }
+            })
+            .catch(() => { showToast('Network error finalizing delivery', 'error'); });
         },
         voidDelivery(id) {
             if (!confirm('Void this delivery?')) return;
@@ -491,7 +503,15 @@ function deliveriesPage() {
                 body: JSON.stringify({ delivery_id: id })
             })
             .then(r => r.json())
-            .then(j => { if (j && j.ok) this.reload(); else alert((j && j.error) || 'Failed'); });
+            .then(j => {
+                if (j && j.ok) {
+                    showToast((j && j.message) || 'Delivery cancelled', 'success');
+                    this.reload();
+                } else {
+                    showToast((j && j.error) || 'Failed to cancel delivery', 'error');
+                }
+            })
+            .catch(() => { showToast('Network error cancelling delivery', 'error'); });
         },
         reviewProvenance(id, action) {
             let note = '';
@@ -518,11 +538,16 @@ function deliveriesPage() {
             .then(r => r.json())
             .then(j => {
                 if (j && j.ok) {
+                    const successMessage = action === 'accepted'
+                        ? 'Paper DR marked verified'
+                        : (action === 'discrepant' ? 'Paper DR marked with a problem' : 'Paper DR review reopened');
+                    showToast((j && j.message) || successMessage, 'success');
                     this.reload();
                 } else {
-                    alert((j && j.error) || 'Failed to update paper DR check');
+                    showToast((j && j.error) || 'Failed to update paper DR check', 'error');
                 }
-            });
+            })
+            .catch(() => { showToast('Network error updating paper DR check', 'error'); });
         },
         toggleReceiving(id) {
             if (this.expandedId === id) { this.expandedId = null; return; }

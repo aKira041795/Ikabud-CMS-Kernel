@@ -526,7 +526,7 @@ function priceGroupsPage() {
                 const productId = parseInt(rawId, 10);
                 const price = this.prices[productId];
                 if (price == null || price === '' || isNaN(price) || Number(price) < 0) {
-                    alert('Enter a valid price for all modified rows before saving.');
+                    showToast('Enter a valid price for all modified rows before saving.', 'error');
                     return;
                 }
                 payloads.push({
@@ -551,9 +551,10 @@ function priceGroupsPage() {
                     throw new Error(failed.error || 'Failed to save prices');
                 }
                 this.dirtyPrices = {};
+                showToast('Prices saved', 'success');
             })
             .catch((err) => {
-                alert(err.message || 'Failed to save prices');
+                showToast(err.message || 'Failed to save prices', 'error');
             })
             .finally(() => {
                 this.savingPrices = false;
@@ -561,16 +562,25 @@ function priceGroupsPage() {
         },
         openCreate() { this.newGroup = { name: '', type: 'other' }; this.createOpen = true; },
         submitCreate() {
-            if (!this.newGroup.name.trim()) { alert('Name required'); return; }
+            if (!this.newGroup.name.trim()) { showToast('Name required', 'error'); return; }
             fetch('{base_url}/api/v1/admin/price-groups', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(this.newGroup)
             })
             .then(r => r.json())
-            .then(j => { if (j && j.ok) location.reload(); else alert((j && j.error) || 'Failed'); });
+            .then(j => {
+                if (j && j.ok) {
+                    showToast((j && j.message) || 'Price group created', 'success');
+                    this.createOpen = false;
+                    setTimeout(function() { location.reload(); }, 600);
+                } else {
+                    showToast((j && j.error) || 'Failed to create price group', 'error');
+                }
+            })
+            .catch(() => { showToast('Network error creating price group', 'error'); });
         },
         submitEdit() {
-            if (!this.editGroup.id || !this.editGroup.name.trim()) { alert('Name required'); return; }
+            if (!this.editGroup.id || !this.editGroup.name.trim()) { showToast('Name required', 'error'); return; }
             this.savingGroup = true;
             fetch('{base_url}/api/v1/admin/price-groups/update', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -601,9 +611,10 @@ function priceGroupsPage() {
                         selling_account_assignments: group.selling_account_assignments || []
                     };
                 });
+                showToast((j && j.message) || 'Price group updated', 'success');
             })
             .catch((err) => {
-                alert(err.message || 'Failed');
+                showToast(err.message || 'Failed to update price group', 'error');
             })
             .finally(() => {
                 this.savingGroup = false;

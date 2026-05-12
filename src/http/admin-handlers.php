@@ -2576,37 +2576,89 @@ function kernelHandleApiAdminUpdateUser(): void
 if (!function_exists('kernelHandleApiAdminUpdateProfile')) {
 function kernelHandleApiAdminUpdateProfile(): void
 {
-    header('Content-Type: application/json; charset=utf-8');
     header('X-Request-Id: ' . request_id());
+
+    $contentType = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? ''));
+    $accept = strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? ''));
+    $wantsJson = str_contains($contentType, 'application/json') || str_contains($accept, 'application/json');
+
+    $respond = static function (bool $ok, string $message, int $status = 200, string $redirect = '/admin/profile') use ($wantsJson): never {
+        if ($wantsJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code($status);
+            echo json_encode(['ok' => $ok, 'message' => $ok ? $message : null, 'error' => $ok ? null : $message]);
+            exit;
+        }
+
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+
+        $_SESSION['_admin_profile_notice'] = [
+            'type' => $ok ? 'success' : 'danger',
+            'message' => $message,
+        ];
+
+        app()->redirect($redirect);
+        exit;
+    };
+
     try {
         $user = app()->user();
         if (!$user || !in_array($user['role'] ?? '', ['admin', 'superadmin'], true)) {
-            http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Admin only']);
-            exit;
+            $respond(false, 'Admin only', 403, '/login');
         }
+        $input = app()->input();
         if (isset($input['csrf_token']) && !isset($input['_token'])) {
             $_POST['_token'] = (string)$input['csrf_token'];
         }
         app()->csrfEnforce();
 
         $fullName = trim((string)($input['full_name'] ?? ''));
+        $emailSupported = kernelUsersHasEmailColumn(app()->db());
+        $email = strtolower(trim((string)($input['email'] ?? '')));
         $password = (string)($input['password'] ?? '');
         $editId   = (int)($user['id'] ?? 0);
 
         if ($editId <= 0 || $fullName === '') {
-            http_response_code(422);
-            echo json_encode(['ok' => false, 'error' => 'Invalid input']);
-            exit;
+            $respond(false, 'Invalid input', 422);
+        }
+
+        if ($emailSupported) {
+            if ($email === '') {
+                $respond(false, 'Invalid input', 422);
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $respond(false, 'Invalid email address', 422);
+            }
+
+            $dupStmt = app()->db()->prepare(
+                'SELECT id
+                 FROM users
+                 WHERE email = :email
+                   AND id != :id
+                 LIMIT 1'
+            );
+            $dupStmt->execute([
+                ':email' => $email,
+                ':id' => $editId,
+            ]);
+            if ($dupStmt->fetchColumn()) {
+                $respond(false, 'Email address is already in use', 409);
+            }
         }
 
         $sql = 'UPDATE users SET full_name = :name';
         $bind = [':name' => $fullName, ':id' => $editId];
+        if ($emailSupported) {
+            $sql .= ', email = :email';
+            $bind[':email'] = $email;
+        }
         if ($password !== '') {
             $sql .= ', password_hash = :pass, token_version = COALESCE(token_version, 0) + 1';
             $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
         }
-        $sql .= ' WHERE id = :id AND role = \'admin\'';
+        $sql .= ' WHERE id = :id AND role IN (\'admin\', \'superadmin\')';
         $stmt = app()->db()->prepare($sql);
         $stmt->execute($bind);
         $affected = (int)$stmt->rowCount();
@@ -2620,19 +2672,33 @@ function kernelHandleApiAdminUpdateProfile(): void
         if (isset($_SESSION['user']) && is_array($_SESSION['user'])) {
             $_SESSION['user']['full_name'] = $fullName;
             $_SESSION['user']['name'] = $fullName;
+            if ($emailSupported) {
+                $_SESSION['user']['email'] = $email;
+            }
+        }
+
+        $refreshedUser = array_merge((array)$user, [
+            'full_name' => $fullName,
+            'name' => $fullName,
+        ]);
+        if ($emailSupported) {
+            $refreshedUser['email'] = $email;
         }
 
         // Refresh kernel cached user (App caches currentUser per request)
-        app()->setUser(array_merge((array)$user, [
-            'full_name' => $fullName,
-            'name' => $fullName,
-        ]));
+        app()->setUser($refreshedUser);
         app()->csrfRotate(true);
 
         // Re-issue auth cookie JWT so subsequent page loads show updated name.
         $newPayload = (array)$user;
         $newPayload['name'] = $fullName;
         $newPayload['full_name'] = $fullName;
+        if ($emailSupported) {
+            $newPayload['email'] = $email;
+        }
+        if ($password !== '') {
+            $newPayload['token_version'] = (int)($newPayload['token_version'] ?? 0) + 1;
+        }
 
         // Preserve tenant_id binding in re-issued token
         $resolvedTid = app()->tenant()->current();
@@ -2651,16 +2717,14 @@ function kernelHandleApiAdminUpdateProfile(): void
             'samesite' => config('cookie.samesite', 'Strict'),
         ]);
 
-        echo json_encode(['ok' => true]);
+        $respond(true, 'Profile updated successfully.');
     } catch (Throwable $e) {
         app()->log('apiAdminUpdateProfile failed: ' . $e->getMessage(), 'error', [
             'file' => $e->getFile(),
             'line' => $e->getLine(),
         ]);
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'Failed to update profile']);
+        $respond(false, 'Failed to update profile', 500);
     }
-    exit;
 }
 }
 

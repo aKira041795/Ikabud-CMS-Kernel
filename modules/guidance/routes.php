@@ -175,6 +175,7 @@ return [
         '/admin/guidance/api/users/{id}/colleges' => 'guidance:apiGuidanceSaveUserColleges',
     ],
     'PUT' => [
+        '/admin/guidance/api/profile' => 'guidance:apiGuidanceUpdateOwnProfile',
         '/admin/guidance/api/cases/{id}/notes/{noteId}' => 'guidance:apiGuidanceCaseNoteUpdate',
         '/admin/guidance/api/cases/{id}' => 'guidance:apiGuidanceUpdateCase',
         '/admin/guidance/api/users/{id}' => 'guidance:apiGuidanceUpdateUser',

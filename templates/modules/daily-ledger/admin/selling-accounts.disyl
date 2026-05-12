@@ -242,7 +242,7 @@ function sellingAccountsPage() {
             this.createOpen = true;
         },
         submitCreate() {
-            if (!this.form.code.trim() || !this.form.name.trim()) { alert('Code and name required'); return; }
+            if (!this.form.code.trim() || !this.form.name.trim()) { showToast('Code and name required', 'error'); return; }
             const payload = Object.assign({}, this.form);
             payload.assigned_branch_id = payload.assigned_branch_id ? parseInt(payload.assigned_branch_id, 10) : null;
             payload.price_group_id = payload.price_group_id ? parseInt(payload.price_group_id, 10) : null;
@@ -252,7 +252,16 @@ function sellingAccountsPage() {
                 body: JSON.stringify(payload)
             })
             .then(r => r.json())
-            .then(j => { if (j && j.ok) location.reload(); else alert((j && j.error) || 'Failed'); });
+            .then(j => {
+                if (j && j.ok) {
+                    showToast((j && j.message) || 'Selling account created', 'success');
+                    this.createOpen = false;
+                    setTimeout(function() { location.reload(); }, 600);
+                } else {
+                    showToast((j && j.error) || 'Failed to create selling account', 'error');
+                }
+            })
+            .catch(() => { showToast('Network error creating selling account', 'error'); });
         },
         openEdit(id, name, accountType, branchId, supplyType, supplyId, priceGroupId, isActive) {
             this.editForm = {
@@ -283,7 +292,16 @@ function sellingAccountsPage() {
                 body: JSON.stringify(payload)
             })
             .then(r => r.json())
-            .then(j => { if (j && j.ok) location.reload(); else alert((j && j.error) || 'Failed'); });
+            .then(j => {
+                if (j && j.ok) {
+                    showToast((j && j.message) || 'Selling account updated', 'success');
+                    this.editOpen = false;
+                    setTimeout(function() { location.reload(); }, 600);
+                } else {
+                    showToast((j && j.error) || 'Failed to update selling account', 'error');
+                }
+            })
+            .catch(() => { showToast('Network error updating selling account', 'error'); });
         }
     };
 }

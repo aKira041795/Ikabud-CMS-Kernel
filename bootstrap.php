@@ -160,6 +160,37 @@ function kernel_request_context_pop(string $key, mixed $default = null): mixed
     return $value;
 }
 
+function kernelUsersHasEmailColumn(?\PDO $db = null): bool
+{
+    static $cache = [];
+
+    if (!$db instanceof \PDO) {
+        if (!function_exists('app')) {
+            return false;
+        }
+
+        try {
+            $db = app()->db();
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    $cacheKey = spl_object_id($db);
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    try {
+        $stmt = $db->query("SHOW COLUMNS FROM users LIKE 'email'");
+        $cache[$cacheKey] = $stmt !== false && $stmt->fetch(\PDO::FETCH_ASSOC) !== false;
+    } catch (\Throwable $e) {
+        $cache[$cacheKey] = false;
+    }
+
+    return $cache[$cacheKey];
+}
+
 function kernel_csp_nonce(): string
 {
     $nonce = kernel_request_context_get('_csp_nonce');

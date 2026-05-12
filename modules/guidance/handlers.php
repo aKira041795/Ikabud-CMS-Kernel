@@ -11964,7 +11964,9 @@ function pageGuidanceProfile(): void
         ];
     }
 
-    $showAvailabilityEditor = guidanceIsPro() && in_array((string)($row['role'] ?? ''), ['counselor', 'supervisor'], true);
+    $profileRole = (string)($row['role'] ?? ($user['role'] ?? 'counselor'));
+    $canEditEmail = $profileRole !== 'admin';
+    $showAvailabilityEditor = guidanceIsPro() && in_array($profileRole, ['counselor', 'supervisor'], true);
     $availability = [];
     if ($showAvailabilityEditor && $id > 0) {
         try {
@@ -11983,9 +11985,10 @@ function pageGuidanceProfile(): void
                 'first_name' => (string)($row['first_name'] ?? ''),
                 'last_name' => (string)($row['last_name'] ?? ''),
                 'phone' => (string)($row['phone'] ?? ''),
-                'role' => (string)($row['role'] ?? ($user['role'] ?? 'counselor')),
+                'role' => $profileRole,
                 'last_login_at' => $row['last_login_at'] ?? null,
             ],
+            'can_edit_email' => $canEditEmail,
             'availability' => $availability,
             'show_availability_editor' => $showAvailabilityEditor,
         ]
@@ -12097,6 +12100,38 @@ function apiGuidanceUpdateOwnProfile(array $params = []): void
         return;
     }
 
+    $canEditEmail = (string)($currentUser['role'] ?? '') !== 'admin';
+    $email = trim((string)($input['email'] ?? ''));
+    $hasEmailChangeInput = $canEditEmail && array_key_exists('email', $input);
+
+    if ($hasEmailChangeInput) {
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            http_response_code(422);
+            if (guidanceIsHtmx()) {
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid email address.', 'type' => 'error']]));
+                echo '';
+                return;
+            }
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Invalid email address.'], JSON_UNESCAPED_SLASHES);
+            return;
+        }
+
+        $dupStmt = $db->prepare('SELECT id FROM gm_users WHERE email = ? AND id != ? AND deleted_at IS NULL LIMIT 1');
+        $dupStmt->execute([$email, $id]);
+        if ($dupStmt->fetchColumn()) {
+            http_response_code(409);
+            if (guidanceIsHtmx()) {
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'A user with this email already exists.', 'type' => 'error']]));
+                echo '';
+                return;
+            }
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'A user with this email already exists.'], JSON_UNESCAPED_SLASHES);
+            return;
+        }
+    }
+
     if ($hasPasswordChange && !password_verify($currentPassword, (string)($currentUser['password'] ?? ''))) {
         http_response_code(422);
         if (guidanceIsHtmx()) {
@@ -12111,6 +12146,10 @@ function apiGuidanceUpdateOwnProfile(array $params = []): void
 
     $updates = ['first_name = ?', 'last_name = ?', 'phone = ?'];
     $values = [$first, $last, ($phone !== '' ? $phone : null)];
+    if ($hasEmailChangeInput) {
+        $updates[] = 'email = ?';
+        $values[] = $email;
+    }
     if ($hasPasswordChange) {
         $updates[] = 'password = ?';
         $values[] = password_hash($newPassword, PASSWORD_DEFAULT);

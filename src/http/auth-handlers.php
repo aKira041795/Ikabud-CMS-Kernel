@@ -518,17 +518,27 @@ function kernelHandleAuthForgotPassword(): void
 
     try {
         $db = app()->db();
+        $hasEmailColumn = kernelUsersHasEmailColumn($db);
         $stmt = $db->prepare(
-            'SELECT id, username, email, full_name, token_version
+            $hasEmailColumn
+                ? 'SELECT id, username, email, full_name, token_version
              FROM users
              WHERE (username = :identity_username OR email = :identity_email) AND is_active = 1
              LIMIT 1'
+                : 'SELECT id, username, full_name, token_version
+             FROM users
+             WHERE username = :identity_username AND is_active = 1
+             LIMIT 1'
         );
-        $stmt->execute([
-            ':identity_username' => $identity,
-            ':identity_email' => $identity,
-        ]);
+        $bind = [':identity_username' => $identity];
+        if ($hasEmailColumn) {
+            $bind[':identity_email'] = $identity;
+        }
+        $stmt->execute($bind);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (is_array($user) && !$hasEmailColumn) {
+            $user['email'] = '';
+        }
 
         if (is_array($user)) {
             $rawToken = bin2hex(random_bytes(32));
