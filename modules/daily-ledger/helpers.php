@@ -10,6 +10,11 @@ function dlGetBaseUrl(): string
     return '/daily-ledger';
 }
 
+function dlExternalBaseUrl(): string
+{
+    return external_base_url((string)config('app.url', ''));
+}
+
 function daily_ledger_capability_handlers(): array
 {
     return [
@@ -38,6 +43,52 @@ function dlAppName(): string
     $settings = dlModuleSettings();
     $name = trim((string)($settings['app_name'] ?? ''));
     return $name !== '' ? $name : 'Daily Ledger';
+}
+
+function dlLoginPageContext(array $overrides = []): array
+{
+    $baseUrl = dlGetBaseUrl();
+    $appName = dlAppName();
+    $logoUrl = dlLogoUrl();
+    $escapedAppName = htmlspecialchars($appName, ENT_QUOTES, 'UTF-8');
+    $brandMarkHtml = $logoUrl !== ''
+        ? '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8') . '" alt="' . $escapedAppName . ' logo">'
+        : '<span>DL</span>';
+
+    return array_merge([
+        'page_title' => $appName . ' Sign In',
+        'app_name' => $appName,
+        'logo_url' => $logoUrl,
+        'favicon_url' => dlFaviconUrl(),
+        'resolved_favicon_url' => dlResolvedFaviconUrl(),
+        'brand_mark_html' => $brandMarkHtml,
+        'login_logo_html' => $brandMarkHtml,
+        'login_brand_text' => $appName,
+        'login_brand_html' => $escapedAppName,
+        'login_subtitle' => 'Sign in to continue',
+        'login_username_label' => 'Username or Email',
+        'login_endpoint' => $baseUrl . '/auth/login',
+        'login_button_text' => 'Sign In',
+        'login_loading_text' => 'Signing in...',
+        'login_forgot_url' => $baseUrl . '/forgot-password',
+        'login_forgot_text' => 'Forgot password?',
+        'gui' => [
+            'app_name' => $appName,
+            'app_name_accent' => $appName,
+            'app_name_rest' => '',
+            'font_url' => 'https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap',
+            'font_family' => 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            'color_primary' => '#b45309',
+            'color_primary_hover' => '#92400e',
+            'color_primary_light' => 'rgba(180, 83, 9, 0.18)',
+            'color_bg' => 'linear-gradient(145deg, #fff7ed 0%, #fef3c7 46%, #fde68a 100%)',
+            'color_surface' => 'rgba(255, 252, 247, 0.96)',
+            'color_border' => '#f3d7a5',
+            'color_text' => '#422006',
+            'color_text_muted' => '#7c5a32',
+            'css_overrides' => '.login-card{max-width:420px;border:1px solid rgba(180,83,9,.18);box-shadow:0 28px 80px rgba(120,53,15,.18)}.login-logo h1{font-family:"Fraunces", Georgia, serif;font-size:2.15rem;letter-spacing:-.04em}.login-logo p{max-width:30ch;margin:10px auto 0;font-size:14px;line-height:1.5}.login-mark{font-family:"Fraunces", Georgia, serif;font-size:24px;font-weight:700}.form-label{text-transform:uppercase;letter-spacing:.08em;font-size:11px}.form-input{background:rgba(255,255,255,.88)}.btn-login{box-shadow:0 14px 30px rgba(180,83,9,.22)}body::before{content:"";position:fixed;inset:0;background:radial-gradient(circle at top left, rgba(251,191,36,.22), transparent 36%),radial-gradient(circle at bottom right, rgba(217,119,6,.16), transparent 34%);pointer-events:none}',
+        ],
+    ], $overrides);
 }
 
 function dlDefaultFaviconUrl(): string
@@ -369,6 +420,8 @@ function dlNormalizeLoginRenderContext(array $context, string $template, array &
         'logo_url' => '',
         'favicon_url' => '',
         'resolved_favicon_url' => dlDefaultFaviconUrl(),
+        'login_forgot_url' => '/daily-ledger/forgot-password',
+        'login_username_label' => 'Username or Email',
     ], ['page_title', 'app_name'], $missingKeys, $typeMismatches);
 }
 
@@ -517,38 +570,58 @@ function daily_ledger_cap_kernel_auth_authenticate_1(mixed $payload, string $cap
         return null;
     }
 
+    $row = dlFindActiveUserByIdentity($username);
+    if (!is_array($row) || !password_verify($password, (string)($row['password_hash'] ?? ''))) {
+        return null;
+    }
+
+    $id = (int)($row['id'] ?? 0);
+    $role = (string)($row['role'] ?? '');
+    if ($id <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
+        return null;
+    }
+
+    return [
+        'user' => [
+            // IMPORTANT: do not collide with kernel users.id (used by audit_logs FK).
+            // The actual dl_users id is encoded in `sub` and parsed by dl_getActorUserId().
+            'id' => 0,
+            'sub' => $role . ':' . $id,
+            'username' => (string)($row['username'] ?? ''),
+            'full_name' => (string)($row['full_name'] ?? ''),
+            'role' => $role,
+        ],
+        'source' => 'daily-ledger',
+    ];
+}
+
+function dlFindActiveUserByIdentity(string $identity): ?array
+{
+    $identity = trim($identity);
+    if ($identity === '') {
+        return null;
+    }
+
+    $ctx = module('daily-ledger');
+    if (!$ctx) {
+        return null;
+    }
+
     try {
         $stmt = $ctx->db()->prepare(
-            "SELECT id, username, password_hash, full_name, role
+            "SELECT id, username, email, password_hash, full_name, role
              FROM dl_users
-             WHERE username = :username AND is_active = 1 AND deleted_at IS NULL
+             WHERE (username = :username OR email = :email)
+               AND is_active = 1
+               AND deleted_at IS NULL
              LIMIT 1"
         );
-        $stmt->execute([':username' => $username]);
+        $stmt->execute([
+            ':username' => $identity,
+            ':email' => $identity,
+        ]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!is_array($row) || !password_verify($password, (string)($row['password_hash'] ?? ''))) {
-            return null;
-        }
-
-        $id = (int)($row['id'] ?? 0);
-        $role = (string)($row['role'] ?? '');
-        if ($id <= 0 || !in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
-            return null;
-        }
-
-        return [
-            'user' => [
-                // IMPORTANT: do not collide with kernel users.id (used by audit_logs FK).
-                // The actual dl_users id is encoded in `sub` and parsed by dl_getActorUserId().
-                'id' => 0,
-                'sub' => $role . ':' . $id,
-                'username' => (string)($row['username'] ?? ''),
-                'full_name' => (string)($row['full_name'] ?? ''),
-                'role' => $role,
-            ],
-            'source' => 'daily-ledger',
-        ];
+        return is_array($row) ? $row : null;
     } catch (Throwable $e) {
         return null;
     }

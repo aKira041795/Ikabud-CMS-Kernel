@@ -77,6 +77,7 @@ moduleWithContext('guidance', static function () use ($guidance): void {
 });
 
 $routes = require BASE_PATH . '/modules/guidance/routes.php';
+loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
 
 $db = app()->db();
 $runner = new \Ikabud\Kernel\Database\MigrationRunner($db);
@@ -84,6 +85,8 @@ $runner->migrate('guidance');
 
 $uiEmail = 'guidance-reset-ui-' . bin2hex(random_bytes(4)) . '@example.test';
 $apiEmail = 'guidance-reset-api-' . bin2hex(random_bytes(4)) . '@example.test';
+$uiLocalPart = strtok($uiEmail, '@');
+$apiLocalPart = strtok($apiEmail, '@');
 
 $cleanupEmailStmt = $db->prepare('DELETE FROM gm_password_resets WHERE email IN (?, ?)');
 $cleanupUserStmt = $db->prepare('DELETE FROM gm_users WHERE email IN (?, ?)');
@@ -113,12 +116,32 @@ try {
         pageGuidanceLogin();
     }, 'GET', '/guidance/login')['body'];
     gtReset('login page renders forgot password link', str_contains($loginHtml, '/guidance/forgot-password'));
+    gtReset('login page advertises username-or-email sign-in', str_contains($loginHtml, 'Username or Email'));
 
     $forgotPageHtml = guidanceRunRequest(static function (): void {
         pageGuidanceForgotPassword();
     }, 'GET', '/guidance/forgot-password')['body'];
     gtReset('forgot password page posts to canonical API', str_contains($forgotPageHtml, '/api/v1/guidance/auth/forgot-password'));
     gtReset('forgot password page links back to login', str_contains($forgotPageHtml, '/guidance/login'));
+    gtReset('forgot password page accepts username-or-email copy', str_contains($forgotPageHtml, 'Username or Email'));
+
+    echo "\n── Identity Auth ──\n";
+    $emailAuth = guidance_cap_kernel_auth_authenticate_1([
+        'username' => '@guidance:' . $apiEmail,
+        'password' => 'startpass123',
+    ]);
+    gtReset('Guidance capability auth accepts full email', is_array($emailAuth) && (($emailAuth['source'] ?? '') === 'guidance'), json_encode($emailAuth, JSON_UNESCAPED_SLASHES));
+
+    $localPartAuth = guidance_cap_kernel_auth_authenticate_1([
+        'username' => '@guidance:' . $apiLocalPart,
+        'password' => 'startpass123',
+    ]);
+    gtReset('Guidance capability auth accepts local-part username', is_array($localPartAuth) && (($localPartAuth['source'] ?? '') === 'guidance'), json_encode($localPartAuth, JSON_UNESCAPED_SLASHES));
+
+    $loginResponse = guidanceRunRequest(static function (): void {
+        guidanceAuthLogin();
+    }, 'POST', '/guidance/api/auth/login', [], ['identity' => $apiLocalPart, 'password' => 'startpass123']);
+    gtReset('Guidance login handler accepts local-part identity', (int)($loginResponse['status'] ?? 0) === 200 && (($loginResponse['json']['ok'] ?? false) === true), json_encode($loginResponse, JSON_UNESCAPED_SLASHES));
 
     $validToken = bin2hex(random_bytes(32));
     $db->prepare(
@@ -144,7 +167,7 @@ try {
 
     $forgotResponse = guidanceRunRequest(static function (): void {
         apiGuidanceForgotPassword();
-    }, 'POST', '/api/v1/guidance/auth/forgot-password', [], ['email' => $apiEmail]);
+    }, 'POST', '/api/v1/guidance/auth/forgot-password', [], ['identity' => $apiLocalPart]);
     gtReset('forgot password API returns success', (int)($forgotResponse['status'] ?? 0) === 200 && (($forgotResponse['json']['ok'] ?? false) === true), json_encode($forgotResponse, JSON_UNESCAPED_SLASHES));
 
     $tokenRowStmt = $db->prepare('SELECT token, used_at, expires_at, created_at FROM gm_password_resets WHERE email = ? ORDER BY id DESC LIMIT 2');
@@ -239,7 +262,7 @@ $appLogRaw = (string)@file_get_contents($appLogPath);
 $errorLogRaw = (string)@file_get_contents($errorLogPath);
 $appLog = trim($appLogStart > 0 ? (string)substr($appLogRaw, $appLogStart) : $appLogRaw);
 $errorLog = trim($errorLogStart > 0 ? (string)substr($errorLogRaw, $errorLogStart) : $errorLogRaw);
-gtReset('no app.log errors', $appLog === '' || !str_contains(strtolower($appLog), 'error'), $appLog);
+gtReset('no app.log warnings/errors', $appLog === '' || preg_match('/\[(warning|error)\]/i', $appLog) !== 1, $appLog);
 gtReset('no error.log errors', $errorLog === '', $errorLog);
 
 echo "\n" . str_repeat('─', 50) . "\n";

@@ -584,42 +584,55 @@ function guidance_cap_kernel_auth_authenticate_1(mixed $payload, string $capabil
         return null;
     }
 
-    // Guidance uses email-based login in its standalone app.
-    // Here we accept either email or username in the suffix.
+    $row = guidanceFindActiveUserByIdentity($username);
+    if (!is_array($row) || empty($row['is_active'])) {
+        return null;
+    }
+
+    if (!password_verify($password, (string)($row['password'] ?? ''))) {
+        return null;
+    }
+
+    $fullName = trim((string)($row['first_name'] ?? '') . ' ' . (string)($row['last_name'] ?? ''));
+
+    $user = [
+        'id' => (int)($row['id'] ?? 0),
+        'username' => (string)($row['email'] ?? ''),
+        'full_name' => $fullName !== '' ? $fullName : (string)($row['email'] ?? ''),
+        'role' => (string)($row['role'] ?? 'counselor'),
+    ];
+
+    return ['user' => $user, 'source' => 'guidance'];
+}
+
+function guidanceFindActiveUserByIdentity(string $identity): ?array
+{
+    $identity = strtolower(trim($identity));
+    if ($identity === '') {
+        return null;
+    }
+
+    $localPart = $identity;
+    if (str_contains($identity, '@')) {
+        $parts = explode('@', $identity, 2);
+        $localPart = strtolower(trim((string)($parts[0] ?? '')));
+    }
+
     try {
         $stmt = guidanceDb()->prepare(
             "SELECT id, email, password, first_name, last_name, role, is_active\n"
             . "FROM gm_users\n"
-            . "WHERE (email = :u OR SUBSTRING_INDEX(email, '@', 1) = :u_local) AND deleted_at IS NULL\n"
+            . "WHERE (LOWER(email) = :identity OR LOWER(SUBSTRING_INDEX(email, '@', 1)) = :local_part)\n"
+            . "  AND deleted_at IS NULL\n"
             . "LIMIT 1"
         );
         $stmt->execute([
-            ':u' => $username,
-            ':u_local' => $username,
+            ':identity' => $identity,
+            ':local_part' => $localPart,
         ]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!is_array($row) || empty($row['is_active'])) {
-            return null;
-        }
-
-        if (!password_verify($password, (string)($row['password'] ?? ''))) {
-            return null;
-        }
-
-        $fullName = trim((string)($row['first_name'] ?? '') . ' ' . (string)($row['last_name'] ?? ''));
-
-        // Normalize to kernel auth user shape expectations.
-        $user = [
-            'id' => (int)($row['id'] ?? 0),
-            'username' => (string)($row['email'] ?? ''),
-            'full_name' => $fullName !== '' ? $fullName : (string)($row['email'] ?? ''),
-            'role' => (string)($row['role'] ?? 'counselor'),
-        ];
-
-        return ['user' => $user, 'source' => 'guidance'];
+        return is_array($row) ? $row : null;
     } catch (Throwable $e) {
-        // Non-fatal: auth provider returns null and lets pipeline continue.
         return null;
     }
 }

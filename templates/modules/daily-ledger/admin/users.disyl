@@ -12,7 +12,7 @@
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <form class="flex gap-2" action="{base_url}/admin/users" method="GET">
             <input type="hidden" name="tab" value="{tab}">
-            <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name, username, or role...">
+            <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name, username, email, or role...">
             <button type="submit" class="btn btn-outline">Search</button>
         </form>
         <button class="btn btn-primary" onclick="openAddUser()">+ Add User</button>
@@ -31,6 +31,7 @@
             <thead>
                 <tr>
                     <th>Username</th>
+                    <th>Email</th>
                     <th>Full Name</th>
                     <th>Role</th>
                     <th>Branch(es)</th>
@@ -42,6 +43,7 @@
                 {foreach users as u}
                 <tr>
                     <td class="font-mono text-sm text-gray-900">{u.username}</td>
+                    <td class="text-sm text-gray-600">{if u.email}{u.email}{else}<span class="text-gray-400">No email</span>{/if}</td>
                     <td class="font-medium text-gray-900">{u.full_name}</td>
                     <td>
                         <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
@@ -73,6 +75,7 @@
                         {else}
                         <button class="btn btn-sm btn-outline edit-user-btn"
                             data-id="{u.id}"
+                            data-email="{u.email}"
                             data-fullname="{u.full_name}"
                             data-role="{u.role}"
                             data-active="{u.is_active}"
@@ -96,6 +99,10 @@
         <div class="form-group">
             <label class="form-label">Username</label>
             <input class="form-input" type="text" id="add-username" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Email <span class="font-normal text-gray-500">(used for email login and password recovery)</span></label>
+            <input class="form-input" type="email" id="add-email" autocomplete="email">
         </div>
         <div class="form-group">
             <label class="form-label">Password</label>
@@ -146,6 +153,10 @@
         <div class="form-group">
             <label class="form-label">Full Name</label>
             <input class="form-input" type="text" id="edit-fullname">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Email <span class="font-normal text-gray-500">(used for email login and password recovery)</span></label>
+            <input class="form-input" type="email" id="edit-email" autocomplete="email">
         </div>
         <div class="form-group">
             <label class="form-label">Role</label>
@@ -249,6 +260,7 @@
         btn.addEventListener('click', function() {
             openEditUser(
                 parseInt(this.dataset.id, 10),
+                this.dataset.email || '',
                 this.dataset.fullname,
                 this.dataset.role,
                 parseInt(this.dataset.active, 10),
@@ -298,8 +310,9 @@
         });
     });
 
-    function openEditUser(id, fullName, role, active, branchId, branchIdsCsv) {
+    function openEditUser(id, email, fullName, role, active, branchId, branchIdsCsv) {
         document.getElementById('edit-id').value = id;
+        document.getElementById('edit-email').value = email;
         document.getElementById('edit-fullname').value = fullName;
         document.getElementById('edit-role').value = role;
         EDIT_ORIGINAL_ROLE = role;
@@ -336,6 +349,7 @@
             },
             body: JSON.stringify({
                 username: document.getElementById('add-username').value,
+                email: document.getElementById('add-email').value,
                 password: document.getElementById('add-password').value,
                 full_name: document.getElementById('add-fullname').value,
                 role: role,
@@ -370,6 +384,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 user_id: parseInt(document.getElementById('edit-id').value),
+                email: document.getElementById('edit-email').value,
                 full_name: document.getElementById('edit-fullname').value,
                 role: role,
                 branch_id: role === 'cashier' ? branchId : 0,

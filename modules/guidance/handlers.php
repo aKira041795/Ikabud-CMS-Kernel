@@ -2074,7 +2074,7 @@ function pageGuidanceLogin(): void
     ]);
 }
 
-function guidanceBuildAuthSessionPayload(array $authRow, string $fallbackEmail): array
+function guidanceBuildAuthSessionPayload(array $authRow, string $fallbackIdentity): array
 {
     $role = (string)($authRow['role'] ?? '');
     $userId = (int)($authRow['id'] ?? 0);
@@ -2085,8 +2085,8 @@ function guidanceBuildAuthSessionPayload(array $authRow, string $fallbackEmail):
     return [
         'sub' => $role . ':' . $userId,
         'id' => $userId,
-        'username' => (string)($authRow['username'] ?? $fallbackEmail),
-        'name' => (string)($authRow['full_name'] ?? $fallbackEmail),
+        'username' => (string)($authRow['username'] ?? $fallbackIdentity),
+        'name' => (string)($authRow['full_name'] ?? $fallbackIdentity),
         'role' => $role,
         'source' => 'guidance',
     ];
@@ -2098,11 +2098,11 @@ function guidanceFinalizeAuthSession(array $payload): void
     guidanceSetAuthCookie($token, (int)config('app.jwt.expiration', 86400));
 }
 
-function guidanceAuthenticateCredentials(string $email, string $password): ?array
+function guidanceAuthenticateCredentials(string $identity, string $password): ?array
 {
     try {
         $authResult = app()->cap()->call('kernel.auth.authenticate@1', [
-            'username' => '@guidance:' . $email,
+            'username' => '@guidance:' . $identity,
             'password' => $password,
         ], ['mode' => 'pipeline']);
     } catch (Throwable $e) {
@@ -2369,16 +2369,16 @@ function guidanceAuthLogin(): void
 {
     header('Content-Type: application/json; charset=utf-8');
     $input = guidanceInput();
-    $email = trim((string)($input['email'] ?? ''));
+    $identity = trim((string)($input['identity'] ?? $input['email'] ?? ''));
     $password = (string)($input['password'] ?? '');
-    if ($email === '' || $password === '') {
+    if ($identity === '' || $password === '') {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'Email and password are required.']);
+        echo json_encode(['ok' => false, 'error' => 'Username or email and password are required.']);
         return;
     }
 
     try {
-        $authRow = guidanceAuthenticateCredentials($email, $password);
+        $authRow = guidanceAuthenticateCredentials($identity, $password);
     } catch (RuntimeException $e) {
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Authentication failed.']);
@@ -2387,20 +2387,27 @@ function guidanceAuthLogin(): void
 
     if (!is_array($authRow)) {
         http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => 'Invalid email or password.']);
+        echo json_encode(['ok' => false, 'error' => 'Invalid username or email/password combination.']);
+        return;
+    }
+
+    $canonicalEmail = strtolower(trim((string)($authRow['username'] ?? '')));
+    if ($canonicalEmail === '' || !filter_var($canonicalEmail, FILTER_VALIDATE_EMAIL)) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Invalid username or email/password combination.']);
         return;
     }
 
     try {
-        $sessionPayload = guidanceBuildAuthSessionPayload($authRow, $email);
+        $sessionPayload = guidanceBuildAuthSessionPayload($authRow, $canonicalEmail);
     } catch (RuntimeException $e) {
         http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => 'Invalid email or password.']);
+        echo json_encode(['ok' => false, 'error' => 'Invalid username or email/password combination.']);
         return;
     }
 
     if (guidanceOtpEnabled('two_fa_login')) {
-        $rateKey = 'guidance_login_otp_issue:' . guidanceOtpRequestIp() . ':' . sha1(strtolower($email));
+        $rateKey = 'guidance_login_otp_issue:' . guidanceOtpRequestIp() . ':' . sha1($canonicalEmail);
         if (!guidanceOtpRateLimitAllowed($rateKey, 5, guidanceOtpTicketTtlSeconds())) {
             http_response_code(429);
             echo json_encode(['ok' => false, 'error' => 'Too many verification requests. Please wait a few minutes and try again.']);
@@ -2410,7 +2417,7 @@ function guidanceAuthLogin(): void
         try {
             $challenge = guidanceCreateOtpChallenge(
                 'guidance_login_otp',
-                $email,
+                $canonicalEmail,
                 'login',
                 [
                     'auth_payload' => $sessionPayload,
@@ -13041,9 +13048,9 @@ function pageGuidanceResetPassword(): void {
 function apiGuidanceForgotPassword(): void {
     $policy = kernel_password_reset_policy();
     $ttlMinutes = max(1, (int)$policy['token_ttl_minutes']);
-    $email = trim((string)guidanceInput('email', guidanceInput('identity', '')));
-    if ($email === '') {
-        guidancePasswordResetError('Email is required.');
+    $identity = trim((string)guidanceInput('identity', guidanceInput('email', '')));
+    if ($identity === '') {
+        guidancePasswordResetError('Username or email is required.');
         return;
     }
 
@@ -13056,18 +13063,9 @@ function apiGuidanceForgotPassword(): void {
     $successMsg = (string)$policy['forgot_success_message'];
 
     try {
-        $stmt = guidanceDb()->prepare(
-            'SELECT id, email, first_name
-             FROM gm_users
-             WHERE email = ?
-               AND deleted_at IS NULL
-               AND is_active = 1
-             LIMIT 1'
-        );
-        $stmt->execute([$email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                $user = guidanceFindActiveUserByIdentity($identity);
 
-        if (is_array($user)) {
+                if (is_array($user) && !empty($user['is_active'])) {
             $token = guidanceIssuePasswordResetToken((string)$user['email'], $ttlMinutes * 60);
             $resetUrl = guidanceExternalBaseUrl() . '/guidance/reset-password?token=' . urlencode($token);
 

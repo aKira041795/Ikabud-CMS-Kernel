@@ -5,7 +5,7 @@
     <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5">
         <div class="text-lg font-semibold text-slate-900">Add User</div>
         <div class="text-sm text-[#999] mt-1">Create a new WMS staff account with contact and access details.</div>
-        <form class="mt-5 space-y-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/users', {username: f.get('username'), email: f.get('email'), phone: f.get('phone'), password: f.get('password'), full_name: f.get('full_name'), role: f.get('role')});">
+        <form class="mt-5 space-y-3" onsubmit="event.preventDefault(); wmsPost('{base_url}/api/v1/wms/users', wmsBuildUserCreatePayload(this));">
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="full_name" placeholder="Full name" required>
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="text" name="username" placeholder="Username" required>
             <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="email" name="email" placeholder="Email address" required>
@@ -82,7 +82,7 @@
                     </tr>
                     <tr x-show="open" x-cloak>
                         <td colspan="8" class="px-4 py-4 bg-slate-50">
-                            <form class="grid grid-cols-1 md:grid-cols-2 gap-3" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/users/{wmsuser.id}', {full_name: f.get('full_name'), email: f.get('email'), phone: f.get('phone'), role: f.get('role'), is_active: f.get('is_active') ? 1 : 0, password: f.get('password')}, () => window.location.reload());">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-3" onsubmit="event.preventDefault(); wmsPost('{base_url}/api/v1/wms/users/{wmsuser.id}', wmsBuildUserUpdatePayload(this), () => window.location.reload());">
                                 <div>
                                     <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Full Name</label>
                                     <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="text" name="full_name" value="{wmsuser.full_name}" required>
@@ -145,4 +145,30 @@
         </div>
     </section>
 </div>
+
+<script>
+function wmsBuildUserCreatePayload(form) {
+    const formData = new FormData(form);
+    return {
+        username: formData.get('username'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        password: formData.get('password'),
+        full_name: formData.get('full_name'),
+        role: formData.get('role')
+    };
+}
+
+function wmsBuildUserUpdatePayload(form) {
+    const formData = new FormData(form);
+    return {
+        full_name: formData.get('full_name'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        role: formData.get('role'),
+        is_active: formData.get('is_active') ? 1 : 0,
+        password: formData.get('password')
+    };
+}
+</script>
 {/block}

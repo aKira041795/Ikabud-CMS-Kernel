@@ -60,6 +60,16 @@ function wmsRender(string $template, array $context = []): string
     return wmsCtx()->render($resolvedTemplate, $context);
 }
 
+function wmsBaseUrl(): string
+{
+    return rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+}
+
+function wmsExternalBaseUrl(): string
+{
+    return external_base_url((string)config('app.url', ''));
+}
+
 function wmsCookieName(): string
 {
     return 'wms_token';
@@ -90,16 +100,23 @@ function wmsClearAuthCookie(): void
 
 function wmsLoginPageContext(array $overrides = []): array
 {
-    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $baseUrl = wmsBaseUrl();
+    $brandText = 'WMS Console';
+    $brandMarkHtml = '<span>W</span>';
 
     return array_merge([
         'page_title' => 'WMS Sign In',
+        'brand_mark_html' => $brandMarkHtml,
+        'login_logo_html' => $brandMarkHtml,
+        'login_brand_text' => $brandText,
         'login_subtitle' => 'Sign in to manage warehouse operations',
         'login_username_label' => 'Username or Email',
         'login_endpoint' => $baseUrl . '/wms/auth/login',
         'login_button_text' => 'Access WMS',
         'login_loading_text' => 'Signing in...',
         'login_brand_html' => '<span>WMS</span> Console',
+        'login_forgot_url' => $baseUrl . '/wms/forgot-password',
+        'login_forgot_text' => 'Forgot password?',
         'gui' => [
             'app_name' => 'WMS Console',
             'app_name_accent' => 'WMS',

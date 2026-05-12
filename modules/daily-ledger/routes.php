@@ -6,6 +6,8 @@ return [
     'GET' => [
         // Module-owned login (namespaced)
         '/daily-ledger/login'                     => 'daily-ledger:pageDailyLedgerLogin',
+        '/daily-ledger/forgot-password'           => 'daily-ledger:pageDailyLedgerForgotPassword',
+        '/daily-ledger/reset-password'            => 'daily-ledger:pageDailyLedgerResetPassword',
         '/daily-ledger/logout'                    => 'daily-ledger:dailyLedgerLogout',
 
         // Namespaced pages
@@ -66,6 +68,8 @@ return [
         // Module-owned login (namespaced)
         '/daily-ledger/auth/login'                => 'daily-ledger:dailyLedgerAuthLogin',
         '/daily-ledger/auth/refresh'              => 'daily-ledger:dailyLedgerAuthRefresh',
+        '/daily-ledger/api/v1/auth/forgot-password' => 'daily-ledger:dailyLedgerForgotPassword',
+        '/daily-ledger/api/v1/auth/reset-password' => 'daily-ledger:dailyLedgerResetPassword',
 
         // Cashier: auto-save single field
         '/daily-ledger/api/v1/cashier/ledger/save'       => 'daily-ledger:apiSaveLedgerField',

@@ -20,6 +20,7 @@
     },
     "owns_tables": [
         "wms_users",
+        "wms_password_resets",
         "wms_products",
         "wms_warehouses",
         "wms_locations",
@@ -76,7 +77,8 @@
         "database/migrations/019_wms_phase75_receiving_closure.sql",
         "database/migrations/020_wms_phase76_exception_dispositions.sql",
         "database/migrations/021_wms_user_account_security.sql",
-        "database/migrations/022_wms_settings_expansion.sql"
+        "database/migrations/022_wms_settings_expansion.sql",
+        "database/migrations/024_wms_password_resets.sql"
     ],
     "events": [
         {

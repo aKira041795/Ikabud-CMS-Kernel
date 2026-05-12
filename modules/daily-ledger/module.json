@@ -7,6 +7,7 @@
     "auth_owned": {
         "users_table": "dl_users",
         "username_column": "username",
+        "email_column": "email",
         "password_column": "password_hash",
         "name_column": "full_name",
         "active_column": "is_active",
@@ -49,7 +50,8 @@
         "dl_production_runs",
         "dl_branch_product_supply_rules",
         "dl_selling_accounts",
-        "dl_delivery_variance_flags"
+        "dl_delivery_variance_flags",
+        "dl_password_resets"
     ],
     "co_owns_tables": [
         "audit_logs"
@@ -92,7 +94,8 @@
         "database/migrations/031_production_dr_numbers.sql",
         "database/migrations/032_cashier_withdrawal_received_qty.sql",
         "database/migrations/033_delivery_provenance_review.sql",
-        "database/migrations/034_add_delivery_status_indexes.sql"
+        "database/migrations/034_add_delivery_status_indexes.sql",
+        "database/migrations/035_dl_password_reset_support.sql"
     ],
     "capabilities": {
         "exposes": [

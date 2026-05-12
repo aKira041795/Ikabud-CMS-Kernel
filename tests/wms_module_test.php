@@ -138,12 +138,16 @@ try {
 echo "\n=== WMS MODULE ===\n";
 
 t('wms manifest parses', is_array($manifest), 'module.json parse failed');
-t('wms manifest owns 29 tables', count((array)($manifest['owns_tables'] ?? [])) === 29, (string)count((array)($manifest['owns_tables'] ?? [])));
-t('wms manifest has 22 migrations', count((array)($manifest['migrations'] ?? [])) === 22, (string)count((array)($manifest['migrations'] ?? [])));
-t('wms manifest contains audit_logs ownership', in_array('audit_logs', (array)($manifest['owns_tables'] ?? []), true));
+t('wms manifest owns 28 tables', count((array)($manifest['owns_tables'] ?? [])) === 28, (string)count((array)($manifest['owns_tables'] ?? [])));
+t('wms manifest has 23 migrations', count((array)($manifest['migrations'] ?? [])) === 23, (string)count((array)($manifest['migrations'] ?? [])));
+t('wms manifest contains password reset ownership', in_array('wms_password_resets', (array)($manifest['owns_tables'] ?? []), true));
 t('wms manifest declares auth cookie', ($manifest['auth_cookie'] ?? '') === 'wms_token');
 t('wms routes expose login page', isset($routes['GET']['/wms/login']) && $routes['GET']['/wms/login'] === 'wms:wmsPageLogin');
+t('wms routes expose forgot password page', isset($routes['GET']['/wms/forgot-password']) && $routes['GET']['/wms/forgot-password'] === 'wms:wmsForgotPasswordPage');
+t('wms routes expose reset password page', isset($routes['GET']['/wms/reset-password']) && $routes['GET']['/wms/reset-password'] === 'wms:wmsResetPasswordPage');
 t('wms routes expose login post', isset($routes['POST']['/wms/auth/login']) && $routes['POST']['/wms/auth/login'] === 'wms:wmsAuthLogin');
+t('wms routes expose forgot password API', isset($routes['POST']['/api/v1/wms/auth/forgot-password']) && $routes['POST']['/api/v1/wms/auth/forgot-password'] === 'wms:wmsApiForgotPassword');
+t('wms routes expose reset password API', isset($routes['POST']['/api/v1/wms/auth/reset-password']) && $routes['POST']['/api/v1/wms/auth/reset-password'] === 'wms:wmsApiResetPassword');
 t('wms routes expose dashboard', isset($routes['GET']['/wms']) && $routes['GET']['/wms'] === 'wms:wmsPageDashboard');
 t('wms routes expose stock snapshot api', isset($routes['GET']['/api/v1/wms/stock']) && $routes['GET']['/api/v1/wms/stock'] === 'wms:wmsApiStockSnapshot');
 t('wms routes expose delivery receive api', isset($routes['POST']['/api/v1/wms/deliveries/{id}/receive']) && $routes['POST']['/api/v1/wms/deliveries/{id}/receive'] === 'wms:wmsApiDeliveryReceive');
@@ -158,6 +162,7 @@ t('wms dashboard render includes key headings', str_contains($html, 'Warehouse D
 t('wms diagnostics render includes reservation proof headings', str_contains($diagnosticsHtml, 'Bridge-Linked WMS Orders') && str_contains($diagnosticsHtml, 'Recent Ecommerce Reservation Trace') && str_contains($diagnosticsHtml, 'Movement Trace'));
 t('wms login render includes WMS branding', str_contains($loginHtml, 'WMS') && str_contains($loginHtml, 'warehouse operations'));
 t('wms login render posts to WMS auth route', str_contains($loginHtml, '/wms/auth/login'));
+t('wms login render includes forgot password link', str_contains($loginHtml, '/wms/forgot-password'));
 
 $leakedDisylControlTag = '';
 if (preg_match('/\{(?:\/)?(?:if|foreach|for|block)\b[^}]*\}/', $html, $matches) === 1) {

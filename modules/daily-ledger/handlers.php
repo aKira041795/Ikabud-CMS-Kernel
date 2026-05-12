@@ -1526,28 +1526,158 @@ function dlRequireAuth(array $roles = ['cashier', 'supervisor', 'admin']): array
     return $u;
 }
 
+function dlAuthenticatedHomeRedirect(): ?string
+{
+    $user = dlUserFromRequest();
+    if (!is_array($user)) {
+        return null;
+    }
+
+    $role = (string)($user['role'] ?? '');
+    if ($role === 'cashier') {
+        return '/daily-ledger/ledger';
+    }
+
+    if ($role === 'production_in_charge') {
+        return '/daily-ledger/admin/production-output';
+    }
+
+    return '/daily-ledger/admin/dashboard';
+}
+
+function dlPasswordResetTokenHash(string $token): string
+{
+    return hash('sha256', $token);
+}
+
+function dlForgotPasswordRateLimitSnapshot(string $scope, string $value): array
+{
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+        $normalized = 'unknown';
+    }
+
+    $key = 'daily_ledger_forgot_password:' . $scope . ':' . sha1($normalized);
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    if (!is_array($cached)) {
+        return ['key' => $key, 'count' => 0];
+    }
+
+    return [
+        'key' => $key,
+        'count' => max(0, (int)($cached['count'] ?? 0)),
+    ];
+}
+
+function dlForgotPasswordRateLimitExceeded(string $ip, string $identity): bool
+{
+    $policy = kernel_password_reset_policy();
+    $ipState = dlForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown');
+    if ((int)$ipState['count'] >= (int)$policy['forgot_rate_limit_ip_max']) {
+        return true;
+    }
+
+    $identityState = dlForgotPasswordRateLimitSnapshot('identity', $identity);
+    return (int)$identityState['count'] >= (int)$policy['forgot_rate_limit_identity_max'];
+}
+
+function dlForgotPasswordRateLimitRecord(string $ip, string $identity): void
+{
+    $policy = kernel_password_reset_policy();
+    $entries = [
+        dlForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown'),
+        dlForgotPasswordRateLimitSnapshot('identity', $identity),
+    ];
+
+    foreach ($entries as $entry) {
+        app()->cache()->set(
+            'security_rate_limits',
+            (string)$entry['key'],
+            ['count' => ((int)($entry['count'] ?? 0)) + 1],
+            (int)$policy['forgot_rate_limit_window_seconds']
+        );
+    }
+}
+
+function dlResetPasswordRateLimitExceeded(string $ip): bool
+{
+    $policy = kernel_password_reset_policy();
+    $key = 'daily_ledger_reset_password:ip:' . sha1($ip !== '' ? $ip : 'unknown');
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    return is_array($cached) && (int)($cached['count'] ?? 0) >= (int)$policy['reset_rate_limit_ip_max'];
+}
+
+function dlResetPasswordRateLimitRecord(string $ip): void
+{
+    $policy = kernel_password_reset_policy();
+    $key = 'daily_ledger_reset_password:ip:' . sha1($ip !== '' ? $ip : 'unknown');
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    $count = is_array($cached) ? max(0, (int)($cached['count'] ?? 0)) : 0;
+    app()->cache()->set('security_rate_limits', $key, ['count' => $count + 1], (int)$policy['reset_rate_limit_window_seconds']);
+}
+
+function dlResetTokenIsValid(string $token): bool
+{
+    if ($token === '' || preg_match('/^[a-f0-9]{64}$/', $token) !== 1) {
+        return false;
+    }
+
+    try {
+        $stmt = dlCtx()->db()->prepare(
+            'SELECT id
+             FROM dl_password_resets
+             WHERE token_hash = :token_hash
+               AND used_at IS NULL
+               AND expires_at > NOW()
+             LIMIT 1'
+        );
+        $stmt->execute([':token_hash' => dlPasswordResetTokenHash($token)]);
+        return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function pageDailyLedgerLogin(): void
 {
-    if (dlUserFromRequest()) {
-        $role = (string)(dlUserFromRequest()['role'] ?? '');
-        if ($role === 'cashier') {
-            $redir = '/daily-ledger/ledger';
-        } elseif ($role === 'production_in_charge') {
-            $redir = '/daily-ledger/admin/production-output';
-        } else {
-            $redir = '/daily-ledger/admin/dashboard';
-        }
-        dlRedirect($redir);
+    $redirect = dlAuthenticatedHomeRedirect();
+    if (is_string($redirect) && $redirect !== '') {
+        dlRedirect($redirect);
     }
-    $loginSettings = dlModuleSettings();
-    $appName = trim((string)($loginSettings['app_name'] ?? 'Daily Ledger'));
-    if ($appName === '') {
-        $appName = 'Daily Ledger';
+
+    echo dlRender('modules/daily-ledger/pages/login.disyl', dlLoginPageContext());
+}
+
+function pageDailyLedgerForgotPassword(): void
+{
+    $redirect = dlAuthenticatedHomeRedirect();
+    if (is_string($redirect) && $redirect !== '') {
+        dlRedirect($redirect);
     }
-    echo dlRender('modules/daily-ledger/pages/login.disyl', [
-        'page_title' => $appName . ' Sign In',
-        'app_name' => $appName,
-    ]);
+
+    echo app()->render('pages/forgot-password.disyl', dlLoginPageContext([
+        'page_title' => dlAppName() . ' Forgot Password',
+        'forgot_password_endpoint' => dlGetBaseUrl() . '/api/v1/auth/forgot-password',
+        'login_page_url' => dlGetBaseUrl() . '/login',
+    ]));
+}
+
+function pageDailyLedgerResetPassword(): void
+{
+    $redirect = dlAuthenticatedHomeRedirect();
+    if (is_string($redirect) && $redirect !== '') {
+        dlRedirect($redirect);
+    }
+
+    $token = trim((string)($_GET['token'] ?? ''));
+
+    echo app()->render('pages/reset-password.disyl', dlLoginPageContext([
+        'page_title' => dlAppName() . ' Reset Password',
+        'reset_password_endpoint' => dlGetBaseUrl() . '/api/v1/auth/reset-password',
+        'login_page_url' => dlGetBaseUrl() . '/login',
+        'reset_token' => $token,
+        'token_valid' => dlResetTokenIsValid($token),
+    ]));
 }
 
 function dailyLedgerAuthLogin(): void
@@ -1564,7 +1694,7 @@ function dailyLedgerAuthLogin(): void
             'path' => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
         ]);
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'Username and password are required.']);
+        echo json_encode(['ok' => false, 'error' => 'Username or email and password are required.']);
         return;
     }
 
@@ -1594,7 +1724,7 @@ function dailyLedgerAuthLogin(): void
             'auth_user_present' => (is_array($auth) && is_array($auth['user'] ?? null)),
         ]);
         http_response_code(401);
-        echo json_encode(['ok' => false, 'error' => 'Invalid username or password.']);
+        echo json_encode(['ok' => false, 'error' => 'Invalid username or email/password combination.']);
         return;
     }
 
@@ -1627,6 +1757,167 @@ function dailyLedgerAuthLogin(): void
         'expires_in' => $tokens['expires_in'],
         'refresh_expires_in' => $tokens['refresh_expires_in'],
     ]);
+}
+
+function dailyLedgerForgotPassword(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $policy = kernel_password_reset_policy();
+    $ttlMinutes = max(1, (int)$policy['token_ttl_minutes']);
+    $input = dlInput();
+    $identity = trim((string)($input['identity'] ?? ''));
+    if ($identity === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Username or email is required.']);
+        return;
+    }
+
+    $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if (dlForgotPasswordRateLimitExceeded($requestIp, $identity)) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['forgot_rate_limit_message']]);
+        return;
+    }
+
+    dlForgotPasswordRateLimitRecord($requestIp, $identity);
+
+    try {
+        $user = dlFindActiveUserByIdentity($identity);
+        if (is_array($user)) {
+            $email = strtolower(trim((string)($user['email'] ?? '')));
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $rawToken = bin2hex(random_bytes(32));
+                $tokenHash = dlPasswordResetTokenHash($rawToken);
+
+                $clear = dlCtx()->db()->prepare(
+                    'UPDATE dl_password_resets
+                     SET used_at = NOW()
+                     WHERE user_id = :user_id
+                       AND used_at IS NULL'
+                );
+                $clear->execute([':user_id' => (int)$user['id']]);
+
+                $insert = dlCtx()->db()->prepare(
+                    'INSERT INTO dl_password_resets (user_id, token_hash, requester_ip, expires_at, created_at)
+                     VALUES (:user_id, :token_hash, :requester_ip, DATE_ADD(NOW(), INTERVAL ' . $ttlMinutes . ' MINUTE), NOW())'
+                );
+                $insert->execute([
+                    ':user_id' => (int)$user['id'],
+                    ':token_hash' => $tokenHash,
+                    ':requester_ip' => $requestIp,
+                ]);
+
+                if (function_exists('buildEmailTemplate') && function_exists('sendEmail')) {
+                    $displayName = trim((string)($user['full_name'] ?? $user['username'] ?? 'there'));
+                    $resetUrl = dlExternalBaseUrl() . '/daily-ledger/reset-password?token=' . urlencode($rawToken);
+                    $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') . ',</p>'
+                        . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your Daily Ledger password.</p>'
+                        . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
+                    $body = buildEmailTemplate('Reset Your Daily Ledger Password', $content, 'Reset Password', $resetUrl);
+                    $sent = sendEmail($email, 'Daily Ledger Password Reset', $body);
+                    if (!$sent) {
+                        write_log('daily-ledger forgot-password email dispatch failed for user_id=' . (string)$user['id'], 'error');
+                    }
+                }
+            }
+        }
+
+        echo json_encode(['ok' => true, 'message' => (string)$policy['forgot_success_message']]);
+    } catch (Throwable $e) {
+        write_log('daily-ledger forgot-password failed: ' . $e->getMessage(), 'error');
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Unable to process request right now.']);
+    }
+}
+
+function dailyLedgerResetPassword(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $policy = kernel_password_reset_policy();
+    $input = dlInput();
+    $token = trim((string)($input['token'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $confirmPassword = (string)($input['confirm_password'] ?? '');
+
+    if ($token === '' || preg_match('/^[a-f0-9]{64}$/', $token) !== 1) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['invalid_token_message']]);
+        return;
+    }
+
+    if (strlen($password) < 8) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Password must be at least 8 characters.']);
+        return;
+    }
+
+    if ($password !== $confirmPassword) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Passwords do not match.']);
+        return;
+    }
+
+    $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if (dlResetPasswordRateLimitExceeded($requestIp)) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'error' => (string)$policy['reset_rate_limit_message']]);
+        return;
+    }
+
+    dlResetPasswordRateLimitRecord($requestIp);
+
+    try {
+        $stmt = dlCtx()->db()->prepare(
+            'SELECT pr.id AS reset_id, pr.user_id
+             FROM dl_password_resets pr
+             INNER JOIN dl_users du ON du.id = pr.user_id
+             WHERE pr.token_hash = :token_hash
+               AND pr.used_at IS NULL
+               AND pr.expires_at > NOW()
+               AND du.is_active = 1
+               AND du.deleted_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute([':token_hash' => dlPasswordResetTokenHash($token)]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!is_array($row)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => (string)$policy['invalid_token_message']]);
+            return;
+        }
+
+        $updateUser = dlCtx()->db()->prepare(
+            'UPDATE dl_users
+             SET password_hash = :password_hash,
+                 updated_at = NOW()
+             WHERE id = :user_id'
+        );
+        $updateUser->execute([
+            ':password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            ':user_id' => (int)$row['user_id'],
+        ]);
+
+        $updateReset = dlCtx()->db()->prepare(
+            'UPDATE dl_password_resets
+             SET used_at = NOW()
+             WHERE user_id = :user_id
+               AND used_at IS NULL'
+        );
+        $updateReset->execute([':user_id' => (int)$row['user_id']]);
+
+        echo json_encode([
+            'ok' => true,
+            'message' => (string)$policy['reset_success_message'],
+            'redirect' => '/daily-ledger/login',
+        ]);
+    } catch (Throwable $e) {
+        write_log('daily-ledger reset-password failed: ' . $e->getMessage(), 'error');
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Unable to reset password right now.']);
+    }
 }
 
 function dailyLedgerAuthRefresh(): void
@@ -5530,7 +5821,7 @@ function handleAdminUsers(array $params = []): void
         default => ' AND u.deleted_at IS NULL AND u.is_active = 1',
     };
 
-    $sql = "SELECT u.id, u.username, u.full_name, u.role,
+    $sql = "SELECT u.id, u.username, u.email, u.full_name, u.role,
                    u.is_active, u.deleted_at,
                    CASE WHEN u.role = 'cashier'
                         THEN (SELECT MIN(ub.branch_id) FROM dl_user_branches ub WHERE ub.user_id = u.id)
@@ -5546,10 +5837,11 @@ function handleAdminUsers(array $params = []): void
             WHERE 1=1" . $statusSql;
     $bind = [];
     if ($search !== '') {
-        $sql .= ' AND (u.username LIKE :q OR u.full_name LIKE :q2 OR u.role LIKE :q3)';
+        $sql .= ' AND (u.username LIKE :q OR u.email LIKE :q2 OR u.full_name LIKE :q3 OR u.role LIKE :q4)';
         $bind[':q'] = "%{$search}%";
         $bind[':q2'] = "%{$search}%";
         $bind[':q3'] = "%{$search}%";
+        $bind[':q4'] = "%{$search}%";
     }
     $sql .= ' ORDER BY u.full_name';
     $stmt = $ctx->db()->prepare($sql);
@@ -5604,6 +5896,7 @@ function apiCreateUser(array $params = []): void
 
     $input    = $ctx->input();
     $username = trim((string)($input['username'] ?? ''));
+    $email    = strtolower(trim((string)($input['email'] ?? '')));
     $password = (string)($input['password'] ?? '');
     $fullName = trim((string)($input['full_name'] ?? ''));
     $role     = (string)($input['role'] ?? 'cashier');
@@ -5618,6 +5911,19 @@ function apiCreateUser(array $params = []): void
     if (!in_array($role, ['admin', 'supervisor', 'cashier', 'production_in_charge'], true)) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid role', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid role'], 422);
+        return;
+    }
+
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Valid email required', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Valid email required'], 422);
+        return;
+    }
+
+    $identityConflict = dlUserIdentityConflict(0, $username, $email !== '' ? $email : null);
+    if ($identityConflict !== null) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $identityConflict, 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => $identityConflict], 409);
         return;
     }
 
@@ -5646,9 +5952,9 @@ function apiCreateUser(array $params = []): void
         $hash = password_hash($password, PASSWORD_BCRYPT);
 
         $ctx->db()->prepare(
-            'INSERT INTO dl_users (username, password_hash, full_name, role, is_active)
-             VALUES (:u, :p, :n, :r, 1)'
-        )->execute([':u' => $username, ':p' => $hash, ':n' => $fullName, ':r' => $role]);
+            'INSERT INTO dl_users (username, email, password_hash, full_name, role, is_active)
+             VALUES (:u, :e, :p, :n, :r, 1)'
+        )->execute([':u' => $username, ':e' => ($email !== '' ? $email : null), ':p' => $hash, ':n' => $fullName, ':r' => $role]);
         $newUserId = (int)$ctx->db()->lastInsertId();
 
         if ($role === 'cashier') {
@@ -5665,6 +5971,7 @@ function apiCreateUser(array $params = []): void
 
         dl_auditLog('create_user', null, 'user', (string)$newUserId, null, [
             'username' => $username,
+            'email' => $email !== '' ? $email : null,
             'role' => $role,
             'branch_id' => $role === 'cashier' ? $branchId : null,
             'branch_ids' => in_array($role, ['supervisor', 'production_in_charge'], true) ? $branchIds : null,
@@ -5674,13 +5981,37 @@ function apiCreateUser(array $params = []): void
         $ctx->json(['ok' => true, 'user_id' => $newUserId]);
     } catch (\Throwable $e) {
         if (str_contains($e->getMessage(), 'Duplicate entry')) {
-            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Username already exists', 'type' => 'error']]));
-            $ctx->json(['ok' => false, 'error' => 'Username already exists'], 409);
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Username or email already exists', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Username or email already exists'], 409);
         } else {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to create user', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'Failed to create user'], 500);
         }
     }
+}
+
+function dlUserIdentityConflict(int $excludeUserId, string $username, ?string $email): ?string
+{
+    $ctx = module();
+    if (!$ctx) {
+        return 'Module context unavailable';
+    }
+
+    $stmt = $ctx->db()->prepare(
+        'SELECT id
+         FROM dl_users
+         WHERE id <> :exclude_id
+           AND ((:email <> "" AND username = :email)
+             OR (email IS NOT NULL AND email = :username))
+         LIMIT 1'
+    );
+    $stmt->execute([
+        ':exclude_id' => max(0, $excludeUserId),
+        ':email' => $email ?? '',
+        ':username' => $username,
+    ]);
+
+    return $stmt->fetch(PDO::FETCH_ASSOC) ? 'Username or email conflicts with another account.' : null;
 }
 
 function apiUpdateUser(array $params = []): void
@@ -5697,6 +6028,7 @@ function apiUpdateUser(array $params = []): void
     $input    = $ctx->input();
     $editId   = (int)($input['user_id'] ?? 0);
     $fullName = trim((string)($input['full_name'] ?? ''));
+    $email    = strtolower(trim((string)($input['email'] ?? '')));
     $role     = (string)($input['role'] ?? '');
     $isActive = (int)($input['is_active'] ?? 1);
     $password = (string)($input['password'] ?? '');
@@ -5705,6 +6037,12 @@ function apiUpdateUser(array $params = []): void
     if (!$editId || $fullName === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid input'], 422);
+        return;
+    }
+
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Valid email required', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Valid email required'], 422);
         return;
     }
 
@@ -5728,6 +6066,13 @@ function apiUpdateUser(array $params = []): void
         if (!empty($existing['deleted_at'])) {
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Restore the user before editing', 'type' => 'error']]));
             $ctx->json(['ok' => false, 'error' => 'User is deleted; restore first'], 409);
+            return;
+        }
+
+        $identityConflict = dlUserIdentityConflict($editId, '', $email !== '' ? $email : null);
+        if ($identityConflict !== null) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $identityConflict, 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => $identityConflict], 409);
             return;
         }
 
@@ -5761,8 +6106,8 @@ function apiUpdateUser(array $params = []): void
             return;
         }
 
-        $sql = 'UPDATE dl_users SET full_name = :name, is_active = :active';
-        $bind = [':name' => $fullName, ':active' => $isActive, ':id' => $editId];
+        $sql = 'UPDATE dl_users SET full_name = :name, email = :email, is_active = :active';
+        $bind = [':name' => $fullName, ':email' => ($email !== '' ? $email : null), ':active' => $isActive, ':id' => $editId];
         if ($password !== '') {
             $sql .= ', password_hash = :pass';
             $bind[':pass'] = password_hash($password, PASSWORD_BCRYPT);
@@ -5785,6 +6130,7 @@ function apiUpdateUser(array $params = []): void
         }
 
         dl_auditLog('update_user', null, 'user', (string)$editId, null, [
+            'email' => $email !== '' ? $email : null,
             'role' => $role,
             'branch_id' => $role === 'cashier' ? $branchId : null,
             'branch_ids' => in_array($role, ['supervisor', 'production_in_charge'], true) ? $branchIds : null,

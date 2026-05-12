@@ -2,9 +2,31 @@
 
 declare(strict_types=1);
 
-function tenantSafeKernelMigrationArtifacts(): array
+function tenantEntryModuleUsesKernelUsers(?string $entryModuleId): bool
 {
-    return [
+    $entryModuleId = trim((string)$entryModuleId);
+    if ($entryModuleId === '') {
+        return true;
+    }
+
+    $allModules = discoverModules();
+    $manifest = $allModules[$entryModuleId] ?? null;
+    if (!is_array($manifest)) {
+        return true;
+    }
+
+    $authOwned = $manifest['auth_owned'] ?? null;
+    if (!is_array($authOwned)) {
+        return true;
+    }
+
+    $usersTable = strtolower(trim((string)($authOwned['users_table'] ?? 'users')));
+    return $usersTable === '' || $usersTable === 'users';
+}
+
+function tenantSafeKernelMigrationArtifacts(?string $entryModuleId = null): array
+{
+    $artifacts = [
         '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
         '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
@@ -18,12 +40,18 @@ function tenantSafeKernelMigrationArtifacts(): array
         '018_audit_logs_actor_columns_ensure.sql' => BASE_PATH . '/database/migrations/018_audit_logs_actor_columns_ensure.sql',
         '019_kernel_password_resets.sql' => BASE_PATH . '/database/migrations/019_kernel_password_resets.sql',
     ];
+
+    if (!tenantEntryModuleUsesKernelUsers($entryModuleId)) {
+        unset($artifacts['015_users_token_version.sql'], $artifacts['019_kernel_password_resets.sql']);
+    }
+
+    return $artifacts;
 }
 
-function tenantSafeKernelMigrationFiles(): array
+function tenantSafeKernelMigrationFiles(?string $entryModuleId = null): array
 {
     $files = [];
-    foreach (tenantSafeKernelMigrationArtifacts() as $artifactName => $fullPath) {
+    foreach (tenantSafeKernelMigrationArtifacts($entryModuleId) as $artifactName => $fullPath) {
         if (is_file($fullPath)) {
             $files[] = $artifactName;
         }
@@ -493,9 +521,9 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
     ]);
 }
 
-function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): array
+function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null, ?string $entryModuleId = null): array
 {
-    $artifacts = tenantSafeKernelMigrationArtifacts();
+    $artifacts = tenantSafeKernelMigrationArtifacts($entryModuleId);
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
     $executed = [];
@@ -514,11 +542,11 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
     return $executed;
 }
 
-function tenantRepairKernelRuntimeArtifacts(PDO $db): array
+function tenantRepairKernelRuntimeArtifacts(PDO $db, ?string $entryModuleId = null): array
 {
     $executed = [];
 
-    foreach (tenantSafeKernelMigrationArtifacts() as $artifactName => $fullPath) {
+    foreach (tenantSafeKernelMigrationArtifacts($entryModuleId) as $artifactName => $fullPath) {
         if (tenantApplySqlArtifact($db, '_kernel', $artifactName, $fullPath)) {
             $executed[] = $artifactName;
         }
@@ -652,7 +680,7 @@ function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = n
             // Batch-load all applied migrations in one query instead of per-module SELECTs
             $allApplied = tenantAllAppliedMigrations($db);
 
-            $kernelApplied = tenantSyncKernelMigrations($db, $allApplied);
+            $kernelApplied = tenantSyncKernelMigrations($db, $allApplied, $entryModuleId !== '' ? $entryModuleId : null);
             if ($kernelApplied !== []) {
                 $results['_kernel'] = $kernelApplied;
             }
@@ -716,7 +744,7 @@ function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = nul
         $allApplied = tenantAllAppliedMigrations($db);
 
         if ($requestedModuleId === '' || $requestedModuleId === '_kernel') {
-            $kernelApplied = tenantSyncKernelMigrations($db, $allApplied);
+            $kernelApplied = tenantSyncKernelMigrations($db, $allApplied, $entryModuleId !== '' ? $entryModuleId : null);
             if ($kernelApplied !== []) {
                 $results['_kernel'] = $kernelApplied;
             }
@@ -823,7 +851,7 @@ function tenantMigrationSyncPlanFingerprint(int $tenantId, ?string $entryModuleI
     return hash('sha256', serialize([
         'tenant_id' => $tenantId,
         'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
-        'kernel' => tenantSafeKernelMigrationFiles(),
+        'kernel' => tenantSafeKernelMigrationFiles($entryModuleId !== '' ? $entryModuleId : null),
         'modules' => $modules,
     ]));
 }

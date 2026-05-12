@@ -5,37 +5,40 @@
     <section class="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
         <div>
             <div class="text-lg font-semibold text-slate-900">Account Details</div>
-            <div class="text-sm text-[#999] mt-1">Your active WMS login profile and contact information.</div>
+            <div class="text-sm text-[#999] mt-1">Update your active WMS login profile and contact information.</div>
         </div>
-        <dl class="space-y-3 text-sm">
+        <form class="space-y-4" onsubmit="event.preventDefault(); const f = new FormData(this); wmsPost('{base_url}/api/v1/wms/account', {full_name: f.get('full_name'), email: f.get('email'), phone: f.get('phone')}, () => window.location.reload());">
             <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-500">Full Name</dt>
-                <dd class="mt-1 font-medium text-slate-900">{account.full_name}</dd>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Full Name</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="text" name="full_name" value="{account.full_name}" required>
             </div>
             <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-500">Username</dt>
-                <dd class="mt-1 font-mono text-slate-700">@{account.username}</dd>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Username</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-500 font-mono" type="text" value="@{account.username}" readonly>
             </div>
             <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-500">Email</dt>
-                <dd class="mt-1 text-slate-700">{account.email}</dd>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Email</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="email" name="email" value="{account.email}" required>
             </div>
             <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-500">Phone</dt>
-                <dd class="mt-1 text-slate-700">{account.phone | default:'-'}</dd>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Phone</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" type="tel" name="phone" value="{account.phone | default:''}" placeholder="Phone number">
             </div>
             <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-500">Role</dt>
-                <dd class="mt-1 text-slate-700">{account.role}</dd>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Role</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-500" type="text" value="{account.role}" readonly>
             </div>
             <div>
-                <dt class="text-xs uppercase tracking-wide text-slate-500">Joined</dt>
-                <dd class="mt-1 text-slate-700">{account.created_at}</dd>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Joined</label>
+                <input class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-500" type="text" value="{account.created_at}" readonly>
             </div>
-        </dl>
-        {if user.role == 'admin'}
-        <a href="{base_url}/wms/users" class="inline-flex items-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">Back to Users</a>
-        {/if}
+            <div class="flex flex-wrap items-center gap-3 pt-1">
+                <button class="rounded-xl bg-wms-600 text-white px-4 py-2 text-sm font-medium" type="submit">Save profile</button>
+                {if user.role == 'admin'}
+                <a href="{base_url}/wms/users" class="inline-flex items-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">Back to Users</a>
+                {/if}
+            </div>
+        </form>
     </section>
 
     <section class="xl:col-span-2 bg-white border border-slate-200 rounded-2xl p-5">

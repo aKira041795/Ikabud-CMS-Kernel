@@ -203,6 +203,73 @@ function wmsChangeOwnPassword(int $userId, string $currentPassword, string $newP
     wmsAudit('wms.user.password_changed', 'wms_users', (string)$userId, null, ['actor_id' => $userId]);
 }
 
+function wmsAccountAuthPayload(array $account): array
+{
+    $payload = [
+        'sub' => 'wms:' . (int)($account['id'] ?? 0),
+        'id' => (int)($account['id'] ?? 0),
+        'username' => (string)($account['username'] ?? ''),
+        'name' => (string)($account['full_name'] ?? ($account['username'] ?? '')),
+        'email' => (string)($account['email'] ?? ''),
+        'role' => (string)($account['role'] ?? 'viewer'),
+        'source' => 'wms',
+    ];
+
+    $tenantId = app()->tenant()->current();
+    if ($tenantId !== null) {
+        $payload['tenant_id'] = $tenantId;
+    }
+
+    return $payload;
+}
+
+function wmsRefreshOwnAuthSession(array $account): void
+{
+    $token = app()->jwt()->generate(wmsAccountAuthPayload($account));
+    wmsSetAuthCookie($token, (int)config('app.jwt.expiration', 86400));
+}
+
+function wmsUpdateOwnAccount(int $userId, array $input): array
+{
+    $existing = wmsUserFindOrFail($userId);
+    if ((int)($existing['is_active'] ?? 0) !== 1) {
+        throw new RuntimeException('Inactive accounts cannot be updated.');
+    }
+
+    $fullName = wmsSanitizeString($input['full_name'] ?? ($existing['full_name'] ?? ''), 255);
+    $email = wmsUserSanitizeEmail($input['email'] ?? ($existing['email'] ?? ''));
+    $phone = array_key_exists('phone', $input)
+        ? wmsUserSanitizePhone($input['phone'])
+        : wmsUserSanitizePhone($existing['phone'] ?? '');
+
+    if ($fullName === '') {
+        throw new RuntimeException('Full name is required.');
+    }
+
+    wmsUserAssertUnique((string)($existing['username'] ?? ''), $email, $userId);
+
+    wmsDb()->execute(
+        'UPDATE wms_users SET full_name = ?, email = ?, phone = ?, updated_at = NOW() WHERE id = ?',
+        [$fullName, $email, $phone, $userId]
+    );
+
+    $updated = wmsUserAccountRecord($userId);
+    if ($updated === null) {
+        throw new RuntimeException('Account not found.');
+    }
+
+    wmsAudit('wms.account.updated', 'wms_users', (string)$userId, $existing, [
+        'actor_id' => $userId,
+        'full_name' => $fullName,
+        'email' => $email,
+        'phone' => $phone,
+    ]);
+
+    wmsRefreshOwnAuthSession($updated);
+
+    return $updated;
+}
+
 function wmsApiUsersList(array $params = []): void
 {
     wmsResponseGuard(function (): void {
@@ -254,5 +321,18 @@ function wmsApiAccountPasswordUpdate(array $params = []): void
         );
 
         wmsJsonOk(['message' => 'Password updated successfully.']);
+    });
+}
+
+function wmsApiAccountUpdate(array $params = []): void
+{
+    wmsResponseGuard(function (): void {
+        $actor = wmsRequireAnyRole('admin', 'supervisor', 'viewer');
+        $account = wmsUpdateOwnAccount((int)($actor['id'] ?? 0), (array)wmsInput());
+
+        wmsJsonOk([
+            'message' => 'Account updated successfully.',
+            'account' => $account,
+        ]);
     });
 }
