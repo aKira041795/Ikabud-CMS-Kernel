@@ -34,21 +34,34 @@ define('CMS_ROLES', [
 
 app()->hooks()->on('kernel.request.before_dispatch', static function (array $context): array {
     $dispatchPath = kernelRequestDispatchPath($context);
-    if ($dispatchPath !== '/cms/login' && $dispatchPath !== '/cms/register') {
+    if (!in_array($dispatchPath, ['/cms/login', '/cms/register', '/cms/admin'], true)) {
         return $context;
     }
 
     $user = cmsCtxUser();
-    if (is_array($user) && ($user['source'] ?? '') === 'cms') {
-        $target = kernelResolveAuthenticatedHomeRedirect($user, true) ?? '/cms/admin';
-        return kernelRequestDispatchRedirect($context, $target);
+    if (!is_array($user)) {
+        return $context;
     }
 
-    if (is_array($user) && ($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'admin') {
-        return kernelRequestDispatchRedirect($context, '/cms/admin');
+    $source = (string)($user['source'] ?? '');
+    $role = (string)($user['role'] ?? '');
+    $isCmsUser = $source === 'cms';
+    $isKernelDashboardUser = $source === 'kernel' && in_array($role, ['admin', 'superadmin'], true);
+
+    if (!$isCmsUser && !$isKernelDashboardUser) {
+        return $context;
     }
 
-    return $context;
+    $target = kernelResolveAuthenticatedHomeRedirect($user, false);
+    if (!is_string($target) || $target === '') {
+        $target = '/cms/admin';
+    }
+
+    if ($target === $dispatchPath) {
+        return $context;
+    }
+
+    return kernelRequestDispatchRedirect($context, $target);
 }, 50);
 
 function cmsRuntimeTenantId(): int

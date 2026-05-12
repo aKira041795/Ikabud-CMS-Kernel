@@ -411,6 +411,7 @@ final class CapabilityBus implements CapabilityBusContract
         $value = $payload;
         $changed = false;
         $strict = (bool)($options['strict_pipeline'] ?? false);
+        $stopOnFirstSuccess = $capabilityId === 'kernel.auth.authenticate@1';
         foreach ($providers as $p) {
             if (!$this->supportsMode($p, 'pipeline')) {
                 continue;
@@ -421,6 +422,9 @@ final class CapabilityBus implements CapabilityBusContract
                 if ($out !== null) {
                     $value = $out;
                     $changed = true;
+                    if ($stopOnFirstSuccess) {
+                        break;
+                    }
                 }
             } catch (\Throwable $e) {
                 if ($strict) {

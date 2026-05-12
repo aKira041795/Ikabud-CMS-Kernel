@@ -18,7 +18,15 @@ class KernelPDOStatement extends PDOStatement
     public function execute(?array $params = null): bool
     {
         $start = microtime(true);
-        $result = parent::execute($params);
+        try {
+            $result = parent::execute($params);
+        } catch (\Throwable $e) {
+            if (!KernelPDO::tryRepairCurrentConnectionForSql($this->queryString, $e)) {
+                throw $e;
+            }
+            $start = microtime(true);
+            $result = parent::execute($params);
+        }
 
         if (function_exists('app')) {
             try {

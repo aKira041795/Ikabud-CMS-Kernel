@@ -7,12 +7,13 @@ function cmsLoginBridge(array $params = []): void
     // If already authenticated as CMS (or kernel admin), go straight to the dashboard (or shop if no access).
     $u = cmsCtxUser();
     if (is_array($u)) {
-        if (($u['source'] ?? '') === 'kernel' && ($u['role'] ?? '') === 'admin') {
-            cmsRedirect('/cms/admin');
+        if (($u['source'] ?? '') === 'kernel' && in_array((string)($u['role'] ?? ''), ['admin', 'superadmin'], true)) {
+            $target = kernelResolveAuthenticatedHomeRedirect($u, false) ?? '/cms/admin';
+            cmsRedirect($target);
             return;
         }
         if (($u['source'] ?? '') === 'cms') {
-            $target = kernelResolveAuthenticatedHomeRedirect($u, true) ?? '/cms/admin';
+            $target = kernelResolveAuthenticatedHomeRedirect($u, false) ?? '/cms/admin';
             cmsRedirect($target);
             return;
         }

@@ -141,6 +141,10 @@
                 username: document.getElementById('username').value,
                 password: document.getElementById('password').value
             };
+            var preferredSource = '{if login_preferred_source}{login_preferred_source}{/if}';
+            if (preferredSource !== '') {
+                data.preferred_source = preferredSource;
+            }
 
             fetch(loginEndpoint, {
                 method: 'POST',

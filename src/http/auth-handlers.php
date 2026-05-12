@@ -17,6 +17,7 @@ function kernelHandleAuthLogin(): void
     $input = app()->input();
     $username = trim((string) ($input['username'] ?? ''));
     $password = (string) ($input['password'] ?? '');
+    $preferredSource = trim((string)($input['preferred_source'] ?? ''));
 
     if ($username === '' || $password === '') {
         http_response_code(422);
@@ -30,10 +31,15 @@ function kernelHandleAuthLogin(): void
     // Capability-based authentication pipeline.
     // Providers return: ['user'=>array, 'source'=>string] or null.
     try {
+        $authOptions = ['mode' => 'pipeline', 'strict_pipeline' => false];
+        if ($preferredSource === 'kernel') {
+            $authOptions['provider'] = 'kernel';
+        }
+
         $authResult = app()->cap()->call('kernel.auth.authenticate@1', [
             'username' => $username,
             'password' => $password,
-        ], ['mode' => 'pipeline', 'strict_pipeline' => false]);
+        ], $authOptions);
 
         if (is_array($authResult) && isset($authResult['user']) && is_array($authResult['user'])) {
             $authRow = $authResult['user'];

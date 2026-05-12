@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-function tenantSafeKernelMigrationFiles(): array
+function tenantSafeKernelMigrationArtifacts(): array
 {
-    $artifacts = [
+    return [
         '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
         '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
@@ -18,9 +18,12 @@ function tenantSafeKernelMigrationFiles(): array
         '018_audit_logs_actor_columns_ensure.sql' => BASE_PATH . '/database/migrations/018_audit_logs_actor_columns_ensure.sql',
         '019_kernel_password_resets.sql' => BASE_PATH . '/database/migrations/019_kernel_password_resets.sql',
     ];
+}
 
+function tenantSafeKernelMigrationFiles(): array
+{
     $files = [];
-    foreach ($artifacts as $artifactName => $fullPath) {
+    foreach (tenantSafeKernelMigrationArtifacts() as $artifactName => $fullPath) {
         if (is_file($fullPath)) {
             $files[] = $artifactName;
         }
@@ -492,18 +495,7 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
 
 function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): array
 {
-    $artifacts = [
-        '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
-        '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
-        '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
-        '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',
-        '011_integration_bridge_hardening.sql' => BASE_PATH . '/database/migrations/011_integration_bridge_hardening.sql',
-        '012_kernel_trigger_execution_history.sql' => BASE_PATH . '/database/migrations/012_kernel_trigger_execution_history.sql',
-        '013_kernel_trigger_execution_history_module_idx.sql' => BASE_PATH . '/database/migrations/013_kernel_trigger_execution_history_module_idx.sql',
-        '014_integration_modes.sql' => BASE_PATH . '/database/migrations/014_integration_modes.sql',
-        '017_audit_logs_actor_module.sql' => BASE_PATH . '/database/migrations/017_audit_logs_actor_module.sql',
-        '018_audit_logs_actor_columns_ensure.sql' => BASE_PATH . '/database/migrations/018_audit_logs_actor_columns_ensure.sql',
-    ];
+    $artifacts = tenantSafeKernelMigrationArtifacts();
 
     $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
     $executed = [];
@@ -513,34 +505,59 @@ function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): a
             continue;
         }
 
-        $sql = (string) file_get_contents($fullPath);
-        if (trim($sql) === '') {
-            continue;
+        if (tenantApplySqlArtifact($db, '_kernel', $artifactName, $fullPath)) {
+            $applied[$artifactName] = true;
+            $executed[] = $artifactName;
         }
-
-        $sql = preg_replace('/--.*$/m', '', $sql) ?? $sql;
-        $statements = array_filter(array_map('trim', explode(';', $sql)), static fn(string $statement): bool => $statement !== '');
-        foreach ($statements as $statement) {
-            try {
-                $db->exec($statement);
-            } catch (PDOException $e) {
-                $mysqlCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : 0;
-                $idempotentCodes = [
-                    1050,
-                    1060,
-                    1061,
-                ];
-                if (!in_array($mysqlCode, $idempotentCodes, true)) {
-                    throw $e;
-                }
-            }
-        }
-        tenantRecordModuleMigration($db, '_kernel', $artifactName);
-        $applied[$artifactName] = true;
-        $executed[] = $artifactName;
     }
 
     return $executed;
+}
+
+function tenantRepairKernelRuntimeArtifacts(PDO $db): array
+{
+    $executed = [];
+
+    foreach (tenantSafeKernelMigrationArtifacts() as $artifactName => $fullPath) {
+        if (tenantApplySqlArtifact($db, '_kernel', $artifactName, $fullPath)) {
+            $executed[] = $artifactName;
+        }
+    }
+
+    return $executed;
+}
+
+function tenantApplySqlArtifact(PDO $db, string $moduleId, string $artifactName, string $fullPath): bool
+{
+    if (!is_file($fullPath)) {
+        return false;
+    }
+
+    $sql = (string) file_get_contents($fullPath);
+    if (trim($sql) === '') {
+        return false;
+    }
+
+    $sql = preg_replace('/--.*$/m', '', $sql) ?? $sql;
+    $statements = array_filter(array_map('trim', explode(';', $sql)), static fn(string $statement): bool => $statement !== '');
+    foreach ($statements as $statement) {
+        try {
+            $db->exec($statement);
+        } catch (PDOException $e) {
+            $mysqlCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : 0;
+            $idempotentCodes = [
+                1050,
+                1060,
+                1061,
+            ];
+            if (!in_array($mysqlCode, $idempotentCodes, true)) {
+                throw $e;
+            }
+        }
+    }
+
+    tenantRecordModuleMigration($db, $moduleId, $artifactName);
+    return true;
 }
 
 function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey, ?array $manifest = null, string $trackingPrefix = '', ?array $preloadedApplied = null): array

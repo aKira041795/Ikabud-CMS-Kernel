@@ -862,6 +862,10 @@ function write_log(string $message, string $level = 'error', array $context = []
             }
         }
 
+        if ($role === 'admin' && $source === 'kernel') {
+            return '/admin/platform';
+        }
+
         return $fallbackToRoot ? '/' : null;
     }
 

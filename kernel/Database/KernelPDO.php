@@ -20,6 +20,25 @@ final class KernelPDO extends PDO
     /** @var array<string, bool> */
     private static array $moduleOriginCache = [];
 
+    /** @var array<string, bool> */
+    private static array $runtimeRepairAttempts = [];
+
+    /** @var string[] */
+    private const SELF_HEAL_RUNTIME_TABLES = [
+        'audit_logs',
+        'rate_limits',
+        'refresh_tokens',
+        'kernel_password_resets',
+        'workflow_definitions',
+        'workflow_instances',
+        'workflow_transition_logs',
+        'kernel_events',
+        'kernel_event_triggers',
+        'kernel_integrations',
+        'kernel_integration_logs',
+        'kernel_trigger_executions',
+    ];
+
     /**
      * Typed escalation counter — replaces the open string-based
      * '_kernel_db_unguarded' request-context flag (removed in 4.0.0). Only
@@ -82,7 +101,16 @@ final class KernelPDO extends PDO
     public function prepare(string $query, array $options = []): PDOStatement|false
     {
         $this->enforceModuleAccess($query);
-        return parent::prepare($query, $options);
+
+        try {
+            return parent::prepare($query, $options);
+        } catch (\Throwable $e) {
+            if (!$this->tryRepairRuntimeArtifacts($query, $e)) {
+                throw $e;
+            }
+
+            return parent::prepare($query, $options);
+        }
     }
 
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
@@ -90,10 +118,22 @@ final class KernelPDO extends PDO
         $this->enforceModuleAccess($query);
 
         $start = microtime(true);
-        if ($fetchMode === null) {
-            $res = parent::query($query);
-        } else {
-            $res = parent::query($query, $fetchMode, ...$fetchModeArgs);
+        $runQuery = function () use ($query, $fetchMode, $fetchModeArgs): PDOStatement|false {
+            if ($fetchMode === null) {
+                return parent::query($query);
+            }
+
+            return parent::query($query, $fetchMode, ...$fetchModeArgs);
+        };
+
+        try {
+            $res = $runQuery();
+        } catch (\Throwable $e) {
+            if (!$this->tryRepairRuntimeArtifacts($query, $e)) {
+                throw $e;
+            }
+            $start = microtime(true);
+            $res = $runQuery();
         }
 
         if (function_exists('app')) {
@@ -108,7 +148,15 @@ final class KernelPDO extends PDO
         $this->enforceModuleAccess($statement);
 
         $start = microtime(true);
-        $res = parent::exec($statement);
+        try {
+            $res = parent::exec($statement);
+        } catch (\Throwable $e) {
+            if (!$this->tryRepairRuntimeArtifacts($statement, $e)) {
+                throw $e;
+            }
+            $start = microtime(true);
+            $res = parent::exec($statement);
+        }
 
         if (function_exists('app')) {
             try { app()->events()->fire('kernel.database.query.after', ['sql' => $statement, 'duration_ms' => (microtime(true) - $start) * 1000, 'source' => 'pdo_exec']); } catch (\Throwable $ignored) {}
@@ -189,5 +237,113 @@ final class KernelPDO extends PDO
             // Re-throw so unauthorized access fails loudly and safely.
             throw $e;
         }
+    }
+
+    public static function tryRepairCurrentConnectionForSql(string $sql, \Throwable $error): bool
+    {
+        if (!function_exists('app')) {
+            return false;
+        }
+
+        try {
+            $db = app()->db();
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if (!$db instanceof PDO) {
+            return false;
+        }
+
+        return self::tryRepairRuntimeArtifactsOnConnection($db, $sql, $error);
+    }
+
+    private function tryRepairRuntimeArtifacts(string $sql, \Throwable $error): bool
+    {
+        return self::tryRepairRuntimeArtifactsOnConnection($this, $sql, $error);
+    }
+
+    private static function tryRepairRuntimeArtifactsOnConnection(PDO $db, string $sql, \Throwable $error): bool
+    {
+        $table = self::repairableKernelRuntimeTable($sql, $error);
+        if ($table === null) {
+            return false;
+        }
+
+        if (!function_exists('tenantRepairKernelRuntimeArtifacts') && (!function_exists('tenantAllAppliedMigrations') || !function_exists('tenantSyncKernelMigrations'))) {
+            return false;
+        }
+
+        $attemptKey = spl_object_id($db) . ':' . $table;
+        if (isset(self::$runtimeRepairAttempts[$attemptKey])) {
+            return false;
+        }
+        self::$runtimeRepairAttempts[$attemptKey] = true;
+
+        if (function_exists('write_log')) {
+            write_log('Attempting kernel runtime migration self-heal', 'warning', [
+                'table' => $table,
+                'sqlstate' => $error instanceof \PDOException ? (string)$error->getCode() : null,
+                'driver_code' => $error instanceof \PDOException ? (int)($error->errorInfo[1] ?? 0) : 0,
+            ]);
+        }
+
+        self::kernelEscalationEnter();
+        try {
+            if (function_exists('tenantRepairKernelRuntimeArtifacts')) {
+                tenantRepairKernelRuntimeArtifacts($db);
+            } else {
+                $applied = tenantAllAppliedMigrations($db);
+                tenantSyncKernelMigrations($db, is_array($applied) ? $applied : null);
+            }
+            return true;
+        } catch (\Throwable $syncError) {
+            if (function_exists('write_log')) {
+                write_log('Kernel runtime migration self-heal failed', 'error', [
+                    'table' => $table,
+                    'error' => $syncError->getMessage(),
+                ]);
+            }
+            return false;
+        } finally {
+            self::kernelEscalationLeave();
+        }
+    }
+
+    private static function repairableKernelRuntimeTable(string $sql, \Throwable $error): ?string
+    {
+        if (!self::isRepairableSchemaDrift($error)) {
+            return null;
+        }
+
+        $normalizedSql = strtolower(str_replace('`', '', $sql));
+        foreach (self::SELF_HEAL_RUNTIME_TABLES as $table) {
+            if (preg_match('/\\b' . preg_quote($table, '/') . '\\b/', $normalizedSql)) {
+                return $table;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isRepairableSchemaDrift(\Throwable $error): bool
+    {
+        $driverCode = 0;
+        $sqlState = '';
+        if ($error instanceof \PDOException) {
+            $sqlState = strtoupper((string)$error->getCode());
+            $driverCode = (int)($error->errorInfo[1] ?? 0);
+        }
+
+        if ($driverCode === 1146 || $driverCode === 1054) {
+            return true;
+        }
+
+        if ($sqlState === '42S02' || $sqlState === '42S22') {
+            return true;
+        }
+
+        $message = strtolower($error->getMessage());
+        return str_contains($message, "doesn't exist") || str_contains($message, 'unknown column');
     }
 }

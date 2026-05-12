@@ -5,8 +5,8 @@ declare(strict_types=1);
 function cmsForgotPasswordPage(array $params = []): void
 {
     $u = cmsCtxUser();
-    if (is_array($u) && (($u['source'] ?? '') === 'cms' || (($u['source'] ?? '') === 'kernel' && ($u['role'] ?? '') === 'admin'))) {
-        cmsRedirect('/cms/admin');
+    if (is_array($u) && (($u['source'] ?? '') === 'cms' || (($u['source'] ?? '') === 'kernel' && in_array((string)($u['role'] ?? ''), ['admin', 'superadmin'], true)))) {
+        cmsRedirect(kernelResolveAuthenticatedHomeRedirect($u, false) ?? '/cms/admin');
         return;
     }
 
@@ -18,8 +18,8 @@ function cmsForgotPasswordPage(array $params = []): void
 function cmsResetPasswordPage(array $params = []): void
 {
     $u = cmsCtxUser();
-    if (is_array($u) && (($u['source'] ?? '') === 'cms' || (($u['source'] ?? '') === 'kernel' && ($u['role'] ?? '') === 'admin'))) {
-        cmsRedirect('/cms/admin');
+    if (is_array($u) && (($u['source'] ?? '') === 'cms' || (($u['source'] ?? '') === 'kernel' && in_array((string)($u['role'] ?? ''), ['admin', 'superadmin'], true)))) {
+        cmsRedirect(kernelResolveAuthenticatedHomeRedirect($u, false) ?? '/cms/admin');
         return;
     }
 

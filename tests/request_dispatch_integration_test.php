@@ -312,6 +312,71 @@ t(
     json_encode($rootRedirect['context'])
 );
 
+$kernelConflictUsername = 'dispatch-kernel-admin-' . bin2hex(random_bytes(4));
+$kernelConflictPassword = 'DispatchKernel!123';
+$kernelConflictEmail = $kernelConflictUsername . '@example.com';
+$dispatchDb->prepare('DELETE FROM users WHERE username = ?')->execute([$kernelConflictUsername]);
+$dispatchDb->prepare('DELETE FROM cms_users WHERE username = ? OR email = ?')->execute([$kernelConflictUsername, $kernelConflictEmail]);
+$dispatchDb->prepare(
+    'INSERT INTO users (username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, 1)'
+)->execute([
+    $kernelConflictUsername,
+    password_hash($kernelConflictPassword, PASSWORD_DEFAULT),
+    'Dispatch Kernel Admin',
+    'admin',
+]);
+$dispatchDb->prepare(
+    'INSERT INTO cms_users (username, email, password_hash, display_name, role, is_active, created_at)
+     VALUES (?, ?, ?, ?, ?, 1, NOW())'
+)->execute([
+    $kernelConflictUsername,
+    $kernelConflictEmail,
+    password_hash($kernelConflictPassword, PASSWORD_DEFAULT),
+    'Dispatch CMS Admin',
+    'administrator',
+]);
+$kernelPreferredLogin = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/api/v1/auth/login',
+        'HTTP_HOST' => 'applicationos.test',
+        'CONTENT_TYPE' => 'application/json',
+    ],
+    null,
+    null,
+    json_encode([
+        'username' => $kernelConflictUsername,
+        'password' => $kernelConflictPassword,
+        'preferred_source' => 'kernel',
+    ], JSON_UNESCAPED_SLASHES)
+);
+t(
+    'kernel auth login prefers the kernel provider over a conflicting CMS identity',
+    str_contains($kernelPreferredLogin['body'] ?? '', '"redirect":"/admin/platform"'),
+    $kernelPreferredLogin['raw']
+);
+$kernelDefaultLogin = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/api/v1/auth/login',
+        'HTTP_HOST' => 'applicationos.test',
+        'CONTENT_TYPE' => 'application/json',
+    ],
+    null,
+    null,
+    json_encode([
+        'username' => $kernelConflictUsername,
+        'password' => $kernelConflictPassword,
+    ], JSON_UNESCAPED_SLASHES)
+);
+t(
+    'kernel auth login defaults to the highest-priority successful provider for conflicting identities',
+    str_contains($kernelDefaultLogin['body'] ?? '', '"redirect":"/admin/platform"'),
+    $kernelDefaultLogin['raw']
+);
+$dispatchDb->prepare('DELETE FROM cms_users WHERE username = ? OR email = ?')->execute([$kernelConflictUsername, $kernelConflictEmail]);
+$dispatchDb->prepare('DELETE FROM users WHERE username = ?')->execute([$kernelConflictUsername]);
+
 $loginRedirect = runRequestThroughEntrypoint(
     [
         'REQUEST_METHOD' => 'GET',
@@ -330,6 +395,26 @@ t(
     'public entrypoint redirects authenticated kernel superadmin away from login',
     ($loginRedirect['context']['redirect'] ?? '') === '/superadmin/settings',
     json_encode($loginRedirect['context'])
+);
+
+$kernelAdminLoginRedirect = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/login',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    [
+        'id' => 2,
+        'username' => 'platformadmin',
+        'name' => 'Platform Admin',
+        'role' => 'admin',
+        'source' => 'kernel',
+    ]
+);
+t(
+    'public entrypoint redirects authenticated kernel admin away from login',
+    ($kernelAdminLoginRedirect['context']['redirect'] ?? '') === '/admin/platform',
+    json_encode($kernelAdminLoginRedirect['context'])
 );
 
 $authenticatedRootFallback = runRequestThroughEntrypoint(
@@ -399,6 +484,26 @@ t(
     json_encode($cmsRegisterRedirect['context'])
 );
 
+$kernelAdminCmsRedirect = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/cms/admin',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    [
+        'id' => 12,
+        'username' => 'platformadmin',
+        'name' => 'Platform Admin',
+        'role' => 'admin',
+        'source' => 'kernel',
+    ]
+);
+t(
+    'public entrypoint redirects kernel admin away from CMS admin dashboard',
+    ($kernelAdminCmsRedirect['context']['redirect'] ?? '') === '/admin/platform',
+    json_encode($kernelAdminCmsRedirect['context'])
+);
+
 $storeRedirectUser = [
     'id' => 1211,
     'username' => 'storeowner',
@@ -425,6 +530,19 @@ t(
     'authenticated home resolver prefers the store portal for a store-assigned CMS user',
     str_starts_with((string)kernelResolveAuthenticatedHomeRedirect($storeRedirectUser, true), '/ecommerce/store-admin/'),
     (string)kernelResolveAuthenticatedHomeRedirect($storeRedirectUser, true)
+);
+
+$kernelAdminRedirectUser = [
+    'id' => 14,
+    'username' => 'platformadmin',
+    'name' => 'Platform Admin',
+    'role' => 'admin',
+    'source' => 'kernel',
+];
+t(
+    'authenticated home resolver falls back to the kernel platform dashboard for kernel admins',
+    (string)kernelResolveAuthenticatedHomeRedirect($kernelAdminRedirectUser, true) === '/admin/platform',
+    (string)kernelResolveAuthenticatedHomeRedirect($kernelAdminRedirectUser, true)
 );
 
 $dispatchDb->prepare('DELETE FROM cms_user_services WHERE user_id = ?')->execute([1313]);

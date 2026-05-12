@@ -35,6 +35,7 @@ if (!function_exists('kernelHandlePageLogin')) {
         ], $overrides);
 
         if ($entryModuleId === 'kernel') {
+            $defaultContext['login_preferred_source'] = $defaultContext['login_preferred_source'] ?? 'kernel';
             return $defaultContext;
         }
 
