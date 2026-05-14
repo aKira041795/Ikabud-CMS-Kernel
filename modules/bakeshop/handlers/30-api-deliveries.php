@@ -59,6 +59,11 @@ function bakeshopDeliveriesHasItemCostBasisColumn(): bool
     return bakeshopTableHasColumn('bakeshop_delivery_items', 'cost_basis');
 }
 
+function bakeshopDeliveriesHasCoverageDaysColumn(): bool
+{
+    return bakeshopTableHasColumn('bakeshop_deliveries', 'coverage_days');
+}
+
 function bakeshopDeliveriesSourceSelectSql(string $alias = 'd'): string
 {
     if (bakeshopDeliveriesHasSourceColumns()) {
@@ -66,6 +71,15 @@ function bakeshopDeliveriesSourceSelectSql(string $alias = 'd'): string
     }
 
     return "NULL AS source_type,\n            NULL AS source_name,";
+}
+
+function bakeshopDeliveriesCoverageDaysSelectSql(string $alias = 'd'): string
+{
+    if (bakeshopDeliveriesHasCoverageDaysColumn()) {
+        return "{$alias}.coverage_days,";
+    }
+
+    return '1 AS coverage_days,';
 }
 
 function bakeshopDeliveriesItemCostBasisSelectSql(string $alias = 'di'): string
@@ -89,6 +103,20 @@ function bakeshopDeliveriesNormalizeCostBasis(mixed $value): ?string
     }
 
     return $normalized;
+}
+
+function bakeshopDeliveriesNormalizeCoverageDays(mixed $value): int
+{
+    if ($value === null || trim((string)$value) === '') {
+        return 1;
+    }
+
+    $coverageDays = bakeshopCatalogRequirePositiveInt($value, 'coverage_days');
+    if ($coverageDays > 31) {
+        throw new InvalidArgumentException('coverage_days must be between 1 and 31.');
+    }
+
+    return $coverageDays;
 }
 
 function bakeshopDeliveriesCostBasisLabel(?string $value): string
@@ -160,6 +188,7 @@ function bakeshopDeliveriesAttachDerivedFields(array $delivery): array
     $items = array_values((array)($delivery['items'] ?? []));
     $delivery['items'] = $items;
     $delivery['source_label'] = bakeshopDeliveriesSourceLabel($delivery);
+    $delivery['coverage_days'] = max(1, (int)($delivery['coverage_days'] ?? 1));
 
     $totalAmount = 0.0;
     $hasPricedLine = false;
@@ -365,6 +394,7 @@ function bakeshopDeliveriesList(): array
             d.branch_id,
             d.delivered_at,
             d.reference,
+            ' . bakeshopDeliveriesCoverageDaysSelectSql('d') . '
             ' . bakeshopDeliveriesSourceSelectSql('d') . '
             d.received_by,
             d.notes,
@@ -397,6 +427,7 @@ function bakeshopDeliveriesCreate(array $input): array
 
     $deliveredAt = new DateTimeImmutable($deliveredAtRaw);
     $reference = trim((string)($input['reference'] ?? ''));
+    $coverageDays = bakeshopDeliveriesNormalizeCoverageDays($input['coverage_days'] ?? null);
     $source = bakeshopDeliveriesNormalizeSource($input);
     $receivedBy = trim((string)($input['received_by'] ?? ''));
     $notes = trim((string)($input['notes'] ?? ''));
@@ -408,10 +439,13 @@ function bakeshopDeliveriesCreate(array $input): array
     try {
         if (bakeshopDeliveriesHasSourceColumns()) {
             $stmt = $db->prepare(
-                'INSERT INTO bakeshop_deliveries (branch_id, delivered_at, reference, source_type, source_name, received_by, notes)
-                 VALUES (:branch_id, :delivered_at, :reference, :source_type, :source_name, :received_by, :notes)'
+                bakeshopDeliveriesHasCoverageDaysColumn()
+                    ? 'INSERT INTO bakeshop_deliveries (branch_id, delivered_at, reference, coverage_days, source_type, source_name, received_by, notes)
+                       VALUES (:branch_id, :delivered_at, :reference, :coverage_days, :source_type, :source_name, :received_by, :notes)'
+                    : 'INSERT INTO bakeshop_deliveries (branch_id, delivered_at, reference, source_type, source_name, received_by, notes)
+                       VALUES (:branch_id, :delivered_at, :reference, :source_type, :source_name, :received_by, :notes)'
             );
-            $stmt->execute([
+            $bindings = [
                 ':branch_id' => $branchId,
                 ':delivered_at' => $deliveredAt->format('Y-m-d H:i:s'),
                 ':reference' => $reference !== '' ? $reference : null,
@@ -419,19 +453,30 @@ function bakeshopDeliveriesCreate(array $input): array
                 ':source_name' => $source['source_name'],
                 ':received_by' => $receivedBy !== '' ? $receivedBy : null,
                 ':notes' => $notes !== '' ? $notes : null,
-            ]);
+            ];
+            if (bakeshopDeliveriesHasCoverageDaysColumn()) {
+                $bindings[':coverage_days'] = $coverageDays;
+            }
+            $stmt->execute($bindings);
         } else {
             $stmt = $db->prepare(
-                'INSERT INTO bakeshop_deliveries (branch_id, delivered_at, reference, received_by, notes)
-                 VALUES (:branch_id, :delivered_at, :reference, :received_by, :notes)'
+                bakeshopDeliveriesHasCoverageDaysColumn()
+                    ? 'INSERT INTO bakeshop_deliveries (branch_id, delivered_at, reference, coverage_days, received_by, notes)
+                       VALUES (:branch_id, :delivered_at, :reference, :coverage_days, :received_by, :notes)'
+                    : 'INSERT INTO bakeshop_deliveries (branch_id, delivered_at, reference, received_by, notes)
+                       VALUES (:branch_id, :delivered_at, :reference, :received_by, :notes)'
             );
-            $stmt->execute([
+            $bindings = [
                 ':branch_id' => $branchId,
                 ':delivered_at' => $deliveredAt->format('Y-m-d H:i:s'),
                 ':reference' => $reference !== '' ? $reference : null,
                 ':received_by' => $receivedBy !== '' ? $receivedBy : null,
                 ':notes' => $notes !== '' ? $notes : null,
-            ]);
+            ];
+            if (bakeshopDeliveriesHasCoverageDaysColumn()) {
+                $bindings[':coverage_days'] = $coverageDays;
+            }
+            $stmt->execute($bindings);
         }
 
         $deliveryId = (int)$db->lastInsertId();
@@ -472,6 +517,7 @@ function bakeshopDeliveriesCreate(array $input): array
             d.branch_id,
             d.delivered_at,
             d.reference,
+            ' . bakeshopDeliveriesCoverageDaysSelectSql('d') . '
             ' . bakeshopDeliveriesSourceSelectSql('d') . '
             d.received_by,
             d.notes,
@@ -507,6 +553,7 @@ function bakeshopDeliveriesFindById(int $id): ?array
             d.branch_id,
             d.delivered_at,
             d.reference,
+            ' . bakeshopDeliveriesCoverageDaysSelectSql('d') . '
             ' . bakeshopDeliveriesSourceSelectSql('d') . '
             d.received_by,
             d.notes,

@@ -202,6 +202,29 @@
                         <div class="bakeshop-settings-field-error" data-field-error="usage_decimal_places"></div>
                     </div>
                     <div class="bakeshop-settings-field">
+                        <label for="default-dr-coverage-days">Default DR Coverage Days</label>
+                        <input id="default-dr-coverage-days" name="default_dr_coverage_days" type="number" min="1" max="31" step="1" value="{settings.default_dr_coverage_days}" {if !can_manage_settings}disabled{/if}>
+                        <div class="bakeshop-settings-field-error" data-field-error="default_dr_coverage_days"></div>
+                    </div>
+                    <div class="bakeshop-settings-field">
+                        <label for="product-recipe-status">Product Recipes</label>
+                        <select id="product-recipe-status" name="product_recipe_status" {if !can_manage_settings}disabled{/if}>
+                            <option value="active" {if settings.product_recipe_status == 'active'}selected{/if}>Activate Recipes</option>
+                            <option value="inactive" {if settings.product_recipe_status == 'inactive'}selected{/if}>Deactivate Recipes</option>
+                        </select>
+                        <div class="bakeshop-settings-note">When deactivated, recipe maintenance is hidden in the workspace and production is locked to output-only until recipes are reactivated.</div>
+                        <div class="bakeshop-settings-field-error" data-field-error="product_recipe_status"></div>
+                    </div>
+                    <div class="bakeshop-settings-field">
+                        <label for="production-recipe-mode">Production Recipe Policy</label>
+                        <select id="production-recipe-mode" name="production_recipe_mode" {if !can_manage_settings || settings.product_recipe_status != 'active'}disabled{/if}>
+                            <option value="optional" {if settings.production_recipe_mode == 'optional'}selected{/if}>Recipe Optional</option>
+                            <option value="required" {if settings.production_recipe_mode == 'required'}selected{/if}>Recipe Required</option>
+                        </select>
+                        <div class="bakeshop-settings-note">This policy applies only while Product Recipes is active.</div>
+                        <div class="bakeshop-settings-field-error" data-field-error="production_recipe_mode"></div>
+                    </div>
+                    <div class="bakeshop-settings-field">
                         <label for="print-template">Print Template</label>
                         <select id="print-template" name="print_template" {if !can_manage_settings}disabled{/if}>
                             <option value="standard" {if settings.print_template == 'standard'}selected{/if}>Standard</option>
@@ -210,7 +233,7 @@
                     </div>
                 </div>
                 <div class="bakeshop-settings-actions-row" style="margin-top:16px;">
-                    <span class="bakeshop-settings-note">Current branding uses "{settings.store_name}" with {if settings.store_logo_url}a custom logo{else}the generated lettermark{/if}. Usage output stays at {settings.usage_decimal_places} decimal place(s) in the {settings.print_template} printable layout.</span>
+                    <span class="bakeshop-settings-note">Current branding uses "{settings.store_name}" with {if settings.store_logo_url}a custom logo{else}the generated lettermark{/if}. Usage output stays at {settings.usage_decimal_places} decimal place(s), delivery receipts default to {settings.default_dr_coverage_days} day(s), product recipes are {if settings.product_recipe_status == 'active'}active{else}deactivated{/if}, and production is currently set to {if settings.product_recipe_status != 'active'}locked to output-only while recipes are off{elseif settings.production_recipe_mode == 'required'}require a recipe{else}allow output-only entries{/if}.</span>
                     {if can_manage_settings}
                     <button class="bakeshop-settings-button" type="submit">Save Branding and Display Defaults</button>
                     {/if}
@@ -222,7 +245,7 @@
     <section class="bakeshop-settings-panel">
         <div class="bakeshop-settings-panel-head">
             <h3>Units</h3>
-            <p>Seeded defaults and any units you add here are available in recipe, ingredient, and delivery forms.</p>
+            <p>Seeded defaults and any units you add here are available in product, ingredient, and delivery forms, plus recipe forms when Product Recipes is active.</p>
         </div>
         <div class="bakeshop-settings-panel-body">
             {if can_manage_settings}
@@ -358,6 +381,7 @@
 
 <script>
 (() => {
+    const canManageSettings = {if can_manage_settings}true{else}false{/if};
     const csrfToken = '{csrf_token}';
     const permissionForm = document.getElementById('permissions-form');
     const displayForm = document.getElementById('display-settings-form');
@@ -371,8 +395,10 @@
     const logoStatus = document.getElementById('store-logo-status');
     const logoRemoveButton = document.getElementById('store-logo-remove');
     const storeNameInput = displayForm?.querySelector('[name="store_name"]');
+    const productRecipeStatusInput = displayForm?.querySelector('[name="product_recipe_status"]');
+    const productionRecipeModeInput = displayForm?.querySelector('[name="production_recipe_mode"]');
     const banner = document.getElementById('bakeshop-settings-banner');
-    const displayErrorNames = ['store_name', 'store_logo_file', 'store_description', 'usage_decimal_places', 'print_template'];
+    const displayErrorNames = ['store_name', 'store_logo_file', 'store_description', 'usage_decimal_places', 'default_dr_coverage_days', 'product_recipe_status', 'production_recipe_mode', 'print_template'];
 
     function showBanner(message, ok = true) {
         banner.textContent = message;
@@ -444,6 +470,15 @@
         }
         if (normalized.includes('decimal')) {
             return 'usage_decimal_places';
+        }
+        if (normalized.includes('coverage')) {
+            return 'default_dr_coverage_days';
+        }
+        if (normalized.includes('product recipes') || normalized.includes('active or inactive') || normalized.includes('active') && normalized.includes('inactive')) {
+            return 'product_recipe_status';
+        }
+        if (normalized.includes('recipe policy') || normalized.includes('recipe mode') || normalized.includes('optional or required')) {
+            return 'production_recipe_mode';
         }
         if (normalized.includes('print template') || normalized.includes('template')) {
             return 'print_template';
@@ -535,6 +570,29 @@
         }
     }
 
+    function syncProductionRecipeModeField() {
+        if (!(productionRecipeModeInput instanceof HTMLSelectElement)) {
+            return;
+        }
+
+        const recipesActive = productRecipeStatusInput instanceof HTMLSelectElement
+            ? productRecipeStatusInput.value === 'active'
+            : true;
+
+        if (!recipesActive) {
+            productionRecipeModeInput.value = 'optional';
+        }
+
+        productionRecipeModeInput.disabled = !canManageSettings || !recipesActive;
+        if (productionRecipeModeInput.disabled) {
+            productionRecipeModeInput.setAttribute('aria-disabled', 'true');
+            clearDisplayFieldError('production_recipe_mode');
+            return;
+        }
+
+        productionRecipeModeInput.removeAttribute('aria-disabled');
+    }
+
     function resetUnitsForm() {
         if (!unitsForm) {
             return;
@@ -585,11 +643,17 @@
                 renderLogoPreview(logoUrl);
             }
 
+            const productRecipeStatus = productRecipeStatusInput?.value || 'active';
             const body = {
             store_name: displayForm.querySelector('[name="store_name"]')?.value || '',
             store_description: displayForm.querySelector('[name="store_description"]')?.value || '',
             store_logo_url: logoUrl,
             usage_decimal_places: displayForm.querySelector('[name="usage_decimal_places"]')?.value || '2',
+            default_dr_coverage_days: displayForm.querySelector('[name="default_dr_coverage_days"]')?.value || '3',
+            product_recipe_status: productRecipeStatus,
+            production_recipe_mode: productRecipeStatus === 'active'
+                ? (productionRecipeModeInput?.value || 'optional')
+                : 'optional',
             print_template: displayForm.querySelector('[name="print_template"]')?.value || 'standard',
             };
 
@@ -628,10 +692,17 @@
 
     displayForm?.querySelector('[name="store_description"]')?.addEventListener('input', () => clearDisplayFieldError('store_description'));
     displayForm?.querySelector('[name="usage_decimal_places"]')?.addEventListener('input', () => clearDisplayFieldError('usage_decimal_places'));
+    displayForm?.querySelector('[name="default_dr_coverage_days"]')?.addEventListener('input', () => clearDisplayFieldError('default_dr_coverage_days'));
+    displayForm?.querySelector('[name="product_recipe_status"]')?.addEventListener('change', () => {
+        clearDisplayFieldError('product_recipe_status');
+        syncProductionRecipeModeField();
+    });
+    displayForm?.querySelector('[name="production_recipe_mode"]')?.addEventListener('change', () => clearDisplayFieldError('production_recipe_mode'));
     displayForm?.querySelector('[name="print_template"]')?.addEventListener('change', () => clearDisplayFieldError('print_template'));
     logoFileInput?.addEventListener('change', () => clearDisplayFieldError('store_logo_file'));
 
     renderLogoPreview(logoUrlInput?.value || '');
+    syncProductionRecipeModeField();
 
     unitsForm?.addEventListener('submit', async (event) => {
         event.preventDefault();

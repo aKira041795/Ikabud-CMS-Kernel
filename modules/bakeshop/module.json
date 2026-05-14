@@ -14,6 +14,7 @@
         "bakeshop_product_recipe",
         "bakeshop_deliveries",
         "bakeshop_delivery_items",
+        "bakeshop_branch_product_targets",
         "bakeshop_production_runs",
         "bakeshop_production_items"
     ],
@@ -29,7 +30,10 @@
         "database/migrations/005_bakeshop_bootstrap_password_reset.sql",
         "database/migrations/006_bakeshop_password_resets.sql",
         "database/migrations/007_bakeshop_delivery_item_cost_basis.sql",
-        "database/migrations/008_bakeshop_production_voiding.sql"
+        "database/migrations/008_bakeshop_production_voiding.sql",
+        "database/migrations/009_bakeshop_delivery_coverage.sql",
+        "database/migrations/010_bakeshop_branch_product_targets.sql",
+        "database/migrations/011_bakeshop_ingredient_pack.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -141,6 +145,47 @@
             "label": "Usage Decimal Places",
             "default": "2",
             "description": "Number of decimal places used in the ingredient usage summary and printable reports."
+        },
+        {
+            "key": "default_dr_coverage_days",
+            "type": "number",
+            "label": "Default DR Coverage Days",
+            "default": "3",
+            "description": "Default number of production days covered by each delivery receipt when staff records a new DR."
+        },
+        {
+            "key": "product_recipe_status",
+            "type": "select",
+            "label": "Product Recipes",
+            "default": "active",
+            "description": "Activate or deactivate product recipe maintenance across the bakeshop workspace. When deactivated, production stays output-only even if the recipe policy remains set to required.",
+            "options": [
+                {
+                    "label": "Activate Recipes",
+                    "value": "active"
+                },
+                {
+                    "label": "Deactivate Recipes",
+                    "value": "inactive"
+                }
+            ]
+        },
+        {
+            "key": "production_recipe_mode",
+            "type": "select",
+            "label": "Production Recipe Policy",
+            "default": "optional",
+            "description": "Choose whether production entries require recipe and standard batch setup or can be saved as output-only entries.",
+            "options": [
+                {
+                    "label": "Recipe Optional",
+                    "value": "optional"
+                },
+                {
+                    "label": "Recipe Required",
+                    "value": "required"
+                }
+            ]
         },
         {
             "key": "print_template",

@@ -181,6 +181,45 @@ function bakeshopPrintSummaryTemplateLabel(string $template): string
     return ucwords($normalized) . ' template';
 }
 
+function bakeshopDrProjectionPrintQuantityDisplay(float $qtyBase, array $row, int $places): string
+{
+    $defaultUnitFactor = (float)($row['default_unit_factor_to_base'] ?? 0);
+    $defaultUnitCode = strtoupper(trim((string)($row['default_unit_code'] ?? '')));
+    $qty = $defaultUnitFactor > 0 ? ($qtyBase / $defaultUnitFactor) : $qtyBase;
+
+    return trim(bakeshopDrProjectionFormatCompactNumber($qty, $places) . ' ' . ($defaultUnitCode !== '' ? $defaultUnitCode : 'UNIT'));
+}
+
+function bakeshopDrProjectionPrintViewModel(array $report): array
+{
+    $places = max(0, (int)($report['settings']['usage_decimal_places'] ?? bakeshopDrProjectionDecimalPlaces()));
+    $ingredientRows = [];
+    foreach ((array)($report['ingredients'] ?? []) as $row) {
+        $ingredientRows[] = array_merge($row, [
+            'observed_qty_display' => bakeshopDrProjectionPrintQuantityDisplay((float)($row['delivered_qty_base'] ?? 0), $row, $places),
+            'daily_qty_display' => bakeshopDrProjectionPrintQuantityDisplay((float)($row['daily_qty_base'] ?? 0), $row, $places),
+            'projected_qty_display_with_unit' => trim((string)($row['projected_qty_display'] ?? bakeshopDrProjectionFormatCompactNumber((float)($row['projected_qty'] ?? 0), $places)) . ' ' . strtoupper(trim((string)($row['default_unit_code'] ?? 'UNIT')))),
+            'coverage_label' => max(1, (int)($row['observed_coverage_days'] ?? 0)) . ' day(s)',
+        ]);
+    }
+
+    $productRows = [];
+    foreach ((array)($report['products'] ?? []) as $row) {
+        $productRows[] = array_merge($row, [
+            'daily_target_display' => trim(bakeshopDrProjectionFormatCompactNumber((float)($row['daily_qty'] ?? 0), $places) . ' ' . strtoupper(trim((string)($row['unit_code'] ?? 'UNIT')))),
+            'projected_qty_display_with_unit' => trim((string)($row['projected_qty_display'] ?? bakeshopDrProjectionFormatCompactNumber((float)($row['projected_qty'] ?? 0), $places)) . ' ' . strtoupper(trim((string)($row['unit_code'] ?? 'UNIT')))),
+            'days_produced_label' => (int)($row['days_produced'] ?? 0) . ' / ' . (int)($row['window_days'] ?? 0),
+            'missing_days_label' => max(0, (int)($row['missing_days'] ?? 0)) . ' day(s)',
+        ]);
+    }
+
+    return [
+        'ingredients' => $ingredientRows,
+        'products' => $productRows,
+        'usage_decimal_places' => $places,
+    ];
+}
+
 function bakeshopAuditHistoryBuildUrl(string $path, array $params = []): string
 {
     $params = array_filter($params, static fn (mixed $value): bool => $value !== null && $value !== '');
@@ -577,6 +616,11 @@ function bakeshopRenderSupervisorWorkspace(array $user, string $currentPage, str
         'summary_visibility_style' => $showDashboardPanels ? '' : 'display:none;',
         'usage_decimal_places' => $usageDecimalPlaces,
         'usage_zero_value' => number_format(0, $usageDecimalPlaces, '.', ''),
+        'default_dr_coverage_days' => bakeshopDefaultDrCoverageDays(),
+        'product_recipe_status' => bakeshopProductRecipeStatus(),
+        'product_recipes_enabled' => bakeshopProductRecipesEnabled(),
+        'production_recipe_mode' => bakeshopProductionRecipeMode(),
+        'production_requires_recipe' => bakeshopProductionRequiresRecipe(),
         'work_area_routes' => $workAreaRoutes,
         'stats' => [
             'branches' => (int)($stats['branch_count'] ?? 0),
@@ -644,6 +688,9 @@ function bakeshopPageSettings(array $params = []): void
                 'store_description' => $brandSettings['store_description'],
                 'store_logo_url' => $brandSettings['store_logo_url'],
                 'usage_decimal_places' => bakeshopNormalizeUsageDecimalPlaces($settings['usage_decimal_places'] ?? null),
+                'default_dr_coverage_days' => bakeshopNormalizeDefaultDrCoverageDays($settings['default_dr_coverage_days'] ?? null),
+                'product_recipe_status' => bakeshopProductRecipeStatus(),
+                'production_recipe_mode' => bakeshopProductionRecipeMode(),
                 'print_template' => bakeshopNormalizePrintTemplate($settings['print_template'] ?? null),
             ],
             'permission_matrix' => [
@@ -715,6 +762,66 @@ function bakeshopPagePrintSummary(array $params = []): void
             'usage_decimal_places' => $usageDecimalPlaces,
             'print_template_label' => bakeshopPrintSummaryTemplateLabel($printTemplate),
             'output_summary_label' => 'Rounded to ' . $usageDecimalPlaces . ' decimal place' . ($usageDecimalPlaces === 1 ? '' : 's'),
+        ]);
+    });
+}
+
+function bakeshopPagePrintDrProjection(array $params = []): void
+{
+    bakeshopResponseGuard(static function (): void {
+        bakeshopCurrentUser('bakeshop.read');
+
+        $input = (array)bakeshopInput();
+        $report = null;
+        $viewModel = [
+            'ingredients' => [],
+            'products' => [],
+            'usage_decimal_places' => bakeshopDrProjectionDecimalPlaces(),
+        ];
+        $errorMessage = '';
+
+        try {
+            $report = bakeshopDrProjectionReport($input);
+            $report['settings'] = array_merge((array)($report['settings'] ?? []), [
+                'usage_decimal_places' => bakeshopDrProjectionDecimalPlaces(),
+            ]);
+            $viewModel = bakeshopDrProjectionPrintViewModel($report);
+        } catch (Throwable $e) {
+            $errorMessage = $e->getMessage();
+        }
+
+        $filters = is_array($report['filters'] ?? null)
+            ? (array)$report['filters']
+            : [
+                'branch_id' => trim((string)($input['branch_id'] ?? '')),
+                'from_date' => trim((string)($input['from_date'] ?? '')),
+                'to_date' => trim((string)($input['to_date'] ?? '')),
+                'horizon_days' => trim((string)($input['horizon_days'] ?? '7')),
+            ];
+
+        $workspaceQuery = array_filter([
+            'branch_id' => $filters['branch_id'] ?? null,
+            'from_date' => $filters['from_date'] ?? null,
+            'to_date' => $filters['to_date'] ?? null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+        echo bakeshopRender('pages/print-dr-projection.disyl', [
+            'page_title' => 'Printable DR Projection',
+            'base_url' => bakeshopBaseUrl(),
+            'brand_settings' => bakeshopBrandSettings(),
+            'report' => $report,
+            'filters' => $filters,
+            'branch' => is_array($report['branch'] ?? null) ? (array)$report['branch'] : null,
+            'display_from_date' => bakeshopPrintSummaryFormatDate((string)($filters['from_date'] ?? '')),
+            'display_to_date' => bakeshopPrintSummaryFormatDate((string)($filters['to_date'] ?? '')),
+            'horizon_days' => (string)($filters['horizon_days'] ?? '7'),
+            'usage_decimal_places' => $viewModel['usage_decimal_places'],
+            'ingredient_rows' => $viewModel['ingredients'],
+            'product_rows' => $viewModel['products'],
+            'error_message' => $errorMessage,
+            'workspace_url' => bakeshopAuditHistoryBuildUrl('/admin/bakeshop/usage', $workspaceQuery),
+            'print_template_label' => bakeshopPrintSummaryTemplateLabel(bakeshopPrintTemplate()),
+            'output_summary_label' => 'Rounded to ' . $viewModel['usage_decimal_places'] . ' decimal place' . ((int)$viewModel['usage_decimal_places'] === 1 ? '' : 's'),
         ]);
     });
 }

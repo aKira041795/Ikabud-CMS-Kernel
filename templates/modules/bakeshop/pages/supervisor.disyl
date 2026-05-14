@@ -639,7 +639,7 @@
             <strong id="stat-ingredients">{stats.ingredients}</strong>
             <span>Ingredients</span>
         </div>
-        <div class="bakeshop-stat">
+        <div class="bakeshop-stat" {if !product_recipes_enabled}style="display:none;"{/if}>
             <strong id="stat-recipes">{stats.recipes}</strong>
             <span>Recipe Lines</span>
         </div>
@@ -659,8 +659,8 @@
                 </article>
                 <article class="bakeshop-flow-step">
                     <strong>2</strong>
-                    <h3>Define products and recipes</h3>
-                    <p>Add your finished goods and ingredient recipe lines before you record actual stock movement.</p>
+                    <h3>{if product_recipes_enabled}Define products and recipes{else}Define products{/if}</h3>
+                    <p>{if product_recipes_enabled}Add your finished goods and ingredient recipe lines before you record actual stock movement.{else}Add your finished goods first. Recipe maintenance is currently deactivated, so production will stay output-only until recipes are reactivated in settings.{/if}</p>
                 </article>
                 <article class="bakeshop-flow-step">
                     <strong>3</strong>
@@ -749,7 +749,7 @@
             </div>
 
             <div class="bakeshop-summary-note">
-                Beginning balance reflects stock before the first visible report date. Usage comes from saved batches through recipe quantities, and all displayed values follow the configured {usage_decimal_places}-decimal output setting.
+                Beginning balance reflects stock before the first visible report date. Usage comes from saved ingredient snapshots attached to production runs, and all displayed values follow the configured {usage_decimal_places}-decimal output setting.
             </div>
 
             {if summary_report.groups}
@@ -883,7 +883,7 @@
                 <div class="bakeshop-column">
                     <section class="bakeshop-panel" id="product-editor-panel">
                         <div class="bakeshop-panel-head">
-                            <p>Define your finished goods. Click a product row to edit it; its recipe lines appear in the sub-section below.</p>
+                            <p>{if product_recipes_enabled}Define your finished goods. Click a product row to edit it; its recipe lines appear in the sub-section below.{else}Define your finished goods here. Product recipe maintenance is currently deactivated in settings.{/if}</p>
                         </div>
                         <div class="bakeshop-panel-body">
                             <form id="product-form" class="bakeshop-shell" style="gap: 16px;" data-manage-required="true">
@@ -913,7 +913,7 @@
                                     </div>
                                 </div>
                                 <div class="bakeshop-form-actions">
-                                    <span class="bakeshop-help">Default yield drives recipe scaling for saved batch records.</span>
+                                    <span class="bakeshop-help">{if product_recipes_enabled}Default yield drives recipe-backed ingredient scaling for saved batch records.{else}Default yield supports recipe-backed batch scaling whenever product recipes are reactivated.{/if}</span>
                                     <div class="bakeshop-actions">
                                             <button class="bakeshop-button success" type="button" id="product-add">Add Product</button>
                                         <button class="bakeshop-button danger" type="button" id="product-cancel" hidden disabled>Cancel Edit</button>
@@ -922,14 +922,23 @@
                                 </div>
                             </form>
 
-                            <div class="bakeshop-grid-2">
+                            <div class="bakeshop-grid-2" {if !product_recipes_enabled}style="display:none;"{/if}>
                                 <div class="bakeshop-field" style="grid-column: 2 / 3;">
                                     <label for="recipes-filter">Find Recipe Line</label>
                                     <input id="recipes-filter" type="search" placeholder="Search by ingredient, unit, or notes">
                                 </div>
                             </div>
 
-                            <section class="bakeshop-panel bakeshop-panel-subdued" id="recipe-panel">
+                            {if !product_recipes_enabled}
+                            <section class="bakeshop-panel bakeshop-panel-subdued">
+                                <div class="bakeshop-panel-head">
+                                    <h3>Product Recipes Are Deactivated</h3>
+                                    <p>Reactivate product recipes in Settings when you want to maintain ingredient lines per product again.</p>
+                                </div>
+                            </section>
+                            {/if}
+
+                            <section class="bakeshop-panel bakeshop-panel-subdued" id="recipe-panel" {if !product_recipes_enabled}style="display:none;"{/if}>
                                 <div class="bakeshop-panel-head">
                                     <h3 id="recipe-panel-title">Recipe</h3>
                                     <p id="recipe-form-description">Edit a product first to view and maintain its recipe lines.</p>
@@ -1010,7 +1019,7 @@
                                             <th>Product</th>
                                             <th>Category</th>
                                             <th>Yield</th>
-                                            <th>Recipe Lines</th>
+                                            <th {if !product_recipes_enabled}style="display:none;"{/if}>Recipe Lines</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
@@ -1028,7 +1037,7 @@
                 <div class="bakeshop-column">
                     <section class="bakeshop-panel">
                         <div class="bakeshop-panel-head">
-                            <p>Maintain the ingredient master list and its base unit before using items in deliveries or recipe lines.</p>
+                            <p>Maintain the ingredient master list and its base unit before using items in deliveries, usage reporting, and recipe-backed batches.</p>
                         </div>
                         <div class="bakeshop-panel-body">
                             <form id="ingredient-form" class="bakeshop-shell" style="gap: 16px;" data-manage-required="true">
@@ -1049,8 +1058,22 @@
                                         <select id="ingredient-unit" name="default_unit_id"></select>
                                     </div>
                                 </div>
+                                <div class="bakeshop-grid-3">
+                                    <div class="bakeshop-field">
+                                        <label for="ingredient-pack-label">Pack Label</label>
+                                        <input id="ingredient-pack-label" name="pack_label" placeholder="Bag">
+                                    </div>
+                                    <div class="bakeshop-field">
+                                        <label for="ingredient-pack-qty">Pack Qty</label>
+                                        <input id="ingredient-pack-qty" name="pack_qty" type="number" min="0" step="0.0001" placeholder="25.0000">
+                                    </div>
+                                    <div class="bakeshop-field">
+                                        <label for="ingredient-pack-unit">Pack Unit</label>
+                                        <select id="ingredient-pack-unit" name="pack_unit_id"></select>
+                                    </div>
+                                </div>
                                 <div class="bakeshop-form-actions">
-                                    <span class="bakeshop-help">Units are seeded globally as `kg`, `g`, `L`, `mL`, `pc`, and `pack`.</span>
+                                    <span class="bakeshop-help">Units are seeded globally as `kg`, `g`, `L`, `mL`, `pc`, and `pack`. Pack metadata is optional, but when set it must match the ingredient unit dimension.</span>
                                     <div class="bakeshop-actions">
                                             <button class="bakeshop-button success" type="button" id="ingredient-add">Add Ingredient</button>
                                         <button class="bakeshop-button danger" type="button" id="ingredient-cancel" hidden disabled>Cancel Edit</button>
@@ -1091,6 +1114,7 @@
                                             <th>Ingredient</th>
                                             <th>SKU</th>
                                             <th>Default Unit</th>
+                                            <th>Pack</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
@@ -1119,6 +1143,10 @@
                                 <div class="bakeshop-field">
                                     <label for="delivery-at">Delivery Date</label>
                                     <input id="delivery-at" name="delivered_at" type="date">
+                                </div>
+                                <div class="bakeshop-field">
+                                    <label for="delivery-coverage-days">Coverage Days</label>
+                                    <input id="delivery-coverage-days" name="coverage_days" type="number" min="1" max="31" step="1" value="{default_dr_coverage_days | default:'1'}">
                                 </div>
                                 <div class="bakeshop-field">
                                     <label for="delivery-reference">Reference</label>
@@ -1188,7 +1216,7 @@
                                 </div>
                             </div>
                             <div class="bakeshop-form-actions">
-                                <span class="bakeshop-help">Saving posts one daily branch receipt and includes only ingredients with a quantity greater than zero.</span>
+                                <span class="bakeshop-help">Saving posts one branch receipt and includes only ingredients with a quantity greater than zero. Coverage days lets one DR represent a multi-day delivery window.</span>
                                 <button class="bakeshop-button" type="submit">Save Delivery</button>
                             </div>
                         </form>
@@ -1244,6 +1272,66 @@
                         <p>Record what was made, keep saved entries easy to review, and preserve the ingredient-use detail that belonged to each finished batch.</p>
                     </div>
                     <div class="bakeshop-panel-body">
+                        <section class="bakeshop-panel" style="box-shadow:none; margin-bottom: 16px;">
+                            <div class="bakeshop-panel-head">
+                                <h3>Branch Product Daily Targets</h3>
+                                <p>Store each branch's strict daily output target. Targets must use the same unit dimension as the product's standard yield.</p>
+                            </div>
+                            <div class="bakeshop-panel-body">
+                                <form id="product-target-form" class="bakeshop-shell" style="gap: 16px;" data-manage-required="true">
+                                    <div class="bakeshop-focus-note" id="product-target-focus-note" hidden></div>
+                                    <input type="hidden" name="id" value="">
+                                    <input type="hidden" name="is_active" value="1">
+                                    <div class="bakeshop-grid-2">
+                                        <div class="bakeshop-field">
+                                            <label for="product-target-branch">Branch</label>
+                                            <select id="product-target-branch" name="branch_id"></select>
+                                        </div>
+                                        <div class="bakeshop-field">
+                                            <label for="product-target-product">Product</label>
+                                            <select id="product-target-product" name="product_id"></select>
+                                        </div>
+                                        <div class="bakeshop-field">
+                                            <label for="product-target-daily-qty">Daily Target Qty</label>
+                                            <input id="product-target-daily-qty" name="daily_qty" type="number" min="0.01" step="0.01" placeholder="0.00">
+                                        </div>
+                                        <div class="bakeshop-field">
+                                            <label for="product-target-unit">Target Unit</label>
+                                            <select id="product-target-unit" name="unit_id"></select>
+                                        </div>
+                                    </div>
+                                    <div class="bakeshop-form-actions">
+                                        <span class="bakeshop-help">Targets drive the DR projection report in the Usage workspace. Missing production days reduce the projected total proportionally.</span>
+                                        <div class="bakeshop-actions">
+                                            <button class="bakeshop-button success" type="button" id="product-target-add">Add Target</button>
+                                            <button class="bakeshop-button danger" type="button" id="product-target-cancel" hidden disabled>Cancel Edit</button>
+                                            <button class="bakeshop-button" type="submit" id="product-target-submit">Save Target</button>
+                                        </div>
+                                    </div>
+                                </form>
+
+                                <div class="bakeshop-field">
+                                    <label for="product-target-filter">Find Target</label>
+                                    <input id="product-target-filter" type="search" placeholder="Search by product, category, or unit">
+                                </div>
+
+                                <div class="bakeshop-table-wrap">
+                                    <table class="bakeshop-table" id="product-targets-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Product</th>
+                                                <th>Category</th>
+                                                <th>Daily Target</th>
+                                                <th>Unit</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </section>
+
                         <div class="bakeshop-section-panel active" data-production-section-panel="record">
                         <form id="production-form" class="bakeshop-grid-2" data-manage-required="true">
                             <input name="id" type="hidden" value="">
@@ -1386,9 +1474,16 @@
                                 <label for="usage-to">To Date</label>
                                 <input id="usage-to" name="to_date" type="date" value="{summary_report.filters.to_date}" data-report-scope="to_date">
                             </div>
+                            <div class="bakeshop-field">
+                                <label for="usage-horizon-days">Projection Horizon</label>
+                                <input id="usage-horizon-days" name="horizon_days" type="number" min="1" max="31" step="1" value="7">
+                            </div>
                             <div class="bakeshop-form-actions" style="grid-column: 1 / -1;">
-                                <span class="bakeshop-help">These filters mirror any applied dashboard summary filters and drive the printable report.</span>
-                                <button class="bakeshop-button" type="submit">Refresh Usage</button>
+                                <span class="bakeshop-help">These filters mirror any applied dashboard summary filters and drive the printable inventory summary. DR projection uses the same scope plus the projection horizon.</span>
+                                <div class="bakeshop-actions">
+                                    <a class="bakeshop-button print" id="bakeshop-dr-projection-print-link" href="{base_url}/admin/bakeshop/print/dr-projection" target="_blank" rel="noopener">Open DR Projection Print</a>
+                                    <button class="bakeshop-button" type="submit">Refresh Usage</button>
+                                </div>
                             </div>
                         </form>
 
@@ -1443,6 +1538,66 @@
                                 <tbody></tbody>
                             </table>
                         </div>
+
+                        <section class="bakeshop-panel" style="box-shadow:none; margin-top: 16px;">
+                            <div class="bakeshop-panel-head">
+                                <h3>DR Projection</h3>
+                                <p>Extend the observed delivery window into a future demand projection: ingredients are dailyized from DR coverage, while products use strict branch daily targets.</p>
+                            </div>
+                            <div class="bakeshop-panel-body">
+                                <div class="bakeshop-form-actions">
+                                    <span class="bakeshop-help" id="dr-projection-summary">Choose a branch and a scoped date range, then refresh usage to compute projected ingredient and product requirements.</span>
+                                    <div class="bakeshop-actions">
+                                        <a class="bakeshop-button print" href="{base_url}/admin/bakeshop/print/dr-projection" id="bakeshop-dr-projection-inline-print-link" target="_blank" rel="noopener">Print This Projection</a>
+                                    </div>
+                                </div>
+
+                                <div class="bakeshop-grid-2">
+                                    <section>
+                                        <div class="bakeshop-field">
+                                            <label for="dr-projection-ingredients-filter">Find Projected Ingredient</label>
+                                            <input id="dr-projection-ingredients-filter" type="search" placeholder="Search by ingredient, unit, or pack">
+                                        </div>
+                                        <div class="bakeshop-table-wrap">
+                                            <table class="bakeshop-table" id="dr-projection-ingredients-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Ingredient</th>
+                                                        <th>Observed Qty</th>
+                                                        <th>Coverage</th>
+                                                        <th>Daily Qty</th>
+                                                        <th>Projected Qty</th>
+                                                        <th>Per Pack</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody></tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <div class="bakeshop-field">
+                                            <label for="dr-projection-products-filter">Find Projected Product</label>
+                                            <input id="dr-projection-products-filter" type="search" placeholder="Search by product, category, or unit">
+                                        </div>
+                                        <div class="bakeshop-table-wrap">
+                                            <table class="bakeshop-table" id="dr-projection-products-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Product</th>
+                                                        <th>Daily Target</th>
+                                                        <th>Days Produced</th>
+                                                        <th>Missing Days</th>
+                                                        <th>Projected Qty</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody></tbody>
+                                            </table>
+                                        </div>
+                                    </section>
+                                </div>
+                            </div>
+                        </section>
 
                         <section class="bakeshop-panel" style="box-shadow:none;">
                             <div class="bakeshop-panel-head">
@@ -1603,10 +1758,13 @@ document.addEventListener('DOMContentLoaded', () => {
         deliveries: bakeshopApiPath('/api/v1/bakeshop/deliveries'),
         deliveriesBatchDelete: bakeshopApiPath('/api/v1/bakeshop/deliveries/batch-delete'),
         deliveriesDelete: bakeshopApiPath('/api/v1/bakeshop/deliveries/delete'),
+        productTargets: bakeshopApiPath('/api/v1/bakeshop/product-targets'),
+        productTargetsDelete: bakeshopApiPath('/api/v1/bakeshop/product-targets/delete'),
         production: bakeshopApiPath('/api/v1/bakeshop/production'),
         productionVoid: bakeshopApiPath('/api/v1/bakeshop/production/void'),
         permissionsSettings: bakeshopApiPath('/api/v1/bakeshop/settings/permissions'),
-        usage: bakeshopApiPath('/api/v1/bakeshop/usage')
+        usage: bakeshopApiPath('/api/v1/bakeshop/usage'),
+        drProjection: bakeshopApiPath('/api/v1/bakeshop/reports/dr-projection')
     };
 
     api.branchStatus = bakeshopApiPath('/api/v1/bakeshop/branches/[id]/status');
@@ -1615,6 +1773,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const canManageWorkspace = {if can_manage_workspace}true{else}false{/if};
     const allowProductionGuardOverride = {if allow_production_guard_override}true{else}false{/if};
     const defaultUsageDecimalPlaces = Number('{usage_decimal_places | default:"2"}');
+    const defaultDrCoverageDays = Number('{default_dr_coverage_days | default:"1"}');
+    const productRecipesEnabled = {if product_recipes_enabled}true{else}false{/if};
+    const productionRequiresRecipe = {if production_requires_recipe}true{else}false{/if};
     const searchParams = new URLSearchParams(window.location.search);
     const focusState = {
         kind: searchParams.get('focus_kind') || '',
@@ -1643,8 +1804,19 @@ document.addEventListener('DOMContentLoaded', () => {
         deliveries: [],
         expandedDeliveryId: 0,
         selectedDeliveryIds: new Set(),
+        productTargets: [],
+        productTargetBranchId: 0,
         production: [],
         usage: [],
+        drProjection: {
+            filters: null,
+            branch: null,
+            window_days: 0,
+            ingredients: [],
+            products: [],
+            error: ''
+        },
+        drProjectionScopeKey: '',
         inventorySnapshot: [],
         usageDecimalPlaces: Number.isFinite(defaultUsageDecimalPlaces) ? defaultUsageDecimalPlaces : 2,
         usageTotals: {
@@ -1674,7 +1846,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ingredients: false,
             recipes: false,
             deliveries: false,
-            production: false
+            'product-targets': false,
+            production: false,
+            'dr-projection': false
         }
     };
 
@@ -1689,6 +1863,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteConfirmCancel = $('#bakeshop-delete-confirm-cancel');
     const deleteConfirmSubmit = $('#bakeshop-delete-confirm-submit');
     const printLink = $('#bakeshop-print-link');
+    const drProjectionPrintLink = $('#bakeshop-dr-projection-print-link');
+    const drProjectionInlinePrintLink = $('#bakeshop-dr-projection-inline-print-link');
     const productionGuardToggle = $('#production-guard-toggle');
     const productionGuardNote = $('#production-guard-note');
     const productionLastSaved = $('#production-last-saved');
@@ -1706,6 +1882,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const productForm = $('#product-form');
     const ingredientForm = $('#ingredient-form');
     const recipeForm = $('#recipe-form');
+    const productTargetForm = $('#product-target-form');
     const productionForm = $('#production-form');
     const manageRequiredForms = document.querySelectorAll('[data-manage-required="true"]');
     const setupTabs = document.querySelectorAll('[data-tab]');
@@ -1740,8 +1917,8 @@ document.addEventListener('DOMContentLoaded', () => {
             catalog: ['units', 'products', 'ingredients', 'recipes'],
             ingredients: ['units', 'ingredients'],
             deliveries: ['branches', 'ingredients', 'deliveries'],
-            production: ['branches', 'products', 'production'],
-            usage: ['branches', 'usage']
+            production: ['branches', 'units', 'products', 'product-targets', 'production'],
+            usage: ['branches', 'usage', 'dr-projection']
         };
 
         return tabRequirements[resolveTabName(tabName)] || [];
@@ -1755,8 +1932,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ingredients: loadIngredients,
             recipes: loadRecipes,
             deliveries: loadDeliveries,
+            'product-targets': loadProductTargets,
             production: loadProduction,
-            usage: loadUsage
+            usage: loadUsage,
+            'dr-projection': loadDrProjection
         };
     }
 
@@ -1904,6 +2083,64 @@ document.addEventListener('DOMContentLoaded', () => {
             + '</div>';
     }
 
+    function findUnitById(unitId) {
+        return state.units.find((row) => Number(row.id) === Number(unitId)) || null;
+    }
+
+    function unitOptionLabel(row) {
+        return [row.code, row.name].filter(Boolean).join(' — ');
+    }
+
+    function formatIngredientPack(row) {
+        const packLabel = String(row.pack_label || '').trim();
+        const packQty = row.pack_qty !== null && row.pack_qty !== undefined && String(row.pack_qty).trim() !== ''
+            ? String(row.pack_qty)
+            : '';
+        const packUnitCode = String(row.pack_unit_code || '').trim();
+
+        if (packLabel === '' || packQty === '' || packUnitCode === '') {
+            return '—';
+        }
+
+        return packLabel + ' · ' + packQty + ' ' + packUnitCode;
+    }
+
+    function activeBranchRows() {
+        return state.branches.filter((row) => Number(row.is_active) !== 0);
+    }
+
+    function activeProductRows() {
+        return state.products.filter((row) => Number(row.is_active) !== 0);
+    }
+
+    function currentProductTargetBranchId() {
+        const branchSelect = $('#product-target-branch');
+        const selectedBranchId = Number(branchSelect ? branchSelect.value : state.productTargetBranchId || 0);
+        if (selectedBranchId > 0) {
+            return selectedBranchId;
+        }
+
+        const firstBranch = activeBranchRows()[0] || null;
+        return Number(firstBranch ? firstBranch.id : 0);
+    }
+
+    function currentDrProjectionScope() {
+        return {
+            ...currentReportScope(),
+            horizon_days: $('#usage-horizon-days') ? $('#usage-horizon-days').value : '7'
+        };
+    }
+
+    function drProjectionScopeKey(scope) {
+        return [scope.branch_id || '', scope.from_date || '', scope.to_date || '', scope.horizon_days || ''].join('|');
+    }
+
+    function canLoadDrProjection(scope) {
+        return String(scope.branch_id || '').trim() !== ''
+            && String(scope.from_date || '').trim() !== ''
+            && String(scope.to_date || '').trim() !== '';
+    }
+
     function activeProductRecord() {
         return state.products.find((row) => Number(row.id) === Number(state.activeProductId)) || null;
     }
@@ -1960,7 +2197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return 'Set the standard batch size first.';
         }
 
-        if (Number(row.recipe_item_count || 0) <= 0) {
+        if (productionRequiresRecipe && Number(row.recipe_item_count || 0) <= 0) {
             return 'Add ingredients for this item first.';
         }
 
@@ -2084,9 +2321,15 @@ document.addEventListener('DOMContentLoaded', () => {
         productionGuardToggle.classList.toggle('warn', active);
 
         if (productionGuardNote) {
-            productionGuardNote.textContent = active
-                ? 'Temporary non-production testing override is on. Saved entries will still be recorded even if the item setup is incomplete.'
-                : 'Temporary non-production testing override. When enabled, an entry can still be saved even if the item setup is incomplete.';
+            if (!productionRequiresRecipe) {
+                productionGuardNote.textContent = active
+                    ? 'Recipe mode is optional. Testing override remains on for incomplete setup cases such as missing standard batch size.'
+                    : 'Recipe mode is optional. Testing override is only needed for incomplete setup cases such as missing standard batch size.';
+            } else {
+                productionGuardNote.textContent = active
+                    ? 'Temporary non-production testing override is on. Saved entries will still be recorded even if the item setup is incomplete.'
+                    : 'Temporary non-production testing override. When enabled, an entry can still be saved even if the item setup is incomplete.';
+            }
         }
     }
 
@@ -2144,7 +2387,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (productionMetadataEditActive() && selected) {
             note.textContent = 'Reviewing the saved entry for ' + (selected.name || 'item') + '. Branch, item, amount made, and ingredients used stay locked here.';
         } else if (draftEntries.length === 0) {
-            note.textContent = 'Choose the branch, finished time, and who made it. Then enter the amount made in the item list below. Leave a box blank if nothing was made for that item.';
+            note.textContent = productionRequiresRecipe
+                ? 'Choose the branch, finished time, and who made it. Then enter the amount made in the item list below. Leave a box blank if nothing was made for that item.'
+                : 'Choose the branch, finished time, and who made it. Then enter the amount made in the item list below. Leave a box blank if nothing was made for that item. Products without recipes can still save as output-only entries.';
         } else if (draftEntries.length === 1 && selected) {
             note.textContent = 'Ready to save ' + (selected.name || 'item') + ' · Standard batch ' + displayTwoDecimalQuantity(selected.default_yield_qty) + ' ' + (selected.default_yield_unit_code || 'unit') + ' · Amount made ' + draftEntries[0].qty + '.';
         } else {
@@ -2281,6 +2526,130 @@ document.addEventListener('DOMContentLoaded', () => {
         qtyField.select();
     }
 
+    function syncIngredientPackUnitOptions(preferredValue = '') {
+        const defaultUnitId = Number(ingredientForm?.elements.namedItem('default_unit_id')?.value || '0');
+        const defaultUnit = findUnitById(defaultUnitId);
+        const allowedUnits = defaultUnit && defaultUnit.dimension
+            ? state.units.filter((row) => String(row.dimension || '') === String(defaultUnit.dimension || ''))
+            : state.units;
+
+        populateSelect('#ingredient-pack-unit', allowedUnits, (row) => ({ value: row.id, label: unitOptionLabel(row) }), 'No pack unit');
+
+        const select = $('#ingredient-pack-unit');
+        if (!select) {
+            return;
+        }
+
+        const nextValue = String(preferredValue || select.value || '');
+        if (nextValue && Array.from(select.options).some((option) => option.value === nextValue)) {
+            select.value = nextValue;
+        } else if (defaultUnitId > 0 && Array.from(select.options).some((option) => option.value === String(defaultUnitId))) {
+            select.value = String(defaultUnitId);
+        }
+    }
+
+    function syncProductTargetUnitOptions(preferredValue = '') {
+        const productId = Number(productTargetForm?.elements.namedItem('product_id')?.value || '0');
+        const product = state.products.find((row) => Number(row.id) === productId) || null;
+        const defaultUnitId = Number(product ? product.default_yield_unit_id : 0);
+        const defaultUnit = findUnitById(defaultUnitId);
+        const allowedUnits = defaultUnit && defaultUnit.dimension
+            ? state.units.filter((row) => String(row.dimension || '') === String(defaultUnit.dimension || ''))
+            : state.units;
+
+        populateSelect('#product-target-unit', allowedUnits, (row) => ({ value: row.id, label: unitOptionLabel(row) }), 'Select target unit');
+
+        const select = $('#product-target-unit');
+        if (!select) {
+            return;
+        }
+
+        const nextValue = String(preferredValue || select.value || '');
+        if (nextValue && Array.from(select.options).some((option) => option.value === nextValue)) {
+            select.value = nextValue;
+        } else if (defaultUnitId > 0 && Array.from(select.options).some((option) => option.value === String(defaultUnitId))) {
+            select.value = String(defaultUnitId);
+        }
+    }
+
+    function filteredProductTargetRows() {
+        const branchId = currentProductTargetBranchId();
+        const query = tableSearchQuery('#product-target-filter');
+
+        return state.productTargets.filter((row) => Number(row.branch_id) === branchId)
+            .filter((row) => rowMatchesSearch(query, [row.product_name, row.product_sku, row.product_category, row.unit_code, row.daily_qty]));
+    }
+
+    function renderProductTargetsTable() {
+        const branchId = currentProductTargetBranchId();
+        const branchSelect = $('#product-target-branch');
+        if (branchSelect && branchId > 0 && String(branchSelect.value || '') !== String(branchId)) {
+            branchSelect.value = String(branchId);
+        }
+
+        const rows = branchId > 0 ? filteredProductTargetRows() : [];
+        renderTable('#product-targets-table', rows, [
+            (row) => '<strong>' + escapeHtml(row.product_name || 'Product') + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.product_sku || 'No SKU') + '</div>',
+            (row) => escapeHtml(row.product_category || '—'),
+            (row) => '<strong>' + displayTwoDecimalQuantity(row.daily_qty) + '</strong>',
+            (row) => escapeHtml(unitOptionLabel({ code: row.unit_code, name: row.unit_name }) || '—'),
+            (row) => canManageWorkspace
+                ? '<div class="bakeshop-row-actions"><button type="button" class="bakeshop-link-button" data-action="edit-product-target" data-id="' + escapeHtml(row.id) + '">Edit</button><button type="button" class="bakeshop-link-button warn" data-action="delete-product-target" data-id="' + escapeHtml(row.id) + '">Delete</button></div>'
+                : '<span class="bakeshop-inline-note">View only</span>'
+        ], branchId > 0 ? 'No branch targets saved for this branch yet.' : 'Select a branch to view product targets.');
+    }
+
+    function renderDrProjectionTables() {
+        const summary = $('#dr-projection-summary');
+        const report = state.drProjection || {};
+
+        if (report.error) {
+            if (summary) {
+                summary.textContent = report.error;
+            }
+            renderTable('#dr-projection-ingredients-table', [], [() => '', () => '', () => '', () => '', () => '', () => ''], report.error);
+            renderTable('#dr-projection-products-table', [], [() => '', () => '', () => '', () => '', () => ''], report.error);
+            return;
+        }
+
+        if (!report.filters) {
+            if (summary) {
+                summary.textContent = 'Choose a branch and a scoped date range, then refresh usage to compute projected ingredient and product requirements.';
+            }
+            renderTable('#dr-projection-ingredients-table', [], [() => '', () => '', () => '', () => '', () => '', () => ''], 'No DR projection computed yet.');
+            renderTable('#dr-projection-products-table', [], [() => '', () => '', () => '', () => '', () => ''], 'No DR projection computed yet.');
+            return;
+        }
+
+        if (summary) {
+            const branchName = report.branch && report.branch.name ? report.branch.name : 'Selected branch';
+            summary.textContent = branchName + ' · Observed ' + String(report.filters.from_date || '') + ' to ' + String(report.filters.to_date || '') + ' · Projection horizon ' + String(report.filters.horizon_days || '') + ' day(s).';
+        }
+
+        const ingredientQuery = tableSearchQuery('#dr-projection-ingredients-filter');
+        const ingredientRows = (report.ingredients || []).filter((row) => rowMatchesSearch(ingredientQuery, [row.ingredient_name, row.default_unit_code, row.pack_label, row.per_pack_display, row.projected_qty_display]));
+        renderTable('#dr-projection-ingredients-table', ingredientRows, [
+            (row) => '<strong>' + escapeHtml(row.ingredient_name || 'Ingredient') + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.default_unit_code || 'unit') + '</div>',
+            (row) => escapeHtml(displayUsageQuantity((Number(row.default_unit_factor_to_base || 0) > 0 ? (Number(row.delivered_qty_base || 0) / Number(row.default_unit_factor_to_base || 1)) : Number(row.delivered_qty_base || 0))) + ' ' + String(row.default_unit_code || '')),
+            (row) => escapeHtml(String(row.observed_coverage_days || 0) + ' day(s)'),
+            (row) => escapeHtml(displayUsageQuantity((Number(row.default_unit_factor_to_base || 0) > 0 ? (Number(row.daily_qty_base || 0) / Number(row.default_unit_factor_to_base || 1)) : Number(row.daily_qty_base || 0))) + ' ' + String(row.default_unit_code || '')),
+            (row) => '<strong>' + escapeHtml(String(row.projected_qty_display || displayUsageQuantity(row.projected_qty))) + ' ' + escapeHtml(row.default_unit_code || '') + '</strong>',
+            (row) => escapeHtml(row.per_pack_display || '—')
+        ], 'No projected ingredients matched the current scope.');
+
+        const productQuery = tableSearchQuery('#dr-projection-products-filter');
+        const productRows = (report.products || []).filter((row) => rowMatchesSearch(productQuery, [row.product_name, row.product_category, row.unit_code, row.projected_qty_display]));
+        renderTable('#dr-projection-products-table', productRows, [
+            (row) => '<strong>' + escapeHtml(row.product_name || 'Product') + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.product_category || '—') + '</div>',
+            (row) => escapeHtml(displayTwoDecimalQuantity(row.daily_qty) + ' ' + String(row.unit_code || '')),
+            (row) => escapeHtml(String(row.days_produced || 0) + ' / ' + String(row.window_days || 0)),
+            (row) => Number(row.has_missing_days) === 1 || Number(row.missing_days || 0) > 0
+                ? '<span class="bakeshop-inline-note error">' + escapeHtml(String(row.missing_days || 0) + ' day(s)') + '</span>'
+                : '<span class="bakeshop-inline-note ok">None</span>',
+            (row) => '<strong>' + escapeHtml(String(row.projected_qty_display || displayTwoDecimalQuantity(row.projected_qty))) + ' ' + escapeHtml(row.unit_code || '') + '</strong>'
+        ], 'No projected products matched the current scope.');
+    }
+
     function renderProductionProductsTable(rows) {
         const tbody = document.querySelector('#production-products-table tbody');
         if (!tbody) {
@@ -2297,6 +2666,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const rowId = normalizedRowId('production-product', row);
             const draftQty = String((state.productionDraftQuantities && state.productionDraftQuantities[String(rowId)]) || '');
             const blockedReason = productionRowBlockedReason(row);
+            const outputOnlyAllowed = !productionRequiresRecipe && Number(row.recipe_item_count || 0) <= 0;
             const inputDisabled = !canManageWorkspace || productionMetadataEditActive();
             const saveState = productionDraftSaveStateFor(rowId);
             const saveStateClass = blockedReason !== '' && !productionGuardOverrideActive()
@@ -2308,9 +2678,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? (productionGuardOverrideActive()
                     ? 'Testing override active. This will save without ingredient-use detail.'
                     : blockedReason)
+                : (outputOnlyAllowed
+                    ? 'Recipe optional. This saves as an output-only entry.'
                 : (saveState && saveState.message
                     ? saveState.message
-                    : 'Blank = no production');
+                    : 'Blank = no production'));
             return '<tr data-row-kind="production-product" data-row-id="' + escapeHtml(rowId) + '">'
                 + '<td><strong>' + escapeHtml(row.name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.sku || 'No SKU') + '</div></td>'
                 + '<td>' + escapeHtml(row.category || '—') + '</td>'
@@ -2370,6 +2742,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const product = activeProductRecord();
 
         if (!empty || !details || !title || !description || !productEditorPanel || !recipePanel) {
+            return;
+        }
+
+        if (!productRecipesEnabled) {
+            productEditorPanel.classList.remove('is-editing');
+            recipePanel.classList.remove('is-editing');
             return;
         }
 
@@ -2597,6 +2975,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return numeric.toFixed(2);
     }
 
+    function displayUsageQuantity(value, fallback = null) {
+        const numeric = Number.parseFloat(String(value ?? '').trim());
+        if (!Number.isFinite(numeric)) {
+            return fallback === null ? (0).toFixed(state.usageDecimalPlaces) : fallback;
+        }
+
+        return numeric.toFixed(state.usageDecimalPlaces);
+    }
+
     function formatCurrencyDisplay(value, fallback = 'PHP 0.00') {
         const numeric = Number.parseFloat(String(value ?? '').trim());
         if (!Number.isFinite(numeric)) {
@@ -2611,8 +2998,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const totalColumns = productRecipesEnabled ? 7 : 6;
+        const recipeCellStyle = productRecipesEnabled ? '' : ' style="display:none;"';
+
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="bakeshop-muted">' + escapeHtml(state.productListView === 'archived' ? 'No archived products yet.' : 'No active products yet.') + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="' + String(totalColumns) + '" class="bakeshop-muted">' + escapeHtml(state.productListView === 'archived' ? 'No archived products yet.' : 'No active products yet.') + '</td></tr>';
             syncProductViewControls();
             syncProductSelectionControls(rows);
             return;
@@ -2634,7 +3024,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 + '<td><strong>' + escapeHtml(row.name) + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.sku || 'No SKU') + '</div>' + dependencyNote + '</td>'
                 + '<td>' + escapeHtml(row.category || '—') + '</td>'
                 + '<td>' + displayTwoDecimalQuantity(row.default_yield_qty) + ' ' + escapeHtml(row.default_yield_unit_code || '') + '</td>'
-                + '<td>' + escapeHtml(row.recipe_item_count) + '</td>'
+                + '<td' + recipeCellStyle + '>' + escapeHtml(row.recipe_item_count) + '</td>'
                 + '<td>' + rowStatusChip(row.is_active) + '</td>'
                 + '<td>' + rowActionButtons('product', row) + '</td>'
                 + '</tr>';
@@ -2649,6 +3039,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return '<div class="bakeshop-detail-stack">'
             + '<strong>' + escapeHtml(row.source_label || 'Commissary') + '</strong>'
             + '<span class="bakeshop-inline-note">' + escapeHtml(row.received_by || 'Receiver not recorded') + (row.cost_basis_summary ? ' · ' + escapeHtml(row.cost_basis_summary) : '') + '</span>'
+            + '<span class="bakeshop-inline-note">Coverage: ' + escapeHtml(String(row.coverage_days || 1)) + ' day(s)</span>'
             + '<span class="bakeshop-inline-note">' + escapeHtml(String(row.item_count || items.length || 0)) + ' lines · ' + escapeHtml(String(row.total_quantity || '0')) + ' total qty · ' + formatCurrencyDisplay(row.total_amount) + ' total amount</span>'
             + renderDetailList(items, (item) => escapeHtml(item.ingredient_name || 'Ingredient') + ': ' + escapeHtml(String(item.qty || '0')) + ' ' + escapeHtml(item.unit_code || '') + ((item.unit_cost !== null && item.unit_cost !== undefined && item.unit_cost !== '') ? (' @ ' + formatCurrencyDisplay(item.unit_cost)) : '') + ' · ' + escapeHtml(item.cost_basis_label || 'Delivery Source'), 'No delivery line detail loaded.')
             + '</div>';
@@ -2882,7 +3273,10 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#stat-branches').textContent = String(state.branches.length);
         $('#stat-products').textContent = String(state.products.length);
         $('#stat-ingredients').textContent = String(state.ingredients.length);
-        $('#stat-recipes').textContent = String(state.recipes.length);
+        const recipeStat = $('#stat-recipes');
+        if (recipeStat) {
+            recipeStat.textContent = String(state.recipes.length);
+        }
     }
 
     function filteredIngredientRows() {
@@ -2989,7 +3383,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="bakeshop-muted">' + escapeHtml(state.ingredientListView === 'archived' ? 'No archived ingredients yet.' : 'No active ingredients yet.') + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="bakeshop-muted">' + escapeHtml(state.ingredientListView === 'archived' ? 'No archived ingredients yet.' : 'No active ingredients yet.') + '</td></tr>';
             syncIngredientViewControls();
             syncIngredientSelectionControls(rows);
             return;
@@ -3024,6 +3418,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 + '<td><strong>' + escapeHtml(row.name) + '</strong>' + dependencyNote + '</td>'
                 + '<td>' + escapeHtml(row.sku || '—') + '</td>'
                 + '<td>' + escapeHtml([row.default_unit_code, row.default_unit_name].filter(Boolean).join(' — ') || '—') + '</td>'
+                + '<td>' + escapeHtml(formatIngredientPack(row)) + '</td>'
                 + '<td>' + rowStatusChip(row.is_active) + '</td>'
                 + '<td>' + rowActionButtons('ingredient', row) + '</td>'
                 + '</tr>';
@@ -3064,7 +3459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 + '<td><strong>' + escapeHtml(row.branch_name || '—') + '</strong><div class="bakeshop-inline-note">' + escapeHtml(row.source_label || 'Delivery source not set') + '</div></td>'
                 + '<td>' + escapeHtml(row.delivered_at || '—') + '</td>'
                 + '<td>' + escapeHtml(row.reference || '—') + '<div class="bakeshop-inline-note">' + escapeHtml(row.received_by || 'Receiver not set') + '</div></td>'
-                + '<td><div class="bakeshop-detail-stack"><span>' + escapeHtml(row.item_count || 0) + ' item(s)</span><span>' + escapeHtml(row.total_quantity || '0') + ' total qty</span><span>' + escapeHtml(row.cost_basis_summary || 'Cost basis pending') + '</span></div></td>'
+                + '<td><div class="bakeshop-detail-stack"><span>' + escapeHtml(row.item_count || 0) + ' item(s)</span><span>' + escapeHtml(row.total_quantity || '0') + ' total qty</span><span>' + escapeHtml(String(row.coverage_days || 1)) + ' day coverage</span><span>' + escapeHtml(row.cost_basis_summary || 'Cost basis pending') + '</span></div></td>'
                 + '<td><div class="bakeshop-row-actions">' + actionButtons.join('') + '</div></td>'
                 + '</tr>'
                 + (expanded
@@ -3087,10 +3482,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ], 'No branches yet.', 'branch');
         applyFocusedRow('#branches-table', 'branch', filteredBranches, 'Branch');
 
-        const activeBranches = state.branches.filter((row) => Number(row.is_active) !== 0);
+        const activeBranches = activeBranchRows();
         populateSelect('#delivery-branch', activeBranches, (row) => ({ value: row.id, label: row.code + ' — ' + row.name }), 'Select branch');
         populateSelect('#production-branch', activeBranches, (row) => ({ value: row.id, label: row.code + ' — ' + row.name }), 'Select branch');
+        populateSelect('#product-target-branch', activeBranches, (row) => ({ value: row.id, label: row.code + ' — ' + row.name }), 'Select branch');
         populateSelect('#usage-branch', state.branches, (row) => ({ value: row.id, label: row.code + ' — ' + row.name }), 'All branches');
+
+        if (state.productTargetBranchId <= 0 && activeBranches[0]) {
+            state.productTargetBranchId = Number(activeBranches[0].id || 0);
+        }
+
+        renderProductTargetsTable();
     }
 
     function renderCatalogTables() {
@@ -3143,8 +3545,12 @@ document.addEventListener('DOMContentLoaded', () => {
         populateSelect('#recipe-unit', state.units, (row) => ({ value: row.id, label: row.code + ' — ' + row.name }), 'Select unit');
         const activeProducts = state.products.filter((row) => Number(row.is_active) !== 0);
         const activeIngredients = state.ingredients.filter((row) => Number(row.is_active) !== 0);
+        populateSelect('#product-target-product', activeProducts, (row) => ({ value: row.id, label: row.name + (row.default_yield_unit_code ? (' — ' + row.default_yield_unit_code) : '') }), 'Select product');
+        syncIngredientPackUnitOptions(ingredientForm?.elements.namedItem('pack_unit_id')?.value || '');
+        syncProductTargetUnitOptions(productTargetForm?.elements.namedItem('unit_id')?.value || '');
         const filteredProductionProducts = activeProducts.filter((row) => rowMatchesSearch(tableSearchQuery('#production-products-filter'), [row.name, row.sku, row.category, row.default_yield_unit_code]));
         renderProductionProductsTable(filteredProductionProducts);
+        renderProductTargetsTable();
         populateSelect('#recipe-ingredient', activeIngredients, (row) => ({ value: row.id, label: row.name }), 'Select ingredient');
         syncRecipePanel();
     }
@@ -3225,12 +3631,25 @@ document.addEventListener('DOMContentLoaded', () => {
         ], 'No inventory snapshot rows are available for the selected branch yet.');
         $('#inventory-total-on-hand').textContent = state.inventoryTotals.on_hand_display || state.inventoryTotals.on_hand_qty_base || usageZeroValue;
         $('#inventory-total-lines').textContent = String(state.inventoryTotals.item_count || state.inventorySnapshot.length || 0);
+        renderDrProjectionTables();
     }
 
     function syncPrintLink() {
         const scope = currentReportScope();
+        const drScope = currentDrProjectionScope();
 
-        printLink.href = apiUrl('/admin/bakeshop/print', scope);
+        if (printLink) {
+            printLink.href = apiUrl('/admin/bakeshop/print', scope);
+        }
+
+        [drProjectionPrintLink, drProjectionInlinePrintLink].forEach((link) => {
+            if (!link) {
+                return;
+            }
+
+            link.href = apiUrl('/admin/bakeshop/print/dr-projection', drScope);
+            link.setAttribute('aria-disabled', canLoadDrProjection(drScope) ? 'false' : 'true');
+        });
     }
 
     function collectDeliveryItems() {
@@ -3495,6 +3914,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadRecipes(force = false) {
+        if (!productRecipesEnabled) {
+            state.recipes = [];
+            state.loaded.recipes = true;
+            renderCatalogTables();
+            updateStats();
+            return;
+        }
+
         if (!force && state.loaded.recipes) {
             renderCatalogTables();
             updateStats();
@@ -3517,6 +3944,18 @@ document.addEventListener('DOMContentLoaded', () => {
         state.loaded.deliveries = true;
         pruneDeliverySelection();
         renderOperationalTables();
+    }
+
+    async function loadProductTargets(force = false) {
+        if (!force && state.loaded['product-targets']) {
+            renderProductTargetsTable();
+            return;
+        }
+
+        const data = await request(api.productTargets);
+        state.productTargets = data.items || [];
+        state.loaded['product-targets'] = true;
+        renderProductTargetsTable();
     }
 
     async function loadProduction(force = false) {
@@ -3555,6 +3994,48 @@ document.addEventListener('DOMContentLoaded', () => {
         state.inventorySnapshot = (data.inventory && data.inventory.items) || [];
         state.inventoryTotals = (data.inventory && data.inventory.totals) || state.inventoryTotals;
         renderUsage();
+    }
+
+    async function loadDrProjection(force = false) {
+        const scope = currentDrProjectionScope();
+        const scopeKey = drProjectionScopeKey(scope);
+
+        if (!canLoadDrProjection(scope)) {
+            state.drProjection = {
+                filters: null,
+                branch: null,
+                window_days: 0,
+                ingredients: [],
+                products: [],
+                error: ''
+            };
+            state.drProjectionScopeKey = '';
+            state.loaded['dr-projection'] = false;
+            renderDrProjectionTables();
+            return;
+        }
+
+        if (!force && state.loaded['dr-projection'] && state.drProjectionScopeKey === scopeKey) {
+            renderDrProjectionTables();
+            return;
+        }
+
+        const data = await request(apiUrl(api.drProjection, scope));
+        const report = data.report || {};
+        if (report.settings && Number.isFinite(Number(report.settings.usage_decimal_places))) {
+            state.usageDecimalPlaces = Number(report.settings.usage_decimal_places);
+        }
+        state.drProjection = {
+            filters: report.filters || null,
+            branch: report.branch || null,
+            window_days: Number(report.window_days || 0),
+            ingredients: report.ingredients || [],
+            products: report.products || [],
+            error: ''
+        };
+        state.drProjectionScopeKey = scopeKey;
+        state.loaded['dr-projection'] = true;
+        renderDrProjectionTables();
     }
 
     async function ensureTabData(tabName, options = {}) {
@@ -3796,11 +4277,14 @@ document.addEventListener('DOMContentLoaded', () => {
         ingredientForm.reset();
         ingredientForm.elements.namedItem('id').value = '';
         ingredientForm.elements.namedItem('is_active').value = '1';
+        ingredientForm.elements.namedItem('pack_label').value = '';
+        ingredientForm.elements.namedItem('pack_qty').value = '';
         const _ift = $('#ingredient-form-title'); if (_ift) _ift.textContent = 'New Ingredient';
         const _ifd = $('#ingredient-form-description'); if (_ifd) _ifd.textContent = 'Raw materials received into branch inventory through deliveries.';
         setFocusNote('#ingredient-focus-note', '');
         $('#ingredient-submit').textContent = 'Save Ingredient';
         syncEditorActionButtons({ addSelector: '#ingredient-add', cancelSelector: '#ingredient-cancel', editing: false });
+        syncIngredientPackUnitOptions('');
     }
 
     function editIngredient(row, source = 'table') {
@@ -3809,12 +4293,67 @@ document.addEventListener('DOMContentLoaded', () => {
         ingredientForm.elements.namedItem('name').value = row.name || '';
         ingredientForm.elements.namedItem('sku').value = row.sku || '';
         ingredientForm.elements.namedItem('default_unit_id').value = row.default_unit_id || '';
+        ingredientForm.elements.namedItem('pack_label').value = row.pack_label || '';
+        ingredientForm.elements.namedItem('pack_qty').value = row.pack_qty || '';
         const _ift2 = $('#ingredient-form-title'); if (_ift2) _ift2.textContent = 'Edit Ingredient';
         const _ifd2 = $('#ingredient-form-description'); if (_ifd2) _ifd2.textContent = 'Update this raw material without leaving the catalog workspace.';
         setFocusNote('#ingredient-focus-note', source === 'history' ? 'Reviewing this ingredient from activity history. Confirm the stock unit and identity details before saving.' : '');
         $('#ingredient-submit').textContent = 'Update Ingredient';
         syncEditorActionButtons({ addSelector: '#ingredient-add', cancelSelector: '#ingredient-cancel', editing: true });
+        syncIngredientPackUnitOptions(row.pack_unit_id || '');
         ingredientForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function resetProductTargetForm() {
+        if (!productTargetForm) {
+            return;
+        }
+
+        const branchId = currentProductTargetBranchId();
+        productTargetForm.reset();
+        productTargetForm.elements.namedItem('id').value = '';
+        productTargetForm.elements.namedItem('is_active').value = '1';
+        if (branchId > 0) {
+            productTargetForm.elements.namedItem('branch_id').value = String(branchId);
+        }
+        productTargetForm.elements.namedItem('daily_qty').value = '1.00';
+        setFocusNote('#product-target-focus-note', '');
+        $('#product-target-submit').textContent = 'Save Target';
+        syncEditorActionButtons({ addSelector: '#product-target-add', cancelSelector: '#product-target-cancel', editing: false });
+        syncProductTargetUnitOptions('');
+    }
+
+    function editProductTarget(row) {
+        if (!productTargetForm) {
+            return;
+        }
+
+        state.productTargetBranchId = Number(row.branch_id || 0);
+        productTargetForm.elements.namedItem('id').value = String(row.id || '');
+        productTargetForm.elements.namedItem('is_active').value = String(Number(row.is_active) === 0 ? 0 : 1);
+        productTargetForm.elements.namedItem('branch_id').value = String(row.branch_id || '');
+        productTargetForm.elements.namedItem('product_id').value = String(row.product_id || '');
+        productTargetForm.elements.namedItem('daily_qty').value = normalizeTwoDecimalQuantity(row.daily_qty, '1.00');
+        setFocusNote('#product-target-focus-note', 'Reviewing this branch target. Confirm the branch, product, target quantity, and unit before saving.');
+        $('#product-target-submit').textContent = 'Update Target';
+        syncEditorActionButtons({ addSelector: '#product-target-add', cancelSelector: '#product-target-cancel', editing: true });
+        syncProductTargetUnitOptions(row.unit_id || '');
+        productTargetForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function deleteProductTarget(row) {
+        if (!confirmDelete('Delete this branch target? This cannot be undone.')) {
+            return;
+        }
+
+        await submitJson(api.productTargetsDelete, {
+            id: row.id
+        }, 'Branch target deleted.', async () => {
+            if (productTargetForm && productTargetForm.elements.namedItem('id').value === String(row.id)) {
+                resetProductTargetForm();
+            }
+            await loadProductTargets(true);
+        });
     }
 
     function resetRecipeForm() {
@@ -3871,14 +4410,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const message = normalizedIds.length === 1
-            ? 'Delete this product? Its recipe lines will also be deleted. This cannot be undone.'
-            : 'Delete ' + String(normalizedIds.length) + ' selected products? Their recipe lines will also be deleted. This cannot be undone.';
+            ? (productRecipesEnabled
+                ? 'Delete this product? Its recipe lines will also be deleted. This cannot be undone.'
+                : 'Delete this product? This cannot be undone.')
+            : (productRecipesEnabled
+                ? 'Delete ' + String(normalizedIds.length) + ' selected products? Their recipe lines will also be deleted. This cannot be undone.'
+                : 'Delete ' + String(normalizedIds.length) + ' selected products? This cannot be undone.');
         const shouldDelete = normalizedIds.length === 1
             ? confirmDelete(message)
             : await confirmBulkDelete({
                 title: 'Delete selected products?',
                 message,
-                impact: 'Each selected product also removes its recipe lines.',
+                impact: productRecipesEnabled ? 'Each selected product also removes its recipe lines.' : 'Selected products are removed permanently.',
                 items: normalizedIds.map((id) => productDeletePreviewLabel(findStateRow('product', id), id)),
                 confirmLabel: 'Delete Products'
             });
@@ -4081,6 +4624,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (kind === 'production') {
             return state.production.find((row) => Number(row.id) === numericId) || null;
         }
+        if (kind === 'product-target') {
+            return state.productTargets.find((row) => Number(row.id) === numericId) || null;
+        }
         return null;
     }
 
@@ -4185,11 +4731,32 @@ document.addEventListener('DOMContentLoaded', () => {
             is_active: form.elements.namedItem('is_active').value,
             name: form.elements.namedItem('name').value,
             sku: form.elements.namedItem('sku').value,
-            default_unit_id: form.elements.namedItem('default_unit_id').value
+            default_unit_id: form.elements.namedItem('default_unit_id').value,
+            pack_label: form.elements.namedItem('pack_label').value,
+            pack_qty: form.elements.namedItem('pack_qty').value,
+            pack_unit_id: form.elements.namedItem('pack_unit_id').value
         }, form.elements.namedItem('id').value ? 'Ingredient updated.' : 'Ingredient saved.', async () => {
             resetIngredientForm();
             await loadIngredients(true);
             await loadRecipes(true);
+        });
+    });
+
+    $('#product-target-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        await submitJson(api.productTargets, {
+            id: form.elements.namedItem('id').value,
+            is_active: form.elements.namedItem('is_active').value,
+            branch_id: form.elements.namedItem('branch_id').value,
+            product_id: form.elements.namedItem('product_id').value,
+            daily_qty: normalizeTwoDecimalQuantity(form.elements.namedItem('daily_qty').value, '1.00'),
+            unit_id: form.elements.namedItem('unit_id').value
+        }, form.elements.namedItem('id').value ? 'Branch target updated.' : 'Branch target saved.', async () => {
+            state.productTargetBranchId = Number(form.elements.namedItem('branch_id').value || 0);
+            resetProductTargetForm();
+            await loadProductTargets(true);
+            await loadDrProjection(true);
         });
     });
 
@@ -4289,6 +4856,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ingredientForm.elements.namedItem('name').focus();
     });
     $('#ingredient-cancel').addEventListener('click', resetIngredientForm);
+    $('#product-target-add')?.addEventListener('click', () => {
+        resetProductTargetForm();
+        productTargetForm?.elements.namedItem('product_id')?.focus();
+    });
+    $('#product-target-cancel')?.addEventListener('click', resetProductTargetForm);
     document.querySelectorAll('[data-ingredient-view]').forEach((button) => {
         button.addEventListener('click', () => {
             const nextView = button.getAttribute('data-ingredient-view') === 'archived' ? 'archived' : 'active';
@@ -4350,6 +4922,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         syncIngredientSelectionControls(filteredIngredientRows());
     });
+    $('#product-target-branch')?.addEventListener('change', (event) => {
+        state.productTargetBranchId = Number(event.currentTarget.value || '0');
+        renderProductTargetsTable();
+    });
+    $('#product-target-product')?.addEventListener('change', () => {
+        syncProductTargetUnitOptions('');
+    });
+    $('#ingredient-unit')?.addEventListener('change', () => {
+        syncIngredientPackUnitOptions('');
+    });
     $('#recipe-cancel').addEventListener('click', resetRecipeForm);
 
     $('#recipe-form').addEventListener('submit', async (event) => {
@@ -4381,6 +4963,12 @@ document.addEventListener('DOMContentLoaded', () => {
             input.addEventListener('input', renderCatalogTables);
         }
     });
+    ['#product-target-filter'].forEach((selector) => {
+        const input = $(selector);
+        if (input) {
+            input.addEventListener('input', renderProductTargetsTable);
+        }
+    });
     ['#deliveries-filter', '#production-filter'].forEach((selector) => {
         const input = $(selector);
         if (input) {
@@ -4391,6 +4979,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = $(selector);
         if (input) {
             input.addEventListener('input', renderUsage);
+        }
+    });
+    ['#dr-projection-ingredients-filter', '#dr-projection-products-filter'].forEach((selector) => {
+        const input = $(selector);
+        if (input) {
+            input.addEventListener('input', renderDrProjectionTables);
         }
     });
     $('#delivery-sheet-clear').addEventListener('click', () => {
@@ -4423,12 +5017,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const preservedBranch = form.branch_id.value;
         const preservedDeliveredAt = form.delivered_at.value;
+        const preservedCoverageDays = form.coverage_days.value;
         const preservedReceivedBy = form.received_by.value;
         const preservedSourceType = form.source_type.value;
         const preservedSourceName = form.source_name.value;
         await submitJson(api.deliveries, {
             branch_id: form.branch_id.value,
             delivered_at: form.delivered_at.value,
+            coverage_days: form.coverage_days.value,
             reference: form.reference.value,
             source_type: form.source_type.value,
             source_name: form.source_name.value,
@@ -4440,6 +5036,7 @@ document.addEventListener('DOMContentLoaded', () => {
             form.notes.value = '';
             form.branch_id.value = preservedBranch;
             form.delivered_at.value = preservedDeliveredAt || nowLocalDate();
+            form.coverage_days.value = preservedCoverageDays || String(defaultDrCoverageDays || 1);
             form.received_by.value = preservedReceivedBy;
             form.source_type.value = preservedSourceType || 'commissary';
             form.source_name.value = preservedSourceName;
@@ -4447,6 +5044,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearDeliverySheetValues();
             await loadDeliveries(true);
             await loadUsage();
+            await loadDrProjection(true);
         });
     });
     $('#deliveries-select-visible')?.addEventListener('click', () => {
@@ -4615,7 +5213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#usage-form').addEventListener('submit', async (event) => {
         event.preventDefault();
         try {
-            await loadUsage();
+            await ensureTabData('usage', { force: true });
             showBanner('Usage summary refreshed.', true);
         } catch (error) {
             showBanner(error.message || 'Unable to load usage summary.', false);
@@ -4631,7 +5229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    ['#usage-branch', '#usage-from', '#usage-to', '#summary-branch-filter', '#summary-from-filter', '#summary-to-filter'].forEach((selector) => {
+    ['#usage-branch', '#usage-from', '#usage-to', '#usage-horizon-days', '#summary-branch-filter', '#summary-from-filter', '#summary-to-filter'].forEach((selector) => {
         $(selector).addEventListener('change', () => {
             if (selector.startsWith('#summary-')) {
                 syncReportScopeInputs('summary');
@@ -4643,6 +5241,38 @@ document.addEventListener('DOMContentLoaded', () => {
     bindMaintenanceActions('#branches-table');
     bindMaintenanceActions('#products-table');
     bindMaintenanceActions('#ingredients-table');
+    $('#product-targets-table')?.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-action]');
+        if (!button) {
+            return;
+        }
+
+        const row = findStateRow('product-target', button.getAttribute('data-id') || '0');
+        if (!row) {
+            showBanner('Selected branch target could not be found.', false);
+            return;
+        }
+
+        if (button.getAttribute('data-action') === 'edit-product-target') {
+            if (!canManageWorkspace) {
+                showBanner('This work area is read only for your role.', false);
+                return;
+            }
+
+            editProductTarget(row);
+            clearBanner();
+            return;
+        }
+
+        if (button.getAttribute('data-action') === 'delete-product-target') {
+            if (!canManageWorkspace) {
+                showBanner('This work area is read only for your role.', false);
+                return;
+            }
+
+            await deleteProductTarget(row);
+        }
+    });
     $('#recipes-table').addEventListener('click', async (event) => {
         const button = event.target.closest('[data-action]');
         if (!button) {
@@ -4740,14 +5370,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $('#delivery-at').value = nowLocalDate();
+    $('#delivery-coverage-days').value = String(defaultDrCoverageDays || 1);
     $('#delivery-source-type').value = 'commissary';
     syncDeliverySourceField();
     applyWorkspaceAccessMode();
     syncEditorActionButtons({ cancelSelector: '#branch-cancel', editing: false });
     syncEditorActionButtons({ addSelector: '#product-add', cancelSelector: '#product-cancel', editing: false });
     syncEditorActionButtons({ addSelector: '#ingredient-add', cancelSelector: '#ingredient-cancel', editing: false });
+    syncEditorActionButtons({ addSelector: '#product-target-add', cancelSelector: '#product-target-cancel', editing: false });
     syncEditorActionButtons({ cancelSelector: '#recipe-cancel', editing: false });
     syncEditorActionButtons({ cancelSelector: '#production-cancel', editing: false });
+    resetProductTargetForm();
     $('#delivery-source-type').addEventListener('change', syncDeliverySourceField);
     deliverySectionTabs.forEach((button) => {
         button.addEventListener('click', () => {

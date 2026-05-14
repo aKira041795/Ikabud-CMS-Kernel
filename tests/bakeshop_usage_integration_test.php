@@ -49,6 +49,9 @@ $db = app()->db();
 $runner = new \Ikabud\Kernel\Database\MigrationRunner($db);
 $runner->migrate('bakeshop');
 
+$originalSettings = getModuleSettings('bakeshop');
+$originalProductionRecipeMode = $originalSettings['production_recipe_mode'] ?? null;
+
 $suffix = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
 $branchId = 0;
 $productId = 0;
@@ -60,8 +63,13 @@ $runId = 0;
 $voidedRunId = 0;
 $guardOverrideProductId = 0;
 $guardOverrideRunId = 0;
+$optionalRunId = 0;
 
 try {
+    saveModuleSettings('bakeshop', array_merge(is_array($originalSettings) ? $originalSettings : [], [
+        'production_recipe_mode' => 'required',
+    ]));
+
     $kgUnitId = (int)($db->query("SELECT id FROM bakeshop_units WHERE code = 'kg' LIMIT 1")->fetchColumn() ?: 0);
     $gUnitId = (int)($db->query("SELECT id FROM bakeshop_units WHERE code = 'g' LIMIT 1")->fetchColumn() ?: 0);
 
@@ -134,6 +142,7 @@ try {
     $delivery = bakeshopDeliveriesCreate([
         'branch_id' => $branchId,
         'delivered_at' => '2026-04-26 08:00:00',
+        'coverage_days' => 3,
         'reference' => 'DEL-' . $suffix,
         'received_by' => 'Supervisor',
         'notes' => 'Integration test delivery',
@@ -156,6 +165,7 @@ try {
     ]);
     $deliveryId = (int)($delivery['id'] ?? 0);
     btUsage('delivery created', $deliveryId > 0, json_encode($delivery, JSON_UNESCAPED_SLASHES));
+    btUsage('delivery preserves explicit coverage days', (int)($delivery['coverage_days'] ?? 0) === 3, json_encode($delivery, JSON_UNESCAPED_SLASHES));
     btUsage('delivery contains two items', count((array)($delivery['items'] ?? [])) === 2);
     $flourDelivery = btUsageFindRow((array)($delivery['items'] ?? []), static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $flourId);
     $sugarDelivery = btUsageFindRow((array)($delivery['items'] ?? []), static fn (array $row): bool => (int)($row['ingredient_id'] ?? 0) === $sugarId);
@@ -205,6 +215,22 @@ try {
     $guardOverrideRunId = (int)($guardOverrideRun['id'] ?? 0);
     btUsage('production guard override creates test run', $guardOverrideRunId > 0, json_encode($guardOverrideRun, JSON_UNESCAPED_SLASHES));
     btUsage('production guard override skips snapshot items', count((array)($guardOverrideRun['items'] ?? [])) === 0, json_encode($guardOverrideRun['items'] ?? [], JSON_UNESCAPED_SLASHES));
+
+    saveModuleSettings('bakeshop', array_merge(is_array($originalSettings) ? $originalSettings : [], [
+        'production_recipe_mode' => 'optional',
+    ]));
+
+    $optionalRun = bakeshopProductionCreate([
+        'branch_id' => $branchId,
+        'product_id' => $guardOverrideProductId,
+        'produced_at' => '2026-04-26 10:25:00',
+        'qty_produced' => 5,
+        'produced_by' => 'Baker',
+        'notes' => 'Optional recipe mode run',
+    ]);
+    $optionalRunId = (int)($optionalRun['id'] ?? 0);
+    btUsage('optional recipe mode allows output-only production entries', $optionalRunId > 0, json_encode($optionalRun, JSON_UNESCAPED_SLASHES));
+    btUsage('optional recipe mode still skips snapshot items when setup is incomplete', count((array)($optionalRun['items'] ?? [])) === 0, json_encode($optionalRun['items'] ?? [], JSON_UNESCAPED_SLASHES));
 
     $updatedRun = bakeshopProductionUpdate([
         'id' => $runId,
@@ -262,6 +288,7 @@ try {
     ]);
     $futureDeliveryId = (int)($futureDelivery['id'] ?? 0);
     btUsage('future delivery created', $futureDeliveryId > 0, json_encode($futureDelivery, JSON_UNESCAPED_SLASHES));
+    btUsage('future delivery defaults coverage days to 1', (int)($futureDelivery['coverage_days'] ?? 0) === 1, json_encode($futureDelivery, JSON_UNESCAPED_SLASHES));
 
     $usageRows = bakeshopUsageReportRows([
         'branch_id' => $branchId,
@@ -328,7 +355,7 @@ try {
         'from_date' => '2026-04-26',
         'to_date' => '2026-04-26',
     ]);
-    btUsage('factual summary excludes voided production runs and includes override test run', (int)($factualSummary['production_run_count'] ?? 0) === 2, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
+    btUsage('factual summary excludes voided production runs and includes output-only test runs', (int)($factualSummary['production_run_count'] ?? 0) === 3, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
     btUsage('factual summary consumption ignores override runs without snapshot items', abs((float)($factualSummary['consumed_qty_base'] ?? 0) - 3.0) < 0.0001, json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
     btUsage('factual summary on-hand display carries base unit label', (string)($factualSummary['inventory_on_hand_display'] ?? '') === '4.00 kg', json_encode($factualSummary, JSON_UNESCAPED_SLASHES));
 
@@ -340,9 +367,18 @@ try {
     btUsage('current inventory includes later flour restock', abs((float)($currentFlourInventory['on_hand_qty_base'] ?? 0) - 5.0) < 0.0001, json_encode($currentFlourInventory, JSON_UNESCAPED_SLASHES));
     btUsage('current inventory includes later sugar restock', abs((float)($currentSugarInventory['on_hand_qty_base'] ?? 0) - 1.5) < 0.0001, json_encode($currentSugarInventory, JSON_UNESCAPED_SLASHES));
 } finally {
+    saveModuleSettings('bakeshop', array_merge(is_array($originalSettings) ? $originalSettings : [], [
+        'production_recipe_mode' => $originalProductionRecipeMode,
+    ]));
+
     if ($voidedRunId > 0) {
         $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$voidedRunId]);
         $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$voidedRunId]);
+    }
+
+    if ($optionalRunId > 0) {
+        $db->prepare('DELETE FROM bakeshop_production_items WHERE run_id = ?')->execute([$optionalRunId]);
+        $db->prepare('DELETE FROM bakeshop_production_runs WHERE id = ?')->execute([$optionalRunId]);
     }
 
     if ($guardOverrideRunId > 0) {

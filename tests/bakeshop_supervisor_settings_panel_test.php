@@ -90,6 +90,7 @@ try {
         'store_logo_url' => '/uploads/bakeshop/crust-and-crumb.png',
         'usage_decimal_places' => '2',
     ]);
+    bakeshopClearBrandSettingsCache();
 
     $adminHtml = renderBakeshopSupervisorForUser([
         'id' => 1,
@@ -124,7 +125,8 @@ try {
     if ($scopedBranchId !== '') {
         $scopedQuery['branch_id'] = $scopedBranchId;
     }
-    $scopedQueryString = http_build_query($scopedQuery);
+    $scopedWorkspaceQuery = bakeshopWorkspaceScopeQuery($scopedQuery);
+    $scopedQueryString = http_build_query($scopedWorkspaceQuery);
     $scopedAdminHtml = renderBakeshopSupervisorForUser([
         'id' => 1,
         'username' => 'admin',
@@ -215,6 +217,7 @@ try {
     $expectedControlTimeout = (int) app()->config('control_database.timeout_seconds', 0);
     btPanel('settings page renders branding section', str_contains($settingsHtml, 'Branding, Usage, and Print Defaults'));
     btPanel('settings page renders store branding fields', str_contains($settingsHtml, 'Store Name') && str_contains($settingsHtml, 'Store Description') && str_contains($settingsHtml, 'Upload Logo'), $settingsHtml);
+    btPanel('settings page renders dr coverage and recipe policy fields', str_contains($settingsHtml, 'Default DR Coverage Days') && str_contains($settingsHtml, 'Product Recipes') && str_contains($settingsHtml, 'Production Recipe Policy'), $settingsHtml);
     btPanel('settings page renders branding save action', str_contains($settingsHtml, 'Save Branding and Display Defaults'));
     btPanel('settings page renders logo upload controls', str_contains($settingsHtml, 'store_logo_file') && str_contains($settingsHtml, 'Use Lettermark'), $settingsHtml);
     btPanel('settings page renders runtime diagnostics section', str_contains($settingsHtml, 'Runtime Diagnostics') && str_contains($settingsHtml, 'Primary Request DB Target') && str_contains($settingsHtml, 'Tenant DB Config Cache') && str_contains($settingsHtml, 'Encrypted Tenant Credentials'), $settingsHtml);
@@ -248,6 +251,7 @@ try {
         'store_logo_url' => $originalStoreLogoUrl,
         'usage_decimal_places' => $originalUsageDecimalPlaces,
     ]);
+    bakeshopClearBrandSettingsCache();
 }
 
 $appLogRaw = (string)@file_get_contents($appLogPath);

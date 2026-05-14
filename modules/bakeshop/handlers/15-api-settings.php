@@ -23,6 +23,12 @@ function bakeshopSaveDisplaySettings(array $input): array
     $storeDescription = bakeshopNormalizeStoreDescription($input['store_description'] ?? null);
     $storeLogoUrl = bakeshopNormalizeStoreLogoUrl($input['store_logo_url'] ?? null);
     $usageDecimalPlaces = bakeshopNormalizeUsageDecimalPlaces($input['usage_decimal_places'] ?? null);
+    $defaultDrCoverageDays = bakeshopNormalizeDefaultDrCoverageDays($input['default_dr_coverage_days'] ?? null);
+    $productRecipeStatus = bakeshopNormalizeProductRecipeStatus($input['product_recipe_status'] ?? null);
+    $productionRecipeMode = bakeshopNormalizeProductionRecipeMode($input['production_recipe_mode'] ?? null);
+    if ($productRecipeStatus !== 'active') {
+        $productionRecipeMode = 'optional';
+    }
     $printTemplate = bakeshopNormalizePrintTemplate($input['print_template'] ?? null);
 
     saveModuleSettings('bakeshop', [
@@ -30,6 +36,9 @@ function bakeshopSaveDisplaySettings(array $input): array
         'store_description' => $storeDescription,
         'store_logo_url' => $storeLogoUrl,
         'usage_decimal_places' => (string)$usageDecimalPlaces,
+        'default_dr_coverage_days' => (string)$defaultDrCoverageDays,
+        'product_recipe_status' => $productRecipeStatus,
+        'production_recipe_mode' => $productionRecipeMode,
         'print_template' => $printTemplate,
     ]);
 
@@ -40,6 +49,9 @@ function bakeshopSaveDisplaySettings(array $input): array
         'store_description' => $storeDescription,
         'store_logo_url' => $storeLogoUrl,
         'usage_decimal_places' => $usageDecimalPlaces,
+        'default_dr_coverage_days' => $defaultDrCoverageDays,
+        'product_recipe_status' => $productRecipeStatus,
+        'production_recipe_mode' => $productionRecipeMode,
         'print_template' => $printTemplate,
     ];
 }

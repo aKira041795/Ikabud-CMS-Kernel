@@ -115,8 +115,11 @@ function bakeshopProductionCreate(array $input): array
     $branchId = bakeshopCatalogRequirePositiveInt($input['branch_id'] ?? null, 'branch_id');
     $productId = bakeshopCatalogRequirePositiveInt($input['product_id'] ?? null, 'product_id');
     $qtyProduced = bakeshopCatalogRequirePositiveDecimal($input['qty_produced'] ?? null, 'qty_produced');
-    $relaxGuards = bakeshopAllowProductionGuardOverride()
-        && filter_var($input['relax_guards'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $recipeRequired = bakeshopProductionRequiresRecipe();
+    $relaxGuards = !$recipeRequired || (
+        bakeshopAllowProductionGuardOverride()
+        && filter_var($input['relax_guards'] ?? false, FILTER_VALIDATE_BOOLEAN)
+    );
 
     bakeshopCatalogAssertRecordExists('bakeshop_branches', $branchId);
     bakeshopCatalogAssertRecordExists('bakeshop_products', $productId);

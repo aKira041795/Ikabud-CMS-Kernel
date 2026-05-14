@@ -1,0 +1,155 @@
+{extends "modules/bakeshop/layouts/print.disyl"}
+
+{block head}
+<style>
+    .bakeshop-print { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
+    .bakeshop-print h2 { margin: 0; font-size: var(--font-size-h2, 2rem); font-weight: 800; }
+    .bakeshop-print p { color: var(--text-muted); margin: 0; }
+    .bakeshop-print-meta { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    .bakeshop-print-meta div { border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; background: #fff; }
+    .bakeshop-print-meta strong { display: block; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bakeshop-print-meta p { margin-top: 8px; font-size: 1.05rem; font-weight: 600; color: var(--text-color); }
+    .bakeshop-print-meta span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.88rem; font-weight: 400; }
+    .bakeshop-print-note { padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 12px; background: #fff; color: var(--text-muted); line-height: 1.55; }
+    .bakeshop-print-section { border: 1px solid var(--border-color); border-radius: 14px; background: #fff; overflow: hidden; }
+    .bakeshop-print-section-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--border-color); display: grid; gap: 4px; }
+    .bakeshop-print-section-head h3 { margin: 0; }
+    .bakeshop-print-table-wrap { overflow: auto; }
+    .bakeshop-print table { width: 100%; border-collapse: collapse; }
+    .bakeshop-print th,
+    .bakeshop-print td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+    .bakeshop-print th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: #fffaf2; }
+    .bakeshop-print tfoot td { font-weight: 700; background: #fffaf2; }
+    .bakeshop-print-entity strong { display: block; }
+    .bakeshop-print-entity span { color: var(--text-muted); font-size: 0.84rem; }
+    .bakeshop-empty { padding: 18px; border: 1px dashed var(--border-color); border-radius: 12px; color: var(--text-muted); background: #fff; }
+    .bakeshop-inline-alert { color: #b42318; }
+    @media print {
+        .bakeshop-print { max-width: none; }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="bakeshop-print">
+    <h2>{page_title}</h2>
+    <p>Delivery-coverage projection for forward branch planning. Ingredients are dailyized from observed DR coverage, while product totals follow strict branch daily targets and actual days produced.</p>
+
+    <div class="bakeshop-print-meta">
+        <div>
+            <strong>Branch</strong>
+            <p>{if branch}{if branch.code}{branch.code} - {/if}{branch.name}{else}Choose a branch{/if}</p>
+        </div>
+        <div>
+            <strong>Observed From</strong>
+            <p>{if display_from_date}{display_from_date}{else}Set in Usage{/if}</p>
+        </div>
+        <div>
+            <strong>Observed To</strong>
+            <p>{if display_to_date}{display_to_date}{else}Set in Usage{/if}</p>
+        </div>
+        <div>
+            <strong>Projection Horizon</strong>
+            <p>{horizon_days} day(s)</p>
+        </div>
+        <div>
+            <strong>Output</strong>
+            <p>{output_summary_label}<span>{print_template_label}</span></p>
+        </div>
+        <div>
+            <strong>Return</strong>
+            <p><a href="{base_url}{workspace_url}">Back to usage workspace</a></p>
+        </div>
+    </div>
+
+    <div class="bakeshop-print-note">
+        This view treats each delivery as covering its recorded DR window. Ingredient projection is calculated as delivered quantity divided by observed coverage days, then extended by the selected horizon. Product projection uses saved branch daily targets and only counts days where production actually occurred during the observed window.
+    </div>
+
+    {if error_message}
+    <div class="bakeshop-empty bakeshop-inline-alert">{error_message}. Open the Usage workspace, choose a branch plus observed dates, then reopen this print view.</div>
+    {else}
+    <section class="bakeshop-print-section">
+        <div class="bakeshop-print-section-head">
+            <h3>Projected Ingredients</h3>
+            <p>Observed DR totals, normalized daily usage, projected requirement, and pack interpretation.</p>
+        </div>
+        <div class="bakeshop-print-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ingredient</th>
+                        <th>Observed Qty</th>
+                        <th>Coverage</th>
+                        <th>Daily Qty</th>
+                        <th>Projected Qty</th>
+                        <th>Per Pack</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if ingredient_rows}
+                    {each ingredient_rows as row}
+                    <tr>
+                        <td class="bakeshop-print-entity">
+                            <strong>{row.ingredient_name}</strong>
+                            <span>{if row.default_unit_name}{row.default_unit_name}{else}{row.default_unit_code}{/if}</span>
+                        </td>
+                        <td>{row.observed_qty_display}</td>
+                        <td>{row.coverage_label}</td>
+                        <td>{row.daily_qty_display}</td>
+                        <td>{row.projected_qty_display_with_unit}</td>
+                        <td>{if row.per_pack_display}{row.per_pack_display}{else}—{/if}</td>
+                    </tr>
+                    {/each}
+                    {else}
+                    <tr>
+                        <td colspan="6">No projected ingredients matched the selected scope.</td>
+                    </tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="bakeshop-print-section">
+        <div class="bakeshop-print-section-head">
+            <h3>Projected Products</h3>
+            <p>Strict daily targets scaled by observed production participation across the chosen window.</p>
+        </div>
+        <div class="bakeshop-print-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Daily Target</th>
+                        <th>Days Produced</th>
+                        <th>Missing Days</th>
+                        <th>Projected Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if product_rows}
+                    {each product_rows as row}
+                    <tr>
+                        <td class="bakeshop-print-entity">
+                            <strong>{row.product_name}</strong>
+                            <span>{if row.product_category}{row.product_category}{else}Uncategorized{/if}</span>
+                        </td>
+                        <td>{row.daily_target_display}</td>
+                        <td>{row.days_produced_label}</td>
+                        <td>{row.missing_days_label}</td>
+                        <td>{row.projected_qty_display_with_unit}</td>
+                    </tr>
+                    {/each}
+                    {else}
+                    <tr>
+                        <td colspan="5">No projected products matched the selected scope.</td>
+                    </tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {/if}
+</div>
+{/block}

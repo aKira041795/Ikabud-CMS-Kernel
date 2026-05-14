@@ -595,6 +595,38 @@ function bakeshopAssertIngredientUnitCompatible(int $ingredientId, int $unitId, 
     );
 }
 
+function bakeshopAssertUnitsShareDimension(int $referenceUnitId, int $candidateUnitId, string $field = 'unit_id', string $referenceLabel = 'reference unit'): void
+{
+    if ($referenceUnitId <= 0 || $candidateUnitId <= 0) {
+        throw new InvalidArgumentException($field . ' must reference a valid unit.');
+    }
+
+    $referenceUnit = bakeshopUnitRecord($referenceUnitId);
+    $candidateUnit = bakeshopUnitRecord($candidateUnitId);
+    if (!is_array($referenceUnit) || !is_array($candidateUnit)) {
+        throw new InvalidArgumentException($field . ' must reference a valid unit.');
+    }
+
+    $referenceDimension = strtolower(trim((string)($referenceUnit['dimension'] ?? '')));
+    $candidateDimension = strtolower(trim((string)($candidateUnit['dimension'] ?? '')));
+    if ($referenceDimension === '' || $candidateDimension === '' || $referenceDimension === $candidateDimension) {
+        return;
+    }
+
+    $referenceUnitCode = trim((string)($referenceUnit['code'] ?? ''));
+    $candidateUnitCode = trim((string)($candidateUnit['code'] ?? ''));
+
+    throw new InvalidArgumentException(
+        sprintf(
+            '%s must match the %s dimension. Expected %s-compatible units, received %s.',
+            $field,
+            $referenceLabel,
+            $referenceUnitCode !== '' ? $referenceUnitCode : $referenceDimension,
+            $candidateUnitCode !== '' ? $candidateUnitCode : $candidateDimension
+        )
+    );
+}
+
 function bakeshopInput(?string $key = null, mixed $default = null): mixed
 {
     return bakeshopCtx()->input($key, $default);
@@ -735,6 +767,101 @@ function bakeshopNormalizeUsageDecimalPlaces(mixed $value): int
     }
 
     return $places;
+}
+
+function bakeshopNormalizeDefaultDrCoverageDays(mixed $value): int
+{
+    if ($value === null || (is_string($value) && trim($value) === '')) {
+        $value = bakeshopSettingsDefaults()['default_dr_coverage_days'] ?? '3';
+    }
+
+    if (!is_numeric($value)) {
+        throw new InvalidArgumentException('Default DR coverage days must be numeric.');
+    }
+
+    $days = (int)$value;
+    if ($days < 1 || $days > 31) {
+        throw new InvalidArgumentException('Default DR coverage days must be between 1 and 31.');
+    }
+
+    return $days;
+}
+
+function bakeshopSupportedProductRecipeStatuses(): array
+{
+    return ['active', 'inactive'];
+}
+
+function bakeshopNormalizeProductRecipeStatus(mixed $value): string
+{
+    $status = strtolower(trim((string)$value));
+    if ($status === '') {
+        $status = strtolower((string)(bakeshopSettingsDefaults()['product_recipe_status'] ?? 'active'));
+    }
+
+    if (!in_array($status, bakeshopSupportedProductRecipeStatuses(), true)) {
+        throw new InvalidArgumentException('Product recipes must be active or inactive.');
+    }
+
+    return $status;
+}
+
+function bakeshopSupportedProductionRecipeModes(): array
+{
+    return ['optional', 'required'];
+}
+
+function bakeshopNormalizeProductionRecipeMode(mixed $value): string
+{
+    $mode = strtolower(trim((string)$value));
+    if ($mode === '') {
+        $mode = strtolower((string)(bakeshopSettingsDefaults()['production_recipe_mode'] ?? 'optional'));
+    }
+
+    if (!in_array($mode, bakeshopSupportedProductionRecipeModes(), true)) {
+        throw new InvalidArgumentException('Production recipe policy must be optional or required.');
+    }
+
+    return $mode;
+}
+
+function bakeshopDefaultDrCoverageDays(): int
+{
+    $settings = bakeshopSettings();
+    return bakeshopNormalizeDefaultDrCoverageDays($settings['default_dr_coverage_days'] ?? null);
+}
+
+function bakeshopProductRecipeStatus(): string
+{
+    $settings = bakeshopSettings();
+    return bakeshopNormalizeProductRecipeStatus($settings['product_recipe_status'] ?? null);
+}
+
+function bakeshopProductRecipesEnabled(): bool
+{
+    return bakeshopProductRecipeStatus() === 'active';
+}
+
+function bakeshopRequireProductRecipesEnabled(): void
+{
+    if (!bakeshopProductRecipesEnabled()) {
+        throw new InvalidArgumentException('Product recipes are deactivated in module settings.');
+    }
+}
+
+function bakeshopProductionRecipeMode(): string
+{
+    $settings = bakeshopSettings();
+    if (bakeshopNormalizeProductRecipeStatus($settings['product_recipe_status'] ?? null) !== 'active') {
+        return 'optional';
+    }
+
+    return bakeshopNormalizeProductionRecipeMode($settings['production_recipe_mode'] ?? null);
+}
+
+function bakeshopProductionRequiresRecipe(): bool
+{
+    return bakeshopProductionRecipeMode() === 'required';
 }
 
 function bakeshopNormalizeStoreName(mixed $value): string

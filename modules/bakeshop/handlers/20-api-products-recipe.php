@@ -122,11 +122,47 @@ function bakeshopCatalogFindIngredientById(int $id): ?array
 {
     return bakeshopCatalogFetchOne(
         'SELECT i.*, u.code AS default_unit_code, u.name AS default_unit_name, u.dimension AS unit_dimension
+            ' . bakeshopCatalogIngredientPackSelectSql('i', 'pu') . '
          FROM bakeshop_ingredients i
          INNER JOIN bakeshop_units u ON u.id = i.default_unit_id
+         ' . bakeshopCatalogIngredientPackJoinSql('i', 'pu') . '
          WHERE i.id = :id LIMIT 1',
         [':id' => $id]
     );
+}
+
+function bakeshopCatalogIngredientsHavePackColumns(): bool
+{
+    return bakeshopTableHasColumn('bakeshop_ingredients', 'pack_label')
+        && bakeshopTableHasColumn('bakeshop_ingredients', 'pack_qty')
+        && bakeshopTableHasColumn('bakeshop_ingredients', 'pack_unit_id');
+}
+
+function bakeshopCatalogIngredientPackSelectSql(string $ingredientAlias = 'i', string $unitAlias = 'pu'): string
+{
+    if (bakeshopCatalogIngredientsHavePackColumns()) {
+        return ",\n            {$ingredientAlias}.pack_label,\n            {$ingredientAlias}.pack_qty,\n            {$ingredientAlias}.pack_unit_id,\n            {$unitAlias}.code AS pack_unit_code,\n            {$unitAlias}.name AS pack_unit_name,\n            {$unitAlias}.dimension AS pack_unit_dimension,\n            {$unitAlias}.factor_to_base AS pack_unit_factor_to_base";
+    }
+
+    return ",\n            NULL AS pack_label,\n            NULL AS pack_qty,\n            NULL AS pack_unit_id,\n            NULL AS pack_unit_code,\n            NULL AS pack_unit_name,\n            NULL AS pack_unit_dimension,\n            NULL AS pack_unit_factor_to_base";
+}
+
+function bakeshopCatalogIngredientPackJoinSql(string $ingredientAlias = 'i', string $unitAlias = 'pu'): string
+{
+    if (!bakeshopCatalogIngredientsHavePackColumns()) {
+        return '';
+    }
+
+    return "LEFT JOIN bakeshop_units {$unitAlias} ON {$unitAlias}.id = {$ingredientAlias}.pack_unit_id";
+}
+
+function bakeshopCatalogIngredientPackGroupBySql(string $ingredientAlias = 'i', string $unitAlias = 'pu'): string
+{
+    if (!bakeshopCatalogIngredientsHavePackColumns()) {
+        return '';
+    }
+
+    return ",\n            {$ingredientAlias}.pack_label,\n            {$ingredientAlias}.pack_qty,\n            {$ingredientAlias}.pack_unit_id,\n            {$unitAlias}.code,\n            {$unitAlias}.name,\n            {$unitAlias}.dimension,\n            {$unitAlias}.factor_to_base";
 }
 
 function bakeshopCatalogFindUnitById(int $id): ?array
@@ -245,7 +281,9 @@ function bakeshopCatalogListIngredients(): array
             i.updated_at,
             u.code AS default_unit_code,
             u.name AS default_unit_name,
-            u.dimension AS unit_dimension,
+            u.dimension AS unit_dimension
+            ' . bakeshopCatalogIngredientPackSelectSql('i', 'pu') . '
+            ,
             COALESCE(recipe_refs.recipe_reference_count, 0) AS recipe_reference_count,
             COALESCE(delivery_refs.delivery_reference_count, 0) AS delivery_reference_count,
             COALESCE(production_refs.production_reference_count, 0) AS production_reference_count,
@@ -261,6 +299,7 @@ function bakeshopCatalogListIngredients(): array
             END AS can_delete
          FROM bakeshop_ingredients i
          INNER JOIN bakeshop_units u ON u.id = i.default_unit_id
+            ' . bakeshopCatalogIngredientPackJoinSql('i', 'pu') . '
          LEFT JOIN (
             SELECT ingredient_id, COUNT(*) AS recipe_reference_count
             FROM bakeshop_product_recipe
@@ -283,6 +322,76 @@ function bakeshopCatalogListIngredients(): array
          ) usage_refs ON usage_refs.ingredient_id = i.id
          ORDER BY i.name ASC'
     );
+}
+
+function bakeshopCatalogNormalizeIngredientPack(array $input, int $defaultUnitId, ?array $existing = null): array
+{
+    if (!bakeshopCatalogIngredientsHavePackColumns()) {
+        return [
+            'pack_label' => null,
+            'pack_qty' => null,
+            'pack_unit_id' => null,
+        ];
+    }
+
+    $packTouched = array_key_exists('pack_label', $input)
+        || array_key_exists('pack_qty', $input)
+        || array_key_exists('pack_unit_id', $input);
+
+    if (!$packTouched && $existing !== null) {
+        $packLabel = trim((string)($existing['pack_label'] ?? ''));
+        $packQty = ($existing['pack_qty'] ?? null) !== null ? number_format((float)$existing['pack_qty'], 4, '.', '') : null;
+        $packUnitId = (int)($existing['pack_unit_id'] ?? 0);
+        if ($packUnitId > 0) {
+            bakeshopAssertUnitsShareDimension($defaultUnitId, $packUnitId, 'pack_unit_id', 'ingredient default unit');
+        }
+
+        return [
+            'pack_label' => $packLabel !== '' ? $packLabel : null,
+            'pack_qty' => $packQty,
+            'pack_unit_id' => $packUnitId > 0 ? $packUnitId : null,
+        ];
+    }
+
+    if (!$packTouched) {
+        return [
+            'pack_label' => null,
+            'pack_qty' => null,
+            'pack_unit_id' => null,
+        ];
+    }
+
+    $packLabel = trim((string)($input['pack_label'] ?? ''));
+    $packQtyRaw = $input['pack_qty'] ?? null;
+    $packUnitIdRaw = $input['pack_unit_id'] ?? null;
+    $packQtyBlank = $packQtyRaw === null || trim((string)$packQtyRaw) === '';
+    $packUnitBlank = $packUnitIdRaw === null || trim((string)$packUnitIdRaw) === '';
+
+    if ($packLabel === '' && $packQtyBlank && $packUnitBlank) {
+        return [
+            'pack_label' => null,
+            'pack_qty' => null,
+            'pack_unit_id' => null,
+        ];
+    }
+
+    if ($packLabel === '') {
+        throw new InvalidArgumentException('pack_label is required when pack metadata is provided.');
+    }
+    if (mb_strlen($packLabel) > 40) {
+        throw new InvalidArgumentException('pack_label must not exceed 40 characters.');
+    }
+
+    $packQty = bakeshopCatalogRequirePositiveDecimal($packQtyRaw, 'pack_qty');
+    $packUnitId = bakeshopCatalogRequirePositiveInt($packUnitIdRaw, 'pack_unit_id');
+    bakeshopCatalogAssertRecordExists('bakeshop_units', $packUnitId);
+    bakeshopAssertUnitsShareDimension($defaultUnitId, $packUnitId, 'pack_unit_id', 'ingredient default unit');
+
+    return [
+        'pack_label' => $packLabel,
+        'pack_qty' => $packQty,
+        'pack_unit_id' => $packUnitId,
+    ];
 }
 
 function bakeshopCatalogNormalizeDeleteIds(mixed $value, string $field = 'ids'): array
@@ -358,6 +467,10 @@ function bakeshopCatalogDeleteIngredientsBatch(array $input): array
 
 function bakeshopCatalogListRecipes(): array
 {
+    if (!bakeshopProductRecipesEnabled()) {
+        return [];
+    }
+
     return bakeshopCatalogFetchAll(
         'SELECT
             r.id,
@@ -678,24 +791,42 @@ function bakeshopCatalogSaveIngredient(array $input): array
     $defaultUnitId = bakeshopCatalogRequirePositiveInt($input['default_unit_id'] ?? null, 'default_unit_id');
     $isActive = bakeshopCatalogNormalizeActiveFlag($input['is_active'] ?? null, (int)($existing['is_active'] ?? 1));
     bakeshopCatalogAssertRecordExists('bakeshop_units', $defaultUnitId);
+    $pack = bakeshopCatalogNormalizeIngredientPack($input, $defaultUnitId, $existing);
 
     if ($existing !== null) {
         $stmt = bakeshopDb()->prepare(
-            'UPDATE bakeshop_ingredients
-             SET sku = :sku,
-                 name = :name,
-                 default_unit_id = :default_unit_id,
-                 is_active = :is_active,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = :id'
+            bakeshopCatalogIngredientsHavePackColumns()
+                ? 'UPDATE bakeshop_ingredients
+                   SET sku = :sku,
+                       name = :name,
+                       default_unit_id = :default_unit_id,
+                       pack_label = :pack_label,
+                       pack_qty = :pack_qty,
+                       pack_unit_id = :pack_unit_id,
+                       is_active = :is_active,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = :id'
+                : 'UPDATE bakeshop_ingredients
+                   SET sku = :sku,
+                       name = :name,
+                       default_unit_id = :default_unit_id,
+                       is_active = :is_active,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = :id'
         );
-        $stmt->execute([
+        $bindings = [
             ':id' => $id,
             ':sku' => $sku !== '' ? $sku : null,
             ':name' => $name,
             ':default_unit_id' => $defaultUnitId,
             ':is_active' => $isActive,
-        ]);
+        ];
+        if (bakeshopCatalogIngredientsHavePackColumns()) {
+            $bindings[':pack_label'] = $pack['pack_label'];
+            $bindings[':pack_qty'] = $pack['pack_qty'];
+            $bindings[':pack_unit_id'] = $pack['pack_unit_id'];
+        }
+        $stmt->execute($bindings);
 
         $row = bakeshopCatalogFindIngredientById($id) ?? [];
         bakeshopAudit(
@@ -711,15 +842,24 @@ function bakeshopCatalogSaveIngredient(array $input): array
     }
 
     $stmt = bakeshopDb()->prepare(
-        'INSERT INTO bakeshop_ingredients (sku, name, default_unit_id, is_active)
-         VALUES (:sku, :name, :default_unit_id, :is_active)'
+        bakeshopCatalogIngredientsHavePackColumns()
+            ? 'INSERT INTO bakeshop_ingredients (sku, name, default_unit_id, pack_label, pack_qty, pack_unit_id, is_active)
+               VALUES (:sku, :name, :default_unit_id, :pack_label, :pack_qty, :pack_unit_id, :is_active)'
+            : 'INSERT INTO bakeshop_ingredients (sku, name, default_unit_id, is_active)
+               VALUES (:sku, :name, :default_unit_id, :is_active)'
     );
-    $stmt->execute([
+    $bindings = [
         ':sku' => $sku !== '' ? $sku : null,
         ':name' => $name,
         ':default_unit_id' => $defaultUnitId,
         ':is_active' => $isActive,
-    ]);
+    ];
+    if (bakeshopCatalogIngredientsHavePackColumns()) {
+        $bindings[':pack_label'] = $pack['pack_label'];
+        $bindings[':pack_qty'] = $pack['pack_qty'];
+        $bindings[':pack_unit_id'] = $pack['pack_unit_id'];
+    }
+    $stmt->execute($bindings);
 
     $id = (int)bakeshopDb()->lastInsertId();
     $row = bakeshopCatalogFindIngredientById($id);
@@ -743,6 +883,8 @@ function bakeshopCatalogCreateIngredient(array $input): array
 
 function bakeshopCatalogSaveRecipe(array $input): array
 {
+    bakeshopRequireProductRecipesEnabled();
+
     $productId = bakeshopCatalogRequirePositiveInt($input['product_id'] ?? null, 'product_id');
     $ingredientId = bakeshopCatalogRequirePositiveInt($input['ingredient_id'] ?? null, 'ingredient_id');
     $unitId = bakeshopCatalogRequirePositiveInt($input['unit_id'] ?? null, 'unit_id');
@@ -792,6 +934,8 @@ function bakeshopCatalogSaveRecipe(array $input): array
 
 function bakeshopCatalogDeleteRecipe(array $input): array
 {
+    bakeshopRequireProductRecipesEnabled();
+
     $id = bakeshopCatalogRequirePositiveInt($input['id'] ?? null, 'id');
     $row = bakeshopCatalogFindRecipeById($id);
     if ($row === null) {
