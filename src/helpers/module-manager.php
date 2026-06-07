@@ -1587,11 +1587,15 @@ function loadModuleRoutes(array $routes): array
                         ['policy' => $policy, 'schema' => $schema, 'origin' => array_merge($origin, ['capability' => $capId])]
                     );
                 } else {
-                    write_log(
-                        "Module '{$moduleId}' declares capability '{$capId}' but no handler callable was found",
-                        'warning',
-                        ['module' => $moduleId, 'capability' => $capId]
-                    );
+                    // Service modules run externally — no PHP handlers expected.
+                    $moduleType = trim((string)($module['type'] ?? 'php-module'));
+                    if ($moduleType !== 'service-module') {
+                        write_log(
+                            "Module '{$moduleId}' declares capability '{$capId}' but no handler callable was found",
+                            'warning',
+                            ['module' => $moduleId, 'capability' => $capId]
+                        );
+                    }
                 }
             }
         }

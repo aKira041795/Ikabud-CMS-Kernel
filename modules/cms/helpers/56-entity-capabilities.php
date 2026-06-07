@@ -1319,7 +1319,9 @@ function cmsResolveEntityList(string $contentType, mixed $payload): array
 
     try {
         $db = $ctx->db();
-        $ct = $db->quote($contentType);
+        // ModuleDB doesn't expose quote(); use the underlying PDO connection
+        $pdo = method_exists($db, 'getPdo') ? $db->getPdo() : $db;
+        $ct = $pdo->quote($contentType);
         $query = "SELECT c.id, c.title, c.slug, c.status, c.excerpt, c.created_at, c.updated_at, c.published_at,
                          u.display_name as author_name
                   FROM cms_content c
@@ -1387,7 +1389,8 @@ function cmsResolveEntityGet(string $contentType, mixed $payload): array
 
     try {
         $db = $ctx->db();
-        $ct = $db->quote($contentType);
+        $pdo = method_exists($db, 'getPdo') ? $db->getPdo() : $db;
+        $ct = $pdo->quote($contentType);
         $stmt = $db->prepare(
             "SELECT c.*, u.display_name as author_name
              FROM cms_content c
