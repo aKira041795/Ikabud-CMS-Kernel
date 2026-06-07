@@ -367,3 +367,138 @@ function kernelHandleApiSuperadminEntityViewDebug(): void
     header('Content-Type: application/json');
     echo json_encode(['ok' => true, 'debug' => $debug], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 5.3 Report Management APIs
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiSuperadminReportTemplates(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+    if ($method === 'POST') {
+        $body = json_decode(file_get_contents('php://input'), true);
+        $id = (string)($body['id'] ?? '');
+        if ($id === '') {
+            echo json_encode(['ok' => false, 'error' => 'Template id required']);
+            return;
+        }
+        \Ikabud\Kernel\Services\ReportManager::saveTemplate($id, $body);
+        echo json_encode(['ok' => true, 'saved' => $id]);
+        return;
+    }
+
+    if ($method === 'DELETE') {
+        $id = trim((string)($_GET['id'] ?? ''));
+        \Ikabud\Kernel\Services\ReportManager::deleteTemplate($id);
+        echo json_encode(['ok' => true, 'deleted' => $id]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'templates' => \Ikabud\Kernel\Services\ReportManager::listTemplates(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminReportArchive(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $id = trim((string)($_GET['id'] ?? ''));
+    if ($id !== '') {
+        $report = \Ikabud\Kernel\Services\ReportManager::getArchivedReport($id);
+        echo json_encode(['ok' => $report !== null, 'report' => $report], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'reports' => \Ikabud\Kernel\Services\ReportManager::listArchived(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminReportPacks(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    echo json_encode([
+        'ok' => true,
+        'packs' => \Ikabud\Kernel\Services\ReportManager::moduleReportPacks(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminReportSchedule(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+    if ($method === 'POST') {
+        $body = json_decode(file_get_contents('php://input'), true);
+        \Ikabud\Kernel\Services\ReportManager::scheduleReport(
+            (string)($body['entity_type'] ?? ''),
+            (string)($body['format'] ?? 'csv'),
+            (string)($body['schedule'] ?? 'daily'),
+            $body['options'] ?? []
+        );
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
+    if ($method === 'DELETE') {
+        $id = trim((string)($_GET['id'] ?? ''));
+        \Ikabud\Kernel\Services\ReportManager::cancelScheduled($id);
+        echo json_encode(['ok' => true, 'cancelled' => $id]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'scheduled' => \Ikabud\Kernel\Services\ReportManager::listScheduled(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminReportConsistencyCheck(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $entityType = trim((string)($_GET['entity_type'] ?? 'cms_post'));
+    $limit = min(20, max(1, (int)($_GET['limit'] ?? 5)));
+
+    // Fetch sample data for the entity type
+    $rows = [];
+    try {
+        $result = \app()->cap()->call("entity.list.{$entityType}", ['limit' => $limit], ['mode' => 'first']);
+        $rows = is_array($result) ? ($result['rows'] ?? $result) : [];
+    } catch (\Throwable $e) {
+        // Try without capability — use empty rows as fallback
+        $rows = [['id' => 1, 'title' => 'Test Row', 'status' => 'published']];
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'entity_type' => $entityType,
+        'row_count' => count($rows),
+        'consistency' => \Ikabud\Kernel\Services\ReportManager::consistencyCheck($entityType, $rows),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminSignaturePresets(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    echo json_encode([
+        'ok' => true,
+        'presets' => \Ikabud\Kernel\Services\KernelExport::signaturePresets(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+

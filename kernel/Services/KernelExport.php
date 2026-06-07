@@ -267,6 +267,138 @@ final class KernelExport
             )['path'] ?? null,
             'provider' => 'kernel',
         ];
+
+        // Generic PDF handler — works for any entity type (DomPDF)
+        self::$handlers['*.pdf'] = [
+            'entity_type' => '*',
+            'format' => 'pdf',
+            'handler' => fn(array $rows, array $opts) => self::exportPdf(
+                $rows,
+                (string)($opts['title'] ?? 'Export'),
+                (string)($opts['filename'] ?? 'export.pdf'),
+                $opts
+            )['path'] ?? null,
+            'provider' => 'kernel',
+        ];
+    }
+
+    // ── PDF exporter (DomPDF) ──
+
+    /**
+     * Export rows as a PDF document using DomPDF.
+     */
+    public static function exportPdf(array $rows, string $title, string $filename, array $options = []): ?array
+    {
+        if (empty($rows)) {
+            return null;
+        }
+
+        if (!class_exists('Dompdf\\Dompdf')) {
+            return self::exportCsv($rows, $title, str_replace('.pdf', '.csv', $filename), $options);
+        }
+
+        try {
+            $columns = is_array($options['columns'] ?? null) ? $options['columns'] : array_keys(reset($rows));
+            $orientation = ($options['orientation'] ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
+            $signatureBlock = !empty($options['signature_block']);
+
+            // Build HTML table
+            $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+                body { font-family: DejaVu Sans, sans-serif; font-size: 10px; color: #333; margin: 20px; }
+                h1 { font-size: 16px; color: #1e3a5f; margin-bottom: 4px; }
+                .meta { font-size: 8px; color: #888; margin-bottom: 16px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+                th { background: #f3f4f6; font-weight: bold; text-align: left; padding: 6px 8px; border-bottom: 2px solid #d1d5db; font-size: 9px; }
+                td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; font-size: 9px; }
+                tr:nth-child(even) td { background: #fafafa; }
+                .signature { margin-top: 40px; border-top: 1px solid #333; padding-top: 8px; font-size: 9px; }
+                .signature-line { display: inline-block; width: 200px; border-bottom: 1px solid #333; margin: 0 20px; }
+                .footer { font-size: 7px; color: #aaa; margin-top: 30px; text-align: center; }
+            </style></head><body>';
+
+            $html .= '<h1>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</h1>';
+            $html .= '<div class="meta">Generated: ' . date('Y-m-d H:i') . ' | Kernel OS 5.3</div>';
+
+            // Table
+            $html .= '<table><thead><tr>';
+            foreach ($columns as $col) {
+                $html .= '<th>' . htmlspecialchars(ucwords(str_replace('_', ' ', (string)$col)), ENT_QUOTES, 'UTF-8') . '</th>';
+            }
+            $html .= '</tr></thead><tbody>';
+
+            foreach ($rows as $row) {
+                $html .= '<tr>';
+                foreach ($columns as $col) {
+                    $val = $row[$col] ?? '';
+                    if (is_array($val)) $val = json_encode($val, JSON_UNESCAPED_SLASHES);
+                    $html .= '<td>' . htmlspecialchars((string)$val, ENT_QUOTES, 'UTF-8') . '</td>';
+                }
+                $html .= '</tr>';
+            }
+            $html .= '</tbody></table>';
+
+            // Signature block
+            if ($signatureBlock) {
+                $html .= '<div class="signature">';
+                $html .= '<p><strong>Prepared by:</strong> <span class="signature-line"></span></p>';
+                $html .= '<p style="margin-top:12px;"><strong>Reviewed by:</strong> <span class="signature-line"></span></p>';
+                $html .= '<p style="margin-top:12px;"><strong>Approved by:</strong> <span class="signature-line"></span></p>';
+                $html .= '<p style="margin-top:8px;font-size:8px;color:#888;">Date: _______________</p>';
+                $html .= '</div>';
+            }
+
+            $html .= '<div class="footer">Kernel OS 5.3 — Governed Business Platform | Page {PAGE_NUM} of {PAGE_COUNT}</div>';
+            $html .= '</body></html>';
+
+            $dompdf = new \Dompdf\Dompdf();
+            $dompdf->setPaper('A4', $orientation);
+            $dompdf->loadHtml($html);
+            $dompdf->render();
+
+            $tmpPath = sys_get_temp_dir() . '/' . uniqid('export_', true) . '.pdf';
+            file_put_contents($tmpPath, $dompdf->output());
+
+            return [
+                'path' => $tmpPath,
+                'filename' => $filename,
+                'mime' => self::mimeType('pdf'),
+                'size' => filesize($tmpPath),
+            ];
+        } catch (\Throwable $e) {
+            if (\function_exists('write_log')) {
+                \write_log("KernelExport: PDF export failed", 'warning', ['error' => $e->getMessage()]);
+            }
+            return null;
+        }
+    }
+
+    // ── Signature block presets ──
+
+    public static function signaturePresets(): array
+    {
+        return [
+            'standard' => ['prepared_by', 'reviewed_by', 'approved_by'],
+            'simple' => ['approved_by'],
+            'medical' => ['attending_physician', 'reviewed_by', 'hospital_administrator'],
+            'financial' => ['prepared_by', 'reviewed_by', 'cfo_approved'],
+            'legal' => ['prepared_by', 'reviewed_by', 'legal_counsel', 'notary'],
+        ];
+    }
+
+    // ── Export audit log ──
+
+    public static function auditExport(string $entityType, string $format, ?string $filename, ?int $userId, string $requestId): void
+    {
+        if (!\function_exists('write_log')) return;
+
+        \write_log('kernel.export', 'info', [
+            'entity_type' => $entityType,
+            'format' => $format,
+            'filename' => $filename,
+            'user_id' => $userId,
+            'request_id' => $requestId,
+            'timestamp' => date('c'),
+        ]);
     }
 
     // ── Helpers ──

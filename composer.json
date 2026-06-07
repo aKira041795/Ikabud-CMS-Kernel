@@ -15,7 +15,8 @@
     "require": {
         "php": "^8.2",
         "phpoffice/phpword": "^1.2",
-        "phpmailer/phpmailer": "^7.0"
+        "phpmailer/phpmailer": "^7.0",
+        "dompdf/dompdf": "^3.1"
     },
     "require-dev": {
         "phpstan/phpstan": "^1.0",

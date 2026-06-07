@@ -617,6 +617,31 @@ switch ($handler) {
         kernelHandleApiSuperadminEntityViewDebug();
         exit;
 
+    // ── 5.3 Report Management APIs ───────────────────────────────
+    case 'apiSuperadminReportTemplates':
+        kernelHandleApiSuperadminReportTemplates();
+        exit;
+
+    case 'apiSuperadminReportArchive':
+        kernelHandleApiSuperadminReportArchive();
+        exit;
+
+    case 'apiSuperadminReportPacks':
+        kernelHandleApiSuperadminReportPacks();
+        exit;
+
+    case 'apiSuperadminReportSchedule':
+        kernelHandleApiSuperadminReportSchedule();
+        exit;
+
+    case 'apiSuperadminReportConsistencyCheck':
+        kernelHandleApiSuperadminReportConsistencyCheck();
+        exit;
+
+    case 'apiSuperadminSignaturePresets':
+        kernelHandleApiSuperadminSignaturePresets();
+        exit;
+
     case 'pageAdminProfile':
         kernelHandlePageAdminProfile();
         exit;
