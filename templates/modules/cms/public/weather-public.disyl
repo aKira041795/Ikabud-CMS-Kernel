@@ -1,7 +1,4 @@
-{* CMS Weather — Public Entity-View Page (DiSyL-Agnostic Proof) *}
-{* Proves: {ikb_entity_detail} + {ikb_entity_list} work anywhere, not just CMS admin *}
-
-{set page_title}Weather — {$city}{/set}
+{* CMS Weather — Public Page (CMS Post/Page Template Convention) *}
 
 <div class="weather-public" style="max-width:960px;margin:0 auto;padding:24px 16px;font-family:system-ui,sans-serif;">
 
@@ -43,15 +40,19 @@
     </div>
     {/if}
 
-    {* ── Current Weather — via ikb_entity_detail (Entity View Proof #1) ── *}
-    <div style="margin-bottom:24px;">
-        <h2 style="font-size:16px;font-weight:600;color:#475569;margin:0 0 12px;">🔬 Entity Detail View</h2>
-        {ikb_entity_detail source="weather.current" id="{$city}" view="detail" /}
+    {* ── Current Weather Card ── *}
+    {if $has_current}
+    {$current_html}
+    {else}
+    <div style="padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;text-align:center;color:#94a3b8;">
+        No weather data available for {$city}.
     </div>
+    {/if}
 
-    {* ── Forecast — via ikb_entity_list (Entity View Proof #2) ── *}
-    <h2 style="font-size:16px;font-weight:600;color:#475569;margin:20px 0 12px;">📅 Forecast (Entity List)</h2>
-    {ikb_entity_list source="weather.forecast" view="card_grid" limit="5" empty="No forecast available." /}
+    {* ── Forecast ── *}
+    {if $has_forecast}
+    {$forecast_html}
+    {/if}
 
     {* ── Pipeline Info ── *}
     <div style="margin-top:32px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
@@ -59,15 +60,8 @@
             🔬 Pipeline Verification
         </h3>
         <div style="font-size:12px;color:#94a3b8;line-height:1.6;">
-            <code>ikb_entity_detail</code> → EntityViewResolver → <code>entity.get.weather@1</code> → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in<br>
-            <code>ikb_entity_list</code> → EntityViewResolver → <code>entity.list.weather_forecast@1</code> → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in
+            CMS handler → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in<br>
+            HTML pre-rendered in PHP (CMS convention like posts_grid)
         </div>
-    </div>
-
-    <div style="margin-top:24px;padding:12px 16px;background:#ecfdf5;border:1px solid #10b981;border-radius:8px;color:#065f46;font-size:13px;font-weight:500;">
-        ✅ DiSyL-Agnostic: This page renders outside CMS admin — no cmsRender(), no cmsAdminContext().<br>
-        ✅ Polyglot: PHP kernel → ServiceProxy → HTTP → Python → Real weather data<br>
-        ✅ Entity View: <code>{ikb_entity_detail}</code> and <code>{ikb_entity_list}</code> components proven<br>
-        ✅ Page Builder: Use <code>entity_view</code> or <code>entity_list</code> widgets in the CMS builder
     </div>
 </div>

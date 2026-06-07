@@ -100,13 +100,11 @@ return [
         '/cms/tag/{slug}'                  => 'cms:cmsPublicTagArchive',
         '/cms/blog/{slug}'                => 'cms:cmsPublicSingle',
         '/cms/page/{slug}'                => 'cms:cmsPublicPage',
+        '/cms/weather'                    => 'cms:cmsPublicWeather',
         '/cms/{type}'                     => 'cms:cmsPublicEntityList',
         '/cms/{type}/{slug}/book'         => 'cms:cmsPublicEntityBook',
         '/cms/{type}/{slug}/inquire'      => 'cms:cmsPublicEntityInquiry',
         '/cms/{type}/{slug}'              => 'cms:cmsPublicEntityView',
-
-        // ── Public weather (polyglot entity-view demo) ──────────
-        '/cms/weather'                    => 'cms:cmsPublicWeather',
 
         // ── Tags API (GET) ─────────────────────────────────────
         '/api/v1/cms/tags'                => 'cms:cmsApiTagList',

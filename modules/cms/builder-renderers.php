@@ -1740,23 +1740,25 @@ function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, s
 
 function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    // Phase 7: Delegate to governed ikb_entity_list DiSyL component
     $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
-    // Sanitize: collapse spaces and reject obviously invalid entity types
     $entityType = str_replace(' ', '_', $entityType);
     $entityType = preg_replace('/[^a-z0-9._-]/i', '', $entityType) ?: 'post';
 
-    // If the entityType already contains a dot (e.g. "weather.current" or "ecommerce.product"),
-    // use it as-is. Otherwise prepend "cms." for CMS-owned content types.
+    $view = (string)($props['layout'] ?? 'grid') === 'list' ? 'compact' : 'card_grid';
+    $limit = max(1, min(12, (int)($props['itemCount'] ?? 6)));
+    $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? ''));
+
+    // ── Weather entity types: fetch directly via capability bus ──
+    if (str_starts_with($entityType, 'weather')) {
+        return cmsRenderWidget_weather_entity($entityType, $view, $limit, $emptyMessage, $style, $attrs);
+    }
+
+    // ── Standard CMS entity types: delegate to DiSyL component ──
     if (str_contains($entityType, '.')) {
         $source = $entityType . '.recent';
     } else {
         $source = 'cms.' . $entityType . '.recent';
     }
-
-    $view = (string)($props['layout'] ?? 'grid') === 'list' ? 'compact' : 'card_grid';
-    $limit = max(1, min(12, (int)($props['itemCount'] ?? 6)));
-    $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? ''));
 
     $engine = app()->templates();
     $attrsStr = '';
@@ -1768,6 +1770,130 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         '{ikb_entity_list source="' . $source . '" view="' . $view . '" limit="' . $limit . '"' . $attrsStr . ' /}',
         $context
     );
+}
+
+/**
+ * Render weather entity data directly (CMS-style, like posts_grid).
+ * Bypasses the DiSyL entity-view system for maximum reliability.
+ */
+function cmsRenderWidget_weather_entity(string $entityType, string $view, int $limit, string $emptyMessage, array $style, array $attrs): string
+{
+    $isForecast = str_contains($entityType, 'forecast');
+
+    try {
+        if ($isForecast) {
+            $capabilityId = 'weather.forecast@1';
+            $payload = ['city' => 'London', 'days' => $limit];
+        } else {
+            $capabilityId = 'weather.current@1';
+            $payload = ['city' => 'London'];
+        }
+
+        $result = app()->cap()->call($capabilityId, $payload, [
+            'caller' => ['module' => 'cms'],
+            'mode' => 'first',
+            'timeout_ms' => 10000,
+        ]);
+    } catch (\Throwable $e) {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
+            . '<p style="color:#9ca3af;text-align:center;padding:24px">' . ($emptyMessage ?: 'Weather data unavailable.') . '</p></div>';
+    }
+
+    if ($isForecast) {
+        $forecast = is_array($result) ? ($result['forecast'] ?? []) : [];
+        if (empty($forecast)) {
+            return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
+                . '<p style="color:#9ca3af;text-align:center;padding:24px">' . ($emptyMessage ?: 'No forecast data.') . '</p></div>';
+        }
+        return cmsRenderWeatherForecastCards($forecast, $limit, $style, $attrs);
+    }
+
+    if (!is_array($result) || empty($result['city'])) {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
+            . '<p style="color:#9ca3af;text-align:center;padding:24px">' . ($emptyMessage ?: 'No weather data.') . '</p></div>';
+    }
+
+    return cmsRenderWeatherCurrentCard($result, $style, $attrs);
+}
+
+/**
+ * Render current weather as a single card (CMS post-card convention).
+ */
+function cmsRenderWeatherCurrentCard(array $weather, array $style, array $attrs): string
+{
+    $city = cmsBuilderEsc((string)($weather['city'] ?? 'Unknown'));
+    $temp = round((float)($weather['temperature_c'] ?? 0));
+    $condition = cmsBuilderEsc((string)($weather['condition'] ?? ''));
+    $humidity = (int)($weather['humidity'] ?? 0);
+    $wind = round((float)($weather['wind_kph'] ?? 0));
+    $feelsLike = round((float)($weather['feels_like_c'] ?? 0));
+    $source = cmsBuilderEsc((string)($weather['source'] ?? ''));
+
+    $cardStyle = array_merge([
+        'background' => 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
+        'borderRadius' => '16px',
+        'padding' => '28px 24px',
+        'color' => '#fff',
+        'boxShadow' => '0 8px 32px rgba(37,99,235,.25)',
+        'display' => 'flex',
+        'alignItems' => 'center',
+        'justifyContent' => 'space-between',
+        'flexWrap' => 'wrap',
+        'gap' => '16px',
+    ], $style);
+
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($cardStyle) . '>';
+    $html .= '<div>';
+    $html .= '<div style="font-size:14px;opacity:.8;text-transform:uppercase;letter-spacing:.5px">Current Weather</div>';
+    $html .= '<div style="font-size:48px;font-weight:800;line-height:1.1;margin:4px 0">' . $temp . '°C</div>';
+    $html .= '<div style="font-size:16px;font-weight:500">' . $condition . '</div>';
+    $html .= '<div style="font-size:13px;opacity:.7;margin-top:4px">Feels like ' . $feelsLike . '°C</div>';
+    $html .= '</div>';
+    $html .= '<div style="text-align:right;font-size:14px;line-height:1.8">';
+    $html .= '<div>💧 Humidity: <strong>' . $humidity . '%</strong></div>';
+    $html .= '<div>💨 Wind: <strong>' . $wind . ' km/h</strong></div>';
+    if ($source !== '') {
+        $html .= '<div style="margin-top:8px;font-size:11px;opacity:.6">via ' . $source . '</div>';
+    }
+    $html .= '</div>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+/**
+ * Render weather forecast as a grid of day cards.
+ */
+function cmsRenderWeatherForecastCards(array $forecast, int $limit, array $style, array $attrs): string
+{
+    $gridStyle = array_merge([
+        'display' => 'grid',
+        'gridTemplateColumns' => 'repeat(auto-fill, minmax(160px, 1fr))',
+        'gap' => '12px',
+    ], $style);
+
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($gridStyle) . '>';
+    $count = 0;
+    foreach ($forecast as $day) {
+        if (!is_array($day)) continue;
+        if ($count >= $limit) break;
+        $count++;
+
+        $date = cmsBuilderEsc((string)($day['date'] ?? ''));
+        $high = round((float)($day['high_c'] ?? 0));
+        $low = round((float)($day['low_c'] ?? 0));
+        $cond = cmsBuilderEsc((string)($day['condition'] ?? ''));
+
+        $html .= '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)">';
+        $html .= '<div style="font-size:12px;color:#64748b;font-weight:600;margin-bottom:8px">' . $date . '</div>';
+        $html .= '<div style="font-size:24px;font-weight:700;color:#0f172a">' . $high . '°</div>';
+        $html .= '<div style="font-size:14px;color:#94a3b8;margin-bottom:6px">' . $low . '°</div>';
+        $html .= '<div style="font-size:12px;color:#64748b">' . $cond . '</div>';
+        $html .= '</div>';
+    }
+    $html .= '</div>';
+
+    return $html;
 }
 
         $html .= '<a href="' . cmsBuilderEsc($itemUrl) . '" style="display:block;text-decoration:none;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.06)">';
