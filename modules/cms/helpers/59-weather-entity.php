@@ -235,6 +235,12 @@ function cmsWeatherResolveDays(mixed $payload): int
 // ── Register capability handlers ──
 // Picked up by naming convention in module-manager.php:
 //   cms_cap_entity_list_weather_current → entity.list.weather_current@1
+//
+// The EntityViewResolver and ikb_entity_detail/ikb_entity_list sanitize
+// source strings by replacing dots with underscores, so we register handlers
+// under BOTH the canonical name and the sanitized form:
+//   source="weather.current" → entity.get.weather_current@1
+//   source="weather"         → entity.get.weather@1
 
 $GLOBALS['capability_handlers'] = array_merge(
     $GLOBALS['capability_handlers'] ?? [],
@@ -243,5 +249,6 @@ $GLOBALS['capability_handlers'] = array_merge(
         'entity.list.weather_forecast@1' => 'cms_cap_entity_list_weather_forecast',
         'entity.list.weather@1'          => 'cms_cap_entity_list_weather',
         'entity.get.weather@1'           => 'cms_cap_entity_get_weather',
+        'entity.get.weather_current@1'   => 'cms_cap_entity_get_weather',
     ]
 );

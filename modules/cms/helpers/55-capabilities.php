@@ -27,6 +27,11 @@ function cms_capability_handlers(): array
         'cms.builder.render@1' => 'cms_cap_cms_builder_render_1',
         'cms.settings.get@1' => 'cms_cap_cms_settings_get_1',
         'cms.themes.list@1' => 'cms_cap_cms_themes_list_1',
+        'entity.list.weather_current@1'  => 'cms_cap_entity_list_weather_current',
+        'entity.list.weather_forecast@1' => 'cms_cap_entity_list_weather_forecast',
+        'entity.list.weather@1'          => 'cms_cap_entity_list_weather',
+        'entity.get.weather@1'           => 'cms_cap_entity_get_weather',
+        'entity.get.weather_current@1'   => 'cms_cap_entity_get_weather',
     ];
 }
 

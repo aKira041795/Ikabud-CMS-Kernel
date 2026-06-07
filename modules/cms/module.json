@@ -270,6 +270,13 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.get.weather_current@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
