@@ -248,6 +248,25 @@ const GovernedContractControls: React.FC<GovernedContractControlsProps> = memo((
         Theme tokens (colors, spacing, radius) are controlled via the <span className="text-white/40">Global Styles</span> panel.
         Component-level overrides use the <span className="text-white/40">Style</span> tab.
       </div>
+
+      {/* ── Save Contract Pattern ── */}
+      <div className="px-3 py-2 border-t border-[#3c3c3c]">
+        <div className="text-[10px] text-white/30 mb-2">
+          Save this governed component configuration as a reusable pattern. Saved patterns appear in the <span className="text-white/50">Blocks</span> panel.
+        </div>
+        <button
+          onClick={() => {
+            // Trigger save-block flow in parent PageBuilder
+            window.dispatchEvent(new CustomEvent('ikb:save-governed-pattern', {
+              detail: { nodeType, props: { ...props } },
+            }));
+          }}
+          className="w-full flex items-center justify-center gap-2 py-1.5 text-xs rounded-md bg-[#6366f1]/10 border border-[#6366f1]/30 text-[#818cf8] hover:bg-[#6366f1]/20 hover:border-[#6366f1]/50 transition-colors"
+        >
+          <Sparkles className="w-3 h-3" />
+          Save as Contract Pattern
+        </button>
+      </div>
     </div>
   );
 });
