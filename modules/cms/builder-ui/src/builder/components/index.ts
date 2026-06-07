@@ -25,3 +25,4 @@ export { CapabilityPanel } from './CapabilityPanel';
 export type { CapabilityPanelProps } from './CapabilityPanel';
 export { default as GovernedComponentsPanel } from './GovernedComponentsPanel';
 export { default as EntitySourcePicker } from './EntitySourcePicker';
+export { default as GovernedContractControls } from './GovernedContractControls';

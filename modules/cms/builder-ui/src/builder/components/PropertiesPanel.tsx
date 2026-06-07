@@ -67,6 +67,7 @@ import { getComponentDefinition } from '../core/components';
 import { buildFlexPartStyle, buildFlexWidthStyle, deriveFlexPart, deriveLayoutWidth, hasExplicitFlexSizing } from '../core/layoutSizing';
 import MediaLibrary from './MediaLibrary';
 import EntitySourcePicker from './EntitySourcePicker';
+import GovernedContractControls from './GovernedContractControls';
 
 function normalizeSelectedIds(value: unknown): number[] {
   if (!Array.isArray(value)) {
@@ -6643,6 +6644,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         {activeTab === 'style' && renderStyleTab()}
         {activeTab === 'advanced' && renderAdvancedTab()}
       </div>
+
+      {/* Governed Contract Controls (Phase 7 / 5.2) — shown for all governed components */}
+      <GovernedContractControls
+        nodeType={node.type}
+        props={node.props as Record<string, unknown>}
+        onChange={handlePropChange}
+      />
 
       {/* Media Library Modal */}
       <MediaLibrary
