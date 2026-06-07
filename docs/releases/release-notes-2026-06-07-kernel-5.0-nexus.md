@@ -67,11 +67,23 @@ export — governed by capability contracts.
 - **`cmsThemeManifestForSlug()`** reads both `theme.manifest.json` and
   `tokens.json` at runtime.
 
-### Service Modules (Phase 8)
+### Service Modules — Polyglot Capability Dispatch (Phase 8) ✅
+- **`ServiceProxy`** — HTTP proxy callable, drop-in compatible with
+  `CapabilityRegistry::register()`. Translates bus calls to HTTP requests.
+- **Module auto-registration** — service-module capabilities auto-register
+  as `ServiceProxy` instances, no PHP code needed.
+- **Wire protocol:** `POST /capability/call` with JSON — any language can
+  implement it (Python, Node, Go, Rust, etc.).
+- **Circuit breaker + retry** inherited from `CapabilityBus` for all polyglot
+  services — no extra code required.
 - **`"type": "service-module"`** manifest — validated at module load.
 - `loadModuleHelpers()` skips PHP helpers for service modules.
+- **Real polyglot proof: Python weather service** (`modules/weather-service/`)
+  integrated into CMS entity-view system. 52 polyglot tests pass (20 unit +
+  17 E2E + 15 CMS integration).
 - Example: `modules/ai-orchestrator/module.json` with external endpoint,
   health check, retry/backoff, circuit breaker, and signed token auth.
+- **Developer guide:** `docs/kernel/polyglot-service-guide.md`
 
 ### Module Certification (Phase 9)
 - **`php ikabud module:certify [module|--all]`** — 10-point checklist.
@@ -104,10 +116,10 @@ export — governed by capability contracts.
 
 | Metric | Value |
 |---|---|
-| Tests | 308 regression + 25 CMS POC = 333 total |
+| Tests | 308 regression + 25 CMS POC + 20 ServiceProxy + 17 polyglot E2E + 15 CMS weather = 385 total |
 | Linter | 0 errors, 398 templates scanned |
 | Load test | 22ms for 100 iterations across 6 critical paths |
-| Template adoption | CMS dashboard, content list, guidance dashboard |
+| Template adoption | CMS dashboard, content list, guidance dashboard, weather dashboard |
 | error.log | Clean |
 
 ---

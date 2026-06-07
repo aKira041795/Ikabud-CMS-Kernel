@@ -8,12 +8,17 @@
 
 ## Executive Summary
 
-Kernel OS 5.0 ships the defining `source`/`view` architecture the roadmap described.
-The platform is proven: 31 governed DiSyL components, 13 CMS entity-view contracts,
-end-to-end capability pipeline tested with real data (25/25 integration POC), and
-production template adoption across CMS and Guidance modules.
+Kernel OS 5.0 is now a **polyglot business operating system**. The capability bus
+dispatches to services written in any language (Python, Node, Go, Rust, etc.) via
+the `ServiceProxy` HTTP bridge. The polyglot pipeline is proven end-to-end with a
+real Python weather service integrated into the CMS entity-view system.
 
-**333 tests pass, 0 linter errors, 398 templates scanned.**
+The platform is proven: 31 governed DiSyL components, 13 CMS entity-view contracts,
+end-to-end capability pipeline tested with real data (25/25 integration POC),
+polyglot dispatch verified (37/37 tests), and production template adoption across
+CMS and Guidance modules.
+
+**370 tests pass, 0 linter errors, 398 templates scanned.**
 
 ---
 
@@ -25,6 +30,7 @@ production template adoption across CMS and Guidance modules.
 | DiSyL | `4.0.0` | `kernel/DiSyL/Grammar.php` |
 | ComponentRegistry | `1.0.0` | `kernel/DiSyL/ComponentRegistry.php` |
 | EntityViewResolver | `1.0.0` | `kernel/EntityContext/EntityViewResolver.php` |
+| ServiceProxy | `1.0.0` | `kernel/Capabilities/ServiceProxy.php` |
 
 ---
 
@@ -118,14 +124,37 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 
 ---
 
-## Phase 8 — Service Modules 🟡
+## Phase 8 — Polyglot Service Modules ✅
 
 | Deliverable | Status |
 |---|---|
 | `"type": "service-module"` manifest validation | ✅ |
 | `loadModuleHelpers()` skips PHP helpers for service modules | ✅ |
+| `ServiceProxy` — HTTP proxy callable, drop-in for `CapabilityRegistry::register()` | ✅ |
+| Module-manager auto-registers `ServiceProxy` for service-module capabilities | ✅ |
+| Capability wire protocol: `POST /capability/call` with JSON | ✅ |
+| Circuit breaker + retry inherited from `CapabilityBus` | ✅ |
+| Auth token resolution from env (`service.auth.token_env`) | ✅ |
+| Test seam via `setHttpHandler()` for offline unit testing | ✅ |
 | Example manifest: `modules/ai-orchestrator/module.json` | ✅ |
-| Circuit breakers, service tokens, real external runtimes | 🔴 |
+| **Real polyglot service: Python weather-service** | ✅ |
+| CMS entity-view integration with polyglot data source | ✅ |
+
+**Proven:** `tests/polyglot_weather_test.php` — 17/17 assertions covering
+PHP → ServiceProxy → HTTP → Python → wttr.in with real weather data.
+`tests/cms_weather_e2e.php` — 15/15 assertions covering the full
+CMS → EntityViewResolver → CapabilityBus → ServiceProxy → Python pipeline.
+`tests/service_proxy_test.php` — 20/20 unit tests for ServiceProxy,
+including HTTP error handling, invalid JSON, circuit breaker config, and
+CapabilityBus integration.
+
+**To add a new polyglot service (any language):**
+1. Implement `POST /capability/call` accepting `{capability_id, payload, caller}`
+2. Return `{"ok": true, "data": {...}}` or `{"ok": false, "error": "..."}`
+3. Create `module.json` with `"type": "service-module"` and `service.endpoint`
+4. Drop in `modules/<name>/` — the module-manager auto-registers it
+
+See: [Polyglot Service Developer Guide](polyglot-service-guide.md)
 
 ---
 
@@ -147,6 +176,9 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 |---|---|
 | 308 regression tests (264 engine + 44 hardening) | ✅ |
 | 25 CMS integration POC tests | ✅ |
+| 20 ServiceProxy unit tests | ✅ |
+| 17 polyglot weather E2E tests | ✅ |
+| 15 CMS weather entity-view E2E tests | ✅ |
 | Linter: 0 errors across 398 templates | ✅ |
 | Load test: 22ms for 100 iterations across 6 paths | ✅ |
 | 4 critical bugs fixed (capabilities()->call → cap()->call, content_type → type, module() guard, log level) | ✅ |
@@ -172,8 +204,8 @@ Production templates using new 5.0 components:
 | Item | Priority |
 |---|---|
 | Phase 7: Builder frontend DiSyL contract awareness | 🟡 Large React project |
-| Phase 8: Real polyglot service runtime | 🔴 Needs deployment context |
 | Phase 9: Marketplace UI | 🔴 Deferred |
 | Remaining module certification fixes (20/41 pass) | 🟡 Mechanical |
 | Real AI provider in production | 🔴 Needs API keys |
+| Polyglot service health-check monitoring in superadmin | 🟡 Nice to have |
 
