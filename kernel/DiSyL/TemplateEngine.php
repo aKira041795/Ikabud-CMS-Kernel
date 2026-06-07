@@ -4881,8 +4881,18 @@ class TemplateEngine
         }
 
         if ($resolved === null || !empty($resolved['error'])) {
+            $errorMsg = $resolved['error'] ?? '';
+            // For capability-not-found and similar infra errors, use the
+            // caller-supplied empty message instead of leaking internals.
+            if ($errorMsg !== '' && $emptyMessage !== '' && (
+                str_contains($errorMsg, 'Capability not found') ||
+                str_contains($errorMsg, 'Data source unavailable') ||
+                str_contains($errorMsg, 'No view contract')
+            )) {
+                return "<div class=\"ikb-entity-list--empty text-center py-8 text-gray-500 {$class}\">" . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . "</div>";
+            }
             return $this->entityErrorState(
-                $resolved['error'] ?? $emptyMessage ?: 'Unable to load data.',
+                $errorMsg ?: 'Unable to load data.',
                 $class
             );
         }

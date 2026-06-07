@@ -116,8 +116,7 @@ class TemplateCache
         if (file_exists($cachePath)) {
             require_once $cachePath;
         } else {
-            $source = file_get_contents($templatePath);
-            $ast = $this->parser->parse($source, $templatePath);
+            $ast = $this->parser->parse($source, $name);
             $code = $this->compiler->compile($ast, $className);
             eval("?>" . $code);
         }
@@ -143,6 +142,11 @@ class TemplateCache
         if (!file_exists($cachePath)) {
             return true;
         }
+
+        // Guard against non-existent template path
+        if (!file_exists($templatePath)) {
+            return true;
+        }
         
         // Recompile if template is newer than cache
         return filemtime($templatePath) > filemtime($cachePath);
@@ -153,6 +157,9 @@ class TemplateCache
      */
     private function compile(string $templatePath, string $className, ?string $cachePath): string
     {
+        if (!file_exists($templatePath) || !is_readable($templatePath)) {
+            throw new \RuntimeException("Template not found or not readable: {$templatePath}");
+        }
         $source = file_get_contents($templatePath);
         $ast = $this->parser->parse($source, $templatePath);
         $code = $this->compiler->compile($ast, $className);

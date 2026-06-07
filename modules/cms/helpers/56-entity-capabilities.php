@@ -1319,21 +1319,18 @@ function cmsResolveEntityList(string $contentType, mixed $payload): array
 
     try {
         $db = $ctx->db();
-        // ModuleDB doesn't expose quote(); use the underlying PDO connection
-        $pdo = method_exists($db, 'getPdo') ? $db->getPdo() : $db;
-        $ct = $pdo->quote($contentType);
         $query = "SELECT c.id, c.title, c.slug, c.status, c.excerpt, c.created_at, c.updated_at, c.published_at,
                          u.display_name as author_name
                   FROM cms_content c
                   LEFT JOIN cms_users u ON u.id = c.author_id
-                  WHERE c.type = {$ct} AND c.deleted_at IS NULL{$statusFilter}
+                  WHERE c.type = :type AND c.deleted_at IS NULL{$statusFilter}
                   ORDER BY c.{$sortField} {$sortDir}
                   LIMIT {$limit}";
-        $stmt = $db->query($query);
+        $stmt = $db->query($query, [':type' => $contentType]);
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
 
         // Count total
-        $countStmt = $db->query("SELECT COUNT(*) FROM cms_content WHERE type = {$ct} AND deleted_at IS NULL{$statusFilter}");
+        $countStmt = $db->query("SELECT COUNT(*) FROM cms_content WHERE type = :type AND deleted_at IS NULL{$statusFilter}", [':type' => $contentType]);
         $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
 
         // Hydrate image for card_grid views
@@ -1389,15 +1386,13 @@ function cmsResolveEntityGet(string $contentType, mixed $payload): array
 
     try {
         $db = $ctx->db();
-        $pdo = method_exists($db, 'getPdo') ? $db->getPdo() : $db;
-        $ct = $pdo->quote($contentType);
         $stmt = $db->prepare(
             "SELECT c.*, u.display_name as author_name
              FROM cms_content c
              LEFT JOIN cms_users u ON u.id = c.author_id
-             WHERE c.id = :id AND c.type = {$ct} AND c.deleted_at IS NULL LIMIT 1"
+             WHERE c.id = :id AND c.type = :type AND c.deleted_at IS NULL LIMIT 1"
         );
-        $stmt->execute([':id' => $id]);
+        $stmt->execute([':id' => $id, ':type' => $contentType]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if (!is_array($row)) {

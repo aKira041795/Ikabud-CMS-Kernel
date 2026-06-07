@@ -3621,10 +3621,17 @@ function cmsAiAutomationFindWorkflowActor(array $roles, ?int $preferredUserId = 
         }
     }
 
-    $pdo = method_exists($db, 'getPdo') ? $db->getPdo() : $db;
-    $quotedRoles = implode(',', array_map(static function ($role) use ($pdo) {
-        return $pdo->quote($role);
-    }, $allowedRoles));
+    // Build parameterized placeholders for IN clause
+    $placeholders = [];
+    $params = [];
+    foreach ($allowedRoles as $i => $role) {
+        $key = ":role{$i}";
+        $placeholders[] = $key;
+        $params[$key] = $role;
+    }
+    $inClause = implode(',', $placeholders);
+
+    // Build quoted ORDER BY FIELD expression (FIELD requires literal values)
     $orderExpr = implode(',', array_map(static function ($role) {
         return "'" . str_replace("'", "''", $role) . "'";
     }, $allowedRoles));
@@ -3632,9 +3639,10 @@ function cmsAiAutomationFindWorkflowActor(array $roles, ?int $preferredUserId = 
     $stmt = $db->query(
         "SELECT id, role
          FROM cms_users
-         WHERE is_active = 1 AND role IN ({$quotedRoles})
+         WHERE is_active = 1 AND role IN ({$inClause})
          ORDER BY FIELD(role, {$orderExpr}), id ASC
-         LIMIT 1"
+         LIMIT 1",
+        $params
     );
     $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
     if (!is_array($row)) {
