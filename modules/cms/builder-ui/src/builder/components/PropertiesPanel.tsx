@@ -2566,20 +2566,33 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <EntitySourcePicker
                 source={String(node.props.source || '')}
                 view={String(node.props.view || 'compact')}
-                onSourceChange={(v) => handlePropChange('source', v)}
+                onSourceChange={(v) => {
+                  handlePropChange('source', v);
+                  // Sync entityType from source (strip qualifier after last dot)
+                  const lastDot = v.lastIndexOf('.');
+                  const entityType = lastDot > 0 ? v.substring(0, lastDot) : v;
+                  handlePropChange('entityType', entityType || 'post');
+                }}
                 onViewChange={(v) => handlePropChange('view', v)}
                 componentType="entity_list"
               />
             </CollapsibleSection>
           )}
 
-          <CollapsibleSection title="Source" icon={<Layers className="w-3 h-3" />} defaultOpen>
-            <TextInput
-              label="Entity Type Slug"
-              value={String(node.props.entityType || 'post')}
-              onChange={(v) => handlePropChange('entityType', v.trim() || 'post')}
-              placeholder="post"
-            />
+          <CollapsibleSection title="Source" icon={<Layers className="w-3 h-3" />} defaultOpen={!node.props._governed}>
+            {!node.props._governed && (
+              <TextInput
+                label="Entity Type Slug"
+                value={String(node.props.entityType || 'post')}
+                onChange={(v) => handlePropChange('entityType', v.trim() || 'post')}
+                placeholder="post"
+              />
+            )}
+            {!!node.props._governed && (
+              <div className="text-xs text-white/50 py-1">
+                Entity type set by Governed Source above: <span className="text-white/80">{String(node.props.entityType ?? 'post')}</span>
+              </div>
+            )}
             <SelectInput
               label="Layout"
               value={String(node.props.layout || 'grid')}
