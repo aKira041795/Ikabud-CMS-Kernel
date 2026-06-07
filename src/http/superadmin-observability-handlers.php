@@ -1,0 +1,369 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Kernel OS 5.1 — Hardening + Observability Handlers
+ *
+ * Superadmin APIs for service health, circuit breaker visibility,
+ * capability trace viewer, ServiceProxy diagnostics, and entity-view debugging.
+ */
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Service Health Dashboard
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiSuperadminServiceHealth(): void
+{
+    kernelRequireSuperadmin();
+
+    $modules = discoverModules();
+    $services = [];
+
+    foreach ($modules as $id => $manifest) {
+        if (($manifest['type'] ?? 'php-module') !== 'service-module') {
+            continue;
+        }
+
+        $service = $manifest['service'] ?? [];
+        $endpoint = trim((string)($service['endpoint'] ?? ''));
+        $healthUrl = $endpoint !== '' ? rtrim($endpoint, '/') . '/health' : '';
+
+        // Probe health endpoint if available
+        $healthStatus = 'unknown';
+        $healthData = null;
+        $healthDurationMs = 0;
+
+        if ($healthUrl !== '') {
+            $t0 = microtime(true);
+            try {
+                $ctx = stream_context_create([
+                    'http' => [
+                        'method' => 'GET',
+                        'timeout' => 3,
+                        'header' => "Accept: application/json\r\n",
+                    ],
+                ]);
+                $raw = @file_get_contents($healthUrl, false, $ctx);
+                $healthDurationMs = (int)round((microtime(true) - $t0) * 1000);
+
+                if ($raw !== false) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded) && ($decoded['ok'] ?? false)) {
+                        $healthStatus = 'healthy';
+                        $healthData = $decoded;
+                    } else {
+                        $healthStatus = 'degraded';
+                    }
+                } else {
+                    $healthStatus = 'unreachable';
+                }
+            } catch (\Throwable $e) {
+                $healthStatus = 'error';
+                $healthData = ['error' => $e->getMessage()];
+                $healthDurationMs = (int)round((microtime(true) - $t0) * 1000);
+            }
+        }
+
+        // Check breaker state for this service's capabilities
+        $capabilityIds = [];
+        foreach (($manifest['capabilities']['exposes'] ?? []) as $exp) {
+            $capabilityIds[] = (string)($exp['id'] ?? '');
+        }
+
+        $breakerStates = [];
+        foreach ($capabilityIds as $capId) {
+            try {
+                if (\app()->capabilities()->has($capId)) {
+                    $breakerKey = \app()->cap()->breakerKey($capId, $id);
+                    $state = \app()->cap()->breakerState();
+                    $bState = $state[$breakerKey] ?? null;
+                    $breakerStates[$capId] = [
+                        'open' => !empty($bState['open']),
+                        'failure_count' => (int)($bState['failure_count'] ?? 0),
+                        'half_open' => !empty($bState['half_open']),
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $breakerStates[$capId] = ['error' => $e->getMessage()];
+            }
+        }
+
+        $services[] = [
+            'id' => $id,
+            'name' => $manifest['name'] ?? $id,
+            'type' => 'service-module',
+            'endpoint' => $endpoint,
+            'protocol' => $service['protocol'] ?? 'http+json',
+            'health_status' => $healthStatus,
+            'health_data' => $healthData,
+            'health_duration_ms' => $healthDurationMs,
+            'capabilities' => $capabilityIds,
+            'breaker_states' => $breakerStates,
+            'timeout_ms' => (int)($service['timeout_ms'] ?? 30000),
+            'retry_max' => (int)($service['retry']['max_attempts'] ?? 3),
+        ];
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'ok' => true,
+        'services' => $services,
+        'total' => count($services),
+        'healthy' => count(array_filter($services, fn($s) => $s['health_status'] === 'healthy')),
+        'degraded' => count(array_filter($services, fn($s) => $s['health_status'] === 'degraded')),
+        'unreachable' => count(array_filter($services, fn($s) => $s['health_status'] === 'unreachable')),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Circuit Breaker Visibility
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiSuperadminBreakers(): void
+{
+    kernelRequireSuperadmin();
+
+    $state = \app()->cap()->breakerState();
+    $breakers = [];
+
+    foreach ($state as $key => $data) {
+        if (!is_array($data)) continue;
+        $breakers[] = [
+            'key' => $key,
+            'open' => !empty($data['open']),
+            'failure_count' => (int)($data['failure_count'] ?? 0),
+            'last_failure_at' => $data['last_failure_at'] ?? null,
+            'opened_at' => $data['opened_at'] ?? null,
+            'half_open' => !empty($data['half_open']),
+            'probe_count' => (int)($data['probe_count'] ?? 0),
+        ];
+    }
+
+    usort($breakers, fn($a, $b) => ($b['failure_count'] ?? 0) <=> ($a['failure_count'] ?? 0));
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'ok' => true,
+        'breakers' => $breakers,
+        'total' => count($breakers),
+        'open_count' => count(array_filter($breakers, fn($b) => $b['open'])),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminBreakersReset(): void
+{
+    kernelRequireSuperadmin();
+
+    $key = trim((string)($_GET['key'] ?? ''));
+    $all = ($_GET['all'] ?? '') === '1';
+
+    try {
+        if ($all) {
+            \app()->cap()->resetAllBreakers();
+        } elseif ($key !== '') {
+            \app()->cap()->resetBreaker($key);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => 'Specify ?key= or ?all=1']);
+            return;
+        }
+    } catch (\Throwable $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+        return;
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => true, 'reset' => $all ? 'all' : $key]);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Capability Call Trace Viewer
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiSuperadminCapabilityTrace(): void
+{
+    kernelRequireSuperadmin();
+
+    $limit = min(100, max(1, (int)($_GET['limit'] ?? 50)));
+    $capability = trim((string)($_GET['capability'] ?? ''));
+    $provider = trim((string)($_GET['provider'] ?? ''));
+    $status = trim((string)($_GET['status'] ?? '')); // ok, error, all
+
+    // Read recent capability calls from app.log
+    $logPath = STORAGE_PATH . '/logs/app.log';
+    $traces = [];
+
+    if (is_file($logPath)) {
+        $lines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $lines = array_reverse($lines); // newest first
+
+        foreach ($lines as $line) {
+            if (count($traces) >= $limit) break;
+            if (!str_contains($line, 'capability.call')) continue;
+
+            $jsonStart = strpos($line, '{');
+            if ($jsonStart === false) continue;
+            $jsonStr = substr($line, $jsonStart);
+            $data = json_decode($jsonStr, true);
+            if (!is_array($data)) continue;
+
+            // Filters
+            if ($capability !== '' && !str_contains(($data['capability_id'] ?? ''), $capability)) continue;
+            if ($provider !== '' && !in_array($provider, $data['providers'] ?? [], true)) continue;
+            if ($status === 'ok' && empty($data['ok'])) continue;
+            if ($status === 'error' && !empty($data['ok'])) continue;
+
+            $traces[] = [
+                'capability_id' => $data['capability_id'] ?? '',
+                'mode' => $data['mode'] ?? 'first',
+                'providers' => $data['providers'] ?? [],
+                'ok' => $data['ok'] ?? false,
+                'duration_ms' => $data['duration_ms'] ?? 0,
+                'error' => $data['error'] ?? null,
+                'caller_module' => $data['caller_module'] ?? '',
+                'request_id' => $data['request_id'] ?? '',
+                'timestamp' => substr($line, 1, 19), // extract timestamp from log line
+            ];
+        }
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'ok' => true,
+        'traces' => $traces,
+        'count' => count($traces),
+        'filters' => compact('capability', 'provider', 'status', 'limit'),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ServiceProxy Diagnostics
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiSuperadminServiceProxyDiagnostics(): void
+{
+    kernelRequireSuperadmin();
+
+    $modules = discoverModules();
+    $diagnostics = [];
+
+    foreach ($modules as $id => $manifest) {
+        if (($manifest['type'] ?? 'php-module') !== 'service-module') continue;
+
+        $service = $manifest['service'] ?? [];
+        $endpoint = rtrim((string)($service['endpoint'] ?? ''), '/');
+        $capIds = [];
+        foreach (($manifest['capabilities']['exposes'] ?? []) as $exp) {
+            $capIds[] = (string)($exp['id'] ?? '');
+        }
+
+        // Check if capabilities are registered
+        $registeredCaps = [];
+        foreach ($capIds as $capId) {
+            try {
+                $registeredCaps[$capId] = \app()->capabilities()->has($capId);
+            } catch (\Throwable $e) {
+                $registeredCaps[$capId] = false;
+            }
+        }
+
+        // Simulate a test call to verify the ServiceProxy is configured
+        $proxyTest = 'not_tested';
+        if ($endpoint !== '' && !empty($capIds)) {
+            try {
+                // Just check if the capability is callable without actually invoking
+                $providers = \app()->capabilities()->providers($capIds[0]);
+                $proxyTest = !empty($providers) ? 'registered' : 'not_registered';
+            } catch (\Throwable $e) {
+                $proxyTest = 'error: ' . $e->getMessage();
+            }
+        }
+
+        $diagnostics[] = [
+            'id' => $id,
+            'name' => $manifest['name'] ?? $id,
+            'endpoint' => $endpoint,
+            'capabilities_declared' => $capIds,
+            'capabilities_registered' => $registeredCaps,
+            'proxy_status' => $proxyTest,
+            'timeout_ms' => (int)($service['timeout_ms'] ?? 30000),
+            'retry' => $service['retry'] ?? null,
+            'circuit_breaker' => $service['circuit_breaker'] ?? null,
+            'auth_configured' => !empty($service['auth']['token_env']),
+        ];
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'ok' => true,
+        'services' => $diagnostics,
+        'total' => count($diagnostics),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Entity-View Debug Panel
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiSuperadminEntityViewDebug(): void
+{
+    kernelRequireSuperadmin();
+
+    $source = trim((string)($_GET['source'] ?? ''));
+    $view = trim((string)($_GET['view'] ?? 'compact'));
+    $limit = min(50, max(1, (int)($_GET['limit'] ?? 10)));
+
+    $debug = [
+        'requested_source' => $source,
+        'requested_view' => $view,
+    ];
+
+    if ($source === '') {
+        // List all registered views
+        $views = \app()->entityViews();
+        $registered = $views->registeredViews();
+        $debug['registered_views'] = $registered;
+        $debug['view_count'] = count($registered);
+    } else {
+        // Debug a specific source
+        $views = \app()->entityViews();
+        $parsed = $views->parseSource($source);
+        $debug['parsed'] = $parsed;
+
+        $contract = $views->viewContract($parsed['entity_type'], $view);
+        $debug['contract'] = $contract;
+
+        // Try resolving
+        $t0 = microtime(true);
+        try {
+            $resolved = $views->resolve($source, $view, ['limit' => $limit]);
+            $debug['resolve_duration_ms'] = (int)round((microtime(true) - $t0) * 1000);
+            $debug['resolve_ok'] = ($resolved['error'] ?? null) === null;
+            $debug['resolve_error'] = $resolved['error'] ?? null;
+            $debug['row_count'] = count($resolved['rows'] ?? []);
+            $debug['total'] = $resolved['total'] ?? 0;
+            $debug['preview_rows'] = array_slice($resolved['rows'] ?? [], 0, 3);
+        } catch (\Throwable $e) {
+            $debug['resolve_ok'] = false;
+            $debug['resolve_error'] = $e->getMessage();
+            $debug['resolve_duration_ms'] = (int)round((microtime(true) - $t0) * 1000);
+        }
+
+        // Show capability gate
+        $sanitizedType = str_replace('.', '_', $parsed['entity_type']);
+        $capabilityId = "entity.list.{$sanitizedType}";
+        $debug['capability_id'] = $capabilityId;
+        $debug['capability_exists'] = \app()->capabilities()->has($capabilityId);
+        if ($debug['capability_exists']) {
+            $debug['capability_providers'] = array_map(
+                fn($p) => $p['provider'] ?? '?',
+                \app()->capabilities()->providers($capabilityId)
+            );
+        }
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => true, 'debug' => $debug], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}

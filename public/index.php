@@ -129,6 +129,7 @@ require_once __DIR__ . '/../src/http/admin-handlers.php';
 require_once __DIR__ . '/../src/http/page-handlers.php';
 require_once __DIR__ . '/../src/http/integration-handlers.php';
 require_once __DIR__ . '/../src/http/superadmin-handlers.php';
+require_once __DIR__ . '/../src/http/superadmin-observability-handlers.php';
 require_once __DIR__ . '/../src/http/auth-handlers.php';
 
 
@@ -589,6 +590,31 @@ switch ($handler) {
 
     case 'apiSuperadminToggleModule':
         kernelHandleApiSuperadminToggleModule();
+        exit;
+
+    // ── 5.1 Observability APIs ──────────────────────────────────────
+    case 'apiSuperadminServiceHealth':
+        kernelHandleApiSuperadminServiceHealth();
+        exit;
+
+    case 'apiSuperadminBreakers':
+        kernelHandleApiSuperadminBreakers();
+        exit;
+
+    case 'apiSuperadminBreakersReset':
+        kernelHandleApiSuperadminBreakersReset();
+        exit;
+
+    case 'apiSuperadminCapabilityTrace':
+        kernelHandleApiSuperadminCapabilityTrace();
+        exit;
+
+    case 'apiSuperadminServiceProxyDiagnostics':
+        kernelHandleApiSuperadminServiceProxyDiagnostics();
+        exit;
+
+    case 'apiSuperadminEntityViewDebug':
+        kernelHandleApiSuperadminEntityViewDebug();
         exit;
 
     case 'pageAdminProfile':
