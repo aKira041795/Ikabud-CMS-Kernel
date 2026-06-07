@@ -66,6 +66,7 @@ import { DiSyLNode, NodeProps, NodeStyle } from '../core/types';
 import { getComponentDefinition } from '../core/components';
 import { buildFlexPartStyle, buildFlexWidthStyle, deriveFlexPart, deriveLayoutWidth, hasExplicitFlexSizing } from '../core/layoutSizing';
 import MediaLibrary from './MediaLibrary';
+import EntitySourcePicker from './EntitySourcePicker';
 
 function normalizeSelectedIds(value: unknown): number[] {
   if (!Array.isArray(value)) {
@@ -2392,6 +2393,19 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             </div>
           </div>
 
+          {/* Governed entity-view source + view picker (Phase 7 / 5.2) */}
+          {node.props._governed && (
+            <CollapsibleSection title="Governed Source" icon={<Layers className="w-3 h-3" />} defaultOpen>
+              <EntitySourcePicker
+                source={String(node.props.source || '')}
+                view={String(node.props.view || 'card')}
+                onSourceChange={(v) => handlePropChange('source', v)}
+                onViewChange={(v) => handlePropChange('view', v)}
+                componentType="entity_detail"
+              />
+            </CollapsibleSection>
+          )}
+
           <CollapsibleSection title="What to show?" icon={<Settings className="w-3 h-3" />} defaultOpen>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -2544,6 +2558,19 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <div><span className="text-white/50">Order:</span> {node.props.orderBy === 'title' || node.props.orderBy === 'name' ? 'By name' : 'Newest first'}</div>
             </div>
           </div>
+
+          {/* Governed entity-list source + view picker (Phase 7 / 5.2) */}
+          {node.props._governed && (
+            <CollapsibleSection title="Governed Source" icon={<Layers className="w-3 h-3" />} defaultOpen>
+              <EntitySourcePicker
+                source={String(node.props.source || '')}
+                view={String(node.props.view || 'compact')}
+                onSourceChange={(v) => handlePropChange('source', v)}
+                onViewChange={(v) => handlePropChange('view', v)}
+                componentType="entity_list"
+              />
+            </CollapsibleSection>
+          )}
 
           <CollapsibleSection title="Source" icon={<Layers className="w-3 h-3" />} defaultOpen>
             <TextInput

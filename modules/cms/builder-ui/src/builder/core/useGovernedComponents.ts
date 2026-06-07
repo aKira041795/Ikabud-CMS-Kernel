@@ -14,29 +14,29 @@ import type { GovernedComponent, EntitySource, EntityViewContract, ContractValid
 // =============================================================================
 
 export function useGovernedComponents() {
-  const [components, setComponents] = useState<GovernedComponent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const [components, setComponents] = useState<GovernedComponent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    cmsApi.listGovernedComponents()
-      .then(res => res.json())
-      .then(data => {
-        if (!cancelled && data.ok) {
-          setComponents(data.components || []);
-        }
-      })
-      .catch(err => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
+    useEffect(() => {
+        let cancelled = false;
+        cmsApi.listGovernedComponents()
+            .then(res => res.json())
+            .then(data => {
+                if (!cancelled && data.ok) {
+                    setComponents(data.components || []);
+                }
+            })
+            .catch(err => {
+                if (!cancelled) setError(err.message);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, []);
 
-  return { components, loading, error };
+    return { components, loading, error };
 }
 
 // =============================================================================
@@ -44,26 +44,26 @@ export function useGovernedComponents() {
 // =============================================================================
 
 export function useEntitySources() {
-  const [sources, setSources] = useState<EntitySource[]>([]);
-  const [loading, setLoading] = useState(true);
+    const [sources, setSources] = useState<EntitySource[]>([]);
+    const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    cmsApi.listEntitySources()
-      .then(res => res.json())
-      .then(data => {
-        if (!cancelled && data.ok) {
-          setSources(data.sources || []);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
+    useEffect(() => {
+        let cancelled = false;
+        cmsApi.listEntitySources()
+            .then(res => res.json())
+            .then(data => {
+                if (!cancelled && data.ok) {
+                    setSources(data.sources || []);
+                }
+            })
+            .catch(() => { })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, []);
 
-  return { sources, loading };
+    return { sources, loading };
 }
 
 // =============================================================================
@@ -71,31 +71,31 @@ export function useEntitySources() {
 // =============================================================================
 
 export function useEntityViews(entityType: string | null) {
-  const [views, setViews] = useState<EntityViewContract[]>([]);
-  const [loading, setLoading] = useState(false);
+    const [views, setViews] = useState<EntityViewContract[]>([]);
+    const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!entityType) {
-      setViews([]);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    cmsApi.listEntityViews(entityType)
-      .then(res => res.json())
-      .then(data => {
-        if (!cancelled && data.ok) {
-          setViews(data.views || []);
+    useEffect(() => {
+        if (!entityType) {
+            setViews([]);
+            return;
         }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [entityType]);
+        let cancelled = false;
+        setLoading(true);
+        cmsApi.listEntityViews(entityType)
+            .then(res => res.json())
+            .then(data => {
+                if (!cancelled && data.ok) {
+                    setViews(data.views || []);
+                }
+            })
+            .catch(() => { })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [entityType]);
 
-  return { views, loading };
+    return { views, loading };
 }
 
 // =============================================================================
@@ -103,25 +103,25 @@ export function useEntityViews(entityType: string | null) {
 // =============================================================================
 
 export function useContractValidation() {
-  const [validating, setValidating] = useState(false);
-  const [validation, setValidation] = useState<ContractValidation | null>(null);
+    const [validating, setValidating] = useState(false);
+    const [validation, setValidation] = useState<ContractValidation | null>(null);
 
-  const validate = useCallback(async (contract: Record<string, unknown>) => {
-    setValidating(true);
-    try {
-      const res = await cmsApi.validateContract(contract);
-      const data = await res.json();
-      setValidation(data);
-      return data;
-    } catch {
-      setValidation({ ok: false, valid: false, errors: ['Validation request failed'], warnings: [] });
-      return null;
-    } finally {
-      setValidating(false);
-    }
-  }, []);
+    const validate = useCallback(async (contract: Record<string, unknown>) => {
+        setValidating(true);
+        try {
+            const res = await cmsApi.validateContract(contract);
+            const data = await res.json();
+            setValidation(data);
+            return data;
+        } catch {
+            setValidation({ ok: false, valid: false, errors: ['Validation request failed'], warnings: [] });
+            return null;
+        } finally {
+            setValidating(false);
+        }
+    }, []);
 
-  const clearValidation = useCallback(() => setValidation(null), []);
+    const clearValidation = useCallback(() => setValidation(null), []);
 
-  return { validate, validating, validation, clearValidation };
+    return { validate, validating, validation, clearValidation };
 }

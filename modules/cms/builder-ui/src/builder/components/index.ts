@@ -23,3 +23,5 @@ export { default as SEOPanel, defaultSEOSettings } from './SEOPanel';
 export type { SEOSettings } from './SEOPanel';
 export { CapabilityPanel } from './CapabilityPanel';
 export type { CapabilityPanelProps } from './CapabilityPanel';
+export { default as GovernedComponentsPanel } from './GovernedComponentsPanel';
+export { default as EntitySourcePicker } from './EntitySourcePicker';
