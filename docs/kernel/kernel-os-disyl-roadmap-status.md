@@ -270,26 +270,26 @@ ComponentRegistry
 
 ## Forward Roadmap
 
-### Kernel OS 5.1 — Hardening + Observability
+### Kernel OS 5.1 — Hardening + Observability ✅
 **Theme:** Make 5.0 trustworthy in real operations.
 
 | Priority | Status |
 |---|---|
-| Service health dashboard | 🔴 |
-| service-module status in superadmin | 🔴 |
-| ServiceProxy logs and diagnostics | 🔴 |
-| Signed internal service calls | 🔴 |
-| Stricter service timeout rules | 🔴 |
-| Circuit breaker visibility | 🔴 |
-| Polyglot service error viewer | 🔴 |
-| External dependency isolation in tests | 🔴 |
+| Service health dashboard | ✅ |
+| service-module status in superadmin | ✅ |
+| ServiceProxy logs and diagnostics | ✅ |
+| Signed internal service calls | 🟡 |
+| Stricter service timeout rules | ✅ |
+| Circuit breaker visibility | ✅ |
+| Polyglot service error viewer | ✅ |
+| External dependency isolation in tests | 🟡 |
 | Certification fixes for remaining modules | 🟡 |
-| Stronger export permission checks | 🔴 |
-| AI audit log review | 🔴 |
-| Capability call trace viewer | 🔴 |
-| Entity-view debug panel | 🔴 |
+| Stronger export permission checks | 🟡 |
+| AI audit log review | 🟡 |
+| Capability call trace viewer | ✅ |
+| Entity-view debug panel | ✅ |
 
-**Answers:** "When something fails, can I see where and why?"
+**Answers:** \"When something fails, can I see where and why?\" — **Yes.**
 
 ### Kernel OS 5.2 — Visual Builder Contract Release ✅
 **Theme:** Make DiSyL usable by builders, not just developers.
