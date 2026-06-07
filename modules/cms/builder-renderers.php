@@ -1742,6 +1742,9 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
 {
     // Phase 7: Delegate to governed ikb_entity_list DiSyL component
     $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
+    // Sanitize: collapse spaces and reject obviously invalid entity types
+    $entityType = str_replace(' ', '_', $entityType);
+    $entityType = preg_replace('/[^a-z0-9._-]/i', '', $entityType) ?: 'post';
 
     // If the entityType already contains a dot (e.g. "weather.current" or "ecommerce.product"),
     // use it as-is. Otherwise prepend "cms." for CMS-owned content types.

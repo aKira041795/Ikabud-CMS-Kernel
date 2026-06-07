@@ -4337,6 +4337,12 @@ class TemplateEngine
     
     private function resolveTemplatePath(string $template): string
     {
+        // Guard against empty template names (resolve to .disyl otherwise)
+        $template = trim($template);
+        if ($template === '' || $template === '.disyl') {
+            return '';
+        }
+
         if (pathinfo($template, PATHINFO_EXTENSION) !== 'disyl') {
             $template .= '.disyl';
         }
