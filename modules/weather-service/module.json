@@ -1,0 +1,78 @@
+{
+    "id": "weather-service",
+    "type": "service-module",
+    "name": "Weather Service",
+    "version": "1.0.0",
+    "description": "Polyglot weather information service (Python). Proves the Kernel OS capability bus can dispatch to non-PHP runtimes via ServiceProxy.",
+    "author": "Ikabud",
+    "service": {
+        "runtime": "python",
+        "endpoint": "http://127.0.0.1:9002",
+        "health_check": "/health",
+        "protocol": "http+json",
+        "timeout_ms": 10000,
+        "retry": {
+            "max_attempts": 2,
+            "backoff_ms": 500,
+            "backoff_multiplier": 1.5
+        },
+        "circuit_breaker": {
+            "failure_threshold": 3,
+            "cooldown_seconds": 30,
+            "half_open_max_requests": 1
+        }
+    },
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "weather.current@1",
+                "priority": 100,
+                "modes": ["first"],
+                "description": "Get current weather for a city",
+                "schema": {
+                    "input": {
+                        "type": "object",
+                        "required": ["city"],
+                        "properties": {
+                            "city": {"type": "string", "description": "City name or lat,lon coordinates"}
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string"},
+                            "temperature_c": {"type": "number"},
+                            "condition": {"type": "string"},
+                            "humidity": {"type": "number"},
+                            "wind_kph": {"type": "number"}
+                        }
+                    }
+                }
+            },
+            {
+                "id": "weather.forecast@1",
+                "priority": 100,
+                "modes": ["first"],
+                "description": "Get 3-day forecast for a city",
+                "schema": {
+                    "input": {
+                        "type": "object",
+                        "required": ["city"],
+                        "properties": {
+                            "city": {"type": "string"},
+                            "days": {"type": "integer", "default": 3}
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string"},
+                            "forecast": {"type": "array"}
+                        }
+                    }
+                }
+            }
+        ]
+    },
+    "routes": []
+}

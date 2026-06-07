@@ -1587,9 +1587,27 @@ function loadModuleRoutes(array $routes): array
                         ['policy' => $policy, 'schema' => $schema, 'origin' => array_merge($origin, ['capability' => $capId])]
                     );
                 } else {
-                    // Service modules run externally — no PHP handlers expected.
+                    // Service modules run externally — register an HTTP proxy instead.
                     $moduleType = trim((string)($module['type'] ?? 'php-module'));
-                    if ($moduleType !== 'service-module') {
+                    if ($moduleType === 'service-module') {
+                        $serviceProxy = \Ikabud\Kernel\Capabilities\ServiceProxy::fromManifest($module);
+                        if ($serviceProxy !== null) {
+                            app()->capabilities()->register(
+                                $capId,
+                                $moduleId,
+                                $serviceProxy,
+                                $priority,
+                                $modes,
+                                ['policy' => $policy, 'schema' => $schema, 'origin' => array_merge($origin, ['capability' => $capId, 'type' => 'service_proxy'])]
+                            );
+                            continue;
+                        }
+                        write_log(
+                            "Module '{$moduleId}' is service-module but ServiceProxy could not be built",
+                            'warning',
+                            ['module' => $moduleId, 'capability' => $capId]
+                        );
+                    } else {
                         write_log(
                             "Module '{$moduleId}' declares capability '{$capId}' but no handler callable was found",
                             'warning',
