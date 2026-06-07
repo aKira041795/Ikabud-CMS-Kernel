@@ -1742,7 +1742,15 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
 {
     // Phase 7: Delegate to governed ikb_entity_list DiSyL component
     $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
-    $source = 'cms.' . $entityType . '.recent';
+
+    // If the entityType already contains a dot (e.g. "weather.current" or "ecommerce.product"),
+    // use it as-is. Otherwise prepend "cms." for CMS-owned content types.
+    if (str_contains($entityType, '.')) {
+        $source = $entityType . '.recent';
+    } else {
+        $source = 'cms.' . $entityType . '.recent';
+    }
+
     $view = (string)($props['layout'] ?? 'grid') === 'list' ? 'compact' : 'card_grid';
     $limit = max(1, min(12, (int)($props['itemCount'] ?? 6)));
     $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? ''));
