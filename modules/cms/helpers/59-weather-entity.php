@@ -108,6 +108,7 @@ function cms_cap_entity_list_weather_current(mixed $payload, string $capabilityI
         $result = \app()->cap()->call('weather.current@1', ['city' => $city], [
             'caller' => ['module' => 'cms'],
             'mode' => 'first',
+            'timeout_ms' => 10000,
         ]);
 
         if (is_array($result)) {
@@ -132,6 +133,7 @@ function cms_cap_entity_list_weather_forecast(mixed $payload, string $capability
         $result = \app()->cap()->call('weather.forecast@1', ['city' => $city, 'days' => $days], [
             'caller' => ['module' => 'cms'],
             'mode' => 'first',
+            'timeout_ms' => 10000,
         ]);
 
         if (is_array($result) && isset($result['forecast'])) {
@@ -182,6 +184,7 @@ function cms_cap_entity_get_weather(mixed $payload, string $capabilityId = '', s
         $result = \app()->cap()->call('weather.current@1', ['city' => $city], [
             'caller' => ['module' => 'cms'],
             'mode' => 'first',
+            'timeout_ms' => 10000,
         ]);
 
         if (is_array($result)) {

@@ -27,6 +27,7 @@ function cmsPublicWeather(array $params = []): void
         $probe = app()->cap()->call('weather.current@1', ['city' => $city], [
             'caller' => ['module' => 'cms'],
             'mode' => 'first',
+            'timeout_ms' => 10000,
         ]);
     } catch (\Throwable $e) {
         $error = $e->getMessage();

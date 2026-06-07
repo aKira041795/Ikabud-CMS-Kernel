@@ -29,6 +29,7 @@ function cmsAdminWeather(array $params = []): void
         $currentWeather = app()->cap()->call('weather.current@1', ['city' => $city], [
             'caller' => ['module' => 'cms'],
             'mode' => 'first',
+            'timeout_ms' => 10000,
         ]);
     } catch (\Throwable $e) {
         $error = $e->getMessage();
@@ -38,6 +39,7 @@ function cmsAdminWeather(array $params = []): void
         $forecastResult = app()->cap()->call('weather.forecast@1', ['city' => $city, 'days' => 5], [
             'caller' => ['module' => 'cms'],
             'mode' => 'first',
+            'timeout_ms' => 10000,
         ]);
         $forecast = $forecastResult['forecast'] ?? [];
     } catch (\Throwable $e) {
