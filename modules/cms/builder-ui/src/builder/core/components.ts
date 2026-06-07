@@ -797,6 +797,9 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     description: 'Render a themed list of entities from a content type',
     defaultProps: {
       entityType: 'post',
+      _governed: true,
+      source: 'cms.post.recent',
+      view: 'card_grid',
       itemCount: 6,
       layout: 'grid',
       gridColumns: 3,
