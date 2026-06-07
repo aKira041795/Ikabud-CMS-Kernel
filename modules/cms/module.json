@@ -658,6 +658,15 @@
                 "superadmin",
                 "administrator"
             ]
+        },
+        {
+            "label": "Weather",
+            "url": "/cms/admin/weather",
+            "icon": "cloud-sun",
+            "roles": [
+                "superadmin",
+                "administrator"
+            ]
         }
     ],
     "entities": {

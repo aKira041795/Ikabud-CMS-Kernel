@@ -32,6 +32,7 @@ return [
         '/cms/admin/permissions'           => 'cms:cmsAdminPermissions',
         '/cms/admin/themes'                => 'cms:cmsAdminThemes',
         '/cms/admin/modules'               => 'cms:cmsAdminModules',
+        '/cms/admin/weather'               => 'cms:cmsAdminWeather',
 
         // ── Admin API (GET) ──────────────────────────────────────
         '/api/v1/export'                   => 'cms:cmsApiKernelExport',

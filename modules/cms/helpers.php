@@ -20,6 +20,7 @@ require_once __DIR__ . '/helpers/55-capabilities.php';
 require_once __DIR__ . '/helpers/56-entity-capabilities.php';
 require_once __DIR__ . '/helpers/57-entity-contexts.php';
 require_once __DIR__ . '/helpers/58-entity-views.php';
+require_once __DIR__ . '/helpers/59-weather-entity.php';
 require_once __DIR__ . '/helpers/60-cache.php';
 require_once __DIR__ . '/helpers/65-taxonomy.php';
 require_once __DIR__ . '/helpers/70-menu.php';
