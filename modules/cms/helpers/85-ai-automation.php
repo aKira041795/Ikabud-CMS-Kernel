@@ -3621,8 +3621,9 @@ function cmsAiAutomationFindWorkflowActor(array $roles, ?int $preferredUserId = 
         }
     }
 
-    $quotedRoles = implode(',', array_map(static function ($role) use ($db) {
-        return $db->quote($role);
+    $pdo = method_exists($db, 'getPdo') ? $db->getPdo() : $db;
+    $quotedRoles = implode(',', array_map(static function ($role) use ($pdo) {
+        return $pdo->quote($role);
     }, $allowedRoles));
     $orderExpr = implode(',', array_map(static function ($role) {
         return "'" . str_replace("'", "''", $role) . "'";

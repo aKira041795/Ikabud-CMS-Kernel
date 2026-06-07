@@ -163,6 +163,171 @@ function cmsApiBuilderComponents(array $params = []): void
     ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 }
 
+// ── Builder Entity Sources API ────────────────────────────────────────
+
+/**
+ * GET /api/v1/cms/builder/entity-sources
+ *
+ * Returns registered entity-view sources available for the visual builder.
+ * Each source includes its entity type, qualifier, and available views.
+ */
+function cmsApiBuilderEntitySources(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $sources = [];
+    $views = app()->entityViews();
+    $registered = $views->registeredViews();
+
+    // Group by entity type
+    $byEntity = [];
+    foreach ($registered as $key) {
+        // key format: "entity_type.view_name"
+        $lastDot = strrpos($key, '.');
+        if ($lastDot === false) continue;
+        $entityType = substr($key, 0, $lastDot);
+        $viewName = substr($key, $lastDot + 1);
+        $byEntity[$entityType][] = $viewName;
+    }
+
+    foreach ($byEntity as $entityType => $viewNames) {
+        $contract = $views->viewContract($entityType, 'default');
+        $sources[] = [
+            'entity_type' => $entityType,
+            'label' => ucwords(str_replace(['_', '.'], ' ', $entityType)),
+            'views' => array_unique($viewNames),
+            'exportable' => $contract['exportable'] ?? false,
+            'fields' => $contract['fields'] ?? '*',
+        ];
+    }
+
+    // Sort by label
+    usort($sources, fn($a, $b) => $a['label'] <=> $b['label']);
+
+    echo json_encode([
+        'ok' => true,
+        'sources' => $sources,
+        'count' => count($sources),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+// ── Builder Entity Views API ──────────────────────────────────────────
+
+/**
+ * GET /api/v1/cms/builder/entity-views?entity_type=weather.current
+ *
+ * Returns view contracts for a specific entity type.
+ */
+function cmsApiBuilderEntityViews(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $entityType = trim((string)($_GET['entity_type'] ?? ''));
+    if ($entityType === '') {
+        echo json_encode(['ok' => false, 'error' => 'entity_type required']);
+        return;
+    }
+
+    $views = app()->entityViews();
+    $registered = $views->registeredViews();
+    $result = [];
+
+    foreach ($registered as $key) {
+        if (!str_starts_with($key, $entityType . '.')) continue;
+        $viewName = substr($key, strlen($entityType) + 1);
+        $contract = $views->viewContract($entityType, $viewName);
+        $result[] = [
+            'view' => $viewName,
+            'fields' => $contract['fields'] ?? '*',
+            'actions' => $contract['actions'] ?? [],
+            'limit' => $contract['limit'] ?? 25,
+            'empty_state' => $contract['empty_state'] ?? '',
+            'exportable' => $contract['exportable'] ?? false,
+        ];
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'entity_type' => $entityType,
+        'views' => $result,
+        'count' => count($result),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+// ── Builder Contract Validation API ───────────────────────────────────
+
+/**
+ * POST /api/v1/cms/builder/validate-contract
+ *
+ * Validates a DiSyL contract (entity_list, entity_detail, etc.) before saving.
+ * Body: {type: "entity_list", source: "orders.recent", view: "compact", ...}
+ */
+function cmsApiBuilderValidateContract(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        echo json_encode(['ok' => false, 'error' => 'Invalid JSON body']);
+        return;
+    }
+
+    $type = trim((string)($body['type'] ?? ''));
+    $source = trim((string)($body['source'] ?? ''));
+    $view = trim((string)($body['view'] ?? 'compact'));
+
+    $warnings = [];
+    $errors = [];
+
+    // Validate source exists
+    if ($source !== '') {
+        $views = app()->entityViews();
+        if (!$views->sourceExists($source)) {
+            $warnings[] = "Source '{$source}' is not registered. It may not resolve at render time.";
+        }
+    }
+
+    // Validate component type is governed
+    $validTypes = ['entity_list', 'entity_detail', 'stat_card', 'export_button',
+                   'ai_summary', 'ai_assist', 'report', 'signature_block',
+                   'confirm_action', 'panel', 'drawer', 'audit_log'];
+    if ($type !== '' && !in_array($type, $validTypes, true)) {
+        $warnings[] = "Component type '{$type}' is not a governed DiSyL component.";
+    }
+
+    // Validate view contract if source + view provided
+    if ($source !== '' && $view !== '') {
+        $parsed = $views->parseSource($source);
+        $contract = $views->viewContract($parsed['entity_type'], $view);
+        if ($contract === null) {
+            $warnings[] = "No view contract for '{$parsed['entity_type']}.{$view}'. Built-in defaults will apply.";
+        }
+    }
+
+    // Try resolving to catch capability errors early
+    if ($source !== '' && $type === 'entity_list') {
+        try {
+            $resolved = $views->resolve($source, $view);
+            if (($resolved['error'] ?? null) !== null) {
+                $warnings[] = "Resolve warning: {$resolved['error']}";
+            } else {
+                // Success — include preview of first row
+                $preview = !empty($resolved['rows']) ? array_slice($resolved['rows'], 0, 2) : [];
+            }
+        } catch (\Throwable $e) {
+            $warnings[] = "Resolve failed: {$e->getMessage()}";
+        }
+    }
+
+    echo json_encode([
+        'ok' => empty($errors),
+        'valid' => empty($errors),
+        'errors' => $errors,
+        'warnings' => $warnings,
+        'preview' => $preview ?? null,
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
 // ── Marketplace Catalog API ────────────────────────────────────────────
 
 /**

@@ -163,4 +163,25 @@ export const cmsApi = {
       method: 'POST',
       body: JSON.stringify({ preset_id: presetId }),
     }),
+
+  // ── Governed DiSyL Components (Phase 7 / 5.2 Builder Contract Release) ──
+
+  /** Fetch all governed DiSyL components with attribute schemas */
+  listGovernedComponents: () =>
+    authFetch(`${API}/builder/components`),
+
+  /** Fetch registered entity-view sources */
+  listEntitySources: () =>
+    authFetch(`${API}/builder/entity-sources`),
+
+  /** Fetch view contracts for a given entity type */
+  listEntityViews: (entityType: string) =>
+    authFetch(`${API}/builder/entity-views?entity_type=${encodeURIComponent(entityType)}`),
+
+  /** Validate a DiSyL contract before save */
+  validateContract: (contract: Record<string, unknown>) =>
+    authFetch(`${API}/builder/validate-contract`, {
+      method: 'POST',
+      body: JSON.stringify(contract),
+    }),
 };

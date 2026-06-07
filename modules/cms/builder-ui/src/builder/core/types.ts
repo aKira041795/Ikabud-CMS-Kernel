@@ -358,7 +358,7 @@ export interface ComponentDefinition {
   type: ComponentType;
   name: string;
   icon: string; // Lucide icon name
-  category: 'layout' | 'content' | 'media' | 'utility' | 'interactive' | 'advanced';
+  category: 'layout' | 'content' | 'media' | 'utility' | 'interactive' | 'advanced' | 'governed';
   description: string;
   keywords?: string[];
   defaultProps: Partial<NodeProps>;
@@ -367,6 +367,62 @@ export interface ComponentDefinition {
   allowedChildren?: ComponentType[] | null; // null = any, [] = none (leaf)
   allowedParents?: ComponentType[] | null; // null = any
   isLeaf: boolean;
+  // Governed DiSyL component metadata (from API)
+  _governed?: boolean;
+  _governedName?: string;  // e.g. "ikb_entity_list"
+  _attributes?: GovernedAttribute[];
+}
+
+// =============================================================================
+// Governed DiSyL Component (Phase 7 / 5.2 Builder Contract Release)
+// =============================================================================
+
+export interface GovernedAttribute {
+  name: string;
+  type: string;
+  required: boolean;
+  default: unknown;
+  enum: string[] | null;
+  description: string;
+}
+
+export interface GovernedComponent {
+  name: string;          // e.g. "ikb_entity_list"
+  label: string;         // e.g. "Entity List"
+  category: string;      // data, structural, form, interactive, etc.
+  description: string;
+  leaf: boolean;
+  attributes: GovernedAttribute[];
+  _governed: true;
+}
+
+// =============================================================================
+// Entity View Source (for builder source picker)
+// =============================================================================
+
+export interface EntitySource {
+  entity_type: string;
+  label: string;
+  views: string[];
+  exportable: boolean;
+  fields: string | string[];
+}
+
+export interface EntityViewContract {
+  view: string;
+  fields: string | string[];
+  actions: string[];
+  limit: number;
+  empty_state: string;
+  exportable: boolean;
+}
+
+export interface ContractValidation {
+  ok: boolean;
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  preview?: Record<string, unknown>[] | null;
 }
 
 // =============================================================================

@@ -38,6 +38,7 @@ import {
 
 import { useBuilderState, DiSyLNode, createNode, createEmptyDocument, CMS_COMPONENTS, normalizeBuilderNode } from './builder/core';
 import { NodeRenderer, ComponentPanelEnhanced, PropertiesPanel, LayersPanel, ContextMenu, GlobalStylesPanel, defaultGlobalStyles, VersionHistory, OnboardingTooltips, TemplatesPanel, SaveTemplateModal, SaveBlockModal, BlocksPanel, SEOPanel, defaultSEOSettings, CapabilityPanel } from './builder/components';
+import GovernedComponentsPanel from './builder/components/GovernedComponentsPanel';
 import type { GlobalStyles, SEOSettings } from './builder/components';
 import { initBuilderPreviewRuntime } from './builder/runtime/previewRuntime';
 import { Clock } from 'lucide-react';
@@ -359,7 +360,7 @@ export default function PageBuilder() {
   // Right: Navigator + Global Settings
   // Bottom: Component drawer
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(true); // Collapsed when no selection
-  const [rightPanelTab, setRightPanelTab] = useState<'navigator' | 'templates' | 'blocks' | 'global' | 'seo' | 'capabilities'>('navigator');
+  const [rightPanelTab, setRightPanelTab] = useState<'navigator' | 'templates' | 'blocks' | 'global' | 'seo' | 'capabilities' | 'governed'>('navigator');
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [componentDrawerOpen, setComponentDrawerOpen] = useState(true);
   const [zoom, setZoom] = useState(100);
@@ -1699,6 +1700,16 @@ export default function PageBuilder() {
                   >
                     Features
                   </button>
+                  <button
+                    onClick={() => setRightPanelTab('governed')}
+                    className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'governed'
+                      ? 'text-white bg-[#6366f1]'
+                      : 'text-white/60 hover:text-white/90'
+                      }`}
+                    title="Governed DiSyL components"
+                  >
+                    Governed
+                  </button>
                 </div>
               )}
             </div>
@@ -1758,6 +1769,9 @@ export default function PageBuilder() {
                 )}
                 {rightPanelTab === 'capabilities' && pageData && pageData.id > 0 && (
                   <CapabilityPanel contentId={pageData.id} />
+                )}
+                {rightPanelTab === 'governed' && (
+                  <GovernedComponentsPanel onAddComponent={handleAddComponent} />
                 )}
               </>
             )}

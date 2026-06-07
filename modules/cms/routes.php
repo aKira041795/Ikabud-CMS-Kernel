@@ -39,6 +39,9 @@ return [
         '/api/v1/cms/redirects'            => 'cms:cmsApiRedirectList',
         '/api/v1/cms/export'               => 'cms:cmsApiExport',
         '/api/v1/cms/builder/components'   => 'cms:cmsApiBuilderComponents',
+        '/api/v1/cms/builder/entity-sources' => 'cms:cmsApiBuilderEntitySources',
+        '/api/v1/cms/builder/entity-views'   => 'cms:cmsApiBuilderEntityViews',
+        '/api/v1/cms/builder/validate-contract' => 'cms:cmsApiBuilderValidateContract',
         '/api/v1/cms/marketplace/catalog'  => 'cms:cmsApiMarketplaceCatalog',
 
         // ── Themes API (GET) ──────────────────────────────────────
