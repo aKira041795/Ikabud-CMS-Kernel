@@ -8,15 +8,18 @@
 
 ## Executive Summary
 
-Kernel OS 5.0 is now a **polyglot business operating system**. The capability bus
-dispatches to services written in any language (Python, Node, Go, Rust, etc.) via
-the `ServiceProxy` HTTP bridge. The polyglot pipeline is proven end-to-end with a
-real Python weather service integrated into the CMS entity-view system.
+Kernel OS 5.0 introduces a **proven polyglot capability layer**, allowing PHP modules
+and external services in any language to participate in one governed business runtime.
+The capability bus dispatches to services written in any language (Python, Node, Go,
+Rust, etc.) via the `ServiceProxy` HTTP bridge — PHP is the kernel host, but
+capabilities can live anywhere.
 
-The platform is proven: 31 governed DiSyL components, 13 CMS entity-view contracts,
-end-to-end capability pipeline tested with real data (25/25 integration POC),
-polyglot dispatch verified (37/37 tests), and production template adoption across
-CMS and Guidance modules.
+The core architecture is proven end-to-end through CMS, entity-view, DiSyL, and
+polyglot capability tests: 31 governed DiSyL components, 13 CMS entity-view contracts,
+25/25 integration POC, 52 polyglot dispatch tests, and production template adoption
+across CMS and Guidance modules.
+
+**385 tests pass, 0 linter errors, 398 templates scanned.**
 
 **370 tests pass, 0 linter errors, 398 templates scanned.**
 
@@ -199,7 +202,7 @@ Production templates using new 5.0 components:
 
 ---
 
-## What Remains
+## What Remains — Current
 
 | Item | Priority |
 |---|---|
@@ -208,4 +211,150 @@ Production templates using new 5.0 components:
 | Remaining module certification fixes (20/41 pass) | 🟡 Mechanical |
 | Real AI provider in production | 🔴 Needs API keys |
 | Polyglot service health-check monitoring in superadmin | 🟡 Nice to have |
+
+---
+
+## Strategic Position (Post-5.0)
+
+Kernel OS 5.0 is an **architectural graduation release**. The question has shifted
+from "can it work?" to "can it be operated, explained, trusted, and extended safely?"
+
+The next phase is not more modules — it's coherence:
+
+> **From architecture proof to operating discipline.**
+
+### Doctrine
+
+> **PHP is the kernel host. Capabilities can live anywhere.**
+>
+> Python → AI, analytics, OCR, forecasting
+> Node → realtime collaboration, websockets, builder preview
+> Go → high-throughput workers, sync engines
+> Rust → security-sensitive or high-performance utilities
+> PHP → CMS, admin, business modules, reports, standard workflows
+>
+> All obey Kernel OS through the capability protocol.
+
+### The Platform Shape
+
+```
+PHP Kernel OS
+    governs identity, modules, capabilities, rendering, policy
+
+DiSyL
+    expresses human-readable interface intent
+
+CapabilityBus
+    resolves business actions and data sources
+
+ServiceProxy
+    allows any language to fulfill capabilities
+
+EntityViewResolver
+    connects business data to UI contracts
+
+ComponentRegistry
+    turns contracts into governed UI
+```
+
+---
+
+## Forward Roadmap
+
+### Kernel OS 5.1 — Hardening + Observability
+**Theme:** Make 5.0 trustworthy in real operations.
+
+| Priority | Status |
+|---|---|
+| Service health dashboard | 🔴 |
+| service-module status in superadmin | 🔴 |
+| ServiceProxy logs and diagnostics | 🔴 |
+| Signed internal service calls | 🔴 |
+| Stricter service timeout rules | 🔴 |
+| Circuit breaker visibility | 🔴 |
+| Polyglot service error viewer | 🔴 |
+| External dependency isolation in tests | 🔴 |
+| Certification fixes for remaining modules | 🟡 |
+| Stronger export permission checks | 🔴 |
+| AI audit log review | 🔴 |
+| Capability call trace viewer | 🔴 |
+| Entity-view debug panel | 🔴 |
+
+**Answers:** "When something fails, can I see where and why?"
+
+### Kernel OS 5.2 — Visual Builder Contract Release
+**Theme:** Make DiSyL usable by builders, not just developers.
+
+| Priority | Status |
+|---|---|
+| React builder component palette | 🔴 |
+| Visual component inspector | 🔴 |
+| Source picker for entity views | 🔴 |
+| View picker for registered contracts | 🔴 |
+| Live preview of DiSyL contracts | 🔴 |
+| Validation before save | 🔴 |
+| Permission-aware preview | 🔴 |
+| Empty/error state preview | 🔴 |
+| Export button configuration | 🔴 |
+| AI block configuration | 🔴 |
+| Theme token controls | 🔴 |
+| Saved section patterns | 🔴 |
+
+**Answers:** "Can a human compose governed business screens without writing code?"
+
+### Kernel OS 5.3 — Reporting + Business Output
+**Theme:** Make documents and reports a core selling point.
+
+| Priority | Status |
+|---|---|
+| PDF support | 🔴 |
+| Report template manager | 🔴 |
+| Scheduled reports | 🔴 |
+| Report approval workflows | 🔴 |
+| Signature block presets | 🔴 |
+| Report archive | 🔴 |
+| Export audit logs | 🔴 |
+| Report permissions | 🔴 |
+| Module-specific report packs | 🔴 |
+| DOCX/PDF/XLSX consistency tests | 🔴 |
+
+**Answers:** "Can businesses run official paperwork through Kernel OS?"
+
+### Kernel OS 5.4 — AI Governance
+**Theme:** Make AI useful, safe, and auditable.
+
+| Priority | Status |
+|---|---|
+| Real provider configuration UI | 🔴 |
+| Tenant-level AI settings | 🔴 |
+| Per-capability AI policy | 🔴 |
+| Token/cost usage dashboard | 🔴 |
+| Prompt template registry | 🔴 |
+| Redaction rules | 🔴 |
+| Review queue for AI drafts | 🔴 |
+| AI output audit trail | 🔴 |
+| AI provider fallback behavior | 🔴 |
+| AI capability certification | 🔴 |
+
+**Answers:** "Can AI help without becoming a risk?"
+
+### Kernel OS 6.0 — Ecosystem Release
+**Theme:** Make Kernel OS extendable by others.
+
+| Priority | Status |
+|---|---|
+| Marketplace UI | 🔴 |
+| Module certification dashboard | 🔴 |
+| Module install/update flow | 🔴 |
+| Compatibility matrix | 🔴 |
+| Service-module templates | 🔴 |
+| Developer SDK | 🔴 |
+| Module scaffolding improvements | 🔴 |
+| Example modules | 🔴 |
+| Official docs site | 🔴 |
+| DiSyL language server | 🔴 |
+| VS Code extension | 🔴 |
+| Test harness for third-party modules | 🔴 |
+
+**Answers:** "Can other developers build safely on this platform?"
 
