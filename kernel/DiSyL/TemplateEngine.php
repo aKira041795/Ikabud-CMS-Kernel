@@ -204,6 +204,12 @@ class TemplateEngine
             throw new \RuntimeException("Template not found: {$template}");
         }
 
+        // Guard against empty resolved paths from upstream code
+        if ($templatePath === '' || $templatePath === $this->templateDir . '/.disyl') {
+            $this->logError("Invalid template path resolved: {$template}");
+            throw new \RuntimeException("Template not found: {$template}");
+        }
+
         $context = array_merge($this->globals, $context);
         $sharedCacheKey = null;
         if ($this->sharedOutputCacheTtl > 0 && $this->cacheEnabled && $this->hasApcuCache()) {
@@ -233,6 +239,14 @@ class TemplateEngine
                 
                 $loader = function(string $tmpl) use (&$loader) {
                     $path = $this->resolveTemplatePath($tmpl);
+                    // Guard against empty/invalid resolved paths from blank includes
+                    if ($path === '' || !file_exists($path)) {
+                        $this->logError("Template include not found: {$tmpl}");
+                        // Return a silent no-op so the page still renders
+                        $c = $this->compiledCache->compileSource('', $tmpl);
+                        $c->setTemplateLoader($loader);
+                        return $c;
+                    }
                     $c = $this->compiledCache->get($path);
                     $c->setTemplateLoader($loader);
                     // Provide consistent filter state to loaded includes
