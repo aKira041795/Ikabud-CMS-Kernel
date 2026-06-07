@@ -1740,64 +1740,24 @@ function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, s
 
 function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    // Phase 7: Delegate to governed ikb_entity_list DiSyL component
     $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
-    $itemCount = max(1, min(12, (int)($props['itemCount'] ?? 6)));
-    $gridCols = max(1, min(6, (int)($props['gridColumns'] ?? 3)));
-    $layout = (string)($props['layout'] ?? 'grid');
-    $showFeaturedImage = ($props['showFeaturedImage'] ?? true) !== false;
-    $showTitle = ($props['showTitle'] ?? true) !== false;
-    $showExcerpt = ($props['showExcerpt'] ?? true) !== false;
-    $excerptLen = max(20, (int)($props['excerptLength'] ?? 120));
-    $showPricing = ($props['showPricing'] ?? true) !== false;
-    $showInventory = ($props['showInventory'] ?? true) !== false;
-    $showProgress = ($props['showProgress'] ?? false) === true;
-    $showActions = ($props['showActions'] ?? false) === true;
-    $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? 'No items found.'));
-    $order = strtolower((string)($props['order'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
-    $orderByMap = [
-        'title' => 'c.title',
-        'name' => 'c.title',
-        'date' => 'COALESCE(c.published_at, c.created_at)',
-    ];
-    $orderBy = $orderByMap[(string)($props['orderBy'] ?? 'date')] ?? 'COALESCE(c.published_at, c.created_at)';
+    $source = 'cms.' . $entityType . '.recent';
+    $view = (string)($props['layout'] ?? 'grid') === 'list' ? 'compact' : 'card_grid';
+    $limit = max(1, min(12, (int)($props['itemCount'] ?? 6)));
+    $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? ''));
 
-    try {
-        $stmt = cmsDb()->prepare(
-            'SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.published_at, c.featured_image_id, m.file_path AS featured_image '
-            . 'FROM cms_content c '
-            . 'LEFT JOIN cms_media m ON m.id = c.featured_image_id '
-            . 'WHERE c.deleted_at IS NULL AND c.type = :type AND ' . cmsPublicVisibilitySql('c') . ' '
-            . 'ORDER BY ' . $orderBy . ' ' . $order . ' LIMIT ' . $itemCount
-        );
-        $stmt->execute([':type' => $entityType]);
-        $items = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {
-        write_log('cms.builder.entity_list.query_error', 'error', ['message' => $e->getMessage(), 'type' => $entityType]);
-        $items = [];
+    $engine = app()->templates();
+    $attrsStr = '';
+    if ($emptyMessage !== '') {
+        $attrsStr .= ' empty="' . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . '"';
     }
 
-    if ($items === []) {
-        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">' . $emptyMessage . '</p></div>';
-    }
-
-    $wrapperStyle = cmsBuilderGridStyle($style, $layout === 'list' ? '1fr' : 'repeat(' . $gridCols . ', 1fr)');
-    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($wrapperStyle) . '>';
-
-    foreach ($items as $item) {
-        $projection = cmsEntityRenderProjection($item);
-        $capabilities = $projection['capabilities'];
-        $capabilityData = $projection['capability_data'];
-        $pricing = is_array($capabilityData['pricing'] ?? null) ? $capabilityData['pricing'] : [];
-        $inventory = is_array($capabilityData['inventory'] ?? null) ? $capabilityData['inventory'] : [];
-        $progress = is_array($capabilityData['progress_tracking'] ?? null) ? $capabilityData['progress_tracking'] : [];
-        $inquiry = is_array($capabilityData['inquiry'] ?? null) ? $capabilityData['inquiry'] : [];
-        $imageUrl = !empty($item['featured_image']) && function_exists('cmsResolveUploadUrl') ? cmsResolveUploadUrl((string)$item['featured_image']) : '';
-        $itemUrl = cmsBuilderEntityPermalink($entityType, (string)($item['slug'] ?? ''));
-        $pricingText = trim((string)($pricing['formatted'] ?? ''));
-        if ($pricingText === '' && isset($pricing['active_price'])) {
-            $currency = trim((string)($pricing['currency'] ?? 'USD'));
-            $pricingText = $currency . ' ' . number_format((float)$pricing['active_price'], 2);
-        }
+    return $engine->renderString(
+        '{ikb_entity_list source="' . $source . '" view="' . $view . '" limit="' . $limit . '"' . $attrsStr . ' /}',
+        $context
+    );
+}
 
         $html .= '<a href="' . cmsBuilderEsc($itemUrl) . '" style="display:block;text-decoration:none;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.06)">';
         if ($showFeaturedImage && $imageUrl !== '') {
@@ -1807,59 +1767,6 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         if ($showTitle) {
             $html .= '<h3 style="margin:0;font-size:18px;line-height:1.35;color:#0f172a">' . cmsBuilderEsc((string)($item['title'] ?? 'Untitled')) . '</h3>';
         }
-        if ($showExcerpt && !empty($item['excerpt'])) {
-            $html .= '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . cmsBuilderEsc(mb_strimwidth((string)$item['excerpt'], 0, $excerptLen, '...')) . '</p>';
-        }
-        if ($showPricing && $pricingText !== '') {
-            $html .= '<div style="font-size:13px;font-weight:700;color:#0f766e">' . cmsBuilderEsc($pricingText) . '</div>';
-        }
-        if ($showInventory && !empty($inventory)) {
-            $inventoryText = !empty($inventory['out_of_stock']) ? 'Out of stock' : (!empty($inventory['low_stock']) ? 'Low stock' : 'In stock');
-            $inventoryColor = !empty($inventory['out_of_stock']) ? '#dc2626' : (!empty($inventory['low_stock']) ? '#d97706' : '#16a34a');
-            $html .= '<div style="font-size:12px;font-weight:600;color:' . $inventoryColor . '">' . $inventoryText . '</div>';
-        }
-        if ($showProgress && !empty($capabilities['progress_tracking'])) {
-            $percent = max(0, min(100, (int)($progress['percent'] ?? 0)));
-            if (($progress['authenticated'] ?? true) === false) {
-                $html .= '<div style="padding:10px 12px;border-radius:12px;background:#f8fbff;border:1px solid #dbeafe;color:#0369a1;font-size:12px;font-weight:600">Sign in to track progress</div>';
-            } else {
-                $html .= '<div style="display:flex;flex-direction:column;gap:6px">';
-                $html .= '<div style="display:flex;justify-content:space-between;font-size:12px;color:#0369a1;font-weight:600"><span>Progress</span><span>' . $percent . '%</span></div>';
-                $html .= '<div style="height:8px;border-radius:999px;background:#dbeafe;overflow:hidden"><div style="width:' . $percent . '%;height:100%;background:#0ea5e9"></div></div>';
-                $html .= '</div>';
-            }
-        }
-        if ($showActions) {
-            $slug = trim((string)($item['slug'] ?? ''));
-            $primaryAction = '';
-            if (!empty($capabilities['booking']) && $slug !== '') {
-                $primaryAction = '<a href="' . cmsBuilderEsc(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode($slug) . '/book') . '" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700">Book Now</a>';
-            } elseif (!empty($capabilities['inquiry']) && $slug !== '') {
-                $label = trim((string)($inquiry['label'] ?? 'Inquire')) ?: 'Inquire';
-                $primaryAction = '<a href="' . cmsBuilderEsc(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode($slug) . '/inquire') . '" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700">' . cmsBuilderEsc($label) . '</a>';
-            } elseif (!empty($capabilities['pricing'])) {
-                if (!empty($inventory['out_of_stock'])) {
-                    $primaryAction = '<span style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:12px;font-weight:700">Out of stock</span>';
-                } else {
-                    $label = match ($entityType) {
-                        'course' => 'Enroll Now',
-                        'product' => 'Buy Now',
-                        default => 'View Details',
-                    };
-                    $primaryAction = '<a href="' . cmsBuilderEsc($itemUrl) . '" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700">' . cmsBuilderEsc($label) . '</a>';
-                }
-            }
-
-            if ($primaryAction !== '') {
-                $html .= '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:2px">' . $primaryAction . '</div>';
-            }
-        }
-        $html .= '</div></a>';
-    }
-
-    return $html . '</div>';
-}
-
 function cmsRenderWidget_pricing_table(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $planName = cmsBuilderEsc((string)($props['planName'] ?? 'Plan'));

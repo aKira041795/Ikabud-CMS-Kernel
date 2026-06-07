@@ -119,6 +119,7 @@
             "order": 60
         }
     ],
+    "routes": true,
     "events": [
         "ehr.result.entered",
         "ehr.result.viewed",

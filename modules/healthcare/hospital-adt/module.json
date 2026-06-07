@@ -131,6 +131,7 @@
             "order": 110
         }
     ],
+    "routes": true,
     "events": [
         "ehr.adt.admitted",
         "ehr.adt.transferred",

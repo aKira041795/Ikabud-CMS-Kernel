@@ -34,8 +34,11 @@ return [
         '/cms/admin/modules'               => 'cms:cmsAdminModules',
 
         // ── Admin API (GET) ──────────────────────────────────────
+        '/api/v1/export'                   => 'cms:cmsApiKernelExport',
         '/api/v1/cms/redirects'            => 'cms:cmsApiRedirectList',
         '/api/v1/cms/export'               => 'cms:cmsApiExport',
+        '/api/v1/cms/builder/components'   => 'cms:cmsApiBuilderComponents',
+        '/api/v1/cms/marketplace/catalog'  => 'cms:cmsApiMarketplaceCatalog',
 
         // ── Themes API (GET) ──────────────────────────────────────
         '/api/v1/cms/themes'               => 'cms:cmsApiThemeList',

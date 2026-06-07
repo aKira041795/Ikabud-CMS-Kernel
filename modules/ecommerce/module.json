@@ -1075,6 +1075,7 @@
             "description": "JSON map of weekly hours. Managed via the Hours tab — do not edit manually."
         }
     ],
+    "routes": true,
     "events": [
         {
             "key": "ecommerce.order.created",

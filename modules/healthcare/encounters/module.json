@@ -134,6 +134,7 @@
             "order": 30
         }
     ],
+    "routes": true,
     "events": [
         "ehr.encounter.started",
         "ehr.encounter.closed",

@@ -150,6 +150,7 @@
             }
         }
     },
+    "routes": true,
     "events": [
         "ehr.consent.recorded",
         "ehr.break_glass.accessed"

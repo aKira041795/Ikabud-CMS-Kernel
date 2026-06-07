@@ -123,6 +123,7 @@
             "order": 140
         }
     ],
+    "routes": true,
     "events": [
         "ehr.cds.rule.added",
         "ehr.cds.alert.fired",

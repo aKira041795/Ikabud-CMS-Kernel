@@ -1,0 +1,93 @@
+{
+    "id": "ai-orchestrator",
+    "type": "service-module",
+    "name": "AI Orchestrator",
+    "version": "1.0.0",
+    "description": "External AI orchestration service — handles summarization, drafting, and content generation via OpenAI/Claude backends. Runs as a separate worker process.",
+    "author": "Ikabud",
+    "service": {
+        "runtime": "external",
+        "endpoint": "http://127.0.0.1:9001",
+        "health_check": "/health",
+        "protocol": "http+json",
+        "timeout_ms": 30000,
+        "retry": {
+            "max_attempts": 3,
+            "backoff_ms": 1000,
+            "backoff_multiplier": 2
+        },
+        "circuit_breaker": {
+            "failure_threshold": 5,
+            "cooldown_seconds": 60,
+            "half_open_max_requests": 1
+        },
+        "auth": {
+            "type": "signed_token",
+            "token_env": "AI_ORCHESTRATOR_SERVICE_TOKEN"
+        }
+    },
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ai.summarize@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "description": "Generate a concise summary of provided data"
+            },
+            {
+                "id": "ai.draft@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "description": "Draft content for human review"
+            },
+            {
+                "id": "ai.complete@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "description": "General-purpose text completion"
+            },
+            {
+                "id": "ai.analyze@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "description": "Analyze data and return structured insights"
+            }
+        ]
+    },
+    "routes": [],
+    "events": [
+        {
+            "key": "ai.summary.generated",
+            "description": "AI summary completed",
+            "available_vars": [
+                "entity_type",
+                "entity_id",
+                "summary",
+                "model",
+                "tokens_used"
+            ]
+        },
+        {
+            "key": "ai.draft.created",
+            "description": "AI draft created, awaiting review",
+            "available_vars": [
+                "capability",
+                "draft_id",
+                "model",
+                "tokens_used"
+            ]
+        }
+    ],
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [],
+    "depends": []
+}

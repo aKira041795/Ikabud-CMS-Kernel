@@ -127,6 +127,7 @@
             "description": "Time window for counting anti-spam blocks towards auto-escalation."
         }
     ],
+    "routes": true,
     "events": [
         {
             "key": "security.integrity_mismatch",

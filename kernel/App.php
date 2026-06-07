@@ -22,6 +22,7 @@ use Ikabud\Kernel\Database\MigrationRunner;
 use Ikabud\Kernel\EntityContext\ContextRegistry;
 use Ikabud\Kernel\EntityAuthority\EntityAuthorityRegistry;
 use Ikabud\Kernel\EntityAuthority\SyncContractRegistry;
+use Ikabud\Kernel\EntityContext\EntityViewResolver;
 
 use Ikabud\Kernel\TenantResolver;
 use Ikabud\Kernel\Database\ModuleDB;
@@ -47,6 +48,7 @@ final class App
     private ?ContextRegistry $entityContextRegistry = null;
     private ?EntityAuthorityRegistry $entityAuthorityRegistry = null;
     private ?SyncContractRegistry $syncContractRegistry = null;
+    private ?EntityViewResolver $entityViewResolver = null;
     private ?IntegrationBridge $integrationBridge = null;
     private ?TriggerService $triggerService = null;
 
@@ -71,8 +73,8 @@ final class App
     private ?string $cachedAppUrl = null;
     private ?string $cachedBaseUrl = null;
     
-    public const KERNEL_VERSION = '4.6.0';
-    public const KERNEL_CODENAME = 'atlas';
+    public const KERNEL_VERSION = '5.0.0';
+    public const KERNEL_CODENAME = 'nexus';
 
     /** @var int Maximum JSON input size in bytes (2 MB) */
     private const MAX_INPUT_SIZE = 2 * 1024 * 1024;
@@ -102,6 +104,8 @@ final class App
         $this->config = $config;
         $this->hooks = Hooks::getInstance();
         $this->primeRenderBaseCaches();
+        $this->seedAuthTableMapFromConfig();
+        \Ikabud\Kernel\Services\KernelExport::registerDefaults();
         
         try {
             $db = $this->db();
@@ -440,6 +444,39 @@ final class App
     }
 
     /**
+     * Get the full auth source→table map (built-in defaults + module-registered).
+     *
+     * @return array<string, string>
+     */
+    public function getAuthTableMap(): array
+    {
+        return $this->authTableMap;
+    }
+
+    /**
+     * Seed the auth table map from kernel config.
+     * Call during boot() after config is loaded to merge additional
+     * entries from config/auth.php auth_table_map without replacing
+     * module-registered entries.
+     */
+    public function seedAuthTableMapFromConfig(): void
+    {
+        $configMap = $this->config('auth.auth_table_map', []);
+        if (!is_array($configMap)) {
+            return;
+        }
+        foreach ($configMap as $source => $tableName) {
+            $source = trim((string)$source);
+            $tableName = trim((string)$tableName);
+            if ($source !== '' && $tableName !== ''
+                && preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)
+                && !isset($this->authTableMap[$source])) {
+                $this->authTableMap[$source] = $tableName;
+            }
+        }
+    }
+
+    /**
      * Get the integration bridge instance.
      */
     public function integrationBridge(): IntegrationBridge
@@ -515,6 +552,17 @@ final class App
             $this->syncContractRegistry = new SyncContractRegistry();
         }
         return $this->syncContractRegistry;
+    }
+
+    /**
+     * Get the entity view resolver — resolves DiSyL source/view declarations to data.
+     */
+    public function entityViews(): EntityViewResolver
+    {
+        if ($this->entityViewResolver === null) {
+            $this->entityViewResolver = EntityViewResolver::getInstance();
+        }
+        return $this->entityViewResolver;
     }
 
     /**

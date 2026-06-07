@@ -58,5 +58,6 @@
             "order": 100
         }
     ],
+    "routes": true,
     "events": []
 }

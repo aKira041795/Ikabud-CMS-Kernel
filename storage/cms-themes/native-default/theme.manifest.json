@@ -1,0 +1,154 @@
+{
+    "$schema": "https://ikabud.dev/schemas/theme-manifest-v1.json",
+    "name": "native-default",
+    "version": "1.0.0",
+    "label": "Native Default",
+    "description": "The default Ikabud CMS theme — clean, modern, Tailwind-powered.",
+    "author": "Ikabud",
+    "license": "MIT",
+    "tokens": "tokens.json",
+    "components": "components.json",
+    "shell": "shell.disyl",
+    "sections": "sections/",
+    "entity_views": "entity-views/",
+    "supported_surfaces": [
+        "public",
+        "admin",
+        "print",
+        "email",
+        "export"
+    ],
+    "design_language": {
+        "type_scale": "inter",
+        "color_system": "oklch",
+        "grid": "tailwind-v3",
+        "icon_set": "fontawesome-6"
+    },
+    "theme": {
+        "colors": {
+            "primary": {
+                "default": "#2563eb",
+                "dark": "#3b82f6",
+                "light": "#dbeafe"
+            },
+            "secondary": {
+                "default": "#7c3aed",
+                "dark": "#8b5cf6",
+                "light": "#ede9fe"
+            },
+            "surface": {
+                "default": "#ffffff",
+                "dark": "#0f172a",
+                "muted": "#f8fafc"
+            },
+            "text": {
+                "primary": "#111827",
+                "secondary": "#6b7280",
+                "inverse": "#ffffff"
+            },
+            "border": {
+                "default": "#e5e7eb",
+                "focus": "#2563eb"
+            },
+            "status": {
+                "success": "#16a34a",
+                "warning": "#ca8a04",
+                "danger": "#dc2626",
+                "info": "#0ea5e9"
+            }
+        },
+        "typography": {
+            "font_family": "Inter, system-ui, sans-serif",
+            "heading_weight": "700",
+            "body_size": "16px",
+            "line_height": "1.6"
+        },
+        "spacing": {
+            "none": "0",
+            "sm": "0.75rem",
+            "md": "1.25rem",
+            "lg": "2rem",
+            "xl": "3rem"
+        },
+        "radius": {
+            "none": "0",
+            "sm": "0.375rem",
+            "md": "0.75rem",
+            "lg": "1rem",
+            "full": "9999px"
+        },
+        "shadows": {
+            "none": "none",
+            "sm": "0 1px 2px 0 rgba(0,0,0,0.05)",
+            "md": "0 4px 6px -1px rgba(0,0,0,0.1)",
+            "lg": "0 10px 15px -3px rgba(0,0,0,0.1)"
+        }
+    },
+    "layout": {
+        "max_width": "1280px",
+        "gutter": "1rem",
+        "header": {
+            "height": "64px",
+            "sticky": true,
+            "transparent_on": [
+                "home"
+            ]
+        },
+        "footer": {
+            "columns": 4,
+            "show_branding": true
+        },
+        "sidebar": {
+            "default_position": "right",
+            "default_width": "300px",
+            "sticky": true
+        }
+    },
+    "component_variants": {
+        "ikb_panel": {
+            "tone": {
+                "surface": "bg-white border border-gray-100",
+                "muted": "bg-gray-50 border border-gray-100",
+                "elevated": "bg-white shadow-md border border-gray-100",
+                "primary": "bg-indigo-600 text-white"
+            },
+            "spacing": {
+                "none": "p-0",
+                "sm": "p-3",
+                "md": "p-5",
+                "lg": "p-8",
+                "xl": "p-12"
+            },
+            "radius": {
+                "none": "rounded-none",
+                "sm": "rounded-md",
+                "md": "rounded-xl",
+                "lg": "rounded-2xl",
+                "full": "rounded-full"
+            }
+        },
+        "ikb_button": {
+            "variant": {
+                "primary": "bg-indigo-600 text-white hover:bg-indigo-700",
+                "secondary": "bg-gray-200 text-gray-800 hover:bg-gray-300",
+                "outline": "border border-indigo-600 text-indigo-600 hover:bg-indigo-50",
+                "ghost": "text-gray-600 hover:bg-gray-100",
+                "danger": "bg-red-600 text-white hover:bg-red-700"
+            },
+            "size": {
+                "small": "px-3 py-1.5 text-sm",
+                "medium": "px-4 py-2",
+                "large": "px-6 py-3 text-lg"
+            }
+        },
+        "ikb_badge": {
+            "variant": {
+                "primary": "bg-indigo-100 text-indigo-800",
+                "success": "bg-green-100 text-green-800",
+                "warning": "bg-yellow-100 text-yellow-800",
+                "danger": "bg-red-100 text-red-800",
+                "info": "bg-blue-100 text-blue-800"
+            }
+        }
+    }
+}

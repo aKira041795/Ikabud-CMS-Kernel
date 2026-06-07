@@ -6,6 +6,10 @@ function cms_capability_handlers(): array
 {
     return [
         'cms.content.get@1' => 'cms_cap_cms_content_get_1',
+        'entity.list.cms_page@1' => 'cms_cap_entity_list_page_1',
+        'entity.list.cms_post@1' => 'cms_cap_entity_list_post_1',
+        'entity.get.cms_post@1' => 'cms_cap_entity_get_post_1',
+        'entity.get.cms_page@1' => 'cms_cap_entity_get_page_1',
         'entity.capability.pricing.data@1'           => 'cms_cap_entity_capability_pricing_data_1',
         'entity.capability.inventory.data@1'         => 'cms_cap_entity_capability_inventory_data_1',
         'entity.capability.booking.data@1'           => 'cms_cap_entity_capability_booking_data_1',

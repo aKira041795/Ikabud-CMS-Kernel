@@ -14,5 +14,6 @@
         "depends": [],
         "policy": {}
     },
+    "routes": true,
     "events": []
 }

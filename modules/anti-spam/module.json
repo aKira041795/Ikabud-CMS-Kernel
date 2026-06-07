@@ -118,6 +118,7 @@
             "description": "How many days of anti-spam log history to keep when clearing old records."
         }
     ],
+    "routes": true,
     "events": [
         {
             "key": "antispam.blocked",

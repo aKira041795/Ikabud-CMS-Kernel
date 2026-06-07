@@ -3520,7 +3520,7 @@ class TemplateEngine
                     if (!function_exists('app')) {
                         return '';
                     }
-                    $result = app()->capabilities()->call($capId, $payload);
+                    $result = app()->cap()->call($capId, $payload);
                     $context['capability_result'] = is_array($result) ? $result : ['value' => $result];
                 } catch (\Throwable $e) {
                     $this->logError("Capability tag call failed ({$capId}): " . $e->getMessage());
@@ -4475,6 +4475,20 @@ class TemplateEngine
             'ikb_modal' => $this->renderModal($attrs, $children),
             'ikb_alert' => $this->renderAlert($attrs, $children),
             'ikb_spinner' => $this->renderSpinner($attrs),
+            'ikb_entity_list' => $this->renderEntityList($attrs, $children, $context),
+            'ikb_entity_detail' => $this->renderEntityDetail($attrs, $children, $context),
+            'ikb_export_button' => $this->renderExportButton($attrs, $children),
+            'ikb_form' => $this->renderForm($attrs, $children, $context),
+            'ikb_stat_card' => $this->renderStatCard($attrs, $children),
+            'ikb_timeline' => $this->renderTimeline($attrs, $children),
+            'ikb_confirm_action' => $this->renderConfirmAction($attrs, $children),
+            'ikb_panel' => $this->renderPanel($attrs, $children),
+            'ikb_drawer' => $this->renderDrawer($attrs, $children),
+            'ikb_audit_log' => $this->renderAuditLog($attrs, $children, $context),
+            'ikb_ai_summary' => $this->renderAiSummary($attrs, $children, $context),
+            'ikb_ai_assist' => $this->renderAiAssist($attrs, $children, $context),
+            'ikb_report' => $this->renderReport($attrs, $children, $context),
+            'ikb_signature_block' => $this->renderSignatureBlock($attrs, $children),
             'island' => $this->renderIsland($attrs, $children),
             default => $children,
         };
@@ -4827,7 +4841,1125 @@ class TemplateEngine
         
         return "<div class=\"animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600 {$sizeClass} {$class}\"></div>";
     }
-    
+
+    /**
+     * Render an entity list from a source/view declaration.
+     *
+     * Attributes:
+     *   source   — entity source string (e.g. "orders.recent", "products.featured")
+     *   view     — view preset (compact, detailed, card_grid, table, admin_row)
+     *   limit    — max rows (overrides view contract default)
+     *   empty    — custom empty-state message
+     *   actions  — comma-separated allowed action names
+     *   class    — additional CSS classes for the wrapper
+     */
+    private function renderEntityList(array $attrs, string $children, array $context): string
+    {
+        $source = (string)($attrs['source'] ?? '');
+        $view = (string)($attrs['view'] ?? 'compact');
+        $limit = isset($attrs['limit']) ? (int)$attrs['limit'] : null;
+        $emptyMessage = (string)($attrs['empty'] ?? '');
+        $actions = isset($attrs['actions']) ? array_map('trim', explode(',', (string)$attrs['actions'])) : null;
+        $class = (string)($attrs['class'] ?? '');
+
+        if ($source === '') {
+            return $this->entityErrorState('Missing source attribute on ikb_entity_list.', $class);
+        }
+
+        // Resolve data via the entity view resolver
+        $overrides = [];
+        if ($limit !== null) { $overrides['limit'] = $limit; }
+        if ($actions !== null) { $overrides['actions'] = $actions; }
+
+        $resolved = null;
+        try {
+            if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
+                $resolved = $app->entityViews()->resolve($source, $view, $overrides);
+            }
+        } catch (\Throwable $e) {
+            return $this->entityErrorState('Failed to resolve entity list: ' . $e->getMessage(), $class);
+        }
+
+        if ($resolved === null || !empty($resolved['error'])) {
+            return $this->entityErrorState(
+                $resolved['error'] ?? $emptyMessage ?: 'Unable to load data.',
+                $class
+            );
+        }
+
+        $rows = $resolved['rows'] ?? [];
+        if (empty($rows)) {
+            $msg = $emptyMessage ?: $resolved['view']['empty_state'] ?? 'No records found.';
+            return "<div class=\"ikb-entity-list--empty text-center py-8 text-gray-500 {$class}\">" . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . "</div>";
+        }
+
+        // Render using the view's field definitions
+        $contract = $resolved['view'] ?? [];
+        $fields = is_array($contract['fields'] ?? null) ? $contract['fields'] : ['*'];
+        $viewMode = $contract['view'] ?? $view;
+        $viewActions = $contract['actions'] ?? [];
+
+        return $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children);
+    }
+
+    /**
+     * Render entity list rows based on view mode.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<int, string> $fields
+     * @param array<int, string> $actions
+     */
+    private function renderEntityListRows(array $rows, array $fields, string $viewMode, array $actions, string $class, string $children): string
+    {
+        $hasCustomSlot = trim($children) !== '';
+
+        $out = '';
+        foreach ($rows as $row) {
+            if ($hasCustomSlot) {
+                // User-defined template: bind row data and render children
+                $out .= $this->renderWithRowContext($children, $row);
+                continue;
+            }
+
+            $out .= match ($viewMode) {
+                'card_grid' => $this->renderCardGridRow($row, $fields, $actions),
+                'table' => $this->renderTableRow($row, $fields, $actions),
+                'compact', 'default' => $this->renderCompactRow($row, $fields, $actions),
+                default => $this->renderCompactRow($row, $fields, $actions),
+            };
+        }
+
+        $wrapperClass = match ($viewMode) {
+            'card_grid' => 'ikb-entity-list ikb-entity-list--grid grid gap-4 sm:grid-cols-2 lg:grid-cols-3',
+            'table' => 'ikb-entity-list ikb-entity-list--table',
+            default => 'ikb-entity-list ikb-entity-list--compact divide-y divide-gray-100',
+        };
+
+        return "<div class=\"{$wrapperClass} {$class}\">{$out}</div>";
+    }
+
+    /**
+     * Compact row: one field per line, minimal chrome.
+     */
+    private function renderCompactRow(array $row, array $fields, array $actions): string
+    {
+        $titleField = $fields[0] ?? 'id';
+        $subField = $fields[1] ?? null;
+        $title = htmlspecialchars((string)($row[$titleField] ?? $titleField), ENT_QUOTES, 'UTF-8');
+        $sub = $subField ? htmlspecialchars((string)($row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+
+        $actionHtml = $this->renderRowActions($row, $actions);
+
+        $subHtml = $sub !== '' ? "<p class=\"text-sm text-gray-500\">{$sub}</p>" : '';
+
+        return <<<HTML
+        <div class="ikb-entity-row flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-gray-900">{$title}</p>
+                {$subHtml}
+            </div>
+            {$actionHtml}
+        </div>
+        HTML;
+    }
+
+    /**
+     * Card grid row: image + title + subtitle in a card.
+     */
+    private function renderCardGridRow(array $row, array $fields, array $actions): string
+    {
+        $titleField = $fields[0] ?? 'name';
+        $subField = $fields[1] ?? null;
+        $imageField = in_array('image', $fields, true) ? 'image' : (in_array('thumbnail', $fields, true) ? 'thumbnail' : null);
+        $title = htmlspecialchars((string)($row[$titleField] ?? ''), ENT_QUOTES, 'UTF-8');
+        $sub = $subField ? htmlspecialchars((string)($row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+
+        $imageHtml = '';
+        if ($imageField && !empty($row[$imageField])) {
+            $imgSrc = htmlspecialchars((string)$row[$imageField], ENT_QUOTES, 'UTF-8');
+            $imageHtml = "<img src=\"{$imgSrc}\" alt=\"{$title}\" class=\"w-full h-40 object-cover rounded-t-lg\" loading=\"lazy\">";
+        }
+
+        $actionHtml = $this->renderRowActions($row, $actions);
+        $subHtml = $sub !== '' ? "<p class=\"text-sm text-gray-500 mt-1\">{$sub}</p>" : '';
+
+        return <<<HTML
+        <div class="ikb-entity-card bg-white rounded-lg shadow border border-gray-100 overflow-hidden hover:shadow-md transition">
+            {$imageHtml}
+            <div class="p-4">
+                <h3 class="font-semibold text-gray-900">{$title}</h3>
+                {$subHtml}
+                <div class="mt-3 flex gap-2">{$actionHtml}</div>
+            </div>
+        </div>
+        HTML;
+    }
+
+    /**
+     * Table row: one row in a striped table.
+     */
+    private function renderTableRow(array $row, array $fields, array $actions): string
+    {
+        $cells = '';
+        foreach ($fields as $field) {
+            if ($field === '*') { continue; }
+            $value = htmlspecialchars((string)($row[$field] ?? ''), ENT_QUOTES, 'UTF-8');
+            $cells .= "<td class=\"px-4 py-2 text-sm text-gray-700\">{$value}</td>";
+        }
+
+        $actionHtml = $this->renderRowActions($row, $actions);
+        $cells .= "<td class=\"px-4 py-2 text-right\">{$actionHtml}</td>";
+
+        return "<tr class=\"hover:bg-gray-50\">{$cells}</tr>";
+    }
+
+    /**
+     * Render action buttons for a row (view, edit, delete, etc.).
+     */
+    private function renderRowActions(array $row, array $actions): string
+    {
+        if (empty($actions)) {
+            return '';
+        }
+
+        $id = $row['id'] ?? '';
+        $html = '';
+
+        foreach ($actions as $action) {
+            $action = trim($action);
+            if ($action === '') { continue; }
+
+            $label = ucfirst($action);
+            $variant = match ($action) {
+                'view' => 'ghost', 'edit' => 'ghost', 'delete' => 'danger',
+                'add_to_cart', 'buy' => 'primary',
+                default => 'ghost',
+            };
+
+            $variantClass = match ($variant) {
+                'primary' => 'text-indigo-600 hover:bg-indigo-50',
+                'danger' => 'text-red-600 hover:bg-red-50',
+                default => 'text-gray-600 hover:bg-gray-100',
+            };
+
+            $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+            $safeId = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
+
+            $html .= "<button type=\"button\" data-action=\"{$action}\" data-id=\"{$safeId}\" "
+                  . "class=\"ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md {$variantClass} transition\">{$safeLabel}</button>";
+        }
+
+        return $html;
+    }
+
+    /**
+     * Render an entity detail view for a single entity.
+     *
+     * Attributes:
+     *   source   — entity type (e.g. "order", "product", "case")
+     *   id       — entity ID
+     *   view     — view preset (detailed, summary, admin)
+     *   fields   — comma-separated fields to show (default: all from contract)
+     *   class    — additional CSS classes
+     */
+    private function renderEntityDetail(array $attrs, string $children, array $context): string
+    {
+        $source = (string)($attrs['source'] ?? '');
+        $entityId = (string)($attrs['id'] ?? $attrs['entity_id'] ?? '');
+        $view = (string)($attrs['view'] ?? 'detailed');
+        $class = (string)($attrs['class'] ?? '');
+        $requestedFields = isset($attrs['fields']) ? array_map('trim', explode(',', (string)$attrs['fields'])) : null;
+
+        if ($source === '') {
+            return $this->entityErrorState('Missing source attribute on ikb_entity_detail.', $class);
+        }
+        if ($entityId === '') {
+            return $this->entityErrorState('Missing id attribute on ikb_entity_detail.', $class);
+        }
+
+        // Resolve via capability bus: entity.get.{sanitized_source}
+        $sanitizedSource = str_replace('.', '_', $source);
+        $capabilityId = "entity.get.{$sanitizedSource}";
+        $entity = null;
+        $error = null;
+
+        try {
+            if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'capabilities')) {
+                $result = $app->cap()->call($capabilityId, [
+                    'entity_type' => $source,
+                    'id' => $entityId,
+                    'view' => $view,
+                ]);
+                if (is_array($result)) {
+                    $entity = $result;
+                }
+            }
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+            if (\function_exists('write_log')) {
+            $level = str_contains($error, 'not found') ? 'info' : 'warning';
+            \write_log("EntityViewResolver: detail fetch failed for '{$capabilityId}' id={$entityId}", $level, [
+                    'source' => $source,
+                    'id' => $entityId,
+                    'error' => $error,
+                ]);
+            }
+        }
+
+        if ($entity === null) {
+            return $this->entityErrorState($error ?: 'Entity not found.', $class);
+        }
+
+        // Get view contract for field visibility
+        $viewContract = null;
+        if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
+            $viewContract = $app->entityViews()->viewContract($source, $view);
+        }
+
+        $fields = $requestedFields ?? $viewContract['fields'] ?? array_keys($entity);
+        if ($fields === ['*'] || $fields === '*') {
+            $fields = array_keys($entity);
+            // Remove internal keys
+            $fields = array_values(array_filter($fields, fn($k) => !str_starts_with($k, '_')));
+        }
+
+        $hasCustomSlot = trim($children) !== '';
+
+        if ($hasCustomSlot) {
+            return "<div class=\"ikb-entity-detail {$class}\">"
+                . $this->renderWithRowContext($children, $entity)
+                . '</div>';
+        }
+
+        return $this->renderDetailFields($entity, $fields, $class);
+    }
+
+    /**
+     * Render a detail view as a definition list.
+     */
+    private function renderDetailFields(array $entity, array $fields, string $class): string
+    {
+        $rows = '';
+        foreach ($fields as $field) {
+            $field = trim((string)$field);
+            if ($field === '' || $field === 'id' && count($fields) > 1) {
+                // Skip id in multi-field detail views unless it's the only field
+                if (count($fields) > 1) { continue; }
+            }
+            $label = ucwords(str_replace('_', ' ', $field));
+            $value = $entity[$field] ?? '';
+            if (is_array($value)) { $value = json_encode($value, JSON_UNESCAPED_SLASHES); }
+            $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+            $safeValue = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+            $rows .= <<<HTML
+            <div class="ikb-entity-detail__field py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                <dt class="text-sm font-medium text-gray-500">{$safeLabel}</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">{$safeValue}</dd>
+            </div>
+            HTML;
+        }
+
+        return <<<HTML
+        <div class="ikb-entity-detail divide-y divide-gray-100 {$class}">
+            {$rows}
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render children with a row context (for custom entity templates).
+     */
+    private function renderWithRowContext(string $template, array $row): string
+    {
+        // Simple variable binding: replace {field} patterns with row values
+        $result = $template;
+        foreach ($row as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $safeValue = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+                $result = str_replace('{' . $key . '}', $safeValue, $result);
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Render an error state for entity components.
+     */
+    private function entityErrorState(string $message, string $class = ''): string
+    {
+        $safeMsg = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+        return <<<HTML
+        <div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg {$class}">
+            <div class="text-center">
+                <svg class="mx-auto h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>
+                <p class="mt-2 text-sm text-red-600">{$safeMsg}</p>
+            </div>
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render an export button — generates downloadable exports from entity data.
+     *
+     * Attributes:
+     *   source   — entity type (e.g. "orders", "cases", "ledger")
+     *   format   — export format: pdf, docx, csv, xlsx (default: csv)
+     *   label    — button label (default: "Export {format}")
+     *   variant  — button variant: primary, outline, secondary (default: outline)
+     *   size     — button size: small, medium, large (default: medium)
+     *   class    — additional CSS classes
+     */
+    private function renderExportButton(array $attrs, string $children): string
+    {
+        $source = (string)($attrs['source'] ?? '');
+        $format = strtolower((string)($attrs['format'] ?? 'csv'));
+        $label = (string)($attrs['label'] ?? '');
+        $variant = (string)($attrs['variant'] ?? 'outline');
+        $size = (string)($attrs['size'] ?? 'medium');
+        $class = (string)($attrs['class'] ?? '');
+
+        if ($source === '') {
+            // No source — render a disabled placeholder
+            $safeLabel = htmlspecialchars($label ?: 'Export', ENT_QUOTES, 'UTF-8');
+            return "<button type=\"button\" class=\"ikb-export-btn opacity-50 cursor-not-allowed inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-500 {$class}\" disabled>"
+                . '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
+                . "{$safeLabel}</button>";
+        }
+
+        $safeFormat = htmlspecialchars($format, ENT_QUOTES, 'UTF-8');
+        $safeSource = htmlspecialchars($source, ENT_QUOTES, 'UTF-8');
+
+        if ($label === '') {
+            $label = 'Export ' . strtoupper($format);
+        }
+        $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+
+        $variantClass = match ($variant) {
+            'primary' => 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600',
+            'secondary' => 'bg-gray-200 text-gray-800 hover:bg-gray-300 border-gray-200',
+            default => 'border border-gray-300 text-gray-700 hover:bg-gray-50',
+        };
+
+        $sizeClass = match ($size) {
+            'small' => 'px-3 py-1.5 text-xs',
+            'large' => 'px-6 py-3 text-base',
+            default => 'px-4 py-2 text-sm',
+        };
+
+        $icon = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>';
+
+        // Export URL: /api/v1/export?source={source}&format={format}
+        $exportUrl = htmlspecialchars("/api/v1/export?source={$safeSource}&format={$safeFormat}", ENT_QUOTES, 'UTF-8');
+
+        return "<a href=\"{$exportUrl}\" "
+            . "class=\"ikb-export-btn inline-flex items-center gap-2 rounded-lg font-medium transition {$variantClass} {$sizeClass} {$class}\" "
+            . "data-export-source=\"{$safeSource}\" data-export-format=\"{$safeFormat}\" "
+            . "download>"
+            . "{$icon}{$safeLabel}</a>";
+    }
+
+    /**
+     * Render a governed form component.
+     *
+     * Attributes:
+     *   action   — capability action ID (e.g. "ticket.create", "order.submit")
+     *   method   — POST (default) or GET
+     *   layout   — form layout: stacked, inline, guided (default: stacked)
+     *   csrf     — include CSRF token (default: true)
+     *   class    — additional CSS classes
+     *   id       — form element id
+     *   hx-*     — HTMX attributes pass through
+     */
+    private function renderForm(array $attrs, string $children, array $context): string
+    {
+        $action = (string)($attrs['action'] ?? '');
+        $method = strtoupper((string)($attrs['method'] ?? 'post'));
+        $layout = (string)($attrs['layout'] ?? 'stacked');
+        $includeCsrf = !isset($attrs['csrf']) || $attrs['csrf'];
+        $class = (string)($attrs['class'] ?? '');
+        $id = isset($attrs['id']) ? ' id="' . htmlspecialchars((string)$attrs['id'], ENT_QUOTES, 'UTF-8') . '"' : '';
+        $htmx = $this->buildHtmxAttrs($attrs);
+
+        if ($method !== 'GET' && $method !== 'POST') {
+            $method = 'POST';
+        }
+
+        // Build form action URL from capability action
+        $formAction = '';
+        if ($action !== '') {
+            $safeAction = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
+            // Route to the capability handler endpoint
+            $formAction = htmlspecialchars("/api/v1/capability/{$safeAction}", ENT_QUOTES, 'UTF-8');
+        } else {
+            $formAction = '#';
+        }
+
+        $layoutClass = match ($layout) {
+            'inline' => 'ikb-form--inline flex flex-wrap items-end gap-4',
+            'guided' => 'ikb-form--guided space-y-6',
+            default => 'ikb-form--stacked space-y-4',
+        };
+
+        $csrfHtml = '';
+        if ($includeCsrf && $method === 'POST') {
+            // Try to inject CSRF token from context or app
+            $token = '';
+            if (isset($context['csrf_token'])) {
+                $token = (string)$context['csrf_token'];
+            } elseif (\function_exists('app') && ($a = \app()) !== null && method_exists($a, 'csrfToken')) {
+                $token = (string)$a->csrfToken();
+            }
+            if ($token !== '') {
+                $safeToken = htmlspecialchars($token, ENT_QUOTES, 'UTF-8');
+                $csrfHtml = "<input type=\"hidden\" name=\"_token\" value=\"{$safeToken}\">";
+            }
+        }
+
+        $methodOverride = '';
+        if ($method === 'GET') {
+            $methodOverride = '';
+        }
+
+        return <<<HTML
+        <form{$id} method="{$method}" action="{$formAction}" class="ikb-form {$layoutClass} {$class}"{$htmx}>
+            {$csrfHtml}
+            {$methodOverride}
+            {$children}
+        </form>
+        HTML;
+    }
+
+    /**
+     * Render a stat card — single metric with label, value, and optional trend.
+     *
+     * Attributes:
+     *   label    — stat label (e.g. "Total Orders")
+     *   value    — stat value (e.g. "1,234")
+     *   trend    — direction: up, down, neutral (default: none)
+     *   trend_value — percentage or absolute change (e.g. "+12%")
+     *   icon     — FontAwesome icon name (e.g. "shopping-cart")
+     *   variant  — card variant: elevated, outlined, flat (default: elevated)
+     *   class    — additional CSS classes
+     */
+    private function renderStatCard(array $attrs, string $children): string
+    {
+        $label = htmlspecialchars((string)($attrs['label'] ?? 'Stat'), ENT_QUOTES, 'UTF-8');
+        $value = htmlspecialchars((string)($attrs['value'] ?? '—'), ENT_QUOTES, 'UTF-8');
+        $trend = (string)($attrs['trend'] ?? '');
+        $trendValue = htmlspecialchars((string)($attrs['trend_value'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $icon = (string)($attrs['icon'] ?? '');
+        $variant = (string)($attrs['variant'] ?? 'elevated');
+        $class = (string)($attrs['class'] ?? '');
+
+        $variantClass = match ($variant) {
+            'outlined' => 'bg-white border border-gray-200',
+            'flat' => 'bg-gray-50',
+            default => 'bg-white shadow-sm border border-gray-100',
+        };
+
+        $trendHtml = '';
+        if ($trend !== '' && $trendValue !== '') {
+            $trendColors = match ($trend) {
+                'up' => 'text-green-600',
+                'down' => 'text-red-600',
+                default => 'text-gray-500',
+            };
+            $trendIcon = match ($trend) {
+                'up' => 'fa-arrow-up',
+                'down' => 'fa-arrow-down',
+                default => 'fa-minus',
+            };
+            $trendHtml = <<<TREND
+            <div class="ikb-stat-trend flex items-center gap-1 mt-1 text-xs font-medium {$trendColors}">
+                <i class="fas {$trendIcon}"></i>
+                <span>{$trendValue}</span>
+            </div>
+            TREND;
+        }
+
+        $iconHtml = '';
+        if ($icon !== '') {
+            $iconHtml = "<div class=\"ikb-stat-icon w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0\"><i class=\"fas fa-{$icon} text-indigo-600\"></i></div>";
+        }
+
+        $slotHtml = trim($children) !== '' ? "<div class=\"mt-2\">{$children}</div>" : '';
+
+        return <<<HTML
+        <div class="ikb-stat-card rounded-xl {$variantClass} p-5 {$class}">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                    <p class="ikb-stat-label text-xs font-semibold text-gray-500 uppercase tracking-wider">{$label}</p>
+                    <p class="ikb-stat-value text-2xl font-bold text-gray-900 mt-1">{$value}</p>
+                    {$trendHtml}
+                </div>
+                {$iconHtml}
+            </div>
+            {$slotHtml}
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render a timeline component — chronological list of events.
+     *
+     * Attributes:
+     *   source   — entity source for data (optional; supports child nodes as items)
+     *   class    — additional CSS classes
+     *
+     * Children: {ikb_timeline_item} elements or plain divs
+     */
+    private function renderTimeline(array $attrs, string $children): string
+    {
+        $class = (string)($attrs['class'] ?? '');
+
+        // Process ikb_timeline_item children if present
+        $processedChildren = $children;
+
+        return <<<HTML
+        <div class="ikb-timeline relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-1 before:bottom-1 before:w-0.5 before:bg-gray-200 {$class}">
+            {$processedChildren}
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render a confirm action wrapper — wraps destructive actions with a confirmation step.
+     *
+     * Attributes:
+     *   message  — confirmation message (default: "Are you sure?")
+     *   confirm  — confirm button label (default: "Confirm")
+     *   cancel   — cancel button label (default: "Cancel")
+     *   variant  — danger (red), warning (yellow), default (indigo)
+     *   class    — additional CSS classes
+     *
+     * Children: the action button(s) that trigger the confirmation
+     */
+    private function renderConfirmAction(array $attrs, string $children): string
+    {
+        $message = htmlspecialchars((string)($attrs['message'] ?? 'Are you sure?'), ENT_QUOTES, 'UTF-8');
+        $confirmLabel = htmlspecialchars((string)($attrs['confirm'] ?? 'Confirm'), ENT_QUOTES, 'UTF-8');
+        $cancelLabel = htmlspecialchars((string)($attrs['cancel'] ?? 'Cancel'), ENT_QUOTES, 'UTF-8');
+        $variant = (string)($attrs['variant'] ?? 'danger');
+        $class = (string)($attrs['class'] ?? '');
+
+        $confirmClass = match ($variant) {
+            'warning' => 'bg-yellow-500 hover:bg-yellow-600 text-white',
+            'danger' => 'bg-red-600 hover:bg-red-700 text-white',
+            default => 'bg-indigo-600 hover:bg-indigo-700 text-white',
+        };
+
+        $uid = 'ikb-confirm-' . bin2hex(random_bytes(4));
+
+        return <<<HTML
+        <div class="ikb-confirm-action inline-block {$class}" x-data="{ open: false }" @keydown.escape.window="open = false">
+            <div @click="open = true" class="cursor-pointer inline-block">
+                {$children}
+            </div>
+            <template x-teleport="body">
+                <div x-show="open" class="fixed inset-0 z-[9999] flex items-center justify-center" x-transition.opacity>
+                    <div class="fixed inset-0 bg-black/40" @click="open = false"></div>
+                    <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6" @click.stop>
+                        <p class="text-sm text-gray-700 mb-4">{$message}</p>
+                        <div class="flex gap-3 justify-end">
+                            <button type="button" @click="open = false"
+                                class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                                {$cancelLabel}
+                            </button>
+                            <button type="button" @click="\$el.closest('.ikb-confirm-action').querySelector('[data-confirm-target]')?.click(); open = false"
+                                class="px-4 py-2 text-sm font-medium rounded-lg {$confirmClass} transition">
+                                {$confirmLabel}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render a semantic panel — theme-aware container with design tokens.
+     *
+     * Attributes:
+     *   tone     — surface, muted, elevated, primary (default: surface)
+     *   spacing  — none, sm, md, lg, xl (default: md)
+     *   radius   — none, sm, md, lg, full (default: md)
+     *   class    — additional CSS classes
+     *
+     * The theme controls how these tokens render via CSS custom properties.
+     */
+    private function renderPanel(array $attrs, string $children): string
+    {
+        $tone = (string)($attrs['tone'] ?? 'surface');
+        $spacing = (string)($attrs['spacing'] ?? 'md');
+        $radius = (string)($attrs['radius'] ?? 'md');
+        $class = (string)($attrs['class'] ?? '');
+
+        $toneClass = match ($tone) {
+            'surface' => 'bg-white border border-gray-100',
+            'muted' => 'bg-gray-50 border border-gray-100',
+            'elevated' => 'bg-white shadow-md border border-gray-100',
+            'primary' => 'bg-indigo-600 text-white',
+            default => 'bg-white border border-gray-100',
+        };
+
+        $spacingClass = match ($spacing) {
+            'none' => 'p-0', 'sm' => 'p-3', 'md' => 'p-5', 'lg' => 'p-8', 'xl' => 'p-12',
+            default => 'p-5',
+        };
+
+        $radiusClass = match ($radius) {
+            'none' => 'rounded-none', 'sm' => 'rounded-md', 'md' => 'rounded-xl', 'lg' => 'rounded-2xl', 'full' => 'rounded-full',
+            default => 'rounded-xl',
+        };
+
+        return "<div class=\"ikb-panel {$toneClass} {$spacingClass} {$radiusClass} {$class}\">{$children}</div>";
+    }
+
+    /**
+     * Render a slide-out drawer panel.
+     *
+     * Attributes:
+     *   id       — drawer ID (required)
+     *   position — left or right (default: right)
+     *   title    — drawer header title
+     *   open     — initially open (default: false)
+     *   width    — CSS width (default: 320px)
+     *   class    — additional CSS classes
+     */
+    private function renderDrawer(array $attrs, string $children): string
+    {
+        $id = htmlspecialchars((string)($attrs['id'] ?? 'drawer'), ENT_QUOTES, 'UTF-8');
+        $position = (string)($attrs['position'] ?? 'right');
+        $title = htmlspecialchars((string)($attrs['title'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $open = !empty($attrs['open']);
+        $width = (string)($attrs['width'] ?? '320px');
+        $class = (string)($attrs['class'] ?? '');
+
+        $translateFrom = $position === 'left' ? '-translate-x-full' : 'translate-x-full';
+        $translateTo = $position === 'left' ? 'translate-x-0' : 'translate-x-0';
+        $positionClass = $position === 'left' ? 'left-0' : 'right-0';
+        $initOpen = $open ? 'true' : 'false';
+
+        $titleHtml = '';
+        if ($title !== '') {
+            $titleHtml = <<<TITLE
+            <div class="ikb-drawer-header flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">{$title}</h3>
+                <button type="button" @click="open = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            TITLE;
+        }
+
+        return <<<HTML
+        <div class="ikb-drawer {$class}" x-data="{ open: {$initOpen} }" @keydown.escape.window="open = false">
+            <template x-teleport="body">
+                <div>
+                    <div x-show="open" class="fixed inset-0 z-[9998] bg-black/40 transition-opacity" @click="open = false" x-transition.opacity></div>
+                    <div x-show="open" class="fixed {$positionClass} top-0 h-full z-[9999] bg-white shadow-2xl overflow-y-auto transition-transform"
+                         :class="open ? '{$translateTo}' : '{$translateFrom}'"
+                         style="width: {$width}; max-width: 100vw;">
+                        {$titleHtml}
+                        <div class="ikb-drawer-body p-4">
+                            {$children}
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render an audit log viewer — governed display of audit trail entries.
+     *
+     * Attributes:
+     *   source   — entity type whose audit entries to display
+     *   entity_id — specific entity ID (optional; omit for all audit entries of type)
+     *   limit    — max entries (default: 20)
+     *   class    — additional CSS classes
+     */
+    private function renderAuditLog(array $attrs, string $children, array $context): string
+    {
+        $source = (string)($attrs['source'] ?? '');
+        $entityId = (string)($attrs['entity_id'] ?? '');
+        $limit = (int)($attrs['limit'] ?? 20);
+        $class = (string)($attrs['class'] ?? '');
+
+        // Resolve audit data via the capability bus
+        $rows = [];
+        $error = null;
+
+        if ($source !== '') {
+            try {
+                if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'capabilities')) {
+                    $result = $app->cap()->call('kernel.audit.list@1', [
+                        'entity_type' => $source,
+                        'entity_id' => $entityId !== '' ? $entityId : null,
+                        'limit' => $limit,
+                    ]);
+                    if (is_array($result)) {
+                        $rows = $result['rows'] ?? $result;
+                    }
+                }
+            } catch (\Throwable $e) {
+                $error = $e->getMessage();
+            }
+        }
+
+        if ($error !== null || ($source !== '' && empty($rows))) {
+            $msg = $error ?: 'No audit entries found.';
+            return $this->entityErrorState($msg, $class);
+        }
+
+        if (empty($rows)) {
+            return <<<HTML
+            <div class="ikb-audit-log--empty text-center py-6 text-sm text-gray-500 {$class}">
+                <p>No audit entries to display.</p>
+            </div>
+            HTML;
+        }
+
+        $entries = '';
+        foreach ($rows as $entry) {
+            $timestamp = htmlspecialchars((string)($entry['created_at'] ?? $entry['timestamp'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $actor = htmlspecialchars((string)($entry['actor'] ?? $entry['user'] ?? 'System'), ENT_QUOTES, 'UTF-8');
+            $action = htmlspecialchars((string)($entry['action'] ?? 'modified'), ENT_QUOTES, 'UTF-8');
+            $detail = htmlspecialchars((string)($entry['detail'] ?? $entry['summary'] ?? ''), ENT_QUOTES, 'UTF-8');
+
+            $actionBadge = match (strtolower($action)) {
+                'created' => 'bg-green-100 text-green-800',
+                'updated', 'modified' => 'bg-blue-100 text-blue-800',
+                'deleted', 'removed' => 'bg-red-100 text-red-800',
+                'login', 'authenticated' => 'bg-purple-100 text-purple-800',
+                default => 'bg-gray-100 text-gray-800',
+            };
+
+            $entries .= <<<ENTRY
+            <div class="ikb-audit-entry flex items-start gap-4 px-4 py-3 hover:bg-gray-50 transition">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                    {$actor[0]}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-medium text-gray-900">{$actor}</span>
+                        <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full {$actionBadge}">{$action}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-0.5">{$detail}</p>
+                </div>
+                <time class="flex-shrink-0 text-xs text-gray-400 whitespace-nowrap">{$timestamp}</time>
+            </div>
+            ENTRY;
+        }
+
+        return <<<HTML
+        <div class="ikb-audit-log divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden {$class}">
+            {$entries}
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render an AI-summarized block — governed AI content generation.
+     *
+     * Attributes:
+     *   capability — capability ID that defines what data to summarize (e.g. "ledger.daily.summarize")
+     *   source     — entity source to fetch data from
+     *   review     — "required" (default) or "none" — if required, output is marked as draft
+     *   model      — AI model ID (default: gpt-4o-mini)
+     *   max_tokens — max output tokens (default: 256)
+     *   class      — additional CSS classes
+     *
+     * The AI Policy governs: kill switch, model allowlist, cost ceiling, token cap.
+     */
+    private function renderAiSummary(array $attrs, string $children, array $context): string
+    {
+        $capability = (string)($attrs['capability'] ?? '');
+        $source = (string)($attrs['source'] ?? '');
+        $review = (string)($attrs['review'] ?? 'required');
+        $model = (string)($attrs['model'] ?? 'gpt-4o-mini');
+        $maxTokens = (int)($attrs['max_tokens'] ?? 256);
+        $class = (string)($attrs['class'] ?? '');
+
+        // Policy gate
+        $policy = class_exists('Ikabud\\Kernel\\DiSyL\\AI\\Policy') ? new \Ikabud\Kernel\DiSyL\AI\Policy() : null;
+        if ($policy !== null && $policy->isKilled()) {
+            return $this->entityErrorState('AI features are disabled.', $class);
+        }
+
+        if ($policy !== null && !$policy->allowsModel($model)) {
+            return $this->entityErrorState('AI model not permitted by policy.', $class);
+        }
+
+        if ($policy !== null && !$policy->canAfford($model, $maxTokens)) {
+            return $this->entityErrorState('AI cost ceiling exceeded.', $class);
+        }
+
+        // Fetch source data via capability bus if source provided
+        $sourceData = '';
+        if ($source !== '' && \function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
+            try {
+                $resolved = $app->entityViews()->resolve($source, 'compact', ['limit' => 10]);
+                if (!empty($resolved['rows'])) {
+                    $sourceData = json_encode($resolved['rows'], JSON_UNESCAPED_SLASHES);
+                }
+            } catch (\Throwable $e) {
+                // Continue without source data
+            }
+        }
+
+        // Build the prompt
+        $prompt = "Summarize the following data concisely. Be factual and brief.";
+        if ($sourceData !== '') {
+            $prompt .= "\n\nData:\n" . $sourceData;
+        }
+        if (trim($children) !== '') {
+            // User-defined slot template provides additional instructions
+            $prompt .= "\n\nContext: " . strip_tags($children);
+        }
+
+        // Call AI provider
+        $resultText = '';
+        $isDraft = $review === 'required';
+        $error = null;
+
+        try {
+            $provider = $this->aiProvider ?? null;
+            if ($provider === null) {
+                // Use echo provider as fallback (returns deterministic placeholder)
+                $provider = new \Ikabud\Kernel\DiSyL\AI\EchoAiProvider();
+            }
+
+            $response = $provider->complete([
+                'model' => $model,
+                'prompt' => $prompt,
+                'max_tokens' => $policy !== null ? $policy->capMaxTokens($maxTokens) : $maxTokens,
+            ]);
+
+            if ($policy !== null) {
+                $policy->recordUsage($model, $response['output_tokens'] ?? 0);
+            }
+            $resultText = $response['text'] ?? '';
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+            if (\function_exists('write_log')) {
+                \write_log("ikb_ai_summary: AI call failed", 'warning', [
+                    'capability' => $capability,
+                    'model' => $model,
+                    'error' => $error,
+                ]);
+            }
+        }
+
+        if ($error !== null) {
+            return $this->entityErrorState('AI summary unavailable: ' . $error, $class);
+        }
+
+        $safeText = htmlspecialchars($resultText, ENT_QUOTES, 'UTF-8');
+        $draftBadge = '';
+        if ($isDraft) {
+            $draftBadge = '<span class="ikb-ai-draft-badge inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800 ml-2">Draft — requires review</span>';
+        }
+
+        return <<<HTML
+        <div class="ikb-ai-summary rounded-xl border border-indigo-200 bg-indigo-50/30 p-5 {$class}">
+            <div class="flex items-center mb-3">
+                <svg class="w-4 h-4 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <span class="text-xs font-semibold text-indigo-600 uppercase tracking-wider">AI Summary</span>
+                {$draftBadge}
+            </div>
+            <div class="ikb-ai-summary-content text-sm text-gray-800 leading-relaxed">
+                {$safeText}
+            </div>
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render an AI-assisted block — governed AI drafting with human approval.
+     *
+     * Attributes:
+     *   capability — capability ID for the draft operation
+     *   mode       — "draft_only" (default; read-only, no mutation) or "suggest" (pre-filled, user approves)
+     *   model      — AI model ID
+     *   max_tokens — max output tokens (default: 512)
+     *   class      — additional CSS classes
+     *
+     * Children: fallback content shown while AI is generating or if unavailable.
+     */
+    private function renderAiAssist(array $attrs, string $children, array $context): string
+    {
+        $capability = (string)($attrs['capability'] ?? '');
+        $mode = (string)($attrs['mode'] ?? 'draft_only');
+        $model = (string)($attrs['model'] ?? 'gpt-4o-mini');
+        $maxTokens = (int)($attrs['max_tokens'] ?? 512);
+        $class = (string)($attrs['class'] ?? '');
+
+        // Policy gate
+        $policy = class_exists('Ikabud\\Kernel\\DiSyL\\AI\\Policy') ? new \Ikabud\Kernel\DiSyL\AI\Policy() : null;
+        if ($policy !== null && $policy->isKilled()) {
+            return $this->entityErrorState('AI features are disabled.', $class);
+        }
+
+        if (!$policy->allowsModel($model)) {
+            return $this->entityErrorState('AI model not permitted by policy.', $class);
+        }
+
+        if (!$policy->canAfford($model, $maxTokens)) {
+            return $this->entityErrorState('AI cost ceiling exceeded.', $class);
+        }
+
+        $fallbackHtml = trim($children) !== ''
+            ? '<div class="ikb-ai-assist-fallback text-sm text-gray-500 italic mt-2">' . $children . '</div>'
+            : '';
+
+        // Deterministic placeholder for non-interactive rendering.
+        // In a full implementation, this would be an Alpine.js island that
+        // fetches AI content on user interaction.
+
+        $resultText = '';
+        $error = null;
+
+        try {
+            $provider = $this->aiProvider ?? (class_exists('Ikabud\\Kernel\\DiSyL\\AI\\EchoAiProvider') ? new \Ikabud\Kernel\DiSyL\AI\EchoAiProvider() : null);
+            if ($provider !== null) {
+                $response = $provider->complete([
+                    'model' => $model,
+                    'prompt' => "Draft a response for capability: {$capability}. Mode: {$mode}. Be concise.",
+                    'max_tokens' => $policy !== null ? $policy->capMaxTokens($maxTokens) : $maxTokens,
+                ]);
+                if ($policy !== null) {
+                    $policy->recordUsage($model, $response['output_tokens'] ?? 0);
+                }
+                $resultText = $response['text'] ?? '';
+            } else {
+                $resultText = '[AI provider not available]';
+            }
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+        }
+
+        if ($error !== null) {
+            return $this->entityErrorState('AI assist unavailable: ' . $error, $class);
+        }
+
+        $safeText = htmlspecialchars($resultText, ENT_QUOTES, 'UTF-8');
+
+        $modeBadge = match ($mode) {
+            'suggest' => '<span class="ikb-ai-draft-badge inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 ml-2">Suggestion</span>',
+            default => '<span class="ikb-ai-draft-badge inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800 ml-2">Draft Only</span>',
+        };
+
+        return <<<HTML
+        <div class="ikb-ai-assist rounded-xl border border-indigo-200 bg-white p-5 {$class}">
+            <div class="flex items-center mb-3">
+                <svg class="w-4 h-4 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                <span class="text-xs font-semibold text-indigo-600 uppercase tracking-wider">AI Assist</span>
+                {$modeBadge}
+            </div>
+            <div class="ikb-ai-assist-content text-sm text-gray-800 leading-relaxed">
+                {$safeText}
+            </div>
+            {$fallbackHtml}
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render a governed report component — business document with header, body, and signature block.
+     *
+     * Attributes:
+     *   title    — report title
+     *   subtitle — report subtitle/description
+     *   source   — entity source (optional; for data-driven reports)
+     *   format   — report format: summary, detailed, official (default: summary)
+     *   class    — additional CSS classes
+     *
+     * Children: report body content (tables, entity lists, text)
+     */
+    private function renderReport(array $attrs, string $children, array $context): string
+    {
+        $title = htmlspecialchars((string)($attrs['title'] ?? 'Report'), ENT_QUOTES, 'UTF-8');
+        $subtitle = htmlspecialchars((string)($attrs['subtitle'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $format = (string)($attrs['format'] ?? 'summary');
+        $class = (string)($attrs['class'] ?? '');
+
+        $formatClass = match ($format) {
+            'official' => 'ikb-report--official',
+            'detailed' => 'ikb-report--detailed',
+            default => 'ikb-report--summary',
+        };
+
+        $dateStr = date('F j, Y');
+        $subtitleHtml = $subtitle !== ''
+            ? "<p class=\"ikb-report-subtitle text-sm text-gray-500 mt-1\">{$subtitle}</p>"
+            : '';
+
+        return <<<HTML
+        <div class="ikb-report max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden {$formatClass} {$class}">
+            <div class="ikb-report-header px-8 py-6 border-b border-gray-100 bg-gray-50/50">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h1 class="ikb-report-title text-xl font-bold text-gray-900">{$title}</h1>
+                        {$subtitleHtml}
+                    </div>
+                    <div class="ikb-report-meta text-right text-xs text-gray-400 flex-shrink-0">
+                        <p>{$dateStr}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="ikb-report-body px-8 py-6">
+                {$children}
+            </div>
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render a signature block for official documents and reports.
+     *
+     * Attributes:
+     *   roles    — comma-separated role labels (e.g. "Prepared By,Checked By,Approved By")
+     *   class    — additional CSS classes
+     *
+     * Children: optional additional content below signatures
+     */
+    private function renderSignatureBlock(array $attrs, string $children): string
+    {
+        $rolesStr = (string)($attrs['roles'] ?? 'Prepared By,Reviewed By,Approved By');
+        $class = (string)($attrs['class'] ?? '');
+        $roles = array_map('trim', explode(',', $rolesStr));
+
+        $signatures = '';
+        foreach ($roles as $index => $role) {
+            if ($role === '') { continue; }
+            $safeRole = htmlspecialchars($role, ENT_QUOTES, 'UTF-8');
+            $signatures .= <<<SIG
+            <div class="ikb-signature flex-1 min-w-[120px]">
+                <div class="ikb-signature-line border-b border-gray-400 pt-12 mb-2"></div>
+                <p class="ikb-signature-label text-xs text-gray-600 font-medium">{$safeRole}</p>
+                <p class="ikb-signature-date text-xs text-gray-400 mt-0.5">Date: _______________</p>
+            </div>
+            SIG;
+        }
+
+        $slotHtml = trim($children) !== ''
+            ? "<div class=\"ikb-signature-extra mt-4 text-xs text-gray-500\">{$children}</div>"
+            : '';
+
+        return <<<HTML
+        <div class="ikb-signature-block mt-10 pt-6 border-t border-gray-200 {$class}">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Signatures</p>
+            <div class="ikb-signature-row flex flex-wrap gap-6">
+                {$signatures}
+            </div>
+            {$slotHtml}
+        </div>
+        HTML;
+    }
+
     private function renderIsland(array $attrs, string $children): string
     {
         $name = $attrs['name'] ?? 'island';

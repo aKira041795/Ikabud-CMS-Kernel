@@ -109,6 +109,7 @@
             "order": 20
         }
     ],
+    "routes": true,
     "events": [
         "ehr.patient.created",
         "ehr.patient.updated",

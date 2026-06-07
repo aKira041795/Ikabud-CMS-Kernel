@@ -107,6 +107,7 @@
         ],
         "touch_updated_at": true
     },
+    "routes": true,
     "events": [
         "bakeshop.branch.created",
         "bakeshop.delivery.created",

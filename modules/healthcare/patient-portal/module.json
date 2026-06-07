@@ -146,6 +146,7 @@
             "order": 95
         }
     ],
+    "routes": true,
     "events": [
         "ehr.portal.account.provisioned",
         "ehr.portal.account.updated",

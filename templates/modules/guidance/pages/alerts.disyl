@@ -216,7 +216,6 @@ window.guidanceMarkAllReadUi = function() {
                 class="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition shadow-sm">
             <i class="fas fa-check-double mr-2"></i> Mark all as read
         </button>
-        {/if}
     </div>
 
     {!-- Notifications list --}

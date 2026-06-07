@@ -95,6 +95,7 @@
             "order": 40
         }
     ],
+    "routes": true,
     "events": [
         "ehr.note.created",
         "ehr.note.viewed",

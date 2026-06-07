@@ -41,7 +41,8 @@
                                 </div>
                                 <div>
                                     <label>Session Date</label>
-                                    {ikb_input type="date" name="session_date" value="{session_date | default:today}" /}
+                                    {set note_session_date = session_date | default:today}
+                                    {ikb_input type="date" name="session_date" value="{note_session_date}" /}
                                 </div>
                                 <div>
                                     <label>Risk Level</label>

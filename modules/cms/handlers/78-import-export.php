@@ -36,6 +36,184 @@ function cmsAdminImportExport(array $params = []): void
     ]));
 }
 
+// ── Kernel Export API ─────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/export?source={entity_type}&format={csv|docx|pdf}
+ *
+ * Kernel-governed export endpoint. Resolves entity data via
+ * EntityViewResolver, then exports via KernelExport service.
+ */
+function cmsApiKernelExport(array $params = []): void
+{
+    $source = trim((string)($_GET['source'] ?? ''));
+    $format = strtolower(trim((string)($_GET['format'] ?? 'csv')));
+
+    if ($source === '') {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => 'source parameter is required']);
+        return;
+    }
+
+    if (!in_array($format, ['csv', 'docx', 'pdf'], true)) {
+        $format = 'csv';
+    }
+
+    // Resolve entity data
+    $rows = [];
+    $title = 'Export';
+    try {
+        if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
+            $resolved = $app->entityViews()->resolve($source, 'compact', ['limit' => 100]);
+            $rows = $resolved['rows'] ?? [];
+            $title = ($resolved['view']['entity_type'] ?? $source) . ' Export';
+        }
+    } catch (\Throwable $e) {
+        // Fall through — empty rows
+    }
+
+    if (empty($rows)) {
+        http_response_code(404);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => 'No data to export']);
+        return;
+    }
+
+    // Export via kernel service
+    $entityType = explode('.', $source)[0];
+    $filename = $entityType . '-export-' . date('Y-m-d') . '.' . $format;
+
+    $result = \Ikabud\Kernel\Services\KernelExport::export($entityType, $format, $rows, [
+        'title' => $title,
+        'filename' => $filename,
+    ]);
+
+    if ($result === null || empty($result['path'])) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => 'Export generation failed']);
+        return;
+    }
+
+    // Stream the file
+    header('Content-Type: ' . $result['mime']);
+    header('Content-Disposition: attachment; filename="' . $result['filename'] . '"');
+    header('Content-Length: ' . $result['size']);
+    readfile($result['path']);
+
+    // Clean up temp file
+    @unlink($result['path']);
+}
+
+// ── Builder Component Discovery API ──────────────────────────────────
+
+/**
+ * GET /api/v1/cms/builder/components
+ *
+ * Returns the list of governed DiSyL components available for the visual builder.
+ * Each component includes its attribute schema, category, and description.
+ *
+ * Response: {ok: true, components: [...], count: N}
+ */
+function cmsApiBuilderComponents(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $components = [];
+    $registry = \Ikabud\Kernel\DiSyL\ComponentRegistry::all();
+
+    foreach ($registry as $name => $def) {
+        // Skip control-flow components (if, for, each, etc.)
+        if (in_array($def['category'] ?? '', ['control'], true)) {
+            continue;
+        }
+
+        $components[] = [
+            'name' => $name,
+            'label' => ucwords(str_replace('_', ' ', substr($name, 4))),
+            'category' => $def['category'] ?? 'ui',
+            'description' => $def['description'] ?? '',
+            'leaf' => $def['leaf'] ?? false,
+            'attributes' => array_values(array_map(function ($key, $attr) {
+                if (!is_array($attr)) { return ['name' => $key]; }
+                return [
+                    'name' => $attr['name'] ?? $key,
+                    'type' => $attr['type'] ?? 'string',
+                    'required' => $attr['required'] ?? false,
+                    'default' => $attr['default'] ?? null,
+                    'enum' => $attr['enum'] ?? null,
+                    'description' => $attr['description'] ?? '',
+                ];
+            }, array_keys($def['attributes'] ?? []), array_values($def['attributes'] ?? []))),
+            '_governed' => true,
+        ];
+    }
+
+    // Sort by category then name
+    usort($components, function ($a, $b) {
+        $cat = $a['category'] <=> $b['category'];
+        return $cat !== 0 ? $cat : $a['name'] <=> $b['name'];
+    });
+
+    echo json_encode([
+        'ok' => true,
+        'components' => $components,
+        'count' => count($components),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+// ── Marketplace Catalog API ────────────────────────────────────────────
+
+/**
+ * GET /api/v1/cms/marketplace/catalog
+ *
+ * Returns the module catalog with certification status for each module.
+ * Phase 9: Marketplace governance — read-only catalog view.
+ */
+function cmsApiMarketplaceCatalog(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $modules = discoverModules();
+    $catalog = [];
+
+    foreach ($modules as $id => $manifest) {
+        $cert = validateModuleCertification($manifest);
+        $catalog[] = [
+            'id' => $id,
+            'name' => $manifest['name'] ?? $id,
+            'version' => $manifest['version'] ?? '0.0.0',
+            'description' => $manifest['description'] ?? '',
+            'author' => $manifest['author'] ?? '',
+            'type' => $manifest['type'] ?? 'php-module',
+            'enabled' => $manifest['_enabled'] ?? false,
+            'certified' => $cert['ok'],
+            'certification_score' => $cert['score'],
+            'certification_max' => $cert['max'],
+            'certification_checks' => $cert['checks'],
+            'capabilities_count' => count($manifest['capabilities']['exposes'] ?? []),
+            'events_count' => count($manifest['events'] ?? []),
+            'owns_tables' => $manifest['owns_tables'] ?? [],
+        ];
+    }
+
+    // Sort: certified first, then by name
+    usort($catalog, function ($a, $b) {
+        if ($a['certified'] !== $b['certified']) {
+            return $b['certified'] <=> $a['certified'];
+        }
+        return $a['name'] <=> $b['name'];
+    });
+
+    echo json_encode([
+        'ok' => true,
+        'modules' => $catalog,
+        'total' => count($catalog),
+        'certified' => count(array_filter($catalog, fn($m) => $m['certified'])),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
 // ── Export API ────────────────────────────────────────────────────────
 
 /**

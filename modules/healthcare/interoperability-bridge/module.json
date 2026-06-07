@@ -107,6 +107,7 @@
             "order": 120
         }
     ],
+    "routes": true,
     "events": [
         "ehr.interop.exported",
         "ehr.interop.message.logged",

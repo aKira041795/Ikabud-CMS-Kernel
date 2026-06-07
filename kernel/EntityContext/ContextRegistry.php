@@ -113,6 +113,104 @@ final class ContextRegistry
         $this->sortEntries($this->capabilityDefinitions[$capabilityId]);
     }
 
+    // ── Phase 3B: Schema / Profile / Mode introspection stores ──
+
+    /**
+     * Register an entity schema (field definitions for an entity type).
+     *
+     * @param array<string, mixed> $definition  schema with keys: entity_type, fields, source_module
+     */
+    public function registerSchema(string $schemaId, array $definition, string $providerId = 'kernel', int $priority = 10): void
+    {
+        $schemaId = $this->normalizeId($schemaId);
+        if ($schemaId === '') {
+            return;
+        }
+        $definition['id'] = $schemaId;
+        $definition['provider'] = $this->normalizeProvider($providerId);
+        $this->schemas[$schemaId] = $definition;
+    }
+
+    /**
+     * Register an entity profile (view configuration for an entity type).
+     *
+     * @param array<string, mixed> $definition  profile with keys: entity_type, view, fields, limit, sort, empty_state, actions
+     */
+    public function registerProfile(string $profileId, array $definition, string $providerId = 'kernel', int $priority = 10): void
+    {
+        $profileId = $this->normalizeId($profileId);
+        if ($profileId === '') {
+            return;
+        }
+        $definition['id'] = $profileId;
+        $definition['provider'] = $this->normalizeProvider($providerId);
+        $this->profiles[$profileId] = $definition;
+    }
+
+    /**
+     * Register an entity mode (operational context for rendering — e.g. 'admin', 'public', 'compact').
+     *
+     * @param array<string, mixed> $definition  mode with keys: entity_type, mode, field_visibility, action_visibility
+     */
+    public function registerMode(string $modeId, array $definition, string $providerId = 'kernel', int $priority = 10): void
+    {
+        $modeId = $this->normalizeId($modeId);
+        if ($modeId === '') {
+            return;
+        }
+        $definition['id'] = $modeId;
+        $definition['provider'] = $this->normalizeProvider($providerId);
+        $this->modes[$modeId] = $definition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function schema(string $schemaId): array
+    {
+        return $this->schemas[$this->normalizeId($schemaId)] ?? [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function profile(string $profileId): array
+    {
+        return $this->profiles[$this->normalizeId($profileId)] ?? [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function mode(string $modeId): array
+    {
+        return $this->modes[$this->normalizeId($modeId)] ?? [];
+    }
+
+    /**
+     * @return string[]
+     */
+    public function schemaIds(): array
+    {
+        return array_keys($this->schemas);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function profileIds(): array
+    {
+        return array_keys($this->profiles);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function modeIds(): array
+    {
+        return array_keys($this->modes);
+    }
+
     public function hasContext(string $contextId): bool
     {
         return !empty($this->contextDefinitions[$this->normalizeId($contextId)]);

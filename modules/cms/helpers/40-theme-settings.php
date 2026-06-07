@@ -456,7 +456,13 @@ function cmsThemeManifestForSlug(?string $slug): array
         return [];
     }
 
-    $manifestFile = cmsThemesPath() . '/' . $slug . '/theme.json';
+    $themeDir = cmsThemesPath() . '/' . $slug;
+
+    // Phase 4: prefer theme.manifest.json (new spec), fall back to theme.json (legacy)
+    $manifestFile = $themeDir . '/theme.manifest.json';
+    if (!is_file($manifestFile)) {
+        $manifestFile = $themeDir . '/theme.json';
+    }
     if (!is_file($manifestFile)) {
         return ['slug' => $slug];
     }
@@ -464,6 +470,16 @@ function cmsThemeManifestForSlug(?string $slug): array
     $decoded = kernelReadJsonFile($manifestFile);
     $manifest = is_array($decoded) ? $decoded : [];
     $manifest['slug'] = $slug;
+
+    // Load design tokens if tokens.json exists (Phase 4)
+    $tokensFile = $themeDir . '/tokens.json';
+    if (is_file($tokensFile)) {
+        $tokens = kernelReadJsonFile($tokensFile);
+        if (is_array($tokens)) {
+            $manifest['_tokens'] = $tokens;
+        }
+    }
+
     return $manifest;
 }
 

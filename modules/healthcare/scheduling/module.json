@@ -113,6 +113,7 @@
             "order": 15
         }
     ],
+    "routes": true,
     "events": [
         "ehr.appointment.scheduled",
         "ehr.appointment.updated",

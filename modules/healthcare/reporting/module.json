@@ -71,5 +71,6 @@
             "order": 150
         }
     ],
+    "routes": true,
     "events": []
 }

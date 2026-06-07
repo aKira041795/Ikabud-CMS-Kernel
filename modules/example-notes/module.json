@@ -18,6 +18,7 @@
             "kernel.audit.record@1"
         ]
     },
+    "routes": true,
     "events": [
         "example-notes.note.created",
         "example-notes.note.deleted"

@@ -111,6 +111,20 @@
                 ]
             },
             {
+                "id": "entity.list.cms_post@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "entity.list.cms_page@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
                 "id": "cms.content.list@1",
                 "priority": 50,
                 "modes": [
@@ -283,6 +297,7 @@
             }
         }
     },
+    "routes": true,
     "events": [
         {
             "key": "cms.content.created",

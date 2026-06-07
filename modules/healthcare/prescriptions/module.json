@@ -107,6 +107,7 @@
             }
         }
     },
+    "routes": true,
     "events": [
         "ehr.prescription.issued",
         "ehr.prescription.canceled"

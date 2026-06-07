@@ -162,6 +162,7 @@
             }
         }
     },
+    "routes": true,
     "events": [
         {
             "key": "users.created",

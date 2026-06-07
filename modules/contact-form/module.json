@@ -26,6 +26,7 @@
     "cms.public.render_content",
     "cms.public.head"
   ],
+    "routes": true,
   "events": [],
   "nav": [],
   "settings_fields": [

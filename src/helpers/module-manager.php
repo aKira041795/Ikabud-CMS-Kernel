@@ -1854,6 +1854,13 @@ function loadModuleHelpers(array $module): void
         return;
     }
 
+    // Service modules declare capabilities but run externally — no PHP helpers to load.
+    $moduleType = trim((string)($module['type'] ?? 'php-module'));
+    if ($moduleType === 'service-module') {
+        $_loadedModuleHelpers[$moduleId] = true;
+        return;
+    }
+
     $helpersFile = (string)($module['_path'] ?? '') . '/helpers.php';
     if (is_file($helpersFile)) {
         moduleWithContext($moduleId, static function () use ($helpersFile): void {
@@ -2559,6 +2566,105 @@ function validateModuleManifest(string $path): array
     }
 
     return ['ok' => true, 'manifest' => $manifest];
+}
+
+/**
+ * Validate a module manifest against the Phase 9 certification checklist.
+ *
+ * Returns an array of certification items with pass/fail status.
+ * A module must pass ALL checks to be certified.
+ *
+ * @param array<string, mixed> $manifest
+ * @return array{ok: bool, checks: array<int, array{check: string, passed: bool, detail: string}>, score: int, max: int}
+ */
+function validateModuleCertification(array $manifest): array
+{
+    $checks = [];
+    $passed = 0;
+    $total = 0;
+
+    $moduleId = (string)($manifest['id'] ?? 'unknown');
+
+    // C1: Basic identity
+    $total++;
+    $ok = !empty($manifest['id']) && !empty($manifest['name']) && !empty($manifest['version']);
+    $checks[] = ['check' => 'C1: Identity', 'passed' => $ok, 'detail' => $ok ? "{$manifest['name']} v{$manifest['version']}" : 'Missing id, name, or version'];
+    if ($ok) $passed++;
+
+    // C2: Table ownership declared
+    $total++;
+    $owns = is_array($manifest['owns_tables'] ?? null) && !empty($manifest['owns_tables']);
+    $reads = is_array($manifest['reads_tables'] ?? null) && !empty($manifest['reads_tables']);
+    $ok = $owns || $reads;
+    $checks[] = ['check' => 'C2: Table ownership', 'passed' => $ok, 'detail' => $ok ? 'owns_tables or reads_tables declared' : 'No table ownership declared'];
+    if ($ok) $passed++;
+
+    // C3: Capabilities exposed
+    $total++;
+    $caps = is_array($manifest['capabilities']['exposes'] ?? null) && !empty($manifest['capabilities']['exposes']);
+    $ok = $caps;
+    $checks[] = ['check' => 'C3: Capabilities', 'passed' => $ok, 'detail' => $ok ? count($manifest['capabilities']['exposes']) . ' capabilities exposed' : 'No capabilities declared'];
+    if ($ok) $passed++;
+
+    // C4: Events declared (emitted or listened)
+    $total++;
+    $events = is_array($manifest['events'] ?? null);
+    $hasEvents = $events && !empty($manifest['events']);
+    $ok = $hasEvents;
+    $checks[] = ['check' => 'C4: Events', 'passed' => $ok, 'detail' => $ok ? count($manifest['events']) . ' events declared' : 'No events declared'];
+    if ($ok) $passed++;
+
+    // C5: Routes declared (array or truthy/boolean flag for routes.php)
+    $total++;
+    $routes = (is_array($manifest['routes'] ?? null) && !empty($manifest['routes'])) || !empty($manifest['routes']);
+    $ok = $routes;
+    $checks[] = ['check' => 'C5: Routes', 'passed' => $ok, 'detail' => $ok ? 'Routes declared' : 'No routes declared'];
+    if ($ok) $passed++;
+
+    // C6: Migrations present
+    $total++;
+    $migrations = is_array($manifest['migrations'] ?? null) && !empty($manifest['migrations']);
+    $ok = $migrations;
+    $checks[] = ['check' => 'C6: Migrations', 'passed' => $ok, 'detail' => $ok ? count($manifest['migrations']) . ' migrations' : 'No migrations'];
+    if ($ok) $passed++;
+
+    // C7: Author declared
+    $total++;
+    $author = !empty($manifest['author']) && is_string($manifest['author']);
+    $ok = $author;
+    $checks[] = ['check' => 'C7: Author', 'passed' => $ok, 'detail' => $ok ? (string)$manifest['author'] : 'No author declared'];
+    if ($ok) $passed++;
+
+    // C8: Description
+    $total++;
+    $desc = !empty($manifest['description']) && is_string($manifest['description']);
+    $ok = $desc;
+    $checks[] = ['check' => 'C8: Description', 'passed' => $ok, 'detail' => $ok ? substr((string)$manifest['description'], 0, 60) . '...' : 'No description'];
+    if ($ok) $passed++;
+
+    // C9: Module type valid
+    $total++;
+    $type = trim((string)($manifest['type'] ?? 'php-module'));
+    $validTypes = ['php-module', 'service-module'];
+    $ok = in_array($type, $validTypes, true);
+    $checks[] = ['check' => 'C9: Module type', 'passed' => $ok, 'detail' => $ok ? $type : "Invalid type: {$type}"];
+    if ($ok) $passed++;
+
+    // C10: Service-module endpoint (only if type=service-module)
+    if ($type === 'service-module') {
+        $total++;
+        $endpoint = !empty($manifest['service']['endpoint']) && is_string($manifest['service']['endpoint']);
+        $ok = $endpoint;
+        $checks[] = ['check' => 'C10: Service endpoint', 'passed' => $ok, 'detail' => $ok ? (string)$manifest['service']['endpoint'] : 'No service endpoint declared'];
+        if ($ok) $passed++;
+    }
+
+    return [
+        'ok' => $passed === $total,
+        'checks' => $checks,
+        'score' => $passed,
+        'max' => $total,
+    ];
 }
 
 function moduleInstallFailure(string $errorCode, string $error, array $extra = []): array

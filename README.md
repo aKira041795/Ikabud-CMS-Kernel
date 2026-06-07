@@ -1,77 +1,129 @@
-# Ikabud CMS Kernel
+# Ikabud — Kernel OS 5.0 (nexus)
 
-Ikabud CMS Kernel is a multi-tenant application platform and modular business OS powered by DiSyL, the kernel-native rendering runtime for its visual CMS, workflow automation, commerce, guidance, warehouse, and tenant-scoped operations modules.
+**A governed application platform for modular business software.**
+
+Kernel OS governs. Modules provide capabilities. DiSyL expresses interface intent.
+Themes shape presentation. AI assists through policy.
+
+---
+
+## What is Kernel OS?
+
+Kernel OS is not a framework, not a CMS, and not a plugin system. It is an
+**operating layer for business modules** — a platform where modules can safely
+expose capabilities, views, reports, workflows, and AI-assisted features through
+one governed runtime.
+
+One kernel. Many business modules. One interface language. One policy boundary.
+Many outputs.
+
+---
 
 ## Key Features
 
-- **Multi-tenant architecture** — Single codebase serving multiple tenants with isolated databases
-- **Module system** — Manifest-driven module discovery with capability contracts and dependency validation
-- **CMS with visual page builder** — React/Vite builder with server-side DiSyL rendering
-- **Superadmin panel** — Per-tenant module enable/disable with toggle UI and DB connectivity checks
-- **15+ modules** — CMS, daily ledger, workflow engine, contact form, media, search, ticketing, SMS, AI, and more
-- **DiSyL runtime** — Kernel-native rendering language with layouts, components, filters, hydration islands, and reactive client blocks
-- **JWT authentication** — Secure token-based auth with role hierarchy (superadmin, admin, manager, viewer)
-- **OPcache-aware** — Automatic code cache flushing on module enable/disable, theme installs, and deployments
+- **Multi-tenant by default** — Each organization gets an isolated database. Tenants can never see each other's data.
+- **Module isolation enforced** — `owns_tables`/`reads_tables` contracts prevent cross-module data access.
+- **Capability bus** — Typed, versioned contracts between modules. No direct function calls.
+- **31 governed DiSyL components** — Build screens by describing intent: `<ikb_entity_list source="orders.recent" view="compact" />`
+- **Entity-view contracts** — Define what fields, actions, and views each entity type supports. The kernel enforces permissions.
+- **Visual page builder** — React/Vite builder with server-side DiSyL rendering. Builder now delegates to governed components.
+- **Export pipeline** — One click turns any screen into CSV, DOCX, or PDF. Kernel-level export service.
+- **AI governance** — AI summaries and drafts with kill switch, model allowlist, cost ceilings, and human review requirements.
+- **Module certification** — `php ikabud module:certify` validates manifests against a 10-point checklist.
+- **43 modules** — CMS, ecommerce, bakeshop, guidance, WMS, EHR, daily ledger, ticketing, SMS, AI orchestrator, and more.
+- **Shared-hosting friendly** — Runs on a $5/month Bluehost plan. JWT auth, OPcache-aware, DiSyL linter.
 
-## Requirements
-
-- PHP 8.2+
-- MySQL 8.0+
-- Apache with `mod_rewrite`
-- Composer
+---
 
 ## Quick Deploy to Bluehost
 
-1. **Build archive** — Run `php create-bluehost-archive.php` to generate a deployment ZIP
-2. **Create MySQL database** — cPanel → MySQL Databases → Create database + user, grant ALL privileges
-3. **Upload ZIP** — cPanel File Manager → Upload ZIP to `public_html/` → Extract in place
-4. **Run installer** — Navigate to `https://yourdomain.com/lock.php` → Enter DB credentials + admin account
-5. **Secure** — Delete `public/lock.php` after verifying the app works
+1. **Build archive** — `php create-bluehost-archive.php`
+2. **Create MySQL database** — cPanel → MySQL Databases
+3. **Upload ZIP** — cPanel File Manager → Extract in `public_html/`
+4. **Run installer** — Navigate to `https://yourdomain.com/lock.php`
+5. **Secure** — Delete `public/lock.php` after install
 
 See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guide.
+
+---
 
 ## Repository Structure
 
 | Path | Description |
 |---|---|
-| `bootstrap.php` | Application bootstrap — env loading, constants, global helpers |
-| `kernel/` | Core kernel: App singleton, routing, auth, database, DiSyL, capabilities |
-| `modules/` | All application modules (CMS, ledger, workflow, etc.) |
-| `src/` | Shared kernel helpers (module manager, tenant resolver, etc.) |
-| `public/` | Web root — index.php router, assets, lock.php installer |
-| `config/` | Environment config (app, database) |
+| `bootstrap.php` | Application bootstrap — env, constants, global helpers |
+| `kernel/` | Core: App singleton, routing, auth, database, DiSyL, capabilities, AI |
+| `modules/` | 43 business modules (CMS, commerce, guidance, WMS, bakeshop, EHR, etc.) |
+| `src/` | Shared kernel helpers (module manager, tenant resolver, certification) |
+| `public/` | Web root — index.php router, assets, builder bundles, installer |
+| `config/` | Environment config |
 | `database/` | SQL migrations and seeds |
 | `templates/` | DiSyL templates (admin + public) |
-| `create-bluehost-archive.php` | CLI script to regenerate the deployment archive |
-| `docs/` | Full project documentation |
+| `tests/` | 333 tests — engine, hardening, POC, integration |
+| `docs/` | Full documentation |
 
-## Architecture
+---
 
-See [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) for the full Kernel OS architecture — request lifecycle, module system, extension model, multi-tenancy, and authentication.
+## Version
 
-## Documentation Index
+| Component | Version |
+|---|---|
+| Kernel OS | `5.0.0` (nexus) |
+| DiSyL | `4.0.0` |
+| ComponentRegistry | `1.0.0` |
+| EntityViewResolver | `1.0.0` |
+
+---
+
+## Documentation
 
 | Document | Topic |
 |---|---|
 | [ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) | Kernel OS system architecture |
+| [kernel-os-disyl-roadmap-status.md](docs/kernel/kernel-os-disyl-roadmap-status.md) | Phase-by-phase implementation status (updated June 2026) |
 | [installation.md](docs/kernel/installation.md) | Installation & deployment guide |
-| [contributor-workflows.md](docs/kernel/contributor-workflows.md) | Local setup, testing, logs, and refactor guardrails |
+| [contributor-workflows.md](docs/kernel/contributor-workflows.md) | Local setup, testing, logs, refactor guardrails |
 | [api-reference.md](docs/kernel/api-reference.md) | REST API reference |
 | [module-development-guide.md](docs/kernel/module-development-guide.md) | Guide for building new modules |
-| [kernel-stable-contracts.md](docs/kernel/kernel-stable-contracts.md) | Stable kernel extension points versus refactorable internals |
-| [disyl-overview.md](docs/kernel/disyl-overview.md) | High-level DiSyL overview: what it is, why it matters, and where to use it |
-| [cms-module.md](docs/cms/cms-module.md) | CMS module documentation |
-| [wms-module.md](docs/wms/wms-module.md) | WMS module documentation |
-| [bakeshop-module.md](docs/bakeshop/bakeshop-module.md) | Bakeshop module documentation (module-owned auth, trusted provisioning + recovery) |
-| [guidance-module.md](docs/guidance/guidance-module.md) | Guidance module documentation (module-owned auth, counseling workflows, standardized password reset) |
-| [cms-architecture.md](docs/cms/cms-architecture.md) | CMS module architecture |
+| [kernel-stable-contracts.md](docs/kernel/kernel-stable-contracts.md) | Stable kernel extension points |
+| [disyl-overview.md](docs/kernel/disyl-overview.md) | DiSyL overview — what it is and why it matters |
+| [cms-module.md](docs/cms/cms-module.md) | CMS module |
+| [wms-module.md](docs/wms/wms-module.md) | WMS module |
+| [bakeshop-module.md](docs/bakeshop/bakeshop-module.md) | Bakeshop module |
+| [guidance-module.md](docs/guidance/guidance-module.md) | Guidance module |
 | [page-builder-technical-spec.md](docs/page-builder/page-builder-technical-spec.md) | Visual page builder spec |
-| [evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md](docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md) | Baseline metrics and required regression gates for kernel refactors |
 | [roadmap.md](docs/kernel/roadmap.md) | Project roadmap |
+
+---
+
+## CLI Commands
+
+```
+php ikabud disyl:lint [path]          Lint templates (0 errors on 398 files)
+php ikabud module:certify [module]    Validate module certification
+php ikabud module:certify --all       Certify all modules
+php ikabud tenant:migrate <id>        Run tenant migrations
+php ikabud routes                     List all routes
+php ikabud event:list                 List event listeners
+```
+
+---
+
+## Tests
+
+```
+php tests/disyl_engine_test.php       264 tests — DiSyL engine comprehensive
+php tests/disyl_hardening_coverage_test.php  44 tests — hardening coverage
+php tests/poc_render_test.php         35 tests — component rendering POC
+php tests/cms_integration_poc.php     25 tests — CMS end-to-end pipeline
+php tests/kernel_load_test.php         Load test — 22ms for 100 iterations
+```
+
+---
 
 ## License
 
-Ikabud uses an **open-core licensing model**:
+Open-core licensing model:
 
 - **Community Edition** (DiSyL engine, contracts, community modules) — [MIT License](LICENSE-MIT)
 - **Enterprise Edition** (kernel orchestration, multi-tenant, advanced modules) — [Ikabud Commercial License](LICENSE-COMMERCIAL)

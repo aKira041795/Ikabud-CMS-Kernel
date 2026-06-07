@@ -111,6 +111,7 @@
             }
         }
     },
+    "routes": true,
     "events": [
         {
             "key": "media.uploaded",

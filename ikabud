@@ -321,6 +321,8 @@ switch ($command) {
         out('    ' . green('event:trace') . ' <name>          Show listeners, emitters, and flow for an event');
         out('    ' . green('routes') . '                      List all routes');
         out('    ' . green('tinker') . ' "<sql>"              Run a raw SQL query');
+        out('    ' . green('module:certify') . ' [module]     Validate module against certification checklist');
+        out('    ' . green('module:certify') . ' --all        Certify all modules');
         out('');
         break;
 
@@ -3716,6 +3718,64 @@ MD;
         out(red("  Unknown command: {$command}"));
         out("  Run " . cyan('php ikabud help') . " for available commands.");
         exit(1);
+
+    // ── module:certify ───────────────────────────────────────────
+    case 'module:certify':
+        $moduleId = $params[0] ?? '';
+        if ($moduleId === '' || $moduleId === '--all') {
+            // Certify all discovered modules
+            $modules = discoverModules();
+            if (empty($modules)) {
+                out(red('  No modules found.'));
+                exit(1);
+            }
+            $allPassed = true;
+            foreach ($modules as $id => $manifest) {
+                $result = validateModuleCertification($manifest);
+                $status = $result['ok'] ? green('✓ PASS') : red('✗ FAIL');
+                out("  {$status}  {$id}  ({$result['score']}/{$result['max']})");
+                if (!$result['ok']) {
+                    $allPassed = false;
+                    foreach ($result['checks'] as $check) {
+                        if (!$check['passed']) {
+                            out('    ' . red('✗') . " {$check['check']}: {$check['detail']}");
+                        }
+                    }
+                }
+            }
+            out('');
+            if ($allPassed) {
+                out(green('  All modules certified.'));
+            } else {
+                out(yellow('  Some modules did not pass certification. Review the failed checks above.'));
+                exit(1);
+            }
+        } else {
+            $manifestPath = moduleManifestPathForId($moduleId);
+            if ($manifestPath === null) {
+                out(red("  Module '{$moduleId}' not found."));
+                exit(1);
+            }
+            $manifest = json_decode((string)file_get_contents($manifestPath), true);
+            if (!is_array($manifest)) {
+                out(red("  Invalid module manifest for '{$moduleId}'."));
+                exit(1);
+            }
+            $result = validateModuleCertification($manifest);
+            out('');
+            out('  ' . bold("Module Certification: {$moduleId}"));
+            out('  ' . str_repeat('─', 50));
+            foreach ($result['checks'] as $check) {
+                $icon = $check['passed'] ? green('✓') : red('✗');
+                out("  {$icon} {$check['check']}: {$check['detail']}");
+            }
+            out('  ' . str_repeat('─', 50));
+            $pct = round(($result['score'] / $result['max']) * 100);
+            $summary = $result['ok'] ? green("PASSED ({$result['score']}/{$result['max']} — {$pct}%)") : red("FAILED ({$result['score']}/{$result['max']} — {$pct}%)");
+            out("  {$summary}");
+            if (!$result['ok']) { exit(1); }
+        }
+        break;
 
     // ── make:migration ───────────────────────────────────────────
     case 'make:migration':

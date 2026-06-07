@@ -8,7 +8,7 @@
  * - Slot definitions
  * - Rich prop schemas
  * 
- * @version 0.2.0
+ * @version 1.0.0
  */
 
 namespace Ikabud\Kernel\DiSyL;
@@ -449,8 +449,385 @@ class ComponentRegistry
             ],
             'leaf' => false
         ]);
-        
-        // Control: if
+
+        // Data: ikb_entity_list (business component — resolves source/view to governed data)
+        self::register('ikb_entity_list', [
+            'category' => self::CATEGORY_DATA,
+            'description' => 'Governed entity list resolved from source/view declaration',
+            'attributes' => [
+                'source' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Entity source string (e.g. orders.recent, products.featured)'
+                ],
+                'view' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['compact', 'detailed', 'card_grid', 'table', 'admin_row'],
+                    'default' => 'compact',
+                    'description' => 'View preset'
+                ],
+                'limit' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'description' => 'Max rows (overrides view contract default)'
+                ],
+                'empty' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Custom empty-state message'
+                ],
+                'actions' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Comma-separated action names (view, edit, delete, add_to_cart)'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Data: ikb_entity_detail (business component — single entity detail view)
+        self::register('ikb_entity_detail', [
+            'category' => self::CATEGORY_DATA,
+            'description' => 'Governed entity detail view for a single entity',
+            'attributes' => [
+                'source' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Entity type (e.g. order, product, case)'
+                ],
+                'id' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Entity ID'
+                ],
+                'view' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['detailed', 'summary', 'admin'],
+                    'default' => 'detailed',
+                    'description' => 'View preset'
+                ],
+                'fields' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Comma-separated field names to show'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Interactive: ikb_export_button (export entity data as PDF/DOCX/CSV)
+        self::register('ikb_export_button', [
+            'category' => self::CATEGORY_INTERACTIVE,
+            'description' => 'Governed export button — downloads entity data as PDF, DOCX, CSV, or XLSX',
+            'attributes' => [
+                'source' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Entity type to export (e.g. orders, cases, ledger)'
+                ],
+                'format' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['csv', 'pdf', 'docx', 'xlsx'],
+                    'default' => 'csv',
+                    'description' => 'Export format'
+                ],
+                'label' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Button label (default: "Export CSV" etc.)'
+                ],
+                'variant' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['outline', 'primary', 'secondary'],
+                    'default' => 'outline',
+                    'description' => 'Button visual variant'
+                ],
+                'size' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['small', 'medium', 'large'],
+                    'default' => 'medium',
+                    'description' => 'Button size'
+                ]
+            ],
+            'leaf' => true
+        ]);
+
+        // Form: ikb_form (governed form with capability action binding)
+        self::register('ikb_form', [
+            'category' => self::CATEGORY_FORM,
+            'description' => 'Governed form — submits to capability actions with CSRF protection',
+            'attributes' => [
+                'action' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Capability action ID (e.g. ticket.create, order.submit)'
+                ],
+                'method' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['POST', 'GET'],
+                    'default' => 'POST',
+                    'description' => 'Form method'
+                ],
+                'layout' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['stacked', 'inline', 'guided'],
+                    'default' => 'stacked',
+                    'description' => 'Form layout preset'
+                ],
+                'csrf' => [
+                    'type' => Grammar::TYPE_BOOLEAN,
+                    'required' => false,
+                    'description' => 'Include CSRF token (default: true)'
+                ],
+                'id' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Form element ID'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Data: ikb_stat_card (single metric display)
+        self::register('ikb_stat_card', [
+            'category' => self::CATEGORY_DATA,
+            'description' => 'Stat card — label, value, trend indicator, and optional icon',
+            'attributes' => [
+                'label' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Stat label (e.g. Total Orders)'
+                ],
+                'value' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Stat value (e.g. 1,234)'
+                ],
+                'trend' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['up', 'down', 'neutral'],
+                    'required' => false,
+                    'description' => 'Trend direction'
+                ],
+                'trend_value' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Trend change value (e.g. +12%)'
+                ],
+                'icon' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'FontAwesome icon name'
+                ],
+                'variant' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['elevated', 'outlined', 'flat'],
+                    'default' => 'elevated',
+                    'description' => 'Card visual variant'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Data: ikb_timeline (chronological event display)
+        self::register('ikb_timeline', [
+            'category' => self::CATEGORY_DATA,
+            'description' => 'Timeline — chronological list of events with vertical connector',
+            'attributes' => [
+                'source' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Entity source for timeline data (optional; supports child nodes)'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Interactive: ikb_confirm_action (destructive action guard)
+        self::register('ikb_confirm_action', [
+            'category' => self::CATEGORY_INTERACTIVE,
+            'description' => 'Confirm action — wraps destructive actions with Alpine.js confirmation dialog',
+            'attributes' => [
+                'message' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Confirmation message (default: Are you sure?)'
+                ],
+                'confirm' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Confirm button label (default: Confirm)'
+                ],
+                'cancel' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Cancel button label (default: Cancel)'
+                ],
+                'variant' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['danger', 'warning', 'default'],
+                    'default' => 'danger',
+                    'description' => 'Confirm button color variant'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Layout: ikb_panel (theme-aware semantic panel)
+        self::register('ikb_panel', [
+            'category' => self::CATEGORY_LAYOUT,
+            'description' => 'Semantic panel — theme-aware container with design tokens (tone, spacing, radius)',
+            'attributes' => [
+                'tone' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['surface', 'muted', 'elevated', 'primary'],
+                    'default' => 'surface',
+                    'description' => 'Visual tone mapped to theme tokens'
+                ],
+                'spacing' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['none', 'sm', 'md', 'lg', 'xl'],
+                    'default' => 'md',
+                    'description' => 'Inner spacing'
+                ],
+                'radius' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['none', 'sm', 'md', 'lg', 'full'],
+                    'default' => 'md',
+                    'description' => 'Border radius'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Navigation: ikb_drawer (slide-out panel)
+        self::register('ikb_drawer', [
+            'category' => self::CATEGORY_NAVIGATION,
+            'description' => 'Slide-out drawer panel with Alpine.js teleport',
+            'attributes' => [
+                'id' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Drawer ID for accessibility'
+                ],
+                'position' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['left', 'right'],
+                    'default' => 'right',
+                    'description' => 'Slide direction'
+                ],
+                'title' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Drawer header title'
+                ],
+                'open' => [
+                    'type' => Grammar::TYPE_BOOLEAN,
+                    'required' => false,
+                    'description' => 'Initially open (default: false)'
+                ],
+                'width' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'CSS width (default: 320px)'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // Data: ikb_audit_log (governed audit trail viewer)
+        self::register('ikb_audit_log', [
+            'category' => self::CATEGORY_DATA,
+            'description' => 'Governed audit log viewer — displays audit trail entries via kernel.audit.list capability',
+            'attributes' => [
+                'source' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Entity type whose audit entries to display'
+                ],
+                'entity_id' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Specific entity ID (omit for all entries of type)'
+                ],
+                'limit' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'default' => 20,
+                    'description' => 'Max audit entries'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // AI: ikb_ai_summary (governed AI content generation)
+        self::register('ikb_ai_summary', [
+            'category' => self::CATEGORY_DATA,
+            'description' => 'Governed AI summary block — generates summaries under kernel AI policy',
+            'attributes' => [
+                'capability' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Capability ID defining what to summarize'
+                ],
+                'source' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Entity source to fetch data for summarization'
+                ],
+                'review' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['required', 'none'],
+                    'default' => 'required',
+                    'description' => 'Whether the output requires human review'
+                ],
+                'model' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'default' => 'gpt-4o-mini',
+                    'description' => 'AI model ID (governed by Policy allowlist)'
+                ],
+                'max_tokens' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'default' => 256,
+                    'description' => 'Max output tokens'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
+        // AI: ikb_ai_assist (governed AI drafting with human approval)
+        self::register('ikb_ai_assist', [
+            'category' => self::CATEGORY_DATA,
+            'description' => 'Governed AI assist block — drafts content under kernel AI policy with human approval',
+            'attributes' => [
+                'capability' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Capability ID for the draft operation'
+                ],
+                'mode' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['draft_only', 'suggest'],
+                    'default' => 'draft_only',
+                    'description' => 'Draft mode (draft_only = read-only, suggest = pre-filled)'
+                ],
+                'model' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'default' => 'gpt-4o-mini',
+                    'description' => 'AI model ID'
+                ],
+                'max_tokens' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'default' => 512,
+                    'description' => 'Max output tokens'
+                ]
+            ],
+            'leaf' => false
+        ]);
         self::register('if', [
             'category' => self::CATEGORY_CONTROL,
             'description' => 'Conditional rendering',

@@ -130,6 +130,7 @@
             "order": 80
         }
     ],
+    "routes": true,
     "events": [
         "ehr.document.uploaded",
         "ehr.document.viewed",

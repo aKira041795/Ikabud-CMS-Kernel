@@ -80,6 +80,7 @@
         "database/migrations/022_wms_settings_expansion.sql",
         "database/migrations/024_wms_password_resets.sql"
     ],
+    "routes": true,
     "events": [
         {
             "key": "wms.delivery.received",

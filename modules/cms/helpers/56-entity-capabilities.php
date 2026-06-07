@@ -1274,3 +1274,158 @@ function cmsEntityProgressUpdate(int $entityId, int $userId, int $percent): void
 
     cmsEntityCapabilityClearCache($entityId);
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Entity List capability handlers — resolve {ikb_entity_list source="..." /}
+// Called by EntityViewResolver via the capability bus.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Generic entity list resolver for CMS content types.
+ *
+ * Payload keys from EntityViewResolver:
+ *   entity_type, qualifier, view, limit, sort, filters, fields
+ */
+function cmsResolveEntityList(string $contentType, mixed $payload): array
+{
+    if (!\function_exists('module')) {
+        return ['rows' => [], 'total' => 0, 'error' => 'Module context unavailable'];
+    }
+    $ctx = module('cms');
+    if (!$ctx) {
+        return ['rows' => [], 'total' => 0];
+    }
+
+    $limit = min((int)($payload['limit'] ?? 25), 100);
+    $sortField = (string)($payload['sort']['field'] ?? 'created_at');
+    $sortDir = strtoupper((string)($payload['sort']['direction'] ?? 'DESC'));
+    if (!in_array($sortDir, ['ASC', 'DESC'], true)) { $sortDir = 'DESC'; }
+    // Whitelist sort fields to prevent SQL injection
+    $allowedSort = ['id', 'title', 'name', 'status', 'created_at', 'updated_at', 'published_at', 'price'];
+    if (!in_array($sortField, $allowedSort, true)) { $sortField = 'created_at'; }
+
+    $qualifier = (string)($payload['qualifier'] ?? '');
+    $statusFilter = '';
+
+    // Qualifier hints
+    if ($qualifier === 'recent' || $qualifier === 'latest') {
+        // No extra filter — sort by date descending handles this
+    } elseif ($qualifier === 'published') {
+        $statusFilter = " AND c.status = 'published'";
+    } elseif ($qualifier === 'featured') {
+        $statusFilter = " AND c.status = 'published'";
+        // If featured meta exists, could add join on cms_content_meta
+    }
+
+    try {
+        $db = $ctx->db();
+        $ct = $db->quote($contentType);
+        $query = "SELECT c.id, c.title, c.slug, c.status, c.excerpt, c.created_at, c.updated_at, c.published_at,
+                         u.display_name as author_name
+                  FROM cms_content c
+                  LEFT JOIN cms_users u ON u.id = c.author_id
+                  WHERE c.type = {$ct} AND c.deleted_at IS NULL{$statusFilter}
+                  ORDER BY c.{$sortField} {$sortDir}
+                  LIMIT {$limit}";
+        $stmt = $db->query($query);
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        // Count total
+        $countStmt = $db->query("SELECT COUNT(*) FROM cms_content WHERE type = {$ct} AND deleted_at IS NULL{$statusFilter}");
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+
+        // Hydrate image for card_grid views
+        $view = (string)($payload['view'] ?? 'compact');
+        if (in_array($view, ['card_grid', 'detailed'], true)) {
+            foreach ($rows as &$row) {
+                $imgStmt = $db->prepare("SELECT file_path FROM cms_media WHERE id = (SELECT featured_image_id FROM cms_content WHERE id = :id LIMIT 1) LIMIT 1");
+                $imgStmt->execute([':id' => $row['id']]);
+                $img = $imgStmt->fetchColumn();
+                if ($img && is_string($img)) {
+                    $row['image'] = $img;
+                }
+            }
+            unset($row);
+        }
+
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        if (\function_exists('write_log')) {
+            \write_log("entity.list.{$contentType}: query failed", 'warning', ['error' => $e->getMessage()]);
+        }
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function cms_cap_entity_list_page_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    return cmsResolveEntityList('page', is_array($payload) ? $payload : []);
+}
+
+function cms_cap_entity_list_post_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    return cmsResolveEntityList('post', is_array($payload) ? $payload : []);
+}
+
+/**
+ * Entity get handler — resolves a single CMS content entity by ID.
+ */
+function cmsResolveEntityGet(string $contentType, mixed $payload): array
+{
+    if (!\function_exists('module')) {
+        return [];
+    }
+    $ctx = module('cms');
+    if (!$ctx) {
+        return [];
+    }
+
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) {
+        return [];
+    }
+
+    try {
+        $db = $ctx->db();
+        $ct = $db->quote($contentType);
+        $stmt = $db->prepare(
+            "SELECT c.*, u.display_name as author_name
+             FROM cms_content c
+             LEFT JOIN cms_users u ON u.id = c.author_id
+             WHERE c.id = :id AND c.type = {$ct} AND c.deleted_at IS NULL LIMIT 1"
+        );
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!is_array($row)) {
+            return [];
+        }
+
+        // Hydrate featured image
+        if (!empty($row['featured_image_id'])) {
+            $imgStmt = $db->prepare("SELECT file_path FROM cms_media WHERE id = :id LIMIT 1");
+            $imgStmt->execute([':id' => $row['featured_image_id']]);
+            $img = $imgStmt->fetchColumn();
+            if ($img && is_string($img)) {
+                $row['image'] = $img;
+            }
+        }
+
+        return $row;
+    } catch (\Throwable $e) {
+        if (\function_exists('write_log')) {
+            \write_log("entity.get.{$contentType}: query failed", 'warning', ['error' => $e->getMessage()]);
+        }
+        return [];
+    }
+}
+
+function cms_cap_entity_get_post_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    return cmsResolveEntityGet('post', is_array($payload) ? $payload : []);
+}
+
+function cms_cap_entity_get_page_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    return cmsResolveEntityGet('page', is_array($payload) ? $payload : []);
+}

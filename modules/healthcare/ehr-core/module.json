@@ -78,5 +78,6 @@
         }
     },
     "hooks": [],
+    "routes": true,
     "events": []
 }

@@ -21,6 +21,7 @@
         "cms_tags",
         "cms_media"
     ],
+    "routes": true,
     "events": [
         {
             "key": "cms.migration.content.upserted",

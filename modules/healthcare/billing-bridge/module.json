@@ -43,5 +43,6 @@
             "order": 160
         }
     ],
+    "routes": true,
     "events": []
 }
