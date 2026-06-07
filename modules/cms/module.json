@@ -242,6 +242,34 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.list.weather_current@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "entity.list.weather_forecast@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "entity.list.weather@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "entity.get.weather@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -678,6 +706,16 @@
         },
         "categories": {
             "authority": true
+        },
+        "weather": {
+            "authority": true,
+            "label": "Weather",
+            "icon": "cloud-sun",
+            "sources": [
+                "weather.current",
+                "weather.forecast"
+            ],
+            "description": "Polyglot weather data from wttr.in via Python microservice (Kernel OS ServiceProxy)"
         }
     }
 }

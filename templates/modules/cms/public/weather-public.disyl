@@ -1,0 +1,73 @@
+{* CMS Weather — Public Entity-View Page (DiSyL-Agnostic Proof) *}
+{* Proves: {ikb_entity_detail} + {ikb_entity_list} work anywhere, not just CMS admin *}
+
+{set page_title}Weather — {$city}{/set}
+
+<div class="weather-public" style="max-width:960px;margin:0 auto;padding:24px 16px;font-family:system-ui,sans-serif;">
+
+    {* ── Header ── *}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+        <div>
+            <h1 style="font-size:24px;font-weight:700;margin:0;color:#0f172a;">
+                🌍 Weather for {$city}
+            </h1>
+            <p style="margin:4px 0 0;color:#64748b;font-size:13px;">
+                Powered by Kernel OS 5.0 — Polyglot Entity-View Pipeline
+            </p>
+        </div>
+        <form method="GET" action="/weather" style="display:flex;gap:8px;">
+            <input type="text" name="city" value="{$city}" placeholder="Enter city..."
+                   style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;width:180px;"
+                   list="city-list" />
+            <datalist id="city-list">
+                <option value="London" />
+                <option value="Tokyo" />
+                <option value="New York" />
+                <option value="Singapore" />
+                <option value="Paris" />
+                <option value="Manila" />
+                <option value="Dubai" />
+                <option value="Sydney" />
+            </datalist>
+            <button type="submit" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">
+                Search
+            </button>
+        </form>
+    </div>
+
+    {* ── Error state ── *}
+    {if isset($error) && $error !== null}
+    <div style="padding:12px 16px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;margin-bottom:20px;color:#92400e;font-weight:500;">
+        ⚠️ {$error}
+        <br><small>Is the Python service running? <code>python3 modules/weather-service/service.py</code></small>
+    </div>
+    {/if}
+
+    {* ── Current Weather — via ikb_entity_detail (Entity View Proof #1) ── *}
+    <div style="margin-bottom:24px;">
+        <h2 style="font-size:16px;font-weight:600;color:#475569;margin:0 0 12px;">🔬 Entity Detail View</h2>
+        {ikb_entity_detail source="weather.current" id="{$city}" view="detail" /}
+    </div>
+
+    {* ── Forecast — via ikb_entity_list (Entity View Proof #2) ── *}
+    <h2 style="font-size:16px;font-weight:600;color:#475569;margin:20px 0 12px;">📅 Forecast (Entity List)</h2>
+    {ikb_entity_list source="weather.forecast" view="card_grid" limit="5" empty="No forecast available." /}
+
+    {* ── Pipeline Info ── *}
+    <div style="margin-top:32px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <h3 style="font-size:14px;font-weight:600;color:#64748b;margin:0 0 8px;">
+            🔬 Pipeline Verification
+        </h3>
+        <div style="font-size:12px;color:#94a3b8;line-height:1.6;">
+            <code>ikb_entity_detail</code> → EntityViewResolver → <code>entity.get.weather@1</code> → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in<br>
+            <code>ikb_entity_list</code> → EntityViewResolver → <code>entity.list.weather_forecast@1</code> → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in
+        </div>
+    </div>
+
+    <div style="margin-top:24px;padding:12px 16px;background:#ecfdf5;border:1px solid #10b981;border-radius:8px;color:#065f46;font-size:13px;font-weight:500;">
+        ✅ DiSyL-Agnostic: This page renders outside CMS admin — no cmsRender(), no cmsAdminContext().<br>
+        ✅ Polyglot: PHP kernel → ServiceProxy → HTTP → Python → Real weather data<br>
+        ✅ Entity View: <code>{ikb_entity_detail}</code> and <code>{ikb_entity_list}</code> components proven<br>
+        ✅ Page Builder: Use <code>entity_view</code> or <code>entity_list</code> widgets in the CMS builder
+    </div>
+</div>

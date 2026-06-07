@@ -105,6 +105,9 @@ return [
         '/cms/{type}/{slug}/inquire'      => 'cms:cmsPublicEntityInquiry',
         '/cms/{type}/{slug}'              => 'cms:cmsPublicEntityView',
 
+        // ── Public weather (polyglot entity-view demo) ──────────
+        '/cms/weather'                    => 'cms:cmsPublicWeather',
+
         // ── Tags API (GET) ─────────────────────────────────────
         '/api/v1/cms/tags'                => 'cms:cmsApiTagList',
 

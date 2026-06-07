@@ -29,3 +29,4 @@ require_once __DIR__ . '/handlers/84-extensions.php';
 require_once __DIR__ . '/handlers/86-ai-automation.php';
 require_once __DIR__ . '/handlers/88-entity-capabilities.php';
 require_once __DIR__ . '/handlers/79-weather.php';
+require_once __DIR__ . '/handlers/79-weather-public.php';

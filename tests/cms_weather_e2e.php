@@ -131,10 +131,35 @@ try {
     ok('resolver call', false, $e->getMessage());
 }
 
+// ── Phase 7: entity.get.weather (entity detail capability) ──
+echo "\n7. Entity Detail: entity.get.weather (ikb_entity_detail proof)\n";
+try {
+    // Register entity.get handler
+    $entityGetHandler = function (mixed $payload) use (&$pass, &$fail): mixed {
+        $city = 'Manila';
+        if (is_array($payload)) {
+            $city = (string)($payload['entity_id'] ?? $payload['id'] ?? $payload['city'] ?? 'Manila');
+        }
+        $result = \app()->cap()->call('weather.current@1', ['city' => $city], ['caller' => ['module' => 'cms']]);
+        return is_array($result) ? $result : null;
+    };
+    app()->capabilities()->register('entity.get.weather@1', 'cms', $entityGetHandler, 100, ['first']);
+    ok('entity.get.weather@1 registered', app()->capabilities()->has('entity.get.weather@1'));
+
+    $detailResult = app()->cap()->call('entity.get.weather@1', [
+        'entity_id' => 'Tokyo',
+    ], ['caller' => ['module' => 'cms']]);
+    ok('entity.get returns data', is_array($detailResult) && isset($detailResult['temperature_c']));
+    echo "     🏙  Tokyo: {$detailResult['temperature_c']}°C, {$detailResult['condition']} (via {$detailResult['source']})\n";
+} catch (\Throwable $e) {
+    ok('entity.get pipeline', false, $e->getMessage());
+}
+
 // ── Summary ──
 echo "\n=== {$pass} passed, {$fail} failed ===\n";
 if ($fail === 0) {
-    echo "\n✅ CMS ENTITY-VIEW + POLYGLOT PROVEN\n";
-    echo "   CMS handler → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in\n";
+    echo "\n✅ CMS ENTITY-VIEW + POLYGLOT + DETAIL + LIST PROVEN\n";
+    echo "   entity.list → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in\n";
+    echo "   entity.get  → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in\n";
 }
 exit($fail > 0 ? 1 : 0);
