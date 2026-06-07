@@ -642,6 +642,43 @@ switch ($handler) {
         kernelHandleApiSuperadminSignaturePresets();
         exit;
 
+    // ── 5.4 AI Governance APIs ──────────────────────────────────
+    case 'apiSuperadminAiConfig':
+        kernelHandleApiSuperadminAiConfig();
+        exit;
+
+    case 'apiSuperadminAiTenantSettings':
+        kernelHandleApiSuperadminAiTenantSettings();
+        exit;
+
+    case 'apiSuperadminAiCapabilityPolicy':
+        kernelHandleApiSuperadminAiCapabilityPolicy();
+        exit;
+
+    case 'apiSuperadminAiUsage':
+        kernelHandleApiSuperadminAiUsage();
+        exit;
+
+    case 'apiSuperadminAiPrompts':
+        kernelHandleApiSuperadminAiPrompts();
+        exit;
+
+    case 'apiSuperadminAiRedaction':
+        kernelHandleApiSuperadminAiRedaction();
+        exit;
+
+    case 'apiSuperadminAiReviewQueue':
+        kernelHandleApiSuperadminAiReviewQueue();
+        exit;
+
+    case 'apiSuperadminAiAudit':
+        kernelHandleApiSuperadminAiAudit();
+        exit;
+
+    case 'apiSuperadminAiCertify':
+        kernelHandleApiSuperadminAiCertify();
+        exit;
+
     case 'pageAdminProfile':
         kernelHandlePageAdminProfile();
         exit;

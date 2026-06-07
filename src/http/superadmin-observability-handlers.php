@@ -502,3 +502,189 @@ function kernelHandleApiSuperadminSignaturePresets(): void
     ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// 5.4 AI Governance APIs
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiSuperadminAiConfig(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if ($method === 'POST') {
+        $body = json_decode(file_get_contents('php://input'), true);
+        \Ikabud\Kernel\DiSyL\AI\AIGovernance::saveProviderConfig($body);
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'config' => \Ikabud\Kernel\DiSyL\AI\AIGovernance::getProviderConfig(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiTenantSettings(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $tenantId = (int)($_GET['tenant_id'] ?? 0);
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+    if ($method === 'POST' && $tenantId > 0) {
+        $body = json_decode(file_get_contents('php://input'), true);
+        \Ikabud\Kernel\DiSyL\AI\AIGovernance::saveTenantSettings($tenantId, $body);
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'tenant_id' => $tenantId,
+        'settings' => $tenantId > 0
+            ? \Ikabud\Kernel\DiSyL\AI\AIGovernance::getTenantSettings($tenantId)
+            : ['note' => 'Specify ?tenant_id=N for tenant-specific settings'],
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiCapabilityPolicy(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $capabilityId = trim((string)($_GET['capability_id'] ?? ''));
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+    if ($method === 'POST' && $capabilityId !== '') {
+        $body = json_decode(file_get_contents('php://input'), true);
+        \Ikabud\Kernel\DiSyL\AI\AIGovernance::saveCapabilityPolicy($capabilityId, $body);
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'capability_id' => $capabilityId,
+        'policy' => $capabilityId !== ''
+            ? \Ikabud\Kernel\DiSyL\AI\AIGovernance::getCapabilityPolicy($capabilityId)
+            : ['note' => 'Specify ?capability_id=ai.summarize@1'],
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiUsage(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    echo json_encode([
+        'ok' => true,
+        'stats' => \Ikabud\Kernel\DiSyL\AI\AIGovernance::getUsageStats(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiPrompts(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+    if ($method === 'POST') {
+        $body = json_decode(file_get_contents('php://input'), true);
+        $id = (string)($body['id'] ?? '');
+        if ($id === '') { echo json_encode(['ok' => false, 'error' => 'id required']); return; }
+        \Ikabud\Kernel\DiSyL\AI\AIGovernance::savePromptTemplate($id, $body);
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
+    if ($method === 'DELETE') {
+        $id = trim((string)($_GET['id'] ?? ''));
+        \Ikabud\Kernel\DiSyL\AI\AIGovernance::deletePromptTemplate($id);
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'templates' => \Ikabud\Kernel\DiSyL\AI\AIGovernance::listPromptTemplates(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiRedaction(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+    if ($method === 'POST') {
+        $body = json_decode(file_get_contents('php://input'), true);
+        $id = (string)($body['id'] ?? '');
+        if ($id === '') { echo json_encode(['ok' => false, 'error' => 'id required']); return; }
+        \Ikabud\Kernel\DiSyL\AI\AIGovernance::saveRedactionRule($id, $body);
+        echo json_encode(['ok' => true]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'rules' => \Ikabud\Kernel\DiSyL\AI\AIGovernance::listRedactionRules(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiReviewQueue(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $id = trim((string)($_GET['id'] ?? ''));
+
+    if ($method === 'POST' && $id !== '') {
+        $action = trim((string)($_GET['action'] ?? 'approve'));
+        if ($action === 'approve') {
+            \Ikabud\Kernel\DiSyL\AI\AIGovernance::approveReview($id);
+        } else {
+            $reason = trim((string)($_GET['reason'] ?? ''));
+            \Ikabud\Kernel\DiSyL\AI\AIGovernance::rejectReview($id, $reason);
+        }
+        echo json_encode(['ok' => true, 'action' => $action, 'id' => $id]);
+        return;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'queue' => \Ikabud\Kernel\DiSyL\AI\AIGovernance::listReviewQueue(),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiAudit(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $limit = min(200, max(1, (int)($_GET['limit'] ?? 50)));
+
+    echo json_encode([
+        'ok' => true,
+        'entries' => \Ikabud\Kernel\DiSyL\AI\AIGovernance::listAuditTrail($limit),
+        'count' => count(\Ikabud\Kernel\DiSyL\AI\AIGovernance::listAuditTrail($limit)),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function kernelHandleApiSuperadminAiCertify(): void
+{
+    kernelRequireSuperadmin();
+    header('Content-Type: application/json');
+
+    $capabilityId = trim((string)($_GET['capability_id'] ?? 'ai.summarize@1'));
+
+    echo json_encode([
+        'ok' => true,
+        'certification' => \Ikabud\Kernel\DiSyL\AI\AIGovernance::certifyAiCapability($capabilityId),
+    ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
