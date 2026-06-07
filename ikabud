@@ -263,7 +263,9 @@ switch ($command) {
         out('  ' . bold('Usage:') . ' php ikabud <command> [arguments]');
         out('');
         out('  ' . bold('Scaffolding'));
-        out('    ' . green('make:module') . ' <name>          Create a new module skeleton');
+        out('    ' . green('make:module') . ' <name>          Create a new PHP module skeleton');
+        out('    ' . green('make:service-module') . ' <name>  Create a new polyglot service module');
+        out('    ' . green('make:example') . '               Create example modules for onboarding');
         out('    ' . green('make:migration') . ' <mod> <name>  Create next numbered migration');
         out('    ' . green('make:handler') . ' <mod> <fn> [M]  Add handler + route to a module');
         out('');
@@ -3775,6 +3777,122 @@ MD;
             out("  {$summary}");
             if (!$result['ok']) { exit(1); }
         }
+        break;
+
+    // ── make:service-module ────────────────────────────────────
+    case 'make:service-module':
+        $name = $params[0] ?? '';
+        if ($name === '') {
+            out(red('  ✗ Service name required.'));
+            out('  Usage: php ikabud make:service-module <name>');
+            exit(1);
+        }
+        $id = strtolower(preg_replace('/[^a-zA-Z0-9\-]/', '-', $name));
+        $id = preg_replace('/-+/', '-', trim($id, '-'));
+        $label = ucwords(str_replace('-', ' ', $id));
+        $modulePath = modulesPath() . '/' . $id;
+        if (is_dir($modulePath)) {
+            out(red("  ✗ Module '{$id}' already exists"));
+            exit(1);
+        }
+        @mkdir($modulePath, 0775, true);
+        $manifest = [
+            'id' => $id, 'type' => 'service-module', 'name' => $label,
+            'version' => '1.0.0', 'description' => "{$label} — polyglot service module",
+            'author' => '', 'routes' => [],
+            'service' => [
+                'endpoint' => 'http://127.0.0.1:9003', 'protocol' => 'http+json',
+                'timeout_ms' => 10000, 'health_check' => '/health',
+                'retry' => ['max_attempts' => 2, 'backoff_ms' => 500, 'backoff_multiplier' => 1.5],
+                'circuit_breaker' => ['failure_threshold' => 3, 'cooldown_seconds' => 30],
+            ],
+            'capabilities' => ['exposes' => [
+                ['id' => "{$id}.action@1", 'priority' => 100, 'modes' => ['first'], 'description' => 'Primary action']
+            ]],
+        ];
+        file_put_contents($modulePath . '/module.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        // Python service stub
+        file_put_contents($modulePath . '/service.py', <<<PY
+#!/usr/bin/env python3
+\"\"\"{$label} — Polyglot capability provider\"\"\"
+import json
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+CAPABILITIES = {"{$id}.action@1": lambda p: {"result": f"processed: {p.get('input', '')}"}}
+
+class Handler(BaseHTTPRequestHandler):
+    def _json(self, s, d):
+        b = json.dumps(d).encode(); self.send_response(s)
+        self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(b)))
+        self.end_headers(); self.wfile.write(b)
+    def do_GET(self):
+        if self.path == '/health': self._json(200, {'ok':True,'service':'{$id}'})
+    def do_POST(self):
+        if self.path != '/capability/call': return self._json(404, {'ok':False})
+        body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        h = CAPABILITIES.get(body.get('capability_id',''))
+        if not h: return self._json(404, {'ok':False,'error':'unknown capability'})
+        try: self._json(200, {'ok':True,'data':h(body.get('payload',{}))})
+        except Exception as e: self._json(500, {'ok':False,'error':str(e)})
+
+if __name__ == '__main__':
+    print('[{$id}] http://127.0.0.1:9003'); HTTPServer(('127.0.0.1',9003),Handler).serve_forever()
+PY
+        );
+        chmod($modulePath . '/service.py', 0755);
+        banner();
+        out('  Created polyglot service module: ' . bold($id));
+        out('  ' . green('✓') . ' ' . $modulePath . '/module.json');
+        out('  ' . green('✓') . ' ' . $modulePath . '/service.py');
+        out('');
+        out('  Start:  python3 ' . $modulePath . '/service.py &');
+        out('  Test:   curl http://127.0.0.1:9003/health');
+        out('  Verify: php ikabud module:certify ' . $id);
+        break;
+
+    // ── make:example ───────────────────────────────────────────
+    case 'make:example':
+        banner();
+        out('  ' . bold('Example Modules for Kernel OS 6.0'));
+        out('');
+        $examplesDir = BASE_PATH . '/modules/_examples';
+        @mkdir($examplesDir, 0775, true);
+
+        // PHP module example
+        $phpDir = $examplesDir . '/hello-world';
+        @mkdir($phpDir, 0775, true);
+        @mkdir($phpDir . '/database/migrations', 0775, true);
+        file_put_contents($phpDir . '/module.json', json_encode([
+            'id' => 'hello-world', 'name' => 'Hello World', 'version' => '1.0.0',
+            'description' => 'Minimal PHP module example for Kernel OS 6.0',
+            'author' => 'Ikabud', 'routes' => true,
+            'owns_tables' => [], 'reads_tables' => [],
+            'capabilities' => ['exposes' => [], 'depends' => ['kernel.auth.user@1']],
+            'events' => [['key' => 'hello.greeting', 'description' => 'Fired on greeting', 'available_vars' => ['name']]],
+            'nav' => [['label' => 'Hello', 'url' => '/admin/hello-world', 'icon' => 'hand', 'roles' => ['admin']]],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        file_put_contents($phpDir . '/routes.php', "<?php\nreturn ['GET' => ['/admin/hello-world' => 'hello-world:pageHello']];\n");
+        file_put_contents($phpDir . '/handlers.php', "<?php\nfunction pageHello(array \$params=[]): void {\n  echo '<h1>Hello from Kernel OS 6.0!</h1>';\n}\n");
+        out('  ' . green('✓') . ' PHP:    modules/_examples/hello-world/');
+
+        // Service module example (Python)
+        $svcDir = $examplesDir . '/random-facts';
+        @mkdir($svcDir, 0775, true);
+        file_put_contents($svcDir . '/module.json', json_encode([
+            'id' => 'random-facts', 'type' => 'service-module', 'name' => 'Random Facts',
+            'version' => '1.0.0', 'description' => 'Polyglot service example — returns random facts',
+            'author' => 'Ikabud', 'routes' => [],
+            'service' => ['endpoint' => 'http://127.0.0.1:9004', 'protocol' => 'http+json', 'timeout_ms' => 5000],
+            'capabilities' => ['exposes' => [
+                ['id' => 'random.fact@1', 'priority' => 100, 'modes' => ['first'], 'description' => 'Get a random fact']
+            ]],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        file_put_contents($svcDir . '/service.py', "#!/usr/bin/env python3\nimport json,random\nfrom http.server import HTTPServer,BaseHTTPRequestHandler\nFACTS=['Honey never spoils.','Octopuses have three hearts.','Bananas are berries.','A day on Venus is longer than a year.','Scotland has 421 words for snow.']\nCAPS={'random.fact@1':lambda p:{'fact':random.choice(FACTS)}}\nclass H(BaseHTTPRequestHandler):\n def _j(self,s,d):b=json.dumps(d).encode();self.send_response(s);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b)\n def do_GET(self):\n  if self.path=='/health':self._j(200,{'ok':True})\n def do_POST(self):\n  if self.path!='/capability/call':return self._j(404,{'ok':False})\n  b=json.loads(self.rfile.read(int(self.headers['Content-Length'])));h=CAPS.get(b.get('capability_id',''))\n  if not h:return self._j(404,{'ok':False,'error':'unknown'})\n  try:self._j(200,{'ok':True,'data':h(b.get('payload',{}))})\n  except Exception as e:self._j(500,{'ok':False,'error':str(e)})\nHTTPServer(('127.0.0.1',9004),H).serve_forever()\n");
+        chmod($svcDir . '/service.py', 0755);
+        out('  ' . green('✓') . ' Python: modules/_examples/random-facts/');
+        out('');
+        out('  Examples created. Start the service:');
+        out('    python3 modules/_examples/random-facts/service.py &');
         break;
 
     // ── make:migration ───────────────────────────────────────────

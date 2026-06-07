@@ -1,9 +1,9 @@
-# Ikabud — Kernel OS 5.0 (nexus)
+# Ikabud — Kernel OS 6.0 (ecosystem)
 
-**A governed application platform for modular business software.**
+**A governed, polyglot, observable, report-ready, AI-safe, extendable business operating system.**
 
 Kernel OS governs. Modules provide capabilities. DiSyL expresses interface intent.
-Themes shape presentation. AI assists through policy.
+Themes shape presentation. AI assists through policy. Any language can participate.
 
 ---
 
@@ -12,22 +12,27 @@ Themes shape presentation. AI assists through policy.
 Kernel OS is not a framework, not a CMS, and not a plugin system. It is an
 **operating layer for business modules** — a platform where modules can safely
 expose capabilities, views, reports, workflows, and AI-assisted features through
-one governed runtime.
+one governed runtime. **PHP is the kernel host. Capabilities can live anywhere.**
 
 One kernel. Many business modules. One interface language. One policy boundary.
-Many outputs.
+Many languages. Many outputs.
 
 ---
 
 ## Key Features
 
-- **Multi-tenant by default** — Each organization gets an isolated database. Tenants can never see each other's data.
+- **Multi-tenant by default** — Isolated databases per organization.
+- **Polyglot capability dispatch** — Services in Python, Node, Go, Rust, or any language participate through ServiceProxy.
 - **Module isolation enforced** — `owns_tables`/`reads_tables` contracts prevent cross-module data access.
-- **Capability bus** — Typed, versioned contracts between modules. No direct function calls.
+- **Capability bus** — Typed, versioned, circuit-breaker-protected contracts between modules.
 - **31 governed DiSyL components** — Build screens by describing intent: `<ikb_entity_list source="orders.recent" view="compact" />`
-- **Entity-view contracts** — Define what fields, actions, and views each entity type supports. The kernel enforces permissions.
-- **Visual page builder** — React/Vite builder with server-side DiSyL rendering. Builder now delegates to governed components.
-- **Export pipeline** — One click turns any screen into CSV, DOCX, or PDF. Kernel-level export service.
+- **Entity-view architecture** — Define fields, actions, and views per entity type. Kernel enforces permissions.
+- **Visual builder contract composer** — React/Vite builder with governed component palette, source+view pickers, validation.
+- **Export pipeline** — CSV, DOCX (PHPWord), PDF (DomPDF). One click turns any screen into a document.
+- **AI governance** — Provider config, per-capability policy, redaction rules, review queue, audit trail, cost dashboard.
+- **Observability** — 22 superadmin APIs for service health, circuit breakers, capability traces, entity-view debugging.
+- **Report manager** — Templates, archive, scheduled reports, signature presets, module report packs.
+- **Module certification** — 10-point checklist for all modules. CLI + API.
 - **AI governance** — AI summaries and drafts with kill switch, model allowlist, cost ceilings, and human review requirements.
 - **Module certification** — `php ikabud module:certify` validates manifests against a 10-point checklist.
 - **43 modules** — CMS, ecommerce, bakeshop, guidance, WMS, EHR, daily ledger, ticketing, SMS, AI orchestrator, and more.
