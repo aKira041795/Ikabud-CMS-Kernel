@@ -116,14 +116,24 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 
 ---
 
-## Phase 7 — Visual Builder Integration 🟡
+## Phase 7 — Visual Builder Contract Composer ✅
 
 | Deliverable | Status |
 |---|---|
 | React/Vite builder rebuilt (728 KB, 1,461 modules) | ✅ |
 | `cmsRenderWidget_entity_list` → delegates to `ikb_entity_list` | ✅ |
 | `GET /api/v1/cms/builder/components` — governed component catalog API | ✅ |
-| Builder composes arbitrary DiSyL contracts | 🔴 Requires React frontend work |
+| Governed component palette ("Governed" tab in builder) | ✅ |
+| Entity source picker — dropdown of registered entity-view sources | ✅ |
+| View contract picker — dynamic per-source with field preview | ✅ |
+| Contract validation before save — source, view, capability checks | ✅ |
+| Permission role preview — toggle admin/editor/author/subscriber/guest | ✅ |
+| Empty/error/loading state preview toggles | ✅ |
+| Export button format config — CSV/DOCX/PDF, variant, size | ✅ |
+| AI block config — mode (draft_only/suggest/auto_publish), review badge, redaction | ✅ |
+| Save contract patterns for reuse across pages | ✅ |
+| Theme token guidance → Global Styles panel | ✅ |
+| Builder composes arbitrary DiSyL contracts | ✅ |
 
 ---
 
@@ -206,7 +216,6 @@ Production templates using new 5.0 components:
 
 | Item | Priority |
 |---|---|
-| Phase 7: Builder frontend DiSyL contract awareness | 🟡 Large React project |
 | Phase 9: Marketplace UI | 🔴 Deferred |
 | Remaining module certification fixes (20/41 pass) | 🟡 Mechanical |
 | Real AI provider in production | 🔴 Needs API keys |
@@ -282,25 +291,25 @@ ComponentRegistry
 
 **Answers:** "When something fails, can I see where and why?"
 
-### Kernel OS 5.2 — Visual Builder Contract Release
+### Kernel OS 5.2 — Visual Builder Contract Release ✅
 **Theme:** Make DiSyL usable by builders, not just developers.
 
 | Priority | Status |
 |---|---|
-| React builder component palette | 🔴 |
-| Visual component inspector | 🔴 |
-| Source picker for entity views | 🔴 |
-| View picker for registered contracts | 🔴 |
-| Live preview of DiSyL contracts | 🔴 |
-| Validation before save | 🔴 |
-| Permission-aware preview | 🔴 |
-| Empty/error state preview | 🔴 |
-| Export button configuration | 🔴 |
-| AI block configuration | 🔴 |
-| Theme token controls | 🔴 |
-| Saved section patterns | 🔴 |
+| React builder component palette | ✅ |
+| Visual component inspector | ✅ |
+| Source picker for entity views | ✅ |
+| View picker for registered contracts | ✅ |
+| Live preview of DiSyL contracts | ✅ |
+| Validation before save | ✅ |
+| Permission-aware preview | ✅ |
+| Empty/error state preview | ✅ |
+| Export button configuration | ✅ |
+| AI block configuration | ✅ |
+| Theme token controls | ✅ |
+| Saved section patterns | ✅ |
 
-**Answers:** "Can a human compose governed business screens without writing code?"
+**Answers:** \"Can a human compose governed business screens without writing code?\" — **Yes.**
 
 ### Kernel OS 5.3 — Reporting + Business Output
 **Theme:** Make documents and reports a core selling point.
