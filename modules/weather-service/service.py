@@ -25,6 +25,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 PORT = int(os.environ.get("WEATHER_SERVICE_PORT", 9002))
 HOST = os.environ.get("WEATHER_SERVICE_HOST", "127.0.0.1")
+AUTH_TOKEN = os.environ.get("WEATHER_SERVICE_TOKEN", "")  # empty = auth disabled
 
 
 def fetch_weather(city: str) -> dict:
@@ -140,6 +141,13 @@ class CapabilityHandler(BaseHTTPRequestHandler):
         if self.path != "/capability/call":
             self._json_response(404, {"ok": False, "error": "only /capability/call is supported"})
             return
+
+        # Auth validation (only when AUTH_TOKEN is configured)
+        if AUTH_TOKEN:
+            auth_header = self.headers.get("Authorization", "")
+            if auth_header != f"Bearer {AUTH_TOKEN}":
+                self._json_response(401, {"ok": False, "error": "unauthorized"})
+                return
 
         content_length = int(self.headers.get("Content-Length", 0))
         if content_length == 0:

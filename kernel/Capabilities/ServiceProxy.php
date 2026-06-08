@@ -103,6 +103,14 @@ final class ServiceProxy
             $headers[] = 'Authorization: Bearer ' . $this->serviceToken;
         }
 
+        // Propagate request context as headers for service-side tracing/auth
+        $requestId = (string)($caller['request_id'] ?? '');
+        if ($requestId !== '') {
+            $headers[] = 'X-Kernel-Request-Id: ' . $requestId;
+        }
+        $callerModule = (string)($caller['module'] ?? 'kernel');
+        $headers[] = 'X-Kernel-Service: ' . $callerModule;
+
         $url = $this->endpoint . '/capability/call';
 
         try {
