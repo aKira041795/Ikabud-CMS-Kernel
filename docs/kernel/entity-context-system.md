@@ -107,3 +107,57 @@ Module manifest → registerContext() / extendContext()
 ## Properties
 
 - `$schemas`, `$profiles`, `$modes` — Reserved for Phase 3B introspection (future)
+
+---
+
+## EntityViewResolver — Rendering Behavior
+
+`kernel/EntityContext/EntityViewResolver.php` resolves entity sources to rendered output
+via DiSyL entity components (`ikb_entity_detail`, `ikb_entity_list`).
+
+### View Contract Resolution
+
+1. `resolve($source, $view)` parses the source string (e.g., `weather.forecast`)
+2. Looks up registered view contracts via `viewContract()` → `builtinDefaults()`
+3. Calls the appropriate `entity.get.{type}` or `entity.list.{type}` capability
+4. Returns `{entity, view contract}` for detail or `{rows, view contract}` for list
+
+### Field Auto-Detection (Wildcard `*`)
+
+When rendering entity lists, if the resolved view contract has `fields: '*'` (or no
+fields at all), `TemplateEngine::renderEntityList()` automatically expands the
+wildcard to the actual keys from the first result row:
+
+```php
+// In TemplateEngine::renderEntityList():
+if ($fields === ['*'] || $fields === '*') {
+    $firstRow = $rows[0] ?? [];
+    $fields = array_values(array_filter(array_keys($firstRow),
+        fn($k) => !str_starts_with($k, '_')));
+}
+```
+
+This enables **polyglot services** to render entity lists without pre-registering
+explicit view contracts. The renderer auto-detects field names from whatever the
+external service returns.
+
+### Built-in Defaults
+
+`builtinDefaults()` provides fallback view contracts for common entity types:
+
+| Entity Type | Fields | View |
+|---|---|---|
+| orders | id, status, total, created_at | compact |
+| products | id, name, price, image | compact |
+| cases | id, title, status, updated_at | compact |
+| ledger | id, entry_type, amount, created_at | compact |
+| appointments | id, title, date, status | compact |
+| tickets | id, subject, status, created_at | compact |
+| weather | date, high_c, low_c, condition | compact |
+
+### Timeout Handling
+
+Polyglot services hitting external APIs may exceed the default 2000ms capability
+call timeout. Both `EntityViewResolver::resolve()` and `TemplateEngine::renderEntityDetail()`
+pass `timeout_ms => 10000` to capability calls. Adjust in code if your service
+needs a different timeout.

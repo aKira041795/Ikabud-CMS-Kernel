@@ -286,6 +286,19 @@ $GLOBALS['capability_handlers']['entity.list.myservice@1'] = function ($payload)
 
 The EntityViewResolver will call `entity.list.myservice@1` → your proxy → your polyglot service.
 
+**Field auto-detection:** When no explicit view contract is registered (or when the
+contract's `fields` is `"*"`), `TemplateEngine::renderEntityList()` automatically
+expands `"*"` to the actual keys from the first result row. This means polyglot
+services work **without** pre-declaring field schemas — just return rows with the
+fields you want displayed, and the renderer picks them up.
+
+**Entity detail** (`ikb_entity_detail`) works even without any view contract —
+it falls back to rendering all `array_keys($entity)`.
+
+**Timeout:** Polyglot services that hit external APIs may need longer timeouts.
+Both `EntityViewResolver::resolve()` and `TemplateEngine::renderEntityDetail()`
+support `timeout_ms` in capability call options (set to 10000ms for weather-service).
+
 ---
 
 ## Service Config Reference

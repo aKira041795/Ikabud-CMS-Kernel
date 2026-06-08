@@ -148,6 +148,32 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 | Test seam via `setHttpHandler()` for offline unit testing | ✅ |
 | Example manifest: `modules/ai-orchestrator/module.json` | ✅ |
 | **Real polyglot service: Python weather-service** | ✅ |
+
+### Phase 8 E2E Proof (2026-06-08)
+
+The polyglot pipeline is proven end-to-end with the Python weather-service:
+
+```
+PHP DiSyL Template (weather-public.disyl)
+  → ikb_entity_detail / ikb_entity_list
+    → TemplateEngine::renderEntityDetail() / renderEntityList()
+      → EntityViewResolver::resolve() [timeout_ms: 10000]
+        → CapabilityBus::call('entity.get.weather_current@1')
+          → ServiceProxy → HTTP POST /capability/call
+            → Python Flask (port 9002) → wttr.in
+              ← JSON {ok:true, data:{city, temperature_c, ...}}
+            ← CapabilityBus returns data
+          ← EntityViewResolver returns resolved entity
+        ← TemplateEngine renders HTML card
+      ← DiSyL outputs final HTML
+```
+
+**Key findings & fixes:**
+- `timeout_ms: 10000` required in both `EntityViewResolver::resolve()` and `TemplateEngine::renderEntityDetail()` for polyglot calls exceeding the default 2000ms
+- Wildcard `*` field expansion added to `TemplateEngine::renderEntityList()` — auto-detects field keys from first result row when no explicit view contract is found
+- Entity detail works even without explicit view contracts (falls back to `array_keys($entity)`)
+- Weather entity type added to `EntityViewResolver` `builtinDefaults`
+- Service must be running on expected port; `Failed to connect to 127.0.0.1 port 9002` means the service process died
 | CMS entity-view integration with polyglot data source | ✅ |
 
 **Proven:** `tests/polyglot_weather_test.php` — 17/17 assertions covering
