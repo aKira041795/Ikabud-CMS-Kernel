@@ -5,8 +5,14 @@ declare(strict_types=1);
 /**
  * CMS Weather Entity Integration — bridges the polyglot weather service
  * into the CMS entity-view system.
+ * * ⚠️  LEGACY BRIDGE — The weather-service module.json now declares entity_sources
+ * which auto-registers entity views and auto-generates entity.list.*/entity.get.*
+ * handlers. The PHP handlers below serve as a fallback when the weather-service
+ * module is disabled or the manifest-based auto-registration is unavailable.
  *
- * This proves the full Kernel OS pipeline:
+ * Preferred approach: declarative entity_sources in module.json (Option C).
+ * See: docs/kernel/polyglot-service-guide.md
+ * * This proves the full Kernel OS pipeline:
  *   CMS → EntityViewResolver → CapabilityBus → ServiceProxy → HTTP → Python → wttr.in
  *
  * Proves all five Kernel OS + DiSyL pillars:

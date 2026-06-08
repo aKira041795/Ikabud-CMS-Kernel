@@ -1675,6 +1675,111 @@ function loadModuleRoutes(array $routes): array
             }
         }
 
+        // ── Entity Sources (declarative entity-view registration from manifest) ──
+        // Modules declare entity_sources in their manifest to auto-register
+        // entity views and auto-generate entity.list.* + entity.get.* capability handlers.
+        // This eliminates PHP glue code for polyglot service modules.
+        //
+        // Schema: {
+        //   "<entity_type>": {
+        //     "qualifiers": { "<qualifier>": { "capability": "...", "result_path": "..." } },
+        //     "get_capability": "<optional default get>",
+        //     "default_view": "...",
+        //     "views": { "<view>": { "fields": [...], ... } }
+        //   }
+        // }
+        $entitySources = $module['entity_sources'] ?? [];
+        if (!empty($entitySources) && is_array($entitySources)) {
+            foreach ($entitySources as $entityType => $sourceDef) {
+                if (!is_array($sourceDef)) continue;
+
+                $entityType  = (string) $entityType;
+                if ($entityType === '') continue;
+
+                $qualifiers  = is_array($sourceDef['qualifiers'] ?? null) ? $sourceDef['qualifiers'] : [];
+                $getCap      = (string)($sourceDef['get_capability'] ?? '');
+                $sanType     = str_replace('.', '_', $entityType);
+
+                // ── Auto-register entity views ──
+                $views = $sourceDef['views'] ?? [];
+                if (is_array($views) && method_exists(app(), 'entityViews')) {
+                    $entityViews = app()->entityViews();
+                    foreach ($views as $viewName => $viewDef) {
+                        if (!is_array($viewDef)) continue;
+                        $entityViews->registerView($entityType, (string)$viewName, $viewDef, $moduleId);
+                    }
+                }
+
+                // ── Auto-generate entity.list.<type>@1 handler ──
+                $listCapId = "entity.list.{$sanType}@1";
+                if (!app()->capabilities()->has($listCapId)) {
+                    $autoListHandler = static function (mixed $payload) use ($qualifiers, $entityType, $moduleId): mixed {
+                        $qualifier = (string)($payload['qualifier'] ?? '');
+
+                        // Look up qualifier-specific route, then fallback to empty-key route
+                        $route = $qualifiers[$qualifier] ?? $qualifiers[''] ?? null;
+                        if ($route === null && $qualifier !== '') {
+                            // Try matching qualifier as substring (e.g., "forecast" matches key "forecast")
+                            foreach ($qualifiers as $qk => $qv) {
+                                if ($qk !== '' && stripos($qualifier, $qk) !== false) {
+                                    $route = $qv;
+                                    break;
+                                }
+                            }
+                        }
+
+                        $capability = is_array($route) ? (string)($route['capability'] ?? '') : '';
+                        $resultKey  = is_array($route) ? (string)($route['result_path'] ?? '') : '';
+
+                        if ($capability === '') {
+                            // No qualifier match — call the first available qualifier capability
+                            $first = !empty($qualifiers) ? reset($qualifiers) : null;
+                            $capability = is_array($first) ? (string)($first['capability'] ?? '') : '';
+                            $resultKey  = is_array($first) ? (string)($first['result_path'] ?? '') : '';
+                            if ($capability === '') return null;
+                        }
+
+                        $result = \app()->cap()->call($capability, $payload, [
+                            'caller'    => ['module' => $moduleId],
+                            'timeout_ms' => 10000,
+                        ]);
+                        if (!is_array($result)) return null;
+
+                        $rows = $result;
+                        if ($resultKey !== '' && isset($result[$resultKey]) && is_array($result[$resultKey])) {
+                            $rows = $result[$resultKey];
+                        } elseif (isset($result['rows']) && is_array($result['rows'])) {
+                            $rows = $result['rows'];
+                        }
+
+                        $rows = is_array($rows) ? array_values($rows) : [$rows];
+                        return ['rows' => $rows, 'total' => count($rows)];
+                    };
+                    app()->capabilities()->register(
+                        $listCapId, $moduleId, $autoListHandler, 90, ['first'],
+                        ['origin' => ['type' => 'entity_source', 'module' => $moduleId, 'entity_type' => $entityType]]
+                    );
+                }
+
+                // ── Auto-generate entity.get.<type>@1 handler ──
+                if ($getCap !== '') {
+                    $getCapId = "entity.get.{$sanType}@1";
+                    if (!app()->capabilities()->has($getCapId)) {
+                        $autoGetHandler = static function (mixed $payload) use ($getCap, $moduleId): mixed {
+                            return \app()->cap()->call($getCap, $payload, [
+                                'caller'    => ['module' => $moduleId],
+                                'timeout_ms' => 10000,
+                            ]);
+                        };
+                        app()->capabilities()->register(
+                            $getCapId, $moduleId, $autoGetHandler, 90, ['first'],
+                            ['origin' => ['type' => 'entity_source', 'module' => $moduleId, 'entity_type' => $entityType]]
+                        );
+                    }
+                }
+            }
+        }
+
         $routesFile = $module['_path'] . '/routes.php';
         if (!is_file($routesFile)) {
             continue;

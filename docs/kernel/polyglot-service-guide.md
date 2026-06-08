@@ -344,9 +344,74 @@ $result = app()->cap()->call('myservice.action@1', ['param1' => 'hello'], [
 Polyglot services integrate with the CMS entity-view system for zero-code
 admin UI rendering. There are two approaches:
 
-### Option A — Service module + PHP bridge module (for complex CMS integration)
+### Option A — Declarative `entity_sources` in module.json (preferred, no PHP code)
 
-Create a companion PHP module that registers entity views and capability handlers:
+Add an `entity_sources` section to your `module.json`. The kernel auto-registers
+entity views and auto-generates `entity.list.*` + `entity.get.*` capability handlers
+from the manifest — no PHP bridge code needed.
+
+```json
+{
+    "entity_sources": {
+        "<entity_type>": {
+            "qualifiers": {
+                "<qualifier>": {
+                    "capability": "<capability_id>",
+                    "result_path": "<optional nested key for rows>"
+                }
+            },
+            "get_capability": "<default get capability>",
+            "default_view": "<view_name>",
+            "views": {
+                "<view_name>": {
+                    "fields": ["field1", "field2"],
+                    "limit": 10,
+                    "empty_state": "No data available.",
+                    "error_state": "Service unavailable."
+                }
+            }
+        }
+    }
+}
+```
+
+**How it works:**
+
+1. `DiSyL source="myservice.data"` → `parseSource` extracts entity_type=`myservice`, qualifier=`data`
+2. EntityViewResolver calls `entity.list.myservice@1`
+3. Auto-generated handler reads the qualifier, looks up the matching capability in `qualifiers`
+4. Calls the polyglot capability → maps result rows via `result_path`
+5. Returns `{rows: [...], total: N}`
+
+**Real example (weather-service):**
+
+```json
+"entity_sources": {
+    "weather": {
+        "qualifiers": {
+            "forecast": {
+                "capability": "weather.forecast@1",
+                "result_path": "forecast"
+            },
+            "current": {
+                "capability": "weather.current@1"
+            }
+        },
+        "get_capability": "weather.current@1",
+        "default_view": "card_grid",
+        "views": {
+            "card_grid": {
+                "fields": ["date", "high_c", "low_c", "condition"],
+                "limit": 5
+            }
+        }
+    }
+}
+```
+
+### Option B — PHP bridge module (legacy, for complex integration)
+
+Create a companion PHP module that registers entity views and handlers manually:
 
 ```
 modules/my-service/              # service-module, external capability provider
@@ -355,48 +420,6 @@ modules/my-service-cms-bridge/   # php-module, registers entity views and CMS ro
 
 In the bridge module's helper:
 
-```php
-app()->entityViews()->registerView('myservice.data', 'card', [
-    'fields' => ['result', 'timestamp'],
-    'limit' => 10,
-    'empty_state' => 'No data available.',
-], 'cms');
-
-$GLOBALS['capability_handlers']['entity.list.myservice@1'] = function ($payload) {
-    $result = app()->cap()->call('myservice.action@1', [
-        'param1' => $payload['filters']['param1'] ?? 'default',
-    ]);
-    return is_array($result) ? ['rows' => [$result], 'total' => 1] : null;
-};
-```
-
-### Option B — Declarative entity mapping in `module.json` (no PHP glue)
-
-The recommended approach for pure service modules. Add an `entity_sources`
-section inside `capabilities.exposes[]` entries:
-
-```json
-{
-    "id": "myservice.action@1",
-    "priority": 100,
-    "modes": ["first"],
-    "description": "Performs an action",
-    "entity_source": {
-        "type": "myservice.data",
-        "list_capability": "myservice.action@1",
-        "default_view": "card",
-        "views": {
-            "card": {
-                "fields": ["result", "timestamp"],
-                "limit": 10,
-                "empty_state": "No data available."
-            }
-        }
-    }
-}
-```
-
-The kernel auto-registers the entity source from the manifest — no PHP bridge needed.
 
 ### Use in DiSyL templates
 
