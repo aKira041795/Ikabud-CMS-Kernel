@@ -202,7 +202,11 @@ final class EntityViewResolver
 
         try {
             if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'cap')) {
-                $result = $app->cap()->call($capabilityId, $capabilityArgs);
+                $result = $app->cap()->call($capabilityId, $capabilityArgs, [
+                    'caller' => ['module' => 'kernel'],
+                    'mode' => 'first',
+                    'timeout_ms' => 10000,
+                ]);
                 if (is_array($result)) {
                     $rows = $result['rows'] ?? $result;
                     $total = (int)($result['total'] ?? count($rows));
@@ -271,6 +275,7 @@ final class EntityViewResolver
             'ledger' => ['fields' => ['id', 'entry_type', 'amount', 'created_at'], 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No ledger entries.'],
             'appointments' => ['fields' => ['id', 'title', 'date', 'status'], 'actions' => ['view', 'cancel'], 'limit' => 10, 'empty_state' => 'No appointments.'],
             'tickets' => ['fields' => ['id', 'subject', 'status', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No tickets.'],
+            'weather' => ['fields' => ['date', 'high_c', 'low_c', 'condition'], 'actions' => [], 'limit' => 5, 'empty_state' => 'No weather data.'],
         ];
 
         $base = $compactDefaults[$entityType] ?? ['fields' => '*', 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No records found.'];

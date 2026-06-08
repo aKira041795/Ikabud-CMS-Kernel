@@ -58,7 +58,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     ], 'cms');
 
     // Forecast — list view
-    $views->registerView('weather.forecast', 'list', [
+    $views->registerView('weather', 'list', [
         'fields' => ['date', 'high_c', 'low_c', 'condition'],
         'actions' => [],
         'limit' => 7,
@@ -68,7 +68,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     ], 'cms');
 
     // Forecast — compact view
-    $views->registerView('weather.forecast', 'compact', [
+    $views->registerView('weather', 'compact', [
         'fields' => ['date', 'high_c', 'low_c', 'condition'],
         'actions' => [],
         'limit' => 3,
@@ -77,7 +77,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     ], 'cms');
 
     // Forecast — card_grid view (for builder display)
-    $views->registerView('weather.forecast', 'card_grid', [
+    $views->registerView('weather', 'card_grid', [
         'fields' => ['date', 'high_c', 'low_c', 'condition'],
         'actions' => [],
         'limit' => 5,

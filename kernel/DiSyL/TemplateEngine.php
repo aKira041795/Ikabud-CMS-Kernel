@@ -4929,6 +4929,12 @@ class TemplateEngine
         $viewMode = $contract['view'] ?? $view;
         $viewActions = $contract['actions'] ?? [];
 
+        // Expand '*' fields to actual keys from the first row
+        if ($fields === ['*'] || $fields === '*') {
+            $firstRow = $rows[0] ?? [];
+            $fields = array_values(array_filter(array_keys($firstRow), fn($k) => !str_starts_with($k, '_')));
+        }
+
         return $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children);
     }
 
@@ -5119,6 +5125,10 @@ class TemplateEngine
                     'entity_type' => $source,
                     'id' => $entityId,
                     'view' => $view,
+                ], [
+                    'caller' => ['module' => 'kernel'],
+                    'mode' => 'first',
+                    'timeout_ms' => 10000,
                 ]);
                 if (is_array($result)) {
                     $entity = $result;
