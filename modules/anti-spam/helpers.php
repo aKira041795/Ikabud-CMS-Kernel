@@ -159,7 +159,8 @@ function antispamResetSettingsCache(): void
 
 function antispamDb()
 {
-    return app()->db();
+    $ctx = module();
+    return $ctx ? $ctx->db() : app()->db();
 }
 
 function antispamTableExists(string $table): bool
