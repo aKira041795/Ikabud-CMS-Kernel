@@ -2,7 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "DiSyL",
   "scopeName": "text.html.disyl",
-  "fileTypes": [".disyl"],
+  "fileTypes": [
+    ".disyl"
+  ],
   "patterns": [
     {
       "include": "#disyl-expressions"
