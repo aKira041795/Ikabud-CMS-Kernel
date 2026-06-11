@@ -230,6 +230,7 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
 
         $t = microtime(true);
         $perfCacheOk = false;
+        $perfCacheResult = null;
         try {
             $perfCacheUri = '/__perf_probe_' . request_id() . '__';
             app()->cache()->set('_perf', $perfCacheUri, ['body' => 'ok', 'status' => 200, '_cache_expires_at' => time() + 10], 10);
@@ -241,6 +242,8 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['cache_roundtrip_ms'] = round((microtime(true) - $t) * 1000, 2);
         $perfData['cache_ok'] = $perfCacheOk;
 
+        // Read cache stats AFTER the round-trip so our own hit/miss is counted.
+        // Stats are cumulative across requests and persisted via APCu + file on shutdown.
         $cacheStats = [];
         try {
             $cacheStats = app()->cache()->getStats();
