@@ -6,6 +6,8 @@ description: Formal roadmap for the Ikabud application kernel platform
 
 **Author:** Noah C. Omamalin
 
+> **Overall Status:** All phases are shipped as of Kernel OS 6.0 (ecosystem). See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the complete implementation status across all 9 platform phases. This roadmap is retained as the historical design document.
+
 ## Purpose
 
 This roadmap defines the next evolution of **Ikabud** as a kernel-governed modular application platform.

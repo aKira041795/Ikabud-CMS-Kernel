@@ -1,8 +1,9 @@
 # AI Module — Design Document
 
-**Status**: Revised — external review integrated (v2)  
+**Status**: Shipped — Phase 6 AI-Safe DiSyL Blocks complete (see [kernel-os-disyl-roadmap-status.md](../kernel/kernel-os-disyl-roadmap-status.md#phase-6--ai-safe-disyl-blocks-)). AI Policy engine, `ikb_ai_summary`, `ikb_ai_assist`, CMS AI content automation all delivered.  
 **Author**: Cascade (AI pair programmer)  
 **Created**: 2026-03-05  
+**Last updated**: June 2026  
 **Related docs**: `docs/kernel/roadmap.md`, `docs/kernel/module-development-guide.md`
 
 > **Core Principle**: Kernel owns. AI suggests. Kernel enforces. Modules execute.

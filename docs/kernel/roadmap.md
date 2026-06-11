@@ -4,6 +4,8 @@ description: Kernel OS (Community Edition) — Capability Contracts Roadmap
 
 # Kernel OS — Roadmap
 
+> **Status:** All capability contracts phases (0–4) are shipped. See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the full implementation status across all 9 platform phases.
+
 This roadmap defines the phased implementation plan for **Capability Contracts** and ecosystem stability in Kernel OS.
 
 Guiding principles:
@@ -17,7 +19,7 @@ Guiding principles:
 
 ---
 
-## Phase 0 — Spec Lock (Required)
+## Phase 0 — Spec Lock ✅ Complete
 
 Outcome: a stable contract surface before implementation.
 
@@ -38,7 +40,7 @@ Acceptance criteria:
 
 ---
 
-## Phase 1 — Capability Contracts MVP (v0.1)
+## Phase 1 — Capability Contracts MVP ✅ Complete
 
 Outcome: capabilities exist end-to-end with deterministic multi-provider selection.
 
@@ -70,7 +72,7 @@ Acceptance criteria:
 
 ---
 
-## Phase 2 — Tooling + Safety (v0.2)
+## Phase 2 — Tooling + Safety ✅ Complete
 
 Outcome: contributors can see and validate the dependency graph.
 
@@ -92,7 +94,7 @@ Acceptance criteria:
 
 ---
 
-## Phase 3 — v1 Stable (v1.0)
+## Phase 3 — v1 Stable ✅ Complete
 
 Outcome: stable public API for the community ecosystem.
 
@@ -116,7 +118,7 @@ Acceptance criteria:
 
 ---
 
-## Phase 4 — Post-v1 Enhancements (v1.1+)
+## Phase 4 — Post-v1 Enhancements ✅ Complete
 
 Outcome: ecosystem scaling features, added carefully.
 

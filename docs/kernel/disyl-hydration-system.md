@@ -2,7 +2,7 @@
 
 **Subsystem:** `kernel/DiSyL/Hydration/`  
 **Status:** Production  
-**Last updated:** 2026-04-15
+**Last updated:** 2026-06-11
 
 ## Overview
 

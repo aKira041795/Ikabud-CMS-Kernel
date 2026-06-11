@@ -4,7 +4,7 @@
 
 | Component | Minimum |
 |-----------|---------|
-| PHP | 8.1+ (8.2+ recommended) |
+| PHP | 8.2+ (8.3+ recommended) |
 | MySQL | 8.0+ |
 | Web Server | Apache 2.4+ with `mod_rewrite` |
 | Composer | 2.x (for dependency management) |

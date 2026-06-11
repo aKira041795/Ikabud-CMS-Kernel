@@ -9,7 +9,7 @@ For cross-module integration patterns, see [Cross-Module Interaction Playbook](c
 
 ## Prerequisites
 
-- PHP 8.1+ with PDO/MySQL
+- PHP 8.2+ with PDO/MySQL
 - Ikabud Kernel booted (`bootstrap.php` loads, `app()` works)
 - MySQL database accessible
 

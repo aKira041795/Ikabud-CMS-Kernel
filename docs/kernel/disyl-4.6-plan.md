@@ -1,6 +1,7 @@
-# DiSyL 4.6 — Federation + AI Primitives
+# DiSyL 4.6 — Federation + AI Primitives ✅ Shipped
 
-**Target kernel:** 4.6.0
+**Target kernel:** 4.6.0  
+**Status:** Released — see [release notes](../releases/release-notes-2026-05-08-kernel-4.6.md)
 **Risk:** high (new external dependencies; policy-critical)
 **Depends on:** 4.4 (sandbox), 4.5 (async)
 

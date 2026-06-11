@@ -1,5 +1,7 @@
 # Guidance Module
 
+**Last updated:** June 2026
+
 The Guidance module is a tenant-scoped counseling workspace for case management, appointments, public booking, notifications, reports, and staff administration. Its runtime source of truth is the consolidated pair [modules/guidance/routes.php](../../modules/guidance/routes.php) and [modules/guidance/handlers.php](../../modules/guidance/handlers.php).
 
 ## Auth and reset contract

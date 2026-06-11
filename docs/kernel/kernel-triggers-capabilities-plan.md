@@ -6,6 +6,8 @@
 
 **Author:** Noah C. Omamalin
 
+> **Status:** Shipped. `TriggerService`, `IntegrationBridge`, and the full capability bus (with circuit breaker, retry, metrics, schema validation) are all in production as of Kernel OS 6.0. See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md).
+
 ## Purpose
 
 This plan defines the next hardening and evolution path for Ikabud's capability and trigger runtime.

@@ -1,6 +1,6 @@
 # CMS Theme Design & Architecture Guide
 
-**Updated:** March 2026
+**Updated:** June 2026
 
 This guide explains how CMS themes are structured, activated, rendered, and customized.
 

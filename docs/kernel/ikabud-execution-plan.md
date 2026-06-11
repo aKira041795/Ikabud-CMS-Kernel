@@ -6,6 +6,8 @@ description: Execution plan for the next Ikabud platform milestones
 
 **Author:** Noah C. Omamalin
 
+> **Status:** All milestones (A–E) are shipped as of Kernel OS 6.0. See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the complete implementation status. This plan is retained as the historical design document.
+
 ## Purpose
 
 This execution plan turns the Ikabud platform roadmap into a practical delivery sequence with milestones, workstreams, and acceptance criteria.

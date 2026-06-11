@@ -1,6 +1,6 @@
 # CMS Rewiring Audit — Current Implementation Snapshot
 
-**Updated:** March 2026
+**Updated:** June 2026
 
 This document records what has already been successfully rewired into the CMS module boundary and what remains as technical debt.
 

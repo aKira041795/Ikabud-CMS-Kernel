@@ -1,6 +1,6 @@
 # CMS Implementation Guide
 
-**Updated:** March 2026  
+**Updated:** June 2026  
 **Scope:** Current-state implementation guidance for the CMS runtime, with emphasis on public page loading and render safety.
 
 This guide is the practical companion to [cms-module.md](cms-module.md) and [cms-architecture.md](cms-architecture.md). It is intended for engineers making changes to the CMS public path, builder-integrated pages, theme rendering, and storefront-capability pages.

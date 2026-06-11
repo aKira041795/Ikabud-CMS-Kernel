@@ -1,6 +1,7 @@
-# DiSyL 4.3 — Cache + Experimentation
+# DiSyL 4.3 — Cache + Experimentation ✅ Shipped
 
-**Target kernel:** 4.3.0
+**Target kernel:** 4.3.0  
+**Status:** Released — see [release notes](../releases/release-notes-2026-05-08-kernel-4.3.md)
 **Risk:** medium (new runtime stores; clear blast radius)
 **Depends on:** 4.1
 

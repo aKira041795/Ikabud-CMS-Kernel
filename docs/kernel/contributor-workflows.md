@@ -123,5 +123,7 @@ Use request IDs to correlate runtime behavior where possible.
 
 - `docs/kernel/ARCHITECTURE.md`
 - `docs/kernel/kernel-stable-contracts.md`
+- `docs/kernel/kernel-os-disyl-roadmap-status.md`
+- `docs/kernel/polyglot-service-guide.md`
 - `docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md`
 - `docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md`

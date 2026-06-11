@@ -8,7 +8,9 @@ This document defines the target technical architecture for a dedicated **visual
 
 ## Current Implementation Status
 
-The CMS already contains a **transitional page-builder implementation** in production code. That current implementation includes:
+> **Phase 7 (Visual Builder Contract Composer) is shipped.** The builder has been rebuilt as a governed contract composer. See [kernel-os-disyl-roadmap-status.md](../kernel/kernel-os-disyl-roadmap-status.md#phase-7--visual-builder-contract-composer-) for the full shipped feature list.
+
+The CMS page builder has evolved from a transitional implementation into a **governed visual builder**. The current implementation includes:
 
 - dedicated admin routes:
   - `/cms/admin/page-builder/create`

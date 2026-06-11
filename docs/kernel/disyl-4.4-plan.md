@@ -1,6 +1,7 @@
-# DiSyL 4.4 — Sandbox + Capability Scoping
+# DiSyL 4.4 — Sandbox + Capability Scoping ✅ Shipped
 
-**Target kernel:** 4.4.0
+**Target kernel:** 4.4.0  
+**Status:** Released — see [release notes](../releases/release-notes-2026-05-08-kernel-4.4.md)
 **Risk:** high (security-critical; gets a CVE if wrong)
 **Depends on:** 4.2 (type system) and 4.3 (cache for trust-bound fragments)
 

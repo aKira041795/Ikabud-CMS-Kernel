@@ -109,5 +109,5 @@ Check logs: `storage/logs/app.log`
 
 ---
 
-**Last Updated:** 2026-03-17
+**Last Updated:** 2026-06-11
 **Configuration Status:** Active & Functional

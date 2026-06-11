@@ -4,14 +4,15 @@
 
 Ikabud is an **application-kernel modular infrastructure framework** — a PHP runtime that owns the full request lifecycle, extension contracts, policy enforcement, and database isolation. Modules (CMS, daily ledger, workflow, etc.) are first-class citizens that register capabilities, listen for events, and declare their own tables — but the kernel owns the rules.
 
-**Version:** v3.1.0 (codename: "clarity")  
+**Version:** v6.0.0 (ecosystem)  
 **Runtime:** PHP 8.2+ / MySQL 8+ / Apache with mod_rewrite  
-**Rendering Runtime:** DiSyL (Declarative Ikabud Syntax Language)
+**Rendering Runtime:** DiSyL v4.0 (Declarative Ikabud Syntax Language)
 
 Contributor workflow and refactor guardrails are documented in:
 
 - `docs/kernel/contributor-workflows.md`
 - `docs/kernel/kernel-stable-contracts.md`
+- `docs/kernel/kernel-os-disyl-roadmap-status.md`
 - `docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md`
 
 ---
@@ -22,7 +23,7 @@ Contributor workflow and refactor guardrails are documented in:
 |-------|-----------|
 | Runtime | PHP 8.2+ |
 | Database | MySQL 8+ (per-tenant isolation) |
-| Rendering Runtime | DiSyL v4.6 — layouts, blocks, components, hydration, 40+ filters, reactive client blocks, sandbox + capability scoping (4.4), async runtime `{parallel}/{await}/{suspense}` (4.5), federation + AI primitives (4.6) |
+| Rendering Runtime | DiSyL v4.0 — layouts, blocks, components, hydration, 40+ filters, reactive client blocks, sandbox + capability scoping, async runtime, federation + AI primitives |
 | Frontend | HTMX 1.9 + Alpine.js (server-first), React/Vite (page builder UI) |
 | Auth | JWT HS256 (cookie-based, httpOnly, secure) |
 | CSS | Tailwind CSS |
@@ -45,28 +46,43 @@ ikabud/
 │   ├── EventBus.php           # Publish/subscribe event system
 │   ├── EventTriggers.php      # Declarative event → action wiring
 │   ├── Hooks.php              # WordPress-style filter/action hooks
+│   ├── IntegrationBridge.php  # Cross-module integration contract resolution
 │   ├── JWT.php                # Token generation and verification
 │   ├── TenantResolver.php     # Multi-tenant request routing
+│   ├── TriggerService.php     # Declarative trigger → action dispatch
 │   ├── WorkflowRuntime.php    # State-machine workflow engine
-│   ├── Capabilities/          # Contract registry and capability bus
-│   ├── Contracts/             # Interface definitions
-│   ├── Database/              # QueryBuilder, KernelPDO, migrations
-│   ├── DiSyL/                 # Rendering runtime, compiler, components, hydration, reactive system
-│   └── Http/                  # TenantEntryRouter, request utilities
+│   ├── Capabilities/          # CapabilityBus, CapabilityRegistry, ServiceProxy
+│   ├── Contracts/             # Interface definitions (Auth, Cache, DB, Capability, etc.)
+│   ├── ControlPlane/          # Integration catalog for control-plane operations
+│   ├── Database/              # QueryBuilder, KernelPDO, ConnectionPool, MigrationRunner
+│   ├── DiSyL/                 # TemplateEngine, Compiler, Component, Hydration, Reactive, AI, Async, Federation, Security, Types, i18n
+│   ├── EntityAuthority/       # EntityAuthorityRegistry, SyncContractRegistry
+│   ├── EntityContext/         # ContextRegistry, EntityViewResolver, ContextProfile
+│   ├── Http/                  # TenantEntryRouter, SecurityHeaders
+│   └── Services/              # KernelExport, ReportManager, DatabaseManager, TenantProvisioner, OpenApiGenerator, LocaleResolver, ApiKeyAuth
 ├── modules/                   # Feature modules (manifest-driven)
 │   ├── ai/                    # AI model integrations
+│   ├── ai-orchestrator/       # Polyglot AI orchestration (service-module)
 │   ├── anti-spam/             # Spam detection
+│   ├── bakeshop/              # Bakery operations workspace
 │   ├── cms/                   # CMS + visual page builder
 │   ├── contact-form/          # Form submissions
+│   ├── content-ingestion/     # Content import pipeline
 │   ├── daily-ledger/          # Inventory/financial tracking
+│   ├── ecommerce/             # Multi-store commerce platform
 │   ├── gui-settings/          # Theme/UI customization
-│   ├── guidance/              # Admin dashboard & navigation
+│   ├── guidance/              # Counseling & case management
+│   ├── healthcare/            # EHR suite (clinical-notes, documents, encounters, orders, patient-registry, prescriptions, privacy-consent, results, scheduling)
 │   ├── media/                 # Asset management
+│   ├── moodle-integration/    # Moodle LMS bridge
 │   ├── search/                # Full-text search
+│   ├── security/              # Security hardening
 │   ├── sms/                   # SMS integration
 │   ├── ticketing/             # Support ticket system
 │   ├── tinymce/               # Rich text editor service
 │   ├── users/                 # User management
+│   ├── weather-service/       # Polyglot weather service (Python, service-module)
+│   ├── wms/                   # Warehouse management system
 │   └── workflow/              # Workflow automation
 ├── public/
 │   ├── index.php              # Front controller — routing, security headers, dispatch
@@ -92,14 +108,15 @@ The `App` class is the kernel's central service container — a lazy-loading sin
 
 | Category | Key Methods |
 |----------|-------------|
-| **Lifecycle** | `boot(array $config)`, `getInstance()` |
-| **Extension** | `hooks()`, `events()`, `workflow()`, `capabilities()`, `cap()` |
-| **Database** | `db()` (tenant PDO), `controlDb()` (control plane PDO), `dbForTenant(int $id)` |
-| **Auth** | `user()`, `setUser()`, `isAuthenticated()`, `hasRole()`, `requireAuth()`, `requireRole()` |
-| **Request** | `input(?string $key)`, `isHtmx()`, `isHtmxBoosted()` |
-| **Response** | `json()`, `html()`, `redirect()`, `htmxResponse()` |
-| **Rendering** | `render(string $template, array $context)`, `csrfToken()`, `csrfField()`, `csrfEnforce()` |
-| **Config** | `config(string $key, $default)`, `tenant()`, `jwt()`, `cache()` |
+| **Lifecycle** | `boot(array $config)`, `getInstance()`, `primeRenderBaseCaches()` |
+| **Extension** | `hooks()`, `events()`, `workflow()`, `triggers()`, `integrationBridge()`, `capabilities()`, `cap()` |
+| **Database** | `db()` (tenant PDO), `controlDb()` (control plane PDO), `dbForTenant(int $id)`, `databaseManager()`, `dbRuntimeSnapshot()`, `tenantDbPoolStats()`, `reconnectDb()`, `reconnectDbForTenant()` |
+| **Auth** | `user()`, `setUser()`, `isAuthenticated()`, `hasRole()`, `requireAuth()`, `requireRole()`, `requireAnyRole()`, `registerAuthTable()` |
+| **Request** | `input(?string $key)`, `sanitizeInput()`, `isHtmx()`, `isHtmxBoosted()`, `htmx()` |
+| **Response** | `json()`, `html()`, `redirect()`, `htmxResponse()`, `csrfToken()`, `csrfField()`, `csrfEnforce()`, `csrfRotate()` |
+| **Rendering** | `render(string $template, array $context)`, `templates()`, `buildRenderBaseContext()`, `finalizeRenderContext()` |
+| **Entity** | `entityContexts()` (ContextRegistry), `entityAuthority()` (EntityAuthority), `entityViews()` (EntityViewResolver), `syncContracts()` |
+| **Config** | `config(string $key, $default)`, `platformIdentity()`, `glossary()`, `tenant()`, `jwt()`, `cache()` |
 | **Logging** | `log(string $message, string $level, array $context)` |
 
 ---
@@ -403,7 +420,7 @@ Relevant helpers in `src/helpers/module-manager.php`:
 - **Hydration islands** — SSR-first interactive regions that can hydrate on load, idle, visible, media, or interaction
 - **Compiled + interpreted execution** — Templates can run through the compiler pipeline or the interpreted renderer depending on environment and feature path
 - **Compiled cache** — Render artifacts are compiled to PHP and cached in `storage/cache/`
-- **DiSyL 4.x extensions** — `{match}` pattern matching and `{trans}` i18n (4.1); progressive type system (4.2); `{cache}` fragment store with tag invalidation and `{experiment}` deterministic A/B bucketing (4.3); `{sandbox}/{trusted}/{untrusted}` capability scoping with `raw.html`, `network`, `ai`, `federation`, `cache.invalidate`, `experiment` gates (4.4); `{parallel}/{await}/{suspense}` async runtime with `{loading}/{catch}` arms (4.5); `{federated_query}/{remote}/{aggregate}` multi-service composition and `{ai_generate}/{ai_query}/{ai_complete}` policy-gated AI primitives (4.6). See [module-development-guide.md](module-development-guide.md#disyl-4x-capabilities-kernel--40) for the module-author summary.
+- **DiSyL 4.x extensions** — `{match}` pattern matching, `{trans}` i18n (4.1); progressive type system (4.2); `{cache}` fragment caching with tag invalidation, `{experiment}` A/B testing (4.3); `{sandbox}` capability scoping with security gates (4.4); `{parallel}/{await}/{suspense}` async runtime (4.5); `{federated_query}/{remote}/{aggregate}` multi-service composition and `{ai_generate}/{ai_query}/{ai_complete}` policy-gated AI primitives (4.6). See [module-development-guide.md](module-development-guide.md#disyl-4x-capabilities-kernel--40) for the module-author summary.
 
 ---
 

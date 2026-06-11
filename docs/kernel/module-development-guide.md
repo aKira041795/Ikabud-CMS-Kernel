@@ -28,6 +28,23 @@ The kernel provides: routing, auth (JWT), DiSyL templates, PDO database, audit l
 
 Modules provide: routes, handlers, templates, and (optionally) database migrations.
 
+### Module Types
+
+Ikabud supports two module types:
+
+| Type | Manifest `type` | Language | How it works |
+|------|----------------|----------|-------------|
+| **PHP Module** | `"module"` (default) | PHP | Standard module with PHP handlers, helpers, and templates. Kernel auto-loads `helpers.php`. |
+| **Service Module** | `"service-module"` | Any (Python, Node, Go, Rust, Ruby, etc.) | External service exposing capabilities via HTTP+JSON. Kernel auto-registers a `ServiceProxy` that translates `CapabilityBus::call()` into HTTP requests to the service. |
+
+**Polyglot service modules** follow a simple wire protocol:
+- `POST /capability/call` with JSON body `{capability_id, payload, caller}`
+- Return `{"ok": true, "data": {...}}` or `{"ok": false, "error": "..."}`
+- Declare capabilities in `module.json` under `capabilities.exposes`
+- Define `service.endpoint`, `service.protocol`, and optional `service.auth`
+
+See [Polyglot Service Developer Guide](polyglot-service-guide.md) for the full protocol, examples in Python/Node/Go, and the complete manifest reference.
+
 **Key principle**: If all modules are disabled, the kernel still boots, login works, health check works, and users see a "No modules" landing page. Modules are fully decoupled.
 
 ---
@@ -149,6 +166,12 @@ function myModuleGlobalHelper(): string
 | `auth_owned` | object | Declares that this module owns its own users table. The kernel uses this for tenant provisioning (admin seeding) and the admin password-push recovery flow. See [Module-owned authentication (`auth_owned`)](#module-owned-authentication-auth_owned) below. |
 | `capabilities` | object | Capability contracts exposed and required by this module. |
 | `nav` | object[] | Navigation items injected into the top nav bar. For EHR workspace links under `/admin/ehr...`, each item must also include a stable `key`, a non-empty `description`, and explicit `roles`. |
+| `type` | string | Module type. Default is `"module"` (PHP module). Set to `"service-module"` for polyglot services (Python, Node, Go, etc.). Service modules skip PHP helper loading and register capabilities via ServiceProxy. |
+| `co_owns_tables` | string[] | Tables shared between this module and others. Used for infrastructure tables (e.g., `audit_logs`, `_migrations`) where multiple modules need write access. |
+| `events` | string[] | Event names this module declares (e.g., `"bakeshop.branch.created"`). Used by the trigger system and integration bridge for cross-module automation. |
+| `settings_fields` | object | Module setting defaults declared as `{"key": "default_value"}`. Used by `getModuleSettings()` / `saveModuleSettings()` for tenant-scoped configuration. |
+| `service` | object | Required for `"type": "service-module"`. Defines `endpoint` (URL), `protocol`, `timeout_ms`, `retry`, `circuit_breaker`, and `auth` configuration. |
+| `entry_module` | bool | When `true`, designates this module as the tenant's entry point. The kernel's `TenantEntryRouter` rewrites root URLs to this module's routes. |
 
 ### Table declaration rules
 

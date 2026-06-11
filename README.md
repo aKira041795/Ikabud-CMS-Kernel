@@ -34,7 +34,6 @@ Many languages. Many outputs.
 - **Report manager** — Templates, archive, scheduled reports, signature presets, module report packs.
 - **Module certification** — 10-point checklist for all modules. CLI + API.
 - **AI governance** — AI summaries and drafts with kill switch, model allowlist, cost ceilings, and human review requirements.
-- **Module certification** — `php ikabud module:certify` validates manifests against a 10-point checklist.
 - **43 modules** — CMS, ecommerce, bakeshop, guidance, WMS, EHR, daily ledger, ticketing, SMS, AI orchestrator, and more.
 - **Shared-hosting friendly** — Runs on a $5/month Bluehost plan. JWT auth, OPcache-aware, DiSyL linter.
 
@@ -73,7 +72,7 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 
 | Component | Version |
 |---|---|
-| Kernel OS | `5.0.0` (nexus) |
+| Kernel OS | `6.0.0` (ecosystem) |
 | DiSyL | `4.0.0` |
 | ComponentRegistry | `1.0.0` |
 | EntityViewResolver | `1.0.0` |

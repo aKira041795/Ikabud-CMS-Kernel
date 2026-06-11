@@ -1,8 +1,10 @@
 # Workflow Runtime — Phase 5 Plan
 
-Status: **planning** (kernel 4.0.x)
+Status: **shipped** (kernel 4.0+ → 6.0)
 Owner: Workflow module + kernel team
 Predecessors: kernel 3.x event bus + capability system
+
+> **Current state:** `WorkflowRuntime` is in production (`kernel/WorkflowRuntime.php`). The workflow definition model, trigger execution, integration bridge wiring, and execution history are all delivered. See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the full platform status.
 
 ## Why this exists
 

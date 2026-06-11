@@ -1,4 +1,4 @@
-# DiSyL 4.2 — Type System v1 (compile-time)
+# DiSyL 4.2 — Type System v1 ✅ Shipped (compile-time)
 
 **Target kernel:** 4.2.0
 **Risk:** medium (new compiler phase, but compile-time only — zero runtime cost)

@@ -1,6 +1,7 @@
-# DiSyL 4.1 — Pattern Matching + i18n
+# DiSyL 4.1 — Pattern Matching + i18n ✅ Shipped
 
-**Target kernel:** 4.1.0
+**Target kernel:** 4.1.0  
+**Status:** Released — see [release notes](../releases/release-notes-2026-05-08-kernel-4.1.md)
 **Risk:** low (additive grammar, no runtime model change)
 **Owner:** kernel team
 

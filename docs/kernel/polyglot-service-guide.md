@@ -1,6 +1,6 @@
 # Polyglot Service Developer Guide
 
-> **Kernel OS 5.0 (nexus)** — Build governed capability providers in any language using HTTP+JSON.
+> **Kernel OS 6.0 (ecosystem)** — Build governed capability providers in any language using HTTP+JSON.
 > Python ✅ · Node.js ✅ · Go ✅ · Rust ✅ · Ruby ✅ · anything that speaks HTTP+JSON.
 
 ---

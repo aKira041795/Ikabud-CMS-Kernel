@@ -1,6 +1,6 @@
 # Capability-Driven Theme Design
 
-**Updated:** March 2026
+**Updated:** June 2026
 
 This document defines the capability-driven public theme model for CMS entities.
 

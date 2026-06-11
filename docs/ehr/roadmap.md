@@ -1,6 +1,6 @@
 # EHR Roadmap
 
-**Updated:** May 2026
+**Updated:** June 2026
 
 This roadmap defines the phased build plan for the EHR domain inside Ikabud Kernel OS.
 

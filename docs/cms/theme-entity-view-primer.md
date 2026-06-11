@@ -1,6 +1,6 @@
 # Theme Design and Entity Views Primer
 
-**Updated:** March 2026
+**Updated:** June 2026
 
 This primer explains the intended relationship between CMS themes, the theme customizer, and universal entity rendering in Ikabud Kernel OS.
 

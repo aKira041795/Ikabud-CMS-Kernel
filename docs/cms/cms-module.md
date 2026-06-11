@@ -1,6 +1,6 @@
 # CMS Module — Current State Guide
 
-**Updated:** March 2026  
+**Updated:** June 2026  
 **Module root:** `modules/cms/`
 
 This document is the authoritative current-state guide for the CMS module as it exists today.
@@ -14,7 +14,7 @@ The CMS is a full application module that provides:
 - Dynamic field definitions and content-type registry
 - Media library with upload, edit, delete, thumbnails, and usage tracking
 - Categories, tags, menus, redirects, import/export, revisions, and permissions
-- A dedicated React page builder for page content
+- A governed visual page builder (React/Vite) with contract composer, governed component palette, entity source/view pickers, validation, and permission-aware preview
 - Public website rendering with theme overrides, customizer output, caching, RSS, sitemap, and search
 - Theme upload/activation and CMS-only sub-module installation
 

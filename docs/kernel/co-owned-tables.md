@@ -1,7 +1,6 @@
 # Co-Owned Tables (`co_owns_tables`)
 
-Introduced in kernel **4.0.0** (planned). Backported into the 3.2.x guard so
-existing collisions can be cleared up before the bump.
+Introduced in kernel **4.0.0** and backported into the 3.2.x guard. Now fully shipped in kernel 6.0.
 
 ## What
 

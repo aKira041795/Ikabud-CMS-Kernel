@@ -1,6 +1,6 @@
 # CMS Roadmap — From Working Module to Stable Platform
 
-**Updated:** March 2026
+**Updated:** June 2026
 
 This roadmap starts from the CMS as it exists today. It is no longer an MVP roadmap.
 

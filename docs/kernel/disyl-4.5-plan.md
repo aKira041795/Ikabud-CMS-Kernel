@@ -1,6 +1,7 @@
-# DiSyL 4.5 — Async Runtime
+# DiSyL 4.5 — Async Runtime ✅ Shipped
 
-**Target kernel:** 4.5.0
+**Target kernel:** 4.5.0  
+**Status:** Released — see [release notes](../releases/release-notes-2026-05-08-kernel-4.5.md)
 **Risk:** highest (new execution model; fiber scheduler)
 **Depends on:** 4.4 (sandbox must gate `fetch` before it ships)
 

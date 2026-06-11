@@ -18,15 +18,13 @@ or any language that speaks HTTP+JSON.
 
 **385 tests pass, 0 linter errors, 398 templates scanned, 22 superadmin APIs.**
 
-**370 tests pass, 0 linter errors, 398 templates scanned.**
-
 ---
 
-## Quick Reference — What Ships in 5.0
+## Quick Reference — What Ships in 6.0
 
 | Component | Version | File |
 |---|---|---|
-| Kernel OS | `5.0.0` (nexus) | `kernel/App.php` |
+| Kernel OS | `6.0.0` (ecosystem) | `kernel/App.php` |
 | DiSyL | `4.0.0` | `kernel/DiSyL/Grammar.php` |
 | ComponentRegistry | `1.0.0` | `kernel/DiSyL/ComponentRegistry.php` |
 | EntityViewResolver | `1.0.0` | `kernel/EntityContext/EntityViewResolver.php` |
@@ -250,9 +248,9 @@ Production templates using new 5.0 components:
 
 ---
 
-## Strategic Position (Post-5.0)
+## Strategic Position (Post-6.0)
 
-Kernel OS 5.0 is an **architectural graduation release**. The question has shifted
+Kernel OS 6.0 is an **architectural graduation release**. The question has shifted
 from "can it work?" to "can it be operated, explained, trusted, and extended safely?"
 
 The next phase is not more modules — it's coherence:

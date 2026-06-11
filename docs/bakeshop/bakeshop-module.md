@@ -1,7 +1,7 @@
 # Bakeshop Module
 
 **Module ID:** `bakeshop`
-**Version:** 0.1.0
+**Version:** 1.0.0
 **Author:** Ikabud Kernel Team
 **Depends on capabilities:** `kernel.audit.record@1`, `kernel.auth.user@1`
 **Standalone:** yes — does not depend on any other application module.

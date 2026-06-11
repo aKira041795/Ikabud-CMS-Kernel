@@ -1,6 +1,6 @@
 # EHR System Design and Architecture Plan
 
-**Updated:** May 2026
+**Updated:** June 2026
 **Status:** Active design document. Source of truth for EHR cohesion, IA, layout system, persistent context, role workspaces, design tokens, and clinical safety UX.
 **Scope:** Reviews the EHR as **one product**, not as isolated module pages. All recommendations apply to the whole EHR domain (admin shell + patient portal) unless otherwise scoped.
 
