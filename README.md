@@ -96,6 +96,7 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 | [bakeshop-module.md](docs/bakeshop/bakeshop-module.md) | Bakeshop module |
 | [guidance-module.md](docs/guidance/guidance-module.md) | Guidance module |
 | [page-builder-technical-spec.md](docs/page-builder/page-builder-technical-spec.md) | Visual page builder spec |
+| [cms-performance-and-scalability.md](docs/cms/cms-performance-and-scalability.md) | CMS performance benchmark + scaling analysis |
 | [roadmap.md](docs/kernel/roadmap.md) | Project roadmap |
 
 ---
