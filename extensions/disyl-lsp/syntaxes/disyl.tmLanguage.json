@@ -1,0 +1,184 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "DiSyL",
+  "scopeName": "text.html.disyl",
+  "fileTypes": [".disyl"],
+  "patterns": [
+    {
+      "include": "#disyl-expressions"
+    },
+    {
+      "include": "text.html.basic"
+    }
+  ],
+  "repository": {
+    "disyl-expressions": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#block-control"
+        },
+        {
+          "include": "#conditional"
+        },
+        {
+          "include": "#loops"
+        },
+        {
+          "include": "#components"
+        },
+        {
+          "include": "#governed-components"
+        },
+        {
+          "include": "#disyl-4x-tags"
+        },
+        {
+          "include": "#includes-extends"
+        },
+        {
+          "include": "#variables-filters"
+        },
+        {
+          "include": "#set-statements"
+        }
+      ]
+    },
+    "comments": {
+      "name": "comment.block.disyl",
+      "begin": "\\{!",
+      "end": "!\\}",
+      "patterns": [
+        {
+          "include": "#disyl-expressions"
+        }
+      ]
+    },
+    "block-control": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{(?:block|/block|extends|parent)\\b[^}]*\\}"
+        },
+        {
+          "name": "entity.name.tag.block.disyl",
+          "match": "(?<=\\{block\\s)[a-zA-Z_][\\w.]*(?=\\s*\\})"
+        },
+        {
+          "name": "string.quoted.double.disyl",
+          "match": "(?<=\\{extends\\s)\"[^\"]*\""
+        }
+      ]
+    },
+    "conditional": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{(?:if|elseif|else|/if)\\b[^}]*\\}"
+        },
+        {
+          "name": "keyword.operator.disyl",
+          "match": "(?<=\\{if\\s[^}]*)(?:==|!=|>=|<=|>|<|&&|\\|\\||\\band\\b|\\bor\\b|\\bnot\\b)(?=[^}]*\\})"
+        }
+      ]
+    },
+    "loops": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{(?:foreach|/foreach|for|/for|while|/while)\\b[^}]*\\}"
+        },
+        {
+          "name": "keyword.control.disyl",
+          "match": "(?<=\\{foreach\\s)[^}]*\\bas\\b[^}]*(?=\\})"
+        }
+      ]
+    },
+    "components": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{(?:component|/component|slot|/slot)\\b[^}]*\\}"
+        },
+        {
+          "name": "string.quoted.double.disyl",
+          "match": "(?<=\\{component\\s)\"[^\"]*\""
+        },
+        {
+          "name": "keyword.operator.disyl",
+          "match": "(?<=\\{component\\s[^}]*)\\bwith\\b(?=[^}]*\\})"
+        }
+      ]
+    },
+    "governed-components": {
+      "patterns": [
+        {
+          "name": "support.class.component.disyl",
+          "match": "\\{(?:ikb_section|ikb_container|ikb_grid|ikb_panel|ikb_entity_list|ikb_entity_detail|ikb_stat_card|ikb_timeline|ikb_audit_log|ikb_table|ikb_badge|ikb_form|ikb_input|ikb_textarea|ikb_select|ikb_button|ikb_export_button|ikb_confirm_action|ikb_card|ikb_modal|ikb_drawer|ikb_alert|ikb_spinner|ikb_text|ikb_image|ikb_icon|ikb_link|ikb_report|ikb_signature_block|ikb_ai_summary|ikb_ai_assist)\\b"
+        },
+        {
+          "name": "support.class.component.disyl",
+          "match": "\\{/(?:ikb_section|ikb_container|ikb_grid|ikb_panel|ikb_entity_list|ikb_entity_detail|ikb_stat_card|ikb_timeline|ikb_audit_log|ikb_table|ikb_badge|ikb_form|ikb_input|ikb_textarea|ikb_select|ikb_button|ikb_export_button|ikb_confirm_action|ikb_card|ikb_modal|ikb_drawer|ikb_alert|ikb_spinner|ikb_text|ikb_image|ikb_icon|ikb_link|ikb_report|ikb_signature_block|ikb_ai_summary|ikb_ai_assist)\\}"
+        }
+      ]
+    },
+    "disyl-4x-tags": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{(?:match|/match|trans|/trans|cache|/cache|invalidate|experiment|/experiment|sandbox|/sandbox|trusted|/trusted|untrusted|/untrusted|parallel|/parallel|await|/await|loading|/loading|catch|/catch|suspense|/suspense|federated_query|/federated_query|remote|/remote|aggregate|/aggregate|ai_generate|/ai_generate|ai_query|/ai_query|ai_complete|/ai_complete|verbatim|/verbatim|literal|/literal)\\b"
+        }
+      ]
+    },
+    "includes-extends": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{include\\b[^}]*\\}"
+        },
+        {
+          "name": "string.quoted.double.disyl",
+          "match": "(?<=\\{include\\s)\"[^\"]*\""
+        }
+      ]
+    },
+    "variables-filters": {
+      "patterns": [
+        {
+          "name": "variable.other.disyl",
+          "match": "(?<=\\{)\\s*\\$[a-zA-Z_][\\w.]*(?=\\s*[|}]?)"
+        },
+        {
+          "name": "support.function.filter.disyl",
+          "match": "(?<=\\|)\\s*[a-zA-Z_][\\w]*(?=\\s*[}:]?)"
+        },
+        {
+          "name": "string.quoted.double.disyl",
+          "match": "(?<=[:|]\\s*)\"[^\"]*\"(?=\\s*[}|:])"
+        },
+        {
+          "name": "constant.numeric.disyl",
+          "match": "(?<=[:|]\\s*)\\d+(?:\\.\\d+)?(?=\\s*[}|:])"
+        },
+        {
+          "name": "constant.language.disyl",
+          "match": "(?<=[:|]\\s*)(?:true|false|null)(?=\\s*[}|:])"
+        }
+      ]
+    },
+    "set-statements": {
+      "patterns": [
+        {
+          "name": "keyword.control.disyl",
+          "match": "\\{set\\s+[a-zA-Z_][\\w]*\\s*=\\s*[^}]*\\}"
+        },
+        {
+          "name": "variable.other.disyl",
+          "match": "(?<=\\{set\\s)[a-zA-Z_][\\w]*(?=\\s*=)"
+        }
+      ]
+    }
+  }
+}

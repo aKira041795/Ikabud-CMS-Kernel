@@ -75,3 +75,4 @@ modules/**/.cms-owned
 public/uploads/bakeshop/
 public/uploads/daily-ledger/
 __pycache__/
+node_modules/

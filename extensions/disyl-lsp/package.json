@@ -1,0 +1,90 @@
+{
+  "name": "disyl-lsp",
+  "displayName": "DiSyL Language Support",
+  "description": "Syntax highlighting, diagnostics, and autocomplete for DiSyL template files",
+  "version": "1.0.0",
+  "publisher": "ikabud",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:disyl"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "disyl",
+        "aliases": [
+          "DiSyL",
+          "disyl"
+        ],
+        "extensions": [
+          ".disyl"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "./icons/disyl-dark.svg",
+          "light": "./icons/disyl-light.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "disyl",
+        "scopeName": "text.html.disyl",
+        "path": "./syntaxes/disyl.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "disyl.lint",
+        "title": "DiSyL: Lint current file"
+      },
+      {
+        "command": "disyl.lintAll",
+        "title": "DiSyL: Lint all templates"
+      }
+    ],
+    "configuration": {
+      "title": "DiSyL",
+      "properties": {
+        "disyl.lintOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run DiSyL linter on file save"
+        },
+        "disyl.lintOnType": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run DiSyL linter as you type (may be slow)"
+        },
+        "disyl.phpCommand": {
+          "type": "string",
+          "default": "php",
+          "description": "Path to PHP executable"
+        },
+        "disyl.ikabudPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to ikabud CLI script (auto-detected from workspace root)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
