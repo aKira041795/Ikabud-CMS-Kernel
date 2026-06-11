@@ -1,358 +1,363 @@
 {
-    "id": "ai",
-    "name": "AI",
-    "version": "1.0.0",
-    "description": "AI capability providers for kernel automation and suggestions.",
-    "author": "Noah C. Omamalin",
-    "owns_tables": [],
-    "reads_tables": [],
-    "nav": [],
-    "capabilities": {
-        "exposes": [
-            {
-                "id": "ai.capability.suggest@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "schema": {
-                    "type": "object",
-                    "required": [
-                        "event"
-                    ],
-                    "properties": {
-                        "event": {
-                            "type": "object"
-                        },
-                        "existing_triggers": {
-                            "type": "array"
-                        },
-                        "available_capabilities": {
-                            "type": "array"
-                        }
-                    }
-                }
-            },
-            {
-                "id": "ai.text.generate@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "schema": {
-                    "type": "object",
-                    "required": [
-                        "messages"
-                    ],
-                    "properties": {
-                        "messages": {
-                            "type": "array"
-                        },
-                        "temperature": {
-                            "type": "number"
-                        },
-                        "json": {
-                            "type": "boolean"
-                        },
-                        "timeout_ms": {
-                            "type": "integer"
-                        },
-                        "preferred_tier": {
-                            "type": "string"
-                        },
-                        "max_tokens": {
-                            "type": "integer"
-                        }
-                    }
-                }
-            },
-            {
-                "id": "ai.explain@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "schema": {
-                    "type": "object",
-                    "required": [
-                        "concept"
-                    ],
-                    "properties": {
-                        "concept": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
+  "id": "ai",
+  "name": "AI",
+  "version": "1.0.0",
+  "description": "AI capability providers for kernel automation and suggestions.",
+  "author": "Noah C. Omamalin",
+  "owns_tables": [],
+  "reads_tables": [
+    "users"
+  ],
+  "nav": [],
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "ai.capability.suggest@1",
+        "priority": 50,
+        "modes": [
+          "first"
         ],
-        "depends": [],
-        "policy": {
-            "capabilities": {
-                "ai.capability.suggest@1": {
-                    "allow_callers": [
-                        "kernel",
-                        "ai",
-                        "cms"
-                    ]
-                },
-                "ai.text.generate@1": {
-                    "allow_callers": [
-                        "kernel",
-                        "ai",
-                        "cms"
-                    ]
-                },
-                "ai.explain@1": {
-                    "allow_callers": [
-                        "kernel",
-                        "ai",
-                        "cms"
-                    ]
-                }
+        "schema": {
+          "type": "object",
+          "required": [
+            "event"
+          ],
+          "properties": {
+            "event": {
+              "type": "object"
+            },
+            "existing_triggers": {
+              "type": "array"
+            },
+            "available_capabilities": {
+              "type": "array"
             }
+          }
         }
+      },
+      {
+        "id": "ai.text.generate@1",
+        "priority": 50,
+        "modes": [
+          "first"
+        ],
+        "schema": {
+          "type": "object",
+          "required": [
+            "messages"
+          ],
+          "properties": {
+            "messages": {
+              "type": "array"
+            },
+            "temperature": {
+              "type": "number"
+            },
+            "json": {
+              "type": "boolean"
+            },
+            "timeout_ms": {
+              "type": "integer"
+            },
+            "preferred_tier": {
+              "type": "string"
+            },
+            "max_tokens": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      {
+        "id": "ai.explain@1",
+        "priority": 50,
+        "modes": [
+          "first"
+        ],
+        "schema": {
+          "type": "object",
+          "required": [
+            "concept"
+          ],
+          "properties": {
+            "concept": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    ],
+    "depends": [],
+    "policy": {
+      "capabilities": {
+        "ai.capability.suggest@1": {
+          "allow_callers": [
+            "kernel",
+            "ai",
+            "cms"
+          ]
+        },
+        "ai.text.generate@1": {
+          "allow_callers": [
+            "kernel",
+            "ai",
+            "cms"
+          ]
+        },
+        "ai.explain@1": {
+          "allow_callers": [
+            "kernel",
+            "ai",
+            "cms"
+          ]
+        }
+      }
+    }
+  },
+  "settings_fields": [
+    {
+      "key": "provider",
+      "type": "select",
+      "label": "AI Provider",
+      "default": "openai",
+      "description": "Which AI service to use: OpenAI (requires API key), Groq (OpenAI-compatible, requires API key), or Ollama (local server).",
+      "options": [
+        {
+          "value": "openai",
+          "label": "OpenAI"
+        },
+        {
+          "value": "groq",
+          "label": "Groq (OpenAI-compatible)"
+        },
+        {
+          "value": "gemini",
+          "label": "Google Gemini"
+        },
+        {
+          "value": "cerebras",
+          "label": "Cerebras"
+        },
+        {
+          "value": "openrouter",
+          "label": "OpenRouter (multi-model)"
+        },
+        {
+          "value": "mistral",
+          "label": "Mistral AI"
+        },
+        {
+          "value": "ollama",
+          "label": "Ollama (local)"
+        }
+      ]
     },
-    "settings_fields": [
+    {
+      "key": "tier",
+      "type": "select",
+      "label": "Model Tier",
+      "default": "free",
+      "description": "Quality tier: free tier (cost-optimized), paid tier (higher quality), or custom (specify which model).",
+      "options": [
         {
-            "key": "provider",
-            "type": "select",
-            "label": "AI Provider",
-            "default": "openai",
-            "description": "Which AI service to use: OpenAI (requires API key), Groq (OpenAI-compatible, requires API key), or Ollama (local server).",
-            "options": [
-                {
-                    "value": "openai",
-                    "label": "OpenAI"
-                },
-                {
-                    "value": "groq",
-                    "label": "Groq (OpenAI-compatible)"
-                },
-                {
-                    "value": "gemini",
-                    "label": "Google Gemini"
-                },
-                {
-                    "value": "cerebras",
-                    "label": "Cerebras"
-                },
-                {
-                    "value": "openrouter",
-                    "label": "OpenRouter (multi-model)"
-                },
-                {
-                    "value": "mistral",
-                    "label": "Mistral AI"
-                },
-                {
-                    "value": "ollama",
-                    "label": "Ollama (local)"
-                }
-            ]
+          "value": "free",
+          "label": "Free tier"
         },
         {
-            "key": "tier",
-            "type": "select",
-            "label": "Model Tier",
-            "default": "free",
-            "description": "Quality tier: free tier (cost-optimized), paid tier (higher quality), or custom (specify which model).",
-            "options": [
-                {
-                    "value": "free",
-                    "label": "Free tier"
-                },
-                {
-                    "value": "paid",
-                    "label": "Paid tier"
-                },
-                {
-                    "value": "custom",
-                    "label": "Custom model"
-                }
-            ]
+          "value": "paid",
+          "label": "Paid tier"
         },
         {
-            "key": "openai_api_key",
-            "type": "text",
-            "label": "OpenAI API Key",
-            "description": "Your OpenAI API key (sk-...). Leave blank to keep existing."
-        },
-        {
-            "key": "openai_model_free",
-            "type": "text",
-            "label": "OpenAI Free Model (preset)",
-            "default": "gpt-4o-mini",
-            "description": "Model used for free tier (e.g., gpt-4o-mini)."
-        },
-        {
-            "key": "openai_model_paid",
-            "type": "text",
-            "label": "OpenAI Paid Model (preset)",
-            "default": "gpt-4o",
-            "description": "Model used for paid tier (e.g., gpt-4o)."
-        },
-        {
-            "key": "openai_model",
-            "type": "text",
-            "label": "OpenAI Custom Model",
-            "description": "Model used when tier is set to custom (e.g., gpt-4o-mini)."
-        },
-        {
-            "key": "groq_api_key",
-            "type": "text",
-            "label": "Groq API Key",
-            "description": "Your Groq API key (gsk_...). Leave blank to keep existing."
-        },
-        {
-            "key": "groq_model_free",
-            "type": "text",
-            "label": "Groq Free Model (preset)",
-            "default": "llama-3.1-8b-instant",
-            "description": "Model used for free tier (e.g., llama-3.1-8b-instant)."
-        },
-        {
-            "key": "groq_model_paid",
-            "type": "text",
-            "label": "Groq Paid Model (preset)",
-            "default": "llama-3.3-70b-versatile",
-            "description": "Model used for paid tier (e.g., llama-3.3-70b-versatile)."
-        },
-        {
-            "key": "groq_model",
-            "type": "text",
-            "label": "Groq Custom Model",
-            "description": "Model used when tier is set to custom."
-        },
-        {
-            "key": "gemini_api_key",
-            "type": "text",
-            "label": "Gemini API Key",
-            "description": "Your Google AI API key for Gemini. Get one at aistudio.google.com."
-        },
-        {
-            "key": "gemini_model_free",
-            "type": "text",
-            "label": "Gemini Free Model (preset)",
-            "default": "gemini-2.5-flash",
-            "description": "Model used for free tier (default: gemini-2.5-flash)."
-        },
-        {
-            "key": "gemini_model_paid",
-            "type": "text",
-            "label": "Gemini Paid Model (preset)",
-            "default": "gemini-2.5-pro",
-            "description": "Model used for paid tier (default: gemini-2.5-pro)."
-        },
-        {
-            "key": "gemini_model",
-            "type": "text",
-            "label": "Gemini Custom Model",
-            "description": "Model used when tier is set to custom."
-        },
-        {
-            "key": "cerebras_api_key",
-            "type": "text",
-            "label": "Cerebras API Key",
-            "description": "Your Cerebras API key. Get one at cloud.cerebras.ai. Extremely fast inference."
-        },
-        {
-            "key": "cerebras_model_free",
-            "type": "text",
-            "label": "Cerebras Free Model (preset)",
-            "default": "llama-4-scout-17b-16e-instruct",
-            "description": "Model used for free tier (default: llama-4-scout-17b-16e-instruct). 30 RPM free."
-        },
-        {
-            "key": "cerebras_model_paid",
-            "type": "text",
-            "label": "Cerebras Paid Model (preset)",
-            "default": "llama3.1-70b",
-            "description": "Model used for paid tier (default: llama3.1-70b)."
-        },
-        {
-            "key": "cerebras_model",
-            "type": "text",
-            "label": "Cerebras Custom Model",
-            "description": "Model used when tier is set to custom."
-        },
-        {
-            "key": "openrouter_api_key",
-            "type": "text",
-            "label": "OpenRouter API Key",
-            "description": "Your OpenRouter API key. A single key gives access to many models (free and paid)."
-        },
-        {
-            "key": "openrouter_model_free",
-            "type": "text",
-            "label": "OpenRouter Free Model (preset)",
-            "default": "meta-llama/llama-4-scout:free",
-            "description": "Model used for free tier (default: meta-llama/llama-4-scout:free). Many free models available."
-        },
-        {
-            "key": "openrouter_model_paid",
-            "type": "text",
-            "label": "OpenRouter Paid Model (preset)",
-            "default": "anthropic/claude-sonnet-4",
-            "description": "Model used for paid tier (default: anthropic/claude-sonnet-4)."
-        },
-        {
-            "key": "openrouter_model",
-            "type": "text",
-            "label": "OpenRouter Custom Model",
-            "description": "Model slug when tier is set to custom (e.g., google/gemini-2.0-flash-exp:free)."
-        },
-        {
-            "key": "mistral_api_key",
-            "type": "text",
-            "label": "Mistral API Key",
-            "description": "Your Mistral AI API key. Get one at console.mistral.ai."
-        },
-        {
-            "key": "mistral_model_free",
-            "type": "text",
-            "label": "Mistral Free Model (preset)",
-            "default": "mistral-small-latest",
-            "description": "Model used for free tier (default: mistral-small-latest)."
-        },
-        {
-            "key": "mistral_model_paid",
-            "type": "text",
-            "label": "Mistral Paid Model (preset)",
-            "default": "mistral-large-latest",
-            "description": "Model used for paid tier (default: mistral-large-latest)."
-        },
-        {
-            "key": "mistral_model",
-            "type": "text",
-            "label": "Mistral Custom Model",
-            "description": "Model used when tier is set to custom."
-        },
-        {
-            "key": "ollama_base_url",
-            "type": "text",
-            "label": "Ollama Base URL",
-            "default": "http://localhost:11434",
-            "description": "URL to your local Ollama server (e.g., http://localhost:11434)."
-        },
-        {
-            "key": "ollama_model_free",
-            "type": "text",
-            "label": "Ollama Free Model (preset)",
-            "default": "llama3.2:3b",
-            "description": "Model used for free tier (e.g., llama3.2:3b)."
-        },
-        {
-            "key": "ollama_model_paid",
-            "type": "text",
-            "label": "Ollama Paid Model (preset)",
-            "default": "llama3.1:8b",
-            "description": "Model used for paid tier (e.g., llama3.1:8b)."
-        },
-        {
-            "key": "ollama_model",
-            "type": "text",
-            "label": "Ollama Custom Model",
-            "description": "Model used when tier is set to custom."
+          "value": "custom",
+          "label": "Custom model"
         }
-    ]
+      ]
+    },
+    {
+      "key": "openai_api_key",
+      "type": "text",
+      "label": "OpenAI API Key",
+      "description": "Your OpenAI API key (sk-...). Leave blank to keep existing."
+    },
+    {
+      "key": "openai_model_free",
+      "type": "text",
+      "label": "OpenAI Free Model (preset)",
+      "default": "gpt-4o-mini",
+      "description": "Model used for free tier (e.g., gpt-4o-mini)."
+    },
+    {
+      "key": "openai_model_paid",
+      "type": "text",
+      "label": "OpenAI Paid Model (preset)",
+      "default": "gpt-4o",
+      "description": "Model used for paid tier (e.g., gpt-4o)."
+    },
+    {
+      "key": "openai_model",
+      "type": "text",
+      "label": "OpenAI Custom Model",
+      "description": "Model used when tier is set to custom (e.g., gpt-4o-mini)."
+    },
+    {
+      "key": "groq_api_key",
+      "type": "text",
+      "label": "Groq API Key",
+      "description": "Your Groq API key (gsk_...). Leave blank to keep existing."
+    },
+    {
+      "key": "groq_model_free",
+      "type": "text",
+      "label": "Groq Free Model (preset)",
+      "default": "llama-3.1-8b-instant",
+      "description": "Model used for free tier (e.g., llama-3.1-8b-instant)."
+    },
+    {
+      "key": "groq_model_paid",
+      "type": "text",
+      "label": "Groq Paid Model (preset)",
+      "default": "llama-3.3-70b-versatile",
+      "description": "Model used for paid tier (e.g., llama-3.3-70b-versatile)."
+    },
+    {
+      "key": "groq_model",
+      "type": "text",
+      "label": "Groq Custom Model",
+      "description": "Model used when tier is set to custom."
+    },
+    {
+      "key": "gemini_api_key",
+      "type": "text",
+      "label": "Gemini API Key",
+      "description": "Your Google AI API key for Gemini. Get one at aistudio.google.com."
+    },
+    {
+      "key": "gemini_model_free",
+      "type": "text",
+      "label": "Gemini Free Model (preset)",
+      "default": "gemini-2.5-flash",
+      "description": "Model used for free tier (default: gemini-2.5-flash)."
+    },
+    {
+      "key": "gemini_model_paid",
+      "type": "text",
+      "label": "Gemini Paid Model (preset)",
+      "default": "gemini-2.5-pro",
+      "description": "Model used for paid tier (default: gemini-2.5-pro)."
+    },
+    {
+      "key": "gemini_model",
+      "type": "text",
+      "label": "Gemini Custom Model",
+      "description": "Model used when tier is set to custom."
+    },
+    {
+      "key": "cerebras_api_key",
+      "type": "text",
+      "label": "Cerebras API Key",
+      "description": "Your Cerebras API key. Get one at cloud.cerebras.ai. Extremely fast inference."
+    },
+    {
+      "key": "cerebras_model_free",
+      "type": "text",
+      "label": "Cerebras Free Model (preset)",
+      "default": "llama-4-scout-17b-16e-instruct",
+      "description": "Model used for free tier (default: llama-4-scout-17b-16e-instruct). 30 RPM free."
+    },
+    {
+      "key": "cerebras_model_paid",
+      "type": "text",
+      "label": "Cerebras Paid Model (preset)",
+      "default": "llama3.1-70b",
+      "description": "Model used for paid tier (default: llama3.1-70b)."
+    },
+    {
+      "key": "cerebras_model",
+      "type": "text",
+      "label": "Cerebras Custom Model",
+      "description": "Model used when tier is set to custom."
+    },
+    {
+      "key": "openrouter_api_key",
+      "type": "text",
+      "label": "OpenRouter API Key",
+      "description": "Your OpenRouter API key. A single key gives access to many models (free and paid)."
+    },
+    {
+      "key": "openrouter_model_free",
+      "type": "text",
+      "label": "OpenRouter Free Model (preset)",
+      "default": "meta-llama/llama-4-scout:free",
+      "description": "Model used for free tier (default: meta-llama/llama-4-scout:free). Many free models available."
+    },
+    {
+      "key": "openrouter_model_paid",
+      "type": "text",
+      "label": "OpenRouter Paid Model (preset)",
+      "default": "anthropic/claude-sonnet-4",
+      "description": "Model used for paid tier (default: anthropic/claude-sonnet-4)."
+    },
+    {
+      "key": "openrouter_model",
+      "type": "text",
+      "label": "OpenRouter Custom Model",
+      "description": "Model slug when tier is set to custom (e.g., google/gemini-2.0-flash-exp:free)."
+    },
+    {
+      "key": "mistral_api_key",
+      "type": "text",
+      "label": "Mistral API Key",
+      "description": "Your Mistral AI API key. Get one at console.mistral.ai."
+    },
+    {
+      "key": "mistral_model_free",
+      "type": "text",
+      "label": "Mistral Free Model (preset)",
+      "default": "mistral-small-latest",
+      "description": "Model used for free tier (default: mistral-small-latest)."
+    },
+    {
+      "key": "mistral_model_paid",
+      "type": "text",
+      "label": "Mistral Paid Model (preset)",
+      "default": "mistral-large-latest",
+      "description": "Model used for paid tier (default: mistral-large-latest)."
+    },
+    {
+      "key": "mistral_model",
+      "type": "text",
+      "label": "Mistral Custom Model",
+      "description": "Model used when tier is set to custom."
+    },
+    {
+      "key": "ollama_base_url",
+      "type": "text",
+      "label": "Ollama Base URL",
+      "default": "http://localhost:11434",
+      "description": "URL to your local Ollama server (e.g., http://localhost:11434)."
+    },
+    {
+      "key": "ollama_model_free",
+      "type": "text",
+      "label": "Ollama Free Model (preset)",
+      "default": "llama3.2:3b",
+      "description": "Model used for free tier (e.g., llama3.2:3b)."
+    },
+    {
+      "key": "ollama_model_paid",
+      "type": "text",
+      "label": "Ollama Paid Model (preset)",
+      "default": "llama3.1:8b",
+      "description": "Model used for paid tier (e.g., llama3.1:8b)."
+    },
+    {
+      "key": "ollama_model",
+      "type": "text",
+      "label": "Ollama Custom Model",
+      "description": "Model used when tier is set to custom."
+    }
+  ],
+  "routes": "routes.php",
+  "events": [],
+  "migrations": []
 }

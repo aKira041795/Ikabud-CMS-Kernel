@@ -1,133 +1,135 @@
 {
-    "id": "ehr",
-    "name": "EHR Suite",
-    "version": "1.0.0",
-    "description": "Tenant-facing EHR authentication, branding, and admin shell.",
-    "author": "Ikabud Kernel Team",
+  "id": "ehr",
+  "name": "EHR Suite",
+  "version": "1.0.0",
+  "description": "Tenant-facing EHR authentication, branding, and admin shell.",
+  "author": "Ikabud Kernel Team",
+  "depends": [
+    "ehr-core",
+    "audit",
+    "reporting",
+    "billing-bridge"
+  ],
+  "owns_tables": [
+    "ehr_users",
+    "ehr_password_resets"
+  ],
+  "reads_tables": [
+    "audit_logs"
+  ],
+  "migrations": [
+    "database/migrations/001_ehr_users.sql",
+    "database/migrations/002_ehr_password_resets.sql",
+    "database/migrations/003_ehr_users_industry_fields.sql"
+  ],
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "kernel.auth.authenticate@1",
+        "priority": 555,
+        "modes": [
+          "pipeline"
+        ]
+      }
+    ],
     "depends": [
-        "ehr-core",
-        "audit",
-        "reporting",
-        "billing-bridge"
+      "ehr.patient.search@1",
+      "ehr.patient.view@1"
     ],
-    "owns_tables": [
-        "ehr_users",
-        "ehr_password_resets"
-    ],
-    "reads_tables": [
-        "audit_logs"
-    ],
-    "migrations": [
-        "database/migrations/001_ehr_users.sql",
-        "database/migrations/002_ehr_password_resets.sql",
-        "database/migrations/003_ehr_users_industry_fields.sql"
-    ],
-    "capabilities": {
-        "exposes": [
-            {
-                "id": "kernel.auth.authenticate@1",
-                "priority": 555,
-                "modes": [
-                    "pipeline"
-                ]
-            }
-        ],
-        "depends": [
-            "ehr.patient.search@1",
-            "ehr.patient.view@1"
-        ],
-        "policy": {
-            "capabilities": {
-                "kernel.auth.authenticate@1": {
-                    "allow_callers": [
-                        "ehr",
-                        "kernel"
-                    ]
-                }
-            }
+    "policy": {
+      "capabilities": {
+        "kernel.auth.authenticate@1": {
+          "allow_callers": [
+            "ehr",
+            "kernel"
+          ]
         }
+      }
+    }
+  },
+  "auth_cookie": "ehr_token",
+  "auth_owned": {
+    "users_table": "ehr_users",
+    "username_column": "username",
+    "email_column": "email",
+    "password_column": "password_hash",
+    "name_column": "full_name",
+    "active_column": "is_active",
+    "admin_roles": [
+      "admin"
+    ],
+    "default_admin_role": "admin",
+    "requires_named_admin_on_provision": true,
+    "blocked_password_hashes": [
+      "!ehr-bootstrap-password-reset-required!",
+      "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi"
+    ],
+    "touch_updated_at": true
+  },
+  "settings_fields": [
+    {
+      "key": "app_name",
+      "type": "text",
+      "label": "Custom EHR Name",
+      "default": "EHR Suite"
     },
-    "auth_cookie": "ehr_token",
-    "auth_owned": {
-        "users_table": "ehr_users",
-        "username_column": "username",
-        "email_column": "email",
-        "password_column": "password_hash",
-        "name_column": "full_name",
-        "active_column": "is_active",
-        "admin_roles": [
-            "admin"
-        ],
-        "default_admin_role": "admin",
-        "requires_named_admin_on_provision": true,
-        "blocked_password_hashes": [
-            "!ehr-bootstrap-password-reset-required!",
-            "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi"
-        ],
-        "touch_updated_at": true
+    {
+      "key": "login_subtitle",
+      "type": "textarea",
+      "label": "Login Subtitle",
+      "default": "Clinical operations, records access, and compliance workflows in one secure workspace."
     },
-    "settings_fields": [
-        {
-            "key": "app_name",
-            "type": "text",
-            "label": "Custom EHR Name",
-            "default": "EHR Suite"
-        },
-        {
-            "key": "login_subtitle",
-            "type": "textarea",
-            "label": "Login Subtitle",
-            "default": "Clinical operations, records access, and compliance workflows in one secure workspace."
-        },
-        {
-            "key": "logo_url",
-            "type": "text",
-            "label": "Logo URL",
-            "default": ""
-        },
-        {
-            "key": "favicon_url",
-            "type": "text",
-            "label": "Favicon URL",
-            "default": ""
-        }
-    ],
-    "nav": [
-        {
-            "key": "ehr_dashboard",
-            "label": "Dashboard",
-            "url": "/admin/ehr",
-            "icon": "home",
-            "roles": [
-                "admin"
-            ],
-            "description": "Start here and open core EHR workflows",
-            "order": 10
-        },
-        {
-            "key": "ehr_users",
-            "label": "Users",
-            "url": "/admin/ehr/users",
-            "icon": "users",
-            "roles": [
-                "admin"
-            ],
-            "description": "Manage EHR staff accounts and access",
-            "order": 800
-        },
-        {
-            "key": "ehr_settings",
-            "label": "Branding & Access",
-            "url": "/admin/ehr/settings",
-            "icon": "settings",
-            "roles": [
-                "admin"
-            ],
-            "description": "Identity, login, and recovery",
-            "order": 900
-        }
-    ],
-    "hooks": [
-        "kernel.home_url"
-    ]
+    {
+      "key": "logo_url",
+      "type": "text",
+      "label": "Logo URL",
+      "default": ""
+    },
+    {
+      "key": "favicon_url",
+      "type": "text",
+      "label": "Favicon URL",
+      "default": ""
+    }
+  ],
+  "nav": [
+    {
+      "key": "ehr_dashboard",
+      "label": "Dashboard",
+      "url": "/admin/ehr",
+      "icon": "home",
+      "roles": [
+        "admin"
+      ],
+      "description": "Start here and open core EHR workflows",
+      "order": 10
+    },
+    {
+      "key": "ehr_users",
+      "label": "Users",
+      "url": "/admin/ehr/users",
+      "icon": "users",
+      "roles": [
+        "admin"
+      ],
+      "description": "Manage EHR staff accounts and access",
+      "order": 800
+    },
+    {
+      "key": "ehr_settings",
+      "label": "Branding & Access",
+      "url": "/admin/ehr/settings",
+      "icon": "settings",
+      "roles": [
+        "admin"
+      ],
+      "description": "Identity, login, and recovery",
+      "order": 900
+    }
+  ],
+  "hooks": [
+    "kernel.home_url"
+  ],
+  "routes": "routes.php",
+  "events": []
 }

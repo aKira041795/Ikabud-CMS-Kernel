@@ -1,168 +1,168 @@
 {
-    "id": "security",
-    "name": "Security",
-    "version": "1.0.0",
-    "description": "Global security module: file integrity monitoring, admin IP allowlist, security audit logging, auto-escalation from anti-spam events.",
-    "author": "",
-    "requires_tables": [],
-    "owns_tables": [
-        "security_file_baselines",
-        "security_audit_log",
-        "security_admin_ip_allowlist"
-    ],
-    "reads_tables": [
-        "antispam_blocked_ips",
-        "antispam_log"
-    ],
-    "migrations": [
-        "migrations/001_initial.sql"
-    ],
-    "settings": [],
-    "hooks": [],
-    "capabilities": {
-        "exposes": [
-            {
-                "id": "security.audit@1",
-                "priority": 100,
-                "modes": [
-                    "first"
-                ],
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "event_type": {
-                            "type": "string",
-                            "description": "The type of security event (login_failed, csrf_blocked, integrity_mismatch, ip_blocked, etc.)"
-                        },
-                        "severity": {
-                            "type": "string",
-                            "enum": [
-                                "info",
-                                "warning",
-                                "critical"
-                            ],
-                            "description": "Severity level of the event"
-                        },
-                        "detail": {
-                            "type": "object",
-                            "description": "Arbitrary detail payload for the event"
-                        }
-                    },
-                    "required": [
-                        "event_type",
-                        "severity"
-                    ]
-                }
-            }
+  "id": "security",
+  "name": "Security",
+  "version": "1.0.0",
+  "description": "Global security module: file integrity monitoring, admin IP allowlist, security audit logging, auto-escalation from anti-spam events.",
+  "author": "Ikabud Kernel Team",
+  "requires_tables": [],
+  "owns_tables": [
+    "security_file_baselines",
+    "security_audit_log",
+    "security_admin_ip_allowlist"
+  ],
+  "reads_tables": [
+    "antispam_blocked_ips",
+    "antispam_log"
+  ],
+  "migrations": [
+    "migrations/001_initial.sql"
+  ],
+  "settings": [],
+  "hooks": [],
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "security.audit@1",
+        "priority": 100,
+        "modes": [
+          "first"
         ],
-        "depends": [],
-        "policy": {
-            "capabilities": {
-                "security.audit@1": {}
+        "schema": {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "type": "string",
+              "description": "The type of security event (login_failed, csrf_blocked, integrity_mismatch, ip_blocked, etc.)"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warning",
+                "critical"
+              ],
+              "description": "Severity level of the event"
+            },
+            "detail": {
+              "type": "object",
+              "description": "Arbitrary detail payload for the event"
             }
+          },
+          "required": [
+            "event_type",
+            "severity"
+          ]
         }
+      }
+    ],
+    "depends": [],
+    "policy": {
+      "capabilities": {
+        "security.audit@1": {}
+      }
+    }
+  },
+  "settings_fields": [
+    {
+      "key": "enabled",
+      "type": "checkbox",
+      "label": "Enable Security Module",
+      "default": "1",
+      "description": "Master switch for the security module on this tenant."
     },
-    "settings_fields": [
-        {
-            "key": "enabled",
-            "type": "checkbox",
-            "label": "Enable Security Module",
-            "default": "1",
-            "description": "Master switch for the security module on this tenant."
-        },
-        {
-            "key": "file_integrity_enabled",
-            "type": "checkbox",
-            "label": "Enable File Integrity Monitoring",
-            "default": "1",
-            "description": "Track SHA-256 hashes of kernel, module, and configuration files."
-        },
-        {
-            "key": "file_integrity_paths",
-            "type": "text",
-            "label": "Monitored Paths (JSON array)",
-            "default": "[\"kernel\",\"src\",\"modules\",\"public/index.php\",\"bootstrap.php\",\"config\"]",
-            "description": "JSON array of relative paths to monitor for integrity changes."
-        },
-        {
-            "key": "admin_ip_allowlist_enabled",
-            "type": "checkbox",
-            "label": "Enable Admin IP Allowlist",
-            "default": "0",
-            "description": "Restrict admin route access to allowed IP addresses only. Dormant when the allowlist is empty."
-        },
-        {
-            "key": "audit_log_enabled",
-            "type": "checkbox",
-            "label": "Enable Audit Log",
-            "default": "1",
-            "description": "Log security events (failed logins, CSRF violations, integrity mismatches, etc.)."
-        },
-        {
-            "key": "audit_log_retention_days",
-            "type": "number",
-            "label": "Audit Log Retention (days)",
-            "default": "90",
-            "description": "Number of days to retain audit log entries before cleanup."
-        },
-        {
-            "key": "auto_escalation_enabled",
-            "type": "checkbox",
-            "label": "Enable Auto-Escalation",
-            "default": "1",
-            "description": "Automatically block IPs permanently when anti-spam blocks exceed the threshold."
-        },
-        {
-            "key": "auto_escalation_threshold",
-            "type": "number",
-            "label": "Auto-Escalation Threshold",
-            "default": "10",
-            "description": "Number of anti-spam blocks within the window before permanent IP block."
-        },
-        {
-            "key": "auto_escalation_window_minutes",
-            "type": "number",
-            "label": "Auto-Escalation Window (minutes)",
-            "default": "60",
-            "description": "Time window for counting anti-spam blocks towards auto-escalation."
-        }
-    ],
-    "routes": true,
-    "events": [
-        {
-            "key": "security.integrity_mismatch",
-            "description": "File integrity check detected modified files",
-            "available_vars": [
-                "modified_count",
-                "files"
-            ]
-        },
-        {
-            "key": "security.ip_blocked",
-            "description": "An IP was blocked by the admin allowlist",
-            "available_vars": [
-                "ip",
-                "uri"
-            ]
-        },
-        {
-            "key": "security.auto_escalation",
-            "description": "An IP was permanently blocked via auto-escalation",
-            "available_vars": [
-                "ip",
-                "block_count",
-                "window_minutes"
-            ]
-        }
-    ],
-    "nav": [
-        {
-            "label": "Security",
-            "url": "/admin/security",
-            "icon": "lock",
-            "roles": [
-                "admin"
-            ]
-        }
-    ]
+    {
+      "key": "file_integrity_enabled",
+      "type": "checkbox",
+      "label": "Enable File Integrity Monitoring",
+      "default": "1",
+      "description": "Track SHA-256 hashes of kernel, module, and configuration files."
+    },
+    {
+      "key": "file_integrity_paths",
+      "type": "text",
+      "label": "Monitored Paths (JSON array)",
+      "default": "[\"kernel\",\"src\",\"modules\",\"public/index.php\",\"bootstrap.php\",\"config\"]",
+      "description": "JSON array of relative paths to monitor for integrity changes."
+    },
+    {
+      "key": "admin_ip_allowlist_enabled",
+      "type": "checkbox",
+      "label": "Enable Admin IP Allowlist",
+      "default": "0",
+      "description": "Restrict admin route access to allowed IP addresses only. Dormant when the allowlist is empty."
+    },
+    {
+      "key": "audit_log_enabled",
+      "type": "checkbox",
+      "label": "Enable Audit Log",
+      "default": "1",
+      "description": "Log security events (failed logins, CSRF violations, integrity mismatches, etc.)."
+    },
+    {
+      "key": "audit_log_retention_days",
+      "type": "number",
+      "label": "Audit Log Retention (days)",
+      "default": "90",
+      "description": "Number of days to retain audit log entries before cleanup."
+    },
+    {
+      "key": "auto_escalation_enabled",
+      "type": "checkbox",
+      "label": "Enable Auto-Escalation",
+      "default": "1",
+      "description": "Automatically block IPs permanently when anti-spam blocks exceed the threshold."
+    },
+    {
+      "key": "auto_escalation_threshold",
+      "type": "number",
+      "label": "Auto-Escalation Threshold",
+      "default": "10",
+      "description": "Number of anti-spam blocks within the window before permanent IP block."
+    },
+    {
+      "key": "auto_escalation_window_minutes",
+      "type": "number",
+      "label": "Auto-Escalation Window (minutes)",
+      "default": "60",
+      "description": "Time window for counting anti-spam blocks towards auto-escalation."
+    }
+  ],
+  "routes": true,
+  "events": [
+    {
+      "key": "security.integrity_mismatch",
+      "description": "File integrity check detected modified files",
+      "available_vars": [
+        "modified_count",
+        "files"
+      ]
+    },
+    {
+      "key": "security.ip_blocked",
+      "description": "An IP was blocked by the admin allowlist",
+      "available_vars": [
+        "ip",
+        "uri"
+      ]
+    },
+    {
+      "key": "security.auto_escalation",
+      "description": "An IP was permanently blocked via auto-escalation",
+      "available_vars": [
+        "ip",
+        "block_count",
+        "window_minutes"
+      ]
+    }
+  ],
+  "nav": [
+    {
+      "label": "Security",
+      "url": "/admin/security",
+      "icon": "lock",
+      "roles": [
+        "admin"
+      ]
+    }
+  ]
 }

@@ -1,0 +1,8 @@
+{
+    "id": "rpt_6a2a2001da8173.22769903",
+    "entity_type": "orders",
+    "format": "csv",
+    "title": "Test Archive",
+    "file": "/var/www/html/applicationostest/storage/report-archive/rpt_6a2a2001da8173.22769903.csv",
+    "created_at": "2026-06-11T10:40:01+08:00"
+}

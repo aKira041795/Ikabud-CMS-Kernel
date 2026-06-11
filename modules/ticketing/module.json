@@ -1,72 +1,106 @@
 {
-    "id": "ticketing",
-    "name": "Ticketing",
-    "version": "1.1.0",
-    "description": "Ticket / issue tracking system with public submission, image attachments and admin notifications",
-    "author": "Noah C. Omamalin",
-    "requires_tables": ["tickets", "ticket_comments"],
-    "owns_tables": ["tickets", "ticket_comments", "ticket_attachments", "ticketing_settings"],
-    "reads_tables": ["users"],
-    "migrations": [
-        "migrations/001_tickets_schema.sql",
-        "migrations/002_property_management.sql"
+  "id": "ticketing",
+  "name": "Ticketing",
+  "version": "1.1.0",
+  "description": "Ticket / issue tracking system with public submission, image attachments and admin notifications",
+  "author": "Noah C. Omamalin",
+  "requires_tables": [
+    "tickets",
+    "ticket_comments"
+  ],
+  "owns_tables": [
+    "tickets",
+    "ticket_comments",
+    "ticket_attachments",
+    "ticketing_settings"
+  ],
+  "reads_tables": [
+    "users"
+  ],
+  "migrations": [
+    "migrations/001_tickets_schema.sql",
+    "migrations/002_property_management.sql"
+  ],
+  "settings_fields": [
+    {
+      "key": "admin_phone",
+      "type": "text",
+      "label": "Admin SMS Number",
+      "default": "",
+      "description": "Phone number that receives ticket SMS alerts when SMS notifications are enabled."
+    },
+    {
+      "key": "admin_email",
+      "type": "email",
+      "label": "Admin Email",
+      "default": "",
+      "description": "Email address that receives ticket notifications when email alerts are enabled."
+    },
+    {
+      "key": "notify_sms",
+      "type": "checkbox",
+      "label": "Enable SMS Notifications",
+      "default": "0",
+      "description": "Send an SMS alert to the configured admin number when a new public ticket is submitted."
+    },
+    {
+      "key": "notify_email",
+      "type": "checkbox",
+      "label": "Enable Email Notifications",
+      "default": "0",
+      "description": "Send an email alert to the configured admin address when a new public ticket is submitted."
+    },
+    {
+      "key": "public_form_enabled",
+      "type": "checkbox",
+      "label": "Enable Public Submission Form",
+      "default": "1",
+      "description": "Allow unauthenticated users to submit maintenance requests through the public form."
+    }
+  ],
+  "consumes": [
+    "sms.send@1"
+  ],
+  "nav": [
+    {
+      "label": "Tickets",
+      "url": "/tickets",
+      "icon": "message-square",
+      "roles": [
+        "*"
+      ]
+    },
+    {
+      "label": "New Ticket",
+      "url": "/tickets/create",
+      "icon": "plus-circle",
+      "roles": [
+        "*"
+      ]
+    },
+    {
+      "label": "Settings",
+      "url": "/admin/ticketing/settings",
+      "icon": "settings",
+      "roles": [
+        "admin",
+        "supervisor"
+      ]
+    }
+  ],
+  "routes": "routes.php",
+  "events": [],
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "ticketing.create@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "Create a support ticket"
+      }
     ],
-    "settings_fields": [
-        {
-            "key": "admin_phone",
-            "type": "text",
-            "label": "Admin SMS Number",
-            "default": "",
-            "description": "Phone number that receives ticket SMS alerts when SMS notifications are enabled."
-        },
-        {
-            "key": "admin_email",
-            "type": "email",
-            "label": "Admin Email",
-            "default": "",
-            "description": "Email address that receives ticket notifications when email alerts are enabled."
-        },
-        {
-            "key": "notify_sms",
-            "type": "checkbox",
-            "label": "Enable SMS Notifications",
-            "default": "0",
-            "description": "Send an SMS alert to the configured admin number when a new public ticket is submitted."
-        },
-        {
-            "key": "notify_email",
-            "type": "checkbox",
-            "label": "Enable Email Notifications",
-            "default": "0",
-            "description": "Send an email alert to the configured admin address when a new public ticket is submitted."
-        },
-        {
-            "key": "public_form_enabled",
-            "type": "checkbox",
-            "label": "Enable Public Submission Form",
-            "default": "1",
-            "description": "Allow unauthenticated users to submit maintenance requests through the public form."
-        }
-    ],
-    "consumes": ["sms.send@1"],
-    "nav": [
-        {
-            "label": "Tickets",
-            "url": "/tickets",
-            "icon": "message-square",
-            "roles": ["*"]
-        },
-        {
-            "label": "New Ticket",
-            "url": "/tickets/create",
-            "icon": "plus-circle",
-            "roles": ["*"]
-        },
-        {
-            "label": "Settings",
-            "url": "/admin/ticketing/settings",
-            "icon": "settings",
-            "roles": ["admin", "supervisor"]
-        }
-    ]
+    "depends": []
+  }
 }

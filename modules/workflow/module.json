@@ -1,19 +1,22 @@
 {
-    "id": "workflow",
-    "name": "Workflow Engine (Compatibility Shell)",
-    "version": "2.0.0",
-    "description": "Legacy compatibility shell. Workflow is a kernel primitive — authoritative runtime lives in kernel/WorkflowRuntime.php. This module preserves backward-compatible helper entry points only.",
-    "author": "Noah C. Omamalin",
-    "status": "legacy_compatibility",
-    "owns_tables": [],
-    "reads_tables": [],
-    "migrations": [],
-    "nav": [],
-    "capabilities": {
-        "exposes": [],
-        "depends": [],
-        "policy": {}
-    },
-    "routes": true,
-    "events": []
+  "id": "workflow",
+  "name": "Workflow Engine (Compatibility Shell)",
+  "version": "2.0.0",
+  "description": "Legacy compatibility shell. Workflow is a kernel primitive \u2014 authoritative runtime lives in kernel/WorkflowRuntime.php. This module preserves backward-compatible helper entry points only.",
+  "author": "Noah C. Omamalin",
+  "status": "legacy_compatibility",
+  "owns_tables": [],
+  "reads_tables": [
+    "users",
+    "audit_logs"
+  ],
+  "migrations": [],
+  "nav": [],
+  "capabilities": {
+    "exposes": [],
+    "depends": [],
+    "policy": {}
+  },
+  "routes": true,
+  "events": []
 }

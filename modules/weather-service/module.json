@@ -1,153 +1,185 @@
 {
-    "id": "weather-service",
-    "type": "service-module",
-    "name": "Weather Service",
-    "version": "1.0.0",
-    "description": "Polyglot weather information service (Python). Proves the Kernel OS capability bus can dispatch to non-PHP runtimes via ServiceProxy.",
-    "author": "Ikabud",
-    "service": {
-        "runtime": "python",
-        "endpoint": "http://127.0.0.1:9002",
-        "health_check": "/health",
-        "protocol": "http+json",
-        "timeout_ms": 10000,
-        "retry": {
-            "max_attempts": 2,
-            "backoff_ms": 500,
-            "backoff_multiplier": 1.5
+  "id": "weather-service",
+  "type": "service-module",
+  "name": "Weather Service",
+  "version": "1.0.0",
+  "description": "Polyglot weather information service (Python). Proves the Kernel OS capability bus can dispatch to non-PHP runtimes via ServiceProxy.",
+  "author": "Ikabud",
+  "service": {
+    "runtime": "python",
+    "endpoint": "http://127.0.0.1:9002",
+    "health_check": "/health",
+    "protocol": "http+json",
+    "timeout_ms": 10000,
+    "retry": {
+      "max_attempts": 2,
+      "backoff_ms": 500,
+      "backoff_multiplier": 1.5
+    },
+    "circuit_breaker": {
+      "failure_threshold": 3,
+      "cooldown_seconds": 30,
+      "half_open_max_requests": 1
+    }
+  },
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "weather.current@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "Get current weather for a city",
+        "schema": {
+          "input": {
+            "type": "object",
+            "required": [
+              "city"
+            ],
+            "properties": {
+              "city": {
+                "type": "string",
+                "description": "City name or lat,lon coordinates"
+              }
+            }
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              },
+              "temperature_c": {
+                "type": "number"
+              },
+              "condition": {
+                "type": "string"
+              },
+              "humidity": {
+                "type": "number"
+              },
+              "wind_kph": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "weather.forecast@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "Get 3-day forecast for a city",
+        "schema": {
+          "input": {
+            "type": "object",
+            "required": [
+              "city"
+            ],
+            "properties": {
+              "city": {
+                "type": "string"
+              },
+              "days": {
+                "type": "integer",
+                "default": 3
+              }
+            }
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              },
+              "forecast": {
+                "type": "array"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "entity_sources": {
+    "weather": {
+      "qualifiers": {
+        "forecast": {
+          "capability": "weather.forecast@1",
+          "result_path": "forecast"
         },
-        "circuit_breaker": {
-            "failure_threshold": 3,
-            "cooldown_seconds": 30,
-            "half_open_max_requests": 1
+        "current": {
+          "capability": "weather.current@1"
         }
-    },
-    "capabilities": {
-        "exposes": [
-            {
-                "id": "weather.current@1",
-                "priority": 100,
-                "modes": [
-                    "first"
-                ],
-                "description": "Get current weather for a city",
-                "schema": {
-                    "input": {
-                        "type": "object",
-                        "required": [
-                            "city"
-                        ],
-                        "properties": {
-                            "city": {
-                                "type": "string",
-                                "description": "City name or lat,lon coordinates"
-                            }
-                        }
-                    },
-                    "output": {
-                        "type": "object",
-                        "properties": {
-                            "city": {
-                                "type": "string"
-                            },
-                            "temperature_c": {
-                                "type": "number"
-                            },
-                            "condition": {
-                                "type": "string"
-                            },
-                            "humidity": {
-                                "type": "number"
-                            },
-                            "wind_kph": {
-                                "type": "number"
-                            }
-                        }
-                    }
-                }
-            },
-            {
-                "id": "weather.forecast@1",
-                "priority": 100,
-                "modes": [
-                    "first"
-                ],
-                "description": "Get 3-day forecast for a city",
-                "schema": {
-                    "input": {
-                        "type": "object",
-                        "required": [
-                            "city"
-                        ],
-                        "properties": {
-                            "city": {
-                                "type": "string"
-                            },
-                            "days": {
-                                "type": "integer",
-                                "default": 3
-                            }
-                        }
-                    },
-                    "output": {
-                        "type": "object",
-                        "properties": {
-                            "city": {
-                                "type": "string"
-                            },
-                            "forecast": {
-                                "type": "array"
-                            }
-                        }
-                    }
-                }
-            }
-        ]
-    },
-    "entity_sources": {
-        "weather": {
-            "qualifiers": {
-                "forecast": {
-                    "capability": "weather.forecast@1",
-                    "result_path": "forecast"
-                },
-                "current": {
-                    "capability": "weather.current@1"
-                }
-            },
-            "get_capability": "weather.current@1",
-            "default_view": "card_grid",
-            "views": {
-                "card": {
-                    "fields": ["city", "temperature_c", "condition", "humidity", "wind_kph", "feels_like_c", "source"],
-                    "limit": 1,
-                    "empty_state": "Enter a city to see current weather.",
-                    "error_state": "Weather service unavailable. Is the Python service running on port 9002?"
-                },
-                "detailed": {
-                    "fields": ["city", "temperature_c", "condition", "humidity", "wind_kph", "feels_like_c", "source"],
-                    "limit": 1,
-                    "empty_state": "No weather data.",
-                    "error_state": "Weather data unavailable."
-                },
-                "card_grid": {
-                    "fields": ["date", "high_c", "low_c", "condition"],
-                    "limit": 5,
-                    "empty_state": "No forecast data."
-                },
-                "compact": {
-                    "fields": ["date", "high_c", "low_c", "condition"],
-                    "limit": 3,
-                    "empty_state": "No forecast."
-                },
-                "list": {
-                    "fields": ["date", "high_c", "low_c", "condition"],
-                    "limit": 7,
-                    "empty_state": "No forecast data available.",
-                    "error_state": "Forecast service unavailable."
-                }
-            }
+      },
+      "get_capability": "weather.current@1",
+      "default_view": "card_grid",
+      "views": {
+        "card": {
+          "fields": [
+            "city",
+            "temperature_c",
+            "condition",
+            "humidity",
+            "wind_kph",
+            "feels_like_c",
+            "source"
+          ],
+          "limit": 1,
+          "empty_state": "Enter a city to see current weather.",
+          "error_state": "Weather service unavailable. Is the Python service running on port 9002?"
+        },
+        "detailed": {
+          "fields": [
+            "city",
+            "temperature_c",
+            "condition",
+            "humidity",
+            "wind_kph",
+            "feels_like_c",
+            "source"
+          ],
+          "limit": 1,
+          "empty_state": "No weather data.",
+          "error_state": "Weather data unavailable."
+        },
+        "card_grid": {
+          "fields": [
+            "date",
+            "high_c",
+            "low_c",
+            "condition"
+          ],
+          "limit": 5,
+          "empty_state": "No forecast data."
+        },
+        "compact": {
+          "fields": [
+            "date",
+            "high_c",
+            "low_c",
+            "condition"
+          ],
+          "limit": 3,
+          "empty_state": "No forecast."
+        },
+        "list": {
+          "fields": [
+            "date",
+            "high_c",
+            "low_c",
+            "condition"
+          ],
+          "limit": 7,
+          "empty_state": "No forecast data available.",
+          "error_state": "Forecast service unavailable."
         }
-    },
-    "routes": []
+      }
+    }
+  },
+  "routes": [],
+  "events": []
 }

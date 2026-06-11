@@ -1,200 +1,202 @@
 {
-    "id": "moodle-integration",
-    "name": "Moodle Integration",
-    "version": "1.0.0",
-    "description": "Optional Moodle LMS integration for cached course discovery, enrollment handoff, SSO launch, and tenant-safe sync.",
-    "author": "GitHub Copilot",
-    "owns_tables": [
-        "learning_providers",
-        "learning_resources",
-        "moodle_courses_cache",
-        "moodle_user_progress",
-        "moodle_sync_queue",
-        "moodle_enrollment_requests",
-        "moodle_sso_tokens",
-        "moodle_sync_metrics",
-        "moodle_rate_limit",
-        "moodle_sync_discrepancies"
-    ],
-    "co_owns_tables": [
-        "cms_content",
-        "cms_content_meta",
-        "cms_menus",
-        "cms_menu_items",
-        "cms_menu_locations"
-    ],
-    "reads_tables": [
-        "users",
-        "cms_users",
-        "cms_user_services",
-        "tenant_module_settings",
-        "audit_logs"
-    ],
-    "migrations": [
-        "database/migrations/001_moodle_integration_schema.sql",
-        "database/migrations/002_moodle_enrollment_requests.sql",
-        "database/migrations/003_moodle_hardening_schema.sql",
-        "database/migrations/004_moodle_provider_capabilities_schema.sql",
-        "database/migrations/005_moodle_idempotency_and_progress_fk.sql",
-        "database/migrations/006_moodle_catalog_fields.sql",
-        "database/migrations/007_moodle_progress_rename_course_id.sql",
-        "database/migrations/008_moodle_reconciliation_observability.sql"
-    ],
-    "capabilities": {
-        "exposes": [],
-        "depends": [
-            "kernel.auth.user@1",
-            "kernel.audit.record@1"
-        ]
-    },
-    "hooks": [
-        "cms.admin.nav_items",
-        "cms.editor.block_types",
-        "cms.builder.renderers",
-        "cms.public.render_content"
-    ],
-    "settings_fields": [
-        {
-            "key": "moodle_url",
-            "type": "text",
-            "default": "",
-            "label": "Moodle Base URL",
-            "placeholder": "https://lms.example.com",
-            "help": "Base URL of the external Moodle instance. Leave blank to keep the integration inactive."
-        },
-        {
-            "key": "api_token",
-            "type": "text",
-            "default": "",
-            "label": "Moodle API Token",
-            "placeholder": "ws-token",
-            "help": "Web Services token used for Moodle REST API calls."
-        },
-        {
-            "key": "sso_secret",
-            "type": "text",
-            "default": "",
-            "label": "SSO Shared Secret",
-            "placeholder": "shared-secret",
-            "help": "Shared secret used to sign Moodle launch payloads."
-        },
-        {
-            "key": "tenant_mode",
-            "type": "select",
-            "default": "per_instance",
-            "label": "Tenant Mode",
-            "options": [
-                {
-                    "value": "per_instance",
-                    "label": "Per-tenant Moodle instance"
-                },
-                {
-                    "value": "shared",
-                    "label": "Shared Moodle instance"
-                }
-            ],
-            "help": "Choose whether each tenant targets its own Moodle base URL or shares a common Moodle instance."
-        },
-        {
-            "key": "enrollment_mode",
-            "type": "select",
-            "default": "manual_review",
-            "label": "Enrollment Mode",
-            "options": [
-                {
-                    "value": "manual_review",
-                    "label": "Manual review before enrollment"
-                },
-                {
-                    "value": "auto_enroll",
-                    "label": "Auto-enroll qualified learners"
-                },
-                {
-                    "value": "paid_then_auto",
-                    "label": "Paid first, then auto-enroll"
-                }
-            ],
-            "help": "Controls whether learner enrollment requests require review, can auto-enroll immediately, or wait for an external payment confirmation before enrollment."
-        },
-        {
-            "key": "sync_interval",
-            "type": "select",
-            "default": "hourly",
-            "label": "Sync Interval",
-            "options": [
-                {
-                    "value": "every_15_minutes",
-                    "label": "Every 15 minutes"
-                },
-                {
-                    "value": "hourly",
-                    "label": "Hourly"
-                },
-                {
-                    "value": "daily",
-                    "label": "Daily"
-                }
-            ],
-            "help": "Used by the scheduled sync jobs and the diagnostics UI."
-        },
-        {
-            "key": "shared_category_map_json",
-            "type": "text",
-            "default": "",
-            "label": "Shared Category Mapping",
-            "placeholder": "{\"tenant-1\": 42}",
-            "help": "Optional JSON map of tenant identifiers to Moodle category IDs when tenant mode is shared. Shared-mode course access is denied unless the resolved Moodle category matches the tenant mapping."
-        },
-        {
-            "key": "max_requests_per_minute",
-            "type": "text",
-            "default": "60",
-            "label": "Max Outbound Requests Per Minute",
-            "placeholder": "60",
-            "help": "Maximum number of Moodle API calls allowed per minute per tenant. Protects the upstream Moodle instance from request spikes. Set to 0 to disable limiting."
-        },
-        {
-            "key": "burst_limit",
-            "type": "text",
-            "default": "20",
-            "label": "Burst Limit Per Sync Job",
-            "placeholder": "20",
-            "help": "Maximum number of Moodle API calls a single sync job execution is allowed to make. Prevents one job from consuming the entire per-minute budget."
-        },
-        {
-            "key": "staleness_threshold_minutes",
-            "type": "text",
-            "default": "60",
-            "label": "Staleness Threshold (minutes)",
-            "placeholder": "60",
-            "help": "Progress data older than this many minutes is considered stale. When a learner opens their dashboard or a course page, a targeted reconciliation sync is dispatched automatically for any stale rows. Set to 0 to disable on-demand reconciliation."
-        }
-    ],
-    "nav": [
-        {
-            "label": "Moodle",
-            "url": "/admin/moodle-integration",
-            "icon": "book-open",
-            "roles": [
-                "admin"
-            ]
-        }
-    ],
-    "schedules": [
-        {
-            "frequency": "every_15_minutes",
-            "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
-            "queue": "moodle"
-        },
-        {
-            "frequency": "hourly",
-            "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
-            "queue": "moodle"
-        },
-        {
-            "frequency": "daily",
-            "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
-            "queue": "moodle"
-        }
+  "id": "moodle-integration",
+  "name": "Moodle Integration",
+  "version": "1.0.0",
+  "description": "Optional Moodle LMS integration for cached course discovery, enrollment handoff, SSO launch, and tenant-safe sync.",
+  "author": "GitHub Copilot",
+  "owns_tables": [
+    "learning_providers",
+    "learning_resources",
+    "moodle_courses_cache",
+    "moodle_user_progress",
+    "moodle_sync_queue",
+    "moodle_enrollment_requests",
+    "moodle_sso_tokens",
+    "moodle_sync_metrics",
+    "moodle_rate_limit",
+    "moodle_sync_discrepancies"
+  ],
+  "co_owns_tables": [
+    "cms_content",
+    "cms_content_meta",
+    "cms_menus",
+    "cms_menu_items",
+    "cms_menu_locations"
+  ],
+  "reads_tables": [
+    "users",
+    "cms_users",
+    "cms_user_services",
+    "tenant_module_settings",
+    "audit_logs"
+  ],
+  "migrations": [
+    "database/migrations/001_moodle_integration_schema.sql",
+    "database/migrations/002_moodle_enrollment_requests.sql",
+    "database/migrations/003_moodle_hardening_schema.sql",
+    "database/migrations/004_moodle_provider_capabilities_schema.sql",
+    "database/migrations/005_moodle_idempotency_and_progress_fk.sql",
+    "database/migrations/006_moodle_catalog_fields.sql",
+    "database/migrations/007_moodle_progress_rename_course_id.sql",
+    "database/migrations/008_moodle_reconciliation_observability.sql"
+  ],
+  "capabilities": {
+    "exposes": [],
+    "depends": [
+      "kernel.auth.user@1",
+      "kernel.audit.record@1"
     ]
+  },
+  "hooks": [
+    "cms.admin.nav_items",
+    "cms.editor.block_types",
+    "cms.builder.renderers",
+    "cms.public.render_content"
+  ],
+  "settings_fields": [
+    {
+      "key": "moodle_url",
+      "type": "text",
+      "default": "",
+      "label": "Moodle Base URL",
+      "placeholder": "https://lms.example.com",
+      "help": "Base URL of the external Moodle instance. Leave blank to keep the integration inactive."
+    },
+    {
+      "key": "api_token",
+      "type": "text",
+      "default": "",
+      "label": "Moodle API Token",
+      "placeholder": "ws-token",
+      "help": "Web Services token used for Moodle REST API calls."
+    },
+    {
+      "key": "sso_secret",
+      "type": "text",
+      "default": "",
+      "label": "SSO Shared Secret",
+      "placeholder": "shared-secret",
+      "help": "Shared secret used to sign Moodle launch payloads."
+    },
+    {
+      "key": "tenant_mode",
+      "type": "select",
+      "default": "per_instance",
+      "label": "Tenant Mode",
+      "options": [
+        {
+          "value": "per_instance",
+          "label": "Per-tenant Moodle instance"
+        },
+        {
+          "value": "shared",
+          "label": "Shared Moodle instance"
+        }
+      ],
+      "help": "Choose whether each tenant targets its own Moodle base URL or shares a common Moodle instance."
+    },
+    {
+      "key": "enrollment_mode",
+      "type": "select",
+      "default": "manual_review",
+      "label": "Enrollment Mode",
+      "options": [
+        {
+          "value": "manual_review",
+          "label": "Manual review before enrollment"
+        },
+        {
+          "value": "auto_enroll",
+          "label": "Auto-enroll qualified learners"
+        },
+        {
+          "value": "paid_then_auto",
+          "label": "Paid first, then auto-enroll"
+        }
+      ],
+      "help": "Controls whether learner enrollment requests require review, can auto-enroll immediately, or wait for an external payment confirmation before enrollment."
+    },
+    {
+      "key": "sync_interval",
+      "type": "select",
+      "default": "hourly",
+      "label": "Sync Interval",
+      "options": [
+        {
+          "value": "every_15_minutes",
+          "label": "Every 15 minutes"
+        },
+        {
+          "value": "hourly",
+          "label": "Hourly"
+        },
+        {
+          "value": "daily",
+          "label": "Daily"
+        }
+      ],
+      "help": "Used by the scheduled sync jobs and the diagnostics UI."
+    },
+    {
+      "key": "shared_category_map_json",
+      "type": "text",
+      "default": "",
+      "label": "Shared Category Mapping",
+      "placeholder": "{\"tenant-1\": 42}",
+      "help": "Optional JSON map of tenant identifiers to Moodle category IDs when tenant mode is shared. Shared-mode course access is denied unless the resolved Moodle category matches the tenant mapping."
+    },
+    {
+      "key": "max_requests_per_minute",
+      "type": "text",
+      "default": "60",
+      "label": "Max Outbound Requests Per Minute",
+      "placeholder": "60",
+      "help": "Maximum number of Moodle API calls allowed per minute per tenant. Protects the upstream Moodle instance from request spikes. Set to 0 to disable limiting."
+    },
+    {
+      "key": "burst_limit",
+      "type": "text",
+      "default": "20",
+      "label": "Burst Limit Per Sync Job",
+      "placeholder": "20",
+      "help": "Maximum number of Moodle API calls a single sync job execution is allowed to make. Prevents one job from consuming the entire per-minute budget."
+    },
+    {
+      "key": "staleness_threshold_minutes",
+      "type": "text",
+      "default": "60",
+      "label": "Staleness Threshold (minutes)",
+      "placeholder": "60",
+      "help": "Progress data older than this many minutes is considered stale. When a learner opens their dashboard or a course page, a targeted reconciliation sync is dispatched automatically for any stale rows. Set to 0 to disable on-demand reconciliation."
+    }
+  ],
+  "nav": [
+    {
+      "label": "Moodle",
+      "url": "/admin/moodle-integration",
+      "icon": "book-open",
+      "roles": [
+        "admin"
+      ]
+    }
+  ],
+  "schedules": [
+    {
+      "frequency": "every_15_minutes",
+      "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
+      "queue": "moodle"
+    },
+    {
+      "frequency": "hourly",
+      "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
+      "queue": "moodle"
+    },
+    {
+      "frequency": "daily",
+      "handler": "moodle-integration:moodleIntegrationDispatchScheduledWork",
+      "queue": "moodle"
+    }
+  ],
+  "routes": "routes.php",
+  "events": []
 }

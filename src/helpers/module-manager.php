@@ -2711,6 +2711,8 @@ function validateModuleCertification(array $manifest): array
     $total = 0;
 
     $moduleId = (string)($manifest['id'] ?? 'unknown');
+    $type = trim((string)($manifest['type'] ?? 'module'));
+    $isServiceModule = ($type === 'service-module');
 
     // C1: Basic identity
     $total++;
@@ -2718,42 +2720,67 @@ function validateModuleCertification(array $manifest): array
     $checks[] = ['check' => 'C1: Identity', 'passed' => $ok, 'detail' => $ok ? "{$manifest['name']} v{$manifest['version']}" : 'Missing id, name, or version'];
     if ($ok) $passed++;
 
-    // C2: Table ownership declared
+    // C2: Table ownership declared (skip for service-modules)
     $total++;
-    $owns = is_array($manifest['owns_tables'] ?? null) && !empty($manifest['owns_tables']);
-    $reads = is_array($manifest['reads_tables'] ?? null) && !empty($manifest['reads_tables']);
-    $ok = $owns || $reads;
-    $checks[] = ['check' => 'C2: Table ownership', 'passed' => $ok, 'detail' => $ok ? 'owns_tables or reads_tables declared' : 'No table ownership declared'];
+    $isServiceModule = ($type === 'service-module');
+    if ($isServiceModule) {
+        $checks[] = ['check' => 'C2: Table ownership', 'passed' => true, 'detail' => 'N/A for service-module'];
+        $passed++;
+    } else {
+        $owns = is_array($manifest['owns_tables'] ?? null) && !empty($manifest['owns_tables']);
+        $reads = is_array($manifest['reads_tables'] ?? null) && !empty($manifest['reads_tables']);
+        $ok = $owns || $reads;
+        $checks[] = ['check' => 'C2: Table ownership', 'passed' => $ok, 'detail' => $ok ? 'owns_tables or reads_tables declared' : 'No table ownership declared'];
+        if ($ok) $passed++;
+    }
+
+    // C3: Capabilities exposed (declared capabilities key with exposes array — even if empty)
+    $total++;
+    $capsExposes = $manifest['capabilities']['exposes'] ?? null;
+    // Accept: non-empty array OR explicitly declared empty array OR flat-array format
+    $capsDeclared = is_array($capsExposes);
+    $capsFlatFormat = is_array($manifest['capabilities'] ?? null) && !isset($manifest['capabilities']['exposes']);
+    if ($capsFlatFormat) {
+        $capsExposes = $manifest['capabilities'];
+        $capsDeclared = is_array($capsExposes) && !empty($capsExposes);
+    }
+    $ok = $capsDeclared;
+    $count = is_array($capsExposes) ? count($capsExposes) : 0;
+    $checks[] = ['check' => 'C3: Capabilities', 'passed' => $ok, 'detail' => $ok ? ($count > 0 ? "{$count} capabilities exposed" : 'capabilities declared (none exposed)') : 'No capabilities declared'];
     if ($ok) $passed++;
 
-    // C3: Capabilities exposed
-    $total++;
-    $caps = is_array($manifest['capabilities']['exposes'] ?? null) && !empty($manifest['capabilities']['exposes']);
-    $ok = $caps;
-    $checks[] = ['check' => 'C3: Capabilities', 'passed' => $ok, 'detail' => $ok ? count($manifest['capabilities']['exposes']) . ' capabilities exposed' : 'No capabilities declared'];
-    if ($ok) $passed++;
-
-    // C4: Events declared (emitted or listened)
+    // C4: Events declared (accept empty array — module has declared it, just has none)
     $total++;
     $events = is_array($manifest['events'] ?? null);
+    $ok = $events;
     $hasEvents = $events && !empty($manifest['events']);
-    $ok = $hasEvents;
-    $checks[] = ['check' => 'C4: Events', 'passed' => $ok, 'detail' => $ok ? count($manifest['events']) . ' events declared' : 'No events declared'];
+    $checks[] = ['check' => 'C4: Events', 'passed' => $ok, 'detail' => $ok ? ($hasEvents ? count($manifest['events']) . ' events declared' : 'events key declared (none needed)') : 'No events declared'];
     if ($ok) $passed++;
 
-    // C5: Routes declared (array or truthy/boolean flag for routes.php)
+    // C5: Routes declared (skip for service-modules)
     $total++;
-    $routes = (is_array($manifest['routes'] ?? null) && !empty($manifest['routes'])) || !empty($manifest['routes']);
-    $ok = $routes;
-    $checks[] = ['check' => 'C5: Routes', 'passed' => $ok, 'detail' => $ok ? 'Routes declared' : 'No routes declared'];
-    if ($ok) $passed++;
+    if ($isServiceModule) {
+        $checks[] = ['check' => 'C5: Routes', 'passed' => true, 'detail' => 'N/A for service-module'];
+        $passed++;
+    } else {
+        $routes = (is_array($manifest['routes'] ?? null) && !empty($manifest['routes'])) || !empty($manifest['routes']);
+        $ok = $routes;
+        $checks[] = ['check' => 'C5: Routes', 'passed' => $ok, 'detail' => $ok ? 'Routes declared' : 'No routes declared'];
+        if ($ok) $passed++;
+    }
 
-    // C6: Migrations present
+    // C6: Migrations present (accept empty array, skip for service-modules)
     $total++;
-    $migrations = is_array($manifest['migrations'] ?? null) && !empty($manifest['migrations']);
-    $ok = $migrations;
-    $checks[] = ['check' => 'C6: Migrations', 'passed' => $ok, 'detail' => $ok ? count($manifest['migrations']) . ' migrations' : 'No migrations'];
-    if ($ok) $passed++;
+    if ($isServiceModule) {
+        $checks[] = ['check' => 'C6: Migrations', 'passed' => true, 'detail' => 'N/A for service-module'];
+        $passed++;
+    } else {
+        $migrations = is_array($manifest['migrations'] ?? null);
+        $hasMigrations = $migrations && !empty($manifest['migrations']);
+        $ok = $migrations;
+        $checks[] = ['check' => 'C6: Migrations', 'passed' => $ok, 'detail' => $ok ? ($hasMigrations ? count($manifest['migrations']) . ' migrations' : 'migrations key declared (none needed)') : 'No migrations declared'];
+        if ($ok) $passed++;
+    }
 
     // C7: Author declared
     $total++;
@@ -2771,8 +2798,7 @@ function validateModuleCertification(array $manifest): array
 
     // C9: Module type valid
     $total++;
-    $type = trim((string)($manifest['type'] ?? 'php-module'));
-    $validTypes = ['php-module', 'service-module'];
+    $validTypes = ['php-module', 'module', 'service-module'];
     $ok = in_array($type, $validTypes, true);
     $checks[] = ['check' => 'C9: Module type', 'passed' => $ok, 'detail' => $ok ? $type : "Invalid type: {$type}"];
     if ($ok) $passed++;

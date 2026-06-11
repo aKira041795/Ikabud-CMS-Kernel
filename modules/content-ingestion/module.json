@@ -1,174 +1,183 @@
 {
-    "id": "content-ingestion",
-    "name": "Content Ingestion",
-    "version": "1.0.0",
-    "description": "External content ingestion system — event-driven, adapter-based pipeline for ingesting content from WordPress (and future sources) into ApplicationOS CMS.",
-    "author": "Ikabud Kernel Team",
-    "depends": [
-        "cms",
-        "wordpress-importer"
-    ],
-    "owns_tables": [
-        "bridge_ingestion_log",
-        "bridge_media_log",
-        "bridge_content_map"
-    ],
-    "reads_tables": [
-        "cms_content",
-        "cms_content_meta",
-        "cms_users",
-        "cms_categories",
-        "cms_tags",
-        "cms_media"
-    ],
-    "routes": true,
-    "events": [
-        {
-            "key": "cms.migration.content.upserted",
-            "description": "Emitted when normalized WordPress content is ready for CMS ingestion.",
-            "available_vars": [
-                "source",
-                "external_id",
-                "external_modified",
-                "title",
-                "slug",
-                "body",
-                "excerpt",
-                "type",
-                "status",
-                "categories",
-                "tags",
-                "author_external_id"
-            ]
-        },
-        {
-            "key": "cms.migration.media.fetched",
-            "description": "Emitted after the media pipeline completes for a WordPress import run.",
-            "available_vars": [
-                "source",
-                "media_fetched",
-                "media_failed"
-            ]
-        },
-        {
-            "key": "cms.migration.content.completed",
-            "description": "Emitted after CMS ingestion succeeds or fails for a single content item.",
-            "available_vars": [
-                "source",
-                "external_id",
-                "cms_content_id",
-                "status",
-                "outcome"
-            ]
-        },
-        {
-            "key": "cms.migration.bridge.state_changed",
-            "description": "Emitted when the bridge state transitions (active/read-only/archived/disabled).",
-            "available_vars": [
-                "prev_state",
-                "new_state",
-                "changed_by"
-            ]
-        }
-    ],
-    "capabilities": {
-        "exposes": []
+  "id": "content-ingestion",
+  "name": "Content Ingestion",
+  "version": "1.0.0",
+  "description": "External content ingestion system \u2014 event-driven, adapter-based pipeline for ingesting content from WordPress (and future sources) into ApplicationOS CMS.",
+  "author": "Ikabud Kernel Team",
+  "depends": [
+    "cms",
+    "wordpress-importer"
+  ],
+  "owns_tables": [
+    "bridge_ingestion_log",
+    "bridge_media_log",
+    "bridge_content_map"
+  ],
+  "reads_tables": [
+    "cms_content",
+    "cms_content_meta",
+    "cms_users",
+    "cms_categories",
+    "cms_tags",
+    "cms_media"
+  ],
+  "routes": true,
+  "events": [
+    {
+      "key": "cms.migration.content.upserted",
+      "description": "Emitted when normalized WordPress content is ready for CMS ingestion.",
+      "available_vars": [
+        "source",
+        "external_id",
+        "external_modified",
+        "title",
+        "slug",
+        "body",
+        "excerpt",
+        "type",
+        "status",
+        "categories",
+        "tags",
+        "author_external_id"
+      ]
     },
-    "settings": {
-        "bridge_enabled": {
-            "type": "boolean",
-            "default": false,
-            "label": "Enable Content Ingestion"
-        },
-        "bridge_state": {
-            "type": "select",
-            "options": [
-                "active",
-                "read-only",
-                "archived",
-                "disabled"
-            ],
-            "default": "active",
-            "label": "Bridge State",
-            "description": "Controls whether content ingestion is allowed. active=open; read-only=page renders only; archived/disabled=fully locked."
-        },
-        "source_adapter": {
-            "type": "select",
-            "options": [
-                "wordpress"
-            ],
-            "default": "wordpress",
-            "label": "Source Platform",
-            "description": "The CMS platform being ingested from. Determines available sync tools and normalization pipeline. Only WordPress is available in Phase 1."
-        },
-        "source_site_url": {
-            "type": "text",
-            "default": "",
-            "label": "Source Site URL",
-            "description": "The base URL of the site being migrated (e.g. https://myblog.com). Used for SSRF allowlisting and media URL rewriting."
-        },
-        "source_name": {
-            "type": "text",
-            "default": "",
-            "label": "Source Name",
-            "description": "A human-readable label for this WordPress source (e.g. \"Marketing Blog\"). Used to identify the source in the ingestion log."
-        },
-        "bridge_api_token": {
-            "type": "text",
-            "default": "",
-            "label": "Bridge API Token",
-            "description": "Auto-generated bearer token used by the WP companion plugin to authenticate ingestion requests. Rotate via the Bridge Settings page."
-        }
+    {
+      "key": "cms.migration.media.fetched",
+      "description": "Emitted after the media pipeline completes for a WordPress import run.",
+      "available_vars": [
+        "source",
+        "media_fetched",
+        "media_failed"
+      ]
     },
-    "settings_fields": [
+    {
+      "key": "cms.migration.content.completed",
+      "description": "Emitted after CMS ingestion succeeds or fails for a single content item.",
+      "available_vars": [
+        "source",
+        "external_id",
+        "cms_content_id",
+        "status",
+        "outcome"
+      ]
+    },
+    {
+      "key": "cms.migration.bridge.state_changed",
+      "description": "Emitted when the bridge state transitions (active/read-only/archived/disabled).",
+      "available_vars": [
+        "prev_state",
+        "new_state",
+        "changed_by"
+      ]
+    }
+  ],
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "content-ingestion.ingest@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "Content ingestion pipeline entry point"
+      }
+    ]
+  },
+  "settings": {
+    "bridge_enabled": {
+      "type": "boolean",
+      "default": false,
+      "label": "Enable Content Ingestion"
+    },
+    "bridge_state": {
+      "type": "select",
+      "options": [
+        "active",
+        "read-only",
+        "archived",
+        "disabled"
+      ],
+      "default": "active",
+      "label": "Bridge State",
+      "description": "Controls whether content ingestion is allowed. active=open; read-only=page renders only; archived/disabled=fully locked."
+    },
+    "source_adapter": {
+      "type": "select",
+      "options": [
+        "wordpress"
+      ],
+      "default": "wordpress",
+      "label": "Source Platform",
+      "description": "The CMS platform being ingested from. Determines available sync tools and normalization pipeline. Only WordPress is available in Phase 1."
+    },
+    "source_site_url": {
+      "type": "text",
+      "default": "",
+      "label": "Source Site URL",
+      "description": "The base URL of the site being migrated (e.g. https://myblog.com). Used for SSRF allowlisting and media URL rewriting."
+    },
+    "source_name": {
+      "type": "text",
+      "default": "",
+      "label": "Source Name",
+      "description": "A human-readable label for this WordPress source (e.g. \"Marketing Blog\"). Used to identify the source in the ingestion log."
+    },
+    "bridge_api_token": {
+      "type": "text",
+      "default": "",
+      "label": "Bridge API Token",
+      "description": "Auto-generated bearer token used by the WP companion plugin to authenticate ingestion requests. Rotate via the Bridge Settings page."
+    }
+  },
+  "settings_fields": [
+    {
+      "key": "source_adapter",
+      "type": "select",
+      "label": "Source Platform",
+      "description": "The CMS platform you are migrating content from.",
+      "options": [
         {
-            "key": "source_adapter",
-            "type": "select",
-            "label": "Source Platform",
-            "description": "The CMS platform you are migrating content from.",
-            "options": [
-                {
-                    "value": "wordpress",
-                    "label": "WordPress"
-                },
-                {
-                    "value": "joomla",
-                    "label": "Joomla",
-                    "available": false
-                },
-                {
-                    "value": "rest-api",
-                    "label": "REST API",
-                    "available": false
-                }
-            ]
+          "value": "wordpress",
+          "label": "WordPress"
         },
         {
-            "key": "bridge_enabled",
-            "type": "checkbox",
-            "label": "Enable Content Ingestion",
-            "description": "Enable CMS admin navigation and ingestion API for this bridge."
+          "value": "joomla",
+          "label": "Joomla",
+          "available": false
         },
         {
-            "key": "source_site_url",
-            "type": "text",
-            "label": "WordPress Site URL",
-            "description": "Base URL of the source WordPress site (e.g. https://myblog.com). Used for SSRF allowlisting during media fetch and for URL rewriting in migrated content."
-        },
-        {
-            "key": "source_name",
-            "type": "text",
-            "label": "Source Name",
-            "description": "Human-readable label for this WordPress source. Appears in the ingestion log and bridge dashboard."
+          "value": "rest-api",
+          "label": "REST API",
+          "available": false
         }
-    ],
-    "hooks": [
-        "cms.admin.nav_items"
-    ],
-    "migrations": [
-        "database/migrations/001_bridge_ingestion_log.sql",
-        "database/migrations/002_bridge_media_log.sql",
-        "database/migrations/003_bridge_content_map.sql"
-    ],
-    "nav": []
+      ]
+    },
+    {
+      "key": "bridge_enabled",
+      "type": "checkbox",
+      "label": "Enable Content Ingestion",
+      "description": "Enable CMS admin navigation and ingestion API for this bridge."
+    },
+    {
+      "key": "source_site_url",
+      "type": "text",
+      "label": "WordPress Site URL",
+      "description": "Base URL of the source WordPress site (e.g. https://myblog.com). Used for SSRF allowlisting during media fetch and for URL rewriting in migrated content."
+    },
+    {
+      "key": "source_name",
+      "type": "text",
+      "label": "Source Name",
+      "description": "Human-readable label for this WordPress source. Appears in the ingestion log and bridge dashboard."
+    }
+  ],
+  "hooks": [
+    "cms.admin.nav_items"
+  ],
+  "migrations": [
+    "database/migrations/001_bridge_ingestion_log.sql",
+    "database/migrations/002_bridge_media_log.sql",
+    "database/migrations/003_bridge_content_map.sql"
+  ],
+  "nav": []
 }

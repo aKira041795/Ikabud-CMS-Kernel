@@ -1,153 +1,153 @@
 {
-    "id": "anti-spam",
-    "name": "Anti-Spam",
-    "version": "1.0.0",
-    "description": "Simple anti-spam protection: honeypot fields, rate limiting, keyword blocklist, and IP blocking.",
-    "author": "",
-    "requires_tables": [],
-    "owns_tables": [
-        "antispam_blocked_ips",
-        "antispam_log",
-        "antispam_settings"
-    ],
-    "reads_tables": [],
-    "migrations": [
-        "001_initial.sql"
-    ],
-    "settings": [],
-    "hooks": [],
-    "capabilities": {
-        "exposes": [
-            {
-                "id": "antispam.check@1",
-                "priority": 100,
-                "modes": [
-                    "first"
-                ],
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "body": {
-                            "type": "string",
-                            "description": "Text body to scan for blocked keywords"
-                        },
-                        "ip": {
-                            "type": "string",
-                            "description": "IP address to check (defaults to request IP)"
-                        }
-                    }
-                }
-            }
+  "id": "anti-spam",
+  "name": "Anti-Spam",
+  "version": "1.0.0",
+  "description": "Simple anti-spam protection: honeypot fields, rate limiting, keyword blocklist, and IP blocking.",
+  "author": "Ikabud Kernel Team",
+  "requires_tables": [],
+  "owns_tables": [
+    "antispam_blocked_ips",
+    "antispam_log",
+    "antispam_settings"
+  ],
+  "reads_tables": [],
+  "migrations": [
+    "001_initial.sql"
+  ],
+  "settings": [],
+  "hooks": [],
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "antispam.check@1",
+        "priority": 100,
+        "modes": [
+          "first"
         ],
-        "depends": [],
-        "policy": {
-            "capabilities": {
-                "antispam.check@1": {}
+        "schema": {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "string",
+              "description": "Text body to scan for blocked keywords"
+            },
+            "ip": {
+              "type": "string",
+              "description": "IP address to check (defaults to request IP)"
             }
+          }
         }
+      }
+    ],
+    "depends": [],
+    "policy": {
+      "capabilities": {
+        "antispam.check@1": {}
+      }
+    }
+  },
+  "settings_fields": [
+    {
+      "key": "enabled",
+      "type": "checkbox",
+      "label": "Enable Anti-Spam",
+      "default": "1",
+      "description": "Master switch for anti-spam protections on this tenant."
     },
-    "settings_fields": [
-        {
-            "key": "enabled",
-            "type": "checkbox",
-            "label": "Enable Anti-Spam",
-            "default": "1",
-            "description": "Master switch for anti-spam protections on this tenant."
-        },
-        {
-            "key": "auto_protect_web_apis",
-            "type": "checkbox",
-            "label": "Protect Public Web APIs",
-            "default": "1",
-            "description": "Apply anti-spam checks automatically to unauthenticated module API requests handled through the web runtime."
-        },
-        {
-            "key": "skip_authenticated_api_users",
-            "type": "checkbox",
-            "label": "Skip Authenticated API Users",
-            "default": "1",
-            "description": "Avoid applying the default API anti-spam gate to already-authenticated users."
-        },
-        {
-            "key": "honeypot_enabled",
-            "type": "checkbox",
-            "label": "Enable Honeypot Detection",
-            "default": "1",
-            "description": "Allow forms to use honeypot fields for bot detection."
-        },
-        {
-            "key": "rate_limit_enabled",
-            "type": "checkbox",
-            "label": "Enable Rate Limiting",
-            "default": "1",
-            "description": "Limit repeated requests from the same client IP."
-        },
-        {
-            "key": "rate_limit_window",
-            "type": "number",
-            "label": "Rate Limit Window (seconds)",
-            "default": "60",
-            "description": "How far back to count recent requests when rate limiting."
-        },
-        {
-            "key": "rate_limit_max",
-            "type": "number",
-            "label": "Rate Limit Max Requests",
-            "default": "10",
-            "description": "Maximum allowed requests per IP within the configured window."
-        },
-        {
-            "key": "keyword_block_enabled",
-            "type": "checkbox",
-            "label": "Enable Keyword Blocklist",
-            "default": "1",
-            "description": "Scan request bodies for blocked phrases."
-        },
-        {
-            "key": "blocked_keywords",
-            "type": "text",
-            "label": "Blocked Keywords",
-            "default": "viagra,casino,lottery,nigerian prince,click here now,buy now cheap",
-            "description": "Comma-separated words or phrases that should trigger a block."
-        },
-        {
-            "key": "log_retention_days",
-            "type": "number",
-            "label": "Log Retention Days",
-            "default": "30",
-            "description": "How many days of anti-spam log history to keep when clearing old records."
-        }
-    ],
-    "routes": true,
-    "events": [
-        {
-            "key": "antispam.blocked",
-            "description": "A request was blocked by anti-spam",
-            "available_vars": [
-                "ip",
-                "check",
-                "detail",
-                "uri"
-            ]
-        },
-        {
-            "key": "antispam.honeypot.triggered",
-            "description": "A honeypot field was filled (bot detected)",
-            "available_vars": [
-                "ip",
-                "field",
-                "uri"
-            ]
-        }
-    ],
-    "nav": [
-        {
-            "label": "Anti-Spam",
-            "url": "/admin/anti-spam",
-            "icon": "shield",
-            "roles": [
-                "admin"
-            ]
-        }
-    ]
+    {
+      "key": "auto_protect_web_apis",
+      "type": "checkbox",
+      "label": "Protect Public Web APIs",
+      "default": "1",
+      "description": "Apply anti-spam checks automatically to unauthenticated module API requests handled through the web runtime."
+    },
+    {
+      "key": "skip_authenticated_api_users",
+      "type": "checkbox",
+      "label": "Skip Authenticated API Users",
+      "default": "1",
+      "description": "Avoid applying the default API anti-spam gate to already-authenticated users."
+    },
+    {
+      "key": "honeypot_enabled",
+      "type": "checkbox",
+      "label": "Enable Honeypot Detection",
+      "default": "1",
+      "description": "Allow forms to use honeypot fields for bot detection."
+    },
+    {
+      "key": "rate_limit_enabled",
+      "type": "checkbox",
+      "label": "Enable Rate Limiting",
+      "default": "1",
+      "description": "Limit repeated requests from the same client IP."
+    },
+    {
+      "key": "rate_limit_window",
+      "type": "number",
+      "label": "Rate Limit Window (seconds)",
+      "default": "60",
+      "description": "How far back to count recent requests when rate limiting."
+    },
+    {
+      "key": "rate_limit_max",
+      "type": "number",
+      "label": "Rate Limit Max Requests",
+      "default": "10",
+      "description": "Maximum allowed requests per IP within the configured window."
+    },
+    {
+      "key": "keyword_block_enabled",
+      "type": "checkbox",
+      "label": "Enable Keyword Blocklist",
+      "default": "1",
+      "description": "Scan request bodies for blocked phrases."
+    },
+    {
+      "key": "blocked_keywords",
+      "type": "text",
+      "label": "Blocked Keywords",
+      "default": "viagra,casino,lottery,nigerian prince,click here now,buy now cheap",
+      "description": "Comma-separated words or phrases that should trigger a block."
+    },
+    {
+      "key": "log_retention_days",
+      "type": "number",
+      "label": "Log Retention Days",
+      "default": "30",
+      "description": "How many days of anti-spam log history to keep when clearing old records."
+    }
+  ],
+  "routes": true,
+  "events": [
+    {
+      "key": "antispam.blocked",
+      "description": "A request was blocked by anti-spam",
+      "available_vars": [
+        "ip",
+        "check",
+        "detail",
+        "uri"
+      ]
+    },
+    {
+      "key": "antispam.honeypot.triggered",
+      "description": "A honeypot field was filled (bot detected)",
+      "available_vars": [
+        "ip",
+        "field",
+        "uri"
+      ]
+    }
+  ],
+  "nav": [
+    {
+      "label": "Anti-Spam",
+      "url": "/admin/anti-spam",
+      "icon": "shield",
+      "roles": [
+        "admin"
+      ]
+    }
+  ]
 }

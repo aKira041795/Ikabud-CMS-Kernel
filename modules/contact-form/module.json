@@ -18,7 +18,10 @@
     "migrations/006_contact_form_field_conditional_logic.sql",
     "migrations/007_contact_form_submission_workflows.sql"
   ],
-  "capabilities": [],
+  "capabilities": {
+    "exposes": [],
+    "depends": []
+  },
   "hooks": [
     "cms.admin.nav_items",
     "cms.editor.block_types",
@@ -26,7 +29,7 @@
     "cms.public.render_content",
     "cms.public.head"
   ],
-    "routes": true,
+  "routes": true,
   "events": [],
   "nav": [],
   "settings_fields": [

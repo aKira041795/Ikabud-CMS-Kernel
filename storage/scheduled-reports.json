@@ -1,0 +1,20 @@
+[
+    {
+        "id": "sch_6a2a2187b4ac82.24354234",
+        "entity_type": "invoices",
+        "format": "pdf",
+        "schedule": "weekly",
+        "options": [],
+        "created_at": "2026-06-11T10:46:31+08:00",
+        "last_run": null
+    },
+    {
+        "id": "sch_6a2a2187b4b7f5.29672633",
+        "entity_type": "products",
+        "format": "csv",
+        "schedule": "monthly",
+        "options": [],
+        "created_at": "2026-06-11T10:46:31+08:00",
+        "last_run": null
+    }
+]

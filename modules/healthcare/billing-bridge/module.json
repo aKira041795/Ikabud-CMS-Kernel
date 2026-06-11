@@ -1,48 +1,52 @@
 {
-    "id": "billing-bridge",
-    "name": "Billing Bridge",
-    "version": "0.1.0",
-    "description": "Derived billing charge candidates generated from EHR event audit records.",
-    "author": "Ikabud Platform Team",
-    "owns_tables": [],
-    "reads_tables": [],
-    "migrations": [],
-    "capabilities": {
-        "exposes": [
-            {
-                "id": "ehr.billing.charge_candidates@1",
-                "priority": 100,
-                "modes": [
-                    "first"
-                ]
-            }
-        ],
-        "depends": [
-            "ehr.audit.search@1"
-        ],
-        "policy": {
-            "capabilities": {
-                "ehr.billing.charge_candidates@1": {
-                    "allow_callers": [
-                        "billing-bridge"
-                    ]
-                }
-            }
-        }
-    },
-    "nav": [
-        {
-            "key": "ehr_billing_bridge",
-            "label": "Billing Queue",
-            "url": "/admin/ehr/billing",
-            "icon": "receipt",
-            "roles": [
-                "admin"
-            ],
-            "description": "Review charge candidates emitted from clinical activity",
-            "order": 160
-        }
+  "id": "billing-bridge",
+  "name": "Billing Bridge",
+  "version": "0.1.0",
+  "description": "Derived billing charge candidates generated from EHR event audit records.",
+  "author": "Ikabud Platform Team",
+  "owns_tables": [],
+  "reads_tables": [
+    "users",
+    "orders",
+    "encounters"
+  ],
+  "migrations": [],
+  "capabilities": {
+    "exposes": [
+      {
+        "id": "ehr.billing.charge_candidates@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ]
+      }
     ],
-    "routes": true,
-    "events": []
+    "depends": [
+      "ehr.audit.search@1"
+    ],
+    "policy": {
+      "capabilities": {
+        "ehr.billing.charge_candidates@1": {
+          "allow_callers": [
+            "billing-bridge"
+          ]
+        }
+      }
+    }
+  },
+  "nav": [
+    {
+      "key": "ehr_billing_bridge",
+      "label": "Billing Queue",
+      "url": "/admin/ehr/billing",
+      "icon": "receipt",
+      "roles": [
+        "admin"
+      ],
+      "description": "Review charge candidates emitted from clinical activity",
+      "order": 160
+    }
+  ],
+  "routes": true,
+  "events": []
 }
