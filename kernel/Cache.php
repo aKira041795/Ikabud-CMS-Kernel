@@ -261,7 +261,7 @@ class Cache
                 $this->incrementStat('compressed');
             }
             
-            $result = @unserialize($data);
+            $result = @unserialize($data, ['allowed_classes' => false]);
             if ($result === false && $data !== serialize(false)) {
                 // Unserialize failed - corrupted data
                 @unlink($file);
@@ -438,7 +438,7 @@ class Cache
             return [];
         }
 
-        $uris = @unserialize($content);
+        $uris = @unserialize($content, ['allowed_classes' => false]);
         if (!is_array($uris)) {
             return [];
         }
@@ -623,7 +623,7 @@ class Cache
                 if ($data === false) continue;
             }
             
-            $cached = @unserialize($data);
+            $cached = @unserialize($data, ['allowed_classes' => false]);
             if (!$cached || !isset($cached['cache_uri'])) continue;
             
             // Check if URI matches pattern

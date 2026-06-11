@@ -14,7 +14,7 @@ if ($cookieName === '') {
 
 return [
     'name' => 'Application Kernel OS',
-    'version' => '0.1.0',
+    'version' => '6.0.0',
     'env' => $_ENV['APP_ENV'] ?? 'development',
     'debug' => (bool) ($_ENV['APP_DEBUG'] ?? true),
     'url' => $appUrl,

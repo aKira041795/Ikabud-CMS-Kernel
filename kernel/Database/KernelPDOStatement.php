@@ -35,7 +35,7 @@ class KernelPDOStatement extends PDOStatement
                     'duration_ms' => (microtime(true) - $start) * 1000,
                     'source'      => 'pdo_statement',
                 ]);
-            } catch (\Throwable $ignored) {}
+            } catch (\Throwable $e) { write_log('db_event_error', 'warning', ['error' => $e->getMessage(), 'source' => 'pdo_statement']); }
         }
 
         return $result;

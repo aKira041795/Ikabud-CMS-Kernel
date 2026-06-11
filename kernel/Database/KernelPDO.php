@@ -137,7 +137,7 @@ final class KernelPDO extends PDO
         }
 
         if (function_exists('app')) {
-            try { app()->events()->fire('kernel.database.query.after', ['sql' => $query, 'duration_ms' => (microtime(true) - $start) * 1000, 'source' => 'pdo_query']); } catch (\Throwable $ignored) {}
+            try { app()->events()->fire('kernel.database.query.after', ['sql' => $query, 'duration_ms' => (microtime(true) - $start) * 1000, 'source' => 'pdo_query']); } catch (\Throwable $e) { write_log('db_event_error', 'warning', ['error' => $e->getMessage(), 'source' => 'pdo_query']); }
         }
 
         return $res;
@@ -159,7 +159,7 @@ final class KernelPDO extends PDO
         }
 
         if (function_exists('app')) {
-            try { app()->events()->fire('kernel.database.query.after', ['sql' => $statement, 'duration_ms' => (microtime(true) - $start) * 1000, 'source' => 'pdo_exec']); } catch (\Throwable $ignored) {}
+            try { app()->events()->fire('kernel.database.query.after', ['sql' => $statement, 'duration_ms' => (microtime(true) - $start) * 1000, 'source' => 'pdo_exec']); } catch (\Throwable $e) { write_log('db_event_error', 'warning', ['error' => $e->getMessage(), 'source' => 'pdo_exec']); }
         }
 
         return $res;

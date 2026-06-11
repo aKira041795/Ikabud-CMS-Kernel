@@ -678,7 +678,7 @@ class QueryBuilder
                     $sql = $ctx['sql'] ?? $sql;
                     $finalBindings = $ctx['bindings'] ?? $finalBindings;
                 }
-            } catch (\Throwable $ignored) {}
+            } catch (\Throwable $e) { write_log('db_event_error', 'warning', ['error' => $e->getMessage(), 'source' => 'querybuilder_before']); }
         }
         $start = microtime(true);
 
@@ -686,7 +686,7 @@ class QueryBuilder
         $stmt->execute($finalBindings);
 
         if (function_exists('app')) {
-            try { app()->events()->fire('kernel.database.query.after', ['sql' => $sql, 'table' => $this->table, 'duration_ms' => (microtime(true) - $start) * 1000]); } catch (\Throwable $ignored) {}
+            try { app()->events()->fire('kernel.database.query.after', ['sql' => $sql, 'table' => $this->table, 'duration_ms' => (microtime(true) - $start) * 1000]); } catch (\Throwable $e) { write_log('db_event_error', 'warning', ['error' => $e->getMessage(), 'source' => 'querybuilder_after']); }
         }
 
         return $stmt;
