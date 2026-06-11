@@ -267,7 +267,7 @@
   "capabilities": {
     "exposes": [
       {
-        "id": "gui-settings.apply@1",
+        "id": "gui_settings.apply@1",
         "priority": 10,
         "modes": [
           "first"

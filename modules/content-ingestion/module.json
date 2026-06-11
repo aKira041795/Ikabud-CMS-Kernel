@@ -74,7 +74,7 @@
   "capabilities": {
     "exposes": [
       {
-        "id": "content-ingestion.ingest@1",
+        "id": "content_ingestion.import_content@1",
         "priority": 100,
         "modes": [
           "first"

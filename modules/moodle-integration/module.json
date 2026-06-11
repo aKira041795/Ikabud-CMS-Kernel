@@ -41,7 +41,16 @@
     "database/migrations/008_moodle_reconciliation_observability.sql"
   ],
   "capabilities": {
-    "exposes": [],
+    "exposes": [
+      {
+        "id": "moodle.sso.validate@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "Validate Moodle SSO token"
+      }
+    ],
     "depends": [
       "kernel.auth.user@1",
       "kernel.audit.record@1"

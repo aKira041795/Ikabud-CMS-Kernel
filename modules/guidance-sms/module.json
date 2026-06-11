@@ -3,7 +3,6 @@
   "name": "Guidance SMS Addon",
   "version": "1.0.0",
   "description": "SMS notifications hook for Guidance module.",
-  "commercial_mode": "paid",
   "depends": [
     "guidance"
   ],
@@ -25,7 +24,7 @@
   "capabilities": {
     "exposes": [
       {
-        "id": "guidance-sms.send@1",
+        "id": "guidance_sms.send@1",
         "priority": 100,
         "modes": [
           "first"

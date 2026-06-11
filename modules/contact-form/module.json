@@ -19,7 +19,16 @@
     "migrations/007_contact_form_submission_workflows.sql"
   ],
   "capabilities": {
-    "exposes": [],
+    "exposes": [
+      {
+        "id": "contact_form.submit@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "Process a contact form submission"
+      }
+    ],
     "depends": []
   },
   "hooks": [

@@ -14,7 +14,7 @@
   "capabilities": {
     "exposes": [
       {
-        "id": "example-notes.ping@1",
+        "id": "example_notes.ping@1",
         "priority": 10,
         "modes": [
           "first"
