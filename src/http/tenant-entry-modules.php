@@ -18,7 +18,22 @@ if (!function_exists('listTenantEntryModuleOptions')) {
                 continue;
             }
 
+            // EHR core is aliased to the EHR suite entry module
             if ($moduleId === 'ehr-core') {
+                continue;
+            }
+
+            // Only modules that own their authentication can serve as tenant entry points.
+            // This means auth_owned (module-owned users table) or auth_cookie (module JWT cookie).
+            // Service modules, extensions, and add-ons are excluded.
+            $type = trim((string)($module['type'] ?? 'module'));
+            if ($type === 'service-module') {
+                continue;
+            }
+
+            $hasAuthOwned = is_array($module['auth_owned'] ?? null) && !empty($module['auth_owned']);
+            $hasAuthCookie = !empty($module['auth_cookie']) && is_string($module['auth_cookie']);
+            if (!$hasAuthOwned && !$hasAuthCookie) {
                 continue;
             }
 
