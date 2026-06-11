@@ -1114,6 +1114,69 @@ Static caches in shared/kernel modules must still use the tenant-keyed pattern, 
 
 ---
 
+## Performance Best Practices
+
+### Fast-Path Endpoints
+
+The kernel provides **ultra-early fast-path handlers** that serve specific routes BEFORE booting `bootstrap.php`, the module manager, or opening a DB connection. These run in ~1–5ms instead of the full ~450ms bootstrap.
+
+| Fast-path handler | Route | Purpose |
+|-------------------|-------|---------|
+| `fast-path-cache.php` | `GET /` (cached pages) | Serves page-cached HTML without kernel boot |
+| `fast-path-health.php` | `GET /api/v1/health` | Liveness probe for monitoring/load balancers |
+| Static asset handler | `GET /assets/modules/*/uploads/*` | Serves uploaded images/files from disk |
+
+**Module authors should NOT add routes to fast-path handlers.** These are kernel-owned. If your module needs a fast health/liveness endpoint, use `GET /api/v1/health?full=1` to get the full kernel-aware payload, or register a module-specific health route at `/api/v1/<module-id>/health` that runs through the standard bootstrap.
+
+### Connection Pooling
+
+All database access goes through `app()->db()` (or `module()->db()` for module-scoped access). The `DatabaseManager` handles:
+- Connection reuse — `app()->db()` returns the same PDO instance per request
+- Tenant pool — `app()->dbForTenant()` caches up to `APP_TENANT_DB_POOL_MAX` (default 20) connections
+- Idle validation — `SELECT 1` probes at 60-second intervals
+- Retry with exponential backoff — 3 attempts on `max_user_connections` errors
+
+**Do not** create raw PDO connections or use `new PDO()` directly in module code.
+
+### Query Patterns
+
+- **Use parameterized queries always** — `$db->prepare()` + `$stmt->execute([...])` — never string interpolation
+- **Add LIMIT to `fetchAll()`** — unbounded queries on large tables (orders, content, logs) will exhaust memory
+- **Use static caches** for settings/config reads that don't change within a request
+- **Batch queries** — one query that returns 100 rows is faster than 100 queries returning 1 row each
+
+```php
+// ✅ Good: static cache + parameterized query + LIMIT
+function myModuleSettings(): array {
+    static $cache = [];
+    $tid = app()->tenant()->current() ?? 0;
+    if (isset($cache[$tid])) return $cache[$tid];
+    $cache[$tid] = myModuleLoadSettings();
+    return $cache[$tid];
+}
+```
+
+### Tenant Migration Sync
+
+`syncTenantMigrationsForCurrentRequest()` runs on every HTTP request when multi-tenancy is enabled. It is **cached at multiple levels** to minimize overhead:
+- Static once-per-request guard
+- File cache with configurable TTL (default 300s via `APP_REQUEST_TENANT_MIGRATION_SYNC_TTL`)
+- Fingerprint-based invalidation
+
+Set `APP_REQUEST_TENANT_MIGRATION_SYNC=0` to disable per-request sync entirely (useful for high-traffic tenants where migrations are applied via CLI).
+
+### Benchmarking
+
+Run `php tests/cms_performance_benchmark.php [base_url] [iterations]` to measure response time distributions (min/max/avg/p50/p95) for key CMS endpoints. Baseline at `http://cmsnew.test`:
+
+| Endpoint | Avg | Notes |
+|----------|-----|-------|
+| Homepage (page-cached) | ~2ms | Fast-path cache bypasses kernel |
+| CMS Login page | ~475ms | Full kernel bootstrap + DiSyL render |
+| Health check | ~1ms (fast) / ~480ms (full) | Minimal liveness by default; `?full=1` for kernel payload |
+
+---
+
 ### Updated Checklist for New Modules
 
 Add these checks to the standard module checklist:

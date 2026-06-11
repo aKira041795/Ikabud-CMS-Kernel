@@ -7,6 +7,12 @@ declare(strict_types=1);
 // On a cache hit the response is served in ~5–20 ms and PHP exits.
 require_once __DIR__ . '/../src/helpers/fast-path-cache.php';
 
+// ── Ultra-early health check ────────────────────────────────────────────
+// Serves GET /api/v1/health before booting the kernel.  Returns minimal
+// liveness JSON in ~1ms.  Pass ?full=1 for the full kernel-aware payload.
+// Must come before require_once bootstrap.php below.
+require_once __DIR__ . '/../src/helpers/fast-path-health.php';
+
 // ── Ultra-early module uploads static file handler ───────────────────────
 // Serves /assets/modules/<moduleId>/uploads/... directly from disk WITHOUT
 // booting bootstrap.php, opening a DB connection, or loading module-manager.
