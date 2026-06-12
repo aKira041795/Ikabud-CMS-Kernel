@@ -167,10 +167,14 @@
     var LEDGER_DATE = '{ledger_date}';
     var DAY_STATUS = '{day_status}';
     var FORMAL_DELIVERY_ENABLED = {if formal_delivery_enabled}true{else}false{/if};
+    var COMMISSARY_BRANCH_ID = '{commissary_branch_id}';
+    var COMMISSARY_BRANCH_NAME = '{commissary_branch_name}';
     window.BASE = BASE;
     window.BRANCH_ID = BRANCH_ID;
     window.LEDGER_DATE = LEDGER_DATE;
     window.FORMAL_DELIVERY_ENABLED = FORMAL_DELIVERY_ENABLED;
+    window.COMMISSARY_BRANCH_ID = COMMISSARY_BRANCH_ID;
+    window.COMMISSARY_BRANCH_NAME = COMMISSARY_BRANCH_NAME;
 
     // Offline buffer: localStorage write-ahead log
     var PENDING_KEY = 'bbs_pending_saves';

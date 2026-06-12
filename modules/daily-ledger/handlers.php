@@ -1101,7 +1101,15 @@ function dl_processProductionMovement(array $user, string $movementType, array $
 
     $ctx->db()->beginTransaction();
     try {
-        $ledgerState = dl_applyLedgerDelta($destinationBranchId, $productId, $ledgerDate, $delta, $actorId, $ledgerColumn);
+        if ($shouldAutoCreateFormalDelivery) {
+            // Do NOT update addtl directly — the branch must accept the delivery
+            // via Receive Stock first. dl_upsertCommissaryOutputDeliveryItem below
+            // creates the posted delivery, and dl_acceptFormalDelivery will update
+            // addtl when the branch cashier receives it.
+            $ledgerState = [$ledgerColumn => 0];
+        } else {
+            $ledgerState = dl_applyLedgerDelta($destinationBranchId, $productId, $ledgerDate, $delta, $actorId, $ledgerColumn);
+        }
 
         $movementUuid = dl_generateMovementUuid();
         $ins = $ctx->db()->prepare(
@@ -2030,6 +2038,19 @@ function handleCashierLedger(array $params = []): void
     }
 
     $clockLabel = dl_operatingClockLabel();
+    $commissaryBranchId = null;
+    $commissaryBranchName = null;
+    if ($branchId) {
+        $commStmt = $ctx->db()->prepare('SELECT assigned_commissary_id FROM dl_branches WHERE id = :id LIMIT 1');
+        $commStmt->execute([':id' => $branchId]);
+        $commRow = $commStmt->fetch(PDO::FETCH_ASSOC);
+        if ($commRow && !empty($commRow['assigned_commissary_id'])) {
+            $commissaryBranchId = (int)$commRow['assigned_commissary_id'];
+            $commNameStmt = $ctx->db()->prepare('SELECT name FROM dl_branches WHERE id = :id LIMIT 1');
+            $commNameStmt->execute([':id' => $commissaryBranchId]);
+            $commissaryBranchName = $commNameStmt->fetchColumn() ?: null;
+        }
+    }
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -2054,6 +2075,8 @@ function handleCashierLedger(array $params = []): void
         'all_branches' => $allBranches,
         'incoming_count' => $incomingCount,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
+        'commissary_branch_id' => $commissaryBranchId,
+        'commissary_branch_name' => $commissaryBranchName,
     ]);
 }
 
@@ -2335,8 +2358,85 @@ function apiSaveCashierWithdrawals(array $params = []): void
             $totals[] = ['product_id' => $pid, 'total' => $newTotal];
         }
 
+        // ── Pullout return to commissary ──────────────────────────────
+        // When a branch pullout is recorded with a target commissary,
+        // create a return delivery and auto-receive so the commissary
+        // ledger reflects the returned goods.
+        $returnDeliveryId = null;
+        $returnReceivingId = null;
+        if ($type === 'pullout' && $targetBranchId !== null && dl_isFormalDeliveryEnabled()) {
+            $commissaryCheck = $ctx->db()->prepare(
+                'SELECT id, name FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1'
+            );
+            $commissaryCheck->execute([':id' => $targetBranchId]);
+            $commissary = $commissaryCheck->fetch(PDO::FETCH_ASSOC);
+            if ($commissary) {
+                $returnDr = '[pullout-return-' . $date . '-' . $branchId . '-' . date('His') . ']';
+                $priceGroupId = dl_defaultPriceGroupId();
+                $actorId = dl_getActorUserId($user);
+                $effectiveUserId = $actorId > 0 ? $actorId : null;
+
+                // Create return delivery: branch → commissary
+                $delIns = $ctx->db()->prepare(
+                    'INSERT INTO dl_deliveries
+                        (origin_type, origin_id, destination_type, destination_id, dr_number,
+                         delivery_date, status, created_by, posted_by, posted_at, remarks)
+                     VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :uid1, :uid2, NOW(), :remarks)'
+                );
+                $delIns->execute([
+                    ':ot' => 'branch',
+                    ':oid' => $branchId,
+                    ':dt' => 'branch',
+                    ':did' => $targetBranchId,
+                    ':dr' => $returnDr,
+                    ':dd' => $date,
+                    ':uid1' => $effectiveUserId,
+                    ':uid2' => $effectiveUserId,
+                    ':remarks' => '[cashier-pullout-return]',
+                ]);
+                $returnDeliveryId = (int)$ctx->db()->lastInsertId();
+
+                // Add delivery items
+                $itemIns = $ctx->db()->prepare(
+                    'INSERT INTO dl_delivery_items
+                        (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+                     VALUES (:did, :pid, :qty, :unit, :cost, :price, :pg, :remarks)'
+                );
+                foreach ($validLines as $line) {
+                    $itemIns->execute([
+                        ':did' => $returnDeliveryId,
+                        ':pid' => $line['product_id'],
+                        ':qty' => $line['quantity'],
+                        ':unit' => 'pcs',
+                        ':cost' => 0,
+                        ':price' => dl_resolveProductPrice((int)$line['product_id'], $priceGroupId, $date),
+                        ':pg' => $priceGroupId,
+                        ':remarks' => 'pullout_return:' . $branchId,
+                    ]);
+                }
+
+                // Auto-receive for commissary
+                $returnReceivingId = dl_acceptFormalDelivery(
+                    $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null
+                );
+
+                dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$returnDeliveryId, null, [
+                    'dr_number' => $returnDr,
+                    'status' => 'posted',
+                    'source' => 'cashier_pullout_return',
+                    'destination_commissary_id' => $targetBranchId,
+                    'items' => count($validLines),
+                ]);
+            }
+        }
+
         $ctx->db()->commit();
-        $ctx->json(['ok' => true, 'totals' => $totals]);
+        $response = ['ok' => true, 'totals' => $totals];
+        if ($returnDeliveryId !== null) {
+            $response['delivery_id'] = $returnDeliveryId;
+            $response['receiving_id'] = $returnReceivingId;
+        }
+        $ctx->json($response);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
         $ctx->log('apiSaveCashierWithdrawals error: ' . $e->getMessage(), 'error');

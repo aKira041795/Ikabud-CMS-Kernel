@@ -27,7 +27,7 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Production Withdrawal</h2>
-        <p class="text-sm text-gray-500">Encode branch withdrawals by row and sync in one batch.</p>
+        <p class="text-sm text-gray-500">Record raw material consumption for commissary production. <span class="font-semibold">This is NOT for branch pullouts</span> — branch-side adjustments are done by the cashier through Stock Adjustment.</p>
         <p class="text-xs text-gray-500 mt-1">
             Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
             · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>

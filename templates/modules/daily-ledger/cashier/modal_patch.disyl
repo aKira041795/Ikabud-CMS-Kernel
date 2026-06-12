@@ -18,9 +18,9 @@
 
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">Stock Adjustment</h3>
-                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock adjustments such as charge or pullout. Use Send to Branch for branch transfers, and use the Paper DR inside Receive Stock when the truck arrived before the transfer was encoded.</p>
+                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections such as charge (cashier accountability) or pullout (unsold goods returning to commissary). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
                     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                        Quick rule: if another branch is involved, stop and use <span class="font-semibold">Send to Branch</span> or <span class="font-semibold">Receive Stock</span>. This modal is only for branch-side stock corrections.
+                        Quick rule: if another branch is involved, stop and use <span class="font-semibold">Send to Branch</span> or <span class="font-semibold">Receive Stock</span>. This modal is only for branch-side stock corrections. <span class="font-semibold">Pullout</span> returns goods to your assigned commissary automatically.
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
@@ -181,6 +181,10 @@ function withdrawalModal() {
                 })
             };
             if (window.BRANCH_ID) payload.branch_id = window.BRANCH_ID;
+            // Pullout: send goods back to assigned commissary
+            if (this.header.withdrawal_type === 'pullout' && window.COMMISSARY_BRANCH_ID && window.COMMISSARY_BRANCH_ID !== '') {
+                payload.header.target_branch_id = parseInt(window.COMMISSARY_BRANCH_ID, 10);
+            }
 
             fetch(BASE + '/api/v1/cashier/ledger/withdrawals', {
                 method: 'POST',
@@ -195,7 +199,11 @@ function withdrawalModal() {
             .then(function(data) {
                 this.saving = false;
                 if (data.ok) {
-                    showToast('Adjustment saved', 'success');
+                    var msg = 'Adjustment saved';
+                    if (data.delivery_id && data.receiving_id) {
+                        msg = 'Pullout recorded and returned to commissary';
+                    }
+                    showToast(msg, 'success');
                     (data.totals || []).forEach(function(t) {
                         var row = document.querySelector('tr[data-product-id="' + t.product_id + '"]');
                         if (!row) return;
