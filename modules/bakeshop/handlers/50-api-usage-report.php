@@ -414,6 +414,7 @@ function bakeshopUsageReportRows(array $input = []): array
                 period_date,
                 delivered_qty_base,
                 consumed_qty_base,
+                adjusted_qty_base,
                 variance_qty_base
             FROM bakeshop_ingredient_usage';
     if ($where !== []) {
@@ -429,18 +430,22 @@ function bakeshopUsageTotals(array $rows): array
     $decimalPlaces = bakeshopUsageDecimalPlaces();
     $delivered = bakeshopUsageSummarizeFieldByUnit($rows, 'delivered_qty_base', $decimalPlaces);
     $consumed = bakeshopUsageSummarizeFieldByUnit($rows, 'consumed_qty_base', $decimalPlaces);
-    $variance = bakeshopUsageSummarizeFieldByUnit($rows, 'variance_qty_base', $decimalPlaces);
+    $adjusted = bakeshopUsageSummarizeFieldByUnit($rows, 'adjusted_qty_base', $decimalPlaces);
+    $varianceRaw = bakeshopUsageSummarizeFieldByUnit($rows, 'variance_qty_base', $decimalPlaces);
 
     return [
         'delivered_qty_base' => $delivered['total'],
         'consumed_qty_base' => $consumed['total'],
-        'variance_qty_base' => $variance['total'],
+        'adjusted_qty_base' => $adjusted['total'],
+        'variance_qty_base' => $varianceRaw['total'],
         'delivered_display' => $delivered['display'],
         'consumed_display' => $consumed['display'],
-        'variance_display' => $variance['display'],
+        'adjusted_display' => $adjusted['display'],
+        'variance_display' => $varianceRaw['display'],
         'delivered_breakdown' => $delivered['breakdown'],
         'consumed_breakdown' => $consumed['breakdown'],
-        'variance_breakdown' => $variance['breakdown'],
+        'adjusted_breakdown' => $adjusted['breakdown'],
+        'variance_breakdown' => $varianceRaw['breakdown'],
     ];
 }
 
@@ -450,7 +455,7 @@ function bakeshopUsageFormatRows(array $rows): array
 
     foreach ($rows as &$row) {
         $row['unit_code'] = bakeshopUsageBaseUnitCode((string)($row['dimension'] ?? ''));
-        foreach (['delivered_qty_base', 'consumed_qty_base', 'variance_qty_base'] as $field) {
+        foreach (['delivered_qty_base', 'consumed_qty_base', 'adjusted_qty_base', 'variance_qty_base'] as $field) {
             $row[$field] = number_format((float)($row[$field] ?? 0), $decimalPlaces, '.', '');
         }
     }
@@ -814,6 +819,10 @@ function bakeshopUsageFactualSummary(array $input = []): array
         return $row;
     }, $summaryRows), 'on_hand_qty_base', $decimalPlaces);
 
+    // Adjusted totals from the ingredient_usage view
+    $adjustedRows = bakeshopUsageReportRows($filters);
+    $adjusted = bakeshopUsageSummarizeFieldByUnit($adjustedRows, 'adjusted_qty_base', $decimalPlaces);
+
     $deliveryWhere = [];
     $deliveryBindings = [];
     if ($filters['branch_id'] !== null) {
@@ -868,14 +877,18 @@ function bakeshopUsageFactualSummary(array $input = []): array
         'production_run_count' => $productionRunCount,
         'delivered_qty_base' => (float)$delivered['total'],
         'consumed_qty_base' => (float)$consumed['total'],
-        'variance_qty_base' => round(((float)$delivered['total']) - ((float)$consumed['total']), $decimalPlaces),
+        'adjusted_qty_base' => (float)($adjusted['total'] ?? 0),
+        'variance_qty_base' => round(((float)$delivered['total']) - ((float)$consumed['total']) + (float)($adjusted['total'] ?? 0), $decimalPlaces),
         'inventory_on_hand_qty_base' => (float)$inventoryOnHand['total'],
         'delivered_display' => $delivered['display'],
         'consumed_display' => $consumed['display'],
+        'adjusted_display' => ($adjusted['display'] ?? '0'),
         'inventory_on_hand_display' => $inventoryOnHand['display'],
         'delivered_breakdown' => $delivered['breakdown'],
         'consumed_breakdown' => $consumed['breakdown'],
+        'adjusted_breakdown' => ($adjusted['breakdown'] ?? []),
         'inventory_on_hand_breakdown' => $inventoryOnHand['breakdown'],
+        'cost' => bakeshopUsageCostSummary($filters, $decimalPlaces),
     ];
 }
 
@@ -904,6 +917,7 @@ function bakeshopInventorySnapshotRows(array $input = []): array
                 dimension,
                 SUM(delivered_qty_base) AS delivered_qty_base,
                 SUM(consumed_qty_base) AS consumed_qty_base,
+                SUM(adjusted_qty_base) AS adjusted_qty_base,
                 SUM(variance_qty_base) AS on_hand_qty_base
             FROM bakeshop_ingredient_usage';
     if ($where !== []) {
@@ -912,6 +926,7 @@ function bakeshopInventorySnapshotRows(array $input = []): array
     $sql .= ' GROUP BY branch_id, branch_name, ingredient_id, ingredient_name, dimension
               HAVING ABS(SUM(delivered_qty_base)) > 0.0000001
                   OR ABS(SUM(consumed_qty_base)) > 0.0000001
+                  OR ABS(SUM(adjusted_qty_base)) > 0.0000001
                   OR ABS(SUM(variance_qty_base)) > 0.0000001
               ORDER BY branch_name ASC, ingredient_name ASC LIMIT 500';
 
@@ -937,13 +952,102 @@ function bakeshopInventorySnapshotFormatRows(array $rows): array
 
     foreach ($rows as &$row) {
         $row['unit_code'] = bakeshopUsageBaseUnitCode((string)($row['dimension'] ?? ''));
-        foreach (['delivered_qty_base', 'consumed_qty_base', 'on_hand_qty_base'] as $field) {
+        foreach (['delivered_qty_base', 'consumed_qty_base', 'adjusted_qty_base', 'on_hand_qty_base'] as $field) {
             $row[$field] = number_format((float)($row[$field] ?? 0), $decimalPlaces, '.', '');
         }
     }
     unset($row);
 
     return $rows;
+}
+
+function bakeshopUsageCostSummary(array $filters, int $decimalPlaces = 2): array
+{
+    $where = ['pr.voided_at IS NULL'];
+    $bindings = [];
+
+    if ($filters['branch_id'] !== null) {
+        $where[] = 'pr.branch_id = :branch_id';
+        $bindings[':branch_id'] = $filters['branch_id'];
+    }
+    if ($filters['from_date'] !== null) {
+        $where[] = 'DATE(pr.produced_at) >= :from_date';
+        $bindings[':from_date'] = $filters['from_date'];
+    }
+    if ($filters['to_date'] !== null) {
+        $where[] = 'DATE(pr.produced_at) <= :to_date';
+        $bindings[':to_date'] = $filters['to_date'];
+    }
+    if ($filters['ingredient_ids'] !== []) {
+        $placeholders = [];
+        foreach (array_values($filters['ingredient_ids']) as $i => $ingredientId) {
+            $placeholder = ':cost_ingredient_' . $i;
+            $placeholders[] = $placeholder;
+            $bindings[$placeholder] = (int)$ingredientId;
+        }
+        $where[] = 'pi.ingredient_id IN (' . implode(', ', $placeholders) . ')';
+    }
+
+    $sql = 'SELECT
+                COUNT(DISTINCT pr.id) AS runs_with_cost,
+                COUNT(DISTINCT CASE WHEN pi.unit_cost IS NOT NULL THEN pr.id END) AS runs_without_cost,
+                COALESCE(SUM(pi.qty_used * pi.unit_cost), 0) AS total_production_cost,
+                COALESCE(SUM(pi.qty_used), 0) AS total_qty_used
+            FROM bakeshop_production_runs pr
+            INNER JOIN bakeshop_production_items pi ON pi.run_id = pr.id
+            WHERE ' . implode(' AND ', $where);
+
+    $row = bakeshopCatalogFetchOne($sql, $bindings) ?? [];
+
+    $totalRuns = (int)($row['runs_with_cost'] ?? 0);
+    $runsWithoutCost = (int)($row['runs_without_cost'] ?? 0);
+    $totalCost = (float)($row['total_production_cost'] ?? 0);
+    $totalQtyUsed = (float)($row['total_qty_used'] ?? 0);
+
+    // Also compute delivery cost for the same period
+    $deliveryWhere = [];
+    $deliveryBindings = [];
+    if ($filters['branch_id'] !== null) {
+        $deliveryWhere[] = 'd.branch_id = :branch_id';
+        $deliveryBindings[':branch_id'] = $filters['branch_id'];
+    }
+    if ($filters['from_date'] !== null) {
+        $deliveryWhere[] = 'DATE(d.delivered_at) >= :from_date';
+        $deliveryBindings[':from_date'] = $filters['from_date'];
+    }
+    if ($filters['to_date'] !== null) {
+        $deliveryWhere[] = 'DATE(d.delivered_at) <= :to_date';
+        $deliveryBindings[':to_date'] = $filters['to_date'];
+    }
+    bakeshopUsageAppendIngredientFilter($deliveryWhere, $deliveryBindings, $filters['ingredient_ids'], 'di.ingredient_id', 'cost_delivery_ingredient');
+    bakeshopUsageAppendSupplierFilter($deliveryWhere, $deliveryBindings, $filters['supplier'] ?? null, 'd.source_type', 'd.source_name', 'cost_delivery_supplier');
+
+    $deliverySql = 'SELECT
+            COALESCE(SUM(di.qty * di.unit_cost), 0) AS total_delivery_cost,
+            COUNT(DISTINCT d.id) AS delivery_count_with_cost
+        FROM bakeshop_delivery_items di
+        INNER JOIN bakeshop_deliveries d ON d.id = di.delivery_id
+        WHERE di.unit_cost IS NOT NULL';
+    if ($deliveryWhere !== []) {
+        $deliverySql .= ' AND ' . implode(' AND ', $deliveryWhere);
+    }
+
+    $deliveryRow = bakeshopCatalogFetchOne($deliverySql, $deliveryBindings) ?? [];
+    $totalDeliveryCost = (float)($deliveryRow['total_delivery_cost'] ?? 0);
+
+    return [
+        'production_cost' => number_format($totalCost, 2, '.', ''),
+        'production_cost_display' => 'PHP ' . number_format($totalCost, 2, '.', ''),
+        'delivery_cost' => number_format($totalDeliveryCost, 2, '.', ''),
+        'delivery_cost_display' => 'PHP ' . number_format($totalDeliveryCost, 2, '.', ''),
+        'production_runs_with_cost' => $totalRuns - $runsWithoutCost,
+        'production_runs_total' => $totalRuns,
+        'production_runs_missing_cost' => $runsWithoutCost,
+        'production_runs_missing_cost_pct' => $totalRuns > 0
+            ? round(($runsWithoutCost / $totalRuns) * 100, 1)
+            : 0,
+        'has_cost_data' => $totalCost > 0 || $totalDeliveryCost > 0,
+    ];
 }
 
 function bakeshopApiUsageIndex(array $params = []): void

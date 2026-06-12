@@ -79,6 +79,7 @@ function bakeshopProductionFetchItemsByRunIds(array $runIds): array
             pi.ingredient_id,
             pi.qty_used,
             pi.unit_id,
+            pi.unit_cost,
             i.name AS ingredient_name,
             u.code AS unit_code
          FROM bakeshop_production_items pi
@@ -183,18 +184,49 @@ function bakeshopProductionCreate(array $input): array
 
         $runId = (int)$db->lastInsertId();
         $itemStmt = $db->prepare(
-            'INSERT INTO bakeshop_production_items (run_id, ingredient_id, qty_used, unit_id)
-             VALUES (:run_id, :ingredient_id, :qty_used, :unit_id)'
+            'INSERT INTO bakeshop_production_items (run_id, ingredient_id, qty_used, unit_id, unit_cost)
+             VALUES (:run_id, :ingredient_id, :qty_used, :unit_id, :unit_cost)'
         );
 
         if (!$shouldSkipSnapshot) {
+            // Batch-lookup latest unit costs for all recipe ingredients at this branch
+            $latestCosts = [];
+            if ($recipeItems !== []) {
+                $recipeIngredientIds = array_values(array_unique(array_map(
+                    static fn (array $item): int => (int)$item['ingredient_id'],
+                    $recipeItems
+                )));
+                $placeholders = implode(', ', array_fill(0, count($recipeIngredientIds), '?'));
+                $costRows = $db->prepare(
+                    'SELECT di.ingredient_id, di.unit_cost
+                     FROM bakeshop_delivery_items di
+                     INNER JOIN bakeshop_deliveries d ON d.id = di.delivery_id
+                     WHERE d.branch_id = ? AND di.ingredient_id IN (' . $placeholders . ')
+                       AND di.unit_cost IS NOT NULL
+                     ORDER BY d.delivered_at DESC, di.id DESC'
+                );
+                $costRows->execute(array_merge([$branchId], $recipeIngredientIds));
+                foreach ($costRows->fetchAll(PDO::FETCH_ASSOC) as $costRow) {
+                    $ingId = (int)($costRow['ingredient_id'] ?? 0);
+                    if ($ingId > 0 && !isset($latestCosts[$ingId])) {
+                        $latestCosts[$ingId] = (float)$costRow['unit_cost'];
+                    }
+                }
+            }
+
             foreach ($recipeItems as $recipeItem) {
                 $qtyUsed = number_format(((float)$recipeItem['qty']) * $scale, 4, '.', '');
+                $ingredientId = (int)$recipeItem['ingredient_id'];
+                $unitCost = isset($latestCosts[$ingredientId])
+                    ? number_format($latestCosts[$ingredientId], 4, '.', '')
+                    : null;
+
                 $itemStmt->execute([
                     ':run_id' => $runId,
-                    ':ingredient_id' => (int)$recipeItem['ingredient_id'],
+                    ':ingredient_id' => $ingredientId,
                     ':qty_used' => $qtyUsed,
                     ':unit_id' => (int)$recipeItem['unit_id'],
+                    ':unit_cost' => $unitCost,
                 ]);
             }
         }
@@ -224,6 +256,7 @@ function bakeshopProductionCreate(array $input): array
             pi.ingredient_id,
             pi.qty_used,
             pi.unit_id,
+            pi.unit_cost,
             i.name AS ingredient_name,
             u.code AS unit_code
          FROM bakeshop_production_items pi
@@ -322,6 +355,7 @@ function bakeshopProductionFindById(int $id, bool $includeVoided = false): ?arra
             pi.ingredient_id,
             pi.qty_used,
             pi.unit_id,
+            pi.unit_cost,
             i.name AS ingredient_name,
             u.code AS unit_code
          FROM bakeshop_production_items pi

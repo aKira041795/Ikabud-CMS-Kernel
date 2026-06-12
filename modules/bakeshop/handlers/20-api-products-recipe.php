@@ -121,10 +121,14 @@ function bakeshopCatalogFindProductById(int $id): ?array
 function bakeshopCatalogFindIngredientById(int $id): ?array
 {
     return bakeshopCatalogFetchOne(
-        'SELECT i.*, u.code AS default_unit_code, u.name AS default_unit_name, u.dimension AS unit_dimension
+        'SELECT i.*, u.code AS default_unit_code, u.name AS default_unit_name, u.dimension AS unit_dimension,
+                u.factor_to_base AS default_unit_factor_to_base,
+                pu_par.code AS par_level_unit_code, pu_par.name AS par_level_unit_name,
+                pu_par.dimension AS par_level_unit_dimension, pu_par.factor_to_base AS par_level_unit_factor_to_base
             ' . bakeshopCatalogIngredientPackSelectSql('i', 'pu') . '
          FROM bakeshop_ingredients i
          INNER JOIN bakeshop_units u ON u.id = i.default_unit_id
+         LEFT JOIN bakeshop_units pu_par ON pu_par.id = i.par_level_unit_id
          ' . bakeshopCatalogIngredientPackJoinSql('i', 'pu') . '
          WHERE i.id = :id LIMIT 1',
         [':id' => $id]
@@ -276,12 +280,17 @@ function bakeshopCatalogListIngredients(): array
             i.sku,
             i.name,
             i.default_unit_id,
+            i.par_level,
+            i.par_level_unit_id,
             i.is_active,
             i.created_at,
             i.updated_at,
             u.code AS default_unit_code,
             u.name AS default_unit_name,
-            u.dimension AS unit_dimension
+            u.dimension AS unit_dimension,
+            u.factor_to_base AS default_unit_factor_to_base,
+            pu_par.code AS par_level_unit_code,
+            pu_par.name AS par_level_unit_name
             ' . bakeshopCatalogIngredientPackSelectSql('i', 'pu') . '
             ,
             COALESCE(recipe_refs.recipe_reference_count, 0) AS recipe_reference_count,
@@ -299,6 +308,7 @@ function bakeshopCatalogListIngredients(): array
             END AS can_delete
          FROM bakeshop_ingredients i
          INNER JOIN bakeshop_units u ON u.id = i.default_unit_id
+         LEFT JOIN bakeshop_units pu_par ON pu_par.id = i.par_level_unit_id
             ' . bakeshopCatalogIngredientPackJoinSql('i', 'pu') . '
          LEFT JOIN (
             SELECT ingredient_id, COUNT(*) AS recipe_reference_count
@@ -793,32 +803,54 @@ function bakeshopCatalogSaveIngredient(array $input): array
     bakeshopCatalogAssertRecordExists('bakeshop_units', $defaultUnitId);
     $pack = bakeshopCatalogNormalizeIngredientPack($input, $defaultUnitId, $existing);
 
+    // Par level / reorder fields
+    $parLevel = null;
+    $parLevelUnitId = null;
+    $parLevelRaw = $input['par_level'] ?? null;
+    if ($parLevelRaw !== null && (string)$parLevelRaw !== '') {
+        if (!is_numeric($parLevelRaw) || (float)$parLevelRaw < 0) {
+            throw new InvalidArgumentException('par_level must be zero or a positive number.');
+        }
+        $parLevel = number_format((float)$parLevelRaw, 4, '.', '');
+        $parLevelUnitIdRaw = $input['par_level_unit_id'] ?? null;
+        if ($parLevelUnitIdRaw !== null && (string)$parLevelUnitIdRaw !== '') {
+            $parLevelUnitId = bakeshopCatalogRequirePositiveInt($parLevelUnitIdRaw, 'par_level_unit_id');
+            bakeshopCatalogAssertRecordExists('bakeshop_units', $parLevelUnitId);
+            bakeshopAssertUnitsShareDimension($defaultUnitId, $parLevelUnitId, 'par_level_unit_id', 'ingredient default unit');
+        }
+    }
+
     if ($existing !== null) {
-        $stmt = bakeshopDb()->prepare(
-            bakeshopCatalogIngredientsHavePackColumns()
-                ? 'UPDATE bakeshop_ingredients
-                   SET sku = :sku,
-                       name = :name,
-                       default_unit_id = :default_unit_id,
-                       pack_label = :pack_label,
-                       pack_qty = :pack_qty,
-                       pack_unit_id = :pack_unit_id,
-                       is_active = :is_active,
-                       updated_at = CURRENT_TIMESTAMP
-                   WHERE id = :id'
-                : 'UPDATE bakeshop_ingredients
-                   SET sku = :sku,
-                       name = :name,
-                       default_unit_id = :default_unit_id,
-                       is_active = :is_active,
-                       updated_at = CURRENT_TIMESTAMP
-                   WHERE id = :id'
-        );
+        $sql = bakeshopCatalogIngredientsHavePackColumns()
+            ? 'UPDATE bakeshop_ingredients
+               SET sku = :sku,
+                   name = :name,
+                   default_unit_id = :default_unit_id,
+                   pack_label = :pack_label,
+                   pack_qty = :pack_qty,
+                   pack_unit_id = :pack_unit_id,
+                   par_level = :par_level,
+                   par_level_unit_id = :par_level_unit_id,
+                   is_active = :is_active,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = :id'
+            : 'UPDATE bakeshop_ingredients
+               SET sku = :sku,
+                   name = :name,
+                   default_unit_id = :default_unit_id,
+                   par_level = :par_level,
+                   par_level_unit_id = :par_level_unit_id,
+                   is_active = :is_active,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = :id';
+        $stmt = bakeshopDb()->prepare($sql);
         $bindings = [
             ':id' => $id,
             ':sku' => $sku !== '' ? $sku : null,
             ':name' => $name,
             ':default_unit_id' => $defaultUnitId,
+            ':par_level' => $parLevel,
+            ':par_level_unit_id' => $parLevelUnitId,
             ':is_active' => $isActive,
         ];
         if (bakeshopCatalogIngredientsHavePackColumns()) {
@@ -841,17 +873,18 @@ function bakeshopCatalogSaveIngredient(array $input): array
         return $row;
     }
 
-    $stmt = bakeshopDb()->prepare(
-        bakeshopCatalogIngredientsHavePackColumns()
-            ? 'INSERT INTO bakeshop_ingredients (sku, name, default_unit_id, pack_label, pack_qty, pack_unit_id, is_active)
-               VALUES (:sku, :name, :default_unit_id, :pack_label, :pack_qty, :pack_unit_id, :is_active)'
-            : 'INSERT INTO bakeshop_ingredients (sku, name, default_unit_id, is_active)
-               VALUES (:sku, :name, :default_unit_id, :is_active)'
-    );
+    $sql = bakeshopCatalogIngredientsHavePackColumns()
+        ? 'INSERT INTO bakeshop_ingredients (sku, name, default_unit_id, pack_label, pack_qty, pack_unit_id, par_level, par_level_unit_id, is_active)
+           VALUES (:sku, :name, :default_unit_id, :pack_label, :pack_qty, :pack_unit_id, :par_level, :par_level_unit_id, :is_active)'
+        : 'INSERT INTO bakeshop_ingredients (sku, name, default_unit_id, par_level, par_level_unit_id, is_active)
+           VALUES (:sku, :name, :default_unit_id, :par_level, :par_level_unit_id, :is_active)';
+    $stmt = bakeshopDb()->prepare($sql);
     $bindings = [
         ':sku' => $sku !== '' ? $sku : null,
         ':name' => $name,
         ':default_unit_id' => $defaultUnitId,
+        ':par_level' => $parLevel,
+        ':par_level_unit_id' => $parLevelUnitId,
         ':is_active' => $isActive,
     ];
     if (bakeshopCatalogIngredientsHavePackColumns()) {

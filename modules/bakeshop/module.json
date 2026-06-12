@@ -16,7 +16,8 @@
         "bakeshop_delivery_items",
         "bakeshop_branch_product_targets",
         "bakeshop_production_runs",
-        "bakeshop_production_items"
+        "bakeshop_production_items",
+        "bakeshop_inventory_adjustments"
     ],
     "reads_tables": [
         "bakeshop_ingredient_usage",
@@ -33,7 +34,8 @@
         "database/migrations/008_bakeshop_production_voiding.sql",
         "database/migrations/009_bakeshop_delivery_coverage.sql",
         "database/migrations/010_bakeshop_branch_product_targets.sql",
-        "database/migrations/011_bakeshop_ingredient_pack.sql"
+        "database/migrations/011_bakeshop_ingredient_pack.sql",
+        "database/migrations/012_bakeshop_inventory_adjustments_and_reorder.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -200,6 +202,13 @@
                     "value": "standard"
                 }
             ]
+        },
+        {
+            "key": "suggested_reorder_days",
+            "type": "number",
+            "label": "Suggested Reorder Horizon (Days)",
+            "default": "7",
+            "description": "Number of forward-looking days used when computing suggested reorder quantities from daily consumption rates."
         },
         {
             "key": "role_permissions",
